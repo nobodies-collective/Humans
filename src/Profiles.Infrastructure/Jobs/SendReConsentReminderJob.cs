@@ -53,7 +53,7 @@ public class SendReConsentReminderJob
             var requiredVersions = await _legalDocService.GetRequiredVersionsAsync(cancellationToken);
             var requiredDocNames = requiredVersions
                 .Select(v => v.LegalDocument.Name)
-                .Distinct()
+                .Distinct(StringComparer.Ordinal)
                 .ToList();
 
             foreach (var userId in usersNeedingReminder)

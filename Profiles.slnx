@@ -10,4 +10,10 @@
     <Project Path="tests/Profiles.Application.Tests/Profiles.Application.Tests.csproj" />
     <Project Path="tests/Profiles.Integration.Tests/Profiles.Integration.Tests.csproj" />
   </Folder>
+  <Folder Name="/build/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path=".editorconfig" />
+    <File Path="global.json" />
+  </Folder>
 </Solution>

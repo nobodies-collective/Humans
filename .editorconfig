@@ -1,0 +1,16 @@
+[*]
+charset = utf-8
+
+[*.cs]
+indent_style = space
+indent_size = 4
+tab_width = 4
+end_of_line = crlf
+dotnet_diagnostic.MA0004.severity = suggestion
+dotnet_diagnostic.MA0053.severity = warning
+
+[*.csproj]
+indent_style = tab
+indent_size = 4
+tab_width = 4
+end_of_line = crlf
