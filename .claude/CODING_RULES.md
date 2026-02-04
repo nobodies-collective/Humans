@@ -1,5 +1,11 @@
 # Coding Rules
 
+## Critical: Answer Questions First, Wait for Approval
+
+When the user asks a question, answer the question and stop. Do not infer what work should be done from the question. Wait for explicit approval before making any code changes.
+
+**Rule:** Questions are for information only. Wait for explicit instruction before coding.
+
 ## Critical: Do Not Remove "Unused" Properties
 
 Properties/methods appearing "unused" may be used dynamically via reflection:
