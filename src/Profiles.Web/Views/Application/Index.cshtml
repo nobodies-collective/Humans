@@ -1,0 +1,89 @@
+@model Profiles.Web.Models.ApplicationIndexViewModel
+@{
+    ViewData["Title"] = "My Applications";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>My Applications</h1>
+    @if (Model.CanSubmitNew)
+    {
+        <a asp-action="Create" class="btn btn-primary">Submit New Application</a>
+    }
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["ErrorMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (Model.Applications.Count == 0)
+{
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <h5 class="card-title">No Applications Yet</h5>
+            <p class="card-text text-muted">You haven't submitted any membership applications.</p>
+            <a asp-action="Create" class="btn btn-primary">Submit Your First Application</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Submitted</th>
+                        <th>Status</th>
+                        <th>Resolved</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var app in Model.Applications)
+                    {
+                        <tr>
+                            <td>@app.SubmittedAt.ToString("d MMM yyyy HH:mm")</td>
+                            <td>
+                                <span class="badge @app.StatusBadgeClass">@app.Status</span>
+                            </td>
+                            <td>
+                                @if (app.ResolvedAt.HasValue)
+                                {
+                                    @app.ResolvedAt.Value.ToString("d MMM yyyy")
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@app.Id" class="btn btn-sm btn-outline-primary">
+                                    View Details
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (!Model.CanSubmitNew)
+    {
+        <div class="alert alert-info mt-3">
+            You have a pending application. You can submit a new application after your current one is resolved.
+        </div>
+    }
+}

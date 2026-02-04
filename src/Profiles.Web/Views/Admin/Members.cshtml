@@ -1,0 +1,118 @@
+@model Profiles.Web.Models.AdminMemberListViewModel
+@{
+    ViewData["Title"] = "Members";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Members</h1>
+    <span class="text-muted">@Model.TotalCount total</span>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-auto flex-grow-1">
+                <input type="text" name="search" class="form-control" placeholder="Search by email or name..."
+                       value="@Model.SearchTerm">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">Search</button>
+                @if (!string.IsNullOrEmpty(Model.SearchTerm))
+                {
+                    <a asp-action="Members" class="btn btn-outline-secondary">Clear</a>
+                }
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        @if (Model.Members.Count == 0)
+        {
+            <p class="text-muted text-center py-4 mb-0">No members found.</p>
+        }
+        else
+        {
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Member</th>
+                        <th>Joined</th>
+                        <th>Last Login</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var member in Model.Members)
+                    {
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    @if (!string.IsNullOrEmpty(member.ProfilePictureUrl))
+                                    {
+                                        <img src="@member.ProfilePictureUrl" alt="" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                                    }
+                                    else
+                                    {
+                                        <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center text-white" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                                            @(string.IsNullOrEmpty(member.DisplayName) ? "?" : member.DisplayName[0])
+                                        </div>
+                                    }
+                                    <div>
+                                        <div>@member.DisplayName</div>
+                                        <small class="text-muted">@member.Email</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>@member.CreatedAt.ToString("d MMM yyyy")</td>
+                            <td>
+                                @if (member.LastLoginAt.HasValue)
+                                {
+                                    @member.LastLoginAt.Value.ToString("d MMM yyyy")
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Never</span>
+                                }
+                            </td>
+                            <td>
+                                @if (member.HasProfile)
+                                {
+                                    <span class="badge @(member.MembershipStatus == "Active" ? "bg-success" : "bg-secondary")">
+                                        @member.MembershipStatus
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning">No Profile</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="MemberDetail" asp-route-id="@member.Id" class="btn btn-sm btn-outline-primary">
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@if (Model.TotalCount > Model.PageSize)
+{
+    var totalPages = (int)Math.Ceiling((double)Model.TotalCount / Model.PageSize);
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            @for (var i = 1; i <= totalPages && i <= 10; i++)
+            {
+                <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                    <a class="page-link" asp-action="Members" asp-route-page="@i" asp-route-search="@Model.SearchTerm">@i</a>
+                </li>
+            }
+        </ul>
+    </nav>
+}

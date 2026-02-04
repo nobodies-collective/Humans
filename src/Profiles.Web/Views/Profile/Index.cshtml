@@ -1,0 +1,104 @@
+@model Profiles.Web.Models.ProfileViewModel
+@{
+    ViewData["Title"] = "My Profile";
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <h1>My Profile</h1>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                @TempData["SuccessMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (Model.HasPendingConsents)
+        {
+            <div class="alert alert-warning" role="alert">
+                <strong>Action Required:</strong> You have @Model.PendingConsentCount pending consent(s) to review.
+                <a asp-controller="Consent" asp-action="Index" class="alert-link">Review now</a>
+            </div>
+        }
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Profile Information</span>
+                <a asp-action="Edit" class="btn btn-sm btn-outline-primary">Edit</a>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        @if (!string.IsNullOrEmpty(Model.ProfilePictureUrl))
+                        {
+                            <img src="@Model.ProfilePictureUrl" alt="Profile" class="rounded-circle img-fluid" style="max-width: 100px;" />
+                        }
+                        else
+                        {
+                            <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 100px; height: 100px; font-size: 2rem;">
+                                @(string.IsNullOrEmpty(Model.FirstName) ? "?" : Model.FirstName[0])
+                            </div>
+                        }
+                    </div>
+                    <div class="col-md-9">
+                        <h4>@(string.IsNullOrEmpty(Model.FirstName) && string.IsNullOrEmpty(Model.LastName) ? Model.DisplayName : $"{Model.FirstName} {Model.LastName}")</h4>
+                        <p class="text-muted mb-1">@Model.Email</p>
+                        <span class="badge @(Model.MembershipStatus == "Active" ? "bg-success" : Model.MembershipStatus == "Suspended" ? "bg-danger" : "bg-secondary")">
+                            @Model.MembershipStatus
+                        </span>
+                    </div>
+                </div>
+
+                <hr />
+
+                <dl class="row">
+                    <dt class="col-sm-3">Date of Birth</dt>
+                    <dd class="col-sm-9">@(Model.DateOfBirth?.ToString("d MMMM yyyy") ?? "Not provided")</dd>
+
+                    <dt class="col-sm-3">Phone</dt>
+                    <dd class="col-sm-9">@(Model.PhoneNumber ?? "Not provided")</dd>
+
+                    <dt class="col-sm-3">Address</dt>
+                    <dd class="col-sm-9">
+                        @if (!string.IsNullOrEmpty(Model.AddressLine1))
+                        {
+                            @Model.AddressLine1<br />
+                            @if (!string.IsNullOrEmpty(Model.AddressLine2))
+                            {
+                                @Model.AddressLine2<br />
+                            }
+                            @Model.City @Model.PostalCode<br />
+                            @Model.CountryCode
+                        }
+                        else
+                        {
+                            <text>Not provided</text>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-3">Bio</dt>
+                    <dd class="col-sm-9">@(Model.Bio ?? "Not provided")</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">Quick Actions</div>
+            <div class="list-group list-group-flush">
+                <a asp-action="Edit" class="list-group-item list-group-item-action">Edit Profile</a>
+                <a asp-controller="Consent" asp-action="Index" class="list-group-item list-group-item-action">
+                    Manage Consents
+                    @if (Model.HasPendingConsents)
+                    {
+                        <span class="badge bg-warning text-dark float-end">@Model.PendingConsentCount</span>
+                    }
+                </a>
+                <a asp-controller="Application" asp-action="Index" class="list-group-item list-group-item-action">View Applications</a>
+            </div>
+        </div>
+    </div>
+</div>

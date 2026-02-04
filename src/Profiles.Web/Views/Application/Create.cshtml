@@ -1,0 +1,75 @@
+@model Profiles.Web.Models.ApplicationCreateViewModel
+@{
+    ViewData["Title"] = "Submit Application";
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Applications</a></li>
+        <li class="breadcrumb-item active" aria-current="page">New Application</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-8">
+        <h1>Submit Membership Application</h1>
+        <p class="lead text-muted">Tell us why you'd like to join Nobodies Collective.</p>
+
+        <div class="card">
+            <div class="card-body">
+                <form asp-action="Create" method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                    <div class="mb-4">
+                        <label asp-for="Motivation" class="form-label"></label>
+                        <textarea asp-for="Motivation" class="form-control" rows="6"
+                            placeholder="Please share your motivation for joining..."></textarea>
+                        <span asp-validation-for="Motivation" class="text-danger"></span>
+                        <div class="form-text">Minimum 50 characters. Tell us about yourself and why you want to be part of the collective.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="AdditionalInfo" class="form-label"></label>
+                        <textarea asp-for="AdditionalInfo" class="form-control" rows="3"
+                            placeholder="Any additional information you'd like to share..."></textarea>
+                        <span asp-validation-for="AdditionalInfo" class="text-danger"></span>
+                        <div class="form-text">Optional. Include any relevant skills, experience, or how you heard about us.</div>
+                    </div>
+
+                    <hr />
+
+                    <div class="form-check mb-4">
+                        <input asp-for="ConfirmAccuracy" class="form-check-input" type="checkbox">
+                        <label asp-for="ConfirmAccuracy" class="form-check-label">
+                            I confirm that all information provided in this application is accurate and truthful.
+                        </label>
+                        <span asp-validation-for="ConfirmAccuracy" class="text-danger d-block"></span>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Submit Application</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">What Happens Next?</div>
+            <div class="card-body">
+                <ol class="mb-0">
+                    <li class="mb-2">Your application will be reviewed by our team</li>
+                    <li class="mb-2">We may contact you for more information</li>
+                    <li class="mb-2">You'll receive an email once a decision is made</li>
+                    <li>If approved, you'll need to consent to our legal documents to activate your membership</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

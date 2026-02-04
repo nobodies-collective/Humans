@@ -1,0 +1,196 @@
+@model Profiles.Web.Models.AdminApplicationDetailViewModel
+@{
+    ViewData["Title"] = "Review Application";
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Admin</a></li>
+        <li class="breadcrumb-item"><a asp-action="Applications">Applications</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Review</li>
+    </ol>
+</nav>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["ErrorMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1>Application Review</h1>
+            <span class="badge fs-5 @GetStatusBadgeClass(Model.Status)">@Model.Status</span>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">Applicant</div>
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    @if (!string.IsNullOrEmpty(Model.UserProfilePictureUrl))
+                    {
+                        <img src="@Model.UserProfilePictureUrl" alt="" class="rounded-circle me-3" style="width: 48px; height: 48px;">
+                    }
+                    else
+                    {
+                        <div class="bg-secondary rounded-circle me-3 d-flex align-items-center justify-content-center text-white" style="width: 48px; height: 48px;">
+                            @(string.IsNullOrEmpty(Model.UserDisplayName) ? "?" : Model.UserDisplayName[0])
+                        </div>
+                    }
+                    <div>
+                        <h5 class="mb-0">@Model.UserDisplayName</h5>
+                        <small class="text-muted">@Model.UserEmail</small>
+                    </div>
+                    <a asp-action="MemberDetail" asp-route-id="@Model.UserId" class="btn btn-sm btn-outline-secondary ms-auto">
+                        View Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">Motivation</div>
+            <div class="card-body">
+                <p class="mb-0" style="white-space: pre-wrap;">@Model.Motivation</p>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.AdditionalInfo))
+        {
+            <div class="card mb-4">
+                <div class="card-header">Additional Information</div>
+                <div class="card-body">
+                    <p class="mb-0" style="white-space: pre-wrap;">@Model.AdditionalInfo</p>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(Model.ReviewNotes))
+        {
+            <div class="card mb-4">
+                <div class="card-header">Review Notes</div>
+                <div class="card-body">
+                    <p class="mb-0" style="white-space: pre-wrap;">@Model.ReviewNotes</p>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">Application Info</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-5">Submitted</dt>
+                    <dd class="col-7">@Model.SubmittedAt.ToString("d MMM yyyy")</dd>
+
+                    @if (Model.ReviewStartedAt.HasValue)
+                    {
+                        <dt class="col-5">Review Started</dt>
+                        <dd class="col-7">@Model.ReviewStartedAt.Value.ToString("d MMM yyyy")</dd>
+                    }
+
+                    @if (!string.IsNullOrEmpty(Model.ReviewerName))
+                    {
+                        <dt class="col-5">Reviewer</dt>
+                        <dd class="col-7">@Model.ReviewerName</dd>
+                    }
+                </dl>
+            </div>
+        </div>
+
+        @if (Model.CanStartReview || Model.CanApproveReject)
+        {
+            <div class="card mb-4">
+                <div class="card-header">Actions</div>
+                <div class="card-body">
+                    <form asp-action="ApplicationAction" asp-route-id="@Model.Id" method="post">
+                        @Html.AntiForgeryToken()
+
+                        @if (Model.CanStartReview)
+                        {
+                            <button type="submit" name="Action" value="StartReview" class="btn btn-primary w-100 mb-2">
+                                Start Review
+                            </button>
+                        }
+
+                        @if (Model.CanApproveReject)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Notes (required for reject/request info)</label>
+                                <textarea name="Notes" class="form-control" rows="3" placeholder="Add notes..."></textarea>
+                            </div>
+
+                            <button type="submit" name="Action" value="Approve" class="btn btn-success w-100 mb-2"
+                                    onclick="return confirm('Approve this application?');">
+                                Approve
+                            </button>
+                            <button type="submit" name="Action" value="Reject" class="btn btn-danger w-100 mb-2"
+                                    onclick="return confirm('Reject this application?');">
+                                Reject
+                            </button>
+                            <button type="submit" name="Action" value="RequestInfo" class="btn btn-warning w-100">
+                                Request More Info
+                            </button>
+                        }
+                    </form>
+                </div>
+            </div>
+        }
+
+        <div class="card">
+            <div class="card-header">History</div>
+            <div class="card-body">
+                @if (Model.History.Count == 0)
+                {
+                    <p class="text-muted mb-0">No history available.</p>
+                }
+                else
+                {
+                    <ul class="list-unstyled mb-0">
+                        @foreach (var entry in Model.History)
+                        {
+                            <li class="mb-3 pb-3 border-bottom">
+                                <div class="d-flex justify-content-between">
+                                    <strong>@entry.Status</strong>
+                                    <small class="text-muted">@entry.ChangedAt.ToString("d MMM")</small>
+                                </div>
+                                <small class="text-muted">by @entry.ChangedBy</small>
+                                @if (!string.IsNullOrEmpty(entry.Notes))
+                                {
+                                    <p class="mt-1 mb-0 small">@entry.Notes</p>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Submitted" => "bg-primary",
+            "UnderReview" => "bg-info",
+            "Approved" => "bg-success",
+            "Rejected" => "bg-danger",
+            "Withdrawn" => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
+}

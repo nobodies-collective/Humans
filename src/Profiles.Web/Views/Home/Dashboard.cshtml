@@ -1,0 +1,180 @@
+@model Profiles.Web.Models.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="row mb-4">
+    <div class="col">
+        <div class="d-flex align-items-center">
+            @if (!string.IsNullOrEmpty(Model.ProfilePictureUrl))
+            {
+                <img src="@Model.ProfilePictureUrl" alt="" class="rounded-circle me-3" style="width: 64px; height: 64px;">
+            }
+            else
+            {
+                <div class="bg-secondary rounded-circle me-3 d-flex align-items-center justify-content-center text-white" style="width: 64px; height: 64px; font-size: 1.5rem;">
+                    @(string.IsNullOrEmpty(Model.DisplayName) ? "?" : Model.DisplayName[0])
+                </div>
+            }
+            <div>
+                <h1 class="mb-0">Welcome, @Model.DisplayName</h1>
+                <span class="badge @GetStatusBadgeClass(Model.MembershipStatus) fs-6">@Model.MembershipStatus</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.PendingConsents > 0)
+{
+    <div class="alert alert-warning" role="alert">
+        <strong>Action Required:</strong> You have @Model.PendingConsents pending consent(s).
+        <a asp-controller="Consent" asp-action="Index" class="alert-link">Review and consent</a> to maintain your active membership.
+    </div>
+}
+
+@if (!Model.HasProfile || !Model.ProfileComplete)
+{
+    <div class="alert alert-info" role="alert">
+        <strong>Complete Your Profile:</strong> Your profile is incomplete.
+        <a asp-controller="Profile" asp-action="Edit" class="alert-link">Add your information</a> to help us know you better.
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Profile</h5>
+                        @if (Model.ProfileComplete)
+                        {
+                            <p class="card-text text-success mb-3">Your profile is complete.</p>
+                        }
+                        else
+                        {
+                            <p class="card-text text-muted mb-3">Complete your profile to help us know you better.</p>
+                        }
+                        <a asp-controller="Profile" asp-action="Index" class="btn btn-outline-primary">View Profile</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Consents</h5>
+                        @if (Model.PendingConsents > 0)
+                        {
+                            <p class="card-text text-warning mb-3">
+                                <strong>@Model.PendingConsents</strong> of @Model.TotalRequiredConsents documents need your consent.
+                            </p>
+                            <a asp-controller="Consent" asp-action="Index" class="btn btn-warning">Review Consents</a>
+                        }
+                        else if (Model.TotalRequiredConsents > 0)
+                        {
+                            <p class="card-text text-success mb-3">All consents are up to date.</p>
+                            <a asp-controller="Consent" asp-action="Index" class="btn btn-outline-primary">View Consents</a>
+                        }
+                        else
+                        {
+                            <p class="card-text text-muted mb-3">No documents require consent at this time.</p>
+                            <a asp-controller="Consent" asp-action="Index" class="btn btn-outline-primary">View Consents</a>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Membership Application</span>
+                @if (!Model.HasPendingApplication && Model.LatestApplicationStatus != "Approved")
+                {
+                    <a asp-controller="Application" asp-action="Create" class="btn btn-sm btn-primary">Apply Now</a>
+                }
+            </div>
+            <div class="card-body">
+                @if (Model.LatestApplicationStatus != null)
+                {
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Latest Application:</strong>
+                            <span class="badge @GetApplicationBadgeClass(Model.LatestApplicationStatus)">@Model.LatestApplicationStatus</span>
+                        </div>
+                        <small class="text-muted">@Model.LatestApplicationDate?.ToString("d MMM yyyy")</small>
+                    </div>
+                    <div class="mt-2">
+                        <a asp-controller="Application" asp-action="Index">View all applications</a>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted mb-0">You haven't submitted a membership application yet.</p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">Your Membership</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-6">Status</dt>
+                    <dd class="col-6">
+                        <span class="badge @GetStatusBadgeClass(Model.MembershipStatus)">@Model.MembershipStatus</span>
+                    </dd>
+                    <dt class="col-6">Member Since</dt>
+                    <dd class="col-6">@Model.MemberSince.ToString("MMM yyyy")</dd>
+                    @if (Model.LastLogin.HasValue)
+                    {
+                        <dt class="col-6">Last Login</dt>
+                        <dd class="col-6">@Model.LastLogin.Value.ToString("d MMM")</dd>
+                    }
+                </dl>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Quick Links</div>
+            <div class="list-group list-group-flush">
+                <a asp-controller="Profile" asp-action="Edit" class="list-group-item list-group-item-action">Edit Profile</a>
+                <a asp-controller="Consent" asp-action="Index" class="list-group-item list-group-item-action">
+                    Manage Consents
+                    @if (Model.PendingConsents > 0)
+                    {
+                        <span class="badge bg-warning float-end">@Model.PendingConsents</span>
+                    }
+                </a>
+                <a asp-controller="Application" asp-action="Index" class="list-group-item list-group-item-action">View Applications</a>
+                <a asp-controller="Home" asp-action="Privacy" class="list-group-item list-group-item-action">Privacy Policy</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Active" => "bg-success",
+            "Inactive" => "bg-warning text-dark",
+            "Suspended" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    string GetApplicationBadgeClass(string? status)
+    {
+        return status switch
+        {
+            "Submitted" => "bg-primary",
+            "UnderReview" => "bg-info",
+            "Approved" => "bg-success",
+            "Rejected" => "bg-danger",
+            "Withdrawn" => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
+}

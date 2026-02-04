@@ -1,0 +1,127 @@
+@model Profiles.Web.Models.ConsentIndexViewModel
+@{
+    ViewData["Title"] = "Consent Management";
+    var pendingCount = Model.RequiredDocuments.Count(d => !d.HasConsented);
+}
+
+<h1>Consent Management</h1>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["InfoMessage"] != null)
+{
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        @TempData["InfoMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                Required Documents
+            </div>
+            <div class="card-body">
+                @if (Model.RequiredDocuments.Count == 0)
+                {
+                    <p class="text-muted">No documents require consent at this time.</p>
+                }
+                else
+                {
+                    <div class="list-group">
+                        @foreach (var doc in Model.RequiredDocuments)
+                        {
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div class="ms-2 me-auto">
+                                    <div class="fw-bold">
+                                        @doc.DocumentName
+                                        <span class="badge bg-secondary ms-2">@doc.DocumentType</span>
+                                    </div>
+                                    <small class="text-muted">
+                                        Version @doc.VersionNumber - Effective from @doc.EffectiveFrom.ToString("d MMM yyyy")
+                                    </small>
+                                    @if (!string.IsNullOrEmpty(doc.ChangesSummary))
+                                    {
+                                        <br />
+                                        <small class="text-info">@doc.ChangesSummary</small>
+                                    }
+                                </div>
+                                <div class="text-end">
+                                    @if (doc.HasConsented)
+                                    {
+                                        <span class="badge bg-success mb-2">Consented</span>
+                                        <br />
+                                        <small class="text-muted">@doc.ConsentedAt?.ToString("d MMM yyyy")</small>
+                                    }
+                                    else
+                                    {
+                                        <a asp-action="Review" asp-route-id="@doc.DocumentVersionId" class="btn btn-warning btn-sm">
+                                            Review & Consent
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @if (pendingCount > 0)
+                    {
+                        <div class="alert alert-warning mt-3 mb-0">
+                            <strong>@pendingCount document(s)</strong> require your consent. Please review and consent to maintain your active membership.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-success mt-3 mb-0">
+                            You have consented to all required documents.
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                Consent History
+            </div>
+            <div class="card-body">
+                @if (Model.ConsentHistory.Count == 0)
+                {
+                    <p class="text-muted">No consent records yet.</p>
+                }
+                else
+                {
+                    <ul class="list-unstyled">
+                        @foreach (var history in Model.ConsentHistory)
+                        {
+                            <li class="mb-2">
+                                <strong>@history.DocumentName</strong> (v@history.VersionNumber)
+                                <br />
+                                <small class="text-muted">@history.ConsentedAt.ToString("d MMM yyyy HH:mm")</small>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-body">
+                <h6 class="card-title">About Consent</h6>
+                <p class="card-text small text-muted">
+                    By consenting to these documents, you agree to be bound by their terms.
+                    The Spanish version is the legally binding text. English translations are provided for convenience only.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
