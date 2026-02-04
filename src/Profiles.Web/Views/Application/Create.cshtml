@@ -1,19 +1,19 @@
 @model Profiles.Web.Models.ApplicationCreateViewModel
 @{
-    ViewData["Title"] = "Submit Application";
+    ViewData["Title"] = "Asociados Application";
 }
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="Index">Applications</a></li>
+        <li class="breadcrumb-item"><a asp-action="Index">Asociados</a></li>
         <li class="breadcrumb-item active" aria-current="page">New Application</li>
     </ol>
 </nav>
 
 <div class="row">
     <div class="col-md-8">
-        <h1>Submit Membership Application</h1>
-        <p class="lead text-muted">Tell us why you'd like to join Nobodies Collective.</p>
+        <h1>Apply to Become an Asociado</h1>
+        <p class="lead text-muted">Asociados are voting members who participate in governance decisions.</p>
 
         <div class="card">
             <div class="card-body">
@@ -56,14 +56,24 @@
     </div>
 
     <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">What is an Asociado?</div>
+            <div class="card-body">
+                <p class="mb-2">Asociados are the formal voting members of the association. As an asociado you can:</p>
+                <ul class="mb-0">
+                    <li>Attend and vote at general assemblies</li>
+                    <li>Participate in elections</li>
+                    <li>Vote on collective decisions</li>
+                </ul>
+            </div>
+        </div>
         <div class="card">
             <div class="card-header">What Happens Next?</div>
             <div class="card-body">
                 <ol class="mb-0">
-                    <li class="mb-2">Your application will be reviewed by our team</li>
+                    <li class="mb-2">Your application will be reviewed by the board</li>
                     <li class="mb-2">We may contact you for more information</li>
-                    <li class="mb-2">You'll receive an email once a decision is made</li>
-                    <li>If approved, you'll need to consent to our legal documents to activate your membership</li>
+                    <li>You'll receive an email once a decision is made</li>
                 </ol>
             </div>
         </div>

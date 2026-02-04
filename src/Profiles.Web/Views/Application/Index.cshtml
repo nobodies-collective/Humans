@@ -1,15 +1,9 @@
 @model Profiles.Web.Models.ApplicationIndexViewModel
 @{
-    ViewData["Title"] = "My Applications";
+    ViewData["Title"] = "Asociados";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>My Applications</h1>
-    @if (Model.CanSubmitNew)
-    {
-        <a asp-action="Create" class="btn btn-primary">Submit New Application</a>
-    }
-</div>
+<h1 class="mb-4">Asociados</h1>
 
 @if (TempData["SuccessMessage"] != null)
 {
@@ -27,63 +21,77 @@
     </div>
 }
 
-@if (Model.Applications.Count == 0)
-{
-    <div class="card">
-        <div class="card-body text-center py-5">
-            <h5 class="card-title">No Applications Yet</h5>
-            <p class="card-text text-muted">You haven't submitted any membership applications.</p>
-            <a asp-action="Create" class="btn btn-primary">Submit Your First Application</a>
-        </div>
-    </div>
-}
-else
-{
-    <div class="card">
-        <div class="card-body">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Submitted</th>
-                        <th>Status</th>
-                        <th>Resolved</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var app in Model.Applications)
+<div class="row">
+    <div class="col-md-8">
+        @if (Model.Applications.Count == 0)
+        {
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Not Yet Applied</h5>
+                    <p class="card-text text-muted">
+                        Asociados are the formal voting members of Nobodies Collective. As an asociado,
+                        you can attend general assemblies, vote on collective decisions, and participate in elections.
+                    </p>
+                    <p class="card-text text-muted">
+                        <strong>This is optional.</strong> Most volunteers don't need to become asociados.
+                        You already have access to resources once you've completed your profile and consents.
+                    </p>
+                    <a asp-action="Create" class="btn btn-outline-primary">Apply to Become an Asociado</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            var app = Model.Applications.First();
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Your Application</span>
+                    <span class="badge @app.StatusBadgeClass">@app.Status</span>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Submitted</dt>
+                        <dd class="col-sm-9">@app.SubmittedAt.ToString("d MMMM yyyy")</dd>
+
+                        @if (app.ResolvedAt.HasValue)
+                        {
+                            <dt class="col-sm-3">Resolved</dt>
+                            <dd class="col-sm-9">@app.ResolvedAt.Value.ToString("d MMMM yyyy")</dd>
+                        }
+                    </dl>
+
+                    @if (app.Status == "Submitted" || app.Status == "UnderReview")
                     {
-                        <tr>
-                            <td>@app.SubmittedAt.ToString("d MMM yyyy HH:mm")</td>
-                            <td>
-                                <span class="badge @app.StatusBadgeClass">@app.Status</span>
-                            </td>
-                            <td>
-                                @if (app.ResolvedAt.HasValue)
-                                {
-                                    @app.ResolvedAt.Value.ToString("d MMM yyyy")
-                                }
-                                else
-                                {
-                                    <span class="text-muted">-</span>
-                                }
-                            </td>
-                            <td class="text-end">
-                                <a asp-action="Details" asp-route-id="@app.Id" class="btn btn-sm btn-outline-primary">
-                                    View Details
-                                </a>
-                            </td>
-                        </tr>
+                        <hr />
+                        <p class="text-muted mb-0">Your application is being reviewed. We'll notify you by email once a decision is made.</p>
                     }
-                </tbody>
-            </table>
-        </div>
+                    else if (app.Status == "Approved")
+                    {
+                        <hr />
+                        <p class="text-success mb-0">Welcome! You are now an asociado of Nobodies Collective.</p>
+                    }
+                    else if (app.Status == "Rejected")
+                    {
+                        <hr />
+                        <p class="text-muted mb-0">Your application was not approved. If you have questions, please contact the board.</p>
+                    }
+                </div>
+            </div>
+        }
     </div>
 
-    @if (!Model.CanSubmitNew)
-    {
-        <div class="alert alert-info mt-3">
-            You have a pending application. You can submit a new application after your current one is resolved.
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">What is an Asociado?</div>
+            <div class="card-body">
+                <p class="mb-2">Asociados are the formal voting members of the association under Spanish law.</p>
+                <p class="mb-2"><strong>As an asociado you can:</strong></p>
+                <ul class="mb-0">
+                    <li>Attend general assemblies</li>
+                    <li>Vote on collective decisions</li>
+                    <li>Participate in board elections</li>
+                </ul>
+            </div>
         </div>
-    }
-}
+    </div>
+</div>

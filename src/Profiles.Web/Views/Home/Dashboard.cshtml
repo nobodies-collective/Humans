@@ -87,10 +87,10 @@
 
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span>Membership Application</span>
+                <span>Asociados (Voting Membership)</span>
                 @if (!Model.HasPendingApplication && Model.LatestApplicationStatus != "Approved")
                 {
-                    <a asp-controller="Application" asp-action="Create" class="btn btn-sm btn-primary">Apply Now</a>
+                    <a asp-controller="Application" asp-action="Create" class="btn btn-sm btn-outline-primary">Apply</a>
                 }
             </div>
             <div class="card-body">
@@ -104,12 +104,13 @@
                         <small class="text-muted">@Model.LatestApplicationDate?.ToString("d MMM yyyy")</small>
                     </div>
                     <div class="mt-2">
-                        <a asp-controller="Application" asp-action="Index">View all applications</a>
+                        <a asp-controller="Application" asp-action="Index">View application history</a>
                     </div>
                 }
                 else
                 {
-                    <p class="text-muted mb-0">You haven't submitted a membership application yet.</p>
+                    <p class="text-muted mb-2">Want to participate in governance? Asociados are voting members who can attend assemblies and vote on collective decisions.</p>
+                    <p class="text-muted mb-0"><small>This is optional. Most volunteers don't need to apply.</small></p>
                 }
             </div>
         </div>
