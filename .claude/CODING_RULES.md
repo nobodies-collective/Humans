@@ -85,6 +85,16 @@ if (status == "submitted")
 if (string.Equals(status, "submitted", StringComparison.Ordinal))
 ```
 
+## Git Branch Naming
+
+**Rule:** Always use `main` as the default branch name, never `master`.
+
+When initializing a new repository:
+```bash
+git init
+git branch -m master main  # Rename if needed
+```
+
 ## Build Commands
 
 - Build: `dotnet build`
