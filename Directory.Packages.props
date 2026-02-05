@@ -29,6 +29,10 @@
     <PackageVersion Include="MailKit" Version="4.14.1" />
     <!-- GitHub API -->
     <PackageVersion Include="Octokit" Version="14.0.0" />
+    <!-- Google Workspace APIs -->
+    <PackageVersion Include="Google.Apis.Admin.Directory.directory_v1" Version="1.69.0.3700" />
+    <PackageVersion Include="Google.Apis.Drive.v3" Version="1.69.0.3674" />
+    <PackageVersion Include="Google.Apis.Auth" Version="1.69.0" />
     <!-- Resilience -->
     <PackageVersion Include="Polly" Version="8.6.5" />
     <!-- Observability -->

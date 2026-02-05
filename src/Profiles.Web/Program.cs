@@ -130,13 +130,24 @@ builder.Services.AddHealthChecks()
 // Register Configuration
 builder.Services.Configure<GitHubSettings>(builder.Configuration.GetSection(GitHubSettings.SectionName));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection(EmailSettings.SectionName));
+builder.Services.Configure<GoogleWorkspaceSettings>(builder.Configuration.GetSection(GoogleWorkspaceSettings.SectionName));
 
 // Register Application Services
 builder.Services.AddScoped<IConsentRecordRepository, ConsentRecordRepository>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.AddScoped<IContactFieldService, ContactFieldService>();
 builder.Services.AddScoped<ILegalDocumentSyncService, LegalDocumentSyncService>();
-builder.Services.AddScoped<IGoogleSyncService, StubGoogleSyncService>();
+// Use real Google Workspace service if credentials configured, otherwise use stub
+var googleWorkspaceConfig = builder.Configuration.GetSection(GoogleWorkspaceSettings.SectionName);
+if (!string.IsNullOrEmpty(googleWorkspaceConfig["ServiceAccountKeyPath"]) ||
+    !string.IsNullOrEmpty(googleWorkspaceConfig["ServiceAccountKeyJson"]))
+{
+    builder.Services.AddScoped<IGoogleSyncService, GoogleWorkspaceSyncService>();
+}
+else
+{
+    builder.Services.AddScoped<IGoogleSyncService, StubGoogleSyncService>();
+}
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddScoped<IMembershipCalculator, MembershipCalculator>();
 builder.Services.AddScoped<SystemTeamSyncJob>();

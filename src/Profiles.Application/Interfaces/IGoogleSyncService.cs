@@ -68,4 +68,41 @@ public interface IGoogleSyncService
     /// <param name="userId">The user ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task RemoveUserFromTeamResourcesAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Provisions a new Google Group for a team.
+    /// </summary>
+    /// <param name="teamId">The team ID.</param>
+    /// <param name="groupEmail">The group email address (e.g., team-name@nobodies.team).</param>
+    /// <param name="groupName">Display name for the group.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The created Google resource.</returns>
+    Task<GoogleResource> ProvisionTeamGroupAsync(
+        Guid teamId,
+        string groupEmail,
+        string groupName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds a user to a Google Group.
+    /// </summary>
+    /// <param name="groupResourceId">The Google resource ID of the group.</param>
+    /// <param name="userEmail">The user's email address.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task AddUserToGroupAsync(Guid groupResourceId, string userEmail, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes a user from a Google Group.
+    /// </summary>
+    /// <param name="groupResourceId">The Google resource ID of the group.</param>
+    /// <param name="userEmail">The user's email address.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task RemoveUserFromGroupAsync(Guid groupResourceId, string userEmail, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Syncs all members of a team to its associated Google Group.
+    /// </summary>
+    /// <param name="teamId">The team ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SyncTeamGroupMembersAsync(Guid teamId, CancellationToken cancellationToken = default);
 }
