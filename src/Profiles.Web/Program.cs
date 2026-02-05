@@ -126,6 +126,7 @@ builder.Services.AddScoped<IConsentRecordRepository, ConsentRecordRepository>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.AddScoped<IContactFieldService, ContactFieldService>();
 builder.Services.AddScoped<IGoogleSyncService, StubGoogleSyncService>();
+builder.Services.AddScoped<IEmailService, StubEmailService>();
 builder.Services.AddScoped<IMembershipCalculator, MembershipCalculator>();
 builder.Services.AddScoped<SystemTeamSyncJob>();
 

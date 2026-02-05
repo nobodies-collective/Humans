@@ -58,17 +58,18 @@ public class SuspendNonCompliantMembersJob
                         .Include(u => u.Profile)
                         .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
-                    if (user?.Email != null)
+                    var effectiveEmail = user?.GetEffectiveEmail();
+                    if (effectiveEmail != null)
                     {
                         await _emailService.SendAccessSuspendedAsync(
-                            user.Email,
-                            user.DisplayName,
+                            effectiveEmail,
+                            user!.DisplayName,
                             "Missing required document consent",
                             cancellationToken);
 
                         _logger.LogWarning(
                             "User {UserId} ({Email}) access suspended due to missing consent",
-                            userId, user.Email);
+                            userId, effectiveEmail);
 
                         suspendedCount++;
                     }

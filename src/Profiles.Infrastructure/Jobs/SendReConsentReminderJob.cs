@@ -62,18 +62,19 @@ public class SendReConsentReminderJob
                     .AsNoTracking()
                     .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
-                if (user?.Email != null)
+                var effectiveEmail = user?.GetEffectiveEmail();
+                if (effectiveEmail != null)
                 {
                     await _emailService.SendReConsentReminderAsync(
-                        user.Email,
-                        user.DisplayName,
+                        effectiveEmail,
+                        user!.DisplayName,
                         requiredDocNames,
                         daysBeforeSuspension,
                         cancellationToken);
 
                     _logger.LogInformation(
                         "Sent re-consent reminder to user {UserId} ({Email})",
-                        userId, user.Email);
+                        userId, effectiveEmail);
                 }
             }
 

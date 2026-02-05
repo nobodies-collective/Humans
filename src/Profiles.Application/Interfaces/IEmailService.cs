@@ -91,4 +91,17 @@ public interface IEmailService
         string userName,
         string reason,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends an email verification link for the preferred email address.
+    /// </summary>
+    /// <param name="toEmail">The email address to verify.</param>
+    /// <param name="userName">The user's name.</param>
+    /// <param name="verificationUrl">The URL to verify the email.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SendEmailVerificationAsync(
+        string toEmail,
+        string userName,
+        string verificationUrl,
+        CancellationToken cancellationToken = default);
 }

@@ -58,4 +58,29 @@ public class User : IdentityUser<Guid>
     /// Navigation property to team memberships.
     /// </summary>
     public ICollection<TeamMember> TeamMemberships { get; } = new List<TeamMember>();
+
+    /// <summary>
+    /// User-specified preferred email address for system notifications.
+    /// Must be verified before use.
+    /// </summary>
+    public string? PreferredEmail { get; set; }
+
+    /// <summary>
+    /// Whether the preferred email has been verified.
+    /// </summary>
+    public bool PreferredEmailVerified { get; set; }
+
+    /// <summary>
+    /// When the last verification email was sent (for rate limiting).
+    /// </summary>
+    public Instant? PreferredEmailVerificationSentAt { get; set; }
+
+    /// <summary>
+    /// Gets the effective email address for system notifications.
+    /// Returns the verified preferred email if available, otherwise the OAuth email.
+    /// </summary>
+    public string? GetEffectiveEmail() =>
+        PreferredEmailVerified && !string.IsNullOrEmpty(PreferredEmail)
+            ? PreferredEmail
+            : Email;
 }

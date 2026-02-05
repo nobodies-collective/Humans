@@ -48,5 +48,13 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(u => u.Email);
+
+        builder.Property(u => u.PreferredEmail)
+            .HasMaxLength(256);
+
+        // Partial unique index: only verified preferred emails must be unique
+        builder.HasIndex(u => u.PreferredEmail)
+            .IsUnique()
+            .HasFilter("\"PreferredEmailVerified\" = true AND \"PreferredEmail\" IS NOT NULL");
     }
 }

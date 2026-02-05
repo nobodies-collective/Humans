@@ -1,0 +1,167 @@
+@model Profiles.Web.Models.PreferredEmailViewModel
+@{
+    ViewData["Title"] = "Preferred Email";
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <h1>Preferred Email Address</h1>
+        <p class="text-muted">
+            By default, system notifications are sent to your sign-in email.
+            You can specify a different email address to receive these notifications.
+        </p>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                @TempData["SuccessMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @TempData["ErrorMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Current Email Settings</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Sign-in Email</dt>
+                    <dd class="col-sm-8">
+                        <code>@Model.OAuthEmail</code>
+                        <span class="badge bg-secondary ms-2">Google Account</span>
+                    </dd>
+
+                    <dt class="col-sm-4">Preferred Email</dt>
+                    <dd class="col-sm-8">
+                        @if (string.IsNullOrEmpty(Model.CurrentPreferredEmail))
+                        {
+                            <span class="text-muted">Not set (using sign-in email)</span>
+                        }
+                        else
+                        {
+                            <code>@Model.CurrentPreferredEmail</code>
+                            @if (Model.IsVerified)
+                            {
+                                <span class="badge bg-success ms-2">
+                                    <i class="fa-solid fa-check me-1"></i>Verified
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark ms-2">
+                                    <i class="fa-solid fa-clock me-1"></i>Pending Verification
+                                </span>
+                            }
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Notifications Sent To</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.IsVerified && !string.IsNullOrEmpty(Model.CurrentPreferredEmail))
+                        {
+                            <code>@Model.CurrentPreferredEmail</code>
+                            <span class="text-success">(preferred)</span>
+                        }
+                        else
+                        {
+                            <code>@Model.OAuthEmail</code>
+                            <span class="text-muted">(sign-in email)</span>
+                        }
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        @if (Model.IsPendingVerification)
+        {
+            <div class="alert alert-info">
+                <i class="fa-solid fa-envelope me-2"></i>
+                A verification email has been sent to <strong>@Model.CurrentPreferredEmail</strong>.
+                Please check your inbox and click the verification link.
+                @if (!Model.CanResendVerification)
+                {
+                    <br />
+                    <small class="text-muted">
+                        You can request a new verification email in @Model.MinutesUntilResend minute(s).
+                    </small>
+                }
+            </div>
+        }
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    @if (string.IsNullOrEmpty(Model.CurrentPreferredEmail))
+                    {
+                        <text>Set Preferred Email</text>
+                    }
+                    else
+                    {
+                        <text>Change Preferred Email</text>
+                    }
+                </h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="SetPreferredEmail" method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="NewEmail" class="form-label"></label>
+                        <input asp-for="NewEmail" class="form-control" type="email"
+                               placeholder="you@example.com" />
+                        <span asp-validation-for="NewEmail" class="text-danger"></span>
+                        <div class="form-text">
+                            A verification email will be sent to this address.
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary"
+                            @(Model.CanResendVerification ? "" : "disabled")>
+                        <i class="fa-solid fa-paper-plane me-1"></i>
+                        Send Verification Email
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.CurrentPreferredEmail))
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Remove Preferred Email</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        Remove your preferred email and use your sign-in email for all system notifications.
+                    </p>
+                    <form asp-action="ClearPreferredEmail" method="post">
+                        <button type="submit" class="btn btn-outline-danger"
+                                onclick="return confirm('Are you sure you want to remove your preferred email?');">
+                            <i class="fa-solid fa-trash me-1"></i>
+                            Remove Preferred Email
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
+
+        <div class="mt-4">
+            <a asp-action="Edit" class="btn btn-outline-secondary">
+                <i class="fa-solid fa-arrow-left me-1"></i>
+                Back to Edit Profile
+            </a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
