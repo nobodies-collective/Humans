@@ -169,3 +169,13 @@ public class ContactFieldEditViewModel
 
     public int DisplayOrder { get; set; }
 }
+
+/// <summary>
+/// View model for the privacy/data management page.
+/// </summary>
+public class PrivacyViewModel
+{
+    public bool IsDeletionPending { get; set; }
+    public DateTime? DeletionRequestedAt { get; set; }
+    public DateTime? DeletionScheduledFor { get; set; }
+}

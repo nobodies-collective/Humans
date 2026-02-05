@@ -109,4 +109,27 @@ public class StubEmailService : IEmailService
             toEmail, userName, verificationUrl);
         return Task.CompletedTask;
     }
+
+    public Task SendAccountDeletionRequestedAsync(
+        string userEmail,
+        string userName,
+        DateTime deletionDate,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "[STUB] Would send account deletion requested email to {Email} ({UserName}). Deletion date: {Date}",
+            userEmail, userName, deletionDate);
+        return Task.CompletedTask;
+    }
+
+    public Task SendAccountDeletedAsync(
+        string userEmail,
+        string userName,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "[STUB] Would send account deleted confirmation to {Email} ({UserName})",
+            userEmail, userName);
+        return Task.CompletedTask;
+    }
 }

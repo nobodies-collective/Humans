@@ -257,6 +257,11 @@ RecurringJob.AddOrUpdate<SystemTeamSyncJob>(
     job => job.ExecuteAsync(CancellationToken.None),
     Cron.Hourly);
 
+RecurringJob.AddOrUpdate<ProcessAccountDeletionsJob>(
+    "process-account-deletions",
+    job => job.ExecuteAsync(CancellationToken.None),
+    Cron.Daily);
+
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");

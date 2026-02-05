@@ -3,22 +3,103 @@
 }
 <h1>@ViewData["Title"]</h1>
 
-<p>This application manages membership for Nobodies Collective and processes personal data in accordance with GDPR.</p>
+<p class="lead">This application manages membership for Nobodies Collective and processes personal data in accordance with GDPR and Spanish data protection law (LOPDGDD).</p>
+
+<p><em>Last updated: @DateTime.UtcNow.ToString("MMMM yyyy")</em></p>
+
+<h2>Data Controller</h2>
+<p>
+    <strong>Nobodies Collective</strong><br />
+    A Spanish nonprofit association registered in Andalucia.<br />
+    For data protection inquiries, contact our Data Protection Officer at: <a href="mailto:admin@nobodies.es">admin@nobodies.es</a>
+</p>
 
 <h2>Data We Collect</h2>
+<p>We collect and process the following categories of personal data:</p>
 <ul>
-    <li>Name and email address (from Google authentication)</li>
-    <li>Profile information you provide</li>
-    <li>Consent records for legal documents</li>
-    <li>Membership application data</li>
+    <li><strong>Identity data:</strong> Name, email address (from Google authentication), display name/burner name</li>
+    <li><strong>Contact data:</strong> Phone number, city, country (optional)</li>
+    <li><strong>Profile data:</strong> Bio, team memberships, role assignments</li>
+    <li><strong>Technical data:</strong> IP address and user agent (for consent records)</li>
+    <li><strong>Application data:</strong> Membership applications and motivation statements</li>
+    <li><strong>Consent records:</strong> Records of your agreement to legal documents</li>
+</ul>
+
+<h2>Legal Basis for Processing</h2>
+<p>We process your data based on:</p>
+<ul>
+    <li><strong>Contract:</strong> Processing necessary for membership management</li>
+    <li><strong>Legitimate interest:</strong> Maintaining organizational records and communication</li>
+    <li><strong>Legal obligation:</strong> Compliance with Spanish nonprofit regulations</li>
+    <li><strong>Consent:</strong> For optional data you choose to provide</li>
 </ul>
 
 <h2>How We Use Your Data</h2>
 <ul>
-    <li>To manage your membership</li>
-    <li>To communicate with you about the organization</li>
+    <li>To manage your membership and team participation</li>
+    <li>To communicate with you about organizational activities</li>
     <li>To maintain legal compliance records</li>
+    <li>To facilitate connections between members (based on your visibility settings)</li>
+</ul>
+
+<h2>Data Retention</h2>
+<p>We retain your data according to the following policies:</p>
+<ul>
+    <li><strong>Active accounts:</strong> Data retained while your account is active</li>
+    <li><strong>Inactive accounts:</strong> Data retained for up to 7 years for legal compliance</li>
+    <li><strong>Consent records:</strong> Retained indefinitely as required for GDPR compliance</li>
+    <li><strong>Deleted accounts:</strong> Anonymized after 30-day grace period</li>
 </ul>
 
 <h2>Your Rights</h2>
-<p>You have the right to access, correct, or delete your personal data. Contact us for data requests.</p>
+<p>Under GDPR, you have the following rights:</p>
+<ul>
+    <li><strong>Access:</strong> Request a copy of your personal data</li>
+    <li><strong>Rectification:</strong> Request correction of inaccurate data</li>
+    <li><strong>Erasure:</strong> Request deletion of your data ("right to be forgotten")</li>
+    <li><strong>Portability:</strong> Receive your data in a machine-readable format</li>
+    <li><strong>Restriction:</strong> Request limitation of processing</li>
+    <li><strong>Objection:</strong> Object to certain types of processing</li>
+</ul>
+<p>
+    To exercise these rights, visit your <a asp-controller="Profile" asp-action="Privacy">Privacy & Data</a> settings or contact us at
+    <a href="mailto:admin@nobodies.es">admin@nobodies.es</a>.
+</p>
+
+<h2>Cookies</h2>
+<p>This site uses only essential cookies required for:</p>
+<ul>
+    <li>User authentication and session management</li>
+    <li>Anti-forgery tokens for form security</li>
+    <li>Cookie consent preference</li>
+</ul>
+<p>We do not use analytics, advertising, or third-party tracking cookies.</p>
+
+<h2>Data Security</h2>
+<p>We implement appropriate technical and organizational measures to protect your data, including:</p>
+<ul>
+    <li>Encryption in transit (HTTPS)</li>
+    <li>Secure authentication via Google OAuth</li>
+    <li>Access controls and audit logging</li>
+    <li>Regular security reviews</li>
+</ul>
+
+<h2>Third-Party Services</h2>
+<p>We use the following third-party services:</p>
+<ul>
+    <li><strong>Google OAuth:</strong> For secure authentication (Google's <a href="https://policies.google.com/privacy" target="_blank">Privacy Policy</a>)</li>
+    <li><strong>Google Workspace:</strong> For team resource provisioning (shared drives, groups)</li>
+</ul>
+
+<h2>Changes to This Policy</h2>
+<p>We may update this privacy policy from time to time. We will notify active members of significant changes via email.</p>
+
+<h2>Contact & Complaints</h2>
+<p>
+    For questions or concerns about this policy, contact our Data Protection Officer at
+    <a href="mailto:admin@nobodies.es">admin@nobodies.es</a>.
+</p>
+<p>
+    If you are not satisfied with our response, you have the right to lodge a complaint with the
+    Spanish Data Protection Agency (AEPD) at <a href="https://www.aepd.es" target="_blank">www.aepd.es</a>.
+</p>

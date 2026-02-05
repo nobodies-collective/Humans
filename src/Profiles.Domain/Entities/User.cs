@@ -83,4 +83,21 @@ public class User : IdentityUser<Guid>
         PreferredEmailVerified && !string.IsNullOrEmpty(PreferredEmail)
             ? PreferredEmail
             : Email;
+
+    /// <summary>
+    /// When the user requested account deletion.
+    /// Null if no deletion is pending.
+    /// </summary>
+    public Instant? DeletionRequestedAt { get; set; }
+
+    /// <summary>
+    /// When the account will be permanently deleted.
+    /// Set to DeletionRequestedAt + 30 days when a deletion is requested.
+    /// </summary>
+    public Instant? DeletionScheduledFor { get; set; }
+
+    /// <summary>
+    /// Whether a deletion request is pending.
+    /// </summary>
+    public bool IsDeletionPending => DeletionRequestedAt.HasValue;
 }

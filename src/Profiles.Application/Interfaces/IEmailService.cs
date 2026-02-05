@@ -104,4 +104,28 @@ public interface IEmailService
         string userName,
         string verificationUrl,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends confirmation that account deletion has been requested.
+    /// </summary>
+    /// <param name="userEmail">The user's email.</param>
+    /// <param name="userName">The user's name.</param>
+    /// <param name="deletionDate">When the account will be deleted.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SendAccountDeletionRequestedAsync(
+        string userEmail,
+        string userName,
+        DateTime deletionDate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends confirmation that account has been deleted.
+    /// </summary>
+    /// <param name="userEmail">The user's email.</param>
+    /// <param name="userName">The user's name.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SendAccountDeletedAsync(
+        string userEmail,
+        string userName,
+        CancellationToken cancellationToken = default);
 }

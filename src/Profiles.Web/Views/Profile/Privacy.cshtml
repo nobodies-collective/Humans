@@ -1,0 +1,127 @@
+@model Profiles.Web.Models.PrivacyViewModel
+@{
+    ViewData["Title"] = "Privacy & Data";
+}
+
+<h1>Privacy & Data</h1>
+
+<p class="lead">Manage your personal data and privacy settings.</p>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["ErrorMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Export Your Data</h5>
+            </div>
+            <div class="card-body">
+                <p>Download a copy of all your personal data in JSON format. This includes:</p>
+                <ul>
+                    <li>Account information</li>
+                    <li>Profile details</li>
+                    <li>Contact fields</li>
+                    <li>Membership applications</li>
+                    <li>Consent records</li>
+                    <li>Team memberships</li>
+                    <li>Role assignments</li>
+                </ul>
+                <a asp-action="DownloadData" class="btn btn-primary">
+                    Download My Data
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4 @(Model.IsDeletionPending ? "border-warning" : "")">
+            <div class="card-header @(Model.IsDeletionPending ? "bg-warning text-dark" : "")">
+                <h5 class="mb-0">Delete Your Account</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.IsDeletionPending)
+                {
+                    <div class="alert alert-warning">
+                        <strong>Deletion Pending</strong><br />
+                        Your account is scheduled for deletion on <strong>@Model.DeletionScheduledFor?.ToString("MMMM d, yyyy")</strong>.
+                    </div>
+                    <p>You can cancel this request before the deletion date if you change your mind.</p>
+                    <form asp-action="CancelDeletion" method="post">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-success">
+                            Cancel Deletion Request
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    <p>Request deletion of your account and all associated data.</p>
+                    <ul>
+                        <li>A 30-day grace period allows you to cancel the request</li>
+                        <li>After 30 days, your data will be permanently deleted</li>
+                        <li>Some anonymized records may be retained for legal compliance</li>
+                    </ul>
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        Request Account Deletion
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Privacy Policy</h5>
+    </div>
+    <div class="card-body">
+        <p>For questions about your data or privacy rights, contact our Data Protection Officer:</p>
+        <p><strong>Email:</strong> <a href="mailto:admin@nobodies.es">admin@nobodies.es</a></p>
+        <p>
+            <a asp-controller="Home" asp-action="Privacy">View Full Privacy Policy</a>
+        </p>
+    </div>
+</div>
+
+@if (!Model.IsDeletionPending)
+{
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteModalLabel">Confirm Account Deletion</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to request deletion of your account?</p>
+                    <ul>
+                        <li>Your account will be scheduled for deletion in <strong>30 days</strong></li>
+                        <li>You can cancel this request at any time before the deletion date</li>
+                        <li>After deletion, your data cannot be recovered</li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form asp-action="RequestDeletion" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-danger">Yes, Delete My Account</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}

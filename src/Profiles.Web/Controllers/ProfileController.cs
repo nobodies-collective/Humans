@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Web;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -457,5 +458,240 @@ public class ProfileController : Controller
             CanResendVerification = canResend,
             MinutesUntilResend = minutesUntilResend
         };
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Privacy()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var viewModel = new PrivacyViewModel
+        {
+            IsDeletionPending = user.IsDeletionPending,
+            DeletionRequestedAt = user.DeletionRequestedAt?.ToDateTimeUtc(),
+            DeletionScheduledFor = user.DeletionScheduledFor?.ToDateTimeUtc()
+        };
+
+        return View(viewModel);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RequestDeletion()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        if (user.IsDeletionPending)
+        {
+            TempData["ErrorMessage"] = "A deletion request is already pending.";
+            return RedirectToAction(nameof(Privacy));
+        }
+
+        var now = _clock.GetCurrentInstant();
+        var deletionDate = now.Plus(Duration.FromDays(30));
+
+        user.DeletionRequestedAt = now;
+        user.DeletionScheduledFor = deletionDate;
+        await _userManager.UpdateAsync(user);
+
+        _logger.LogWarning(
+            "User {UserId} requested account deletion. Scheduled for {DeletionDate}",
+            user.Id, deletionDate);
+
+        // Send confirmation email
+        var effectiveEmail = user.GetEffectiveEmail();
+        if (effectiveEmail != null)
+        {
+            await _emailService.SendAccountDeletionRequestedAsync(
+                effectiveEmail,
+                user.DisplayName,
+                deletionDate.ToDateTimeUtc(),
+                CancellationToken.None);
+        }
+
+        TempData["SuccessMessage"] = $"Account deletion requested. Your account will be deleted on {deletionDate.ToDateTimeUtc():MMMM d, yyyy} unless you cancel.";
+        return RedirectToAction(nameof(Privacy));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelDeletion()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        if (!user.IsDeletionPending)
+        {
+            TempData["ErrorMessage"] = "No deletion request is pending.";
+            return RedirectToAction(nameof(Privacy));
+        }
+
+        user.DeletionRequestedAt = null;
+        user.DeletionScheduledFor = null;
+        await _userManager.UpdateAsync(user);
+
+        _logger.LogInformation("User {UserId} cancelled account deletion request", user.Id);
+
+        TempData["SuccessMessage"] = "Account deletion has been cancelled.";
+        return RedirectToAction(nameof(Privacy));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportData()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var profile = await _dbContext.Profiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == user.Id);
+
+        var applications = await _dbContext.Applications
+            .AsNoTracking()
+            .Where(a => a.UserId == user.Id)
+            .OrderByDescending(a => a.SubmittedAt)
+            .ToListAsync();
+
+        var consents = await _dbContext.ConsentRecords
+            .AsNoTracking()
+            .Include(c => c.DocumentVersion)
+                .ThenInclude(v => v.LegalDocument)
+            .Where(c => c.UserId == user.Id)
+            .OrderByDescending(c => c.ConsentedAt)
+            .ToListAsync();
+
+        var teamMemberships = await _dbContext.TeamMembers
+            .AsNoTracking()
+            .Include(tm => tm.Team)
+            .Where(tm => tm.UserId == user.Id)
+            .OrderByDescending(tm => tm.JoinedAt)
+            .ToListAsync();
+
+        var contactFields = profile != null
+            ? await _dbContext.ContactFields
+                .AsNoTracking()
+                .Where(cf => cf.ProfileId == profile.Id)
+                .OrderBy(cf => cf.DisplayOrder)
+                .ToListAsync()
+            : [];
+
+        var roleAssignments = await _dbContext.RoleAssignments
+            .AsNoTracking()
+            .Where(ra => ra.UserId == user.Id)
+            .ToListAsync();
+
+        var export = new
+        {
+            ExportedAt = _clock.GetCurrentInstant().ToString(null, CultureInfo.InvariantCulture),
+            Account = new
+            {
+                user.Id,
+                user.Email,
+                user.DisplayName,
+                user.PreferredEmail,
+                user.PreferredEmailVerified,
+                CreatedAt = user.CreatedAt.ToString(null, CultureInfo.InvariantCulture),
+                LastLoginAt = user.LastLoginAt?.ToString(null, CultureInfo.InvariantCulture)
+            },
+            Profile = profile != null ? new
+            {
+                profile.BurnerName,
+                profile.FirstName,
+                profile.LastName,
+                profile.PhoneCountryCode,
+                profile.PhoneNumber,
+                profile.City,
+                profile.CountryCode,
+                profile.Bio,
+                profile.IsSuspended,
+                CreatedAt = profile.CreatedAt.ToString(null, CultureInfo.InvariantCulture),
+                UpdatedAt = profile.UpdatedAt.ToString(null, CultureInfo.InvariantCulture)
+            } : null,
+            ContactFields = contactFields.Select(cf => new
+            {
+                cf.FieldType,
+                Label = cf.DisplayLabel,
+                cf.Value,
+                cf.Visibility
+            }),
+            Applications = applications.Select(a => new
+            {
+                a.Id,
+                a.Status,
+                a.Motivation,
+                a.AdditionalInfo,
+                SubmittedAt = a.SubmittedAt.ToString(null, CultureInfo.InvariantCulture),
+                ResolvedAt = a.ResolvedAt?.ToString(null, CultureInfo.InvariantCulture)
+            }),
+            Consents = consents.Select(c => new
+            {
+                DocumentName = c.DocumentVersion?.LegalDocument?.Name,
+                DocumentVersion = c.DocumentVersion?.VersionNumber,
+                c.ExplicitConsent,
+                ConsentedAt = c.ConsentedAt.ToString(null, CultureInfo.InvariantCulture),
+                c.IpAddress,
+                c.UserAgent
+            }),
+            TeamMemberships = teamMemberships.Select(tm => new
+            {
+                TeamName = tm.Team?.Name,
+                tm.Role,
+                JoinedAt = tm.JoinedAt.ToString(null, CultureInfo.InvariantCulture),
+                LeftAt = tm.LeftAt?.ToString(null, CultureInfo.InvariantCulture)
+            }),
+            RoleAssignments = roleAssignments.Select(ra => new
+            {
+                ra.RoleName,
+                ValidFrom = ra.ValidFrom.ToString(null, CultureInfo.InvariantCulture),
+                ValidTo = ra.ValidTo?.ToString(null, CultureInfo.InvariantCulture),
+                ra.CreatedByUserId
+            })
+        };
+
+        _logger.LogInformation("User {UserId} exported their data", user.Id);
+
+        var fileName = $"profiles-data-export-{DateTime.UtcNow:yyyy-MM-dd}.json";
+        return Json(export, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> DownloadData()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        // Rate limit: one export per hour
+        // For simplicity, we just return the data - implement rate limiting if needed
+
+        var result = await ExportData() as JsonResult;
+        if (result?.Value == null)
+        {
+            return NotFound();
+        }
+
+        var json = System.Text.Json.JsonSerializer.Serialize(result.Value,
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+        var fileName = $"nobodies-profiles-export-{DateTime.UtcNow:yyyy-MM-dd}.json";
+
+        return File(bytes, "application/json", fileName);
     }
 }
