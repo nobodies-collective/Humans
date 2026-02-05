@@ -1,11 +1,11 @@
 @model Profiles.Web.Models.ApplicationCreateViewModel
 @{
-    ViewData["Title"] = "Asociados Application";
+    ViewData["Title"] = "Governance Application";
 }
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="Index">Asociados</a></li>
+        <li class="breadcrumb-item"><a asp-action="Index">Governance</a></li>
         <li class="breadcrumb-item active" aria-current="page">New Application</li>
     </ol>
 </nav>
@@ -13,7 +13,7 @@
 <div class="row">
     <div class="col-md-8">
         <h1>Apply to Become an Asociado</h1>
-        <p class="lead text-muted">Asociados are voting members who participate in governance decisions.</p>
+        <p class="lead text-muted">Asociados are voting members who participate in governance decisions. This is intended for community leaders and long-term committed volunteers.</p>
 
         <div class="card">
             <div class="card-body">
@@ -57,14 +57,16 @@
 
     <div class="col-md-4">
         <div class="card mb-3">
-            <div class="card-header">What is an Asociado?</div>
+            <div class="card-header">Is This Right for Me?</div>
             <div class="card-body">
-                <p class="mb-2">Asociados are the formal voting members of the association. As an asociado you can:</p>
-                <ul class="mb-0">
-                    <li>Attend and vote at general assemblies</li>
-                    <li>Participate in elections</li>
-                    <li>Vote on collective decisions</li>
+                <p class="mb-2"><strong>Governance is ideal for:</strong></p>
+                <ul class="mb-2">
+                    <li>Camp leads and coordinators</li>
+                    <li>Meta volunteers and team leads</li>
+                    <li>Long-term committed volunteers</li>
                 </ul>
+                <p class="mb-2 text-muted"><small>The board considers your involvement and alignment with the collective when reviewing applications.</small></p>
+                <p class="mb-0 text-muted"><small><strong>Note:</strong> Governance membership is not required to access resources or participate in events.</small></p>
             </div>
         </div>
         <div class="card">
@@ -72,6 +74,7 @@
             <div class="card-body">
                 <ol class="mb-0">
                     <li class="mb-2">Your application will be reviewed by the board</li>
+                    <li class="mb-2">The board considers community involvement and fit</li>
                     <li class="mb-2">We may contact you for more information</li>
                     <li>You'll receive an email once a decision is made</li>
                 </ol>

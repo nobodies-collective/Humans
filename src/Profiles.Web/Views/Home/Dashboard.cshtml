@@ -86,13 +86,7 @@
         </div>
 
         <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>Asociados (Voting Membership)</span>
-                @if (!Model.HasPendingApplication && Model.LatestApplicationStatus != "Approved")
-                {
-                    <a asp-controller="Application" asp-action="Create" class="btn btn-sm btn-outline-primary">Apply</a>
-                }
-            </div>
+            <div class="card-header">Governance</div>
             <div class="card-body">
                 @if (Model.LatestApplicationStatus != null)
                 {
@@ -109,8 +103,9 @@
                 }
                 else
                 {
-                    <p class="text-muted mb-2">Want to participate in governance? Asociados are voting members who can attend assemblies and vote on collective decisions.</p>
-                    <p class="text-muted mb-0"><small>This is optional. Most volunteers don't need to apply.</small></p>
+                    <p class="text-muted mb-2">Asociados are voting members who participate in governance decisions like assemblies and elections. This is intended for community leaders and long-term committed volunteers.</p>
+                    <p class="text-muted mb-3"><small>Governance participation is optional and doesn't affect your access to resources.</small></p>
+                    <a asp-controller="Application" asp-action="Index" class="btn btn-sm btn-outline-secondary">Learn More</a>
                 }
             </div>
         </div>
@@ -147,7 +142,7 @@
                         <span class="badge bg-warning float-end">@Model.PendingConsents</span>
                     }
                 </a>
-                <a asp-controller="Application" asp-action="Index" class="list-group-item list-group-item-action">View Applications</a>
+                <a asp-controller="Application" asp-action="Index" class="list-group-item list-group-item-action">Governance</a>
                 <a asp-controller="Home" asp-action="Privacy" class="list-group-item list-group-item-action">Privacy Policy</a>
             </div>
         </div>

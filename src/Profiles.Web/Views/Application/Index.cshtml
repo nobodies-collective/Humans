@@ -1,9 +1,9 @@
 @model Profiles.Web.Models.ApplicationIndexViewModel
 @{
-    ViewData["Title"] = "Asociados";
+    ViewData["Title"] = "Governance";
 }
 
-<h1 class="mb-4">Asociados</h1>
+<h1 class="mb-4">Governance</h1>
 
 @if (TempData["SuccessMessage"] != null)
 {
@@ -81,7 +81,7 @@
     </div>
 
     <div class="col-md-4">
-        <div class="card">
+        <div class="card mb-3">
             <div class="card-header">What is an Asociado?</div>
             <div class="card-body">
                 <p class="mb-2">Asociados are the formal voting members of the association under Spanish law.</p>
@@ -91,6 +91,19 @@
                     <li>Vote on collective decisions</li>
                     <li>Participate in board elections</li>
                 </ul>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">Who Should Apply?</div>
+            <div class="card-body">
+                <p class="mb-2">Governance membership is intended for volunteers in leadership roles:</p>
+                <ul class="mb-2">
+                    <li>Camp leads and coordinators</li>
+                    <li>Meta volunteers and team leads</li>
+                    <li>Long-term committed community members</li>
+                </ul>
+                <p class="mb-2 text-muted"><small>The board reviews applications based on community involvement and alignment with the collective's mission.</small></p>
+                <p class="mb-0 text-muted"><small><strong>Note:</strong> You don't need to be an asociado to access resources or participate in events.</small></p>
             </div>
         </div>
     </div>
