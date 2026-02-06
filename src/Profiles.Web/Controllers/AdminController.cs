@@ -48,11 +48,14 @@ public class AdminController : Controller
         var totalMembers = await _dbContext.Users.CountAsync();
         var pendingApplications = await _dbContext.Applications
             .CountAsync(a => a.Status == ApplicationStatus.Submitted || a.Status == ApplicationStatus.UnderReview);
+        var pendingVolunteers = await _dbContext.Profiles
+            .CountAsync(p => !p.IsApproved && !p.IsSuspended);
 
         var viewModel = new AdminDashboardViewModel
         {
             TotalMembers = totalMembers,
             ActiveMembers = await _dbContext.Profiles.CountAsync(p => !p.IsSuspended),
+            PendingVolunteers = pendingVolunteers,
             PendingApplications = pendingApplications,
             PendingConsents = 0, // Would calculate from consent requirements
             RecentActivity = []
@@ -62,7 +65,7 @@ public class AdminController : Controller
     }
 
     [HttpGet("Members")]
-    public async Task<IActionResult> Members(string? search, int page = 1)
+    public async Task<IActionResult> Members(string? search, string? filter, int page = 1)
     {
         var pageSize = 20;
         var query = _dbContext.Users.AsQueryable();
@@ -72,6 +75,11 @@ public class AdminController : Controller
             query = query.Where(u =>
                 u.Email!.Contains(search) ||
                 u.DisplayName.Contains(search));
+        }
+
+        if (string.Equals(filter, "pending", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(u => u.Profile != null && !u.Profile.IsApproved && !u.Profile.IsSuspended);
         }
 
         var totalCount = await query.CountAsync();
@@ -89,7 +97,10 @@ public class AdminController : Controller
                 CreatedAt = u.CreatedAt.ToDateTimeUtc(),
                 LastLoginAt = u.LastLoginAt != null ? u.LastLoginAt.Value.ToDateTimeUtc() : null,
                 HasProfile = u.Profile != null,
-                MembershipStatus = u.Profile != null && !u.Profile.IsSuspended ? "Active" : "Inactive"
+                IsApproved = u.Profile != null && u.Profile.IsApproved,
+                MembershipStatus = u.Profile != null
+                    ? (u.Profile.IsSuspended ? "Suspended" : (!u.Profile.IsApproved ? "Pending Approval" : "Active"))
+                    : "Inactive"
             })
             .ToListAsync();
 
@@ -140,6 +151,8 @@ public class AdminController : Controller
             City = user.Profile?.City,
             CountryCode = user.Profile?.CountryCode,
             IsSuspended = user.Profile?.IsSuspended ?? false,
+            IsApproved = user.Profile?.IsApproved ?? false,
+            HasProfile = user.Profile != null,
             AdminNotes = user.Profile?.AdminNotes,
             ApplicationCount = user.Applications.Count,
             ConsentCount = user.ConsentRecords.Count,
@@ -401,6 +414,31 @@ public class AdminController : Controller
         _logger.LogInformation("Admin {AdminId} unsuspended member {MemberId}", currentUser?.Id, id);
 
         TempData["SuccessMessage"] = "Member unsuspended.";
+        return RedirectToAction(nameof(MemberDetail), new { id });
+    }
+
+    [HttpPost("Members/{id}/Approve")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ApproveVolunteer(Guid id)
+    {
+        var user = await _dbContext.Users
+            .Include(u => u.Profile)
+            .FirstOrDefaultAsync(u => u.Id == id);
+
+        if (user?.Profile == null)
+        {
+            return NotFound();
+        }
+
+        user.Profile.IsApproved = true;
+        user.Profile.UpdatedAt = _clock.GetCurrentInstant();
+
+        await _dbContext.SaveChangesAsync();
+
+        var currentUser = await _userManager.GetUserAsync(User);
+        _logger.LogInformation("Admin {AdminId} approved volunteer {MemberId}", currentUser?.Id, id);
+
+        TempData["SuccessMessage"] = "Volunteer approved.";
         return RedirectToAction(nameof(MemberDetail), new { id });
     }
 

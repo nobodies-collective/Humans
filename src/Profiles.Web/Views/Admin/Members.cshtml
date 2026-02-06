@@ -80,13 +80,20 @@
                             <td>
                                 @if (member.HasProfile)
                                 {
-                                    <span class="badge @(member.MembershipStatus == "Active" ? "bg-success" : "bg-secondary")">
+                                    var badgeClass = member.MembershipStatus switch
+                                    {
+                                        "Active" => "bg-success",
+                                        "Pending Approval" => "bg-warning",
+                                        "Suspended" => "bg-danger",
+                                        _ => "bg-secondary"
+                                    };
+                                    <span class="badge @badgeClass">
                                         @member.MembershipStatus
                                     </span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-warning">No Profile</span>
+                                    <span class="badge bg-secondary">No Profile</span>
                                 }
                             </td>
                             <td class="text-end">

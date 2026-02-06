@@ -76,6 +76,7 @@ public class ProfileViewModel
     public string? Bio { get; set; }
 
     public string MembershipStatus { get; set; } = "None";
+    public bool IsApproved { get; set; }
     public bool HasPendingConsents { get; set; }
     public int PendingConsentCount { get; set; }
 

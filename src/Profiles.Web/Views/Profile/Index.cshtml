@@ -23,6 +23,14 @@
             </div>
         }
 
+        @if (!Model.IsApproved)
+        {
+            <div class="alert alert-info" role="alert">
+                <strong>Pending Approval:</strong> Your account is awaiting Board approval.
+                Once approved, you'll be enrolled in the Volunteers team and receive access to organizational resources.
+            </div>
+        }
+
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span>Profile Information</span>

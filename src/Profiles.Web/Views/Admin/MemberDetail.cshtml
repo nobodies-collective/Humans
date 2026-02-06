@@ -44,6 +44,14 @@
                         {
                             <span class="badge bg-danger">Suspended</span>
                         }
+                        else if (Model.HasProfile && !Model.IsApproved)
+                        {
+                            <span class="badge bg-warning">Pending Approval</span>
+                        }
+                        else if (Model.HasProfile && Model.IsApproved)
+                        {
+                            <span class="badge bg-success">Approved</span>
+                        }
                     </div>
                 </div>
 
@@ -186,6 +194,14 @@
         <div class="card">
             <div class="card-header">Actions</div>
             <div class="card-body">
+                @if (Model.HasProfile && !Model.IsApproved && !Model.IsSuspended)
+                {
+                    <form asp-action="ApproveVolunteer" asp-route-id="@Model.UserId" method="post">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-success w-100 mb-2">Approve Volunteer</button>
+                    </form>
+                    <hr />
+                }
                 @if (Model.IsSuspended)
                 {
                     <form asp-action="UnsuspendMember" asp-route-id="@Model.UserId" method="post">

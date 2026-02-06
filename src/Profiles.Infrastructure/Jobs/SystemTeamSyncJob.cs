@@ -71,10 +71,10 @@ public class SystemTeamSyncJob
             return;
         }
 
-        // Get all users with profiles
+        // Get all users with profiles that are approved and not suspended
         var allUserIds = await _dbContext.Profiles
             .AsNoTracking()
-            .Where(p => !p.IsSuspended)
+            .Where(p => !p.IsSuspended && p.IsApproved)
             .Select(p => p.UserId)
             .ToListAsync(cancellationToken);
 

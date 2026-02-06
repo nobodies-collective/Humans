@@ -119,6 +119,7 @@ public class ProfileController : Controller
             Bio = profile?.Bio,
             HasPendingConsents = pendingConsents > 0,
             PendingConsentCount = pendingConsents,
+            IsApproved = profile?.IsApproved ?? false,
             MembershipStatus = profile != null ? ComputeStatus(profile, user.Id).ToString() : "Incomplete",
             CanViewLegalName = true, // User viewing their own profile
             ContactFields = contactFields.Select(cf => new ContactFieldViewModel

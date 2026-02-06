@@ -67,6 +67,55 @@ System administrators need comprehensive tools to manage members, review applica
 - Deactivate teams
 - View member counts and pending requests
 
+## Volunteer Approval
+
+### US-9.7: Approve Pending Volunteers
+**As a** Board member
+**I want to** approve new volunteers before they receive organizational access
+**So that** we can vet who joins the Volunteers team and gets Google Workspace resources
+
+**Acceptance Criteria:**
+- New profiles default to `IsApproved = false`
+- User sees "Pending Approval" alert on their profile page
+- Dashboard shows count of pending volunteers
+- Board can filter member list to show only pending volunteers (`/Admin/Members?filter=pending`)
+- Board can approve a volunteer from member detail page
+- `SystemTeamSyncJob` only enrolls approved, non-suspended profiles in Volunteers team
+- Approval is logged for audit
+
+### Volunteer Approval Workflow
+```
+New User Signs In
+    │
+    ▼
+Creates Profile (IsApproved = false)
+    │
+    ▼
+Signs Required Consents
+    │
+    ▼
+Sees "Pending Approval" alert
+    │                                    Board sees pending count
+    │                                    on Admin Dashboard
+    ▼                                         │
+[Waits for Board] ◄─────────────────── Board approves
+    │
+    ▼
+IsApproved = true
+    │
+    ▼
+Next SystemTeamSyncJob run
+    │
+    ▼
+Enrolled in Volunteers team
+    │
+    ▼
+Google Workspace access granted
+```
+
+### Data Model
+- `Profile.IsApproved` (bool, default false): Must be true for `SystemTeamSyncJob` to enroll the user in Volunteers team
+
 ## Admin Controller Routes
 
 | Route | Action | Description |
@@ -74,6 +123,7 @@ System administrators need comprehensive tools to manage members, review applica
 | `/Admin` | Index | Dashboard |
 | `/Admin/Members` | Members | Member list with search |
 | `/Admin/Members/{id}` | MemberDetail | Individual member view |
+| `/Admin/Members/{id}/Approve` | ApproveVolunteer | POST: Approve volunteer |
 | `/Admin/Members/{id}/Suspend` | SuspendMember | POST: Suspend member |
 | `/Admin/Members/{id}/Unsuspend` | UnsuspendMember | POST: Unsuspend member |
 | `/Admin/Applications` | Applications | Application list |
@@ -92,6 +142,7 @@ public class AdminDashboardViewModel
 {
     public int TotalMembers { get; set; }
     public int ActiveMembers { get; set; }
+    public int PendingVolunteers { get; set; }
     public int PendingApplications { get; set; }
     public int PendingConsents { get; set; }
     public List<RecentActivityViewModel> RecentActivity { get; set; }
@@ -103,6 +154,7 @@ public class AdminDashboardViewModel
 |--------|-------|-------|
 | Total Members | `Users.Count()` | Default |
 | Active Members | `Profiles.Count(p => !p.IsSuspended)` | Green |
+| Pending Volunteers | `Profiles.Count(p => !p.IsApproved && !p.IsSuspended)` | Yellow (bordered) |
 | Pending Apps | `Applications.Count(Submitted OR UnderReview)` | Yellow |
 | Pending Consents | `Users with missing consents` | Blue |
 
@@ -279,6 +331,7 @@ _logger.LogInformation(
 
 | Action | Link | Badge |
 |--------|------|-------|
+| Review Pending Volunteers | `/Admin/Members?filter=pending` | Pending count |
 | Review Applications | `/Admin/Applications` | Pending count |
 | Manage Members | `/Admin/Members` | - |
 | Background Jobs | `/hangfire` | - |

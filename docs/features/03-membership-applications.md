@@ -213,6 +213,24 @@ Withdrawn = 4    // Applicant cancelled
 | Rejected | bg-danger | Red |
 | Withdrawn | bg-secondary | Gray |
 
+## Volunteer Acceptance vs Asociado Application
+
+The system has two distinct approval processes:
+
+### Volunteer Acceptance (Profile.IsApproved)
+- **Purpose**: Gate for basic volunteer enrollment (Volunteers team, Google Workspace access)
+- **Process**: Board member sets `IsApproved = true` on the member's profile
+- **Applies to**: All new users - required before `SystemTeamSyncJob` enrolls them
+- **Complexity**: Simple approve/reject decision on the person
+
+### Asociado Application (Application entity)
+- **Purpose**: Formal governance/voting membership in the association
+- **Process**: Motivation statement, state machine workflow (Submitted -> UnderReview -> Approved/Rejected)
+- **Applies to**: Volunteers who want to participate in governance - explicitly optional
+- **Complexity**: Detailed review with notes, state history, and audit trail
+
+The Application view explicitly states: "This is optional. Most volunteers don't need to become asociados."
+
 ## Related Features
 
 - [Authentication](01-authentication.md) - Must be logged in to apply

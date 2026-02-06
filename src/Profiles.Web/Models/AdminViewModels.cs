@@ -4,6 +4,7 @@ public class AdminDashboardViewModel
 {
     public int TotalMembers { get; set; }
     public int ActiveMembers { get; set; }
+    public int PendingVolunteers { get; set; }
     public int PendingApplications { get; set; }
     public int PendingConsents { get; set; }
     public List<RecentActivityViewModel> RecentActivity { get; set; } = [];
@@ -35,6 +36,7 @@ public class AdminMemberViewModel
     public DateTime? LastLoginAt { get; set; }
     public string MembershipStatus { get; set; } = "None";
     public bool HasProfile { get; set; }
+    public bool IsApproved { get; set; }
 }
 
 public class AdminMemberDetailViewModel
@@ -53,6 +55,8 @@ public class AdminMemberDetailViewModel
     public string? City { get; set; }
     public string? CountryCode { get; set; }
     public bool IsSuspended { get; set; }
+    public bool IsApproved { get; set; }
+    public bool HasProfile { get; set; }
     public string? AdminNotes { get; set; }
 
     // Stats

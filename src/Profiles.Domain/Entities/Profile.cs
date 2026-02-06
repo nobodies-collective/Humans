@@ -115,6 +115,12 @@ public class Profile
     public bool IsSuspended { get; set; }
 
     /// <summary>
+    /// Whether the member has been approved by the Board for volunteer enrollment.
+    /// New profiles default to false; Board must approve before SystemTeamSyncJob enrolls them.
+    /// </summary>
+    public bool IsApproved { get; set; }
+
+    /// <summary>
     /// Computes the current membership status based on role assignments and consent records.
     /// </summary>
     /// <param name="currentRoleAssignments">Active role assignments for this user.</param>

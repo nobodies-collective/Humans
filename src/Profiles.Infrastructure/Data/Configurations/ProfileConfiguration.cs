@@ -45,6 +45,9 @@ public class ProfileConfiguration : IEntityTypeConfiguration<Profile>
         builder.Property(p => p.AdminNotes)
             .HasMaxLength(4000);
 
+        builder.Property(p => p.IsApproved)
+            .HasDefaultValue(false);
+
         builder.Property(p => p.CreatedAt)
             .IsRequired();
 
