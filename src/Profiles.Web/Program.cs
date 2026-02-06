@@ -77,7 +77,7 @@ builder.Services.AddAuthentication()
             ?? throw new InvalidOperationException("Google ClientSecret not configured.");
         options.Scope.Add("profile");
         options.Scope.Add("email");
-        options.SaveTokens = true;
+        options.SaveTokens = false;
     });
 
 // Configure Authorization
