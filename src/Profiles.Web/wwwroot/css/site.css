@@ -1,0 +1,5 @@
+html, body { overflow-x: hidden; }
+body { overflow-y: auto; }
+.navbar-brand { font-weight: 600; }
+.main-content { min-height: calc(100vh - 120px); }
+footer { background: #f8f9fa; }

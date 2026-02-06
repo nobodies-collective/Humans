@@ -81,7 +81,7 @@
                                 <div class="btn-group" role="group">
                                     <form asp-action="ApproveRequest" asp-route-slug="@teamSlug" asp-route-requestId="@request.Id" method="post" class="d-inline">
                                         @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Approve this request?')">Approve</button>
+                                        <button type="submit" class="btn btn-sm btn-success" data-confirm="Approve this request?">Approve</button>
                                     </form>
                                     <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal-@request.Id">
                                         Reject

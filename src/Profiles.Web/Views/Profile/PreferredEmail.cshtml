@@ -144,7 +144,7 @@
                     </p>
                     <form asp-action="ClearPreferredEmail" method="post">
                         <button type="submit" class="btn btn-outline-danger"
-                                onclick="return confirm('Are you sure you want to remove your preferred email?');">
+                                data-confirm="Are you sure you want to remove your preferred email?">
                             <i class="fa-solid fa-trash me-1"></i>
                             Remove Preferred Email
                         </button>

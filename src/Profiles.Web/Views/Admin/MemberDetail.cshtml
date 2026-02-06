@@ -160,7 +160,7 @@
                             @if (role.IsActive)
                             {
                                 <form asp-action="EndRole" asp-route-id="@role.Id" method="post" class="d-inline"
-                                      onsubmit="return confirm('End this role assignment?');">
+                                      data-confirm="End this role assignment?">
                                     @Html.AntiForgeryToken()
                                     <button type="submit" class="btn btn-sm btn-outline-danger">End</button>
                                 </form>
@@ -212,7 +212,7 @@
                 else
                 {
                     <form asp-action="SuspendMember" asp-route-id="@Model.UserId" method="post"
-                          onsubmit="return confirm('Are you sure you want to suspend this member?');">
+                          data-confirm="Are you sure you want to suspend this member?">
                         @Html.AntiForgeryToken()
                         <div class="mb-2">
                             <textarea name="notes" class="form-control" rows="2" placeholder="Reason for suspension (optional)"></textarea>

@@ -96,7 +96,7 @@
                                             <form asp-action="SetRole" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="Role" value="@TeamMemberRole.Member" />
-                                                <button type="submit" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Demote this user to Member?')">
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary" data-confirm="Demote this user to Member?">
                                                     Demote to Member
                                                 </button>
                                             </form>
@@ -106,14 +106,14 @@
                                             <form asp-action="SetRole" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="Role" value="@TeamMemberRole.Metalead" />
-                                                <button type="submit" class="btn btn-sm btn-outline-primary" onclick="return confirm('Promote this user to Metalead?')">
+                                                <button type="submit" class="btn btn-sm btn-outline-primary" data-confirm="Promote this user to Metalead?">
                                                     Promote to Metalead
                                                 </button>
                                             </form>
                                         }
                                         <form asp-action="RemoveMember" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this member from the team?')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Remove this member from the team?">
                                                 Remove
                                             </button>
                                         </form>
