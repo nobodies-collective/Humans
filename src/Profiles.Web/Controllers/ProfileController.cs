@@ -26,6 +26,7 @@ public class ProfileController : Controller
     private readonly IVolunteerHistoryService _volunteerHistoryService;
     private readonly IEmailService _emailService;
     private readonly ITeamService _teamService;
+    private readonly IMembershipCalculator _membershipCalculator;
 
     private const string EmailVerificationTokenPurpose = "PreferredEmailVerification";
     private const int VerificationCooldownMinutes = 5;
@@ -39,7 +40,8 @@ public class ProfileController : Controller
         IContactFieldService contactFieldService,
         IVolunteerHistoryService volunteerHistoryService,
         IEmailService emailService,
-        ITeamService teamService)
+        ITeamService teamService,
+        IMembershipCalculator membershipCalculator)
     {
         _dbContext = dbContext;
         _userManager = userManager;
@@ -50,6 +52,7 @@ public class ProfileController : Controller
         _volunteerHistoryService = volunteerHistoryService;
         _emailService = emailService;
         _teamService = teamService;
+        _membershipCalculator = membershipCalculator;
     }
 
     public async Task<IActionResult> Index()
@@ -63,20 +66,9 @@ public class ProfileController : Controller
         var profile = await _dbContext.Profiles
             .FirstOrDefaultAsync(p => p.UserId == user.Id);
 
-        // Get consent status
-        var requiredVersions = await _dbContext.DocumentVersions
-            .Where(v => v.RequiresReConsent || v.LegalDocument.Versions
-                .OrderByDescending(dv => dv.EffectiveFrom)
-                .First().Id == v.Id)
-            .Select(v => v.Id)
-            .ToListAsync();
-
-        var userConsents = await _dbContext.ConsentRecords
-            .Where(c => c.UserId == user.Id)
-            .Select(c => c.DocumentVersionId)
-            .ToListAsync();
-
-        var pendingConsents = requiredVersions.Except(userConsents).Count();
+        // Get consent status using canonical membership calculator logic
+        var missingConsentVersions = await _membershipCalculator.GetMissingConsentVersionsAsync(user.Id);
+        var pendingConsents = missingConsentVersions.Count;
 
         // Get contact fields (user viewing their own profile sees all)
         var contactFields = profile != null
@@ -120,7 +112,7 @@ public class ProfileController : Controller
             HasPendingConsents = pendingConsents > 0,
             PendingConsentCount = pendingConsents,
             IsApproved = profile?.IsApproved ?? false,
-            MembershipStatus = profile != null ? ComputeStatus(profile, user.Id).ToString() : "Incomplete",
+            MembershipStatus = (await _membershipCalculator.ComputeStatusAsync(user.Id)).ToString(),
             CanViewLegalName = true, // User viewing their own profile
             ContactFields = contactFields.Select(cf => new ContactFieldViewModel
             {
@@ -290,17 +282,6 @@ public class ProfileController : Controller
 
         TempData["SuccessMessage"] = "Profile updated successfully.";
         return RedirectToAction(nameof(Index));
-    }
-
-    private string ComputeStatus(Profile profile, Guid userId)
-    {
-        if (profile.IsSuspended)
-        {
-            return "Suspended";
-        }
-
-        // Simplified status check - full implementation would use IMembershipCalculator
-        return "Active";
     }
 
     [HttpGet]
