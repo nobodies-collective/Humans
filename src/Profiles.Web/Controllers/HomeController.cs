@@ -15,17 +15,20 @@ public class HomeController : Controller
     private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
     private readonly ILogger<HomeController> _logger;
+    private readonly IConfiguration _configuration;
 
     public HomeController(
         ProfilesDbContext dbContext,
         UserManager<User> userManager,
         IClock clock,
-        ILogger<HomeController> logger)
+        ILogger<HomeController> logger,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
         _userManager = userManager;
         _clock = clock;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public async Task<IActionResult> Index()
@@ -94,6 +97,7 @@ public class HomeController : Controller
 
     public IActionResult Privacy()
     {
+        ViewData["AdminEmail"] = _configuration["Email:AdminAddress"];
         return View();
     }
 

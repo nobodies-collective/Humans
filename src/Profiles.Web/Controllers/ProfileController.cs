@@ -537,6 +537,7 @@ public class ProfileController : Controller
             DeletionScheduledFor = user.DeletionScheduledFor?.ToDateTimeUtc()
         };
 
+        ViewData["AdminEmail"] = _configuration["Email:AdminAddress"];
         return View(viewModel);
     }
 
