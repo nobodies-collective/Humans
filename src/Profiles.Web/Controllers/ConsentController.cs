@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using NodaTime;
 using Profiles.Application.Interfaces;
 using Profiles.Domain.Entities;
@@ -22,6 +23,7 @@ public class ConsentController : Controller
     private readonly IGoogleSyncService _googleSyncService;
     private readonly IClock _clock;
     private readonly ILogger<ConsentController> _logger;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ConsentController(
         ProfilesDbContext dbContext,
@@ -30,7 +32,8 @@ public class ConsentController : Controller
         IMembershipCalculator membershipCalculator,
         IGoogleSyncService googleSyncService,
         IClock clock,
-        ILogger<ConsentController> logger)
+        ILogger<ConsentController> logger,
+        IStringLocalizer<SharedResource> localizer)
     {
         _dbContext = dbContext;
         _userManager = userManager;
@@ -39,6 +42,7 @@ public class ConsentController : Controller
         _googleSyncService = googleSyncService;
         _clock = clock;
         _logger = logger;
+        _localizer = localizer;
     }
 
     public async Task<IActionResult> Index()
@@ -156,7 +160,7 @@ public class ConsentController : Controller
 
         if (!model.ExplicitConsent)
         {
-            ModelState.AddModelError(string.Empty, "You must check the consent checkbox to continue.");
+            ModelState.AddModelError(string.Empty, _localizer["Consent_MustCheck"].Value);
             return RedirectToAction(nameof(Review), new { id = model.DocumentVersionId });
         }
 
@@ -175,7 +179,7 @@ public class ConsentController : Controller
 
         if (existingConsent)
         {
-            TempData["InfoMessage"] = "You have already consented to this document.";
+            TempData["InfoMessage"] = _localizer["Consent_AlreadyConsented"].Value;
             return RedirectToAction(nameof(Index));
         }
 
@@ -211,7 +215,7 @@ public class ConsentController : Controller
             _logger.LogInformation("Restored resource access for user {UserId} after compliance", user.Id);
         }
 
-        TempData["SuccessMessage"] = $"Thank you for consenting to {version.LegalDocument.Name}.";
+        TempData["SuccessMessage"] = string.Format(_localizer["Consent_ThankYou"].Value, version.LegalDocument.Name);
         return RedirectToAction(nameof(Index));
     }
 

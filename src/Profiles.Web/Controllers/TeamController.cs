@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
 using Profiles.Application.Interfaces;
 using Profiles.Domain.Entities;
 using Profiles.Domain.Enums;
@@ -15,15 +16,18 @@ public class TeamController : Controller
     private readonly ITeamService _teamService;
     private readonly UserManager<User> _userManager;
     private readonly ILogger<TeamController> _logger;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public TeamController(
         ITeamService teamService,
         UserManager<User> userManager,
-        ILogger<TeamController> logger)
+        ILogger<TeamController> logger,
+        IStringLocalizer<SharedResource> localizer)
     {
         _teamService = teamService;
         _userManager = userManager;
         _logger = logger;
+        _localizer = localizer;
     }
 
     [HttpGet("")]
@@ -201,21 +205,21 @@ public class TeamController : Controller
 
         if (team.IsSystemTeam)
         {
-            TempData["ErrorMessage"] = "Cannot join system teams directly.";
+            TempData["ErrorMessage"] = _localizer["Team_CannotJoinSystem"].Value;
             return RedirectToAction(nameof(Details), new { slug });
         }
 
         var isMember = await _teamService.IsUserMemberOfTeamAsync(team.Id, user.Id);
         if (isMember)
         {
-            TempData["ErrorMessage"] = "You are already a member of this team.";
+            TempData["ErrorMessage"] = _localizer["Team_AlreadyMember"].Value;
             return RedirectToAction(nameof(Details), new { slug });
         }
 
         var pendingRequest = await _teamService.GetUserPendingRequestAsync(team.Id, user.Id);
         if (pendingRequest != null)
         {
-            TempData["ErrorMessage"] = "You already have a pending request for this team.";
+            TempData["ErrorMessage"] = _localizer["Team_AlreadyPendingRequest"].Value;
             return RedirectToAction(nameof(Details), new { slug });
         }
 
@@ -255,12 +259,12 @@ public class TeamController : Controller
             if (team.RequiresApproval)
             {
                 await _teamService.RequestToJoinTeamAsync(team.Id, user.Id, model.Message);
-                TempData["SuccessMessage"] = "Your request to join has been submitted and is pending approval.";
+                TempData["SuccessMessage"] = _localizer["Team_JoinRequestSubmitted"].Value;
             }
             else
             {
                 await _teamService.JoinTeamDirectlyAsync(team.Id, user.Id);
-                TempData["SuccessMessage"] = "You have successfully joined the team!";
+                TempData["SuccessMessage"] = _localizer["Team_Joined"].Value;
             }
 
             return RedirectToAction(nameof(Details), new { slug });
@@ -291,7 +295,7 @@ public class TeamController : Controller
         try
         {
             await _teamService.LeaveTeamAsync(team.Id, user.Id);
-            TempData["SuccessMessage"] = "You have left the team.";
+            TempData["SuccessMessage"] = _localizer["Team_Left"].Value;
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -314,7 +318,7 @@ public class TeamController : Controller
         try
         {
             await _teamService.WithdrawJoinRequestAsync(id, user.Id);
-            TempData["SuccessMessage"] = "Your request has been withdrawn.";
+            TempData["SuccessMessage"] = _localizer["Team_RequestWithdrawn"].Value;
         }
         catch (InvalidOperationException ex)
         {

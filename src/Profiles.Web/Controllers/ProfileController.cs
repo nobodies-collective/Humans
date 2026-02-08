@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using NodaTime;
 using Profiles.Application.DTOs;
 using Profiles.Application.Interfaces;
@@ -27,6 +28,7 @@ public class ProfileController : Controller
     private readonly IEmailService _emailService;
     private readonly ITeamService _teamService;
     private readonly IMembershipCalculator _membershipCalculator;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     private const string EmailVerificationTokenPurpose = "PreferredEmailVerification";
     private const int VerificationCooldownMinutes = 5;
@@ -41,7 +43,8 @@ public class ProfileController : Controller
         IVolunteerHistoryService volunteerHistoryService,
         IEmailService emailService,
         ITeamService teamService,
-        IMembershipCalculator membershipCalculator)
+        IMembershipCalculator membershipCalculator,
+        IStringLocalizer<SharedResource> localizer)
     {
         _dbContext = dbContext;
         _userManager = userManager;
@@ -53,6 +56,7 @@ public class ProfileController : Controller
         _emailService = emailService;
         _teamService = teamService;
         _membershipCalculator = membershipCalculator;
+        _localizer = localizer;
     }
 
     public async Task<IActionResult> Index()
@@ -280,7 +284,7 @@ public class ProfileController : Controller
 
         _logger.LogInformation("User {UserId} updated their profile", user.Id);
 
-        TempData["SuccessMessage"] = "Profile updated successfully.";
+        TempData["SuccessMessage"] = _localizer["Profile_Updated"].Value;
         return RedirectToAction(nameof(Index));
     }
 
@@ -309,7 +313,7 @@ public class ProfileController : Controller
 
         if (string.IsNullOrWhiteSpace(model.NewEmail))
         {
-            ModelState.AddModelError(nameof(model.NewEmail), "Please enter an email address.");
+            ModelState.AddModelError(nameof(model.NewEmail), _localizer["Profile_EnterEmail"].Value);
             return View(nameof(PreferredEmail), BuildPreferredEmailViewModel(user));
         }
 
@@ -319,7 +323,7 @@ public class ProfileController : Controller
         if (string.Equals(newEmail, user.Email, StringComparison.OrdinalIgnoreCase))
         {
             ModelState.AddModelError(nameof(model.NewEmail),
-                "This is already your sign-in email. No need to set it as preferred.");
+                _localizer["Profile_AlreadySignInEmail"].Value);
             return View(nameof(PreferredEmail), BuildPreferredEmailViewModel(user));
         }
 
@@ -332,7 +336,7 @@ public class ProfileController : Controller
             {
                 var minutesRemaining = (int)Math.Ceiling((cooldownEnd - now).TotalMinutes);
                 ModelState.AddModelError(nameof(model.NewEmail),
-                    $"Please wait {minutesRemaining} minute(s) before requesting another verification email.");
+                    string.Format(CultureInfo.CurrentCulture, _localizer["Profile_VerificationCooldown"].Value, minutesRemaining));
                 return View(nameof(PreferredEmail), BuildPreferredEmailViewModel(user));
             }
         }
@@ -347,7 +351,7 @@ public class ProfileController : Controller
         if (emailInUse)
         {
             ModelState.AddModelError(nameof(model.NewEmail),
-                "This email address is already in use by another account.");
+                _localizer["Profile_EmailInUse"].Value);
             return View(nameof(PreferredEmail), BuildPreferredEmailViewModel(user));
         }
 
@@ -380,7 +384,7 @@ public class ProfileController : Controller
             "Sent preferred email verification to {Email} for user {UserId}",
             newEmail, user.Id);
 
-        TempData["SuccessMessage"] = $"Verification email sent to {newEmail}. Please check your inbox.";
+        TempData["SuccessMessage"] = string.Format(_localizer["Profile_VerificationSent"].Value, newEmail);
         return RedirectToAction(nameof(PreferredEmail));
     }
 
@@ -390,18 +394,18 @@ public class ProfileController : Controller
     {
         if (string.IsNullOrEmpty(token))
         {
-            return VerifyEmailError("Invalid verification link.");
+            return VerifyEmailError(_localizer["Profile_InvalidVerificationLink"].Value);
         }
 
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
-            return VerifyEmailError("Invalid verification link.");
+            return VerifyEmailError(_localizer["Profile_InvalidVerificationLink"].Value);
         }
 
         if (string.IsNullOrEmpty(user.PreferredEmail))
         {
-            return VerifyEmailError("No email pending verification.");
+            return VerifyEmailError(_localizer["Profile_NoEmailPending"].Value);
         }
 
         // Verify the token
@@ -414,7 +418,7 @@ public class ProfileController : Controller
 
         if (!isValid)
         {
-            return VerifyEmailError("The verification link is invalid or has expired.");
+            return VerifyEmailError(_localizer["Profile_VerificationExpired"].Value);
         }
 
         // Re-check uniqueness (guard against race conditions, case-insensitive)
@@ -429,7 +433,7 @@ public class ProfileController : Controller
             user.PreferredEmail = null;
             user.PreferredEmailVerified = false;
             await _userManager.UpdateAsync(user);
-            return VerifyEmailError("This email address has been claimed by another account.");
+            return VerifyEmailError(_localizer["Profile_EmailClaimed"].Value);
         }
 
         // Mark as verified
@@ -441,7 +445,7 @@ public class ProfileController : Controller
             user.Id, user.PreferredEmail);
 
         ViewData["Success"] = true;
-        ViewData["Message"] = $"Email address {user.PreferredEmail} has been verified.";
+        ViewData["Message"] = string.Format(_localizer["Profile_EmailVerified"].Value, user.PreferredEmail);
         return View("VerifyEmailResult");
     }
 
@@ -472,7 +476,7 @@ public class ProfileController : Controller
             "User {UserId} cleared preferred email (was: {Email})",
             user.Id, previousEmail);
 
-        TempData["SuccessMessage"] = "Preferred email has been removed. System emails will now be sent to your sign-in email.";
+        TempData["SuccessMessage"] = _localizer["Profile_PreferredEmailCleared"].Value;
         return RedirectToAction(nameof(PreferredEmail));
     }
 
@@ -537,7 +541,7 @@ public class ProfileController : Controller
 
         if (user.IsDeletionPending)
         {
-            TempData["ErrorMessage"] = "A deletion request is already pending.";
+            TempData["ErrorMessage"] = _localizer["Profile_DeletionAlreadyPending"].Value;
             return RedirectToAction(nameof(Privacy));
         }
 
@@ -563,7 +567,7 @@ public class ProfileController : Controller
                 CancellationToken.None);
         }
 
-        TempData["SuccessMessage"] = $"Account deletion requested. Your account will be deleted on {deletionDate.ToDateTimeUtc():MMMM d, yyyy} unless you cancel.";
+        TempData["SuccessMessage"] = string.Format(CultureInfo.CurrentCulture, _localizer["Profile_DeletionRequested"].Value, deletionDate.ToDateTimeUtc().ToString("MMMM d, yyyy", CultureInfo.CurrentCulture));
         return RedirectToAction(nameof(Privacy));
     }
 
@@ -579,7 +583,7 @@ public class ProfileController : Controller
 
         if (!user.IsDeletionPending)
         {
-            TempData["ErrorMessage"] = "No deletion request is pending.";
+            TempData["ErrorMessage"] = _localizer["Profile_NoDeletionPending"].Value;
             return RedirectToAction(nameof(Privacy));
         }
 
@@ -589,7 +593,7 @@ public class ProfileController : Controller
 
         _logger.LogInformation("User {UserId} cancelled account deletion request", user.Id);
 
-        TempData["SuccessMessage"] = "Account deletion has been cancelled.";
+        TempData["SuccessMessage"] = _localizer["Profile_DeletionCancelled"].Value;
         return RedirectToAction(nameof(Privacy));
     }
 

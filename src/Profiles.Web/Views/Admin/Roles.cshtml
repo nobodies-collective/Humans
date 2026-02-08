@@ -1,11 +1,11 @@
 @model Profiles.Web.Models.AdminRoleAssignmentListViewModel
 @{
-    ViewData["Title"] = "Role Assignments";
+    ViewData["Title"] = Localizer["AdminRoles_Title"].Value;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Role Assignments</h1>
-    <span class="text-muted">@Model.TotalCount total</span>
+    <h1>@Localizer["AdminRoles_Title"]</h1>
+    <span class="text-muted">@string.Format(Localizer["Admin_TotalCount"].Value, Model.TotalCount)</span>
 </div>
 
 <div class="card mb-4">
@@ -13,7 +13,7 @@
         <div class="btn-group" role="group">
             <a asp-action="Roles" asp-route-showInactive="@Model.ShowInactive"
                class="btn @(string.IsNullOrEmpty(Model.RoleFilter) ? "btn-primary" : "btn-outline-primary")">
-                All
+                @Localizer["AdminRoles_All"]
             </a>
             <a asp-action="Roles" asp-route-role="Admin" asp-route-showInactive="@Model.ShowInactive"
                class="btn @(Model.RoleFilter == "Admin" ? "btn-primary" : "btn-outline-primary")">
@@ -32,13 +32,13 @@
             @if (Model.ShowInactive)
             {
                 <a asp-action="Roles" asp-route-role="@Model.RoleFilter" asp-route-showInactive="false" class="btn btn-outline-secondary btn-sm">
-                    Hide Inactive
+                    @Localizer["AdminRoles_HideInactive"]
                 </a>
             }
             else
             {
                 <a asp-action="Roles" asp-route-role="@Model.RoleFilter" asp-route-showInactive="true" class="btn btn-outline-secondary btn-sm">
-                    Show Inactive
+                    @Localizer["AdminRoles_ShowInactive"]
                 </a>
             }
         </div>
@@ -49,18 +49,18 @@
     <div class="card-body p-0">
         @if (Model.RoleAssignments.Count == 0)
         {
-            <p class="text-muted text-center py-4 mb-0">No role assignments found.</p>
+            <p class="text-muted text-center py-4 mb-0">@Localizer["AdminMember_NoRoleAssignments"]</p>
         }
         else
         {
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>User</th>
-                        <th>Role</th>
-                        <th>Valid From</th>
-                        <th>Valid To</th>
-                        <th>Status</th>
+                        <th>@Localizer["AdminRoles_User"]</th>
+                        <th>@Localizer["MyTeams_Role"]</th>
+                        <th>@Localizer["AdminRoles_ValidFrom"]</th>
+                        <th>@Localizer["AdminRoles_ValidTo"]</th>
+                        <th>@Localizer["Common_Status"]</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -88,20 +88,20 @@
                             <td>
                                 @if (ra.IsActive)
                                 {
-                                    <span class="badge bg-success">Active</span>
+                                    <span class="badge bg-success">@Localizer["AdminMember_Active"]</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary">Ended</span>
+                                    <span class="badge bg-secondary">@Localizer["AdminMember_Ended"]</span>
                                 }
                             </td>
                             <td class="text-end">
                                 @if (ra.IsActive)
                                 {
                                     <form asp-action="EndRole" asp-route-id="@ra.Id" method="post" class="d-inline"
-                                          data-confirm="End this role assignment?">
+                                          data-confirm="@Localizer["AdminMember_EndRoleConfirm"].Value">
                                         @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">End</button>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">@Localizer["AdminMember_End"]</button>
                                     </form>
                                 }
                             </td>

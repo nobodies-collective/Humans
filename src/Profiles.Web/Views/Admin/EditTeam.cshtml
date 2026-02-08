@@ -1,13 +1,13 @@
 @model Profiles.Web.Models.EditTeamViewModel
 @{
-    ViewData["Title"] = "Edit Team";
+    ViewData["Title"] = Localizer["AdminEditTeam_Title"].Value;
 }
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="Index">Admin</a></li>
-        <li class="breadcrumb-item"><a asp-action="Teams">Teams</a></li>
-        <li class="breadcrumb-item active" aria-current="page">Edit Team</li>
+        <li class="breadcrumb-item"><a asp-action="Index">@Localizer["Nav_Admin"]</a></li>
+        <li class="breadcrumb-item"><a asp-action="Teams">@Localizer["AdminTeams_Title"]</a></li>
+        <li class="breadcrumb-item active" aria-current="page">@Localizer["AdminEditTeam_Title"]</li>
     </ol>
 </nav>
 
@@ -15,13 +15,13 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-header">
-                <h4 class="mb-0">Edit Team</h4>
+                <h4 class="mb-0">@Localizer["AdminEditTeam_Title"]</h4>
             </div>
             <div class="card-body">
                 @if (Model.IsSystemTeam)
                 {
                     <div class="alert alert-warning">
-                        This is a system-managed team. Most settings cannot be modified.
+                        @Localizer["AdminEditTeam_SystemTeamWarning"]
                     </div>
                 }
 
@@ -33,33 +33,33 @@
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
 
                     <div class="mb-3">
-                        <label asp-for="Name" class="form-label">Team Name</label>
+                        <label asp-for="Name" class="form-label">@Localizer["AdminTeams_TeamName"]</label>
                         <input asp-for="Name" class="form-control" disabled="@Model.IsSystemTeam" />
                         <span asp-validation-for="Name" class="text-danger"></span>
                     </div>
 
                     <div class="mb-3">
-                        <label asp-for="Description" class="form-label">Description (optional)</label>
+                        <label asp-for="Description" class="form-label">@Localizer["AdminTeams_DescriptionOptional"]</label>
                         <textarea asp-for="Description" class="form-control" rows="4" disabled="@Model.IsSystemTeam"></textarea>
                         <span asp-validation-for="Description" class="text-danger"></span>
                     </div>
 
                     <div class="mb-3 form-check">
                         <input asp-for="RequiresApproval" type="checkbox" class="form-check-input" disabled="@Model.IsSystemTeam" />
-                        <label asp-for="RequiresApproval" class="form-check-label">Require approval to join</label>
+                        <label asp-for="RequiresApproval" class="form-check-label">@Localizer["AdminTeams_RequireApproval"]</label>
                     </div>
 
                     <div class="mb-3 form-check">
                         <input asp-for="IsActive" type="checkbox" class="form-check-input" disabled="@Model.IsSystemTeam" />
-                        <label asp-for="IsActive" class="form-check-label">Team is active</label>
+                        <label asp-for="IsActive" class="form-check-label">@Localizer["AdminEditTeam_TeamIsActive"]</label>
                     </div>
 
                     <div class="d-flex gap-2">
                         @if (!Model.IsSystemTeam)
                         {
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                            <button type="submit" class="btn btn-primary">@Localizer["Common_Save"]</button>
                         }
-                        <a asp-action="Teams" class="btn btn-outline-secondary">@(Model.IsSystemTeam ? "Back" : "Cancel")</a>
+                        <a asp-action="Teams" class="btn btn-outline-secondary">@(Model.IsSystemTeam ? Localizer["Common_Back"].Value : Localizer["Common_Cancel"].Value)</a>
                     </div>
                 </form>
             </div>

@@ -1,15 +1,15 @@
 @{
-    ViewData["Title"] = "Error";
+    ViewData["Title"] = Localizer["Error_Title"].Value;
 }
 
 <div class="text-center mt-5">
-    <h1 class="display-1 text-danger">Oops!</h1>
-    <h2>Something went wrong</h2>
-    <p class="lead text-muted">An error occurred while processing your request. Please try again later.</p>
+    <h1 class="display-1 text-danger">@Localizer["Error_Oops"]</h1>
+    <h2>@Localizer["Error_SomethingWentWrong"]</h2>
+    <p class="lead text-muted">@Localizer["Error_TryAgainLater"]</p>
     <div class="mt-4">
         <a asp-controller="Home" asp-action="Index" class="btn btn-primary">
             <i class="fa-solid fa-home me-1"></i>
-            Return Home
+            @Localizer["Common_ReturnHome"]
         </a>
     </div>
 </div>

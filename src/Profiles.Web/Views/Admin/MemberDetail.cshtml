@@ -1,12 +1,12 @@
 @model Profiles.Web.Models.AdminMemberDetailViewModel
 @{
-    ViewData["Title"] = $"Member: {Model.DisplayName}";
+    ViewData["Title"] = string.Format(Localizer["AdminMemberDetail_Title"].Value, Model.DisplayName);
 }
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="Index">Admin</a></li>
-        <li class="breadcrumb-item"><a asp-action="Members">Members</a></li>
+        <li class="breadcrumb-item"><a asp-action="Index">@Localizer["Nav_Admin"]</a></li>
+        <li class="breadcrumb-item"><a asp-action="Members">@Localizer["AdminMembers_Title"]</a></li>
         <li class="breadcrumb-item active" aria-current="page">@Model.DisplayName</li>
     </ol>
 </nav>
@@ -22,7 +22,7 @@
 <div class="row">
     <div class="col-md-8">
         <div class="card mb-4">
-            <div class="card-header">Member Information</div>
+            <div class="card-header">@Localizer["AdminMember_Information"]</div>
             <div class="card-body">
                 <div class="row mb-3">
                     <div class="col-md-2">
@@ -42,15 +42,15 @@
                         <p class="text-muted mb-1">@Model.Email</p>
                         @if (Model.IsSuspended)
                         {
-                            <span class="badge bg-danger">Suspended</span>
+                            <span class="badge bg-danger">@Localizer["AdminMember_Suspended"]</span>
                         }
                         else if (Model.HasProfile && !Model.IsApproved)
                         {
-                            <span class="badge bg-warning">Pending Approval</span>
+                            <span class="badge bg-warning">@Localizer["AdminMember_PendingApproval"]</span>
                         }
                         else if (Model.HasProfile && Model.IsApproved)
                         {
-                            <span class="badge bg-success">Approved</span>
+                            <span class="badge bg-success">@Localizer["AdminMember_Approved"]</span>
                         }
                     </div>
                 </div>
@@ -58,13 +58,13 @@
                 <hr />
 
                 <dl class="row mb-0">
-                    <dt class="col-sm-3">User ID</dt>
+                    <dt class="col-sm-3">@Localizer["AdminMember_UserId"]</dt>
                     <dd class="col-sm-9"><code>@Model.UserId</code></dd>
 
-                    <dt class="col-sm-3">Joined</dt>
+                    <dt class="col-sm-3">@Localizer["Admin_Joined"]</dt>
                     <dd class="col-sm-9">@Model.CreatedAt.ToString("d MMMM yyyy HH:mm")</dd>
 
-                    <dt class="col-sm-3">Last Login</dt>
+                    <dt class="col-sm-3">@Localizer["Admin_LastLogin"]</dt>
                     <dd class="col-sm-9">
                         @if (Model.LastLoginAt.HasValue)
                         {
@@ -72,25 +72,25 @@
                         }
                         else
                         {
-                            <span class="text-muted">Never</span>
+                            <span class="text-muted">@Localizer["Admin_Never"]</span>
                         }
                     </dd>
 
                     @if (!string.IsNullOrEmpty(Model.FirstName) || !string.IsNullOrEmpty(Model.LastName))
                     {
-                        <dt class="col-sm-3">Full Name</dt>
+                        <dt class="col-sm-3">@Localizer["AdminMember_FullName"]</dt>
                         <dd class="col-sm-9">@Model.FirstName @Model.LastName</dd>
                     }
 
                     @if (!string.IsNullOrEmpty(Model.PhoneNumber))
                     {
-                        <dt class="col-sm-3">Phone</dt>
+                        <dt class="col-sm-3">@Localizer["Profile_Phone"]</dt>
                         <dd class="col-sm-9">@Model.PhoneNumber</dd>
                     }
 
                     @if (!string.IsNullOrEmpty(Model.City))
                     {
-                        <dt class="col-sm-3">Location</dt>
+                        <dt class="col-sm-3">@Localizer["Profile_Location"]</dt>
                         <dd class="col-sm-9">@Model.City, @Model.CountryCode</dd>
                     }
                 </dl>
@@ -100,7 +100,7 @@
         @if (!string.IsNullOrEmpty(Model.AdminNotes))
         {
             <div class="card mb-4">
-                <div class="card-header">Admin Notes</div>
+                <div class="card-header">@Localizer["AdminMember_AdminNotes"]</div>
                 <div class="card-body">
                     <p class="mb-0" style="white-space: pre-wrap;">@Model.AdminNotes</p>
                 </div>
@@ -110,7 +110,7 @@
         @if (Model.Applications.Count > 0)
         {
             <div class="card mb-4">
-                <div class="card-header">Recent Applications</div>
+                <div class="card-header">@Localizer["AdminMember_RecentApplications"]</div>
                 <div class="list-group list-group-flush">
                     @foreach (var app in Model.Applications)
                     {
@@ -125,8 +125,8 @@
 
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span>Role Assignments</span>
-                <a asp-action="AddRole" asp-route-id="@Model.UserId" class="btn btn-sm btn-outline-primary">Add Role</a>
+                <span>@Localizer["AdminMember_RoleAssignments"]</span>
+                <a asp-action="AddRole" asp-route-id="@Model.UserId" class="btn btn-sm btn-outline-primary">@Localizer["AdminMember_AddRole"]</a>
             </div>
             @if (Model.RoleAssignments.Count > 0)
             {
@@ -138,18 +138,18 @@
                                 <strong>@role.RoleName</strong>
                                 @if (role.IsActive)
                                 {
-                                    <span class="badge bg-success ms-2">Active</span>
+                                    <span class="badge bg-success ms-2">@Localizer["AdminMember_Active"]</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary ms-2">Ended</span>
+                                    <span class="badge bg-secondary ms-2">@Localizer["AdminMember_Ended"]</span>
                                 }
                                 <br />
                                 <small class="text-muted">
-                                    From @role.ValidFrom.ToString("d MMM yyyy")
+                                    @Localizer["AdminMember_From"] @role.ValidFrom.ToString("d MMM yyyy")
                                     @if (role.ValidTo.HasValue)
                                     {
-                                        <text> to @role.ValidTo.Value.ToString("d MMM yyyy")</text>
+                                        <text> @Localizer["AdminMember_To"] @role.ValidTo.Value.ToString("d MMM yyyy")</text>
                                     }
                                     @if (!string.IsNullOrEmpty(role.Notes))
                                     {
@@ -160,9 +160,9 @@
                             @if (role.IsActive)
                             {
                                 <form asp-action="EndRole" asp-route-id="@role.Id" method="post" class="d-inline"
-                                      data-confirm="End this role assignment?">
+                                      data-confirm="@Localizer["AdminMember_EndRoleConfirm"].Value">
                                     @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">End</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">@Localizer["AdminMember_End"]</button>
                                 </form>
                             }
                         </div>
@@ -172,13 +172,13 @@
             else
             {
                 <div class="card-body text-muted">
-                    No role assignments.
+                    @Localizer["AdminMember_NoRoleAssignments"]
                 </div>
             }
         </div>
 
         <div class="card mb-4">
-            <div class="card-header">Audit History</div>
+            <div class="card-header">@Localizer["AdminMember_AuditHistory"]</div>
             @if (Model.AuditLog.Count > 0)
             {
                 <div class="list-group list-group-flush">
@@ -212,7 +212,7 @@
             else
             {
                 <div class="card-body text-muted">
-                    No audit history.
+                    @Localizer["AdminMember_NoAuditHistory"]
                 </div>
             }
         </div>
@@ -220,25 +220,25 @@
 
     <div class="col-md-4">
         <div class="card mb-4">
-            <div class="card-header">Statistics</div>
+            <div class="card-header">@Localizer["AdminMember_Statistics"]</div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-8">Applications</dt>
+                    <dt class="col-8">@Localizer["AdminMember_ApplicationCount"]</dt>
                     <dd class="col-4 text-end">@Model.ApplicationCount</dd>
-                    <dt class="col-8">Consents</dt>
+                    <dt class="col-8">@Localizer["AdminMember_ConsentCount"]</dt>
                     <dd class="col-4 text-end">@Model.ConsentCount</dd>
                 </dl>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header">Actions</div>
+            <div class="card-header">@Localizer["TeamDetail_Actions"]</div>
             <div class="card-body">
                 @if (Model.HasProfile && !Model.IsApproved && !Model.IsSuspended)
                 {
                     <form asp-action="ApproveVolunteer" asp-route-id="@Model.UserId" method="post">
                         @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-success w-100 mb-2">Approve Volunteer</button>
+                        <button type="submit" class="btn btn-success w-100 mb-2">@Localizer["AdminMember_ApproveVolunteer"]</button>
                     </form>
                     <hr />
                 }
@@ -246,18 +246,18 @@
                 {
                     <form asp-action="UnsuspendMember" asp-route-id="@Model.UserId" method="post">
                         @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-success w-100 mb-2">Unsuspend Member</button>
+                        <button type="submit" class="btn btn-success w-100 mb-2">@Localizer["AdminMember_UnsuspendMember"]</button>
                     </form>
                 }
                 else
                 {
                     <form asp-action="SuspendMember" asp-route-id="@Model.UserId" method="post"
-                          data-confirm="Are you sure you want to suspend this member?">
+                          data-confirm="@Localizer["AdminMember_SuspendConfirm"].Value">
                         @Html.AntiForgeryToken()
                         <div class="mb-2">
-                            <textarea name="notes" class="form-control" rows="2" placeholder="Reason for suspension (optional)"></textarea>
+                            <textarea name="notes" class="form-control" rows="2" placeholder="@Localizer["AdminMember_SuspendReasonPlaceholder"].Value"></textarea>
                         </div>
-                        <button type="submit" class="btn btn-danger w-100">Suspend Member</button>
+                        <button type="submit" class="btn btn-danger w-100">@Localizer["AdminMember_SuspendMember"]</button>
                     </form>
                 }
             </div>

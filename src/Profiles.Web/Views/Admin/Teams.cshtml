@@ -1,11 +1,11 @@
 @model Profiles.Web.Models.AdminTeamListViewModel
 @{
-    ViewData["Title"] = "Teams Administration";
+    ViewData["Title"] = Localizer["AdminTeams_Title"].Value;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Teams Administration</h1>
-    <a asp-action="CreateTeam" class="btn btn-primary">Create Team</a>
+    <h1>@Localizer["AdminTeams_Title"]</h1>
+    <a asp-action="CreateTeam" class="btn btn-primary">@Localizer["Teams_CreateTeam"]</a>
 </div>
 
 @if (TempData["SuccessMessage"] != null)
@@ -29,13 +29,13 @@
         <table class="table table-hover mb-0">
             <thead>
                 <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Members</th>
-                    <th>Pending</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    <th>Actions</th>
+                    <th>@Localizer["AdminTeams_Name"]</th>
+                    <th>@Localizer["AdminTeams_Type"]</th>
+                    <th>@Localizer["AdminTeams_Members"]</th>
+                    <th>@Localizer["AdminTeams_Pending"]</th>
+                    <th>@Localizer["Common_Status"]</th>
+                    <th>@Localizer["AdminTeams_Created"]</th>
+                    <th>@Localizer["MyTeams_Actions"]</th>
                 </tr>
             </thead>
             <tbody>
@@ -52,11 +52,11 @@
                             }
                             else if (team.RequiresApproval)
                             {
-                                <span class="badge bg-info">Approval Required</span>
+                                <span class="badge bg-info">@Localizer["Teams_RequiresApproval"]</span>
                             }
                             else
                             {
-                                <span class="badge bg-success">Open</span>
+                                <span class="badge bg-success">@Localizer["AdminTeams_Open"]</span>
                             }
                         </td>
                         <td>@team.MemberCount</td>
@@ -73,11 +73,11 @@
                         <td>
                             @if (team.IsActive)
                             {
-                                <span class="badge bg-success">Active</span>
+                                <span class="badge bg-success">@Localizer["AdminMember_Active"]</span>
                             }
                             else
                             {
-                                <span class="badge bg-secondary">Inactive</span>
+                                <span class="badge bg-secondary">@Localizer["AdminTeams_Inactive"]</span>
                             }
                         </td>
                         <td>@team.CreatedAt.ToString("MMM d, yyyy")</td>
@@ -85,19 +85,19 @@
                             @if (!team.IsSystemTeam)
                             {
                                 <div class="btn-group" role="group">
-                                    <a asp-action="EditTeam" asp-route-id="@team.Id" class="btn btn-sm btn-outline-primary">Edit</a>
+                                    <a asp-action="EditTeam" asp-route-id="@team.Id" class="btn btn-sm btn-outline-primary">@Localizer["Common_Edit"]</a>
                                     @if (team.IsActive)
                                     {
                                         <form asp-action="DeleteTeam" asp-route-id="@team.Id" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Deactivate this team?">Deactivate</button>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="@Localizer["AdminTeams_DeactivateConfirm"].Value">@Localizer["AdminTeams_Deactivate"]</button>
                                         </form>
                                     }
                                 </div>
                             }
                             else
                             {
-                                <span class="text-muted">System managed</span>
+                                <span class="text-muted">@Localizer["AdminTeams_SystemManaged"]</span>
                             }
                         </td>
                     </tr>
@@ -110,7 +110,7 @@
 @if (!Model.Teams.Any())
 {
     <div class="alert alert-info mt-3">
-        No teams have been created yet.
+        @Localizer["Teams_NoTeams"]
     </div>
 }
 

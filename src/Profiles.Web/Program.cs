@@ -6,6 +6,8 @@ using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -23,17 +25,28 @@ using Profiles.Infrastructure.Repositories;
 using Profiles.Infrastructure.Services;
 using Profiles.Web.Authorization;
 using Profiles.Web.Health;
+using Microsoft.Extensions.Localization;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Serilog
-Log.Logger = new LoggerConfiguration()
+var logConfig = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
     .Enrich.WithProperty("Application", "Profiles.Web")
-    .WriteTo.Console()
-    .CreateLogger();
+    .WriteTo.Console();
+
+if (builder.Environment.IsDevelopment())
+{
+    var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp", "human");
+    Directory.CreateDirectory(logDir);
+    logConfig.WriteTo.File(
+        Path.Combine(logDir, "profiles-.log"),
+        rollingInterval: Serilog.RollingInterval.Day);
+}
+
+Log.Logger = logConfig.CreateLogger();
 
 builder.Host.UseSerilog();
 
@@ -200,11 +213,80 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+// Configure Localization
+builder.Services.AddLocalization();
+
 // Add Controllers with Views
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews()
+    .AddViewLocalization(LanguageViewLocationExpanderFormat.Suffix)
+    .AddDataAnnotationsLocalization();
 builder.Services.AddRazorPages();
 
+var supportedCultures = new[] { "en", "es", "de", "it", "fr" };
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    options.SetDefaultCulture("en");
+    options.AddSupportedCultures(supportedCultures);
+    options.AddSupportedUICultures(supportedCultures);
+    options.AddInitialRequestCultureProvider(new CustomRequestCultureProvider(async context =>
+    {
+        if (context.User?.Identity?.IsAuthenticated == true)
+        {
+            var userManager = context.RequestServices.GetRequiredService<UserManager<User>>();
+            var user = await userManager.GetUserAsync(context.User);
+            if (user != null && !string.IsNullOrEmpty(user.PreferredLanguage))
+            {
+                return new ProviderCultureResult(user.PreferredLanguage);
+            }
+        }
+        return null;
+    }));
+});
+
 var app = builder.Build();
+
+// Localization diagnostic check
+{
+    using var scope = app.Services.CreateScope();
+    var localizerFactory = scope.ServiceProvider.GetRequiredService<IStringLocalizerFactory>();
+    var localizer = localizerFactory.Create(typeof(Profiles.Web.SharedResource));
+    var testKey = "Dashboard_Welcome";
+    var result = localizer[testKey];
+
+    if (result.ResourceNotFound)
+    {
+        Log.Error("LOCALIZATION BROKEN: Resource key '{Key}' not found. SearchedLocation: {Location}",
+            testKey, result.SearchedLocation);
+        Log.Error("SharedResource type: {TypeName}, Assembly: {Assembly}",
+            typeof(Profiles.Web.SharedResource).FullName, typeof(Profiles.Web.SharedResource).Assembly.GetName().Name);
+
+        // List embedded resources for debugging
+        var assembly = typeof(Profiles.Web.SharedResource).Assembly;
+        var resourceNames = assembly.GetManifestResourceNames();
+        Log.Error("Embedded resources in {Assembly}: {Resources}",
+            assembly.GetName().Name, string.Join(", ", resourceNames));
+
+        // Check satellite assemblies
+        foreach (var culture in new[] { "en", "es", "de", "it", "fr" })
+        {
+            try
+            {
+                var satAssembly = assembly.GetSatelliteAssembly(new System.Globalization.CultureInfo(culture));
+                var satResources = satAssembly.GetManifestResourceNames();
+                Log.Information("Satellite assembly [{Culture}] resources: {Resources}",
+                    culture, string.Join(", ", satResources));
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("No satellite assembly for culture '{Culture}': {Error}", culture, ex.Message);
+            }
+        }
+    }
+    else
+    {
+        Log.Information("Localization OK: '{Key}' => '{Value}'", testKey, result.Value);
+    }
+}
 
 // Configure the HTTP request pipeline
 
@@ -234,7 +316,7 @@ app.Use(async (context, next) =>
     context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
     context.Response.Headers.Append("Content-Security-Policy",
         "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com; " +
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com; " +
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; " +
         "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
         "img-src 'self' https: data:; " +
@@ -253,6 +335,8 @@ app.UseSerilogRequestLogging();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseRequestLocalization();
 
 // Health check endpoints
 app.MapHealthChecks("/health", new HealthCheckOptions

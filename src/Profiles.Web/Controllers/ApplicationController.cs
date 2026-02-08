@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using NodaTime;
 using Profiles.Domain.Enums;
 using Profiles.Infrastructure.Data;
@@ -18,17 +19,20 @@ public class ApplicationController : Controller
     private readonly UserManager<Domain.Entities.User> _userManager;
     private readonly IClock _clock;
     private readonly ILogger<ApplicationController> _logger;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public ApplicationController(
         ProfilesDbContext dbContext,
         UserManager<Domain.Entities.User> userManager,
         IClock clock,
-        ILogger<ApplicationController> logger)
+        ILogger<ApplicationController> logger,
+        IStringLocalizer<SharedResource> localizer)
     {
         _dbContext = dbContext;
         _userManager = userManager;
         _clock = clock;
         _logger = logger;
+        _localizer = localizer;
     }
 
     public async Task<IActionResult> Index()
@@ -81,7 +85,7 @@ public class ApplicationController : Controller
 
         if (hasPending)
         {
-            TempData["ErrorMessage"] = "You already have a pending application.";
+            TempData["ErrorMessage"] = _localizer["Application_AlreadyPending"].Value;
             return RedirectToAction(nameof(Index));
         }
 
@@ -94,7 +98,7 @@ public class ApplicationController : Controller
     {
         if (!model.ConfirmAccuracy)
         {
-            ModelState.AddModelError(nameof(model.ConfirmAccuracy), "You must confirm the accuracy of your information.");
+            ModelState.AddModelError(nameof(model.ConfirmAccuracy), _localizer["Application_ConfirmAccuracy"].Value);
         }
 
         if (!ModelState.IsValid)
@@ -115,7 +119,7 @@ public class ApplicationController : Controller
 
         if (hasPending)
         {
-            TempData["ErrorMessage"] = "You already have a pending application.";
+            TempData["ErrorMessage"] = _localizer["Application_AlreadyPending"].Value;
             return RedirectToAction(nameof(Index));
         }
 
@@ -136,7 +140,7 @@ public class ApplicationController : Controller
 
         _logger.LogInformation("User {UserId} submitted application {ApplicationId}", user.Id, application.Id);
 
-        TempData["SuccessMessage"] = "Your application has been submitted successfully!";
+        TempData["SuccessMessage"] = _localizer["Application_Submitted"].Value;
         return RedirectToAction(nameof(Details), new { id = application.Id });
     }
 
@@ -208,7 +212,7 @@ public class ApplicationController : Controller
         if (application.Status != ApplicationStatus.Submitted &&
             application.Status != ApplicationStatus.UnderReview)
         {
-            TempData["ErrorMessage"] = "This application cannot be withdrawn.";
+            TempData["ErrorMessage"] = _localizer["Application_CannotWithdraw"].Value;
             return RedirectToAction(nameof(Details), new { id });
         }
 
@@ -217,7 +221,7 @@ public class ApplicationController : Controller
 
         _logger.LogInformation("User {UserId} withdrew application {ApplicationId}", user.Id, application.Id);
 
-        TempData["SuccessMessage"] = "Your application has been withdrawn.";
+        TempData["SuccessMessage"] = _localizer["Application_Withdrawn"].Value;
         return RedirectToAction(nameof(Index));
     }
 

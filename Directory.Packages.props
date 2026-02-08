@@ -46,6 +46,8 @@
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageVersion Include="Serilog.Sinks.OpenTelemetry" Version="4.2.0" />
+    <!-- Localization -->
+    <PackageVersion Include="Microsoft.Extensions.Localization" Version="10.0.2" />
     <!-- Health Checks -->
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.Hangfire" Version="9.0.0" />

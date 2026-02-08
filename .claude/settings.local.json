@@ -1,6 +1,9 @@
 {
   "permissions": {
     "allow": [
+      "Edit",
+      "Write",
+      "NotebookEdit",
       "Bash(tree:*)",
       "Bash(wc:*)",
       "Bash(xargs cat:*)",
@@ -40,7 +43,14 @@
       "Bash(gh pr view:*)",
       "Bash(gh run view:*)",
       "Bash(dotnet list package:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(gh issue view:*)",
+      "Bash(dir:*)",
+      "Bash(dotnet tool restore:*)",
+      "Bash(dotnet tool list:*)",
+      "Bash(dotnet list:*)",
+      "Bash(findstr:*)",
+      "Bash(xargs:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

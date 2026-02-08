@@ -3,9 +3,10 @@
     ViewData["Title"] = Model.Name;
 }
 
+
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="Index">Teams</a></li>
+        <li class="breadcrumb-item"><a asp-action="Index">@Localizer["Teams_Title"]</a></li>
         <li class="breadcrumb-item active" aria-current="page">@Model.Name</li>
     </ol>
 </nav>
@@ -34,11 +35,11 @@
                 <div>
                     @if (Model.IsSystemTeam)
                     {
-                        <span class="badge bg-secondary">@Model.SystemTeamType Team</span>
+                        <span class="badge bg-secondary">@Model.SystemTeamType @Localizer["Teams_Member"]</span>
                     }
                     @if (Model.IsCurrentUserMember)
                     {
-                        <span class="badge bg-success">Member</span>
+                        <span class="badge bg-success">@Localizer["Teams_Member"]</span>
                     }
                     @if (Model.IsCurrentUserMetalead)
                     {
@@ -53,28 +54,28 @@
                 }
                 else
                 {
-                    <p class="text-muted">No description provided.</p>
+                    <p class="text-muted">@Localizer["TeamDetail_NoDescription"]</p>
                 }
 
                 @if (Model.IsSystemTeam)
                 {
                     <div class="alert alert-info mb-0">
-                        This is a system-managed team. Membership is automatically synchronized based on @Model.SystemTeamType criteria.
+                        @string.Format(Localizer["TeamDetail_SystemTeamInfo"].Value, Model.SystemTeamType)
                     </div>
                 }
             </div>
             <div class="card-footer">
-                <small class="text-muted">Created @Model.CreatedAt.ToString("MMMM d, yyyy")</small>
+                <small class="text-muted">@Localizer["TeamDetail_Created"] @Model.CreatedAt.ToString("MMMM d, yyyy")</small>
             </div>
         </div>
 
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <span>Members (@Model.Members.Count)</span>
+                <span>@string.Format(Localizer["TeamDetail_Members"].Value, Model.Members.Count)</span>
                 @if (Model.CanCurrentUserManage)
                 {
                     <a asp-controller="TeamAdmin" asp-action="Members" asp-route-slug="@Model.Slug" class="btn btn-sm btn-outline-primary">
-                        Manage Members
+                        @Localizer["TeamDetail_ManageMembers"]
                     </a>
                 }
             </div>
@@ -99,19 +100,19 @@
                                 <span class="badge bg-primary ms-2">Metalead</span>
                             }
                         </div>
-                        <small class="text-muted">Joined @member.JoinedAt.ToString("MMM d, yyyy")</small>
+                        <small class="text-muted">@Localizer["TeamDetail_Joined"] @member.JoinedAt.ToString("MMM d, yyyy")</small>
                     </li>
                 }
                 @if (Model.Members.Count > 10)
                 {
                     <li class="list-group-item text-center text-muted">
-                        And @(Model.Members.Count - 10) more members...
+                        @string.Format(Localizer["TeamDetail_AndMoreMembers"].Value, Model.Members.Count - 10)
                     </li>
                 }
                 @if (!Model.Members.Any())
                 {
                     <li class="list-group-item text-center text-muted">
-                        No members yet.
+                        @Localizer["TeamDetail_NoMembers"]
                     </li>
                 }
             </ul>
@@ -120,30 +121,30 @@
 
     <div class="col-md-4">
         <div class="card mb-4">
-            <div class="card-header">Actions</div>
+            <div class="card-header">@Localizer["TeamDetail_Actions"]</div>
             <div class="card-body">
                 @if (Model.CanCurrentUserJoin)
                 {
                     <a asp-action="Join" asp-route-slug="@Model.Slug" class="btn btn-primary w-100 mb-2">
                         @if (Model.RequiresApproval)
                         {
-                            <span>Request to Join</span>
+                            <span>@Localizer["TeamDetail_RequestToJoin"]</span>
                         }
                         else
                         {
-                            <span>Join Team</span>
+                            <span>@Localizer["TeamDetail_JoinTeam"]</span>
                         }
                     </a>
                 }
                 else if (Model.CurrentUserPendingRequestId.HasValue)
                 {
                     <div class="alert alert-info mb-2">
-                        Your join request is pending approval.
+                        @Localizer["TeamDetail_PendingApproval"]
                     </div>
                     <form asp-action="WithdrawRequest" asp-route-id="@Model.CurrentUserPendingRequestId" method="post">
                         @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-outline-danger w-100" data-confirm="Are you sure you want to withdraw your request?">
-                            Withdraw Request
+                        <button type="submit" class="btn btn-outline-danger w-100" data-confirm="@Localizer["TeamDetail_WithdrawConfirm"].Value">
+                            @Localizer["TeamDetail_WithdrawRequest"]
                         </button>
                     </form>
                 }
@@ -151,15 +152,15 @@
                 {
                     <form asp-action="Leave" asp-route-slug="@Model.Slug" method="post">
                         @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-outline-danger w-100" data-confirm="Are you sure you want to leave this team?">
-                            Leave Team
+                        <button type="submit" class="btn btn-outline-danger w-100" data-confirm="@Localizer["TeamDetail_LeaveConfirm"].Value">
+                            @Localizer["TeamDetail_LeaveTeam"]
                         </button>
                     </form>
                 }
                 else if (Model.IsCurrentUserMember && Model.IsSystemTeam)
                 {
                     <div class="alert alert-secondary mb-0">
-                        Membership in system teams is managed automatically.
+                        @Localizer["TeamDetail_SystemMembership"]
                     </div>
                 }
             </div>
@@ -168,20 +169,20 @@
         @if (Model.CanCurrentUserManage)
         {
             <div class="card">
-                <div class="card-header">Team Management</div>
+                <div class="card-header">@Localizer["TeamDetail_TeamManagement"]</div>
                 <div class="list-group list-group-flush">
                     <a asp-controller="TeamAdmin" asp-action="Requests" asp-route-slug="@Model.Slug" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                        Pending Requests
+                        @Localizer["TeamDetail_PendingRequests"]
                         @if (Model.PendingRequestCount > 0)
                         {
                             <span class="badge bg-warning">@Model.PendingRequestCount</span>
                         }
                     </a>
                     <a asp-controller="TeamAdmin" asp-action="Members" asp-route-slug="@Model.Slug" class="list-group-item list-group-item-action">
-                        Manage Members
+                        @Localizer["TeamDetail_ManageMembers"]
                     </a>
                     <a asp-controller="TeamAdmin" asp-action="Resources" asp-route-slug="@Model.Slug" class="list-group-item list-group-item-action">
-                        Manage Resources
+                        @Localizer["TeamDetail_ManageResources"]
                     </a>
                 </div>
             </div>

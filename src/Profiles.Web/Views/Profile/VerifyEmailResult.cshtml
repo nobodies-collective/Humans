@@ -1,10 +1,10 @@
 @{
-    ViewData["Title"] = "Email Verification";
+    ViewData["Title"] = Localizer["VerifyEmail_Title"].Value;
     var success = ViewData["Success"] as bool? ?? false;
     var message = ViewData["Message"] as string;
 }
 
-<h1>Email Verification</h1>
+<h1>@Localizer["VerifyEmail_Title"]</h1>
 
 @if (success)
 {
@@ -21,9 +21,9 @@ else
 
 @if (User.Identity?.IsAuthenticated == true)
 {
-    <a asp-action="PreferredEmail" class="btn btn-primary">Go to Preferred Email Settings</a>
+    <a asp-action="PreferredEmail" class="btn btn-primary">@Localizer["VerifyEmail_GoToSettings"]</a>
 }
 else
 {
-    <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Go to Home Page</a>
+    <a asp-controller="Home" asp-action="Index" class="btn btn-primary">@Localizer["VerifyEmail_GoHome"]</a>
 }

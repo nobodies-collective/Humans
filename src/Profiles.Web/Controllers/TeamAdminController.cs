@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using Profiles.Application.Interfaces;
 using Profiles.Domain.Entities;
 using Profiles.Domain.Enums;
@@ -18,19 +19,22 @@ public class TeamAdminController : Controller
     private readonly IGoogleSyncService _googleSyncService;
     private readonly UserManager<User> _userManager;
     private readonly ILogger<TeamAdminController> _logger;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public TeamAdminController(
         ITeamService teamService,
         ITeamResourceService teamResourceService,
         IGoogleSyncService googleSyncService,
         UserManager<User> userManager,
-        ILogger<TeamAdminController> logger)
+        ILogger<TeamAdminController> logger,
+        IStringLocalizer<SharedResource> localizer)
     {
         _teamService = teamService;
         _teamResourceService = teamResourceService;
         _googleSyncService = googleSyncService;
         _userManager = userManager;
         _logger = logger;
+        _localizer = localizer;
     }
 
     [HttpGet("Requests")]
@@ -115,7 +119,7 @@ public class TeamAdminController : Controller
         try
         {
             await _teamService.ApproveJoinRequestAsync(requestId, user.Id, model.Notes);
-            TempData["SuccessMessage"] = "Request approved. The user is now a team member.";
+            TempData["SuccessMessage"] = _localizer["TeamAdmin_RequestApproved"].Value;
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException)
         {
@@ -149,14 +153,14 @@ public class TeamAdminController : Controller
 
         if (string.IsNullOrWhiteSpace(model.Notes))
         {
-            TempData["ErrorMessage"] = "Please provide a reason for rejection.";
+            TempData["ErrorMessage"] = _localizer["TeamAdmin_ProvideRejectionReason"].Value;
             return RedirectToAction(nameof(Requests), new { slug });
         }
 
         try
         {
             await _teamService.RejectJoinRequestAsync(requestId, user.Id, model.Notes);
-            TempData["SuccessMessage"] = "Request rejected.";
+            TempData["SuccessMessage"] = _localizer["TeamAdmin_RequestRejected"].Value;
         }
         catch (InvalidOperationException ex)
         {
@@ -246,7 +250,7 @@ public class TeamAdminController : Controller
         try
         {
             await _teamService.SetMemberRoleAsync(team.Id, userId, model.Role, user.Id);
-            TempData["SuccessMessage"] = $"Member role updated to {model.Role}.";
+            TempData["SuccessMessage"] = string.Format(_localizer["TeamAdmin_RoleUpdated"].Value, model.Role);
         }
         catch (InvalidOperationException ex)
         {
@@ -281,7 +285,7 @@ public class TeamAdminController : Controller
         try
         {
             await _teamService.RemoveMemberAsync(team.Id, userId, user.Id);
-            TempData["SuccessMessage"] = "Member removed from team.";
+            TempData["SuccessMessage"] = _localizer["TeamAdmin_MemberRemoved"].Value;
         }
         catch (InvalidOperationException ex)
         {
@@ -368,7 +372,7 @@ public class TeamAdminController : Controller
 
         if (!ModelState.IsValid)
         {
-            TempData["ErrorMessage"] = "Please enter a valid Google Drive folder URL.";
+            TempData["ErrorMessage"] = _localizer["TeamAdmin_InvalidDriveUrl"].Value;
             return RedirectToAction(nameof(Resources), new { slug });
         }
 
@@ -376,14 +380,14 @@ public class TeamAdminController : Controller
 
         if (result.Success)
         {
-            TempData["SuccessMessage"] = $"Drive folder \"{result.Resource!.Name}\" linked successfully.";
+            TempData["SuccessMessage"] = string.Format(_localizer["TeamAdmin_DriveFolderLinked"].Value, result.Resource!.Name);
         }
         else
         {
-            var errorMessage = result.ErrorMessage ?? "Failed to link Drive folder.";
+            var errorMessage = result.ErrorMessage ?? _localizer["TeamAdmin_DriveFolderLinkFailed"].Value;
             if (result.ServiceAccountEmail != null)
             {
-                errorMessage += $" Service account: {result.ServiceAccountEmail}";
+                errorMessage += $" {string.Format(_localizer["TeamAdmin_ServiceAccount"].Value, result.ServiceAccountEmail)}";
             }
             TempData["ErrorMessage"] = errorMessage;
         }
@@ -415,7 +419,7 @@ public class TeamAdminController : Controller
 
         if (!ModelState.IsValid)
         {
-            TempData["ErrorMessage"] = "Please enter a valid Google Group email address.";
+            TempData["ErrorMessage"] = _localizer["TeamAdmin_InvalidGroupEmail"].Value;
             return RedirectToAction(nameof(Resources), new { slug });
         }
 
@@ -423,14 +427,14 @@ public class TeamAdminController : Controller
 
         if (result.Success)
         {
-            TempData["SuccessMessage"] = $"Google Group \"{result.Resource!.Name}\" linked successfully.";
+            TempData["SuccessMessage"] = string.Format(_localizer["TeamAdmin_GroupLinked"].Value, result.Resource!.Name);
         }
         else
         {
-            var errorMessage = result.ErrorMessage ?? "Failed to link Google Group.";
+            var errorMessage = result.ErrorMessage ?? _localizer["TeamAdmin_GroupLinkFailed"].Value;
             if (result.ServiceAccountEmail != null)
             {
-                errorMessage += $" Service account: {result.ServiceAccountEmail}";
+                errorMessage += $" {string.Format(_localizer["TeamAdmin_ServiceAccount"].Value, result.ServiceAccountEmail)}";
             }
             TempData["ErrorMessage"] = errorMessage;
         }
@@ -461,7 +465,7 @@ public class TeamAdminController : Controller
         }
 
         await _teamResourceService.UnlinkResourceAsync(resourceId);
-        TempData["SuccessMessage"] = "Resource unlinked from team.";
+        TempData["SuccessMessage"] = _localizer["TeamAdmin_ResourceUnlinked"].Value;
 
         return RedirectToAction(nameof(Resources), new { slug });
     }
@@ -491,12 +495,12 @@ public class TeamAdminController : Controller
         try
         {
             await _googleSyncService.SyncResourcePermissionsAsync(resourceId);
-            TempData["SuccessMessage"] = "Resource permissions synced successfully.";
+            TempData["SuccessMessage"] = _localizer["TeamAdmin_ResourceSynced"].Value;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error syncing resource {ResourceId}", resourceId);
-            TempData["ErrorMessage"] = $"Failed to sync resource permissions: {ex.Message}";
+            TempData["ErrorMessage"] = string.Format(_localizer["TeamAdmin_ResourceSyncFailed"].Value, ex.Message);
         }
 
         return RedirectToAction(nameof(Resources), new { slug });

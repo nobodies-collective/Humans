@@ -1,14 +1,14 @@
 @{
-    ViewData["Title"] = "Home";
+    ViewData["Title"] = Localizer["Home_Title"].Value;
 }
 
 <div class="text-center mb-5">
-    <h1 class="display-4">Nobodies Profiles</h1>
-    <p class="lead">Access and compliance for Nobodies Collective</p>
+    <h1 class="display-4">@Localizer["Nav_Brand"]</h1>
+    <p class="lead">@Localizer["Home_Tagline"]</p>
 
     <div class="mt-4">
         <a asp-controller="Account" asp-action="Login" class="btn btn-primary btn-lg">
-            Sign in with Google
+            @Localizer["Login_SignInWithGoogle"]
         </a>
     </div>
 </div>
@@ -17,11 +17,9 @@
     <div class="col-lg-8">
         <div class="card mb-4">
             <div class="card-body">
-                <h2 class="h4 mb-3">Why do we need this?</h2>
+                <h2 class="h4 mb-3">@Localizer["Home_WhyTitle"]</h2>
                 <p>
-                    As a registered association in Spain, Nobodies Collective has legal obligations.
-                    Before anyone can access shared resources, we need to confirm agreement to our
-                    policies. This system handles that simply and keeps everything current.
+                    @Localizer["Home_WhyDescription"]
                 </p>
             </div>
         </div>
@@ -30,11 +28,9 @@
             <div class="col-md-6 mb-4">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h3 class="h5">Legal Compliance</h3>
+                        <h3 class="h5">@Localizer["Home_ComplianceTitle"]</h3>
                         <p class="text-muted mb-0">
-                            To access association resources, everyone needs to agree to our policies:
-                            GDPR data handling, privacy policy, consent terms, and Creative Commons
-                            licensing. This is a one-time process (unless documents are updated).
+                            @Localizer["Home_ComplianceDescription"]
                         </p>
                     </div>
                 </div>
@@ -43,11 +39,9 @@
             <div class="col-md-6 mb-4">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h3 class="h5">Resource Access</h3>
+                        <h3 class="h5">@Localizer["Home_ResourceAccessTitle"]</h3>
                         <p class="text-muted mb-0">
-                            Once you've completed your profile and consents, you'll have access to
-                            shared resources: Google Drive folders, team workspaces, and collaboration
-                            tools. Teams can be configured for different working groups.
+                            @Localizer["Home_ResourceAccessDescription"]
                         </p>
                     </div>
                 </div>
@@ -56,11 +50,9 @@
             <div class="col-md-6 mb-4">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h3 class="h5">Document Updates</h3>
+                        <h3 class="h5">@Localizer["Home_DocumentUpdatesTitle"]</h3>
                         <p class="text-muted mb-0">
-                            Legal documents evolve. When policies change in meaningful ways, you'll
-                            be asked to review and re-consent. This ensures everyone is working
-                            under the same current agreements.
+                            @Localizer["Home_DocumentUpdatesDescription"]
                         </p>
                     </div>
                 </div>
@@ -69,11 +61,9 @@
             <div class="col-md-6 mb-4">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h3 class="h5">Voting Membership</h3>
+                        <h3 class="h5">@Localizer["Home_VotingMembershipTitle"]</h3>
                         <p class="text-muted mb-0">
-                            Our by-laws require a roll of voting members for governance (general
-                            assemblies, elections, etc.). If you'd like to participate in governance,
-                            you can apply to become a voting member. This is entirely optional.
+                            @Localizer["Home_VotingMembershipDescription"]
                         </p>
                     </div>
                 </div>
@@ -82,22 +72,20 @@
 
         <div class="card">
             <div class="card-body">
-                <h2 class="h4 mb-3">Getting started</h2>
+                <h2 class="h4 mb-3">@Localizer["Home_GettingStartedTitle"]</h2>
                 <ol class="mb-3">
                     <li class="mb-2">
-                        <strong>Sign in</strong> with your Google account
+                        @Html.Raw(Localizer["Home_Step1"].Value)
                     </li>
                     <li class="mb-2">
-                        <strong>Complete your profile</strong> with basic information
+                        @Html.Raw(Localizer["Home_Step2"].Value)
                     </li>
                     <li class="mb-2">
-                        <strong>Review and consent</strong> to our legal documents (Spanish originals with English translations)
+                        @Html.Raw(Localizer["Home_Step3"].Value)
                     </li>
                 </ol>
                 <p class="mb-0 text-muted">
-                    That's it! Once your consents are in place, you'll have access to association resources.
-                    If you're interested in participating in governance as a voting member, you can
-                    optionally submit an application from your dashboard.
+                    @Localizer["Home_GettingStartedSummary"]
                 </p>
             </div>
         </div>

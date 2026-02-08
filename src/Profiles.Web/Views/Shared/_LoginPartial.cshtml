@@ -1,4 +1,5 @@
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Mvc.Localization
 @inject SignInManager<User> SignInManager
 @inject UserManager<User> UserManager
 
@@ -7,19 +8,19 @@
 {
     <li class="nav-item">
         <a class="nav-link text-dark" asp-area="" asp-controller="Profile" asp-action="Index">
-            Hello, @User.Identity?.Name
+            @Html.Raw(string.Format(Localizer["Login_Hello"].Value, User.Identity?.Name))
         </a>
     </li>
     <li class="nav-item">
         <form class="form-inline" asp-area="" asp-controller="Account" asp-action="Logout" method="post">
-            <button type="submit" class="nav-link btn btn-link text-dark border-0">Logout</button>
+            <button type="submit" class="nav-link btn btn-link text-dark border-0">@Localizer["Login_Logout"]</button>
         </form>
     </li>
 }
 else
 {
     <li class="nav-item">
-        <a class="nav-link text-dark" asp-area="" asp-controller="Account" asp-action="Login">Login</a>
+        <a class="nav-link text-dark" asp-area="" asp-controller="Account" asp-action="Login">@Localizer["Login_Login"]</a>
     </li>
 }
 </ul>

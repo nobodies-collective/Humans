@@ -1,19 +1,19 @@
 @model Profiles.Web.Models.TeamMembersViewModel
 @using Profiles.Domain.Enums
 @{
-    ViewData["Title"] = "Manage Members - " + Model.TeamName;
+    ViewData["Title"] = string.Format(Localizer["TeamAdminMembers_Title"].Value, Model.TeamName);
 }
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-controller="Team" asp-action="Index">Teams</a></li>
+        <li class="breadcrumb-item"><a asp-controller="Team" asp-action="Index">@Localizer["Teams_Title"]</a></li>
         <li class="breadcrumb-item"><a asp-controller="Team" asp-action="Details" asp-route-slug="@Model.TeamSlug">@Model.TeamName</a></li>
-        <li class="breadcrumb-item active" aria-current="page">Manage Members</li>
+        <li class="breadcrumb-item active" aria-current="page">@Localizer["TeamAdmin_ManageMembers"]</li>
     </ol>
 </nav>
 
-<h1>Manage Members</h1>
-<p class="text-muted">Team: @Model.TeamName @(Model.IsSystemTeam ? "(System Team)" : "")</p>
+<h1>@Localizer["TeamAdmin_ManageMembers"]</h1>
+<p class="text-muted">@Localizer["MyTeams_Team"]: @Model.TeamName @(Model.IsSystemTeam ? string.Format("({0})", Localizer["TeamAdmin_SystemTeam"].Value) : "")</p>
 
 @if (TempData["SuccessMessage"] != null)
 {
@@ -34,7 +34,7 @@
 @if (Model.IsSystemTeam)
 {
     <div class="alert alert-info">
-        This is a system-managed team. Member roles cannot be changed manually.
+        @Localizer["TeamAdmin_SystemTeamRolesInfo"]
     </div>
 }
 
@@ -45,12 +45,12 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>Member</th>
-                        <th>Role</th>
-                        <th>Joined</th>
+                        <th>@Localizer["Teams_Member"]</th>
+                        <th>@Localizer["MyTeams_Role"]</th>
+                        <th>@Localizer["MyTeams_Joined"]</th>
                         @if (Model.CanManageRoles)
                         {
-                            <th>Actions</th>
+                            <th>@Localizer["MyTeams_Actions"]</th>
                         }
                     </tr>
                 </thead>
@@ -83,7 +83,7 @@
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary">Member</span>
+                                    <span class="badge bg-secondary">@Localizer["Teams_Member"]</span>
                                 }
                             </td>
                             <td>@member.JoinedAt.ToString("MMM d, yyyy")</td>
@@ -96,8 +96,8 @@
                                             <form asp-action="SetRole" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="Role" value="@TeamMemberRole.Member" />
-                                                <button type="submit" class="btn btn-sm btn-outline-secondary" data-confirm="Demote this user to Member?">
-                                                    Demote to Member
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary" data-confirm="@Localizer["TeamAdmin_DemoteConfirm"].Value">
+                                                    @Localizer["TeamAdmin_DemoteToMember"]
                                                 </button>
                                             </form>
                                         }
@@ -106,15 +106,15 @@
                                             <form asp-action="SetRole" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="Role" value="@TeamMemberRole.Metalead" />
-                                                <button type="submit" class="btn btn-sm btn-outline-primary" data-confirm="Promote this user to Metalead?">
-                                                    Promote to Metalead
+                                                <button type="submit" class="btn btn-sm btn-outline-primary" data-confirm="@Localizer["TeamAdmin_PromoteConfirm"].Value">
+                                                    @Localizer["TeamAdmin_PromoteToMetalead"]
                                                 </button>
                                             </form>
                                         }
                                         <form asp-action="RemoveMember" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Remove this member from the team?">
-                                                Remove
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="@Localizer["TeamAdmin_RemoveConfirm"].Value">
+                                                @Localizer["TeamAdmin_Remove"]
                                             </button>
                                         </form>
                                     </div>
@@ -130,7 +130,7 @@
 else
 {
     <div class="alert alert-info">
-        No members in this team yet.
+        @Localizer["TeamAdmin_NoMembers"]
     </div>
 }
 
@@ -150,7 +150,7 @@ else
 }
 
 <div class="mt-3">
-    <a asp-controller="Team" asp-action="Details" asp-route-slug="@Model.TeamSlug" class="btn btn-outline-secondary">Back to Team</a>
-    <a asp-action="Requests" asp-route-slug="@Model.TeamSlug" class="btn btn-outline-primary">View Pending Requests</a>
-    <a asp-action="Resources" asp-route-slug="@Model.TeamSlug" class="btn btn-outline-info">Manage Resources</a>
+    <a asp-controller="Team" asp-action="Details" asp-route-slug="@Model.TeamSlug" class="btn btn-outline-secondary">@Localizer["TeamAdmin_BackToTeam"]</a>
+    <a asp-action="Requests" asp-route-slug="@Model.TeamSlug" class="btn btn-outline-primary">@Localizer["TeamAdmin_ViewPendingRequests"]</a>
+    <a asp-action="Resources" asp-route-slug="@Model.TeamSlug" class="btn btn-outline-info">@Localizer["TeamAdmin_ManageResources"]</a>
 </div>

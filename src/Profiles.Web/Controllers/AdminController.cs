@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using NodaTime;
 using Profiles.Application.Interfaces;
 using Profiles.Domain.Constants;
@@ -27,6 +28,7 @@ public class AdminController : Controller
     private readonly IClock _clock;
     private readonly ILogger<AdminController> _logger;
     private readonly SystemTeamSyncJob _systemTeamSyncJob;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public AdminController(
         ProfilesDbContext dbContext,
@@ -36,7 +38,8 @@ public class AdminController : Controller
         IAuditLogService auditLogService,
         IClock clock,
         ILogger<AdminController> logger,
-        SystemTeamSyncJob systemTeamSyncJob)
+        SystemTeamSyncJob systemTeamSyncJob,
+        IStringLocalizer<SharedResource> localizer)
     {
         _dbContext = dbContext;
         _userManager = userManager;
@@ -46,6 +49,7 @@ public class AdminController : Controller
         _clock = clock;
         _logger = logger;
         _systemTeamSyncJob = systemTeamSyncJob;
+        _localizer = localizer;
     }
 
     [HttpGet("")]
@@ -327,63 +331,63 @@ public class AdminController : Controller
             case "STARTREVIEW":
                 if (application.Status != ApplicationStatus.Submitted)
                 {
-                    TempData["ErrorMessage"] = "Cannot start review - application is not in Submitted status.";
+                    TempData["ErrorMessage"] = _localizer["Admin_CannotStartReview"].Value;
                     break;
                 }
                 application.StartReview(currentUser.Id, _clock);
                 _logger.LogInformation("Admin {AdminId} started review of application {ApplicationId}",
                     currentUser.Id, application.Id);
-                TempData["SuccessMessage"] = "Review started.";
+                TempData["SuccessMessage"] = _localizer["Admin_ReviewStarted"].Value;
                 break;
 
             case "APPROVE":
                 if (application.Status != ApplicationStatus.UnderReview)
                 {
-                    TempData["ErrorMessage"] = "Cannot approve - application is not under review.";
+                    TempData["ErrorMessage"] = _localizer["Admin_CannotApprove"].Value;
                     break;
                 }
                 application.Approve(currentUser.Id, model.Notes, _clock);
                 _logger.LogInformation("Admin {AdminId} approved application {ApplicationId}",
                     currentUser.Id, application.Id);
-                TempData["SuccessMessage"] = "Application approved!";
+                TempData["SuccessMessage"] = _localizer["Admin_ApplicationApproved"].Value;
                 break;
 
             case "REJECT":
                 if (application.Status != ApplicationStatus.UnderReview)
                 {
-                    TempData["ErrorMessage"] = "Cannot reject - application is not under review.";
+                    TempData["ErrorMessage"] = _localizer["Admin_CannotReject"].Value;
                     break;
                 }
                 if (string.IsNullOrWhiteSpace(model.Notes))
                 {
-                    TempData["ErrorMessage"] = "Please provide a reason for rejection.";
+                    TempData["ErrorMessage"] = _localizer["Admin_ProvideRejectionReason"].Value;
                     break;
                 }
                 application.Reject(currentUser.Id, model.Notes, _clock);
                 _logger.LogInformation("Admin {AdminId} rejected application {ApplicationId}",
                     currentUser.Id, application.Id);
-                TempData["SuccessMessage"] = "Application rejected.";
+                TempData["SuccessMessage"] = _localizer["Admin_ApplicationRejected"].Value;
                 break;
 
             case "REQUESTINFO":
                 if (application.Status != ApplicationStatus.UnderReview)
                 {
-                    TempData["ErrorMessage"] = "Cannot request info - application is not under review.";
+                    TempData["ErrorMessage"] = _localizer["Admin_CannotRequestInfo"].Value;
                     break;
                 }
                 if (string.IsNullOrWhiteSpace(model.Notes))
                 {
-                    TempData["ErrorMessage"] = "Please specify what information is needed.";
+                    TempData["ErrorMessage"] = _localizer["Admin_SpecifyInfoNeeded"].Value;
                     break;
                 }
                 application.RequestMoreInfo(currentUser.Id, model.Notes, _clock);
                 _logger.LogInformation("Admin {AdminId} requested more info for application {ApplicationId}",
                     currentUser.Id, application.Id);
-                TempData["SuccessMessage"] = "More information requested.";
+                TempData["SuccessMessage"] = _localizer["Admin_MoreInfoRequested"].Value;
                 break;
 
             default:
-                TempData["ErrorMessage"] = "Unknown action.";
+                TempData["ErrorMessage"] = _localizer["Admin_UnknownAction"].Value;
                 break;
         }
 
@@ -422,7 +426,7 @@ public class AdminController : Controller
 
         _logger.LogInformation("Admin {AdminId} suspended member {MemberId}", currentUser?.Id, id);
 
-        TempData["SuccessMessage"] = "Member suspended.";
+        TempData["SuccessMessage"] = _localizer["Admin_MemberSuspended"].Value;
         return RedirectToAction(nameof(MemberDetail), new { id });
     }
 
@@ -456,7 +460,7 @@ public class AdminController : Controller
 
         _logger.LogInformation("Admin {AdminId} unsuspended member {MemberId}", currentUser?.Id, id);
 
-        TempData["SuccessMessage"] = "Member unsuspended.";
+        TempData["SuccessMessage"] = _localizer["Admin_MemberUnsuspended"].Value;
         return RedirectToAction(nameof(MemberDetail), new { id });
     }
 
@@ -490,7 +494,7 @@ public class AdminController : Controller
 
         _logger.LogInformation("Admin {AdminId} approved volunteer {MemberId}", currentUser?.Id, id);
 
-        TempData["SuccessMessage"] = "Volunteer approved.";
+        TempData["SuccessMessage"] = _localizer["Admin_VolunteerApproved"].Value;
         return RedirectToAction(nameof(MemberDetail), new { id });
     }
 
@@ -555,13 +559,13 @@ public class AdminController : Controller
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} created team {TeamId} ({TeamName})", currentUser?.Id, team.Id, team.Name);
 
-            TempData["SuccessMessage"] = $"Team '{team.Name}' created successfully.";
+            TempData["SuccessMessage"] = string.Format(_localizer["Admin_TeamCreated"].Value, team.Name);
             return RedirectToAction(nameof(Teams));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating team");
-            ModelState.AddModelError("", "An error occurred while creating the team.");
+            ModelState.AddModelError("", _localizer["Admin_TeamCreateError"].Value);
             return View(model);
         }
     }
@@ -608,7 +612,7 @@ public class AdminController : Controller
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} updated team {TeamId}", currentUser?.Id, id);
 
-            TempData["SuccessMessage"] = "Team updated successfully.";
+            TempData["SuccessMessage"] = _localizer["Admin_TeamUpdated"].Value;
             return RedirectToAction(nameof(Teams));
         }
         catch (InvalidOperationException ex)
@@ -628,7 +632,7 @@ public class AdminController : Controller
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} deactivated team {TeamId}", currentUser?.Id, id);
 
-            TempData["SuccessMessage"] = "Team deactivated successfully.";
+            TempData["SuccessMessage"] = _localizer["Admin_TeamDeactivated"].Value;
         }
         catch (InvalidOperationException ex)
         {
@@ -759,7 +763,7 @@ public class AdminController : Controller
 
         if (existingActive)
         {
-            TempData["ErrorMessage"] = $"User already has an active {model.RoleName} role.";
+            TempData["ErrorMessage"] = string.Format(_localizer["Admin_RoleAlreadyActive"].Value, model.RoleName);
             return RedirectToAction(nameof(MemberDetail), new { id });
         }
 
@@ -792,7 +796,7 @@ public class AdminController : Controller
             await _systemTeamSyncJob.SyncBoardTeamAsync();
         }
 
-        TempData["SuccessMessage"] = $"Role '{model.RoleName}' assigned successfully.";
+        TempData["SuccessMessage"] = string.Format(_localizer["Admin_RoleAssigned"].Value, model.RoleName);
         return RedirectToAction(nameof(MemberDetail), new { id });
     }
 
@@ -819,7 +823,7 @@ public class AdminController : Controller
 
         if (!roleAssignment.IsActive(now))
         {
-            TempData["ErrorMessage"] = "This role assignment is not currently active.";
+            TempData["ErrorMessage"] = _localizer["Admin_RoleNotActive"].Value;
             return RedirectToAction(nameof(MemberDetail), new { id = roleAssignment.UserId });
         }
 
@@ -852,7 +856,7 @@ public class AdminController : Controller
             await _systemTeamSyncJob.SyncBoardTeamAsync();
         }
 
-        TempData["SuccessMessage"] = $"Role '{roleAssignment.RoleName}' ended for {roleAssignment.User.DisplayName}.";
+        TempData["SuccessMessage"] = string.Format(_localizer["Admin_RoleEnded"].Value, roleAssignment.RoleName, roleAssignment.User.DisplayName);
         return RedirectToAction(nameof(MemberDetail), new { id = roleAssignment.UserId });
     }
 
@@ -898,12 +902,12 @@ public class AdminController : Controller
         {
             await _googleSyncService.SyncAllResourcesAsync();
             _logger.LogInformation("Admin {AdminId} triggered manual Google resource sync", currentUser?.Id);
-            TempData["SuccessMessage"] = "Google resources synced successfully.";
+            TempData["SuccessMessage"] = _localizer["Admin_GoogleSyncSuccess"].Value;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Manual Google resource sync failed");
-            TempData["ErrorMessage"] = "Sync failed. Check logs for details.";
+            TempData["ErrorMessage"] = _localizer["Admin_GoogleSyncFailed"].Value;
         }
 
         return RedirectToAction(nameof(GoogleSync));

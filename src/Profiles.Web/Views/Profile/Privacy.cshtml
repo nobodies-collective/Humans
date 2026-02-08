@@ -1,11 +1,11 @@
 @model Profiles.Web.Models.PrivacyViewModel
 @{
-    ViewData["Title"] = "Privacy & Data";
+    ViewData["Title"] = Localizer["ProfilePrivacy_Title"].Value;
 }
 
-<h1>Privacy & Data</h1>
+<h1>@Localizer["ProfilePrivacy_Title"]</h1>
 
-<p class="lead">Manage your personal data and privacy settings.</p>
+<p class="lead">@Localizer["ProfilePrivacy_Lead"]</p>
 
 @if (TempData["SuccessMessage"] != null)
 {
@@ -27,21 +27,21 @@
     <div class="col-md-6">
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Export Your Data</h5>
+                <h5 class="mb-0">@Localizer["ProfilePrivacy_ExportTitle"]</h5>
             </div>
             <div class="card-body">
-                <p>Download a copy of all your personal data in JSON format. This includes:</p>
+                <p>@Localizer["ProfilePrivacy_ExportDescription"]</p>
                 <ul>
-                    <li>Account information</li>
-                    <li>Profile details</li>
-                    <li>Contact fields</li>
-                    <li>Membership applications</li>
-                    <li>Consent records</li>
-                    <li>Team memberships</li>
-                    <li>Role assignments</li>
+                    <li>@Localizer["ProfilePrivacy_ExportAccountInfo"]</li>
+                    <li>@Localizer["ProfilePrivacy_ExportProfileDetails"]</li>
+                    <li>@Localizer["ProfilePrivacy_ExportContactFields"]</li>
+                    <li>@Localizer["ProfilePrivacy_ExportApplications"]</li>
+                    <li>@Localizer["ProfilePrivacy_ExportConsents"]</li>
+                    <li>@Localizer["ProfilePrivacy_ExportTeams"]</li>
+                    <li>@Localizer["ProfilePrivacy_ExportRoles"]</li>
                 </ul>
                 <a asp-action="DownloadData" class="btn btn-primary">
-                    Download My Data
+                    @Localizer["ProfilePrivacy_DownloadMyData"]
                 </a>
             </div>
         </div>
@@ -50,33 +50,33 @@
     <div class="col-md-6">
         <div class="card mb-4 @(Model.IsDeletionPending ? "border-warning" : "")">
             <div class="card-header @(Model.IsDeletionPending ? "bg-warning text-dark" : "")">
-                <h5 class="mb-0">Delete Your Account</h5>
+                <h5 class="mb-0">@Localizer["ProfilePrivacy_DeleteTitle"]</h5>
             </div>
             <div class="card-body">
                 @if (Model.IsDeletionPending)
                 {
                     <div class="alert alert-warning">
-                        <strong>Deletion Pending</strong><br />
-                        Your account is scheduled for deletion on <strong>@Model.DeletionScheduledFor?.ToString("MMMM d, yyyy")</strong>.
+                        <strong>@Localizer["ProfilePrivacy_DeletionPending"]</strong><br />
+                        @string.Format(Localizer["ProfilePrivacy_DeletionScheduledFor"].Value, Model.DeletionScheduledFor?.ToString("MMMM d, yyyy"))
                     </div>
-                    <p>You can cancel this request before the deletion date if you change your mind.</p>
+                    <p>@Localizer["ProfilePrivacy_DeletionCancelInfo"]</p>
                     <form asp-action="CancelDeletion" method="post">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-success">
-                            Cancel Deletion Request
+                            @Localizer["ProfilePrivacy_CancelDeletion"]
                         </button>
                     </form>
                 }
                 else
                 {
-                    <p>Request deletion of your account and personal data.</p>
+                    <p>@Localizer["ProfilePrivacy_DeleteDescription"]</p>
                     <ul>
-                        <li>A 30-day grace period allows you to cancel the request</li>
-                        <li>After 30 days, your personal information will be anonymized and access permanently blocked</li>
-                        <li>Anonymized records are retained for legal compliance and audit purposes but cannot be linked to your identity</li>
+                        <li>@Localizer["ProfilePrivacy_DeleteGracePeriod"]</li>
+                        <li>@Localizer["ProfilePrivacy_DeleteAnonymized"]</li>
+                        <li>@Localizer["ProfilePrivacy_DeleteRetained"]</li>
                     </ul>
                     <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
-                        Request Account Deletion
+                        @Localizer["ProfilePrivacy_RequestDeletion"]
                     </button>
                 }
             </div>
@@ -86,13 +86,13 @@
 
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0">Privacy Policy</h5>
+        <h5 class="mb-0">@Localizer["Privacy_Title"]</h5>
     </div>
     <div class="card-body">
-        <p>For questions about your data or privacy rights, contact our Data Protection Officer:</p>
-        <p><strong>Email:</strong> <a href="mailto:@(ViewData["AdminEmail"])">@ViewData["AdminEmail"]</a></p>
+        <p>@Localizer["ProfilePrivacy_DPOContact"]</p>
+        <p><strong>@Localizer["ProfilePrivacy_Email"]</strong> <a href="mailto:@(ViewData["AdminEmail"])">@ViewData["AdminEmail"]</a></p>
         <p>
-            <a asp-controller="Home" asp-action="Privacy">View Full Privacy Policy</a>
+            <a asp-controller="Home" asp-action="Privacy">@Localizer["ProfilePrivacy_ViewFullPolicy"]</a>
         </p>
     </div>
 </div>
@@ -103,22 +103,22 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title" id="deleteModalLabel">Confirm Account Deletion</h5>
+                    <h5 class="modal-title" id="deleteModalLabel">@Localizer["ProfilePrivacy_ConfirmDeletion"]</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Are you sure you want to request deletion of your account?</p>
+                    <p>@Localizer["ProfilePrivacy_ConfirmDeletionQuestion"]</p>
                     <ul>
-                        <li>Your personal information will be anonymized in <strong>30 days</strong></li>
-                        <li>You can cancel this request at any time before the anonymization date</li>
-                        <li>After anonymization, your account cannot be recovered</li>
+                        <li>@Localizer["ProfilePrivacy_ConfirmAnonymized30Days"]</li>
+                        <li>@Localizer["ProfilePrivacy_ConfirmCanCancel"]</li>
+                        <li>@Localizer["ProfilePrivacy_ConfirmNoRecovery"]</li>
                     </ul>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@Localizer["Common_Cancel"]</button>
                     <form asp-action="RequestDeletion" method="post" class="d-inline">
                         @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-danger">Yes, Delete My Account</button>
+                        <button type="submit" class="btn btn-danger">@Localizer["ProfilePrivacy_YesDeleteMyAccount"]</button>
                     </form>
                 </div>
             </div>

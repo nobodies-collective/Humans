@@ -1,25 +1,25 @@
 @model Profiles.Web.Models.AdminMemberListViewModel
 @{
-    ViewData["Title"] = "Members";
+    ViewData["Title"] = Localizer["AdminMembers_Title"].Value;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Members</h1>
-    <span class="text-muted">@Model.TotalCount total</span>
+    <h1>@Localizer["AdminMembers_Title"]</h1>
+    <span class="text-muted">@string.Format(Localizer["Admin_TotalCount"].Value, Model.TotalCount)</span>
 </div>
 
 <div class="card mb-4">
     <div class="card-body">
         <form method="get" class="row g-3">
             <div class="col-auto flex-grow-1">
-                <input type="text" name="search" class="form-control" placeholder="Search by email or name..."
+                <input type="text" name="search" class="form-control" placeholder="@Localizer["Admin_SearchPlaceholder"].Value"
                        value="@Model.SearchTerm">
             </div>
             <div class="col-auto">
-                <button type="submit" class="btn btn-primary">Search</button>
+                <button type="submit" class="btn btn-primary">@Localizer["Admin_Search"]</button>
                 @if (!string.IsNullOrEmpty(Model.SearchTerm))
                 {
-                    <a asp-action="Members" class="btn btn-outline-secondary">Clear</a>
+                    <a asp-action="Members" class="btn btn-outline-secondary">@Localizer["Admin_Clear"]</a>
                 }
             </div>
         </form>
@@ -30,17 +30,17 @@
     <div class="card-body p-0">
         @if (Model.Members.Count == 0)
         {
-            <p class="text-muted text-center py-4 mb-0">No members found.</p>
+            <p class="text-muted text-center py-4 mb-0">@Localizer["Admin_NoMembersFound"]</p>
         }
         else
         {
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>Member</th>
-                        <th>Joined</th>
-                        <th>Last Login</th>
-                        <th>Status</th>
+                        <th>@Localizer["Teams_Member"]</th>
+                        <th>@Localizer["Admin_Joined"]</th>
+                        <th>@Localizer["Admin_LastLogin"]</th>
+                        <th>@Localizer["Common_Status"]</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -74,7 +74,7 @@
                                 }
                                 else
                                 {
-                                    <span class="text-muted">Never</span>
+                                    <span class="text-muted">@Localizer["Admin_Never"]</span>
                                 }
                             </td>
                             <td>
@@ -93,12 +93,12 @@
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary">No Profile</span>
+                                    <span class="badge bg-secondary">@Localizer["Admin_NoProfile"]</span>
                                 }
                             </td>
                             <td class="text-end">
                                 <a asp-action="MemberDetail" asp-route-id="@member.Id" class="btn btn-sm btn-outline-primary">
-                                    View
+                                    @Localizer["MyTeams_View"]
                                 </a>
                             </td>
                         </tr>

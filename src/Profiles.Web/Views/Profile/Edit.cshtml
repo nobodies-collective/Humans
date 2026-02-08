@@ -1,11 +1,11 @@
 @model Profiles.Web.Models.ProfileViewModel
 @{
-    ViewData["Title"] = "Edit Profile";
+    ViewData["Title"] = Localizer["ProfileEdit_Title"].Value;
 }
 
 <div class="row">
     <div class="col-12" style="max-width: 900px;">
-        <h1>Edit Profile</h1>
+        <h1>@Localizer["ProfileEdit_Title"]</h1>
 
         <div class="card">
             <div class="card-body">
@@ -14,15 +14,15 @@
 
                     <div class="mb-3">
                         <label asp-for="BurnerName" class="form-label"></label>
-                        <input asp-for="BurnerName" class="form-control" placeholder="The name you go by" />
+                        <input asp-for="BurnerName" class="form-control" placeholder="@Localizer["ProfileEdit_BurnerNamePlaceholder"].Value" />
                         <span asp-validation-for="BurnerName" class="text-danger"></span>
-                        <div class="form-text">This is your public display name, visible to everyone.</div>
+                        <div class="form-text">@Localizer["ProfileEdit_BurnerNameHelp"]</div>
                     </div>
 
                     <hr />
-                    <h5>Legal Name</h5>
+                    <h5>@Localizer["Profile_LegalName"]</h5>
                     <p class="text-muted small mb-3">
-                        Required for official documents and signing. Only visible to you and board members.
+                        @Localizer["ProfileEdit_LegalNameHelp"]
                     </p>
 
                     <div class="row mb-3">
@@ -39,13 +39,13 @@
                     </div>
 
                     <hr />
-                    <h5>Phone</h5>
+                    <h5>@Localizer["Profile_Phone"]</h5>
 
                     <div class="row mb-3">
                         <div class="col-md-3">
                             <label asp-for="PhoneCountryCode" class="form-label"></label>
                             <select asp-for="PhoneCountryCode" class="form-select">
-                                <option value="">Select</option>
+                                <option value="">@Localizer["ProfileEdit_Select"]</option>
                                 <option value="+34">+34 (Spain)</option>
                                 <option value="+33">+33 (France)</option>
                                 <option value="+49">+49 (Germany)</option>
@@ -74,15 +74,15 @@
                     </div>
 
                     <hr />
-                    <h5>Location</h5>
+                    <h5>@Localizer["Profile_Location"]</h5>
 
                     <div class="mb-3">
-                        <label for="locationSearch" class="form-label">City</label>
+                        <label for="locationSearch" class="form-label">@Localizer["ProfileEdit_City"]</label>
                         <gmp-place-autocomplete id="locationSearch"
                                                 placeholder="Start typing your city..."
                                                 style="width: 100%;">
                         </gmp-place-autocomplete>
-                        <div class="form-text">Search for your city to set your location.</div>
+                        <div class="form-text">@Localizer["ProfileEdit_CityHelp"]</div>
 
                         <input type="hidden" asp-for="City" id="City" />
                         <input type="hidden" asp-for="CountryCode" id="CountryCode" />
@@ -95,7 +95,7 @@
                     {
                         <div class="mb-3">
                             <small class="text-muted">
-                                Current location: <strong>@Model.City, @Model.CountryCode</strong>
+                                @Localizer["ProfileEdit_CurrentLocation"] <strong>@Model.City, @Model.CountryCode</strong>
                                 @if (Model.Latitude.HasValue && Model.Longitude.HasValue)
                                 {
                                     <text> (@Model.Latitude.Value.ToString("F4"), @Model.Longitude.Value.ToString("F4"))</text>
@@ -110,13 +110,13 @@
                         <label asp-for="Bio" class="form-label"></label>
                         <textarea asp-for="Bio" class="form-control" rows="4"></textarea>
                         <span asp-validation-for="Bio" class="text-danger"></span>
-                        <div class="form-text">Tell us a bit about yourself.</div>
+                        <div class="form-text">@Localizer["ProfileEdit_BioHelp"]</div>
                     </div>
 
                     <hr />
-                    <h5>Contact Information</h5>
+                    <h5>@Localizer["Profile_ContactInformation"]</h5>
                     <p class="text-muted small mb-3">
-                        Add ways for other members to reach you. Control who can see each piece of information.
+                        @Localizer["ProfileEdit_ContactInfoHelp"]
                     </p>
 
                     <div id="contactFieldsContainer">
@@ -172,13 +172,13 @@
                     </div>
 
                     <button type="button" id="addContactField" class="btn btn-outline-secondary btn-sm mb-3">
-                        <i class="fa-solid fa-plus me-1"></i> Add Contact Field
+                        <i class="fa-solid fa-plus me-1"></i> @Localizer["ProfileEdit_AddContactField"]
                     </button>
 
                     <hr />
-                    <h5>Burner CV</h5>
+                    <h5>@Localizer["Profile_BurnerCV"]</h5>
                     <p class="text-muted small mb-3">
-                        Document your involvement in events, roles, and camps. Entries are sorted by date (newest first).
+                        @Localizer["ProfileEdit_BurnerCVHelp"]
                     </p>
 
                     <div id="volunteerHistoryContainer">
@@ -216,7 +216,7 @@
                     </div>
 
                     <button type="button" id="addVolunteerHistory" class="btn btn-outline-secondary btn-sm mb-3">
-                        <i class="fa-solid fa-plus me-1"></i> Add Entry
+                        <i class="fa-solid fa-plus me-1"></i> @Localizer["ProfileEdit_AddEntry"]
                     </button>
 
                     <hr />
@@ -224,16 +224,16 @@
                     <div class="mb-3">
                         <a asp-action="PreferredEmail" class="btn btn-outline-secondary">
                             <i class="fa-solid fa-envelope me-1"></i>
-                            Manage Preferred Email
+                            @Localizer["ProfileEdit_ManagePreferredEmail"]
                         </a>
-                        <div class="form-text">Set a different email address for receiving system notifications.</div>
+                        <div class="form-text">@Localizer["ProfileEdit_PreferredEmailHelp"]</div>
                     </div>
 
                     <hr />
 
                     <div class="d-flex justify-content-between">
-                        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <a asp-action="Index" class="btn btn-outline-secondary">@Localizer["Common_Cancel"]</a>
+                        <button type="submit" class="btn btn-primary">@Localizer["Common_Save"]</button>
                     </div>
                 </form>
             </div>

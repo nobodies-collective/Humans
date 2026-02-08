@@ -1,0 +1,750 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" msdata:Ordinal="0" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>1.3</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <!-- ======================== -->
+  <!-- Common / Shared          -->
+  <!-- ======================== -->
+  <data name="Common_ReturnHome" xml:space="preserve"><value>Return Home</value></data>
+  <data name="Common_Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Common_EditProfile" xml:space="preserve"><value>Edit Profile</value></data>
+  <data name="Common_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Common_Save" xml:space="preserve"><value>Save Changes</value></data>
+  <data name="Common_Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="Common_Add" xml:space="preserve"><value>Add</value></data>
+  <data name="Common_Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Common_Back" xml:space="preserve"><value>Back</value></data>
+  <data name="Common_Submit" xml:space="preserve"><value>Submit</value></data>
+  <data name="Common_NotProvided" xml:space="preserve"><value>Not provided</value></data>
+
+  <!-- ======================== -->
+  <!-- Navigation (_Layout)     -->
+  <!-- ======================== -->
+  <data name="Nav_Brand" xml:space="preserve"><value>Nobodies Profiles</value></data>
+  <data name="Nav_Home" xml:space="preserve"><value>Home</value></data>
+  <data name="Nav_MyProfile" xml:space="preserve"><value>My Profile</value></data>
+  <data name="Nav_Teams" xml:space="preserve"><value>Teams</value></data>
+  <data name="Nav_Consents" xml:space="preserve"><value>Consents</value></data>
+  <data name="Nav_Governance" xml:space="preserve"><value>Governance</value></data>
+  <data name="Nav_Privacy" xml:space="preserve"><value>Privacy</value></data>
+  <data name="Nav_Admin" xml:space="preserve"><value>Admin</value></data>
+  <data name="Footer_Copyright" xml:space="preserve"><value>&amp;copy; {0} Nobodies Collective. All rights reserved.</value><comment>{0} = year</comment></data>
+
+  <!-- ======================== -->
+  <!-- Cookie Banner (_Layout)  -->
+  <!-- ======================== -->
+  <data name="CookieBanner_Title" xml:space="preserve"><value>Cookie Notice</value></data>
+  <data name="CookieBanner_Text" xml:space="preserve"><value>This site uses essential cookies required for authentication and security. No tracking or analytics cookies are used.</value></data>
+  <data name="CookieBanner_LearnMore" xml:space="preserve"><value>Learn more</value></data>
+  <data name="CookieBanner_Accept" xml:space="preserve"><value>Accept</value></data>
+
+  <!-- ======================== -->
+  <!-- Login Partial            -->
+  <!-- ======================== -->
+  <data name="Login_Hello" xml:space="preserve"><value>Hello, {0}</value><comment>{0} = user name</comment></data>
+  <data name="Login_Logout" xml:space="preserve"><value>Logout</value></data>
+  <data name="Login_Login" xml:space="preserve"><value>Login</value></data>
+
+  <!-- ======================== -->
+  <!-- Account / Login          -->
+  <!-- ======================== -->
+  <data name="Login_Title" xml:space="preserve"><value>Sign In</value></data>
+  <data name="Login_Description" xml:space="preserve"><value>Sign in with your Google account to access Nobodies Profiles.</value></data>
+  <data name="Login_SignInWithGoogle" xml:space="preserve"><value>Sign in with Google</value></data>
+  <data name="AccessDenied_Title" xml:space="preserve"><value>Access Denied</value></data>
+  <data name="AccessDenied_Description" xml:space="preserve"><value>You do not have permission to access this page.</value></data>
+
+  <!-- ======================== -->
+  <!-- Error Pages              -->
+  <!-- ======================== -->
+  <data name="Error_Title" xml:space="preserve"><value>Error</value></data>
+  <data name="Error_Oops" xml:space="preserve"><value>Oops!</value></data>
+  <data name="Error_SomethingWentWrong" xml:space="preserve"><value>Something went wrong</value></data>
+  <data name="Error_TryAgainLater" xml:space="preserve"><value>An error occurred while processing your request. Please try again later.</value></data>
+  <data name="Error404_Title" xml:space="preserve"><value>Page Not Found</value></data>
+  <data name="Error404_Description" xml:space="preserve"><value>The page you're looking for doesn't exist or has been moved.</value></data>
+
+  <!-- ======================== -->
+  <!-- Home (Landing Page)      -->
+  <!-- ======================== -->
+  <data name="Home_Title" xml:space="preserve"><value>Home</value></data>
+  <data name="Home_Tagline" xml:space="preserve"><value>Access and compliance for Nobodies Collective</value></data>
+  <data name="Home_WhyTitle" xml:space="preserve"><value>Why do we need this?</value></data>
+  <data name="Home_WhyDescription" xml:space="preserve"><value>As a registered association in Spain, Nobodies Collective has legal obligations. Before anyone can access shared resources, we need to confirm agreement to our policies. This system handles that simply and keeps everything current.</value></data>
+  <data name="Home_ComplianceTitle" xml:space="preserve"><value>Legal Compliance</value></data>
+  <data name="Home_ComplianceDescription" xml:space="preserve"><value>To access association resources, everyone needs to agree to our policies: GDPR data handling, privacy policy, consent terms, and Creative Commons licensing. This is a one-time process (unless documents are updated).</value></data>
+  <data name="Home_ResourceAccessTitle" xml:space="preserve"><value>Resource Access</value></data>
+  <data name="Home_ResourceAccessDescription" xml:space="preserve"><value>Once you've completed your profile and consents, you'll have access to shared resources: Google Drive folders, team workspaces, and collaboration tools. Teams can be configured for different working groups.</value></data>
+  <data name="Home_DocumentUpdatesTitle" xml:space="preserve"><value>Document Updates</value></data>
+  <data name="Home_DocumentUpdatesDescription" xml:space="preserve"><value>Legal documents evolve. When policies change in meaningful ways, you'll be asked to review and re-consent. This ensures everyone is working under the same current agreements.</value></data>
+  <data name="Home_VotingMembershipTitle" xml:space="preserve"><value>Voting Membership</value></data>
+  <data name="Home_VotingMembershipDescription" xml:space="preserve"><value>Our by-laws require a roll of voting members for governance (general assemblies, elections, etc.). If you'd like to participate in governance, you can apply to become a voting member. This is entirely optional.</value></data>
+  <data name="Home_GettingStartedTitle" xml:space="preserve"><value>Getting started</value></data>
+  <data name="Home_Step1" xml:space="preserve"><value>&lt;strong&gt;Sign in&lt;/strong&gt; with your Google account</value></data>
+  <data name="Home_Step2" xml:space="preserve"><value>&lt;strong&gt;Complete your profile&lt;/strong&gt; with basic information</value></data>
+  <data name="Home_Step3" xml:space="preserve"><value>&lt;strong&gt;Review and consent&lt;/strong&gt; to our legal documents (Spanish originals with English translations)</value></data>
+  <data name="Home_GettingStartedSummary" xml:space="preserve"><value>That's it! Once your consents are in place, you'll have access to association resources. If you're interested in participating in governance as a voting member, you can optionally submit an application from your dashboard.</value></data>
+
+  <!-- ======================== -->
+  <!-- Dashboard                -->
+  <!-- ======================== -->
+  <data name="Dashboard_Title" xml:space="preserve"><value>Dashboard</value></data>
+  <data name="Dashboard_Welcome" xml:space="preserve"><value>Welcome, {0}</value><comment>{0} = display name</comment></data>
+  <data name="Dashboard_PendingConsentsAlert" xml:space="preserve"><value>&lt;strong&gt;Action Required:&lt;/strong&gt; You have {0} pending consent(s). &lt;a href="/Consent" class="alert-link"&gt;Review and consent&lt;/a&gt; to maintain your active membership.</value><comment>{0} = pending consent count</comment></data>
+  <data name="Dashboard_IncompleteProfileAlert" xml:space="preserve"><value>&lt;strong&gt;Complete Your Profile:&lt;/strong&gt; Your profile is incomplete. &lt;a href="/Profile/Edit" class="alert-link"&gt;Add your information&lt;/a&gt; to help us know you better.</value></data>
+  <data name="Dashboard_ProfileCard" xml:space="preserve"><value>Profile</value></data>
+  <data name="Dashboard_ProfileComplete" xml:space="preserve"><value>Your profile is complete.</value></data>
+  <data name="Dashboard_ProfileIncomplete" xml:space="preserve"><value>Complete your profile to help us know you better.</value></data>
+  <data name="Dashboard_ViewProfile" xml:space="preserve"><value>View Profile</value></data>
+  <data name="Dashboard_ConsentsCard" xml:space="preserve"><value>Consents</value></data>
+  <data name="Dashboard_ConsentsNeeded" xml:space="preserve"><value>&lt;strong&gt;{0}&lt;/strong&gt; of {1} documents need your consent.</value><comment>{0} = pending count, {1} = total required</comment></data>
+  <data name="Dashboard_ReviewConsents" xml:space="preserve"><value>Review Consents</value></data>
+  <data name="Dashboard_ConsentsUpToDate" xml:space="preserve"><value>All consents are up to date.</value></data>
+  <data name="Dashboard_ViewConsents" xml:space="preserve"><value>View Consents</value></data>
+  <data name="Dashboard_NoConsentsRequired" xml:space="preserve"><value>No documents require consent at this time.</value></data>
+  <data name="Dashboard_LatestApplication" xml:space="preserve"><value>Latest Application:</value></data>
+  <data name="Dashboard_ViewApplicationHistory" xml:space="preserve"><value>View application history</value></data>
+  <data name="Dashboard_GovernanceDescription" xml:space="preserve"><value>Asociados are voting members who participate in governance decisions like assemblies and elections. This is intended for community leaders and long-term committed volunteers.</value></data>
+  <data name="Dashboard_GovernanceOptional" xml:space="preserve"><value>Governance participation is optional and doesn't affect your access to resources.</value></data>
+  <data name="Dashboard_LearnMore" xml:space="preserve"><value>Learn More</value></data>
+  <data name="Dashboard_YourMembership" xml:space="preserve"><value>Your Membership</value></data>
+  <data name="Dashboard_MemberSince" xml:space="preserve"><value>Member Since</value></data>
+  <data name="Dashboard_LastLogin" xml:space="preserve"><value>Last Login</value></data>
+  <data name="Dashboard_QuickLinks" xml:space="preserve"><value>Quick Links</value></data>
+  <data name="Dashboard_ManageConsents" xml:space="preserve"><value>Manage Consents</value></data>
+
+  <!-- ======================== -->
+  <!-- Privacy Policy Page      -->
+  <!-- ======================== -->
+  <data name="Privacy_Title" xml:space="preserve"><value>Privacy Policy</value></data>
+
+  <!-- ======================== -->
+  <!-- Profile                  -->
+  <!-- ======================== -->
+  <data name="Profile_Title" xml:space="preserve"><value>My Profile</value></data>
+  <data name="ProfileEdit_Title" xml:space="preserve"><value>Edit Profile</value></data>
+  <data name="ProfilePrivacy_Title" xml:space="preserve"><value>Privacy &amp; Data</value></data>
+  <data name="PreferredEmail_Title" xml:space="preserve"><value>Preferred Email</value></data>
+  <data name="VerifyEmail_Title" xml:space="preserve"><value>Email Verification</value></data>
+  <data name="VerifyEmail_GoToSettings" xml:space="preserve"><value>Go to Preferred Email Settings</value></data>
+  <data name="VerifyEmail_GoHome" xml:space="preserve"><value>Go to Home Page</value></data>
+
+  <!-- Profile Index View -->
+  <data name="Profile_ActionRequired" xml:space="preserve"><value>Action Required:</value></data>
+  <data name="Profile_PendingConsents" xml:space="preserve"><value>You have {0} pending consent(s) to review.</value><comment>{0} = pending count</comment></data>
+  <data name="Profile_ReviewNow" xml:space="preserve"><value>Review now</value></data>
+  <data name="Profile_PendingApproval" xml:space="preserve"><value>Pending Approval:</value></data>
+  <data name="Profile_PendingApprovalDescription" xml:space="preserve"><value>Your account is awaiting Board approval. Once approved, you'll be enrolled in the Volunteers team and receive access to organizational resources.</value></data>
+  <data name="Profile_Information" xml:space="preserve"><value>Profile Information</value></data>
+  <data name="Profile_LegalName" xml:space="preserve"><value>Legal Name</value></data>
+  <data name="Profile_OnlyVisibleToYouAndBoard" xml:space="preserve"><value>only visible to you and board</value></data>
+  <data name="Profile_Phone" xml:space="preserve"><value>Phone</value></data>
+  <data name="Profile_Location" xml:space="preserve"><value>Location</value></data>
+  <data name="Profile_Bio" xml:space="preserve"><value>Bio</value></data>
+  <data name="Profile_ContactInformation" xml:space="preserve"><value>Contact Information</value></data>
+  <data name="Profile_NoContactInfo" xml:space="preserve"><value>No contact information added yet.</value></data>
+  <data name="Profile_AddSome" xml:space="preserve"><value>Add some</value></data>
+  <data name="Profile_Teams" xml:space="preserve"><value>Teams</value></data>
+  <data name="Profile_Lead" xml:space="preserve"><value>Lead</value></data>
+  <data name="Profile_BurnerCV" xml:space="preserve"><value>Burner CV</value></data>
+  <data name="Profile_NoCVEntries" xml:space="preserve"><value>No entries yet.</value></data>
+  <data name="Profile_AddFirstEntry" xml:space="preserve"><value>Add your first entry</value></data>
+  <data name="Profile_QuickActions" xml:space="preserve"><value>Quick Actions</value></data>
+
+  <!-- Profile Edit View -->
+  <data name="ProfileEdit_BurnerNamePlaceholder" xml:space="preserve"><value>The name you go by</value></data>
+  <data name="ProfileEdit_BurnerNameHelp" xml:space="preserve"><value>This is your public display name, visible to everyone.</value></data>
+  <data name="ProfileEdit_LegalNameHelp" xml:space="preserve"><value>Required for official documents and signing. Only visible to you and board members.</value></data>
+  <data name="ProfileEdit_Select" xml:space="preserve"><value>Select</value></data>
+  <data name="ProfileEdit_City" xml:space="preserve"><value>City</value></data>
+  <data name="ProfileEdit_CityHelp" xml:space="preserve"><value>Search for your city to set your location.</value></data>
+  <data name="ProfileEdit_CurrentLocation" xml:space="preserve"><value>Current location:</value></data>
+  <data name="ProfileEdit_BioHelp" xml:space="preserve"><value>Tell us a bit about yourself.</value></data>
+  <data name="ProfileEdit_ContactInfoHelp" xml:space="preserve"><value>Add ways for other members to reach you. Control who can see each piece of information.</value></data>
+  <data name="ProfileEdit_AddContactField" xml:space="preserve"><value>Add Contact Field</value></data>
+  <data name="ProfileEdit_BurnerCVHelp" xml:space="preserve"><value>Document your involvement in events, roles, and camps. Entries are sorted by date (newest first).</value></data>
+  <data name="ProfileEdit_AddEntry" xml:space="preserve"><value>Add Entry</value></data>
+  <data name="ProfileEdit_ManagePreferredEmail" xml:space="preserve"><value>Manage Preferred Email</value></data>
+  <data name="ProfileEdit_PreferredEmailHelp" xml:space="preserve"><value>Set a different email address for receiving system notifications.</value></data>
+
+  <!-- Profile Privacy View -->
+  <data name="ProfilePrivacy_Lead" xml:space="preserve"><value>Manage your personal data and privacy settings.</value></data>
+  <data name="ProfilePrivacy_ExportTitle" xml:space="preserve"><value>Export Your Data</value></data>
+  <data name="ProfilePrivacy_ExportDescription" xml:space="preserve"><value>Download a copy of all your personal data in JSON format. This includes:</value></data>
+  <data name="ProfilePrivacy_ExportAccountInfo" xml:space="preserve"><value>Account information</value></data>
+  <data name="ProfilePrivacy_ExportProfileDetails" xml:space="preserve"><value>Profile details</value></data>
+  <data name="ProfilePrivacy_ExportContactFields" xml:space="preserve"><value>Contact fields</value></data>
+  <data name="ProfilePrivacy_ExportApplications" xml:space="preserve"><value>Membership applications</value></data>
+  <data name="ProfilePrivacy_ExportConsents" xml:space="preserve"><value>Consent records</value></data>
+  <data name="ProfilePrivacy_ExportTeams" xml:space="preserve"><value>Team memberships</value></data>
+  <data name="ProfilePrivacy_ExportRoles" xml:space="preserve"><value>Role assignments</value></data>
+  <data name="ProfilePrivacy_DownloadMyData" xml:space="preserve"><value>Download My Data</value></data>
+  <data name="ProfilePrivacy_DeleteTitle" xml:space="preserve"><value>Delete Your Account</value></data>
+  <data name="ProfilePrivacy_DeleteDescription" xml:space="preserve"><value>Request deletion of your account and personal data.</value></data>
+  <data name="ProfilePrivacy_DeleteGracePeriod" xml:space="preserve"><value>A 30-day grace period allows you to cancel the request</value></data>
+  <data name="ProfilePrivacy_DeleteAnonymized" xml:space="preserve"><value>After 30 days, your personal information will be anonymized and access permanently blocked</value></data>
+  <data name="ProfilePrivacy_DeleteRetained" xml:space="preserve"><value>Anonymized records are retained for legal compliance and audit purposes but cannot be linked to your identity</value></data>
+  <data name="ProfilePrivacy_RequestDeletion" xml:space="preserve"><value>Request Account Deletion</value></data>
+  <data name="ProfilePrivacy_DeletionPending" xml:space="preserve"><value>Deletion Pending</value></data>
+  <data name="ProfilePrivacy_DeletionScheduledFor" xml:space="preserve"><value>Your account is scheduled for deletion on {0}.</value><comment>{0} = deletion date</comment></data>
+  <data name="ProfilePrivacy_DeletionCancelInfo" xml:space="preserve"><value>You can cancel this request before the deletion date if you change your mind.</value></data>
+  <data name="ProfilePrivacy_CancelDeletion" xml:space="preserve"><value>Cancel Deletion Request</value></data>
+  <data name="ProfilePrivacy_DPOContact" xml:space="preserve"><value>For questions about your data or privacy rights, contact our Data Protection Officer:</value></data>
+  <data name="ProfilePrivacy_Email" xml:space="preserve"><value>Email:</value></data>
+  <data name="ProfilePrivacy_ViewFullPolicy" xml:space="preserve"><value>View Full Privacy Policy</value></data>
+  <data name="ProfilePrivacy_ConfirmDeletion" xml:space="preserve"><value>Confirm Account Deletion</value></data>
+  <data name="ProfilePrivacy_ConfirmDeletionQuestion" xml:space="preserve"><value>Are you sure you want to request deletion of your account?</value></data>
+  <data name="ProfilePrivacy_ConfirmAnonymized30Days" xml:space="preserve"><value>Your personal information will be anonymized in 30 days</value></data>
+  <data name="ProfilePrivacy_ConfirmCanCancel" xml:space="preserve"><value>You can cancel this request at any time before the anonymization date</value></data>
+  <data name="ProfilePrivacy_ConfirmNoRecovery" xml:space="preserve"><value>After anonymization, your account cannot be recovered</value></data>
+  <data name="ProfilePrivacy_YesDeleteMyAccount" xml:space="preserve"><value>Yes, Delete My Account</value></data>
+
+  <!-- Preferred Email View -->
+  <data name="PreferredEmail_Description" xml:space="preserve"><value>By default, system notifications are sent to your sign-in email. You can specify a different email address to receive these notifications.</value></data>
+  <data name="PreferredEmail_CurrentSettings" xml:space="preserve"><value>Current Email Settings</value></data>
+  <data name="PreferredEmail_SignInEmail" xml:space="preserve"><value>Sign-in Email</value></data>
+  <data name="PreferredEmail_GoogleAccount" xml:space="preserve"><value>Google Account</value></data>
+  <data name="PreferredEmail_NotSet" xml:space="preserve"><value>Not set (using sign-in email)</value></data>
+  <data name="PreferredEmail_Verified" xml:space="preserve"><value>Verified</value></data>
+  <data name="PreferredEmail_PendingVerification" xml:space="preserve"><value>Pending Verification</value></data>
+  <data name="PreferredEmail_NotificationsSentTo" xml:space="preserve"><value>Notifications Sent To</value></data>
+  <data name="PreferredEmail_Preferred" xml:space="preserve"><value>preferred</value></data>
+  <data name="PreferredEmail_SignInEmailLabel" xml:space="preserve"><value>sign-in email</value></data>
+  <data name="PreferredEmail_VerificationSent" xml:space="preserve"><value>A verification email has been sent to {0}. Please check your inbox and click the verification link.</value><comment>{0} = email address</comment></data>
+  <data name="PreferredEmail_ResendCooldown" xml:space="preserve"><value>You can request a new verification email in {0} minute(s).</value><comment>{0} = minutes remaining</comment></data>
+  <data name="PreferredEmail_SetTitle" xml:space="preserve"><value>Set Preferred Email</value></data>
+  <data name="PreferredEmail_ChangeTitle" xml:space="preserve"><value>Change Preferred Email</value></data>
+  <data name="PreferredEmail_VerificationWillBeSent" xml:space="preserve"><value>A verification email will be sent to this address.</value></data>
+  <data name="PreferredEmail_SendVerification" xml:space="preserve"><value>Send Verification Email</value></data>
+  <data name="PreferredEmail_RemoveTitle" xml:space="preserve"><value>Remove Preferred Email</value></data>
+  <data name="PreferredEmail_RemoveDescription" xml:space="preserve"><value>Remove your preferred email and use your sign-in email for all system notifications.</value></data>
+  <data name="PreferredEmail_RemoveConfirm" xml:space="preserve"><value>Are you sure you want to remove your preferred email?</value></data>
+  <data name="PreferredEmail_RemoveButton" xml:space="preserve"><value>Remove Preferred Email</value></data>
+  <data name="PreferredEmail_BackToEdit" xml:space="preserve"><value>Back to Edit Profile</value></data>
+
+  <!-- Profile Controller TempData -->
+  <data name="Profile_Updated" xml:space="preserve"><value>Profile updated successfully.</value></data>
+  <data name="Profile_EnterEmail" xml:space="preserve"><value>Please enter an email address.</value></data>
+  <data name="Profile_AlreadySignInEmail" xml:space="preserve"><value>This is already your sign-in email. No need to set it as preferred.</value></data>
+  <data name="Profile_VerificationCooldown" xml:space="preserve"><value>Please wait {0} minute(s) before requesting another verification email.</value><comment>{0} = minutes remaining</comment></data>
+  <data name="Profile_EmailInUse" xml:space="preserve"><value>This email address is already in use by another account.</value></data>
+  <data name="Profile_VerificationSent" xml:space="preserve"><value>Verification email sent to {0}. Please check your inbox.</value><comment>{0} = email address</comment></data>
+  <data name="Profile_InvalidVerificationLink" xml:space="preserve"><value>Invalid verification link.</value></data>
+  <data name="Profile_NoEmailPending" xml:space="preserve"><value>No email pending verification.</value></data>
+  <data name="Profile_VerificationExpired" xml:space="preserve"><value>The verification link is invalid or has expired.</value></data>
+  <data name="Profile_EmailClaimed" xml:space="preserve"><value>This email address has been claimed by another account.</value></data>
+  <data name="Profile_EmailVerified" xml:space="preserve"><value>Email address {0} has been verified.</value><comment>{0} = email address</comment></data>
+  <data name="Profile_PreferredEmailCleared" xml:space="preserve"><value>Preferred email has been removed. System emails will now be sent to your sign-in email.</value></data>
+  <data name="Profile_DeletionAlreadyPending" xml:space="preserve"><value>A deletion request is already pending.</value></data>
+  <data name="Profile_DeletionRequested" xml:space="preserve"><value>Account deletion requested. Your account will be deleted on {0} unless you cancel.</value><comment>{0} = deletion date</comment></data>
+  <data name="Profile_NoDeletionPending" xml:space="preserve"><value>No deletion request is pending.</value></data>
+  <data name="Profile_DeletionCancelled" xml:space="preserve"><value>Account deletion has been cancelled.</value></data>
+
+  <!-- ======================== -->
+  <!-- Application / Governance -->
+  <!-- ======================== -->
+  <data name="Governance_Title" xml:space="preserve"><value>Governance</value></data>
+  <data name="GovernanceApplication_Title" xml:space="preserve"><value>Governance Application</value></data>
+  <data name="ApplicationDetail_Title" xml:space="preserve"><value>Application Details</value></data>
+
+  <!-- Governance Index View -->
+  <data name="Governance_NotYetApplied" xml:space="preserve"><value>Not Yet Applied</value></data>
+  <data name="Governance_AsociadoDescription" xml:space="preserve"><value>Asociados are the formal voting members of Nobodies Collective. As an asociado, you can attend general assemblies, vote on collective decisions, and participate in elections.</value></data>
+  <data name="Governance_Optional" xml:space="preserve"><value>This is optional. Most volunteers don't need to become asociados. You already have access to resources once you've completed your profile and consents.</value></data>
+  <data name="Governance_ApplyButton" xml:space="preserve"><value>Apply to Become an Asociado</value></data>
+  <data name="Governance_YourApplication" xml:space="preserve"><value>Your Application</value></data>
+  <data name="Governance_Submitted" xml:space="preserve"><value>Submitted</value></data>
+  <data name="Governance_Resolved" xml:space="preserve"><value>Resolved</value></data>
+  <data name="Governance_UnderReviewMessage" xml:space="preserve"><value>Your application is being reviewed. We'll notify you by email once a decision is made.</value></data>
+  <data name="Governance_ApprovedMessage" xml:space="preserve"><value>Welcome! You are now an asociado of Nobodies Collective.</value></data>
+  <data name="Governance_RejectedMessage" xml:space="preserve"><value>Your application was not approved. If you have questions, please contact the board.</value></data>
+  <data name="Governance_WhatIsAsociado" xml:space="preserve"><value>What is an Asociado?</value></data>
+  <data name="Governance_AsociadoLawDescription" xml:space="preserve"><value>Asociados are the formal voting members of the association under Spanish law.</value></data>
+  <data name="Governance_AsociadoCanDo" xml:space="preserve"><value>As an asociado you can:</value></data>
+  <data name="Governance_AttendAssemblies" xml:space="preserve"><value>Attend general assemblies</value></data>
+  <data name="Governance_VoteOnDecisions" xml:space="preserve"><value>Vote on collective decisions</value></data>
+  <data name="Governance_ParticipateElections" xml:space="preserve"><value>Participate in board elections</value></data>
+  <data name="Governance_WhoShouldApply" xml:space="preserve"><value>Who Should Apply?</value></data>
+  <data name="Governance_WhoShouldApplyDescription" xml:space="preserve"><value>Governance membership is intended for volunteers in leadership roles:</value></data>
+  <data name="Governance_CampLeads" xml:space="preserve"><value>Camp leads and coordinators</value></data>
+  <data name="Governance_MetaVolunteers" xml:space="preserve"><value>Meta volunteers and team leads</value></data>
+  <data name="Governance_LongTermMembers" xml:space="preserve"><value>Long-term committed community members</value></data>
+  <data name="Governance_BoardReviews" xml:space="preserve"><value>The board reviews applications based on community involvement and alignment with the collective's mission.</value></data>
+  <data name="Governance_NoteNotRequired" xml:space="preserve"><value>Note: You don't need to be an asociado to access resources or participate in events.</value></data>
+
+  <!-- Governance Create View -->
+  <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>New Application</value></data>
+  <data name="GovernanceCreate_Lead" xml:space="preserve"><value>Asociados are voting members who participate in governance decisions. This is intended for community leaders and long-term committed volunteers.</value></data>
+  <data name="GovernanceCreate_MotivationPlaceholder" xml:space="preserve"><value>Please share your motivation for joining...</value></data>
+  <data name="GovernanceCreate_MotivationHelp" xml:space="preserve"><value>Minimum 50 characters. Tell us about yourself and why you want to be part of the collective.</value></data>
+  <data name="GovernanceCreate_AdditionalInfoPlaceholder" xml:space="preserve"><value>Any additional information you'd like to share...</value></data>
+  <data name="GovernanceCreate_AdditionalInfoHelp" xml:space="preserve"><value>Optional. Include any relevant skills, experience, or how you heard about us.</value></data>
+  <data name="GovernanceCreate_ConfirmAccuracy" xml:space="preserve"><value>I confirm that all information provided in this application is accurate and truthful.</value></data>
+  <data name="GovernanceCreate_SubmitApplication" xml:space="preserve"><value>Submit Application</value></data>
+  <data name="GovernanceCreate_IsThisRightForMe" xml:space="preserve"><value>Is This Right for Me?</value></data>
+  <data name="GovernanceCreate_IdealFor" xml:space="preserve"><value>Governance is ideal for:</value></data>
+  <data name="GovernanceCreate_WhatHappensNext" xml:space="preserve"><value>What Happens Next?</value></data>
+  <data name="GovernanceCreate_Step1" xml:space="preserve"><value>Your application will be reviewed by the board</value></data>
+  <data name="GovernanceCreate_Step2" xml:space="preserve"><value>The board considers community involvement and fit</value></data>
+  <data name="GovernanceCreate_Step3" xml:space="preserve"><value>We may contact you for more information</value></data>
+  <data name="GovernanceCreate_Step4" xml:space="preserve"><value>You'll receive an email once a decision is made</value></data>
+
+  <!-- Application Detail View -->
+  <data name="ApplicationDetail_Details" xml:space="preserve"><value>Details</value></data>
+  <data name="ApplicationDetail_ApplicationInfo" xml:space="preserve"><value>Application Information</value></data>
+  <data name="ApplicationDetail_ReviewStarted" xml:space="preserve"><value>Review Started</value></data>
+  <data name="ApplicationDetail_ReviewedBy" xml:space="preserve"><value>Reviewed By</value></data>
+  <data name="ApplicationDetail_YourMotivation" xml:space="preserve"><value>Your Motivation</value></data>
+  <data name="ApplicationDetail_AdditionalInfo" xml:space="preserve"><value>Additional Information</value></data>
+  <data name="ApplicationDetail_ReviewerNotes" xml:space="preserve"><value>Reviewer Notes</value></data>
+  <data name="ApplicationDetail_WithdrawTitle" xml:space="preserve"><value>Withdraw Application</value></data>
+  <data name="ApplicationDetail_WithdrawDescription" xml:space="preserve"><value>If you no longer wish to proceed with this application, you can withdraw it.</value></data>
+  <data name="ApplicationDetail_WithdrawConfirm" xml:space="preserve"><value>Are you sure you want to withdraw this application?</value></data>
+  <data name="ApplicationDetail_WithdrawButton" xml:space="preserve"><value>Withdraw Application</value></data>
+  <data name="ApplicationDetail_History" xml:space="preserve"><value>Application History</value></data>
+  <data name="ApplicationDetail_NoHistory" xml:space="preserve"><value>No history available.</value></data>
+  <data name="ApplicationDetail_By" xml:space="preserve"><value>by</value></data>
+  <data name="ApplicationDetail_BackToApplications" xml:space="preserve"><value>Back to Applications</value></data>
+
+  <!-- Application Controller TempData -->
+  <data name="Application_AlreadyPending" xml:space="preserve"><value>You already have a pending application.</value></data>
+  <data name="Application_ConfirmAccuracy" xml:space="preserve"><value>You must confirm the accuracy of your information.</value></data>
+  <data name="Application_Submitted" xml:space="preserve"><value>Your application has been submitted successfully!</value></data>
+  <data name="Application_CannotWithdraw" xml:space="preserve"><value>This application cannot be withdrawn.</value></data>
+  <data name="Application_Withdrawn" xml:space="preserve"><value>Your application has been withdrawn.</value></data>
+
+  <!-- ======================== -->
+  <!-- Consent                  -->
+  <!-- ======================== -->
+  <data name="ConsentIndex_Title" xml:space="preserve"><value>Consent Management</value></data>
+  <data name="ConsentReview_Title" xml:space="preserve"><value>Review: {0}</value><comment>{0} = document name</comment></data>
+
+  <!-- Consent Index View -->
+  <data name="Consent_RequiredDocuments" xml:space="preserve"><value>Required Documents</value></data>
+  <data name="Consent_NoDocumentsRequired" xml:space="preserve"><value>No documents require consent at this time.</value></data>
+  <data name="Consent_Version" xml:space="preserve"><value>Version</value></data>
+  <data name="Consent_EffectiveFrom" xml:space="preserve"><value>Effective from</value></data>
+  <data name="Consent_Consented" xml:space="preserve"><value>Consented</value></data>
+  <data name="Consent_ReviewAndConsent" xml:space="preserve"><value>Review &amp; Consent</value></data>
+  <data name="Consent_PendingCount" xml:space="preserve"><value>{0} document(s) require your consent. Please review and consent to maintain your active membership.</value><comment>{0} = pending document count</comment></data>
+  <data name="Consent_AllConsented" xml:space="preserve"><value>You have consented to all required documents.</value></data>
+  <data name="Consent_History" xml:space="preserve"><value>Consent History</value></data>
+  <data name="Consent_NoRecords" xml:space="preserve"><value>No consent records yet.</value></data>
+  <data name="Consent_AboutTitle" xml:space="preserve"><value>About Consent</value></data>
+  <data name="Consent_AboutDescription" xml:space="preserve"><value>By consenting to these documents, you agree to be bound by their terms. The Spanish version is the legally binding text. English translations are provided for convenience only.</value></data>
+
+  <!-- Consent Review View -->
+  <data name="ConsentReview_AlreadyConsented" xml:space="preserve"><value>Already Consented</value></data>
+  <data name="ConsentReview_ChangesInVersion" xml:space="preserve"><value>Changes in this version:</value></data>
+  <data name="ConsentReview_Important" xml:space="preserve"><value>Important:</value></data>
+  <data name="ConsentReview_SpanishIsLegal" xml:space="preserve"><value>The Spanish version below is the legally binding text. The English translation is provided for your convenience only and is not legally binding.</value></data>
+  <data name="ConsentReview_SpanishTab" xml:space="preserve"><value>Spanish (Legal)</value></data>
+  <data name="ConsentReview_EnglishTab" xml:space="preserve"><value>English (Translation)</value></data>
+  <data name="ConsentReview_ContentNotAvailable" xml:space="preserve"><value>Content not available.</value></data>
+  <data name="ConsentReview_EnglishNotAvailable" xml:space="preserve"><value>English translation not available.</value></data>
+  <data name="ConsentReview_TranslationDisclaimer" xml:space="preserve"><value>This translation is provided for convenience only. The Spanish version is legally binding.</value></data>
+  <data name="ConsentReview_ConsentCheckbox" xml:space="preserve"><value>I have read and understood this document, and I agree to be bound by its terms.</value></data>
+  <data name="ConsentReview_SpanishLegalNote" xml:space="preserve"><value>I understand that the Spanish version is the legally binding text.</value></data>
+  <data name="ConsentReview_BackToList" xml:space="preserve"><value>Back to List</value></data>
+  <data name="ConsentReview_GiveConsent" xml:space="preserve"><value>Give Consent</value></data>
+
+  <!-- Consent Controller TempData -->
+  <data name="Consent_MustCheck" xml:space="preserve"><value>You must check the consent checkbox to continue.</value></data>
+  <data name="Consent_AlreadyConsented" xml:space="preserve"><value>You have already consented to this document.</value></data>
+  <data name="Consent_ThankYou" xml:space="preserve"><value>Thank you for consenting to {0}.</value><comment>{0} = document name</comment></data>
+
+  <!-- ======================== -->
+  <!-- Teams                    -->
+  <!-- ======================== -->
+  <data name="Teams_Title" xml:space="preserve"><value>Teams</value></data>
+  <data name="MyTeams_Title" xml:space="preserve"><value>My Teams</value></data>
+  <data name="JoinTeam_Title" xml:space="preserve"><value>Join {0}</value><comment>{0} = team name</comment></data>
+
+  <!-- Team Index View -->
+  <data name="Teams_CreateTeam" xml:space="preserve"><value>Create Team</value></data>
+  <data name="Teams_MemberCount" xml:space="preserve"><value>{0} member(s)</value><comment>{0} = member count</comment></data>
+  <data name="Teams_Member" xml:space="preserve"><value>Member</value></data>
+  <data name="Teams_RequiresApproval" xml:space="preserve"><value>Requires Approval</value></data>
+  <data name="Teams_ViewDetails" xml:space="preserve"><value>View Details</value></data>
+  <data name="Teams_Manage" xml:space="preserve"><value>Manage</value></data>
+  <data name="Teams_NoTeams" xml:space="preserve"><value>No teams have been created yet.</value></data>
+  <data name="Teams_System" xml:space="preserve"><value>System</value></data>
+
+  <!-- Team Detail View -->
+  <data name="TeamDetail_NoDescription" xml:space="preserve"><value>No description provided.</value></data>
+  <data name="TeamDetail_SystemTeamInfo" xml:space="preserve"><value>This is a system-managed team. Membership is automatically synchronized based on {0} criteria.</value><comment>{0} = system team type</comment></data>
+  <data name="TeamDetail_Members" xml:space="preserve"><value>Members ({0})</value><comment>{0} = count</comment></data>
+  <data name="TeamDetail_ManageMembers" xml:space="preserve"><value>Manage Members</value></data>
+  <data name="TeamDetail_Joined" xml:space="preserve"><value>Joined</value></data>
+  <data name="TeamDetail_AndMoreMembers" xml:space="preserve"><value>And {0} more members...</value><comment>{0} = remaining count</comment></data>
+  <data name="TeamDetail_NoMembers" xml:space="preserve"><value>No members yet.</value></data>
+  <data name="TeamDetail_Actions" xml:space="preserve"><value>Actions</value></data>
+  <data name="TeamDetail_RequestToJoin" xml:space="preserve"><value>Request to Join</value></data>
+  <data name="TeamDetail_JoinTeam" xml:space="preserve"><value>Join Team</value></data>
+  <data name="TeamDetail_PendingApproval" xml:space="preserve"><value>Your join request is pending approval.</value></data>
+  <data name="TeamDetail_WithdrawRequest" xml:space="preserve"><value>Withdraw Request</value></data>
+  <data name="TeamDetail_LeaveTeam" xml:space="preserve"><value>Leave Team</value></data>
+  <data name="TeamDetail_SystemMembership" xml:space="preserve"><value>Membership in system teams is managed automatically.</value></data>
+  <data name="TeamDetail_TeamManagement" xml:space="preserve"><value>Team Management</value></data>
+  <data name="TeamDetail_PendingRequests" xml:space="preserve"><value>Pending Requests</value></data>
+  <data name="TeamDetail_ManageResources" xml:space="preserve"><value>Manage Resources</value></data>
+
+  <!-- My Teams View -->
+  <data name="MyTeams_TeamMemberships" xml:space="preserve"><value>Team Memberships</value></data>
+  <data name="MyTeams_Team" xml:space="preserve"><value>Team</value></data>
+  <data name="MyTeams_Role" xml:space="preserve"><value>Role</value></data>
+  <data name="MyTeams_Joined" xml:space="preserve"><value>Joined</value></data>
+  <data name="MyTeams_Actions" xml:space="preserve"><value>Actions</value></data>
+  <data name="MyTeams_View" xml:space="preserve"><value>View</value></data>
+  <data name="MyTeams_Leave" xml:space="preserve"><value>Leave</value></data>
+  <data name="MyTeams_NoTeams" xml:space="preserve"><value>You are not a member of any teams yet.</value></data>
+  <data name="MyTeams_BrowseTeams" xml:space="preserve"><value>Browse teams</value></data>
+  <data name="MyTeams_PendingRequests" xml:space="preserve"><value>Pending Requests</value></data>
+  <data name="MyTeams_Status" xml:space="preserve"><value>Status</value></data>
+  <data name="MyTeams_Requested" xml:space="preserve"><value>Requested</value></data>
+  <data name="MyTeams_Withdraw" xml:space="preserve"><value>Withdraw</value></data>
+
+  <!-- Join Team View -->
+  <data name="JoinTeam_RequiresApproval" xml:space="preserve"><value>This team requires approval to join. Your request will be reviewed by the team metaleads or board members.</value></data>
+  <data name="JoinTeam_MessageLabel" xml:space="preserve"><value>Message (optional)</value></data>
+  <data name="JoinTeam_MessagePlaceholder" xml:space="preserve"><value>Tell the team why you want to join...</value></data>
+  <data name="JoinTeam_SubmitRequest" xml:space="preserve"><value>Submit Request</value></data>
+  <data name="JoinTeam_NoApprovalNeeded" xml:space="preserve"><value>You can join this team immediately without approval.</value></data>
+  <data name="JoinTeam_JoinTeamButton" xml:space="preserve"><value>Join Team</value></data>
+
+  <!-- Team Controller TempData -->
+  <data name="Team_CannotJoinSystem" xml:space="preserve"><value>Cannot join system teams directly.</value></data>
+  <data name="Team_AlreadyMember" xml:space="preserve"><value>You are already a member of this team.</value></data>
+  <data name="Team_AlreadyPendingRequest" xml:space="preserve"><value>You already have a pending request for this team.</value></data>
+  <data name="Team_JoinRequestSubmitted" xml:space="preserve"><value>Your request to join has been submitted and is pending approval.</value></data>
+  <data name="Team_Joined" xml:space="preserve"><value>You have successfully joined the team!</value></data>
+  <data name="Team_Left" xml:space="preserve"><value>You have left the team.</value></data>
+  <data name="Team_RequestWithdrawn" xml:space="preserve"><value>Your request has been withdrawn.</value></data>
+
+  <!-- ======================== -->
+  <!-- Team Admin               -->
+  <!-- ======================== -->
+  <data name="TeamAdminResources_Title" xml:space="preserve"><value>Manage Resources - {0}</value><comment>{0} = team name</comment></data>
+  <data name="TeamAdminMembers_Title" xml:space="preserve"><value>Manage Members - {0}</value><comment>{0} = team name</comment></data>
+  <data name="TeamAdminRequests_Title" xml:space="preserve"><value>Pending Requests - {0}</value><comment>{0} = team name</comment></data>
+
+  <!-- TeamAdmin Controller TempData -->
+  <data name="TeamAdmin_RequestApproved" xml:space="preserve"><value>Request approved. The user is now a team member.</value></data>
+  <data name="TeamAdmin_ProvideRejectionReason" xml:space="preserve"><value>Please provide a reason for rejection.</value></data>
+  <data name="TeamAdmin_RequestRejected" xml:space="preserve"><value>Request rejected.</value></data>
+  <data name="TeamAdmin_RoleUpdated" xml:space="preserve"><value>Member role updated to {0}.</value><comment>{0} = role name</comment></data>
+  <data name="TeamAdmin_MemberRemoved" xml:space="preserve"><value>Member removed from team.</value></data>
+  <data name="TeamAdmin_InvalidDriveUrl" xml:space="preserve"><value>Please enter a valid Google Drive folder URL.</value></data>
+  <data name="TeamAdmin_DriveFolderLinked" xml:space="preserve"><value>Drive folder "{0}" linked successfully.</value><comment>{0} = folder name</comment></data>
+  <data name="TeamAdmin_DriveFolderLinkFailed" xml:space="preserve"><value>Failed to link Drive folder.</value></data>
+  <data name="TeamAdmin_ServiceAccount" xml:space="preserve"><value>Service account: {0}</value><comment>{0} = service account email</comment></data>
+  <data name="TeamAdmin_InvalidGroupEmail" xml:space="preserve"><value>Please enter a valid Google Group email address.</value></data>
+  <data name="TeamAdmin_GroupLinked" xml:space="preserve"><value>Google Group "{0}" linked successfully.</value><comment>{0} = group name</comment></data>
+  <data name="TeamAdmin_GroupLinkFailed" xml:space="preserve"><value>Failed to link Google Group.</value></data>
+  <data name="TeamAdmin_ResourceUnlinked" xml:space="preserve"><value>Resource unlinked from team.</value></data>
+  <data name="TeamAdmin_ResourceSynced" xml:space="preserve"><value>Resource permissions synced successfully.</value></data>
+  <data name="TeamAdmin_ResourceSyncFailed" xml:space="preserve"><value>Failed to sync resource permissions: {0}</value><comment>{0} = error message</comment></data>
+
+  <!-- ======================== -->
+  <!-- Admin                    -->
+  <!-- ======================== -->
+  <data name="AdminDashboard_Title" xml:space="preserve"><value>Admin Dashboard</value></data>
+  <data name="AdminMembers_Title" xml:space="preserve"><value>Members</value></data>
+  <data name="AdminMemberDetail_Title" xml:space="preserve"><value>Member: {0}</value><comment>{0} = display name</comment></data>
+  <data name="AdminApplications_Title" xml:space="preserve"><value>Applications</value></data>
+  <data name="AdminApplicationDetail_Title" xml:space="preserve"><value>Review Application</value></data>
+  <data name="AdminTeams_Title" xml:space="preserve"><value>Teams Administration</value></data>
+  <data name="AdminCreateTeam_Title" xml:space="preserve"><value>Create Team</value></data>
+  <data name="AdminEditTeam_Title" xml:space="preserve"><value>Edit Team</value></data>
+  <data name="AdminRoles_Title" xml:space="preserve"><value>Role Assignments</value></data>
+  <data name="AdminAddRole_Title" xml:space="preserve"><value>Add Role</value></data>
+  <data name="AdminGoogleSync_Title" xml:space="preserve"><value>Google Sync Status</value></data>
+
+  <!-- Admin Controller TempData -->
+  <data name="Admin_CannotStartReview" xml:space="preserve"><value>Cannot start review. Application is not in Submitted state.</value></data>
+  <data name="Admin_ReviewStarted" xml:space="preserve"><value>Review started for this application.</value></data>
+  <data name="Admin_CannotApprove" xml:space="preserve"><value>Cannot approve. Application must be under review.</value></data>
+  <data name="Admin_ApplicationApproved" xml:space="preserve"><value>Application approved.</value></data>
+  <data name="Admin_CannotReject" xml:space="preserve"><value>Cannot reject. Application must be under review.</value></data>
+  <data name="Admin_ProvideRejectionReason" xml:space="preserve"><value>Please provide a reason for rejection.</value></data>
+  <data name="Admin_ApplicationRejected" xml:space="preserve"><value>Application rejected.</value></data>
+  <data name="Admin_CannotRequestInfo" xml:space="preserve"><value>Cannot request more info. Application must be under review.</value></data>
+  <data name="Admin_SpecifyInfoNeeded" xml:space="preserve"><value>Please specify what information is needed.</value></data>
+  <data name="Admin_MoreInfoRequested" xml:space="preserve"><value>More information has been requested from the applicant.</value></data>
+  <data name="Admin_UnknownAction" xml:space="preserve"><value>Unknown action.</value></data>
+  <data name="Admin_MemberSuspended" xml:space="preserve"><value>Member has been suspended.</value></data>
+  <data name="Admin_MemberUnsuspended" xml:space="preserve"><value>Member has been unsuspended.</value></data>
+  <data name="Admin_VolunteerApproved" xml:space="preserve"><value>Volunteer has been approved.</value></data>
+  <data name="Admin_TeamCreated" xml:space="preserve"><value>Team "{0}" created successfully.</value><comment>{0} = team name</comment></data>
+  <data name="Admin_TeamCreateError" xml:space="preserve"><value>An error occurred while creating the team.</value></data>
+  <data name="Admin_TeamUpdated" xml:space="preserve"><value>Team updated successfully.</value></data>
+  <data name="Admin_TeamDeactivated" xml:space="preserve"><value>Team deactivated.</value></data>
+  <data name="Admin_RoleAlreadyActive" xml:space="preserve"><value>User already has an active '{0}' role assignment.</value><comment>{0} = role name</comment></data>
+  <data name="Admin_RoleAssigned" xml:space="preserve"><value>Role '{0}' assigned successfully.</value><comment>{0} = role name</comment></data>
+  <data name="Admin_RoleNotActive" xml:space="preserve"><value>This role assignment is not currently active.</value></data>
+  <data name="Admin_RoleEnded" xml:space="preserve"><value>Role '{0}' ended for {1}.</value><comment>{0} = role name, {1} = user display name</comment></data>
+  <data name="Admin_GoogleSyncSuccess" xml:space="preserve"><value>Google resources synced successfully.</value></data>
+  <data name="Admin_GoogleSyncFailed" xml:space="preserve"><value>Sync failed. Check logs for details.</value></data>
+
+  <!-- ======================== -->
+  <!-- Email Subjects           -->
+  <!-- ======================== -->
+  <data name="Email_ApplicationSubmitted_Subject" xml:space="preserve"><value>New Membership Application: {0}</value><comment>{0} = applicant name</comment></data>
+  <data name="Email_ApplicationApproved_Subject" xml:space="preserve"><value>Welcome to Nobodies Collective!</value></data>
+  <data name="Email_ApplicationApproved_Heading" xml:space="preserve"><value>Your Application Has Been Approved!</value></data>
+  <data name="Email_ApplicationRejected_Subject" xml:space="preserve"><value>Regarding Your Membership Application</value></data>
+  <data name="Email_ReConsentRequired_Subject_Single" xml:space="preserve"><value>Action Required: Updated {0}</value><comment>{0} = document name</comment></data>
+  <data name="Email_ReConsentRequired_Subject_Multiple" xml:space="preserve"><value>Action Required: Multiple Legal Documents Updated</value></data>
+  <data name="Email_ReConsentReminder_Subject" xml:space="preserve"><value>Reminder: {0} days to review updated documents</value><comment>{0} = days remaining</comment></data>
+  <data name="Email_Welcome_Subject" xml:space="preserve"><value>Welcome to Nobodies Collective!</value></data>
+  <data name="Email_Welcome_Heading" xml:space="preserve"><value>Welcome!</value></data>
+  <data name="Email_AccessSuspended_Subject" xml:space="preserve"><value>Your Membership Access Has Been Suspended</value></data>
+  <data name="Email_VerifyEmail_Subject" xml:space="preserve"><value>Verify Your Email Address</value></data>
+  <data name="Email_DeletionRequested_Subject" xml:space="preserve"><value>Account Deletion Requested</value></data>
+  <data name="Email_AccountDeleted_Subject" xml:space="preserve"><value>Your Account Has Been Deleted</value></data>
+
+  <!-- ======================== -->
+  <!-- My Teams View (missing)  -->
+  <!-- ======================== -->
+  <data name="MyTeams_LeaveConfirm" xml:space="preserve"><value>Are you sure you want to leave {0}?</value><comment>{0} = team name</comment></data>
+  <data name="MyTeams_WithdrawConfirm" xml:space="preserve"><value>Are you sure you want to withdraw this request?</value></data>
+
+  <!-- ======================== -->
+  <!-- Join Team View (missing) -->
+  <!-- ======================== -->
+  <data name="JoinTeam_Join" xml:space="preserve"><value>Join</value></data>
+
+  <!-- ======================== -->
+  <!-- Team Detail (missing)    -->
+  <!-- ======================== -->
+  <data name="TeamDetail_Created" xml:space="preserve"><value>Created</value></data>
+  <data name="TeamDetail_WithdrawConfirm" xml:space="preserve"><value>Are you sure you want to withdraw your request?</value></data>
+  <data name="TeamDetail_LeaveConfirm" xml:space="preserve"><value>Are you sure you want to leave this team?</value></data>
+
+  <!-- ======================== -->
+  <!-- Admin Dashboard View     -->
+  <!-- ======================== -->
+  <data name="Admin_TotalMembers" xml:space="preserve"><value>Total Members</value></data>
+  <data name="Admin_ActiveMembers" xml:space="preserve"><value>Active Members</value></data>
+  <data name="Admin_PendingVolunteers" xml:space="preserve"><value>Pending Volunteers</value></data>
+  <data name="Admin_PendingApplications" xml:space="preserve"><value>Pending Applications</value></data>
+  <data name="Admin_QuickActions" xml:space="preserve"><value>Quick Actions</value></data>
+  <data name="Admin_ReviewPendingVolunteers" xml:space="preserve"><value>Review Pending Volunteers</value></data>
+  <data name="Admin_ReviewApplications" xml:space="preserve"><value>Review Applications</value></data>
+  <data name="Admin_ManageMembers" xml:space="preserve"><value>Manage Members</value></data>
+  <data name="Admin_ManageTeams" xml:space="preserve"><value>Manage Teams</value></data>
+  <data name="Admin_ManageRoles" xml:space="preserve"><value>Manage Roles</value></data>
+  <data name="Admin_GoogleSyncStatus" xml:space="preserve"><value>Google Sync Status</value></data>
+  <data name="Admin_BackgroundJobs" xml:space="preserve"><value>Background Jobs</value></data>
+  <data name="Admin_SystemHealth" xml:space="preserve"><value>System Health</value></data>
+  <data name="Admin_DatabaseConnection" xml:space="preserve"><value>Database Connection</value></data>
+  <data name="Admin_ViewHealthCheck" xml:space="preserve"><value>View Health Check</value></data>
+
+  <!-- ======================== -->
+  <!-- Admin Members View       -->
+  <!-- ======================== -->
+  <data name="Admin_TotalCount" xml:space="preserve"><value>{0} total</value><comment>{0} = count</comment></data>
+  <data name="Admin_SearchPlaceholder" xml:space="preserve"><value>Search by email or name...</value></data>
+  <data name="Admin_Search" xml:space="preserve"><value>Search</value></data>
+  <data name="Admin_Clear" xml:space="preserve"><value>Clear</value></data>
+  <data name="Admin_NoMembersFound" xml:space="preserve"><value>No members found.</value></data>
+  <data name="Admin_Joined" xml:space="preserve"><value>Joined</value></data>
+  <data name="Admin_LastLogin" xml:space="preserve"><value>Last Login</value></data>
+  <data name="Admin_Never" xml:space="preserve"><value>Never</value></data>
+  <data name="Admin_NoProfile" xml:space="preserve"><value>No Profile</value></data>
+
+  <!-- ======================== -->
+  <!-- Admin Member Detail View -->
+  <!-- ======================== -->
+  <data name="AdminMember_Information" xml:space="preserve"><value>Member Information</value></data>
+  <data name="AdminMember_Suspended" xml:space="preserve"><value>Suspended</value></data>
+  <data name="AdminMember_PendingApproval" xml:space="preserve"><value>Pending Approval</value></data>
+  <data name="AdminMember_Approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="AdminMember_UserId" xml:space="preserve"><value>User ID</value></data>
+  <data name="AdminMember_FullName" xml:space="preserve"><value>Full Name</value></data>
+  <data name="AdminMember_AdminNotes" xml:space="preserve"><value>Admin Notes</value></data>
+  <data name="AdminMember_RecentApplications" xml:space="preserve"><value>Recent Applications</value></data>
+  <data name="AdminMember_RoleAssignments" xml:space="preserve"><value>Role Assignments</value></data>
+  <data name="AdminMember_AddRole" xml:space="preserve"><value>Add Role</value></data>
+  <data name="AdminMember_Active" xml:space="preserve"><value>Active</value></data>
+  <data name="AdminMember_Ended" xml:space="preserve"><value>Ended</value></data>
+  <data name="AdminMember_From" xml:space="preserve"><value>From</value></data>
+  <data name="AdminMember_To" xml:space="preserve"><value>to</value></data>
+  <data name="AdminMember_EndRoleConfirm" xml:space="preserve"><value>End this role assignment?</value></data>
+  <data name="AdminMember_End" xml:space="preserve"><value>End</value></data>
+  <data name="AdminMember_NoRoleAssignments" xml:space="preserve"><value>No role assignments.</value></data>
+  <data name="AdminMember_AuditHistory" xml:space="preserve"><value>Audit History</value></data>
+  <data name="AdminMember_NoAuditHistory" xml:space="preserve"><value>No audit history.</value></data>
+  <data name="AdminMember_Statistics" xml:space="preserve"><value>Statistics</value></data>
+  <data name="AdminMember_ApplicationCount" xml:space="preserve"><value>Applications</value></data>
+  <data name="AdminMember_ConsentCount" xml:space="preserve"><value>Consents</value></data>
+  <data name="AdminMember_ApproveVolunteer" xml:space="preserve"><value>Approve Volunteer</value></data>
+  <data name="AdminMember_UnsuspendMember" xml:space="preserve"><value>Unsuspend Member</value></data>
+  <data name="AdminMember_SuspendConfirm" xml:space="preserve"><value>Are you sure you want to suspend this member?</value></data>
+  <data name="AdminMember_SuspendReasonPlaceholder" xml:space="preserve"><value>Reason for suspension (optional)</value></data>
+  <data name="AdminMember_SuspendMember" xml:space="preserve"><value>Suspend Member</value></data>
+
+  <!-- ======================== -->
+  <!-- Admin Applications View  -->
+  <!-- ======================== -->
+  <data name="AdminApp_Pending" xml:space="preserve"><value>Pending</value></data>
+  <data name="AdminApp_Rejected" xml:space="preserve"><value>Rejected</value></data>
+  <data name="AdminApp_Withdrawn" xml:space="preserve"><value>Withdrawn</value></data>
+  <data name="AdminApp_NoApplicationsFound" xml:space="preserve"><value>No applications found.</value></data>
+  <data name="AdminApp_Applicant" xml:space="preserve"><value>Applicant</value></data>
+  <data name="AdminApp_Preview" xml:space="preserve"><value>Preview</value></data>
+  <data name="AdminApp_Review" xml:space="preserve"><value>Review</value></data>
+
+  <!-- ======================== -->
+  <!-- Admin Application Detail -->
+  <!-- ======================== -->
+  <data name="AdminAppDetail_ApplicationReview" xml:space="preserve"><value>Application Review</value></data>
+  <data name="AdminAppDetail_ViewProfile" xml:space="preserve"><value>View Profile</value></data>
+  <data name="AdminAppDetail_Motivation" xml:space="preserve"><value>Motivation</value></data>
+  <data name="AdminAppDetail_Reviewer" xml:space="preserve"><value>Reviewer</value></data>
+  <data name="AdminAppDetail_StartReview" xml:space="preserve"><value>Start Review</value></data>
+  <data name="AdminAppDetail_NotesLabel" xml:space="preserve"><value>Notes (required for reject/request info)</value></data>
+  <data name="AdminAppDetail_NotesPlaceholder" xml:space="preserve"><value>Add notes...</value></data>
+  <data name="AdminAppDetail_ApproveConfirm" xml:space="preserve"><value>Approve this application?</value></data>
+  <data name="AdminAppDetail_Approve" xml:space="preserve"><value>Approve</value></data>
+  <data name="AdminAppDetail_RejectConfirm" xml:space="preserve"><value>Reject this application?</value></data>
+  <data name="AdminAppDetail_Reject" xml:space="preserve"><value>Reject</value></data>
+  <data name="AdminAppDetail_RequestMoreInfo" xml:space="preserve"><value>Request More Info</value></data>
+
+  <!-- ======================== -->
+  <!-- Admin Teams View         -->
+  <!-- ======================== -->
+  <data name="AdminTeams_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="AdminTeams_Type" xml:space="preserve"><value>Type</value></data>
+  <data name="AdminTeams_Members" xml:space="preserve"><value>Members</value></data>
+  <data name="AdminTeams_Pending" xml:space="preserve"><value>Pending</value></data>
+  <data name="AdminTeams_Created" xml:space="preserve"><value>Created</value></data>
+  <data name="AdminTeams_Open" xml:space="preserve"><value>Open</value></data>
+  <data name="AdminTeams_Inactive" xml:space="preserve"><value>Inactive</value></data>
+  <data name="AdminTeams_DeactivateConfirm" xml:space="preserve"><value>Deactivate this team?</value></data>
+  <data name="AdminTeams_Deactivate" xml:space="preserve"><value>Deactivate</value></data>
+  <data name="AdminTeams_SystemManaged" xml:space="preserve"><value>System managed</value></data>
+  <data name="AdminTeams_TeamName" xml:space="preserve"><value>Team Name</value></data>
+  <data name="AdminTeams_DescriptionOptional" xml:space="preserve"><value>Description (optional)</value></data>
+  <data name="AdminTeams_RequireApproval" xml:space="preserve"><value>Require approval to join</value></data>
+  <data name="AdminTeams_RequireApprovalHelp" xml:space="preserve"><value>When enabled, new members must be approved by a team metalead or board member.</value></data>
+
+  <!-- ======================== -->
+  <!-- Admin Edit Team View     -->
+  <!-- ======================== -->
+  <data name="AdminEditTeam_SystemTeamWarning" xml:space="preserve"><value>This is a system-managed team. Most settings cannot be modified.</value></data>
+  <data name="AdminEditTeam_TeamIsActive" xml:space="preserve"><value>Team is active</value></data>
+
+  <!-- ======================== -->
+  <!-- Admin Roles View         -->
+  <!-- ======================== -->
+  <data name="AdminRoles_All" xml:space="preserve"><value>All</value></data>
+  <data name="AdminRoles_HideInactive" xml:space="preserve"><value>Hide Inactive</value></data>
+  <data name="AdminRoles_ShowInactive" xml:space="preserve"><value>Show Inactive</value></data>
+  <data name="AdminRoles_User" xml:space="preserve"><value>User</value></data>
+  <data name="AdminRoles_ValidFrom" xml:space="preserve"><value>Valid From</value></data>
+  <data name="AdminRoles_ValidTo" xml:space="preserve"><value>Valid To</value></data>
+
+  <!-- ======================== -->
+  <!-- Admin Add Role View      -->
+  <!-- ======================== -->
+  <data name="AdminAddRole_Heading" xml:space="preserve"><value>Add Role to {0}</value><comment>{0} = display name</comment></data>
+  <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Select a role...</value></data>
+  <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Full system access</value></data>
+  <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Board member permissions</value></data>
+  <data name="AdminAddRole_MetaleadDesc" xml:space="preserve"><value>Team lead role</value></data>
+  <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notes (optional)</value></data>
+  <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Reason for assignment</value></data>
+
+  <!-- ======================== -->
+  <!-- Google Sync View         -->
+  <!-- ======================== -->
+  <data name="GoogleSync_SyncNow" xml:space="preserve"><value>Sync Now</value></data>
+  <data name="GoogleSync_TotalResources" xml:space="preserve"><value>Total Resources</value></data>
+  <data name="GoogleSync_InSync" xml:space="preserve"><value>In Sync</value></data>
+  <data name="GoogleSync_Drifted" xml:space="preserve"><value>Drifted</value></data>
+  <data name="GoogleSync_Errors" xml:space="preserve"><value>Errors</value></data>
+  <data name="GoogleSync_NoResources" xml:space="preserve"><value>No active Google resources found.</value></data>
+  <data name="GoogleSync_Resource" xml:space="preserve"><value>Resource</value></data>
+  <data name="GoogleSync_Details" xml:space="preserve"><value>Details</value></data>
+  <data name="GoogleSync_BackToDashboard" xml:space="preserve"><value>Back to Dashboard</value></data>
+
+  <!-- ======================== -->
+  <!-- Team Admin Views         -->
+  <!-- ======================== -->
+  <data name="TeamAdmin_ManageMembers" xml:space="preserve"><value>Manage Members</value></data>
+  <data name="TeamAdmin_ManageResources" xml:space="preserve"><value>Manage Resources</value></data>
+  <data name="TeamAdmin_SystemTeam" xml:space="preserve"><value>System Team</value></data>
+  <data name="TeamAdmin_SystemTeamRolesInfo" xml:space="preserve"><value>This is a system-managed team. Member roles cannot be changed manually.</value></data>
+  <data name="TeamAdmin_DemoteConfirm" xml:space="preserve"><value>Demote this user to Member?</value></data>
+  <data name="TeamAdmin_DemoteToMember" xml:space="preserve"><value>Demote to Member</value></data>
+  <data name="TeamAdmin_PromoteConfirm" xml:space="preserve"><value>Promote this user to Metalead?</value></data>
+  <data name="TeamAdmin_PromoteToMetalead" xml:space="preserve"><value>Promote to Metalead</value></data>
+  <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>Remove this member from the team?</value></data>
+  <data name="TeamAdmin_Remove" xml:space="preserve"><value>Remove</value></data>
+  <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>No members in this team yet.</value></data>
+  <data name="TeamAdmin_BackToTeam" xml:space="preserve"><value>Back to Team</value></data>
+  <data name="TeamAdmin_ViewPendingRequests" xml:space="preserve"><value>View Pending Requests</value></data>
+  <data name="TeamAdmin_Message" xml:space="preserve"><value>Message</value></data>
+  <data name="TeamAdmin_NoMessage" xml:space="preserve"><value>No message</value></data>
+  <data name="TeamAdmin_ApproveConfirm" xml:space="preserve"><value>Approve this request?</value></data>
+  <data name="TeamAdmin_Approve" xml:space="preserve"><value>Approve</value></data>
+  <data name="TeamAdmin_Reject" xml:space="preserve"><value>Reject</value></data>
+  <data name="TeamAdmin_RejectRequest" xml:space="preserve"><value>Reject Request</value></data>
+  <data name="TeamAdmin_RejectingFrom" xml:space="preserve"><value>Rejecting request from &lt;strong&gt;{0}&lt;/strong&gt;</value><comment>{0} = display name</comment></data>
+  <data name="TeamAdmin_RejectionReason" xml:space="preserve"><value>Reason for rejection (required)</value></data>
+  <data name="TeamAdmin_NoPendingRequests" xml:space="preserve"><value>No pending requests at this time.</value></data>
+  <data name="TeamAdmin_Resources" xml:space="preserve"><value>Resources</value></data>
+  <data name="TeamAdmin_ServiceAccountTitle" xml:space="preserve"><value>Service Account</value></data>
+  <data name="TeamAdmin_ShareWithServiceAccount" xml:space="preserve"><value>To link a Google resource, you must first share it with the service account:</value></data>
+  <data name="TeamAdmin_Copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="TeamAdmin_DriveFolders" xml:space="preserve"><value>Drive folders</value></data>
+  <data name="TeamAdmin_DriveFoldersHelp" xml:space="preserve"><value>Share the folder with this email as Editor</value></data>
+  <data name="TeamAdmin_GoogleGroups" xml:space="preserve"><value>Google Groups</value></data>
+  <data name="TeamAdmin_GoogleGroupsHelp" xml:space="preserve"><value>Add this email as a Manager of the group</value></data>
+  <data name="TeamAdmin_LinkedResources" xml:space="preserve"><value>Linked Resources</value></data>
+  <data name="TeamAdmin_LastSynced" xml:space="preserve"><value>Last Synced</value></data>
+  <data name="TeamAdmin_Sync" xml:space="preserve"><value>Sync</value></data>
+  <data name="TeamAdmin_UnlinkConfirm" xml:space="preserve"><value>Are you sure you want to unlink this resource?</value></data>
+  <data name="TeamAdmin_Unlink" xml:space="preserve"><value>Unlink</value></data>
+  <data name="TeamAdmin_NoResources" xml:space="preserve"><value>No resources linked to this team yet. Use the forms below to link a Google Drive folder or Google Group.</value></data>
+  <data name="TeamAdmin_LinkDriveFolder" xml:space="preserve"><value>Link Drive Folder</value></data>
+  <data name="TeamAdmin_FolderUrl" xml:space="preserve"><value>Folder URL</value></data>
+  <data name="TeamAdmin_FolderUrlHelp" xml:space="preserve"><value>Paste the Google Drive folder URL. The folder must be shared with the service account.</value></data>
+  <data name="TeamAdmin_LinkFolder" xml:space="preserve"><value>Link Folder</value></data>
+  <data name="TeamAdmin_LinkGoogleGroup" xml:space="preserve"><value>Link Google Group</value></data>
+  <data name="TeamAdmin_GroupEmail" xml:space="preserve"><value>Group Email</value></data>
+  <data name="TeamAdmin_GroupEmailHelp" xml:space="preserve"><value>Enter the Google Group email address. The service account must be a Manager of the group.</value></data>
+  <data name="TeamAdmin_LinkGroup" xml:space="preserve"><value>Link Group</value></data>
+
+</root>

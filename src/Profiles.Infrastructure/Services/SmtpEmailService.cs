@@ -1,6 +1,7 @@
 using System.Globalization;
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
@@ -16,13 +17,16 @@ public class SmtpEmailService : IEmailService
 {
     private readonly EmailSettings _settings;
     private readonly ILogger<SmtpEmailService> _logger;
+    private readonly IStringLocalizer _localizer;
 
     public SmtpEmailService(
         IOptions<EmailSettings> settings,
-        ILogger<SmtpEmailService> logger)
+        ILogger<SmtpEmailService> logger,
+        IStringLocalizerFactory localizerFactory)
     {
         _settings = settings.Value;
         _logger = logger;
+        _localizer = localizerFactory.Create("SharedResource", "Profiles.Web");
     }
 
     /// <inheritdoc />
@@ -31,7 +35,7 @@ public class SmtpEmailService : IEmailService
         string applicantName,
         CancellationToken cancellationToken = default)
     {
-        var subject = $"New Membership Application: {applicantName}";
+        var subject = string.Format(_localizer["Email_ApplicationSubmitted_Subject"].Value, applicantName);
         var body = $"""
             <h2>New Membership Application</h2>
             <p>A new membership application has been submitted.</p>
@@ -51,9 +55,9 @@ public class SmtpEmailService : IEmailService
         string userName,
         CancellationToken cancellationToken = default)
     {
-        var subject = "Welcome to Nobodies Collective!";
+        var subject = _localizer["Email_ApplicationApproved_Subject"].Value;
         var body = $"""
-            <h2>Your Application Has Been Approved!</h2>
+            <h2>{_localizer["Email_ApplicationApproved_Heading"].Value}</h2>
             <p>Dear {HtmlEncode(userName)},</p>
             <p>We're delighted to inform you that your membership application has been approved.
             Welcome to Nobodies Collective!</p>
@@ -77,7 +81,7 @@ public class SmtpEmailService : IEmailService
         string reason,
         CancellationToken cancellationToken = default)
     {
-        var subject = "Regarding Your Membership Application";
+        var subject = _localizer["Email_ApplicationRejected_Subject"].Value;
         var body = $"""
             <h2>Application Update</h2>
             <p>Dear {HtmlEncode(userName)},</p>
@@ -110,9 +114,9 @@ public class SmtpEmailService : IEmailService
         CancellationToken cancellationToken = default)
     {
         var docs = documentNames.ToList();
-        var subject = docs.Count == 1 
-            ? $"Action Required: Updated {docs[0]}" 
-            : "Action Required: Multiple Legal Documents Updated";
+        var subject = docs.Count == 1
+            ? string.Format(_localizer["Email_ReConsentRequired_Subject_Single"].Value, docs[0])
+            : _localizer["Email_ReConsentRequired_Subject_Multiple"].Value;
 
         var body = $"""
             <h2>Legal Document Update</h2>
@@ -139,7 +143,7 @@ public class SmtpEmailService : IEmailService
         CancellationToken cancellationToken = default)
     {
         var docs = string.Join(", ", documentNames);
-        var subject = $"Reminder: {daysRemaining} days to review updated documents";
+        var subject = string.Format(CultureInfo.CurrentCulture, _localizer["Email_ReConsentReminder_Subject"].Value, daysRemaining);
         var body = $"""
             <h2>Consent Reminder</h2>
             <p>Dear {HtmlEncode(userName)},</p>
@@ -162,9 +166,9 @@ public class SmtpEmailService : IEmailService
         string userName,
         CancellationToken cancellationToken = default)
     {
-        var subject = "Welcome to Nobodies Collective!";
+        var subject = _localizer["Email_Welcome_Subject"].Value;
         var body = $"""
-            <h2>Welcome!</h2>
+            <h2>{_localizer["Email_Welcome_Heading"].Value}</h2>
             <p>Dear {HtmlEncode(userName)},</p>
             <p>Welcome to the Nobodies Collective member portal!</p>
             <p>Here's what you can do:</p>
@@ -187,7 +191,7 @@ public class SmtpEmailService : IEmailService
         string reason,
         CancellationToken cancellationToken = default)
     {
-        var subject = "Your Membership Access Has Been Suspended";
+        var subject = _localizer["Email_AccessSuspended_Subject"].Value;
         var body = $"""
             <h2>Access Suspended</h2>
             <p>Dear {HtmlEncode(userName)},</p>
@@ -212,7 +216,7 @@ public class SmtpEmailService : IEmailService
         string verificationUrl,
         CancellationToken cancellationToken = default)
     {
-        var subject = "Verify Your Email Address";
+        var subject = _localizer["Email_VerifyEmail_Subject"].Value;
         var body = $"""
             <h2>Email Verification</h2>
             <p>Dear {HtmlEncode(userName)},</p>
@@ -235,7 +239,7 @@ public class SmtpEmailService : IEmailService
         CancellationToken cancellationToken = default)
     {
         var formattedDate = deletionDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture);
-        var subject = "Account Deletion Requested";
+        var subject = _localizer["Email_DeletionRequested_Subject"].Value;
         var body = $"""
             <h2>Account Deletion Request Received</h2>
             <p>Dear {HtmlEncode(userName)},</p>
@@ -256,7 +260,7 @@ public class SmtpEmailService : IEmailService
         string userName,
         CancellationToken cancellationToken = default)
     {
-        var subject = "Your Account Has Been Deleted";
+        var subject = _localizer["Email_AccountDeleted_Subject"].Value;
         var body = $"""
             <h2>Account Deleted</h2>
             <p>Dear {HtmlEncode(userName)},</p>
