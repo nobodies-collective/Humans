@@ -6,9 +6,11 @@
 <ul class="navbar-nav">
 @if (SignInManager.IsSignedIn(User))
 {
+    var currentUser = await UserManager.GetUserAsync(User);
+    var displayName = currentUser?.DisplayName ?? User.Identity?.Name;
     <li class="nav-item">
         <a class="nav-link text-dark" asp-area="" asp-controller="Profile" asp-action="Index">
-            @Html.Raw(string.Format(Localizer["Login_Hello"].Value, User.Identity?.Name))
+            @Html.Raw(string.Format(Localizer["Login_Hello"].Value, displayName))
         </a>
     </li>
     <li class="nav-item">
