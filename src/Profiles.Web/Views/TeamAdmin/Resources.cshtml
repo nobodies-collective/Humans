@@ -40,6 +40,7 @@
         </div>
         <ul class="mb-0 text-muted small">
             <li><strong>@Localizer["TeamAdmin_DriveFolders"]:</strong> @Localizer["TeamAdmin_DriveFoldersHelp"]</li>
+            <li><strong>Drive Files:</strong> Share the file's parent Shared Drive with the service account as Contributor.</li>
             <li><strong>@Localizer["TeamAdmin_GoogleGroups"]:</strong> @Localizer["TeamAdmin_GoogleGroupsHelp"]</li>
         </ul>
     </div>
@@ -78,6 +79,10 @@
                                 @if (string.Equals(resource.ResourceType, "Drive Folder", StringComparison.Ordinal))
                                 {
                                     <span class="badge bg-info">Drive Folder</span>
+                                }
+                                else if (string.Equals(resource.ResourceType, "Drive File", StringComparison.Ordinal))
+                                {
+                                    <span class="badge bg-warning text-dark">Drive File</span>
                                 }
                                 else if (string.Equals(resource.ResourceType, "Google Group", StringComparison.Ordinal))
                                 {
@@ -135,7 +140,7 @@ else
 }
 
 <div class="row">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card mb-4">
             <div class="card-header">@Localizer["TeamAdmin_LinkDriveFolder"]</div>
             <div class="card-body">
@@ -152,7 +157,24 @@ else
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">Link Drive File</div>
+            <div class="card-body">
+                <form asp-action="LinkDriveFile" asp-route-slug="@Model.TeamSlug" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label for="fileUrl" class="form-label">File URL</label>
+                        <input type="url" class="form-control" id="fileUrl" name="FileUrl"
+                               placeholder="https://docs.google.com/spreadsheets/d/..." required>
+                        <div class="form-text">Paste a Google Sheets, Docs, Slides, or Drive file URL.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Link File</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
         <div class="card mb-4">
             <div class="card-header">@Localizer["TeamAdmin_LinkGoogleGroup"]</div>
             <div class="card-body">

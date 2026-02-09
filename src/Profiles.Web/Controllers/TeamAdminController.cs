@@ -333,6 +333,7 @@ public class TeamAdminController : Controller
                     GoogleResourceType.DriveFolder => "Drive Folder",
                     GoogleResourceType.SharedDrive => "Shared Drive",
                     GoogleResourceType.Group => "Google Group",
+                    GoogleResourceType.DriveFile => "Drive File",
                     _ => r.ResourceType.ToString()
                 },
                 Name = r.Name,
@@ -388,6 +389,53 @@ public class TeamAdminController : Controller
             if (result.ServiceAccountEmail != null)
             {
                 errorMessage += $" {string.Format(_localizer["TeamAdmin_ServiceAccount"].Value, result.ServiceAccountEmail)}";
+            }
+            TempData["ErrorMessage"] = errorMessage;
+        }
+
+        return RedirectToAction(nameof(Resources), new { slug });
+    }
+
+    [HttpPost("Resources/LinkFile")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> LinkDriveFile(string slug, LinkDriveFileModel model)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var team = await _teamService.GetTeamBySlugAsync(slug);
+        if (team == null)
+        {
+            return NotFound();
+        }
+
+        var canManage = await _teamResourceService.CanManageTeamResourcesAsync(team.Id, user.Id);
+        if (!canManage)
+        {
+            return Forbid();
+        }
+
+        if (!ModelState.IsValid)
+        {
+            TempData["ErrorMessage"] = "Please enter a valid Google Drive file URL.";
+            return RedirectToAction(nameof(Resources), new { slug });
+        }
+
+        var result = await _teamResourceService.LinkDriveFileAsync(team.Id, model.FileUrl);
+
+        if (result.Success)
+        {
+            TempData["SuccessMessage"] = $"Drive file '{result.Resource!.Name}' linked successfully.";
+        }
+        else
+        {
+            var errorMessage = result.ErrorMessage ?? "Failed to link Drive file.";
+            if (result.ServiceAccountEmail != null)
+            {
+                errorMessage += $" Service account: {result.ServiceAccountEmail}";
             }
             TempData["ErrorMessage"] = errorMessage;
         }

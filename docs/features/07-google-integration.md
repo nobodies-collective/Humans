@@ -70,6 +70,21 @@ Nobodies Collective uses Google Workspace for collaboration. The system integrat
 - Supports multiple URL formats (direct, u/0, open?id=)
 - All API calls use `SupportsAllDrives = true`
 
+### US-7.5b: Link Existing Drive File
+**As a** Board member or authorized Metalead
+**I want to** link an individual Drive file (Sheet, Doc, Slides, etc.) to a team
+**So that** team members automatically get access to specific shared files
+
+**Acceptance Criteria:**
+- Admin pastes a Google Drive file URL (Sheets, Docs, Slides, Forms, or generic /file/d/ URLs)
+- System validates the service account has access to the file
+- If access denied, shows clear instructions with service account email to share with
+- File metadata (name, URL) fetched and saved as GoogleResource with type DriveFile
+- Duplicate links prevented (same file + team)
+- Rejects folder URLs with a helpful redirect message
+- All API calls use `SupportsAllDrives = true`
+- Permission sync works the same as for folders (writer access for team members)
+
 ### US-7.6: Link Existing Google Group
 **As a** Board member or authorized Metalead
 **I want to** link an existing Google Group to a team
@@ -125,9 +140,10 @@ GoogleResource
 DriveFolder  = 0  // Shared Drive folder
 SharedDrive  = 1  // Shared Drive (reserved)
 Group        = 2  // Google Group
+DriveFile    = 3  // Individual file within a Shared Drive (Google Sheets, Docs, etc.)
 ```
 
-> **Note:** `DriveFolder` refers to folders within Shared Drives, not regular My Drive folders. The `SharedDrive` value is reserved for future use if top-level Shared Drives need to be tracked separately.
+> **Note:** `DriveFolder` refers to folders within Shared Drives, not regular My Drive folders. The `SharedDrive` value is reserved for future use if top-level Shared Drives need to be tracked separately. `DriveFile` covers any individual file (Sheets, Docs, Slides, etc.) on a Shared Drive.
 
 ## Service Interface
 
@@ -242,6 +258,7 @@ public interface ITeamResourceService
 {
     Task<IReadOnlyList<GoogleResource>> GetTeamResourcesAsync(Guid teamId, ...);
     Task<LinkResourceResult> LinkDriveFolderAsync(Guid teamId, string folderUrl, ...);
+    Task<LinkResourceResult> LinkDriveFileAsync(Guid teamId, string fileUrl, ...);
     Task<LinkResourceResult> LinkGroupAsync(Guid teamId, string groupEmail, ...);
     Task UnlinkResourceAsync(Guid resourceId, ...);
     Task<bool> CanManageTeamResourcesAsync(Guid teamId, Guid userId, ...);
@@ -288,6 +305,16 @@ Supports multiple Google Drive URL formats:
 - `https://drive.google.com/drive/folders/{id}?usp=sharing`
 - Direct folder ID
 
+### Drive File URL Parsing
+Supports multiple Google Drive/Docs URL formats:
+- `https://drive.google.com/file/d/{id}/...`
+- `https://docs.google.com/spreadsheets/d/{id}/...`
+- `https://docs.google.com/document/d/{id}/...`
+- `https://docs.google.com/presentation/d/{id}/...`
+- `https://docs.google.com/forms/d/{id}/...`
+- `https://drive.google.com/open?id={id}`
+- Direct file ID
+
 ### Authorization
 - Board members: can manage resources for any team
 - Metaleads: controlled by `TeamResourceManagement:AllowMetaleadsToManageResources` (default: false)
@@ -298,6 +325,7 @@ Actions:
 |-------|--------|--------|
 | `Resources` | GET | View linked resources + link forms |
 | `Resources/LinkDrive` | POST | Link a Shared Drive folder by URL |
+| `Resources/LinkFile` | POST | Link a Drive file (Sheet, Doc, etc.) by URL |
 | `Resources/LinkGroup` | POST | Link a Google Group by email |
 | `Resources/{id}/Unlink` | POST | Soft-unlink (IsActive = false) |
 | `Resources/{id}/Sync` | POST | Trigger permission sync |

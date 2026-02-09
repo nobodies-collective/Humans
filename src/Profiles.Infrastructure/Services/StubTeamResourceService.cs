@@ -80,6 +80,38 @@ public class StubTeamResourceService : ITeamResourceService
     }
 
     /// <inheritdoc />
+    public Task<LinkResourceResult> LinkDriveFileAsync(Guid teamId, string fileUrl, CancellationToken ct = default)
+    {
+        _logger.LogInformation("[STUB] Would link Drive file from URL '{FileUrl}' to team {TeamId}", fileUrl, teamId);
+
+        var fileId = TeamResourceService.ParseDriveFileId(fileUrl);
+        if (fileId == null)
+        {
+            return Task.FromResult(new LinkResourceResult(false,
+                ErrorMessage: "Invalid Google Drive file URL."));
+        }
+
+        var now = _clock.GetCurrentInstant();
+        var resource = new GoogleResource
+        {
+            Id = Guid.NewGuid(),
+            TeamId = teamId,
+            ResourceType = GoogleResourceType.DriveFile,
+            GoogleId = fileId,
+            Name = fileId,
+            Url = fileUrl,
+            ProvisionedAt = now,
+            LastSyncedAt = now,
+            IsActive = true
+        };
+
+        _dbContext.GoogleResources.Add(resource);
+        _dbContext.SaveChanges();
+
+        return Task.FromResult(new LinkResourceResult(true, Resource: resource));
+    }
+
+    /// <inheritdoc />
     public Task<LinkResourceResult> LinkGroupAsync(Guid teamId, string groupEmail, CancellationToken ct = default)
     {
         _logger.LogInformation("[STUB] Would link Google Group '{GroupEmail}' to team {TeamId}", groupEmail, teamId);

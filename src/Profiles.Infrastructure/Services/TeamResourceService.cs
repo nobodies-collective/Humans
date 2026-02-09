@@ -159,6 +159,103 @@ public partial class TeamResourceService : ITeamResourceService
     }
 
     /// <inheritdoc />
+    public async Task<LinkResourceResult> LinkDriveFileAsync(Guid teamId, string fileUrl, CancellationToken ct = default)
+    {
+        var fileId = ParseDriveFileId(fileUrl);
+        if (fileId == null)
+        {
+            return new LinkResourceResult(false,
+                ErrorMessage: "Invalid Google Drive file URL. Please use a URL like https://docs.google.com/spreadsheets/d/... or https://drive.google.com/file/d/...");
+        }
+
+        // Check if this file is already linked to this team
+        var existing = await _dbContext.GoogleResources
+            .FirstOrDefaultAsync(r => r.TeamId == teamId
+                && r.GoogleId == fileId
+                && r.ResourceType == GoogleResourceType.DriveFile
+                && r.IsActive, ct);
+
+        if (existing != null)
+        {
+            return new LinkResourceResult(false,
+                ErrorMessage: "This Drive file is already linked to this team.");
+        }
+
+        try
+        {
+            var drive = await GetDriveServiceAsync(ct);
+            var request = drive.Files.Get(fileId);
+            request.Fields = "id, name, webViewLink, mimeType, driveId";
+            request.SupportsAllDrives = true;
+            var file = await request.ExecuteAsync(ct);
+
+            if (string.Equals(file.MimeType, "application/vnd.google-apps.folder", StringComparison.Ordinal))
+            {
+                return new LinkResourceResult(false,
+                    ErrorMessage: "The provided URL points to a folder, not a file. Please use the 'Link Drive Folder' form instead.");
+            }
+
+            var now = _clock.GetCurrentInstant();
+
+            // Check for an inactive record to reactivate
+            var inactive = await _dbContext.GoogleResources
+                .FirstOrDefaultAsync(r => r.TeamId == teamId
+                    && r.GoogleId == fileId
+                    && r.ResourceType == GoogleResourceType.DriveFile
+                    && !r.IsActive, ct);
+
+            GoogleResource resource;
+            if (inactive != null)
+            {
+                inactive.Name = file.Name;
+                inactive.Url = file.WebViewLink;
+                inactive.LastSyncedAt = now;
+                inactive.IsActive = true;
+                inactive.ErrorMessage = null;
+                resource = inactive;
+            }
+            else
+            {
+                resource = new GoogleResource
+                {
+                    Id = Guid.NewGuid(),
+                    TeamId = teamId,
+                    ResourceType = GoogleResourceType.DriveFile,
+                    GoogleId = file.Id,
+                    Name = file.Name,
+                    Url = file.WebViewLink,
+                    ProvisionedAt = now,
+                    LastSyncedAt = now,
+                    IsActive = true
+                };
+                _dbContext.GoogleResources.Add(resource);
+            }
+
+            await _dbContext.SaveChangesAsync(ct);
+
+            _logger.LogInformation("Linked Drive file {FileId} ({FileName}) to team {TeamId}",
+                file.Id, file.Name, teamId);
+
+            return new LinkResourceResult(true, Resource: resource);
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            _logger.LogWarning(ex, "Google API error linking Drive file {FileId}: Code={Code} Message={Message}",
+                fileId, ex.Error?.Code, ex.Error?.Message);
+            var serviceAccountEmail = await GetServiceAccountEmailAsync(ct);
+            var hint = ex.Error?.Code switch
+            {
+                404 => "The file was not found or the service account does not have access.",
+                403 => "The service account does not have permission to access this file.",
+                _ => $"Google API error ({ex.Error?.Code}): {ex.Error?.Message}"
+            };
+            return new LinkResourceResult(false,
+                ErrorMessage: $"{hint} The file must be on a Shared Drive accessible to the service account.",
+                ServiceAccountEmail: serviceAccountEmail);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<LinkResourceResult> LinkGroupAsync(Guid teamId, string groupEmail, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(groupEmail) || !groupEmail.Contains('@'))
@@ -483,11 +580,66 @@ public partial class TeamResourceService : ITeamResourceService
         return credential.CreateScoped(scopes);
     }
 
+    /// <summary>
+    /// Parses a Google Drive file ID from various URL formats.
+    /// Supports Google Docs, Sheets, Slides, and generic Drive file URLs.
+    /// </summary>
+    internal static string? ParseDriveFileId(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return null;
+        }
+
+        input = input.Trim();
+
+        // Direct file ID (no URL, just the ID itself)
+        if (FileIdPattern().IsMatch(input))
+        {
+            return input;
+        }
+
+        // https://drive.google.com/file/d/{id}/...
+        var match = DriveFileUrlPattern().Match(input);
+        if (match.Success)
+        {
+            return match.Groups["id"].Value;
+        }
+
+        // https://docs.google.com/spreadsheets/d/{id}/...
+        // https://docs.google.com/document/d/{id}/...
+        // https://docs.google.com/presentation/d/{id}/...
+        // https://docs.google.com/forms/d/{id}/...
+        match = GoogleDocsUrlPattern().Match(input);
+        if (match.Success)
+        {
+            return match.Groups["id"].Value;
+        }
+
+        // https://drive.google.com/open?id={id}
+        match = DriveOpenUrlPattern().Match(input);
+        if (match.Success)
+        {
+            return match.Groups["id"].Value;
+        }
+
+        return null;
+    }
+
     [GeneratedRegex(@"^[a-zA-Z0-9_-]{10,}$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex FolderIdPattern();
 
+    [GeneratedRegex(@"^[a-zA-Z0-9_-]{10,}$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex FileIdPattern();
+
     [GeneratedRegex(@"drive\.google\.com/(?:drive/)?(?:u/\d+/)?folders/(?<id>[a-zA-Z0-9_-]+)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 1000)]
     private static partial Regex DriveFolderUrlPattern();
+
+    [GeneratedRegex(@"drive\.google\.com/file/d/(?<id>[a-zA-Z0-9_-]+)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex DriveFileUrlPattern();
+
+    [GeneratedRegex(@"docs\.google\.com/(?:spreadsheets|document|presentation|forms)/d/(?<id>[a-zA-Z0-9_-]+)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex GoogleDocsUrlPattern();
 
     [GeneratedRegex(@"drive\.google\.com/open\?id=(?<id>[a-zA-Z0-9_-]+)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 1000)]
     private static partial Regex DriveOpenUrlPattern();

@@ -30,6 +30,12 @@ public class LinkDriveFolderModel
     public string FolderUrl { get; set; } = string.Empty;
 }
 
+public class LinkDriveFileModel
+{
+    [Required(ErrorMessage = "Please enter a Google Drive file URL.")]
+    public string FileUrl { get; set; } = string.Empty;
+}
+
 public class LinkGroupModel
 {
     [Required(ErrorMessage = "Please enter a Google Group email address.")]

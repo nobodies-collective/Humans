@@ -18,5 +18,10 @@ public enum GoogleResourceType
     /// <summary>
     /// Google Group for email distribution.
     /// </summary>
-    Group = 2
+    Group = 2,
+
+    /// <summary>
+    /// Individual file within a Shared Drive (Google Sheets, Docs, etc.).
+    /// </summary>
+    DriveFile = 3
 }

@@ -82,6 +82,7 @@ else
                         <th>@Localizer["MyTeams_Team"]</th>
                         <th>@Localizer["Common_Status"]</th>
                         <th>@Localizer["GoogleSync_Details"]</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -103,9 +104,13 @@ else
                                 {
                                     <span class="badge bg-info">Group</span>
                                 }
+                                else if (resource.ResourceType == "DriveFile")
+                                {
+                                    <span class="badge bg-warning text-dark">Drive File</span>
+                                }
                                 else
                                 {
-                                    <span class="badge bg-secondary">Drive</span>
+                                    <span class="badge bg-secondary">Drive Folder</span>
                                 }
                             </td>
                             <td>@resource.TeamName</td>
@@ -149,6 +154,10 @@ else
                                 {
                                     <span class="text-muted">--</span>
                                 }
+                            </td>
+                            <td>
+                                <a asp-action="GoogleSyncResourceAudit" asp-route-id="@resource.ResourceId"
+                                   class="btn btn-sm btn-outline-secondary">Audit</a>
                             </td>
                         </tr>
                     }
