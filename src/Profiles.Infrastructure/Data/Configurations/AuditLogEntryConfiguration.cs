@@ -49,10 +49,31 @@ public class AuditLogEntryConfiguration : IEntityTypeConfiguration<AuditLogEntry
             .HasForeignKey(e => e.ActorUserId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // Google sync-specific fields (all nullable)
+        builder.Property(e => e.ErrorMessage)
+            .HasMaxLength(4000);
+
+        builder.Property(e => e.Role)
+            .HasMaxLength(100);
+
+        builder.Property(e => e.SyncSource)
+            .HasConversion<string>()
+            .HasMaxLength(100);
+
+        builder.Property(e => e.UserEmail)
+            .HasMaxLength(500);
+
+        // FK to GoogleResource with SetNull on delete
+        builder.HasOne(e => e.Resource)
+            .WithMany()
+            .HasForeignKey(e => e.ResourceId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Indexes for querying
         builder.HasIndex(e => new { e.EntityType, e.EntityId });
         builder.HasIndex(e => new { e.RelatedEntityType, e.RelatedEntityId });
         builder.HasIndex(e => e.OccurredAt);
         builder.HasIndex(e => e.Action);
+        builder.HasIndex(e => e.ResourceId);
     }
 }

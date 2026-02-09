@@ -20,8 +20,24 @@ Background jobs and admin actions make changes on members' behalf (team enrollme
 | ActorName | string | "SystemTeamSyncJob" or "Admin: Jane Doe" |
 | RelatedEntityId | Guid? | Secondary entity |
 | RelatedEntityType | string? | "User", "Team", etc. |
+| ResourceId | Guid? | FK to GoogleResource (Google sync only) |
+| Success | bool? | Whether Google API call succeeded (Google sync only) |
+| ErrorMessage | string? | Error details if call failed (Google sync only) |
+| Role | string? | Role granted/revoked, e.g. "writer", "MEMBER" (Google sync only) |
+| SyncSource | GoogleSyncSource? (string) | What triggered the sync action (Google sync only) |
+| UserEmail | string? | Email at time of action, denormalized (Google sync only) |
 
 Table: `audit_log`
+
+### GoogleSyncSource Enum
+
+Stored as string in the database. Values:
+- `TeamMemberJoined` — User joined a team, triggering resource access
+- `TeamMemberLeft` — User left a team, triggering revocation
+- `ManualSync` — Admin clicked "Sync Now"
+- `ScheduledSync` — Automated periodic sync
+- `Suspension` — Member suspension triggered revocation
+- `SystemTeamSync` — System team sync job
 
 ### Immutability
 
@@ -108,9 +124,11 @@ The service adds entries to the `DbContext` without calling `SaveChangesAsync`. 
 |--------|-------------|-------|
 | Anomalous permission change detected | AnomalousPermissionDetected | DriveActivityMonitorJob |
 
-## Phase 3 (Future)
+### Google Sync Audit (LogGoogleSyncAsync)
 
-- Per-resource audit view on team admin pages
+For permission-change actions, `LogGoogleSyncAsync` populates the Google-specific nullable fields alongside the standard fields. This provides structured detail for per-resource and per-user audit views without requiring a separate table.
+
+The service method sets `EntityType = "GoogleResource"` and `EntityId = resourceId` for these entries.
 
 ## User Interface
 
@@ -122,6 +140,14 @@ Displays all audit log entries with filtering by action type. Features:
 - Alert banner showing total anomaly count
 - "Check Drive Activity Now" button for manual trigger
 - Paginated (50 per page)
+
+### Per-Resource Google Sync Audit (`/Admin/GoogleSync/Resource/{id}/Audit`)
+
+Displays all audit entries for a specific Google resource, queried by `ResourceId`. Shows structured Google sync details: user email, role, sync source, success/failure status, and error messages. Accessed via "Audit" button on each row of the Google Sync page.
+
+### Per-User Google Sync Audit (`/Admin/Members/{id}/GoogleSyncAudit`)
+
+Displays all Google sync audit entries affecting a specific user, queried by `RelatedEntityId = userId` where `ResourceId IS NOT NULL`. Includes the Google resource name via navigation property. Accessed via "View Google Sync Audit" button on the Member Detail page sidebar.
 
 ### Per-User Audit View (MemberDetail page)
 

@@ -231,6 +231,14 @@
             </div>
         </div>
 
+        <div class="card mb-4">
+            <div class="card-header">Google Sync</div>
+            <div class="card-body">
+                <a asp-action="MemberGoogleSyncAudit" asp-route-id="@Model.UserId"
+                   class="btn btn-outline-secondary w-100">View Google Sync Audit</a>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">@Localizer["TeamDetail_Actions"]</div>
             <div class="card-body">

@@ -1003,6 +1003,82 @@ public class AdminController : Controller
         return RedirectToAction(nameof(AuditLog), new { action = nameof(AuditAction.AnomalousPermissionDetected) });
     }
 
+    [HttpGet("GoogleSync/Resource/{id}/Audit")]
+    public async Task<IActionResult> GoogleSyncResourceAudit(Guid id)
+    {
+        var resource = await _dbContext.GoogleResources
+            .AsNoTracking()
+            .Include(r => r.Team)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (resource == null)
+        {
+            return NotFound();
+        }
+
+        var entries = await _auditLogService.GetByResourceAsync(id);
+
+        var viewModel = new GoogleSyncAuditListViewModel
+        {
+            Title = $"Sync Audit: {resource.Name}",
+            BackUrl = Url.Action(nameof(GoogleSync)),
+            BackLabel = "Back to Google Sync",
+            Entries = entries.Select(e => new GoogleSyncAuditEntryViewModel
+            {
+                Action = e.Action.ToString(),
+                Description = e.Description,
+                UserEmail = e.UserEmail,
+                Role = e.Role,
+                SyncSource = e.SyncSource?.ToString(),
+                OccurredAt = e.OccurredAt.ToDateTimeUtc(),
+                Success = e.Success,
+                ErrorMessage = e.ErrorMessage,
+                ActorName = e.ActorName,
+                RelatedEntityId = e.RelatedEntityId
+            }).ToList()
+        };
+
+        return View("GoogleSyncAudit", viewModel);
+    }
+
+    [HttpGet("Members/{id}/GoogleSyncAudit")]
+    public async Task<IActionResult> MemberGoogleSyncAudit(Guid id)
+    {
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == id);
+
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var entries = await _auditLogService.GetGoogleSyncByUserAsync(id);
+
+        var viewModel = new GoogleSyncAuditListViewModel
+        {
+            Title = $"Google Sync Audit: {user.DisplayName}",
+            BackUrl = Url.Action(nameof(MemberDetail), new { id }),
+            BackLabel = "Back to Member Detail",
+            Entries = entries.Select(e => new GoogleSyncAuditEntryViewModel
+            {
+                Action = e.Action.ToString(),
+                Description = e.Description,
+                UserEmail = e.UserEmail,
+                Role = e.Role,
+                SyncSource = e.SyncSource?.ToString(),
+                OccurredAt = e.OccurredAt.ToDateTimeUtc(),
+                Success = e.Success,
+                ErrorMessage = e.ErrorMessage,
+                ActorName = e.ActorName,
+                ResourceName = e.Resource?.Name,
+                ResourceId = e.ResourceId
+            }).ToList()
+        };
+
+        return View("GoogleSyncAudit", viewModel);
+    }
+
     /// <summary>
     /// Checks whether the current user can assign/end the specified role.
     /// Admin can manage any role. Board can manage Board and Metalead only.

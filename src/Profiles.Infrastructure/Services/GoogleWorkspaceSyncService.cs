@@ -302,10 +302,11 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         {
             await directory.Members.Insert(member, resource.GoogleId).ExecuteAsync(cancellationToken);
 
-            await _auditLogService.LogAsync(
-                AuditAction.GoogleResourceAccessGranted, "GoogleResource", groupResourceId,
+            await _auditLogService.LogGoogleSyncAsync(
+                AuditAction.GoogleResourceAccessGranted, groupResourceId,
                 $"Granted Google Group access to {userEmail} ({resource.Name})",
-                nameof(GoogleWorkspaceSyncService));
+                nameof(GoogleWorkspaceSyncService),
+                userEmail, "MEMBER", GoogleSyncSource.ManualSync, success: true);
 
             _logger.LogInformation("Added {UserEmail} to group {GroupId}", userEmail, resource.GoogleId);
         }
@@ -470,10 +471,11 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                     createReq.SupportsAllDrives = true;
                     await createReq.ExecuteAsync(cancellationToken);
 
-                    await _auditLogService.LogAsync(
-                        AuditAction.GoogleResourceAccessGranted, "GoogleResource", resourceId,
+                    await _auditLogService.LogGoogleSyncAsync(
+                        AuditAction.GoogleResourceAccessGranted, resourceId,
                         $"Granted Drive folder access to {email} ({resource.Name}) during sync",
-                        nameof(GoogleWorkspaceSyncService));
+                        nameof(GoogleWorkspaceSyncService),
+                        email, "writer", GoogleSyncSource.ManualSync, success: true);
                 }
                 catch (Google.GoogleApiException ex) when (ex.Error?.Code == 400)
                 {
@@ -564,10 +566,11 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                     createReq.SupportsAllDrives = true;
                     await createReq.ExecuteAsync(cancellationToken);
 
-                    await _auditLogService.LogAsync(
-                        AuditAction.GoogleResourceAccessGranted, "GoogleResource", resource.Id,
+                    await _auditLogService.LogGoogleSyncAsync(
+                        AuditAction.GoogleResourceAccessGranted, resource.Id,
                         $"Granted Drive folder access to {user.Email} ({resource.Name})",
                         nameof(GoogleWorkspaceSyncService),
+                        user.Email, "writer", GoogleSyncSource.TeamMemberJoined, success: true,
                         relatedEntityId: userId, relatedEntityType: "User");
                 }
                 catch (Google.GoogleApiException ex) when (ex.Error?.Code == 400)

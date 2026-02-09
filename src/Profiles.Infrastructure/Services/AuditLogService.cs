@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 using Profiles.Application.Interfaces;
@@ -80,5 +81,64 @@ public class AuditLogService : IAuditLogService
             action, entityType, entityId, $"Admin: {actorDisplayName}", description);
 
         return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task LogGoogleSyncAsync(AuditAction action, Guid resourceId,
+        string description, string jobName,
+        string userEmail, string role, GoogleSyncSource source, bool success,
+        string? errorMessage = null,
+        Guid? relatedEntityId = null, string? relatedEntityType = null)
+    {
+        var entry = new AuditLogEntry
+        {
+            Id = Guid.NewGuid(),
+            Action = action,
+            EntityType = "GoogleResource",
+            EntityId = resourceId,
+            Description = description,
+            OccurredAt = _clock.GetCurrentInstant(),
+            ActorUserId = null,
+            ActorName = jobName,
+            RelatedEntityId = relatedEntityId,
+            RelatedEntityType = relatedEntityType,
+            ResourceId = resourceId,
+            Success = success,
+            ErrorMessage = errorMessage,
+            Role = role,
+            SyncSource = source,
+            UserEmail = userEmail
+        };
+
+        _dbContext.AuditLogEntries.Add(entry);
+
+        _logger.LogDebug(
+            "Audit: {Action} {Role} for {Email} on resource {ResourceId} ({Source}, Success={Success})",
+            action, role, userEmail, resourceId, source, success);
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<AuditLogEntry>> GetByResourceAsync(Guid resourceId)
+    {
+        return await _dbContext.AuditLogEntries
+            .AsNoTracking()
+            .Where(e => e.ResourceId == resourceId)
+            .OrderByDescending(e => e.OccurredAt)
+            .Take(200)
+            .ToListAsync();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<AuditLogEntry>> GetGoogleSyncByUserAsync(Guid userId)
+    {
+        return await _dbContext.AuditLogEntries
+            .AsNoTracking()
+            .Include(e => e.Resource)
+            .Where(e => e.ResourceId != null && e.RelatedEntityId == userId)
+            .OrderByDescending(e => e.OccurredAt)
+            .Take(200)
+            .ToListAsync();
     }
 }

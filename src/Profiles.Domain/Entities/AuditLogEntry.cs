@@ -66,4 +66,44 @@ public class AuditLogEntry
     /// Type of the secondary related entity (e.g. "User", "Team").
     /// </summary>
     public string? RelatedEntityType { get; init; }
+
+    // --- Google sync-specific fields (nullable, only populated for Google sync entries) ---
+
+    /// <summary>
+    /// FK to the Google resource affected. Only set for Google sync actions.
+    /// </summary>
+    public Guid? ResourceId { get; init; }
+
+    /// <summary>
+    /// Navigation property to the Google resource.
+    /// Uses set (not init) as required by EF Core for navigation properties.
+    /// </summary>
+    public GoogleResource? Resource { get; set; }
+
+    /// <summary>
+    /// Whether the Google API call succeeded. Null for non-Google entries.
+    /// </summary>
+    public bool? Success { get; init; }
+
+    /// <summary>
+    /// Error details if the Google API call failed. Null for non-Google entries.
+    /// </summary>
+    public string? ErrorMessage { get; init; }
+
+    /// <summary>
+    /// The role granted or revoked (e.g. "writer", "MEMBER"). Null for non-Google entries.
+    /// </summary>
+    public string? Role { get; init; }
+
+    /// <summary>
+    /// What triggered the Google sync action. Null for non-Google entries.
+    /// </summary>
+    public GoogleSyncSource? SyncSource { get; init; }
+
+    /// <summary>
+    /// Email address at the time of the Google sync action.
+    /// Denormalized for history — preserved even if user is later anonymized.
+    /// Null for non-Google entries.
+    /// </summary>
+    public string? UserEmail { get; init; }
 }
