@@ -25,6 +25,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
     private readonly GoogleWorkspaceSettings _settings;
     private readonly IClock _clock;
     private readonly IAuditLogService _auditLogService;
+    private readonly IGoogleSyncAuditService _syncAuditService;
     private readonly ILogger<GoogleWorkspaceSyncService> _logger;
 
     private DirectoryService? _directoryService;
@@ -35,12 +36,14 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         IOptions<GoogleWorkspaceSettings> settings,
         IClock clock,
         IAuditLogService auditLogService,
+        IGoogleSyncAuditService syncAuditService,
         ILogger<GoogleWorkspaceSyncService> logger)
     {
         _dbContext = dbContext;
         _settings = settings.Value;
         _clock = clock;
         _auditLogService = auditLogService;
+        _syncAuditService = syncAuditService;
         _logger = logger;
     }
 
@@ -307,6 +310,11 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 $"Granted Google Group access to {userEmail} ({resource.Name})",
                 nameof(GoogleWorkspaceSyncService));
 
+            await _syncAuditService.LogAsync(
+                groupResourceId, null, userEmail,
+                GoogleSyncAction.MemberAdded, "MEMBER",
+                GoogleSyncSource.ManualSync, success: true);
+
             _logger.LogInformation("Added {UserEmail} to group {GroupId}", userEmail, resource.GoogleId);
         }
         catch (Google.GoogleApiException ex) when (ex.Error?.Code == 409)
@@ -474,6 +482,11 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                         AuditAction.GoogleResourceAccessGranted, "GoogleResource", resourceId,
                         $"Granted Drive folder access to {email} ({resource.Name}) during sync",
                         nameof(GoogleWorkspaceSyncService));
+
+                    await _syncAuditService.LogAsync(
+                        resourceId, null, email,
+                        GoogleSyncAction.PermissionGranted, "writer",
+                        GoogleSyncSource.ManualSync, success: true);
                 }
                 catch (Google.GoogleApiException ex) when (ex.Error?.Code == 400)
                 {
@@ -569,6 +582,11 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                         $"Granted Drive folder access to {user.Email} ({resource.Name})",
                         nameof(GoogleWorkspaceSyncService),
                         relatedEntityId: userId, relatedEntityType: "User");
+
+                    await _syncAuditService.LogAsync(
+                        resource.Id, userId, user.Email,
+                        GoogleSyncAction.PermissionGranted, "writer",
+                        GoogleSyncSource.TeamMemberJoined, success: true);
                 }
                 catch (Google.GoogleApiException ex) when (ex.Error?.Code == 400)
                 {

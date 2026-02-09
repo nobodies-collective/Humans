@@ -108,9 +108,51 @@ The service adds entries to the `DbContext` without calling `SaveChangesAsync`. 
 |--------|-------------|-------|
 | Anomalous permission change detected | AnomalousPermissionDetected | DriveActivityMonitorJob |
 
-## Phase 3 (Future)
+## Google Sync Audit Log (Dedicated)
 
-- Per-resource audit view on team admin pages
+In addition to the general audit log entries above, a dedicated `GoogleSyncAuditEntry` table provides richer, Google-specific audit data with structured fields for role, source, success/failure, and denormalized email. Both systems record entries for each Google permission change — the general audit log serves the global dashboard and per-user general audit, while the Google sync audit provides detailed per-resource and per-user Google sync views.
+
+### GoogleSyncAuditEntry (append-only)
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| Id | Guid | PK |
+| ResourceId | Guid (FK) | The GoogleResource affected |
+| UserId | Guid? (FK) | The user whose access changed |
+| UserEmail | string | Email at time of action (denormalized for history) |
+| Action | GoogleSyncAction (string) | PermissionGranted, PermissionRevoked, MemberAdded, MemberRemoved |
+| Role | string | The role granted (e.g., "writer", "fileOrganizer", "MEMBER") |
+| Source | GoogleSyncSource (string) | TeamMemberJoined, TeamMemberLeft, ManualSync, ScheduledSync, Suspension, SystemTeamSync |
+| Timestamp | Instant | When the action occurred |
+| Success | bool | Whether the API call succeeded |
+| ErrorMessage | string? | Error details if failed |
+
+Table: `google_sync_audit`
+
+### Immutability
+
+Database triggers prevent UPDATE and DELETE on the `google_sync_audit` table, matching the pattern used for `audit_log` and `consent_records`.
+
+### Service Interface
+
+`IGoogleSyncAuditService` provides:
+- `LogAsync(...)` — records an entry (added to DbContext, not saved; caller's SaveChangesAsync persists atomically)
+- `GetByResourceAsync(resourceId)` — returns entries for a specific resource (up to 200, newest first)
+- `GetByUserAsync(userId)` — returns entries for a specific user (up to 200, newest first)
+
+### Per-Resource Audit View (`/Admin/GoogleSync/Resource/{id}/Audit`)
+
+Accessed via "Audit" button on each resource row in the Google Sync page. Shows:
+- Action badge (green for grants, red for revocations)
+- User email (linked to member detail if user exists)
+- Role granted/revoked
+- Source (what triggered the action)
+- Success/failure status with error details
+- Timestamp
+
+### Per-User Google Sync Audit View (`/Admin/Members/{id}/GoogleSyncAudit`)
+
+Accessed via "Google Sync Audit" button on the MemberDetail page audit history card. Shows the same columns as the per-resource view, plus the resource name (linked to per-resource audit).
 
 ## User Interface
 

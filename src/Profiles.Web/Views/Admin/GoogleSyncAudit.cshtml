@@ -1,0 +1,116 @@
+@model Profiles.Web.Models.GoogleSyncAuditListViewModel
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Admin</a></li>
+        @if (!string.IsNullOrEmpty(Model.BackUrl))
+        {
+            <li class="breadcrumb-item"><a href="@Model.BackUrl">@Model.BackLabel</a></li>
+        }
+        <li class="breadcrumb-item active" aria-current="page">Sync Audit</li>
+    </ol>
+</nav>
+
+<h1>@Model.Title</h1>
+
+@if (Model.Entries.Count == 0)
+{
+    <div class="alert alert-info mt-3">
+        No Google sync audit entries found.
+    </div>
+}
+else
+{
+    <div class="card mt-3">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        @if (Model.Entries.Any(e => e.ResourceName != null))
+                        {
+                            <th>Resource</th>
+                        }
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Source</th>
+                        <th>Status</th>
+                        <th>When</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in Model.Entries)
+                    {
+                        var rowClass = !entry.Success ? "table-danger" : "";
+                        <tr class="@rowClass">
+                            <td>
+                                @switch (entry.Action)
+                                {
+                                    case "PermissionGranted":
+                                    case "MemberAdded":
+                                        <span class="badge bg-success">@entry.Action</span>
+                                        break;
+                                    case "PermissionRevoked":
+                                    case "MemberRemoved":
+                                        <span class="badge bg-danger">@entry.Action</span>
+                                        break;
+                                    default:
+                                        <span class="badge bg-secondary">@entry.Action</span>
+                                        break;
+                                }
+                            </td>
+                            @if (Model.Entries.Any(e => e.ResourceName != null))
+                            {
+                                <td>
+                                    @if (entry.ResourceId.HasValue && !string.IsNullOrEmpty(entry.ResourceName))
+                                    {
+                                        <a asp-action="GoogleSyncResourceAudit" asp-route-id="@entry.ResourceId">@entry.ResourceName</a>
+                                    }
+                                </td>
+                            }
+                            <td>
+                                @if (entry.UserId.HasValue)
+                                {
+                                    <a asp-action="MemberDetail" asp-route-id="@entry.UserId">
+                                        @(entry.UserDisplayName ?? entry.UserEmail)
+                                    </a>
+                                }
+                                else
+                                {
+                                    @entry.UserEmail
+                                }
+                            </td>
+                            <td><code>@entry.Role</code></td>
+                            <td><span class="badge bg-info">@entry.Source</span></td>
+                            <td>
+                                @if (entry.Success)
+                                {
+                                    <span class="badge bg-success">OK</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger" title="@entry.ErrorMessage">Failed</span>
+                                    @if (!string.IsNullOrEmpty(entry.ErrorMessage))
+                                    {
+                                        <br /><small class="text-danger">@entry.ErrorMessage</small>
+                                    }
+                                }
+                            </td>
+                            <td class="text-nowrap">@entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(Model.BackUrl))
+{
+    <div class="mt-3">
+        <a href="@Model.BackUrl" class="btn btn-outline-secondary">@Model.BackLabel</a>
+    </div>
+}

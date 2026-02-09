@@ -31,6 +31,7 @@ public class ProfilesDbContext : IdentityDbContext<User, IdentityRole<Guid>, Gui
     public DbSet<ContactField> ContactFields => Set<ContactField>();
     public DbSet<VolunteerHistoryEntry> VolunteerHistoryEntries => Set<VolunteerHistoryEntry>();
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
+    public DbSet<GoogleSyncAuditEntry> GoogleSyncAuditEntries => Set<GoogleSyncAuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

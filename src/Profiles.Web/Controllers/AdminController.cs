@@ -25,6 +25,7 @@ public class AdminController : Controller
     private readonly ITeamService _teamService;
     private readonly IGoogleSyncService _googleSyncService;
     private readonly IAuditLogService _auditLogService;
+    private readonly IGoogleSyncAuditService _syncAuditService;
     private readonly IMembershipCalculator _membershipCalculator;
     private readonly IClock _clock;
     private readonly ILogger<AdminController> _logger;
@@ -37,6 +38,7 @@ public class AdminController : Controller
         ITeamService teamService,
         IGoogleSyncService googleSyncService,
         IAuditLogService auditLogService,
+        IGoogleSyncAuditService syncAuditService,
         IMembershipCalculator membershipCalculator,
         IClock clock,
         ILogger<AdminController> logger,
@@ -48,6 +50,7 @@ public class AdminController : Controller
         _teamService = teamService;
         _googleSyncService = googleSyncService;
         _auditLogService = auditLogService;
+        _syncAuditService = syncAuditService;
         _membershipCalculator = membershipCalculator;
         _clock = clock;
         _logger = logger;
@@ -1001,6 +1004,79 @@ public class AdminController : Controller
         }
 
         return RedirectToAction(nameof(AuditLog), new { action = nameof(AuditAction.AnomalousPermissionDetected) });
+    }
+
+    [HttpGet("GoogleSync/Resource/{id}/Audit")]
+    public async Task<IActionResult> GoogleSyncResourceAudit(Guid id)
+    {
+        var resource = await _dbContext.GoogleResources
+            .AsNoTracking()
+            .Include(r => r.Team)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (resource == null)
+        {
+            return NotFound();
+        }
+
+        var entries = await _syncAuditService.GetByResourceAsync(id);
+
+        var viewModel = new GoogleSyncAuditListViewModel
+        {
+            Title = $"Sync Audit: {resource.Name}",
+            BackUrl = Url.Action(nameof(GoogleSync)),
+            BackLabel = "Back to Google Sync",
+            Entries = entries.Select(e => new GoogleSyncAuditEntryViewModel
+            {
+                Action = e.Action.ToString(),
+                UserEmail = e.UserEmail,
+                UserDisplayName = e.User?.DisplayName,
+                UserId = e.UserId,
+                Role = e.Role,
+                Source = e.Source.ToString(),
+                Timestamp = e.Timestamp.ToDateTimeUtc(),
+                Success = e.Success,
+                ErrorMessage = e.ErrorMessage
+            }).ToList()
+        };
+
+        return View("GoogleSyncAudit", viewModel);
+    }
+
+    [HttpGet("Members/{id}/GoogleSyncAudit")]
+    public async Task<IActionResult> MemberGoogleSyncAudit(Guid id)
+    {
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == id);
+
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var entries = await _syncAuditService.GetByUserAsync(id);
+
+        var viewModel = new GoogleSyncAuditListViewModel
+        {
+            Title = $"Google Sync Audit: {user.DisplayName}",
+            BackUrl = Url.Action(nameof(MemberDetail), new { id }),
+            BackLabel = "Back to Member Detail",
+            Entries = entries.Select(e => new GoogleSyncAuditEntryViewModel
+            {
+                Action = e.Action.ToString(),
+                UserEmail = e.UserEmail,
+                Role = e.Role,
+                Source = e.Source.ToString(),
+                Timestamp = e.Timestamp.ToDateTimeUtc(),
+                Success = e.Success,
+                ErrorMessage = e.ErrorMessage,
+                ResourceName = e.Resource?.Name,
+                ResourceId = e.ResourceId
+            }).ToList()
+        };
+
+        return View("GoogleSyncAudit", viewModel);
     }
 
     /// <summary>

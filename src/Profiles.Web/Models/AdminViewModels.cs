@@ -181,3 +181,26 @@ public class AuditLogListViewModel
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 50;
 }
+
+public class GoogleSyncAuditEntryViewModel
+{
+    public string Action { get; set; } = string.Empty;
+    public string UserEmail { get; set; } = string.Empty;
+    public string? UserDisplayName { get; set; }
+    public Guid? UserId { get; set; }
+    public string Role { get; set; } = string.Empty;
+    public string Source { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; }
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    public string? ResourceName { get; set; }
+    public Guid? ResourceId { get; set; }
+}
+
+public class GoogleSyncAuditListViewModel
+{
+    public List<GoogleSyncAuditEntryViewModel> Entries { get; set; } = [];
+    public string Title { get; set; } = string.Empty;
+    public string? BackUrl { get; set; }
+    public string? BackLabel { get; set; }
+}
