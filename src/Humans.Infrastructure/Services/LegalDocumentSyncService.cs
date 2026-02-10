@@ -25,7 +25,7 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
 
     // Matches files like "name.md" (canonical es), "name-en.md", "name-de.md"
     private static readonly Regex LanguageFilePattern = new(
-        @"^(?<name>[A-Za-z0-9_-]+?)(?:-(?<lang>[a-z]{2}))?\.md$",
+        @"^(?<name>[A-Za-z0-9_-]+?)(?:-(?<lang>[A-Za-z]{2}))?\.md$",
         RegexOptions.Compiled | RegexOptions.ExplicitCapture,
         TimeSpan.FromSeconds(1));
 
@@ -68,8 +68,8 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
         {
             try
             {
-                var updated = await SyncSingleDocumentAsync(document, cancellationToken);
-                if (updated)
+                var result = await SyncSingleDocumentAsync(document, cancellationToken);
+                if (result != null)
                 {
                     updatedDocuments.Add(document);
                 }
@@ -85,7 +85,7 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
     }
 
     /// <inheritdoc />
-    public async Task<bool> SyncDocumentAsync(Guid documentId, CancellationToken cancellationToken = default)
+    public async Task<string?> SyncDocumentAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
         var document = await _dbContext.LegalDocuments
             .Include(d => d.Versions)
@@ -94,7 +94,7 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
         if (document == null)
         {
             _logger.LogWarning("Document {DocumentId} not found", documentId);
-            return false;
+            return null;
         }
 
         return await SyncSingleDocumentAsync(document, cancellationToken);
@@ -186,15 +186,14 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
     /// <summary>
     /// Syncs a single document from GitHub using folder-based discovery.
     /// </summary>
-    private async Task<bool> SyncSingleDocumentAsync(
+    private async Task<string?> SyncSingleDocumentAsync(
         LegalDocument document,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(document.GitHubFolderPath))
         {
-            _logger.LogWarning("Document {Name} ({Id}) has no GitHubFolderPath configured",
-                document.Name, document.Id);
-            return false;
+            throw new InvalidOperationException(
+                $"Document '{document.Name}' has no GitHub Folder Path configured.");
         }
 
         return await SyncFolderBasedDocumentAsync(document, cancellationToken);
@@ -204,7 +203,7 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
     /// Discovers language files in a folder and syncs content into the Content dictionary.
     /// Convention: {name}.md → Spanish ("es", canonical), {name}-en.md → English, etc.
     /// </summary>
-    private async Task<bool> SyncFolderBasedDocumentAsync(
+    private async Task<string?> SyncFolderBasedDocumentAsync(
         LegalDocument document,
         CancellationToken cancellationToken)
     {
@@ -216,9 +215,9 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
 
         if (languageFiles.Count == 0)
         {
-            _logger.LogWarning("No markdown files found in folder {Folder} for document {Name}",
-                document.GitHubFolderPath, document.Name);
-            return false;
+            throw new InvalidOperationException(
+                $"No markdown files found in folder '{document.GitHubFolderPath}'. " +
+                "Expected files like 'name.md' (Spanish) or 'name-en.md' (English).");
         }
 
         // The canonical file (no language suffix) is Spanish
@@ -227,8 +226,10 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
 
         if (canonicalEntry.Value == null)
         {
-            _logger.LogWarning("No canonical (Spanish) file found in folder {Folder}", document.GitHubFolderPath);
-            return false;
+            var found = string.Join(", ", languageFiles.Keys);
+            throw new InvalidOperationException(
+                $"No canonical Spanish file found in folder '{document.GitHubFolderPath}'. " +
+                $"Need a file without language suffix (e.g. 'name.md'). Found languages: {found}");
         }
 
         // Fetch canonical file to get commit SHA
@@ -243,7 +244,7 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
         catch (NotFoundException)
         {
             _logger.LogWarning("Canonical file not found at {Path}", canonicalEntry.Value);
-            return false;
+            return null;
         }
 
         var now = _clock.GetCurrentInstant();
@@ -254,7 +255,7 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
             _logger.LogDebug("Document {Name} is up to date (SHA: {Sha})", document.Name, commitSha);
             document.LastSyncedAt = now;
             await _dbContext.SaveChangesAsync(cancellationToken);
-            return false;
+            return null;
         }
 
         // Fetch all language files
@@ -272,6 +273,9 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
             }
         }
 
+        // Get commit message for the changes summary
+        var commitMessage = await GetCommitMessageAsync(commitSha, cancellationToken);
+
         // Create new version
         var isNew = document.Versions.Count == 0;
         var versionNumber = $"v{document.Versions.Count + 1}.0";
@@ -285,20 +289,22 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
             EffectiveFrom = now,
             RequiresReConsent = !isNew,
             CreatedAt = now,
-            ChangesSummary = isNew ? "Initial version" : "Updated from GitHub"
+            ChangesSummary = commitMessage ?? (isNew ? "Initial version" : "Updated from GitHub")
         };
 
-        document.Versions.Add(newVersion);
+        _dbContext.Set<DocumentVersion>().Add(newVersion);
         document.CurrentCommitSha = commitSha;
         document.LastSyncedAt = now;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var languages = string.Join(", ", content.Keys.Order(StringComparer.Ordinal));
+
         _logger.LogInformation(
             "Synced document {Name} version {Version} (SHA: {Sha}, languages: {Languages})",
-            document.Name, versionNumber, commitSha, string.Join(", ", content.Keys));
+            document.Name, versionNumber, commitSha, languages);
 
-        return true;
+        return $"Synced {versionNumber} with {content.Count} language(s): {languages}";
     }
 
     /// <summary>
@@ -370,6 +376,7 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
         string path,
         CancellationToken cancellationToken)
     {
+        // Get file metadata (SHA) from contents API
         var contents = await _gitHubClient.Repository.Content.GetAllContentsByRef(
             _settings.Owner,
             _settings.Repository,
@@ -379,15 +386,37 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
         var file = contents.FirstOrDefault()
             ?? throw new NotFoundException("File not found", System.Net.HttpStatusCode.NotFound);
 
-        // Content is base64 encoded for files
-        var content = file.Content;
-        if (string.Equals(file.Encoding, "base64", StringComparison.OrdinalIgnoreCase))
-        {
-            var bytes = Convert.FromBase64String(file.Content);
-            content = System.Text.Encoding.UTF8.GetString(bytes);
-        }
+        // Fetch raw content directly — bypasses Base64 encoding issues with non-ASCII content
+        var rawBytes = await _gitHubClient.Repository.Content.GetRawContentByRef(
+            _settings.Owner,
+            _settings.Repository,
+            path,
+            _settings.Branch);
+
+        var content = System.Text.Encoding.UTF8.GetString(rawBytes);
 
         return (content, file.Sha);
+    }
+
+    private async Task<string?> GetCommitMessageAsync(string sha, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var commit = await _gitHubClient.Repository.Commit.Get(
+                _settings.Owner,
+                _settings.Repository,
+                sha);
+
+            // Use first line of commit message, truncated to fit ChangesSummary max length
+            var message = commit.Commit.Message;
+            var firstLine = message.Split('\n', 2)[0].Trim();
+            return firstLine.Length > 500 ? firstLine[..500] : firstLine;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not fetch commit message for {Sha}", sha);
+            return null;
+        }
     }
 
     private async Task<string?> GetLatestCommitShaAsync(string path, CancellationToken cancellationToken)

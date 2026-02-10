@@ -121,7 +121,7 @@
                         @foreach (var history in Model.ConsentHistory)
                         {
                             <li class="mb-2">
-                                <strong>@history.DocumentName</strong> (v@history.VersionNumber)
+                                <strong>@history.DocumentName</strong> (@history.VersionNumber)
                                 <br />
                                 <small class="text-muted">@history.ConsentedAt.ToString("d MMM yyyy HH:mm")</small>
                             </li>

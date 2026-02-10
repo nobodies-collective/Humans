@@ -88,17 +88,15 @@
                         <td>@(doc.CurrentVersion ?? "No versions")</td>
                         <td>@(doc.LastSyncedAt?.ToString("d MMM yyyy HH:mm") ?? "Never")</td>
                         <td>
-                            <div class="btn-group btn-group-sm">
-                                <a asp-action="EditLegalDocument" asp-route-id="@doc.Id" class="btn btn-outline-primary">Edit</a>
+                            <a asp-action="EditLegalDocument" asp-route-id="@doc.Id" class="btn btn-outline-primary btn-sm">Edit</a>
                                 @if (doc.IsActive)
                                 {
                                     <form asp-action="ArchiveLegalDocument" asp-route-id="@doc.Id" method="post" class="d-inline">
                                         @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-outline-danger"
+                                        <button type="submit" class="btn btn-outline-danger btn-sm"
                                                 onclick="return confirm('Archive this document? It will no longer be required for consent.')">Archive</button>
                                     </form>
                                 }
-                            </div>
                         </td>
                     </tr>
                 }

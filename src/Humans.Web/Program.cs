@@ -26,6 +26,7 @@ using Humans.Infrastructure.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Health;
 using Microsoft.Extensions.Localization;
+using Npgsql;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,12 +38,12 @@ var logConfig = new LoggerConfiguration()
     .Enrich.WithProperty("Application", "Humans.Web")
     .WriteTo.Console();
 
-if (builder.Environment.IsDevelopment())
+if (Debugger.IsAttached)
 {
     var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp", "human");
     Directory.CreateDirectory(logDir);
     logConfig.WriteTo.File(
-        Path.Combine(logDir, "profiles-.log"),
+        Path.Combine(logDir, "humans-.log"),
         rollingInterval: Serilog.RollingInterval.Day);
 }
 
@@ -63,10 +64,16 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
 });
 
-// Configure EF Core with PostgreSQL and NodaTime
+// Configure Npgsql data source with NodaTime and dynamic JSON (for jsonb Dictionary columns)
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+dataSourceBuilder.UseNodaTime();
+dataSourceBuilder.EnableDynamicJson();
+var dataSource = dataSourceBuilder.Build();
+
+// Configure EF Core with PostgreSQL
 builder.Services.AddDbContext<HumansDbContext>(options =>
 {
-    options.UseNpgsql(connectionString, npgsqlOptions =>
+    options.UseNpgsql(dataSource, npgsqlOptions =>
     {
         npgsqlOptions.UseNodaTime();
         npgsqlOptions.MigrationsAssembly("Humans.Infrastructure");

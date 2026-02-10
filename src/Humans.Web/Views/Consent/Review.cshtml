@@ -9,6 +9,7 @@
         ["en"] = "English",
         ["de"] = "Deutsch",
         ["fr"] = "Fran\u00e7ais",
+        ["it"] = "Italiano",
         ["pt"] = "Portugu\u00eas",
         ["ca"] = "Catal\u00e0"
     };
@@ -19,9 +20,14 @@
         return langCode == "es" ? $"{name} (Legal)" : name;
     }
 
-    // Order: "es" first, then alphabetical
+    // Determine which tab to show first: user's language if available, else "es"
+    var userLang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+    var defaultLang = Model.Content.ContainsKey(userLang) ? userLang : "es";
+
+    // Order: default language first, then "es" (if not already first), then alphabetical
     var orderedLanguages = Model.Content
-        .OrderByDescending(kv => kv.Key == "es")
+        .OrderByDescending(kv => kv.Key == defaultLang)
+        .ThenByDescending(kv => kv.Key == "es")
         .ThenBy(kv => kv.Key, StringComparer.Ordinal)
         .ToList();
 }
@@ -53,10 +59,6 @@
             </div>
         }
 
-        <div class="alert alert-warning">
-            <strong>@Localizer["ConsentReview_Important"]</strong> @Localizer["ConsentReview_SpanishIsLegal"]
-        </div>
-
         @if (orderedLanguages.Count > 0)
         {
             <ul class="nav nav-tabs" id="contentTabs" role="tablist">
@@ -80,12 +82,6 @@
                     var lang = orderedLanguages[i];
                     var isFirst = i == 0;
                     <div class="tab-pane fade @(isFirst ? "show active" : "")" id="content-@lang.Key" role="tabpanel" aria-labelledby="tab-@lang.Key">
-                        @if (lang.Key != "es")
-                        {
-                            <div class="alert alert-secondary mb-3">
-                                <small>@Localizer["ConsentReview_TranslationDisclaimer"]</small>
-                            </div>
-                        }
                         @if (string.IsNullOrEmpty(lang.Value))
                         {
                             <p class="text-muted">@Localizer["ConsentReview_ContentNotAvailable"]</p>
@@ -143,22 +139,12 @@
 </div>
 
 @functions {
-    // Simple markdown-like conversion - in production, use a proper Markdown library
     string ConvertMarkdownToHtml(string content)
     {
         if (string.IsNullOrEmpty(content))
             return string.Empty;
 
-        // Basic HTML encoding first
-        content = System.Net.WebUtility.HtmlEncode(content);
-
-        // Convert line breaks to <br> or <p>
-        content = content.Replace("\r\n\r\n", "</p><p>");
-        content = content.Replace("\n\n", "</p><p>");
-        content = content.Replace("\r\n", "<br />");
-        content = content.Replace("\n", "<br />");
-
-        return $"<p>{content}</p>";
+        return Markdig.Markdown.ToHtml(content);
     }
 }
 

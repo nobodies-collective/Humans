@@ -60,8 +60,10 @@
 
                     <div class="mb-3">
                         <label asp-for="GitHubFolderPath" class="form-label">GitHub Folder Path</label>
-                        <input asp-for="GitHubFolderPath" class="form-control" placeholder="e.g. privacy/" />
-                        <div class="form-text">Folder in the legal repo. Sync discovers translations by convention.</div>
+                        <input asp-for="GitHubFolderPath" class="form-control" id="GitHubFolderPath"
+                               placeholder="e.g. Volunteer/ or paste a GitHub URL" />
+                        <div class="form-text">Paste a GitHub URL or enter a folder path. Sync discovers translations by convention.</div>
+                        <div id="folder-path-feedback" class="small mt-1"></div>
                         <span asp-validation-for="GitHubFolderPath" class="text-danger"></span>
                     </div>
 
@@ -118,6 +120,80 @@
     </div>
 </div>
 
+@if (Model.Versions.Count > 0)
+{
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Version History</h5>
+            <span class="badge bg-secondary">@Model.Versions.Count version(s)</span>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Version</th>
+                        <th>Languages</th>
+                        <th>Effective From</th>
+                        <th>Changes Summary</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var version in Model.Versions)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@version.VersionNumber</strong>
+                                @if (version.RequiresReConsent)
+                                {
+                                    <span class="badge bg-warning ms-1" title="Members must re-consent">Re-consent</span>
+                                }
+                            </td>
+                            <td>
+                                @foreach (var lang in version.Languages)
+                                {
+                                    <span class="badge bg-light text-dark me-1">@lang</span>
+                                }
+                            </td>
+                            <td>@version.EffectiveFrom.ToString("d MMM yyyy HH:mm")</td>
+                            <td colspan="2">
+                                <form asp-action="UpdateVersionSummary" asp-route-id="@Model.Id" asp-route-versionId="@version.Id" method="post" class="d-flex gap-2">
+                                    @Html.AntiForgeryToken()
+                                    <input type="text" name="changesSummary" value="@version.ChangesSummary" class="form-control form-control-sm" placeholder="Describe changes..." />
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm">Save</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            const input = document.getElementById('GitHubFolderPath');
+            const feedback = document.getElementById('folder-path-feedback');
+            const ghPattern = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/(.+)$/i;
+
+            function processInput() {
+                const val = input.value.trim();
+                if (!val) { feedback.textContent = ''; return; }
+
+                const match = val.match(ghPattern);
+                if (!match) { feedback.textContent = ''; return; }
+
+                const [, owner, repo, branch, path] = match;
+                const folder = path.replace(/\/+$/, '') + '/';
+                input.value = folder;
+                feedback.innerHTML = '<span class="text-success">Extracted folder: <strong>' + folder + '</strong> from ' + owner + '/' + repo + ' (' + branch + ')</span>';
+            }
+
+            input.addEventListener('paste', function () { setTimeout(processInput, 0); });
+            input.addEventListener('blur', processInput);
+        })();
+    </script>
 }

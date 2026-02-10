@@ -112,7 +112,7 @@
   <data name="Home_GettingStartedTitle" xml:space="preserve"><value>Primeros pasos</value></data>
   <data name="Home_Step1" xml:space="preserve"><value>&lt;strong&gt;Inicie sesi&#xF3;n&lt;/strong&gt; con su cuenta de Google</value></data>
   <data name="Home_Step2" xml:space="preserve"><value>&lt;strong&gt;Complete su perfil&lt;/strong&gt; con informaci&#xF3;n b&#xE1;sica</value></data>
-  <data name="Home_Step3" xml:space="preserve"><value>&lt;strong&gt;Revise y otorgue su consentimiento&lt;/strong&gt; a nuestros documentos legales (originales en espa&#xF1;ol con traducciones al ingl&#xE9;s)</value></data>
+  <data name="Home_Step3" xml:space="preserve"><value>&lt;strong&gt;Revise y otorgue su consentimiento&lt;/strong&gt; a nuestros documentos legales (originales en espa&#xF1;ol con traducciones)</value></data>
   <data name="Home_GettingStartedSummary" xml:space="preserve"><value>&#xA1;Eso es todo! Una vez que sus consentimientos est&#xE9;n en orden, tendr&#xE1; acceso a los recursos de la asociaci&#xF3;n. Si le interesa participar en la gobernanza como miembro con derecho a voto, puede enviar una solicitud de forma opcional desde su panel de control.</value></data>
 
   <!-- ======================== -->
@@ -363,7 +363,7 @@
   <data name="Consent_History" xml:space="preserve"><value>Historial de consentimientos</value></data>
   <data name="Consent_NoRecords" xml:space="preserve"><value>A&#xFA;n no hay registros de consentimiento.</value></data>
   <data name="Consent_AboutTitle" xml:space="preserve"><value>Acerca del consentimiento</value></data>
-  <data name="Consent_AboutDescription" xml:space="preserve"><value>Al otorgar su consentimiento a estos documentos, acepta quedar vinculado por sus t&#xE9;rminos. La versi&#xF3;n en espa&#xF1;ol es el texto legalmente vinculante. Las traducciones al ingl&#xE9;s se proporcionan &#xFA;nicamente a t&#xED;tulo informativo.</value></data>
+  <data name="Consent_AboutDescription" xml:space="preserve"><value>Al otorgar su consentimiento a estos documentos, acepta quedar vinculado por sus t&#xE9;rminos. La versi&#xF3;n en espa&#xF1;ol es el texto legalmente vinculante. Las traducciones se proporcionan &#xFA;nicamente a t&#xED;tulo informativo.</value></data>
 
   <!-- Consent Review View -->
   <data name="ConsentReview_AlreadyConsented" xml:space="preserve"><value>Ya ha otorgado su consentimiento</value></data>

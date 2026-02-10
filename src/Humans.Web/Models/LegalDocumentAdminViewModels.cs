@@ -50,6 +50,20 @@ public class LegalDocumentEditViewModel
     public string? CurrentVersion { get; set; }
     public DateTime? LastSyncedAt { get; set; }
     public int VersionCount { get; set; }
+    public List<DocumentVersionSummaryViewModel> Versions { get; set; } = [];
+}
+
+public class DocumentVersionSummaryViewModel
+{
+    public Guid Id { get; set; }
+    public string VersionNumber { get; set; } = string.Empty;
+    public string CommitSha { get; set; } = string.Empty;
+    public DateTime EffectiveFrom { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string? ChangesSummary { get; set; }
+    public bool RequiresReConsent { get; set; }
+    public int LanguageCount { get; set; }
+    public List<string> Languages { get; set; } = [];
 }
 
 public class TeamSelectItem

@@ -44,8 +44,10 @@
 
                     <div class="mb-3">
                         <label asp-for="GitHubFolderPath" class="form-label">GitHub Folder Path</label>
-                        <input asp-for="GitHubFolderPath" class="form-control" placeholder="e.g. privacy/" />
-                        <div class="form-text">Folder in the legal repo. Sync discovers translations by convention: name.md (Spanish), name-en.md (English), etc.</div>
+                        <input asp-for="GitHubFolderPath" class="form-control" id="GitHubFolderPath"
+                               placeholder="e.g. Volunteer/ or paste a GitHub URL" />
+                        <div class="form-text">Paste a GitHub URL or enter a folder path. Sync discovers translations by convention: name.md (Spanish), name-en.md (English), etc.</div>
+                        <div id="folder-path-feedback" class="small mt-1"></div>
                         <span asp-validation-for="GitHubFolderPath" class="text-danger"></span>
                     </div>
 
@@ -78,4 +80,27 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            const input = document.getElementById('GitHubFolderPath');
+            const feedback = document.getElementById('folder-path-feedback');
+            const ghPattern = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/(.+)$/i;
+
+            function processInput() {
+                const val = input.value.trim();
+                if (!val) { feedback.textContent = ''; return; }
+
+                const match = val.match(ghPattern);
+                if (!match) { feedback.textContent = ''; return; }
+
+                const [, owner, repo, branch, path] = match;
+                const folder = path.replace(/\/+$/, '') + '/';
+                input.value = folder;
+                feedback.innerHTML = '<span class="text-success">Extracted folder: <strong>' + folder + '</strong> from ' + owner + '/' + repo + ' (' + branch + ')</span>';
+            }
+
+            input.addEventListener('paste', function () { setTimeout(processInput, 0); });
+            input.addEventListener('blur', processInput);
+        })();
+    </script>
 }

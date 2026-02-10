@@ -1,13 +1,16 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Jobs;
 using Humans.Web.Extensions;
@@ -18,7 +21,7 @@ namespace Humans.Web.Controllers;
 
 [Authorize(Roles = "Board,Admin")]
 [Route("Admin")]
-public class AdminController : Controller
+public partial class AdminController : Controller
 {
     private readonly HumansDbContext _dbContext;
     private readonly UserManager<User> _userManager;
@@ -27,6 +30,7 @@ public class AdminController : Controller
     private readonly IAuditLogService _auditLogService;
     private readonly IMembershipCalculator _membershipCalculator;
     private readonly ILegalDocumentSyncService _legalDocumentSyncService;
+    private readonly GitHubSettings _githubSettings;
     private readonly IClock _clock;
     private readonly ILogger<AdminController> _logger;
     private readonly SystemTeamSyncJob _systemTeamSyncJob;
@@ -40,6 +44,7 @@ public class AdminController : Controller
         IAuditLogService auditLogService,
         IMembershipCalculator membershipCalculator,
         ILegalDocumentSyncService legalDocumentSyncService,
+        IOptions<GitHubSettings> githubSettings,
         IClock clock,
         ILogger<AdminController> logger,
         SystemTeamSyncJob systemTeamSyncJob,
@@ -52,6 +57,7 @@ public class AdminController : Controller
         _auditLogService = auditLogService;
         _membershipCalculator = membershipCalculator;
         _legalDocumentSyncService = legalDocumentSyncService;
+        _githubSettings = githubSettings.Value;
         _clock = clock;
         _logger = logger;
         _systemTeamSyncJob = systemTeamSyncJob;
@@ -1193,6 +1199,8 @@ public class AdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateLegalDocument(LegalDocumentEditViewModel model)
     {
+        var folderPath = NormalizeGitHubFolderPath(model.GitHubFolderPath);
+
         if (!ModelState.IsValid)
         {
             model.Teams = await GetTeamSelectItems();
@@ -1209,10 +1217,9 @@ public class AdminController : Controller
             IsRequired = model.IsRequired,
             IsActive = model.IsActive,
             GracePeriodDays = model.GracePeriodDays,
-            GitHubFolderPath = model.GitHubFolderPath,
+            GitHubFolderPath = folderPath,
             CurrentCommitSha = string.Empty,
-            CreatedAt = now,
-            LastSyncedAt = now
+            CreatedAt = now
         };
 
         _dbContext.LegalDocuments.Add(document);
@@ -1222,7 +1229,28 @@ public class AdminController : Controller
         _logger.LogInformation("Admin {AdminId} created legal document {DocumentId} ({Name})",
             currentUser?.Id, document.Id, document.Name);
 
-        TempData["SuccessMessage"] = $"Legal document '{document.Name}' created successfully.";
+        // Attempt initial sync immediately
+        if (!string.IsNullOrEmpty(document.GitHubFolderPath))
+        {
+            try
+            {
+                var result = await _legalDocumentSyncService.SyncDocumentAsync(document.Id);
+                TempData["SuccessMessage"] = result != null
+                    ? $"Legal document '{document.Name}' created. {result}"
+                    : $"Legal document '{document.Name}' created. GitHub content is already up to date.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Initial sync failed for new document {DocumentId}", document.Id);
+                TempData["SuccessMessage"] = $"Legal document '{document.Name}' created.";
+                TempData["ErrorMessage"] = $"Initial sync failed: {ex.Message}";
+            }
+        }
+        else
+        {
+            TempData["SuccessMessage"] = $"Legal document '{document.Name}' created. Set a GitHub Folder Path and sync to add content.";
+        }
+
         return RedirectToAction(nameof(LegalDocuments));
     }
 
@@ -1255,7 +1283,22 @@ public class AdminController : Controller
             Teams = await GetTeamSelectItems(),
             CurrentVersion = currentVersion?.VersionNumber,
             LastSyncedAt = document.LastSyncedAt != default ? document.LastSyncedAt.ToDateTimeUtc() : null,
-            VersionCount = document.Versions.Count
+            VersionCount = document.Versions.Count,
+            Versions = document.Versions
+                .OrderByDescending(v => v.EffectiveFrom)
+                .Select(v => new DocumentVersionSummaryViewModel
+                {
+                    Id = v.Id,
+                    VersionNumber = v.VersionNumber,
+                    CommitSha = v.CommitSha,
+                    EffectiveFrom = v.EffectiveFrom.ToDateTimeUtc(),
+                    CreatedAt = v.CreatedAt.ToDateTimeUtc(),
+                    ChangesSummary = v.ChangesSummary,
+                    RequiresReConsent = v.RequiresReConsent,
+                    LanguageCount = v.Content.Count,
+                    Languages = v.Content.Keys.Order(StringComparer.Ordinal).ToList()
+                })
+                .ToList()
         };
 
         return View(viewModel);
@@ -1269,6 +1312,8 @@ public class AdminController : Controller
         {
             return BadRequest();
         }
+
+        var folderPath = NormalizeGitHubFolderPath(model.GitHubFolderPath);
 
         if (!ModelState.IsValid)
         {
@@ -1287,7 +1332,7 @@ public class AdminController : Controller
         document.IsRequired = model.IsRequired;
         document.IsActive = model.IsActive;
         document.GracePeriodDays = model.GracePeriodDays;
-        document.GitHubFolderPath = model.GitHubFolderPath;
+        document.GitHubFolderPath = folderPath;
 
         await _dbContext.SaveChangesAsync();
 
@@ -1324,20 +1369,37 @@ public class AdminController : Controller
     {
         try
         {
-            var updated = await _legalDocumentSyncService.SyncDocumentAsync(id);
+            var result = await _legalDocumentSyncService.SyncDocumentAsync(id);
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} triggered sync for legal document {DocumentId}", currentUser?.Id, id);
 
-            TempData["SuccessMessage"] = updated
-                ? "Document synced and updated from GitHub."
-                : "Document is already up to date.";
+            TempData["SuccessMessage"] = result ?? "Document is already up to date.";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error syncing legal document {DocumentId}", id);
-            TempData["ErrorMessage"] = "Failed to sync document from GitHub. Check logs for details.";
+            TempData["ErrorMessage"] = $"Sync failed: {ex.Message}";
         }
 
+        return RedirectToAction(nameof(EditLegalDocument), new { id });
+    }
+
+    [HttpPost("LegalDocuments/{id}/Versions/{versionId}/Summary")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateVersionSummary(Guid id, Guid versionId, [FromForm] string changesSummary)
+    {
+        var version = await _dbContext.Set<DocumentVersion>()
+            .FirstOrDefaultAsync(v => v.Id == versionId && v.LegalDocumentId == id);
+
+        if (version == null)
+        {
+            return NotFound();
+        }
+
+        version.ChangesSummary = string.IsNullOrWhiteSpace(changesSummary) ? null : changesSummary.Trim();
+        await _dbContext.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = "Version summary updated.";
         return RedirectToAction(nameof(EditLegalDocument), new { id });
     }
 
@@ -1350,6 +1412,57 @@ public class AdminController : Controller
             .Select(t => new TeamSelectItem { Id = t.Id, Name = t.Name })
             .ToListAsync();
     }
+
+    /// <summary>
+    /// Normalizes a GitHub folder path input. Accepts either a plain folder path
+    /// (e.g. "Volunteer/") or a full GitHub URL (e.g.
+    /// "https://github.com/owner/repo/tree/branch/Volunteer").
+    /// Returns the extracted folder path, or null with a ModelState error if the URL
+    /// doesn't match the configured repository.
+    /// </summary>
+    private string? NormalizeGitHubFolderPath(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return null;
+        }
+
+        input = input.Trim();
+
+        // Match GitHub URLs: https://github.com/{owner}/{repo}/tree/{branch}/{path}
+        var match = GitHubUrlPattern().Match(input);
+
+        if (!match.Success)
+        {
+            // Not a URL — treat as a plain folder path
+            return input.TrimEnd('/') + "/";
+        }
+
+        var owner = match.Groups["owner"].Value;
+        var repo = match.Groups["repo"].Value;
+        var branch = match.Groups["branch"].Value;
+        var path = match.Groups["path"].Value;
+
+        if (!string.Equals(owner, _githubSettings.Owner, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(repo, _githubSettings.Repository, StringComparison.OrdinalIgnoreCase))
+        {
+            ModelState.AddModelError(nameof(LegalDocumentEditViewModel.GitHubFolderPath),
+                $"URL points to {owner}/{repo}, but the configured repository is {_githubSettings.Owner}/{_githubSettings.Repository}.");
+            return null;
+        }
+
+        if (!string.Equals(branch, _githubSettings.Branch, StringComparison.OrdinalIgnoreCase))
+        {
+            ModelState.AddModelError(nameof(LegalDocumentEditViewModel.GitHubFolderPath),
+                $"URL points to branch '{branch}', but the configured branch is '{_githubSettings.Branch}'.");
+            return null;
+        }
+
+        return path.TrimEnd('/') + "/";
+    }
+
+    [GeneratedRegex(@"^https?://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)/tree/(?<branch>[^/]+)/(?<path>[^\s]+)$", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
+    private static partial Regex GitHubUrlPattern();
 
     /// <summary>
     /// Checks whether the current user can assign/end the specified role.

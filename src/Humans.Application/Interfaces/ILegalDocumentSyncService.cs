@@ -1,5 +1,4 @@
 using Humans.Domain.Entities;
-using Humans.Domain.Enums;
 
 namespace Humans.Application.Interfaces;
 
@@ -20,8 +19,8 @@ public interface ILegalDocumentSyncService
     /// </summary>
     /// <param name="documentId">The document ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>True if the document was updated.</returns>
-    Task<bool> SyncDocumentAsync(Guid documentId, CancellationToken cancellationToken = default);
+    /// <returns>A summary message if updated, or null if already up to date.</returns>
+    Task<string?> SyncDocumentAsync(Guid documentId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Checks if any documents have updates available.

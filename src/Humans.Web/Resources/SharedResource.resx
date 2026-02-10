@@ -112,7 +112,7 @@
   <data name="Home_GettingStartedTitle" xml:space="preserve"><value>Getting started</value></data>
   <data name="Home_Step1" xml:space="preserve"><value>&lt;strong&gt;Sign in&lt;/strong&gt; with your Google account</value></data>
   <data name="Home_Step2" xml:space="preserve"><value>&lt;strong&gt;Complete your profile&lt;/strong&gt; with basic information</value></data>
-  <data name="Home_Step3" xml:space="preserve"><value>&lt;strong&gt;Review and consent&lt;/strong&gt; to our legal documents (Spanish originals with English translations)</value></data>
+  <data name="Home_Step3" xml:space="preserve"><value>&lt;strong&gt;Review and consent&lt;/strong&gt; to our legal documents (Spanish originals with translations)</value></data>
   <data name="Home_GettingStartedSummary" xml:space="preserve"><value>That's it! Once your consents are in place, you'll have access to association resources. If you're interested in participating in governance as a voting member, you can optionally submit an application from your dashboard.</value></data>
 
   <!-- ======================== -->
@@ -363,7 +363,7 @@
   <data name="Consent_History" xml:space="preserve"><value>Consent History</value></data>
   <data name="Consent_NoRecords" xml:space="preserve"><value>No consent records yet.</value></data>
   <data name="Consent_AboutTitle" xml:space="preserve"><value>About Consent</value></data>
-  <data name="Consent_AboutDescription" xml:space="preserve"><value>By consenting to these documents, you agree to be bound by their terms. The Spanish version is the legally binding text. English translations are provided for convenience only.</value></data>
+  <data name="Consent_AboutDescription" xml:space="preserve"><value>By consenting to these documents, you agree to be bound by their terms. The Spanish version is the legally binding text. Translations are provided for convenience only.</value></data>
 
   <!-- Consent Review View -->
   <data name="ConsentReview_AlreadyConsented" xml:space="preserve"><value>Already Consented</value></data>
