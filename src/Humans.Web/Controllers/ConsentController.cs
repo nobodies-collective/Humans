@@ -55,9 +55,22 @@ public class ConsentController : Controller
 
         var now = _clock.GetCurrentInstant();
 
-        // Get all active documents with their current versions
+        // Get user's team memberships (active)
+        var userTeamIds = await _dbContext.TeamMembers
+            .Where(tm => tm.UserId == user.Id && !tm.LeftAt.HasValue)
+            .Select(tm => tm.TeamId)
+            .ToListAsync();
+
+        // Always include Volunteers team (global docs apply to all active members)
+        if (!userTeamIds.Contains(Domain.Constants.SystemTeamIds.Volunteers))
+        {
+            userTeamIds.Add(Domain.Constants.SystemTeamIds.Volunteers);
+        }
+
+        // Get all active required documents for the user's teams
         var documents = await _dbContext.LegalDocuments
-            .Where(d => d.IsActive && d.IsRequired)
+            .Where(d => d.IsActive && d.IsRequired && userTeamIds.Contains(d.TeamId))
+            .Include(d => d.Team)
             .Include(d => d.Versions)
             .ToListAsync();
 
@@ -69,37 +82,56 @@ public class ConsentController : Controller
             .OrderByDescending(c => c.ConsentedAt)
             .ToListAsync();
 
-        var consentedVersionIds = userConsents.Select(c => c.DocumentVersionId).ToHashSet();
-
-        var requiredDocuments = new List<ConsentDocumentViewModel>();
-
-        foreach (var doc in documents)
-        {
-            var currentVersion = doc.Versions
-                .Where(v => v.EffectiveFrom <= now)
-                .MaxBy(v => v.EffectiveFrom);
-
-            if (currentVersion != null)
+        // Group documents by team
+        var teamGroups = documents
+            .GroupBy(d => d.TeamId)
+            .Select(g =>
             {
-                var consent = userConsents.FirstOrDefault(c => c.DocumentVersionId == currentVersion.Id);
+                var team = g.First().Team;
+                var docViewModels = new List<ConsentDocumentViewModel>();
 
-                requiredDocuments.Add(new ConsentDocumentViewModel
+                foreach (var doc in g)
                 {
-                    DocumentVersionId = currentVersion.Id,
-                    DocumentName = doc.Name,
-                    DocumentType = doc.Type.ToString(),
-                    VersionNumber = currentVersion.VersionNumber,
-                    EffectiveFrom = currentVersion.EffectiveFrom.ToDateTimeUtc(),
-                    HasConsented = consent != null,
-                    ConsentedAt = consent?.ConsentedAt.ToDateTimeUtc(),
-                    ChangesSummary = currentVersion.ChangesSummary
-                });
-            }
-        }
+                    var currentVersion = doc.Versions
+                        .Where(v => v.EffectiveFrom <= now)
+                        .MaxBy(v => v.EffectiveFrom);
+
+                    if (currentVersion != null)
+                    {
+                        var consent = userConsents.FirstOrDefault(c => c.DocumentVersionId == currentVersion.Id);
+
+                        docViewModels.Add(new ConsentDocumentViewModel
+                        {
+                            DocumentVersionId = currentVersion.Id,
+                            DocumentName = doc.Name,
+                            VersionNumber = currentVersion.VersionNumber,
+                            EffectiveFrom = currentVersion.EffectiveFrom.ToDateTimeUtc(),
+                            HasConsented = consent != null,
+                            ConsentedAt = consent?.ConsentedAt.ToDateTimeUtc(),
+                            ChangesSummary = currentVersion.ChangesSummary,
+                            LastUpdated = doc.LastSyncedAt != default ? doc.LastSyncedAt.ToDateTimeUtc() : null
+                        });
+                    }
+                }
+
+                return new ConsentTeamGroupViewModel
+                {
+                    TeamId = team.Id,
+                    TeamName = team.Name,
+                    Documents = docViewModels
+                        .OrderBy(d => d.HasConsented)
+                        .ThenBy(d => d.DocumentName, StringComparer.Ordinal)
+                        .ToList()
+                };
+            })
+            // Teams with pending docs first, then alphabetical
+            .OrderBy(tg => tg.AllConsented)
+            .ThenBy(tg => tg.TeamName, StringComparer.Ordinal)
+            .ToList();
 
         var viewModel = new ConsentIndexViewModel
         {
-            RequiredDocuments = requiredDocuments.OrderBy(d => d.HasConsented).ThenBy(d => d.DocumentName, StringComparer.Ordinal).ToList(),
+            TeamGroups = teamGroups,
             ConsentHistory = userConsents.Take(10).Select(c => new ConsentHistoryViewModel
             {
                 DocumentName = c.DocumentVersion.LegalDocument.Name,
@@ -136,10 +168,8 @@ public class ConsentController : Controller
         {
             DocumentVersionId = version.Id,
             DocumentName = version.LegalDocument.Name,
-            DocumentType = version.LegalDocument.Type.ToString(),
             VersionNumber = version.VersionNumber,
-            ContentSpanish = version.ContentSpanish,
-            ContentEnglish = version.ContentEnglish,
+            Content = new Dictionary<string, string>(version.Content, StringComparer.Ordinal),
             EffectiveFrom = version.EffectiveFrom.ToDateTimeUtc(),
             ChangesSummary = version.ChangesSummary,
             HasAlreadyConsented = hasConsented
@@ -183,8 +213,9 @@ public class ConsentController : Controller
             return RedirectToAction(nameof(Index));
         }
 
-        // Create consent record
-        var contentHash = ComputeContentHash(version.ContentSpanish);
+        // Create consent record — hash canonical Spanish content
+        var canonicalContent = version.Content.GetValueOrDefault("es", string.Empty);
+        var contentHash = ComputeContentHash(canonicalContent);
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         var userAgent = Request.Headers.UserAgent.ToString();
 

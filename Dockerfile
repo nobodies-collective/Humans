@@ -22,6 +22,11 @@ RUN dotnet publish src/Humans.Web/Humans.Web.csproj -c Release -o /app/publish -
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
+# Install native dependencies for SkiaSharp
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser -s /sbin/nologin appuser
 

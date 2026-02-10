@@ -200,7 +200,7 @@ public class TeamController : Controller
         var teamMemberships = await _dbContext.Set<TeamMember>()
             .AsNoTracking()
             .Include(tm => tm.Team)
-            .Where(tm => userIds.Contains(tm.UserId) && tm.LeftAt == null && !tm.Team.IsSystemTeam)
+            .Where(tm => userIds.Contains(tm.UserId) && tm.LeftAt == null && tm.Team.SystemTeamType == SystemTeamType.None)
             .Select(tm => new { tm.UserId, tm.Team.Name })
             .ToListAsync();
 

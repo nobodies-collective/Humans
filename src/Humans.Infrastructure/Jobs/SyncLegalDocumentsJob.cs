@@ -69,23 +69,26 @@ public class SyncLegalDocumentsJob
 
     /// <summary>
     /// Sends re-consent notifications to members who need to consent to updated documents.
+    /// Only notifies members of the teams that the updated documents belong to.
     /// </summary>
     private async Task SendReConsentNotificationsAsync(
         IReadOnlyList<Domain.Entities.LegalDocument> updatedDocs,
         CancellationToken cancellationToken)
     {
-        // Get all users who currently have active roles (potential members)
-        var now = _clock.GetCurrentInstant();
-        var activeUserIds = await _dbContext.RoleAssignments
+        // Get unique team IDs for updated docs
+        var teamIds = updatedDocs.Select(d => d.TeamId).Distinct().ToList();
+
+        // Get active team members for affected teams
+        var activeUserIds = await _dbContext.TeamMembers
             .AsNoTracking()
-            .Where(ra => ra.ValidFrom <= now && (ra.ValidTo == null || ra.ValidTo > now))
-            .Select(ra => ra.UserId)
+            .Where(tm => tm.LeftAt == null && teamIds.Contains(tm.TeamId))
+            .Select(tm => tm.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);
 
         if (activeUserIds.Count == 0)
         {
-            _logger.LogInformation("No active users to notify for re-consent");
+            _logger.LogInformation("No team members to notify for re-consent");
             return;
         }
 
@@ -106,7 +109,7 @@ public class SyncLegalDocumentsJob
             .ToDictionary(g => g.Key, g => g.Select(c => c.DocumentVersionId).ToHashSet());
 
         var usersToNotify = activeUserIds
-            .Where(userId => !userConsents.TryGetValue(userId, out var consented) || 
+            .Where(userId => !userConsents.TryGetValue(userId, out var consented) ||
                              !updatedDocVersionIds.All(id => consented.Contains(id)))
             .ToList();
 

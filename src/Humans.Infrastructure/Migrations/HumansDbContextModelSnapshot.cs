@@ -304,13 +304,11 @@ namespace Humans.Infrastructure.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
-                    b.Property<string>("ContentEnglish")
+                    b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ContentSpanish")
-                        .IsRequired()
-                        .HasColumnType("text");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'{}'::jsonb");
 
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -414,10 +412,14 @@ namespace Humans.Infrastructure.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
-                    b.Property<string>("GitHubPath")
-                        .IsRequired()
+                    b.Property<string>("GitHubFolderPath")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
+
+                    b.Property<int>("GracePeriodDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(7);
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -433,15 +435,14 @@ namespace Humans.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
                     b.HasIndex("IsActive");
 
-                    b.HasIndex("Type");
+                    b.HasIndex("TeamId", "IsActive");
 
                     b.ToTable("legal_documents", (string)null);
                 });
@@ -1163,6 +1164,17 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("LegalDocument");
                 });
 
+            modelBuilder.Entity("Humans.Domain.Entities.LegalDocument", b =>
+                {
+                    b.HasOne("Humans.Domain.Entities.Team", "Team")
+                        .WithMany("LegalDocuments")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Team");
+                });
+
             modelBuilder.Entity("Humans.Domain.Entities.GoogleResource", b =>
                 {
                     b.HasOne("Humans.Domain.Entities.Team", "Team")
@@ -1363,6 +1375,8 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("GoogleResources");
 
                     b.Navigation("JoinRequests");
+
+                    b.Navigation("LegalDocuments");
 
                     b.Navigation("Members");
                 });

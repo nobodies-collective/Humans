@@ -20,13 +20,9 @@ public class DocumentVersionConfiguration : IEntityTypeConfiguration<DocumentVer
             .HasMaxLength(40)
             .IsRequired();
 
-        // Spanish content is canonical
-        builder.Property(dv => dv.ContentSpanish)
-            .IsRequired();
-
-        // English content is for display only
-        builder.Property(dv => dv.ContentEnglish)
-            .IsRequired();
+        builder.Property(dv => dv.Content)
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'{}'::jsonb");
 
         builder.Property(dv => dv.EffectiveFrom)
             .IsRequired();

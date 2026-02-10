@@ -373,9 +373,19 @@
                 width: 100%;
                 padding: 0.375rem 0.75rem;
                 font-size: 1rem;
-                border: 1px solid #ced4da;
-                border-radius: 0.375rem;
+                font-family: var(--h-font-body);
+                border: 1px solid var(--h-border);
+                border-radius: var(--h-radius);
+                background-color: var(--h-warm-white);
+                color: var(--h-text);
                 line-height: 1.5;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            }
+            gmp-place-autocomplete input:focus {
+                border-color: var(--h-gold);
+                box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.2);
+                background-color: #fff;
+                outline: none;
             }
         </style>
     }

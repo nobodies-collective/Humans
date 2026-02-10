@@ -358,6 +358,8 @@
   <data name="Consent_ReviewAndConsent" xml:space="preserve"><value>Revisar y consentir</value></data>
   <data name="Consent_PendingCount" xml:space="preserve"><value>{0} documento(s) requieren su consentimiento. Por favor, rev&#xED;selos y otorgue su consentimiento para mantener su membres&#xED;a activa.</value><comment>{0} = pending document count</comment></data>
   <data name="Consent_AllConsented" xml:space="preserve"><value>Ha otorgado su consentimiento a todos los documentos requeridos.</value></data>
+  <data name="Consent_ActionRequired" xml:space="preserve"><value>Acci&#xF3;n requerida</value></data>
+  <data name="Consent_LastUpdated" xml:space="preserve"><value>&#xDA;ltima actualizaci&#xF3;n</value></data>
   <data name="Consent_History" xml:space="preserve"><value>Historial de consentimientos</value></data>
   <data name="Consent_NoRecords" xml:space="preserve"><value>A&#xFA;n no hay registros de consentimiento.</value></data>
   <data name="Consent_AboutTitle" xml:space="preserve"><value>Acerca del consentimiento</value></data>
@@ -418,6 +420,7 @@
   <data name="TeamDetail_TeamManagement" xml:space="preserve"><value>Gesti&#xF3;n del equipo</value></data>
   <data name="TeamDetail_PendingRequests" xml:space="preserve"><value>Solicitudes pendientes</value></data>
   <data name="TeamDetail_ManageResources" xml:space="preserve"><value>Gestionar recursos</value></data>
+  <data name="TeamDetail_ManageConsents" xml:space="preserve"><value>Documentos legales</value></data>
 
   <!-- My Teams View -->
   <data name="MyTeams_TeamMemberships" xml:space="preserve"><value>Membres&#xED;as de equipo</value></data>

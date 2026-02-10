@@ -358,6 +358,8 @@
   <data name="Consent_ReviewAndConsent" xml:space="preserve"><value>Review &amp; Consent</value></data>
   <data name="Consent_PendingCount" xml:space="preserve"><value>{0} document(s) require your consent. Please review and consent to maintain your active membership.</value><comment>{0} = pending document count</comment></data>
   <data name="Consent_AllConsented" xml:space="preserve"><value>You have consented to all required documents.</value></data>
+  <data name="Consent_ActionRequired" xml:space="preserve"><value>Action Required</value></data>
+  <data name="Consent_LastUpdated" xml:space="preserve"><value>Last updated</value></data>
   <data name="Consent_History" xml:space="preserve"><value>Consent History</value></data>
   <data name="Consent_NoRecords" xml:space="preserve"><value>No consent records yet.</value></data>
   <data name="Consent_AboutTitle" xml:space="preserve"><value>About Consent</value></data>
@@ -418,6 +420,7 @@
   <data name="TeamDetail_TeamManagement" xml:space="preserve"><value>Team Management</value></data>
   <data name="TeamDetail_PendingRequests" xml:space="preserve"><value>Pending Requests</value></data>
   <data name="TeamDetail_ManageResources" xml:space="preserve"><value>Manage Resources</value></data>
+  <data name="TeamDetail_ManageConsents" xml:space="preserve"><value>Legal Documents</value></data>
 
   <!-- My Teams View -->
   <data name="MyTeams_TeamMemberships" xml:space="preserve"><value>Team Memberships</value></data>

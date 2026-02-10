@@ -1,6 +1,29 @@
 @model Humans.Web.Models.ConsentDetailViewModel
 @{
     ViewData["Title"] = string.Format(Localizer["ConsentReview_Title"].Value, Model.DocumentName);
+
+    // Language display names — Spanish is canonical/legal
+    var languageNames = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["es"] = "Castellano",
+        ["en"] = "English",
+        ["de"] = "Deutsch",
+        ["fr"] = "Fran\u00e7ais",
+        ["pt"] = "Portugu\u00eas",
+        ["ca"] = "Catal\u00e0"
+    };
+
+    string GetLanguageLabel(string langCode)
+    {
+        var name = languageNames.TryGetValue(langCode, out var n) ? n : langCode.ToUpperInvariant();
+        return langCode == "es" ? $"{name} (Legal)" : name;
+    }
+
+    // Order: "es" first, then alphabetical
+    var orderedLanguages = Model.Content
+        .OrderByDescending(kv => kv.Key == "es")
+        .ThenBy(kv => kv.Key, StringComparer.Ordinal)
+        .ToList();
 }
 
 <nav aria-label="breadcrumb">
@@ -15,7 +38,6 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
                 <h1 class="mb-0">@Model.DocumentName</h1>
-                <span class="badge bg-secondary">@Model.DocumentType</span>
                 <span class="badge bg-info">@Localizer["Consent_Version"] @Model.VersionNumber</span>
             </div>
             @if (Model.HasAlreadyConsented)
@@ -35,50 +57,55 @@
             <strong>@Localizer["ConsentReview_Important"]</strong> @Localizer["ConsentReview_SpanishIsLegal"]
         </div>
 
-        <ul class="nav nav-tabs" id="contentTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="spanish-tab" data-bs-toggle="tab" data-bs-target="#spanish"
-                        type="button" role="tab" aria-controls="spanish" aria-selected="true">
-                    @Localizer["ConsentReview_SpanishTab"]
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="english-tab" data-bs-toggle="tab" data-bs-target="#english"
-                        type="button" role="tab" aria-controls="english" aria-selected="false">
-                    @Localizer["ConsentReview_EnglishTab"]
-                </button>
-            </li>
-        </ul>
+        @if (orderedLanguages.Count > 0)
+        {
+            <ul class="nav nav-tabs" id="contentTabs" role="tablist">
+                @for (var i = 0; i < orderedLanguages.Count; i++)
+                {
+                    var lang = orderedLanguages[i];
+                    var isFirst = i == 0;
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(isFirst ? "active" : "")" id="tab-@lang.Key" data-bs-toggle="tab"
+                                data-bs-target="#content-@lang.Key" type="button" role="tab"
+                                aria-controls="content-@lang.Key" aria-selected="@(isFirst ? "true" : "false")">
+                            @GetLanguageLabel(lang.Key)
+                        </button>
+                    </li>
+                }
+            </ul>
 
-        <div class="tab-content border border-top-0 p-4 bg-white" id="contentTabsContent" style="max-height: 500px; overflow-y: auto;">
-            <div class="tab-pane fade show active" id="spanish" role="tabpanel" aria-labelledby="spanish-tab">
-                @if (string.IsNullOrEmpty(Model.ContentSpanish))
+            <div class="tab-content border border-top-0 p-4 bg-white" id="contentTabsContent" style="max-height: 500px; overflow-y: auto;">
+                @for (var i = 0; i < orderedLanguages.Count; i++)
                 {
-                    <p class="text-muted">@Localizer["ConsentReview_ContentNotAvailable"]</p>
-                }
-                else
-                {
-                    <div class="document-content">
-                        @Html.Raw(ConvertMarkdownToHtml(Model.ContentSpanish))
+                    var lang = orderedLanguages[i];
+                    var isFirst = i == 0;
+                    <div class="tab-pane fade @(isFirst ? "show active" : "")" id="content-@lang.Key" role="tabpanel" aria-labelledby="tab-@lang.Key">
+                        @if (lang.Key != "es")
+                        {
+                            <div class="alert alert-secondary mb-3">
+                                <small>@Localizer["ConsentReview_TranslationDisclaimer"]</small>
+                            </div>
+                        }
+                        @if (string.IsNullOrEmpty(lang.Value))
+                        {
+                            <p class="text-muted">@Localizer["ConsentReview_ContentNotAvailable"]</p>
+                        }
+                        else
+                        {
+                            <div class="document-content">
+                                @Html.Raw(ConvertMarkdownToHtml(lang.Value))
+                            </div>
+                        }
                     </div>
                 }
             </div>
-            <div class="tab-pane fade" id="english" role="tabpanel" aria-labelledby="english-tab">
-                @if (string.IsNullOrEmpty(Model.ContentEnglish))
-                {
-                    <p class="text-muted">@Localizer["ConsentReview_EnglishNotAvailable"]</p>
-                }
-                else
-                {
-                    <div class="alert alert-secondary mb-3">
-                        <small>@Localizer["ConsentReview_TranslationDisclaimer"]</small>
-                    </div>
-                    <div class="document-content">
-                        @Html.Raw(ConvertMarkdownToHtml(Model.ContentEnglish))
-                    </div>
-                }
+        }
+        else
+        {
+            <div class="alert alert-secondary">
+                <p class="text-muted mb-0">@Localizer["ConsentReview_ContentNotAvailable"]</p>
             </div>
-        </div>
+        }
 
         @if (!Model.HasAlreadyConsented)
         {

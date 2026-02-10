@@ -84,8 +84,9 @@ public class SystemTeamSyncJob
             .Select(p => p.UserId)
             .ToListAsync(cancellationToken);
 
-        // Filter to those with all required consents using batch method to avoid N+1
-        var eligibleUserIdSet = await _membershipCalculator.GetUsersWithAllRequiredConsentsAsync(allUserIds, cancellationToken);
+        // Filter to those with all required consents for the Volunteers team
+        var eligibleUserIdSet = await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(
+            allUserIds, SystemTeamIds.Volunteers, cancellationToken);
         var eligibleUserIds = eligibleUserIdSet.ToList();
 
         await SyncTeamMembershipAsync(team, eligibleUserIds, cancellationToken);
@@ -117,7 +118,11 @@ public class SystemTeamSyncJob
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        await SyncTeamMembershipAsync(team, metaleadUserIds, cancellationToken);
+        // Additionally filter by Metaleads-team-required consents
+        var eligibleSet = await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(
+            metaleadUserIds, SystemTeamIds.Metaleads, cancellationToken);
+
+        await SyncTeamMembershipAsync(team, eligibleSet.ToList(), cancellationToken);
     }
 
     /// <summary>
@@ -148,7 +153,11 @@ public class SystemTeamSyncJob
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        await SyncTeamMembershipAsync(team, boardMemberIds, cancellationToken);
+        // Additionally filter by Board-team-required consents
+        var eligibleSet = await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(
+            boardMemberIds, SystemTeamIds.Board, cancellationToken);
+
+        await SyncTeamMembershipAsync(team, eligibleSet.ToList(), cancellationToken);
     }
 
     private async Task<Team?> GetSystemTeamAsync(SystemTeamType systemTeamType, CancellationToken cancellationToken)

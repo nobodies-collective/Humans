@@ -56,4 +56,21 @@ public interface IMembershipCalculator
     Task<IReadOnlySet<Guid>> GetUsersWithAllRequiredConsentsAsync(
         IEnumerable<Guid> userIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if a user has all required consents for a specific team's documents.
+    /// </summary>
+    Task<bool> HasAllRequiredConsentsForTeamAsync(Guid userId, Guid teamId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Filters user IDs to those who have all required consents for a specific team.
+    /// </summary>
+    Task<IReadOnlySet<Guid>> GetUsersWithAllRequiredConsentsForTeamAsync(
+        IEnumerable<Guid> userIds, Guid teamId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Checks if a user has any expired (past grace period) consents for a specific team.
+    /// Uses per-document GracePeriodDays.
+    /// </summary>
+    Task<bool> HasAnyExpiredConsentsForTeamAsync(Guid userId, Guid teamId, CancellationToken ct = default);
 }

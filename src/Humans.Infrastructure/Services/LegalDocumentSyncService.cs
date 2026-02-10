@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -5,7 +6,6 @@ using NodaTime;
 using Octokit;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
-using Humans.Domain.Enums;
 using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
 
@@ -13,6 +13,7 @@ namespace Humans.Infrastructure.Services;
 
 /// <summary>
 /// Service for syncing legal documents from a GitHub repository.
+/// Supports both folder-based multi-language discovery and legacy single-file paths.
 /// </summary>
 public class LegalDocumentSyncService : ILegalDocumentSyncService
 {
@@ -21,6 +22,12 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
     private readonly GitHubSettings _settings;
     private readonly IClock _clock;
     private readonly ILogger<LegalDocumentSyncService> _logger;
+
+    // Matches files like "name.md" (canonical es), "name-en.md", "name-de.md"
+    private static readonly Regex LanguageFilePattern = new(
+        @"^(?<name>[A-Za-z0-9_-]+?)(?:-(?<lang>[a-z]{2}))?\.md$",
+        RegexOptions.Compiled | RegexOptions.ExplicitCapture,
+        TimeSpan.FromSeconds(1));
 
     public LegalDocumentSyncService(
         HumansDbContext dbContext,
@@ -51,26 +58,26 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
 
         var updatedDocuments = new List<LegalDocument>();
 
-        // Get all configured document types
-        foreach (var (documentTypeStr, pathConfig) in _settings.Documents)
-        {
-            if (!Enum.TryParse<DocumentType>(documentTypeStr, out var documentType))
-            {
-                _logger.LogWarning("Unknown document type in configuration: {Type}", documentTypeStr);
-                continue;
-            }
+        // Iterate active documents from database instead of config
+        var activeDocuments = await _dbContext.LegalDocuments
+            .Include(d => d.Versions)
+            .Where(d => d.IsActive)
+            .ToListAsync(cancellationToken);
 
+        foreach (var document in activeDocuments)
+        {
             try
             {
-                var document = await SyncDocumentTypeAsync(documentType, pathConfig, cancellationToken);
-                if (document != null)
+                var updated = await SyncSingleDocumentAsync(document, cancellationToken);
+                if (updated)
                 {
                     updatedDocuments.Add(document);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error syncing document type {Type}", documentType);
+                _logger.LogError(ex, "Error syncing document {DocumentName} ({DocumentId})",
+                    document.Name, document.Id);
             }
         }
 
@@ -90,15 +97,7 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
             return false;
         }
 
-        var documentTypeStr = document.Type.ToString();
-        if (!_settings.Documents.TryGetValue(documentTypeStr, out var pathConfig))
-        {
-            _logger.LogWarning("No path configuration for document type {Type}", document.Type);
-            return false;
-        }
-
-        var updated = await SyncDocumentTypeAsync(document.Type, pathConfig, cancellationToken);
-        return updated != null;
+        return await SyncSingleDocumentAsync(document, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -114,15 +113,18 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
 
         foreach (var document in documents)
         {
-            var documentTypeStr = document.Type.ToString();
-            if (!_settings.Documents.TryGetValue(documentTypeStr, out var pathConfig))
-            {
-                continue;
-            }
-
             try
             {
-                var latestSha = await GetLatestCommitShaAsync(pathConfig.SpanishPath, cancellationToken);
+                var checkPath = !string.IsNullOrEmpty(document.GitHubFolderPath)
+                    ? await GetCanonicalFilePathAsync(document.GitHubFolderPath, cancellationToken)
+                    : null;
+
+                if (string.IsNullOrEmpty(checkPath))
+                {
+                    continue;
+                }
+
+                var latestSha = await GetLatestCommitShaAsync(checkPath, cancellationToken);
                 if (latestSha != null && !string.Equals(latestSha, document.CurrentCommitSha, StringComparison.Ordinal))
                 {
                     documentsWithUpdates.Add(document);
@@ -130,7 +132,7 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Error checking for updates to {DocumentType}", document.Type);
+                _logger.LogWarning(ex, "Error checking for updates to {DocumentName}", document.Name);
             }
         }
 
@@ -181,86 +183,107 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
             .FirstOrDefaultAsync(v => v.Id == versionId, cancellationToken);
     }
 
-    private async Task<LegalDocument?> SyncDocumentTypeAsync(
-        DocumentType documentType,
-        DocumentPathConfig pathConfig,
+    /// <summary>
+    /// Syncs a single document from GitHub using folder-based discovery.
+    /// </summary>
+    private async Task<bool> SyncSingleDocumentAsync(
+        LegalDocument document,
         CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Syncing document type {Type} from {Path}", documentType, pathConfig.SpanishPath);
-
-        // Get or create the document record
-        var document = await _dbContext.LegalDocuments
-            .Include(d => d.Versions)
-            .FirstOrDefaultAsync(d => d.Type == documentType, cancellationToken);
-
-        var isNew = document == null;
-        var now = _clock.GetCurrentInstant();
-
-        if (isNew)
+        if (string.IsNullOrEmpty(document.GitHubFolderPath))
         {
-            document = new LegalDocument
-            {
-                Id = Guid.NewGuid(),
-                Type = documentType,
-                Name = pathConfig.Name,
-                GitHubPath = pathConfig.SpanishPath,
-                IsRequired = pathConfig.IsRequired,
-                IsActive = true,
-                CreatedAt = now
-            };
-            _dbContext.LegalDocuments.Add(document);
+            _logger.LogWarning("Document {Name} ({Id}) has no GitHubFolderPath configured",
+                document.Name, document.Id);
+            return false;
         }
 
-        // Fetch content from GitHub
-        string spanishContent;
-        string englishContent;
-        string commitSha;
+        return await SyncFolderBasedDocumentAsync(document, cancellationToken);
+    }
 
+    /// <summary>
+    /// Discovers language files in a folder and syncs content into the Content dictionary.
+    /// Convention: {name}.md → Spanish ("es", canonical), {name}-en.md → English, etc.
+    /// </summary>
+    private async Task<bool> SyncFolderBasedDocumentAsync(
+        LegalDocument document,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Syncing document {Name} from folder {Folder}",
+            document.Name, document.GitHubFolderPath);
+
+        // Discover language files in the folder
+        var languageFiles = await DiscoverLanguageFilesAsync(document.GitHubFolderPath!, cancellationToken);
+
+        if (languageFiles.Count == 0)
+        {
+            _logger.LogWarning("No markdown files found in folder {Folder} for document {Name}",
+                document.GitHubFolderPath, document.Name);
+            return false;
+        }
+
+        // The canonical file (no language suffix) is Spanish
+        var canonicalEntry = languageFiles.FirstOrDefault(kv =>
+            string.Equals(kv.Key, "es", StringComparison.Ordinal));
+
+        if (canonicalEntry.Value == null)
+        {
+            _logger.LogWarning("No canonical (Spanish) file found in folder {Folder}", document.GitHubFolderPath);
+            return false;
+        }
+
+        // Fetch canonical file to get commit SHA
+        string canonicalContent;
+        string commitSha;
         try
         {
-            var spanishFile = await GetFileContentAsync(pathConfig.SpanishPath, cancellationToken);
-            spanishContent = spanishFile.Content;
-            commitSha = spanishFile.Sha;
+            var result = await GetFileContentAsync(canonicalEntry.Value, cancellationToken);
+            canonicalContent = result.Content;
+            commitSha = result.Sha;
+        }
+        catch (NotFoundException)
+        {
+            _logger.LogWarning("Canonical file not found at {Path}", canonicalEntry.Value);
+            return false;
+        }
 
-            // English is optional - use Spanish as fallback
+        var now = _clock.GetCurrentInstant();
+
+        // Check if content has changed
+        if (string.Equals(document.CurrentCommitSha, commitSha, StringComparison.Ordinal))
+        {
+            _logger.LogDebug("Document {Name} is up to date (SHA: {Sha})", document.Name, commitSha);
+            document.LastSyncedAt = now;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return false;
+        }
+
+        // Fetch all language files
+        var content = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (lang, path) in languageFiles)
+        {
             try
             {
-                var englishFile = await GetFileContentAsync(pathConfig.EnglishPath, cancellationToken);
-                englishContent = englishFile.Content;
+                var file = await GetFileContentAsync(path, cancellationToken);
+                content[lang] = file.Content;
             }
             catch (NotFoundException)
             {
-                _logger.LogDebug("No English version found for {Type}, using Spanish", documentType);
-                englishContent = spanishContent;
+                _logger.LogDebug("Language file not found at {Path}", path);
             }
-        }
-        catch (NotFoundException ex)
-        {
-            _logger.LogWarning(ex, "Spanish document not found at {Path}", pathConfig.SpanishPath);
-            return null;
-        }
-
-        // Check if content has changed
-        if (!isNew && string.Equals(document!.CurrentCommitSha, commitSha, StringComparison.Ordinal))
-        {
-            _logger.LogDebug("Document {Type} is up to date (SHA: {Sha})", documentType, commitSha);
-            document.LastSyncedAt = now;
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            return null;
         }
 
         // Create new version
-        var versionNumber = $"v{document!.Versions.Count + 1}.0";
+        var isNew = document.Versions.Count == 0;
+        var versionNumber = $"v{document.Versions.Count + 1}.0";
         var newVersion = new DocumentVersion
         {
             Id = Guid.NewGuid(),
             LegalDocumentId = document.Id,
             VersionNumber = versionNumber,
             CommitSha = commitSha,
-            ContentSpanish = spanishContent,
-            ContentEnglish = englishContent,
+            Content = content,
             EffectiveFrom = now,
-            RequiresReConsent = !isNew, // Require re-consent for updates, not initial version
+            RequiresReConsent = !isNew,
             CreatedAt = now,
             ChangesSummary = isNew ? "Initial version" : "Updated from GitHub"
         };
@@ -268,17 +291,79 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
         document.Versions.Add(newVersion);
         document.CurrentCommitSha = commitSha;
         document.LastSyncedAt = now;
-        document.Name = pathConfig.Name;
-        document.GitHubPath = pathConfig.SpanishPath;
-        document.IsRequired = pathConfig.IsRequired;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Synced document {Type} version {Version} (SHA: {Sha})",
-            documentType, versionNumber, commitSha);
+            "Synced document {Name} version {Version} (SHA: {Sha}, languages: {Languages})",
+            document.Name, versionNumber, commitSha, string.Join(", ", content.Keys));
 
-        return document;
+        return true;
+    }
+
+    /// <summary>
+    /// Lists files in a GitHub folder and maps them to language codes using naming convention.
+    /// </summary>
+    private async Task<Dictionary<string, string>> DiscoverLanguageFilesAsync(
+        string folderPath,
+        CancellationToken cancellationToken)
+    {
+        var languageFiles = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        try
+        {
+            var contents = await _gitHubClient.Repository.Content.GetAllContentsByRef(
+                _settings.Owner,
+                _settings.Repository,
+                folderPath.TrimEnd('/'),
+                _settings.Branch);
+
+            string? canonicalBaseName = null;
+
+            foreach (var item in contents)
+            {
+                if (item.Type != ContentType.File)
+                {
+                    continue;
+                }
+
+                var match = LanguageFilePattern.Match(item.Name);
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                var baseName = match.Groups["name"].Value;
+                var langGroup = match.Groups["lang"];
+                var lang = langGroup.Success ? langGroup.Value.ToLowerInvariant() : "es"; // no suffix = Spanish (canonical)
+
+                // Track the first canonical base name found
+                canonicalBaseName ??= baseName;
+
+                // Only include files matching the same base name
+                if (string.Equals(baseName, canonicalBaseName, StringComparison.OrdinalIgnoreCase))
+                {
+                    languageFiles[lang] = item.Path;
+                }
+            }
+        }
+        catch (NotFoundException)
+        {
+            _logger.LogWarning("Folder not found in GitHub: {FolderPath}", folderPath);
+        }
+
+        return languageFiles;
+    }
+
+    /// <summary>
+    /// Gets the canonical file path for a folder (first .md file without language suffix).
+    /// </summary>
+    private async Task<string?> GetCanonicalFilePathAsync(
+        string folderPath,
+        CancellationToken cancellationToken)
+    {
+        var files = await DiscoverLanguageFilesAsync(folderPath, cancellationToken);
+        return files.GetValueOrDefault("es");
     }
 
     private async Task<(string Content, string Sha)> GetFileContentAsync(

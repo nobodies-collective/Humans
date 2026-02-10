@@ -1,5 +1,4 @@
 using NodaTime;
-using Humans.Domain.Enums;
 
 namespace Humans.Domain.Entities;
 
@@ -15,19 +14,31 @@ public class LegalDocument
     public Guid Id { get; init; }
 
     /// <summary>
-    /// The type of legal document.
-    /// </summary>
-    public DocumentType Type { get; set; }
-
-    /// <summary>
     /// Human-readable name of the document.
     /// </summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Path to the document in the nobodies-collective/legal GitHub repository.
+    /// The team this document belongs to. Documents scoped to the Volunteers team
+    /// are effectively global (all active members).
     /// </summary>
-    public string GitHubPath { get; set; } = string.Empty;
+    public Guid TeamId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the team this document belongs to.
+    /// </summary>
+    public Team Team { get; set; } = null!;
+
+    /// <summary>
+    /// Grace period in days before membership becomes inactive due to missing re-consent.
+    /// </summary>
+    public int GracePeriodDays { get; set; } = 7;
+
+    /// <summary>
+    /// Folder path in the GitHub repository for multi-language discovery.
+    /// E.g. "privacy/" — sync discovers translations by naming convention.
+    /// </summary>
+    public string? GitHubFolderPath { get; set; }
 
     /// <summary>
     /// Current commit SHA from the GitHub repository.

@@ -34,14 +34,10 @@ public class DocumentVersion
     public string CommitSha { get; set; } = string.Empty;
 
     /// <summary>
-    /// Spanish content (canonical/legally binding).
+    /// Multi-language content keyed by language code (e.g. "es", "en", "de").
+    /// Spanish ("es") is canonical/legally binding.
     /// </summary>
-    public string ContentSpanish { get; set; } = string.Empty;
-
-    /// <summary>
-    /// English content (translation for convenience only).
-    /// </summary>
-    public string ContentEnglish { get; set; } = string.Empty;
+    public Dictionary<string, string> Content { get; set; } = new(StringComparer.Ordinal);
 
     /// <summary>
     /// When this version becomes effective.

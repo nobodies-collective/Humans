@@ -69,6 +69,11 @@ public class Team
     public ICollection<GoogleResource> GoogleResources { get; } = new List<GoogleResource>();
 
     /// <summary>
+    /// Navigation property to legal documents scoped to this team.
+    /// </summary>
+    public ICollection<LegalDocument> LegalDocuments { get; } = new List<LegalDocument>();
+
+    /// <summary>
     /// Whether this is a system-managed team.
     /// </summary>
     public bool IsSystemTeam => SystemTeamType != SystemTeamType.None;

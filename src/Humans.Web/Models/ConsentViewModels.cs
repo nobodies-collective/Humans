@@ -2,20 +2,28 @@ namespace Humans.Web.Models;
 
 public class ConsentIndexViewModel
 {
-    public List<ConsentDocumentViewModel> RequiredDocuments { get; set; } = [];
+    public List<ConsentTeamGroupViewModel> TeamGroups { get; set; } = [];
     public List<ConsentHistoryViewModel> ConsentHistory { get; set; } = [];
+}
+
+public class ConsentTeamGroupViewModel
+{
+    public Guid TeamId { get; set; }
+    public string TeamName { get; set; } = string.Empty;
+    public List<ConsentDocumentViewModel> Documents { get; set; } = [];
+    public bool AllConsented => Documents.All(d => d.HasConsented);
 }
 
 public class ConsentDocumentViewModel
 {
     public Guid DocumentVersionId { get; set; }
     public string DocumentName { get; set; } = string.Empty;
-    public string DocumentType { get; set; } = string.Empty;
     public string VersionNumber { get; set; } = string.Empty;
     public DateTime EffectiveFrom { get; set; }
     public bool HasConsented { get; set; }
     public DateTime? ConsentedAt { get; set; }
     public string? ChangesSummary { get; set; }
+    public DateTime? LastUpdated { get; set; }
 }
 
 public class ConsentHistoryViewModel
@@ -29,10 +37,8 @@ public class ConsentDetailViewModel
 {
     public Guid DocumentVersionId { get; set; }
     public string DocumentName { get; set; } = string.Empty;
-    public string DocumentType { get; set; } = string.Empty;
     public string VersionNumber { get; set; } = string.Empty;
-    public string ContentSpanish { get; set; } = string.Empty;
-    public string ContentEnglish { get; set; } = string.Empty;
+    public Dictionary<string, string> Content { get; set; } = new(StringComparer.Ordinal);
     public DateTime EffectiveFrom { get; set; }
     public string? ChangesSummary { get; set; }
     public bool HasAlreadyConsented { get; set; }

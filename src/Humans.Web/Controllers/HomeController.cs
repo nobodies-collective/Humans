@@ -50,9 +50,21 @@ public class HomeController : Controller
 
         var now = _clock.GetCurrentInstant();
 
-        // Get required document versions
+        // Get user's team memberships (active)
+        var userTeamIds = await _dbContext.TeamMembers
+            .Where(tm => tm.UserId == user.Id && !tm.LeftAt.HasValue)
+            .Select(tm => tm.TeamId)
+            .ToListAsync();
+
+        // Always include Volunteers team (global docs)
+        if (!userTeamIds.Contains(Domain.Constants.SystemTeamIds.Volunteers))
+        {
+            userTeamIds.Add(Domain.Constants.SystemTeamIds.Volunteers);
+        }
+
+        // Get required document versions across all user's teams
         var requiredVersionIds = await _dbContext.LegalDocuments
-            .Where(d => d.IsActive && d.IsRequired)
+            .Where(d => d.IsActive && d.IsRequired && userTeamIds.Contains(d.TeamId))
             .SelectMany(d => d.Versions)
             .Where(v => v.EffectiveFrom <= now)
             .GroupBy(v => v.LegalDocumentId)

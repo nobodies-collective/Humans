@@ -1,9 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using NodaTime;
 using Humans.Application.Interfaces;
+using Humans.Domain.Constants;
 using Humans.Domain.Enums;
-using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
 
 namespace Humans.Infrastructure.Services;
@@ -16,18 +15,15 @@ public class MembershipCalculator : IMembershipCalculator
     private readonly HumansDbContext _dbContext;
     private readonly IConsentRecordRepository _consentRepository;
     private readonly IClock _clock;
-    private readonly GitHubSettings _githubSettings;
 
     public MembershipCalculator(
         HumansDbContext dbContext,
         IConsentRecordRepository consentRepository,
-        IClock clock,
-        IOptions<GitHubSettings> githubSettings)
+        IClock clock)
     {
         _dbContext = dbContext;
         _consentRepository = consentRepository;
         _clock = clock;
-        _githubSettings = githubSettings.Value;
     }
 
     public async Task<MembershipStatus> ComputeStatusAsync(
@@ -54,7 +50,7 @@ public class MembershipCalculator : IMembershipCalculator
             return MembershipStatus.None;
         }
 
-        var hasExpiredConsents = await HasAnyExpiredConsentsAsync(userId, cancellationToken);
+        var hasExpiredConsents = await HasAnyExpiredConsentsForTeamAsync(userId, SystemTeamIds.Volunteers, cancellationToken);
         if (hasExpiredConsents)
         {
             return MembershipStatus.Inactive;
@@ -67,32 +63,55 @@ public class MembershipCalculator : IMembershipCalculator
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var missingConsents = await GetMissingConsentVersionsAsync(userId, cancellationToken);
-        return missingConsents.Count == 0;
+        return await HasAllRequiredConsentsForTeamAsync(userId, SystemTeamIds.Volunteers, cancellationToken);
+    }
+
+    public async Task<bool> HasAllRequiredConsentsForTeamAsync(
+        Guid userId,
+        Guid teamId,
+        CancellationToken ct = default)
+    {
+        var requiredVersions = await GetRequiredDocumentVersionsForTeamAsync(teamId, ct);
+        if (requiredVersions.Count == 0)
+        {
+            return true;
+        }
+
+        var consentedVersionIds = await _consentRepository.GetConsentedVersionIdsAsync(userId, ct);
+        return requiredVersions.All(v => consentedVersionIds.Contains(v.Id));
     }
 
     public async Task<bool> HasAnyExpiredConsentsAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var now = _clock.GetCurrentInstant();
-        var gracePeriod = Duration.FromDays(_githubSettings.ReConsentGracePeriodDays);
+        return await HasAnyExpiredConsentsForTeamAsync(userId, SystemTeamIds.Volunteers, cancellationToken);
+    }
 
-        // Get missing consents that are past their grace period
-        var requiredVersions = await GetRequiredDocumentVersionsAsync(cancellationToken);
-        var consentedVersionIds = await _consentRepository.GetConsentedVersionIdsAsync(userId, cancellationToken);
+    public async Task<bool> HasAnyExpiredConsentsForTeamAsync(
+        Guid userId,
+        Guid teamId,
+        CancellationToken ct = default)
+    {
+        var now = _clock.GetCurrentInstant();
+        var requiredVersions = await GetRequiredDocumentVersionsForTeamAsync(teamId, ct);
+        var consentedVersionIds = await _consentRepository.GetConsentedVersionIdsAsync(userId, ct);
 
         return requiredVersions
             .Where(v => !consentedVersionIds.Contains(v.Id))
-            .Any(v => v.EffectiveFrom + gracePeriod <= now);
+            .Any(v =>
+            {
+                var gracePeriod = Duration.FromDays(v.LegalDocument.GracePeriodDays);
+                return v.EffectiveFrom + gracePeriod <= now;
+            });
     }
 
     public async Task<IReadOnlyList<Guid>> GetMissingConsentVersionsAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        // Get current versions of all required documents
-        var requiredVersions = await GetRequiredDocumentVersionsAsync(cancellationToken);
+        // Get current versions of all required documents (Volunteers team = global)
+        var requiredVersions = await GetRequiredDocumentVersionsForTeamAsync(SystemTeamIds.Volunteers, cancellationToken);
         var requiredVersionIds = requiredVersions.Select(v => v.Id).ToList();
 
         // Get versions the user has consented to
@@ -141,24 +160,29 @@ public class MembershipCalculator : IMembershipCalculator
         IEnumerable<Guid> userIds,
         CancellationToken cancellationToken = default)
     {
+        return await GetUsersWithAllRequiredConsentsForTeamAsync(userIds, SystemTeamIds.Volunteers, cancellationToken);
+    }
+
+    public async Task<IReadOnlySet<Guid>> GetUsersWithAllRequiredConsentsForTeamAsync(
+        IEnumerable<Guid> userIds,
+        Guid teamId,
+        CancellationToken ct = default)
+    {
         var userIdList = userIds.ToList();
         if (userIdList.Count == 0)
         {
             return new HashSet<Guid>();
         }
 
-        // Get current versions of all required documents
-        var requiredVersions = await GetRequiredDocumentVersionsAsync(cancellationToken);
+        var requiredVersions = await GetRequiredDocumentVersionsForTeamAsync(teamId, ct);
         var requiredVersionIds = requiredVersions.Select(v => v.Id).ToList();
 
         if (requiredVersionIds.Count == 0)
         {
-            // No required documents, all users have "all" consents
             return userIdList.ToHashSet();
         }
 
-        // Get consented version IDs for all users in batch
-        var consentsByUser = await _consentRepository.GetConsentedVersionIdsByUsersAsync(userIdList, cancellationToken);
+        var consentsByUser = await _consentRepository.GetConsentedVersionIdsByUsersAsync(userIdList, ct);
 
         var requiredSet = requiredVersionIds.ToHashSet();
         var result = new HashSet<Guid>();
@@ -186,11 +210,14 @@ public class MembershipCalculator : IMembershipCalculator
         }
 
         var now = _clock.GetCurrentInstant();
-        var gracePeriod = Duration.FromDays(_githubSettings.ReConsentGracePeriodDays);
 
-        var requiredVersions = await GetRequiredDocumentVersionsAsync(cancellationToken);
+        var requiredVersions = await GetRequiredDocumentVersionsForTeamAsync(SystemTeamIds.Volunteers, cancellationToken);
         var expiredVersions = requiredVersions
-            .Where(v => v.EffectiveFrom + gracePeriod <= now)
+            .Where(v =>
+            {
+                var gracePeriod = Duration.FromDays(v.LegalDocument.GracePeriodDays);
+                return v.EffectiveFrom + gracePeriod <= now;
+            })
             .ToList();
 
         if (expiredVersions.Count == 0)
@@ -224,13 +251,18 @@ public class MembershipCalculator : IMembershipCalculator
         return result;
     }
 
-    private async Task<List<Domain.Entities.DocumentVersion>> GetRequiredDocumentVersionsAsync(CancellationToken cancellationToken)
+    private async Task<List<Domain.Entities.DocumentVersion>> GetRequiredDocumentVersionsForTeamAsync(
+        Guid teamId,
+        CancellationToken cancellationToken)
     {
+        var now = _clock.GetCurrentInstant();
+
         return await _dbContext.LegalDocuments
             .AsNoTracking()
-            .Where(d => d.IsRequired && d.IsActive)
+            .Where(d => d.IsRequired && d.IsActive && d.TeamId == teamId)
             .SelectMany(d => d.Versions)
-            .Where(v => v.EffectiveFrom <= _clock.GetCurrentInstant())
+            .Where(v => v.EffectiveFrom <= now)
+            .Include(v => v.LegalDocument)
             .GroupBy(v => v.LegalDocumentId)
             .Select(g => g.OrderByDescending(v => v.EffectiveFrom).First())
             .ToListAsync(cancellationToken);

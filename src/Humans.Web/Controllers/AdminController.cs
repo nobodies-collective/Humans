@@ -26,6 +26,7 @@ public class AdminController : Controller
     private readonly IGoogleSyncService _googleSyncService;
     private readonly IAuditLogService _auditLogService;
     private readonly IMembershipCalculator _membershipCalculator;
+    private readonly ILegalDocumentSyncService _legalDocumentSyncService;
     private readonly IClock _clock;
     private readonly ILogger<AdminController> _logger;
     private readonly SystemTeamSyncJob _systemTeamSyncJob;
@@ -38,6 +39,7 @@ public class AdminController : Controller
         IGoogleSyncService googleSyncService,
         IAuditLogService auditLogService,
         IMembershipCalculator membershipCalculator,
+        ILegalDocumentSyncService legalDocumentSyncService,
         IClock clock,
         ILogger<AdminController> logger,
         SystemTeamSyncJob systemTeamSyncJob,
@@ -49,6 +51,7 @@ public class AdminController : Controller
         _googleSyncService = googleSyncService;
         _auditLogService = auditLogService;
         _membershipCalculator = membershipCalculator;
+        _legalDocumentSyncService = legalDocumentSyncService;
         _clock = clock;
         _logger = logger;
         _systemTeamSyncJob = systemTeamSyncJob;
@@ -1123,6 +1126,229 @@ public class AdminController : Controller
         }).ToList();
 
         return View(new AdminConfigurationViewModel { Items = items });
+    }
+
+    [HttpGet("LegalDocuments")]
+    public async Task<IActionResult> LegalDocuments(Guid? teamId)
+    {
+        var query = _dbContext.LegalDocuments
+            .Include(d => d.Team)
+            .Include(d => d.Versions)
+            .AsQueryable();
+
+        if (teamId.HasValue)
+        {
+            query = query.Where(d => d.TeamId == teamId.Value);
+        }
+
+        var documents = await query
+            .OrderBy(d => d.Team.Name)
+            .ThenBy(d => d.Name)
+            .ToListAsync();
+
+        var now = _clock.GetCurrentInstant();
+
+        var viewModel = new LegalDocumentListViewModel
+        {
+            FilterTeamId = teamId,
+            Teams = await GetTeamSelectItems(),
+            Documents = documents.Select(d =>
+            {
+                var currentVersion = d.Versions
+                    .Where(v => v.EffectiveFrom <= now)
+                    .MaxBy(v => v.EffectiveFrom);
+
+                return new LegalDocumentListItemViewModel
+                {
+                    Id = d.Id,
+                    Name = d.Name,
+                    TeamName = d.Team.Name,
+                    TeamId = d.TeamId,
+                    IsRequired = d.IsRequired,
+                    IsActive = d.IsActive,
+                    GracePeriodDays = d.GracePeriodDays,
+                    CurrentVersion = currentVersion?.VersionNumber,
+                    LastSyncedAt = d.LastSyncedAt != default ? d.LastSyncedAt.ToDateTimeUtc() : null,
+                    VersionCount = d.Versions.Count
+                };
+            }).ToList()
+        };
+
+        return View(viewModel);
+    }
+
+    [HttpGet("LegalDocuments/Create")]
+    public async Task<IActionResult> CreateLegalDocument(Guid? teamId)
+    {
+        var viewModel = new LegalDocumentEditViewModel
+        {
+            TeamId = teamId ?? Guid.Empty,
+            Teams = await GetTeamSelectItems()
+        };
+
+        return View(viewModel);
+    }
+
+    [HttpPost("LegalDocuments/Create")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateLegalDocument(LegalDocumentEditViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            model.Teams = await GetTeamSelectItems();
+            return View(model);
+        }
+
+        var now = _clock.GetCurrentInstant();
+
+        var document = new LegalDocument
+        {
+            Id = Guid.NewGuid(),
+            Name = model.Name,
+            TeamId = model.TeamId,
+            IsRequired = model.IsRequired,
+            IsActive = model.IsActive,
+            GracePeriodDays = model.GracePeriodDays,
+            GitHubFolderPath = model.GitHubFolderPath,
+            CurrentCommitSha = string.Empty,
+            CreatedAt = now,
+            LastSyncedAt = now
+        };
+
+        _dbContext.LegalDocuments.Add(document);
+        await _dbContext.SaveChangesAsync();
+
+        var currentUser = await _userManager.GetUserAsync(User);
+        _logger.LogInformation("Admin {AdminId} created legal document {DocumentId} ({Name})",
+            currentUser?.Id, document.Id, document.Name);
+
+        TempData["SuccessMessage"] = $"Legal document '{document.Name}' created successfully.";
+        return RedirectToAction(nameof(LegalDocuments));
+    }
+
+    [HttpGet("LegalDocuments/{id}/Edit")]
+    public async Task<IActionResult> EditLegalDocument(Guid id)
+    {
+        var document = await _dbContext.LegalDocuments
+            .Include(d => d.Versions)
+            .FirstOrDefaultAsync(d => d.Id == id);
+
+        if (document == null)
+        {
+            return NotFound();
+        }
+
+        var now = _clock.GetCurrentInstant();
+        var currentVersion = document.Versions
+            .Where(v => v.EffectiveFrom <= now)
+            .MaxBy(v => v.EffectiveFrom);
+
+        var viewModel = new LegalDocumentEditViewModel
+        {
+            Id = document.Id,
+            Name = document.Name,
+            TeamId = document.TeamId,
+            IsRequired = document.IsRequired,
+            IsActive = document.IsActive,
+            GracePeriodDays = document.GracePeriodDays,
+            GitHubFolderPath = document.GitHubFolderPath,
+            Teams = await GetTeamSelectItems(),
+            CurrentVersion = currentVersion?.VersionNumber,
+            LastSyncedAt = document.LastSyncedAt != default ? document.LastSyncedAt.ToDateTimeUtc() : null,
+            VersionCount = document.Versions.Count
+        };
+
+        return View(viewModel);
+    }
+
+    [HttpPost("LegalDocuments/{id}/Edit")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditLegalDocument(Guid id, LegalDocumentEditViewModel model)
+    {
+        if (id != model.Id)
+        {
+            return BadRequest();
+        }
+
+        if (!ModelState.IsValid)
+        {
+            model.Teams = await GetTeamSelectItems();
+            return View(model);
+        }
+
+        var document = await _dbContext.LegalDocuments.FindAsync(id);
+        if (document == null)
+        {
+            return NotFound();
+        }
+
+        document.Name = model.Name;
+        document.TeamId = model.TeamId;
+        document.IsRequired = model.IsRequired;
+        document.IsActive = model.IsActive;
+        document.GracePeriodDays = model.GracePeriodDays;
+        document.GitHubFolderPath = model.GitHubFolderPath;
+
+        await _dbContext.SaveChangesAsync();
+
+        var currentUser = await _userManager.GetUserAsync(User);
+        _logger.LogInformation("Admin {AdminId} updated legal document {DocumentId}", currentUser?.Id, id);
+
+        TempData["SuccessMessage"] = $"Legal document '{document.Name}' updated successfully.";
+        return RedirectToAction(nameof(LegalDocuments));
+    }
+
+    [HttpPost("LegalDocuments/{id}/Archive")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ArchiveLegalDocument(Guid id)
+    {
+        var document = await _dbContext.LegalDocuments.FindAsync(id);
+        if (document == null)
+        {
+            return NotFound();
+        }
+
+        document.IsActive = false;
+        await _dbContext.SaveChangesAsync();
+
+        var currentUser = await _userManager.GetUserAsync(User);
+        _logger.LogInformation("Admin {AdminId} archived legal document {DocumentId}", currentUser?.Id, id);
+
+        TempData["SuccessMessage"] = $"Legal document '{document.Name}' archived.";
+        return RedirectToAction(nameof(LegalDocuments));
+    }
+
+    [HttpPost("LegalDocuments/{id}/Sync")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SyncLegalDocument(Guid id)
+    {
+        try
+        {
+            var updated = await _legalDocumentSyncService.SyncDocumentAsync(id);
+            var currentUser = await _userManager.GetUserAsync(User);
+            _logger.LogInformation("Admin {AdminId} triggered sync for legal document {DocumentId}", currentUser?.Id, id);
+
+            TempData["SuccessMessage"] = updated
+                ? "Document synced and updated from GitHub."
+                : "Document is already up to date.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error syncing legal document {DocumentId}", id);
+            TempData["ErrorMessage"] = "Failed to sync document from GitHub. Check logs for details.";
+        }
+
+        return RedirectToAction(nameof(EditLegalDocument), new { id });
+    }
+
+    private async Task<List<TeamSelectItem>> GetTeamSelectItems()
+    {
+        return await _dbContext.Teams
+            .Where(t => t.IsActive)
+            .OrderBy(t => t.SystemTeamType)
+            .ThenBy(t => t.Name)
+            .Select(t => new TeamSelectItem { Id = t.Id, Name = t.Name })
+            .ToListAsync();
     }
 
     /// <summary>
