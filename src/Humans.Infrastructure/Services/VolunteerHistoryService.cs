@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Humans.Application.DTOs;
-using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Infrastructure.Data;
 
@@ -10,7 +9,7 @@ namespace Humans.Infrastructure.Services;
 /// <summary>
 /// Service for managing volunteer history entries.
 /// </summary>
-public class VolunteerHistoryService : IVolunteerHistoryService
+public class VolunteerHistoryService
 {
     private readonly HumansDbContext _dbContext;
     private readonly IClock _clock;

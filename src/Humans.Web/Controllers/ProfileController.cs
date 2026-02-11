@@ -12,6 +12,7 @@ using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
+using Humans.Infrastructure.Services;
 using SkiaSharp;
 using Humans.Web.Models;
 
@@ -26,7 +27,7 @@ public class ProfileController : Controller
     private readonly ILogger<ProfileController> _logger;
     private readonly IConfiguration _configuration;
     private readonly IContactFieldService _contactFieldService;
-    private readonly IVolunteerHistoryService _volunteerHistoryService;
+    private readonly VolunteerHistoryService _volunteerHistoryService;
     private readonly IEmailService _emailService;
     private readonly ITeamService _teamService;
     private readonly IMembershipCalculator _membershipCalculator;
@@ -51,7 +52,7 @@ public class ProfileController : Controller
         ILogger<ProfileController> logger,
         IConfiguration configuration,
         IContactFieldService contactFieldService,
-        IVolunteerHistoryService volunteerHistoryService,
+        VolunteerHistoryService volunteerHistoryService,
         IEmailService emailService,
         ITeamService teamService,
         IMembershipCalculator membershipCalculator,

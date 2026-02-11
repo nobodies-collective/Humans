@@ -19,7 +19,6 @@ public class ConsentController : Controller
 {
     private readonly HumansDbContext _dbContext;
     private readonly UserManager<User> _userManager;
-    private readonly IConsentRecordRepository _consentRepository;
     private readonly IMembershipCalculator _membershipCalculator;
     private readonly IGoogleSyncService _googleSyncService;
     private readonly SystemTeamSyncJob _systemTeamSyncJob;
@@ -30,7 +29,6 @@ public class ConsentController : Controller
     public ConsentController(
         HumansDbContext dbContext,
         UserManager<User> userManager,
-        IConsentRecordRepository consentRepository,
         IMembershipCalculator membershipCalculator,
         IGoogleSyncService googleSyncService,
         SystemTeamSyncJob systemTeamSyncJob,
@@ -40,7 +38,6 @@ public class ConsentController : Controller
     {
         _dbContext = dbContext;
         _userManager = userManager;
-        _consentRepository = consentRepository;
         _membershipCalculator = membershipCalculator;
         _googleSyncService = googleSyncService;
         _systemTeamSyncJob = systemTeamSyncJob;
@@ -242,7 +239,8 @@ public class ConsentController : Controller
             ExplicitConsent = true
         };
 
-        await _consentRepository.AddAsync(consentRecord);
+        _dbContext.ConsentRecords.Add(consentRecord);
+        await _dbContext.SaveChangesAsync();
 
         _logger.LogInformation(
             "User {UserId} consented to document {DocumentName} version {Version}",

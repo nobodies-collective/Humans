@@ -21,7 +21,6 @@ using Humans.Domain.Entities;
 using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Jobs;
-using Humans.Infrastructure.Repositories;
 using Humans.Infrastructure.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Health;
@@ -164,11 +163,10 @@ builder.Services.Configure<GoogleWorkspaceSettings>(builder.Configuration.GetSec
 builder.Services.Configure<TeamResourceManagementSettings>(builder.Configuration.GetSection(TeamResourceManagementSettings.SectionName));
 
 // Register Application Services
-builder.Services.AddScoped<IConsentRecordRepository, ConsentRecordRepository>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.AddScoped<IContactFieldService, ContactFieldService>();
 builder.Services.AddScoped<IUserEmailService, UserEmailService>();
-builder.Services.AddScoped<IVolunteerHistoryService, VolunteerHistoryService>();
+builder.Services.AddScoped<VolunteerHistoryService>();
 builder.Services.AddScoped<ILegalDocumentSyncService, LegalDocumentSyncService>();
 // Use real Google Workspace service if credentials configured, otherwise use stub
 var googleWorkspaceConfig = builder.Configuration.GetSection(GoogleWorkspaceSettings.SectionName);
@@ -388,9 +386,12 @@ app.MapHangfireDashboard("/hangfire", new DashboardOptions
 
 // Schedule recurring jobs
 //
-// DISABLED: These jobs modify Google permissions (add/remove members).
-// Keep disabled until the system is ready for automated sync.
-// Use the manual "Sync Now" button at /Admin/GoogleSync instead.
+// PAUSED: These jobs modify Google Workspace permissions (add/remove members from
+// Groups and Shared Drives). They could be destructive if our upstream data
+// (team membership, role assignments, consent status) isn't correct yet.
+// Enable automated sync once the upfront onboarding and approval processes
+// are validated end-to-end. Until then, use the manual "Sync Now" button
+// at /Admin/GoogleSync for controlled, one-off syncs.
 //
 // RecurringJob.AddOrUpdate<SystemTeamSyncJob>(
 //     "system-team-sync",

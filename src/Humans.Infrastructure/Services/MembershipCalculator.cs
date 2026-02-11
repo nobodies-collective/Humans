@@ -13,16 +13,13 @@ namespace Humans.Infrastructure.Services;
 public class MembershipCalculator : IMembershipCalculator
 {
     private readonly HumansDbContext _dbContext;
-    private readonly IConsentRecordRepository _consentRepository;
     private readonly IClock _clock;
 
     public MembershipCalculator(
         HumansDbContext dbContext,
-        IConsentRecordRepository consentRepository,
         IClock clock)
     {
         _dbContext = dbContext;
-        _consentRepository = consentRepository;
         _clock = clock;
     }
 
@@ -77,7 +74,7 @@ public class MembershipCalculator : IMembershipCalculator
             return true;
         }
 
-        var consentedVersionIds = await _consentRepository.GetConsentedVersionIdsAsync(userId, ct);
+        var consentedVersionIds = await GetConsentedVersionIdsAsync(userId, ct);
         return requiredVersions.All(v => consentedVersionIds.Contains(v.Id));
     }
 
@@ -95,7 +92,7 @@ public class MembershipCalculator : IMembershipCalculator
     {
         var now = _clock.GetCurrentInstant();
         var requiredVersions = await GetRequiredDocumentVersionsForTeamAsync(teamId, ct);
-        var consentedVersionIds = await _consentRepository.GetConsentedVersionIdsAsync(userId, ct);
+        var consentedVersionIds = await GetConsentedVersionIdsAsync(userId, ct);
 
         return requiredVersions
             .Where(v => !consentedVersionIds.Contains(v.Id))
@@ -115,7 +112,7 @@ public class MembershipCalculator : IMembershipCalculator
         var requiredVersionIds = requiredVersions.Select(v => v.Id).ToList();
 
         // Get versions the user has consented to
-        var consentedVersionIds = await _consentRepository.GetConsentedVersionIdsAsync(userId, cancellationToken);
+        var consentedVersionIds = await GetConsentedVersionIdsAsync(userId, cancellationToken);
 
         // Find missing consents
         return requiredVersionIds
@@ -182,7 +179,7 @@ public class MembershipCalculator : IMembershipCalculator
             return userIdList.ToHashSet();
         }
 
-        var consentsByUser = await _consentRepository.GetConsentedVersionIdsByUsersAsync(userIdList, ct);
+        var consentsByUser = await GetConsentMapForUsersAsync(userIdList, ct);
 
         var requiredSet = requiredVersionIds.ToHashSet();
         var result = new HashSet<Guid>();
@@ -228,7 +225,7 @@ public class MembershipCalculator : IMembershipCalculator
         var expiredVersionIds = expiredVersions.Select(v => v.Id).ToHashSet();
 
         // Get consented version IDs for all users in batch
-        var consentsByUser = await _consentRepository.GetConsentedVersionIdsByUsersAsync(userIdList, cancellationToken);
+        var consentsByUser = await GetConsentMapForUsersAsync(userIdList, cancellationToken);
 
         var result = new HashSet<Guid>();
         foreach (var userId in userIdList)
@@ -266,5 +263,45 @@ public class MembershipCalculator : IMembershipCalculator
             .GroupBy(v => v.LegalDocumentId)
             .Select(g => g.OrderByDescending(v => v.EffectiveFrom).First())
             .ToListAsync(cancellationToken);
+    }
+
+    private async Task<IReadOnlySet<Guid>> GetConsentedVersionIdsAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var ids = await _dbContext.ConsentRecords
+            .AsNoTracking()
+            .Where(cr => cr.UserId == userId && cr.ExplicitConsent)
+            .Select(cr => cr.DocumentVersionId)
+            .ToListAsync(cancellationToken);
+
+        return ids.ToHashSet();
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, IReadOnlySet<Guid>>> GetConsentMapForUsersAsync(
+        List<Guid> userIds,
+        CancellationToken cancellationToken)
+    {
+        if (userIds.Count == 0)
+        {
+            return new Dictionary<Guid, IReadOnlySet<Guid>>();
+        }
+
+        var consents = await _dbContext.ConsentRecords
+            .AsNoTracking()
+            .Where(cr => userIds.Contains(cr.UserId) && cr.ExplicitConsent)
+            .Select(cr => new { cr.UserId, cr.DocumentVersionId })
+            .ToListAsync(cancellationToken);
+
+        var result = userIds.ToDictionary(
+            id => id,
+            _ => (IReadOnlySet<Guid>)new HashSet<Guid>());
+
+        foreach (var consent in consents)
+        {
+            ((HashSet<Guid>)result[consent.UserId]).Add(consent.DocumentVersionId);
+        }
+
+        return result;
     }
 }

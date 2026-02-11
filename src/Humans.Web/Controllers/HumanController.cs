@@ -6,6 +6,7 @@ using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
+using Humans.Infrastructure.Services;
 using Humans.Web.Models;
 
 namespace Humans.Web.Controllers;
@@ -18,7 +19,7 @@ public class HumanController : Controller
     private readonly UserManager<User> _userManager;
     private readonly IContactFieldService _contactFieldService;
     private readonly IUserEmailService _userEmailService;
-    private readonly IVolunteerHistoryService _volunteerHistoryService;
+    private readonly VolunteerHistoryService _volunteerHistoryService;
     private readonly ITeamService _teamService;
     private readonly IMembershipCalculator _membershipCalculator;
 
@@ -27,7 +28,7 @@ public class HumanController : Controller
         UserManager<User> userManager,
         IContactFieldService contactFieldService,
         IUserEmailService userEmailService,
-        IVolunteerHistoryService volunteerHistoryService,
+        VolunteerHistoryService volunteerHistoryService,
         ITeamService teamService,
         IMembershipCalculator membershipCalculator)
     {
