@@ -21,6 +21,7 @@ public class MembershipRequiredFilter : IAsyncActionFilter
         "Profile",     // Set up profile during onboarding
         "Admin",       // Has its own Roles = "Board,Admin" gate
         "Human",       // Public profile viewing
+        "Language",    // Language switching
     };
 
     public Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)

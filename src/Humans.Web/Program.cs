@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.FileProviders;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
 using OpenTelemetry.Metrics;
@@ -326,6 +327,18 @@ app.UseResponseCompression();
 
 app.UseStaticFiles();
 
+// Serve .well-known directory (blocked by default since it starts with a dot)
+if (app.Environment.IsDevelopment())
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(
+            Path.Combine(app.Environment.WebRootPath, ".well-known")),
+        RequestPath = "/.well-known",
+        ServeUnknownFileTypes = true
+    });
+}
+
 // HTTP Security Headers
 app.Use(async (context, next) =>
 {
@@ -387,7 +400,22 @@ app.MapHangfireDashboard("/hangfire", new DashboardOptions
 // Schedule recurring jobs
 //
 // PAUSED: These jobs modify Google Workspace permissions (add/remove members from
-// Groups and Shared Drives). They could be destructive if our upstream data
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.MapRazorPages();
+
+// Run database migrations on startup (must happen before Hangfire job registration
+// because Hangfire needs its tables to exist for distributed lock acquisition)
+{
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<HumansDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
+
+// Google permission-modifying jobs are currently DISABLED (SystemTeamSyncJob,
+// GoogleResourceReconciliationJob). They could be destructive if our upstream data
 // (team membership, role assignments, consent status) isn't correct yet.
 // Enable automated sync once the upfront onboarding and approval processes
 // are validated end-to-end. Until then, use the manual "Sync Now" button
@@ -422,19 +450,6 @@ RecurringJob.AddOrUpdate<DriveActivityMonitorJob>(
     "drive-activity-monitor",
     job => job.ExecuteAsync(CancellationToken.None),
     Cron.Hourly);
-
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
-
-app.MapRazorPages();
-
-// Run database migrations on startup
-{
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<HumansDbContext>();
-    await dbContext.Database.MigrateAsync();
-}
 
 await app.RunAsync();
 

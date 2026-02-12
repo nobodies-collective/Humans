@@ -108,7 +108,8 @@
                         <input type="hidden" name="DocumentVersionId" value="@Model.DocumentVersionId" />
 
                         <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" name="ExplicitConsent" value="true" id="explicitConsent" required>
+                            <input class="form-check-input" type="checkbox" name="ExplicitConsent" value="true" id="explicitConsent" required
+                                   data-val-required="@Localizer["ConsentReview_CheckboxRequired"]">
                             <label class="form-check-label" for="explicitConsent">
                                 <strong>@Localizer["ConsentReview_ConsentCheckbox"]</strong>
                                 <br />
@@ -158,3 +159,14 @@
         margin-bottom: 1rem;
     }
 </style>
+
+<script>
+    const cb = document.getElementById('explicitConsent');
+    if (cb) {
+        const msg = cb.dataset.valRequired;
+        cb.setCustomValidity(msg);
+        cb.addEventListener('change', function () {
+            this.setCustomValidity(this.checked ? '' : msg);
+        });
+    }
+</script>
