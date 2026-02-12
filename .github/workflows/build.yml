@@ -17,9 +17,9 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: profiles
-          POSTGRES_PASSWORD: profiles
-          POSTGRES_DB: profiles_test
+          POSTGRES_USER: humans
+          POSTGRES_PASSWORD: humans
+          POSTGRES_DB: humans_test
         ports:
           - 5432:5432
         options: >-
@@ -37,15 +37,15 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
     - name: Restore dependencies
-      run: dotnet restore Profiles.slnx
+      run: dotnet restore Humans.slnx
 
     - name: Build
-      run: dotnet build Profiles.slnx --no-restore --configuration Release
+      run: dotnet build Humans.slnx --no-restore --configuration Release
 
     - name: Test
-      run: dotnet test Profiles.slnx --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+      run: dotnet test Humans.slnx --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
       env:
-        ConnectionStrings__DefaultConnection: "Host=localhost;Database=profiles_test;Username=profiles;Password=profiles"
+        ConnectionStrings__DefaultConnection: "Host=localhost;Database=humans_test;Username=humans;Password=humans"
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
@@ -67,7 +67,7 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
     - name: Restore dependencies
-      run: dotnet restore Profiles.slnx
+      run: dotnet restore Humans.slnx
 
     - name: Check formatting
-      run: dotnet format Profiles.slnx --verify-no-changes --verbosity diagnostic
+      run: dotnet format Humans.slnx --verify-no-changes --verbosity diagnostic

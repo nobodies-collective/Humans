@@ -1,3 +1,5 @@
+name: humans
+
 services:
   app:
     build:
@@ -24,6 +26,8 @@ services:
       POSTGRES_USER: humans
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-humans}
       POSTGRES_DB: humans
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
