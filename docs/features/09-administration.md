@@ -261,7 +261,7 @@ public class AdminDashboardViewModel
 │ Name      │ Type      │ Members │ Pending │ Actions    │
 │ ───────── │ ───────── │ ─────── │ ─────── │ ────────── │
 │ Volunteers│ System    │ 45      │ 0       │ (managed)  │
-│ Metaleads │ System    │ 8       │ 0       │ (managed)  │
+│ Leads     │ System    │ 8       │ 0       │ (managed)  │
 │ Board     │ System    │ 5       │ 0       │ (managed)  │
 │ Events    │ Approval  │ 12      │ 3       │ [Edit][Del]│
 │ Tech      │ Open      │ 7       │ 0       │ [Edit][Del]│
@@ -292,8 +292,8 @@ The admin area uses two distinct roles with different responsibilities:
 
 | Role | Purpose | Can Access Admin Area | Can Access Hangfire | Can Assign Roles |
 |------|---------|----------------------|--------------------|--------------------|
-| **Board** | Governance (members, applications, teams) | Yes | No | Board, Metalead |
-| **Admin** | Tech ops (Hangfire, health, metrics) | Yes | Yes | Admin, Board, Metalead |
+| **Board** | Governance (members, applications, teams) | Yes | No | Board, Lead |
+| **Admin** | Tech ops (Hangfire, health, metrics) | Yes | Yes | Admin, Board, Lead |
 
 A user can hold both roles simultaneously. Admin is a superset for role assignment purposes.
 
@@ -308,8 +308,8 @@ public class AdminController : Controller
 ```
 
 ### Role Assignment Authorization
-- **Admin** can assign/end any role: Admin, Board, Metalead
-- **Board** (non-Admin) can assign/end: Board, Metalead only
+- **Admin** can assign/end any role: Admin, Board, Lead
+- **Board** (non-Admin) can assign/end: Board, Lead only
 - Attempting to assign a role outside your permissions returns 403 Forbidden
 
 ### Hangfire Dashboard
@@ -356,7 +356,7 @@ _logger.LogInformation(
 - **Database Connection**: Green if responsive
 - **Background Jobs**: Green if Hangfire server active
 - **Health Check URL**: `/health/ready`
-- **Sync System Teams**: Button to manually trigger `SystemTeamSyncJob.ExecuteAsync()`, which recalculates membership for Volunteers, Metaleads, and Board teams. Useful for fixing users who were approved before the immediate sync was implemented.
+- **Sync System Teams**: Button to manually trigger `SystemTeamSyncJob.ExecuteAsync()`, which recalculates membership for Volunteers, Leads, and Board teams. Useful for fixing users who were approved before the immediate sync was implemented.
 
 ### Prometheus Metrics
 - Available at `/metrics`

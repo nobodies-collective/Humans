@@ -11,8 +11,8 @@ public class TeamResourceManagementSettings
     public const string SectionName = "TeamResourceManagement";
 
     /// <summary>
-    /// Whether metaleads are allowed to manage Google resources for their teams.
+    /// Whether leads are allowed to manage Google resources for their teams.
     /// When false (default), only Board members can manage team resources.
     /// </summary>
-    public bool AllowMetaleadsToManageResources { get; set; } = false;
+    public bool AllowLeadsToManageResources { get; set; } = false;
 }

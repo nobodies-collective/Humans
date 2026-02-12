@@ -79,7 +79,7 @@ public class HumanController : Controller
                 TeamId = tm.TeamId,
                 TeamName = tm.Team.Name,
                 TeamSlug = tm.Team.Slug,
-                IsMetalead = tm.Role == TeamMemberRole.Metalead,
+                IsLead = tm.Role == TeamMemberRole.Lead,
                 IsSystemTeam = tm.Team.IsSystemTeam
             })
             .ToList();

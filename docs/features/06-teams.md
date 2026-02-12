@@ -2,7 +2,7 @@
 
 ## Business Context
 
-Nobodies Collective operates through self-organizing working groups (teams). Teams can be created for specific initiatives and managed by their members. Three system-managed teams automatically track key organizational roles: all volunteers, all team leaders (metaleads), and board members.
+Nobodies Collective operates through self-organizing working groups (teams). Teams can be created for specific initiatives and managed by their members. Three system-managed teams automatically track key organizational roles: all volunteers, all team leaders (leads), and board members.
 
 ## User Stories
 
@@ -26,7 +26,7 @@ Nobodies Collective operates through self-organizing working groups (teams). Tea
 **Acceptance Criteria:**
 - Shows team name, description, creation date
 - Lists all current members with roles
-- Shows metalead(s) who manage the team
+- Shows lead(s) who manage the team
 - Displays join requirements (open vs approval)
 - Shows my current relationship with the team
 
@@ -44,7 +44,7 @@ Nobodies Collective operates through self-organizing working groups (teams). Tea
 ### US-6.4: Request to Join Team
 **As a** member
 **I want to** request to join a team that requires approval
-**So that** the metaleads can review my request
+**So that** the leads can review my request
 
 **Acceptance Criteria:**
 - Can submit request with optional message
@@ -53,7 +53,7 @@ Nobodies Collective operates through self-organizing working groups (teams). Tea
 - Can withdraw pending request
 
 ### US-6.5: Approve/Reject Join Requests
-**As a** team metalead or board member
+**As a** team lead or board member
 **I want to** review and process join requests
 **So that** appropriate members can join the team
 
@@ -75,14 +75,14 @@ Nobodies Collective operates through self-organizing working groups (teams). Tea
 - Google resources access revoked
 
 ### US-6.7: Manage Team Members
-**As a** team metalead or board member
+**As a** team lead or board member
 **I want to** manage team membership and roles
 **So that** the team is properly organized
 
 **Acceptance Criteria:**
 - View all team members
-- Promote member to metalead
-- Demote metalead to member
+- Promote member to lead
+- Demote lead to member
 - Remove member from team
 - Cannot modify system team membership
 
@@ -121,7 +121,7 @@ TeamMember
 ├── Id: Guid
 ├── TeamId: Guid (FK → Team)
 ├── UserId: Guid (FK → User)
-├── Role: TeamMemberRole [enum: Member, Metalead]
+├── Role: TeamMemberRole [enum: Member, Lead]
 ├── JoinedAt: Instant
 ├── LeftAt: Instant? (null = active)
 └── Computed: IsActive (LeftAt == null)
@@ -146,12 +146,12 @@ TeamJoinRequest
 ```
 TeamMemberRole:
   Member = 0
-  Metalead = 1
+  Lead = 1
 
 SystemTeamType:
   None = 0       // User-created team
   Volunteers = 1 // Auto: all with signed docs
-  Metaleads = 2  // Auto: all team metaleads
+  Leads = 2      // Auto: all team leads
   Board = 3      // Auto: active Board role
 
 TeamJoinRequestStatus:
@@ -168,7 +168,7 @@ TeamJoinRequestStatus:
 | Team | Auto-Add Trigger | Auto-Remove Trigger |
 |------|------------------|---------------------|
 | **Volunteers** | Approved + all required consents signed | Missing consent, suspended, or approval revoked |
-| **Metaleads** | Become Metalead of any team + team consents | No longer Metalead anywhere |
+| **Leads** | Become Lead of any team + team consents | No longer Lead anywhere |
 | **Board** | Active "Board" RoleAssignment + team consents | RoleAssignment expires |
 
 Volunteers team membership is the source of truth for "active volunteer" status. Both approval (`AdminController.ApproveVolunteer`) and consent completion (`ConsentController.Submit`) trigger an immediate single-user sync via `SyncVolunteersMembershipForUserAsync` — the user doesn't wait for the scheduled job.
@@ -188,9 +188,9 @@ SystemTeamSyncJob (scheduled hourly, currently disabled; also triggered inline):
      - Filter to those with all required Volunteers-team consents
      - Add missing members, remove ineligible
 
-  2. SyncMetaleadsTeamAsync()
-     - Get all users with TeamMember.Role = Metalead (non-system teams)
-     - Filter by Metaleads-team consents
+  2. SyncLeadsTeamAsync()
+     - Get all users with TeamMember.Role = Lead (non-system teams)
+     - Filter by Leads-team consents
      - Add missing members, remove ineligible
 
   3. SyncBoardTeamAsync()
@@ -234,7 +234,7 @@ Volunteers team membership controls app access. Non-volunteers can only access H
 
 | User Type | Can Approve |
 |-----------|-------------|
-| Team Metalead | Own team only |
+| Team Lead | Own team only |
 | Board Member | Any team |
 | Regular Member | No |
 
@@ -245,8 +245,8 @@ bool CanApprove(teamId, userId)
     // Board members can approve any team
     if (IsUserBoardMember(userId)) return true;
 
-    // Metaleads can approve their own team
-    return IsUserMetaleadOfTeam(teamId, userId);
+    // Leads can approve their own team
+    return IsUserLeadOfTeam(teamId, userId);
 }
 ```
 
@@ -288,7 +288,7 @@ User submits request
           │
           ▼
 ┌───────────────────┐
-│ Metalead/Board    │
+│ Lead/Board        │
 │ reviews request   │
 └─────────┬─────────┘
           │

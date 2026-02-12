@@ -385,6 +385,7 @@
   <data name="ConsentReview_SpanishLegalNote" xml:space="preserve"><value>Comprendo che la versione in spagnolo è il testo legalmente vincolante.</value></data>
   <data name="ConsentReview_BackToList" xml:space="preserve"><value>Torna all'elenco</value></data>
   <data name="ConsentReview_GiveConsent" xml:space="preserve"><value>Dai il consenso</value></data>
+  <data name="ConsentReview_CheckboxRequired" xml:space="preserve"><value>Seleziona questa casella per confermare di aver letto e accettato i termini.</value></data>
 
   <!-- Consent Controller TempData -->
   <data name="Consent_MustCheck" xml:space="preserve"><value>Deve selezionare la casella di consenso per continuare.</value></data>
@@ -444,7 +445,7 @@
   <data name="MyTeams_Withdraw" xml:space="preserve"><value>Ritira</value></data>
 
   <!-- Join Team View -->
-  <data name="JoinTeam_RequiresApproval" xml:space="preserve"><value>Questo team richiede l'approvazione per aderire. La Sua richiesta sarà esaminata dai metaleads del team o dai membri del Consiglio.</value></data>
+  <data name="JoinTeam_RequiresApproval" xml:space="preserve"><value>Questo team richiede l'approvazione per aderire. La Sua richiesta sarà esaminata dai leads del team o dai membri del Consiglio.</value></data>
   <data name="JoinTeam_MessageLabel" xml:space="preserve"><value>Messaggio (facoltativo)</value></data>
   <data name="JoinTeam_MessagePlaceholder" xml:space="preserve"><value>Racconti al team perché desidera unirti...</value></data>
   <data name="JoinTeam_SubmitRequest" xml:space="preserve"><value>Invia richiesta</value></data>
@@ -670,7 +671,7 @@
   <data name="AdminTeams_TeamName" xml:space="preserve"><value>Nome del team</value></data>
   <data name="AdminTeams_DescriptionOptional" xml:space="preserve"><value>Descrizione (facoltativa)</value></data>
   <data name="AdminTeams_RequireApproval" xml:space="preserve"><value>Richiedi approvazione per aderire</value></data>
-  <data name="AdminTeams_RequireApprovalHelp" xml:space="preserve"><value>Se abilitato, i nuovi membri devono essere approvati da un metalead del team o un membro del Consiglio.</value></data>
+  <data name="AdminTeams_RequireApprovalHelp" xml:space="preserve"><value>Se abilitato, i nuovi membri devono essere approvati da un lead del team o un membro del Consiglio.</value></data>
 
   <!-- ======================== -->
   <!-- Admin Edit Team View     -->
@@ -695,7 +696,7 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Seleziona un ruolo...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Accesso completo al sistema</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Permessi membro del Consiglio</value></data>
-  <data name="AdminAddRole_MetaleadDesc" xml:space="preserve"><value>Ruolo di team lead</value></data>
+  <data name="AdminAddRole_LeadDesc" xml:space="preserve"><value>Ruolo di team lead</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Note (facoltative)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Motivo dell'assegnazione</value></data>
 
@@ -722,7 +723,7 @@
   <data name="TeamAdmin_DemoteConfirm" xml:space="preserve"><value>Declassare questo utente a Membro?</value></data>
   <data name="TeamAdmin_DemoteToMember" xml:space="preserve"><value>Declassa a Membro</value></data>
   <data name="TeamAdmin_PromoteConfirm" xml:space="preserve"><value>Promuovere questo utente a Lead?</value></data>
-  <data name="TeamAdmin_PromoteToMetalead" xml:space="preserve"><value>Promuovi a Lead</value></data>
+  <data name="TeamAdmin_PromoteToLead" xml:space="preserve"><value>Promuovi a Lead</value></data>
   <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>Rimuovere questo membro dal team?</value></data>
   <data name="TeamAdmin_Remove" xml:space="preserve"><value>Rimuovi</value></data>
   <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>Nessun membro in questo team ancora.</value></data>

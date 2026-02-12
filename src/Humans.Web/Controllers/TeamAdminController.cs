@@ -206,7 +206,7 @@ public class TeamAdminController : Controller
                 ProfilePictureUrl = m.User?.ProfilePictureUrl,
                 Role = m.Role.ToString(),
                 JoinedAt = m.JoinedAt.ToDateTimeUtc(),
-                IsMetalead = m.Role == TeamMemberRole.Metalead
+                IsLead = m.Role == TeamMemberRole.Lead
             }).ToList();
 
         var viewModel = new TeamMembersViewModel

@@ -22,18 +22,8 @@ Audit date: 2026-02-05 | Last updated: 2026-02-12
 #### P2-06: Schedule orphaned SendReConsentReminderJob
 The job class exists but isn't registered in DI or scheduled. Volunteers get suspended without warning because no reminders are sent.
 
-#### #3: Full Metalead → Lead rename (domain, DB, code)
-UI labels were renamed in Batch 2 (ed6e29e pending), but all internal code still says "Metalead". Since we're pre-production, rename everything now to avoid a data migration later. Scope:
-- **Domain:** `RoleNames.Metalead` → `"Lead"`, `TeamMemberRole.Metalead` → `Lead`, `SystemTeamType.Metaleads` → `Leads`, `SystemTeamIds.Metaleads` → `Leads`
-- **Seed data:** Team name `"Metaleads"` → `"Leads"`, slug `"metaleads"` → `"leads"`, description updated
-- **Infrastructure:** `SyncMetaleadsTeamAsync` → `SyncLeadsTeamAsync`, `IsUserMetaleadOfTeamAsync` → `IsUserLeadOfTeamAsync`, `_cachedIsAnyMetalead` → `_cachedIsAnyLead`, `AllowMetaleadsToManageResources` → `AllowLeadsToManageResources`, `metaleadTeamIds`/`metaleadUserIds` variables
-- **Application interfaces:** `IsUserMetaleadOfTeamAsync` → `IsUserLeadOfTeamAsync`
-- **Web:** `IsMetalead` / `IsCurrentUserMetalead` view model properties, controller references, remaining .resx values (`JoinTeam_RequiresApproval`, `AdminTeams_RequireApprovalHelp`), .resx key name `TeamAdmin_PromoteToMetalead` → `TeamAdmin_PromoteToLead`, `AdminAddRole_MetaleadDesc` → `AdminAddRole_LeadDesc`
-- **Config:** `appsettings.json` key `AllowMetaleadsToManageResources` → `AllowLeadsToManageResources`
-- **Tests:** `ContactFieldServiceTests` method name + references
-- **Docs:** CLAUDE.md, DATA_MODEL.md, ADMIN_ROLE_SETUP.md, feature specs (06, 07, 08, 09, 10, 12, 14), google-service-account-setup.md, PRODUCTION_READINESS_ISSUES.md
-- **Migration:** New EF migration to update seed data (team name/slug/description)
-- Do NOT touch migration snapshot `.Designer.cs` files — those are frozen history.
+#### #3: Full Lead rename (domain, DB, code) COMPLETED
+Renamed all internal "Lead" references across domain, application, infrastructure, web, tests, migrations, resources, and documentation. Committed `pending`.
 
 ---
 

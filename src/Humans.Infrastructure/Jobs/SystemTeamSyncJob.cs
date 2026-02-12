@@ -50,7 +50,7 @@ public class SystemTeamSyncJob
             // which is not thread-safe. Parallelizing with Task.WhenAll would require
             // IServiceScopeFactory to create separate DbContext instances per task.
             await SyncVolunteersTeamAsync(cancellationToken);
-            await SyncMetaleadsTeamAsync(cancellationToken);
+            await SyncLeadsTeamAsync(cancellationToken);
             await SyncBoardTeamAsync(cancellationToken);
             await SyncAsociadosTeamAsync(cancellationToken);
 
@@ -94,34 +94,34 @@ public class SystemTeamSyncJob
     }
 
     /// <summary>
-    /// Syncs the Metaleads team membership based on Metalead roles.
-    /// Members: All users who are Metalead of any team.
+    /// Syncs the Leads team membership based on Lead roles.
+    /// Members: All users who are Lead of any team.
     /// </summary>
-    public async Task SyncMetaleadsTeamAsync(CancellationToken cancellationToken = default)
+    public async Task SyncLeadsTeamAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Syncing Metaleads team");
+        _logger.LogDebug("Syncing Leads team");
 
-        var team = await GetSystemTeamAsync(SystemTeamType.Metaleads, cancellationToken);
+        var team = await GetSystemTeamAsync(SystemTeamType.Leads, cancellationToken);
         if (team == null)
         {
-            _logger.LogWarning("Metaleads system team not found");
+            _logger.LogWarning("Leads system team not found");
             return;
         }
 
-        // Get all current metaleads (excluding the Metaleads system team itself)
-        var metaleadUserIds = await _dbContext.TeamMembers
+        // Get all current leads (excluding the Leads system team itself)
+        var leadUserIds = await _dbContext.TeamMembers
             .AsNoTracking()
             .Where(tm =>
                 tm.LeftAt == null &&
-                tm.Role == TeamMemberRole.Metalead &&
+                tm.Role == TeamMemberRole.Lead &&
                 tm.Team.SystemTeamType == SystemTeamType.None) // Only from user-created teams
             .Select(tm => tm.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        // Additionally filter by Metaleads-team-required consents
+        // Additionally filter by Leads-team-required consents
         var eligibleSet = await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(
-            metaleadUserIds, SystemTeamIds.Metaleads, cancellationToken);
+            leadUserIds, SystemTeamIds.Leads, cancellationToken);
 
         await SyncTeamMembershipAsync(team, eligibleSet.ToList(), cancellationToken);
     }

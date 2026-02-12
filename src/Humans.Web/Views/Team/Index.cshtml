@@ -72,7 +72,7 @@
                     <a asp-action="Details" asp-route-slug="@team.Slug" class="btn btn-sm btn-outline-primary">
                         @Localizer["Teams_ViewDetails"]
                     </a>
-                    @if (team.IsCurrentUserMetalead)
+                    @if (team.IsCurrentUserLead)
                     {
                         <a asp-controller="TeamAdmin" asp-action="Members" asp-route-slug="@team.Slug" class="btn btn-sm btn-outline-secondary">
                             @Localizer["Teams_Manage"]

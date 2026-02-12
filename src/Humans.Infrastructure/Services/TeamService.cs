@@ -455,10 +455,10 @@ public partial class TeamService : ITeamService
     {
         var isBoardMember = await IsUserBoardMemberAsync(approverUserId, cancellationToken);
 
-        // Get teams where user is metalead
-        var metaleadTeamIds = await _dbContext.TeamMembers
+        // Get teams where user is lead
+        var leadTeamIds = await _dbContext.TeamMembers
             .AsNoTracking()
-            .Where(tm => tm.UserId == approverUserId && tm.LeftAt == null && tm.Role == TeamMemberRole.Metalead)
+            .Where(tm => tm.UserId == approverUserId && tm.LeftAt == null && tm.Role == TeamMemberRole.Lead)
             .Select(tm => tm.TeamId)
             .ToListAsync(cancellationToken);
 
@@ -472,9 +472,9 @@ public partial class TeamService : ITeamService
         {
             // Board members can approve all requests
         }
-        else if (metaleadTeamIds.Count > 0)
+        else if (leadTeamIds.Count > 0)
         {
-            query = query.Where(r => metaleadTeamIds.Contains(r.TeamId));
+            query = query.Where(r => leadTeamIds.Contains(r.TeamId));
         }
         else
         {
@@ -520,8 +520,8 @@ public partial class TeamService : ITeamService
             return true;
         }
 
-        // Metaleads can approve their own team
-        return await IsUserMetaleadOfTeamAsync(teamId, userId, cancellationToken);
+        // Leads can approve their own team
+        return await IsUserLeadOfTeamAsync(teamId, userId, cancellationToken);
     }
 
     public async Task<bool> IsUserMemberOfTeamAsync(
@@ -533,13 +533,13 @@ public partial class TeamService : ITeamService
             .AnyAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.LeftAt == null, cancellationToken);
     }
 
-    public async Task<bool> IsUserMetaleadOfTeamAsync(
+    public async Task<bool> IsUserLeadOfTeamAsync(
         Guid teamId,
         Guid userId,
         CancellationToken cancellationToken = default)
     {
         return await _dbContext.TeamMembers
-            .AnyAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.LeftAt == null && tm.Role == TeamMemberRole.Metalead, cancellationToken);
+            .AnyAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.LeftAt == null && tm.Role == TeamMemberRole.Lead, cancellationToken);
     }
 
     public async Task<bool> IsUserBoardMemberAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -569,7 +569,7 @@ public partial class TeamService : ITeamService
             throw new InvalidOperationException("Cannot change roles in system team");
         }
 
-        // Verify actor has permission (board member or metalead)
+        // Verify actor has permission (board member or lead)
         var canApprove = await CanUserApproveRequestsForTeamAsync(teamId, actorUserId, cancellationToken);
         if (!canApprove)
         {
@@ -609,7 +609,7 @@ public partial class TeamService : ITeamService
             throw new InvalidOperationException("Cannot remove members from system team manually");
         }
 
-        // Verify actor has permission (board member or metalead)
+        // Verify actor has permission (board member or lead)
         var canApprove = await CanUserApproveRequestsForTeamAsync(teamId, actorUserId, cancellationToken);
         if (!canApprove)
         {

@@ -12,7 +12,7 @@ public enum ContactFieldVisibility
     BoardOnly = 0,
 
     /// <summary>
-    /// Visible to team leads (metaleads) and board members.
+    /// Visible to team leads and board members.
     /// </summary>
     LeadsAndBoard = 1,
 

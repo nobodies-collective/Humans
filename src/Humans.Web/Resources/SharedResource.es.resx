@@ -389,6 +389,7 @@
   <data name="ConsentReview_SpanishLegalNote" xml:space="preserve"><value>Entiendo que la versi&#xF3;n en espa&#xF1;ol es el texto legalmente vinculante.</value></data>
   <data name="ConsentReview_BackToList" xml:space="preserve"><value>Volver a la lista</value></data>
   <data name="ConsentReview_GiveConsent" xml:space="preserve"><value>Otorgar consentimiento</value></data>
+  <data name="ConsentReview_CheckboxRequired" xml:space="preserve"><value>Marca esta casilla para confirmar que has le&#xED;do y aceptas los t&#xE9;rminos.</value></data>
 
   <!-- Consent Controller TempData -->
   <data name="Consent_MustCheck" xml:space="preserve"><value>Debe marcar la casilla de consentimiento para continuar.</value></data>
@@ -449,7 +450,7 @@
   <data name="MyTeams_Withdraw" xml:space="preserve"><value>Retirar</value></data>
 
   <!-- Join Team View -->
-  <data name="JoinTeam_RequiresApproval" xml:space="preserve"><value>Este equipo requiere aprobaci&#xF3;n para unirse. Su solicitud ser&#xE1; revisada por los metaleads del equipo o miembros de la junta.</value></data>
+  <data name="JoinTeam_RequiresApproval" xml:space="preserve"><value>Este equipo requiere aprobaci&#xF3;n para unirse. Su solicitud ser&#xE1; revisada por los leads del equipo o miembros de la junta.</value></data>
   <data name="JoinTeam_MessageLabel" xml:space="preserve"><value>Mensaje (opcional)</value></data>
   <data name="JoinTeam_MessagePlaceholder" xml:space="preserve"><value>Ind&#xED;quele al equipo por qu&#xE9; desea unirse...</value></data>
   <data name="JoinTeam_SubmitRequest" xml:space="preserve"><value>Enviar solicitud</value></data>
@@ -675,7 +676,7 @@
   <data name="AdminTeams_TeamName" xml:space="preserve"><value>Nombre del equipo</value></data>
   <data name="AdminTeams_DescriptionOptional" xml:space="preserve"><value>Descripci&#xF3;n (opcional)</value></data>
   <data name="AdminTeams_RequireApproval" xml:space="preserve"><value>Requiere aprobaci&#xF3;n para unirse</value></data>
-  <data name="AdminTeams_RequireApprovalHelp" xml:space="preserve"><value>Cuando est&#xE1; activado, los nuevos miembros deben ser aprobados por un metalead del equipo o un miembro de la junta.</value></data>
+  <data name="AdminTeams_RequireApprovalHelp" xml:space="preserve"><value>Cuando est&#xE1; activado, los nuevos miembros deben ser aprobados por un lead del equipo o un miembro de la junta.</value></data>
 
   <!-- ======================== -->
   <!-- Admin Edit Team View     -->
@@ -700,7 +701,7 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Seleccionar un rol...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Acceso completo al sistema</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Permisos de miembro de la junta</value></data>
-  <data name="AdminAddRole_MetaleadDesc" xml:space="preserve"><value>Rol de l&#xED;der de equipo</value></data>
+  <data name="AdminAddRole_LeadDesc" xml:space="preserve"><value>Rol de l&#xED;der de equipo</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notas (opcional)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Motivo de la asignaci&#xF3;n</value></data>
 
@@ -727,7 +728,7 @@
   <data name="TeamAdmin_DemoteConfirm" xml:space="preserve"><value>&#xBF;Degradar a este usuario a Miembro?</value></data>
   <data name="TeamAdmin_DemoteToMember" xml:space="preserve"><value>Degradar a Miembro</value></data>
   <data name="TeamAdmin_PromoteConfirm" xml:space="preserve"><value>&#xBF;Ascender a este usuario a Lead?</value></data>
-  <data name="TeamAdmin_PromoteToMetalead" xml:space="preserve"><value>Ascender a Lead</value></data>
+  <data name="TeamAdmin_PromoteToLead" xml:space="preserve"><value>Ascender a Lead</value></data>
   <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>&#xBF;Eliminar a este miembro del equipo?</value></data>
   <data name="TeamAdmin_Remove" xml:space="preserve"><value>Eliminar</value></data>
   <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>A&#xFA;n no hay miembros en este equipo.</value></data>

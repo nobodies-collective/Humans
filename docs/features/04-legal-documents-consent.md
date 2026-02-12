@@ -6,7 +6,7 @@ As a nonprofit operating in Spain and the EU, Nobodies Collective must comply wi
 
 ## Key Concepts
 
-- **Team-scoped documents**: Every document belongs to a Team. Documents on the Volunteers team (all active members) are effectively global. Other teams (Board, Metaleads, user-created) can have team-specific required documents.
+- **Team-scoped documents**: Every document belongs to a Team. Documents on the Volunteers team (all active members) are effectively global. Other teams (Board, Leads, user-created) can have team-specific required documents.
 - **Per-document grace period**: Each document has its own `GracePeriodDays` (default 7). After grace expires without re-consent, the user is removed from that team.
 - **Multi-language content**: Document versions store content in a `Content` dictionary keyed by language code ("es", "en", "de", etc.). Spanish ("es") is always canonical/legally binding.
 - **Folder-based GitHub sync**: Admin sets a `GitHubFolderPath`; sync discovers translations by naming convention: `name.md` (Spanish), `name-en.md` (English), `name-de.md` (German), etc.
@@ -139,7 +139,7 @@ Database triggers prevent UPDATE and DELETE operations.
 ### SystemTeamIds Constants
 ```
 Volunteers:  00000000-0000-0000-0001-000000000001  (global docs)
-Metaleads:   00000000-0000-0000-0001-000000000002
+Leads:       00000000-0000-0000-0001-000000000002
 Board:       00000000-0000-0000-0001-000000000003
 ```
 

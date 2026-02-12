@@ -57,7 +57,7 @@ Nobodies Collective uses Google Workspace for collaboration. The system integrat
 - Inherited Shared Drive permissions are excluded from drift detection
 
 ### US-7.5: Link Existing Shared Drive Folder
-**As a** Board member or authorized Metalead
+**As a** Board member or authorized Lead
 **I want to** link an existing Shared Drive folder to a team
 **So that** team members automatically get access to the shared folder
 
@@ -71,7 +71,7 @@ Nobodies Collective uses Google Workspace for collaboration. The system integrat
 - All API calls use `SupportsAllDrives = true`
 
 ### US-7.5b: Link Existing Drive File
-**As a** Board member or authorized Metalead
+**As a** Board member or authorized Lead
 **I want to** link an individual Drive file (Sheet, Doc, Slides, etc.) to a team
 **So that** team members automatically get access to specific shared files
 
@@ -86,7 +86,7 @@ Nobodies Collective uses Google Workspace for collaboration. The system integrat
 - Permission sync works the same as for folders (writer access for team members)
 
 ### US-7.6: Link Existing Google Group
-**As a** Board member or authorized Metalead
+**As a** Board member or authorized Lead
 **I want to** link an existing Google Group to a team
 **So that** team membership automatically syncs with group membership
 
@@ -98,7 +98,7 @@ Nobodies Collective uses Google Workspace for collaboration. The system integrat
 - Duplicate links prevented (same group + team)
 
 ### US-7.7: Unlink Resource
-**As a** Board member or authorized Metalead
+**As a** Board member or authorized Lead
 **I want to** unlink a Google resource from a team
 **So that** the association is removed without deleting the resource
 
@@ -107,15 +107,15 @@ Nobodies Collective uses Google Workspace for collaboration. The system integrat
 - Resource disappears from active list
 - Google permissions are NOT automatically revoked (manual cleanup)
 
-### US-7.8: Metalead Resource Management
+### US-7.8: Lead Resource Management
 **As an** admin
-**I want to** control whether Metaleads can manage team resources
+**I want to** control whether Leads can manage team resources
 **So that** I can delegate resource management when appropriate
 
 **Acceptance Criteria:**
-- Controlled by `TeamResourceManagement:AllowMetaleadsToManageResources` config setting
+- Controlled by `TeamResourceManagement:AllowLeadsToManageResources` config setting
 - Default: false (only Board members can manage)
-- When enabled, Metaleads can link/unlink/sync resources for their teams
+- When enabled, Leads can link/unlink/sync resources for their teams
 
 ## Data Model
 
@@ -317,7 +317,7 @@ Supports multiple Google Drive/Docs URL formats:
 
 ### Authorization
 - Board members: can manage resources for any team
-- Metaleads: controlled by `TeamResourceManagement:AllowMetaleadsToManageResources` (default: false)
+- Leads: controlled by `TeamResourceManagement:AllowLeadsToManageResources` (default: false)
 
 ### Route: `/Teams/{slug}/Admin/Resources`
 Actions:
@@ -433,7 +433,7 @@ On Google API error:
 ```json
 {
   "TeamResourceManagement": {
-    "AllowMetaleadsToManageResources": false
+    "AllowLeadsToManageResources": false
   }
 }
 ```

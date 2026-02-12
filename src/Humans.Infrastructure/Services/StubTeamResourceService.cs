@@ -188,9 +188,9 @@ public class StubTeamResourceService : ITeamResourceService
             return true;
         }
 
-        if (_resourceSettings.AllowMetaleadsToManageResources)
+        if (_resourceSettings.AllowLeadsToManageResources)
         {
-            return await _teamService.IsUserMetaleadOfTeamAsync(teamId, userId, ct);
+            return await _teamService.IsUserLeadOfTeamAsync(teamId, userId, ct);
         }
 
         return false;

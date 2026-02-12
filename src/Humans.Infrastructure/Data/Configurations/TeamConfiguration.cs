@@ -85,12 +85,12 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
             new
             {
                 Id = Guid.Parse("00000000-0000-0000-0001-000000000002"),
-                Name = "Metaleads",
-                Description = "All team metaleads",
-                Slug = "metaleads",
+                Name = "Leads",
+                Description = "All team leads",
+                Slug = "leads",
                 IsActive = true,
                 RequiresApproval = false,
-                SystemTeamType = SystemTeamType.Metaleads,
+                SystemTeamType = SystemTeamType.Leads,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             },

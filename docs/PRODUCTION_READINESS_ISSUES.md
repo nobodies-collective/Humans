@@ -198,7 +198,7 @@ Updated controllers and views to use shared extension.
 **Status:** Implemented
 
 Created:
-- `src/Humans.Domain/Constants/RoleNames.cs` - Admin, Board, Metalead
+- `src/Humans.Domain/Constants/RoleNames.cs` - Admin, Board, Lead
 - `src/Humans.Application/Constants/PaginationDefaults.cs` - PageSize, MaxMotivationPreview, etc.
 
 Updated `TeamService.cs` and `SystemTeamSyncJob.cs` to use constants.

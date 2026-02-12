@@ -745,8 +745,8 @@ public partial class AdminController : Controller
             UserId = id,
             UserDisplayName = user.DisplayName,
             AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.Metalead]
-                : [RoleNames.Board, RoleNames.Metalead]
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.Lead]
+                : [RoleNames.Board, RoleNames.Lead]
         };
 
         return View(viewModel);
@@ -768,8 +768,8 @@ public partial class AdminController : Controller
             model.UserId = id;
             model.UserDisplayName = user.DisplayName;
             model.AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.Metalead]
-                : [RoleNames.Board, RoleNames.Metalead];
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.Lead]
+                : [RoleNames.Board, RoleNames.Lead];
             return View(model);
         }
 
@@ -1488,7 +1488,7 @@ public partial class AdminController : Controller
 
     /// <summary>
     /// Checks whether the current user can assign/end the specified role.
-    /// Admin can manage any role. Board can manage Board and Metalead only.
+    /// Admin can manage any role. Board can manage Board and Lead only.
     /// </summary>
     private bool CanManageRole(string roleName)
     {
@@ -1497,11 +1497,11 @@ public partial class AdminController : Controller
             return true;
         }
 
-        // Board members can manage Board and Metalead roles
+        // Board members can manage Board and Lead roles
         if (User.IsInRole(RoleNames.Board))
         {
             return string.Equals(roleName, RoleNames.Board, StringComparison.Ordinal)
-                || string.Equals(roleName, RoleNames.Metalead, StringComparison.Ordinal);
+                || string.Equals(roleName, RoleNames.Lead, StringComparison.Ordinal);
         }
 
         return false;

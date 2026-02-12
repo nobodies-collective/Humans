@@ -398,10 +398,10 @@ public partial class TeamResourceService : ITeamResourceService
             return true;
         }
 
-        // Metaleads can manage if the setting allows it
-        if (_resourceSettings.AllowMetaleadsToManageResources)
+        // Leads can manage if the setting allows it
+        if (_resourceSettings.AllowLeadsToManageResources)
         {
-            return await _teamService.IsUserMetaleadOfTeamAsync(teamId, userId, ct);
+            return await _teamService.IsUserLeadOfTeamAsync(teamId, userId, ct);
         }
 
         return false;

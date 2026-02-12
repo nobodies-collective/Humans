@@ -16,25 +16,6 @@ namespace Humans.Infrastructure.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "legal_documents",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    Type = table.Column<string>(type: "text", nullable: false),
-                    Name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    GitHubPath = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
-                    CurrentCommitSha = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
-                    IsRequired = table.Column<bool>(type: "boolean", nullable: false),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
-                    LastSyncedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_legal_documents", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "roles",
                 columns: table => new
                 {
@@ -77,9 +58,6 @@ namespace Humans.Infrastructure.Migrations
                     ProfilePictureUrl = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
                     CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
                     LastLoginAt = table.Column<Instant>(type: "timestamp with time zone", nullable: true),
-                    PreferredEmail = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    PreferredEmailVerified = table.Column<bool>(type: "boolean", nullable: false),
-                    PreferredEmailVerificationSentAt = table.Column<Instant>(type: "timestamp with time zone", nullable: true),
                     LastConsentReminderSentAt = table.Column<Instant>(type: "timestamp with time zone", nullable: true),
                     DeletionRequestedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: true),
                     DeletionScheduledFor = table.Column<Instant>(type: "timestamp with time zone", nullable: true),
@@ -104,32 +82,6 @@ namespace Humans.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "document_versions",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    LegalDocumentId = table.Column<Guid>(type: "uuid", nullable: false),
-                    VersionNumber = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    CommitSha = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
-                    ContentSpanish = table.Column<string>(type: "text", nullable: false),
-                    ContentEnglish = table.Column<string>(type: "text", nullable: false),
-                    EffectiveFrom = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
-                    RequiresReConsent = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
-                    ChangesSummary = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_document_versions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_document_versions_legal_documents_LegalDocumentId",
-                        column: x => x.LegalDocumentId,
-                        principalTable: "legal_documents",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "role_claims",
                 columns: table => new
                 {
@@ -151,6 +103,32 @@ namespace Humans.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "legal_documents",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    TeamId = table.Column<Guid>(type: "uuid", nullable: false),
+                    GracePeriodDays = table.Column<int>(type: "integer", nullable: false, defaultValue: 7),
+                    GitHubFolderPath = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    CurrentCommitSha = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
+                    IsRequired = table.Column<bool>(type: "boolean", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
+                    LastSyncedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_legal_documents", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_legal_documents_teams_TeamId",
+                        column: x => x.TeamId,
+                        principalTable: "teams",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "applications",
                 columns: table => new
                 {
@@ -159,6 +137,7 @@ namespace Humans.Infrastructure.Migrations
                     Status = table.Column<string>(type: "text", nullable: false),
                     Motivation = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
                     AdditionalInfo = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: true),
+                    Language = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: true),
                     SubmittedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
                     ReviewStartedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: true),
@@ -225,14 +204,13 @@ namespace Humans.Infrastructure.Migrations
                     BurnerName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
                     FirstName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
                     LastName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    PhoneCountryCode = table.Column<string>(type: "character varying(5)", maxLength: 5, nullable: true),
-                    PhoneNumber = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     City = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     CountryCode = table.Column<string>(type: "character varying(2)", maxLength: 2, nullable: true),
                     Latitude = table.Column<double>(type: "double precision", nullable: true),
                     Longitude = table.Column<double>(type: "double precision", nullable: true),
                     PlaceId = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
                     Bio = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: true),
+                    Pronouns = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     DateOfBirth = table.Column<LocalDate>(type: "date", nullable: true),
                     ProfilePictureData = table.Column<byte[]>(type: "bytea", nullable: true),
                     ProfilePictureContentType = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
@@ -370,6 +348,33 @@ namespace Humans.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "user_emails",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    IsVerified = table.Column<bool>(type: "boolean", nullable: false),
+                    IsOAuth = table.Column<bool>(type: "boolean", nullable: false),
+                    IsNotificationTarget = table.Column<bool>(type: "boolean", nullable: false),
+                    Visibility = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    VerificationSentAt = table.Column<Instant>(type: "timestamp with time zone", nullable: true),
+                    DisplayOrder = table.Column<int>(type: "integer", nullable: false),
+                    CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_user_emails", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_user_emails_users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "user_logins",
                 columns: table => new
                 {
@@ -434,33 +439,28 @@ namespace Humans.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "consent_records",
+                name: "document_versions",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    DocumentVersionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ConsentedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
-                    IpAddress = table.Column<string>(type: "character varying(45)", maxLength: 45, nullable: false),
-                    UserAgent = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false),
-                    ContentHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    ExplicitConsent = table.Column<bool>(type: "boolean", nullable: false)
+                    LegalDocumentId = table.Column<Guid>(type: "uuid", nullable: false),
+                    VersionNumber = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    CommitSha = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
+                    Content = table.Column<string>(type: "jsonb", nullable: false, defaultValueSql: "'{}'::jsonb"),
+                    EffectiveFrom = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
+                    RequiresReConsent = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
+                    ChangesSummary = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_consent_records", x => x.Id);
+                    table.PrimaryKey("PK_document_versions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_consent_records_document_versions_DocumentVersionId",
-                        column: x => x.DocumentVersionId,
-                        principalTable: "document_versions",
+                        name: "FK_document_versions_legal_documents_LegalDocumentId",
+                        column: x => x.LegalDocumentId,
+                        principalTable: "legal_documents",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_consent_records_users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -605,14 +605,45 @@ namespace Humans.Infrastructure.Migrations
                         onDelete: ReferentialAction.Restrict);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "consent_records",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    DocumentVersionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ConsentedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
+                    IpAddress = table.Column<string>(type: "character varying(45)", maxLength: 45, nullable: false),
+                    UserAgent = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: false),
+                    ContentHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    ExplicitConsent = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_consent_records", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_consent_records_document_versions_DocumentVersionId",
+                        column: x => x.DocumentVersionId,
+                        principalTable: "document_versions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_consent_records_users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
             migrationBuilder.InsertData(
                 table: "teams",
                 columns: new[] { "Id", "CreatedAt", "Description", "IsActive", "Name", "Slug", "SystemTeamType", "UpdatedAt" },
                 values: new object[,]
                 {
                     { new Guid("00000000-0000-0000-0001-000000000001"), NodaTime.Instant.FromUnixTimeTicks(17702491570000000L), "All active volunteers with signed required documents", true, "Volunteers", "volunteers", "Volunteers", NodaTime.Instant.FromUnixTimeTicks(17702491570000000L) },
-                    { new Guid("00000000-0000-0000-0001-000000000002"), NodaTime.Instant.FromUnixTimeTicks(17702491570000000L), "All team metaleads", true, "Metaleads", "metaleads", "Metaleads", NodaTime.Instant.FromUnixTimeTicks(17702491570000000L) },
-                    { new Guid("00000000-0000-0000-0001-000000000003"), NodaTime.Instant.FromUnixTimeTicks(17702491570000000L), "Board members with active role assignments", true, "Board", "board", "Board", NodaTime.Instant.FromUnixTimeTicks(17702491570000000L) }
+                    { new Guid("00000000-0000-0000-0001-000000000002"), NodaTime.Instant.FromUnixTimeTicks(17702491570000000L), "All team leads", true, "Leads", "leads", "Leads", NodaTime.Instant.FromUnixTimeTicks(17702491570000000L) },
+                    { new Guid("00000000-0000-0000-0001-000000000003"), NodaTime.Instant.FromUnixTimeTicks(17702491570000000L), "Board members with active role assignments", true, "Board", "board", "Board", NodaTime.Instant.FromUnixTimeTicks(17702491570000000L) },
+                    { new Guid("00000000-0000-0000-0001-000000000004"), NodaTime.Instant.FromUnixTimeTicks(17702491570000000L), "Voting members with approved asociado applications", true, "Asociados", "asociados", "Asociados", NodaTime.Instant.FromUnixTimeTicks(17702491570000000L) }
                 });
 
             migrationBuilder.CreateIndex(
@@ -769,9 +800,9 @@ namespace Humans.Infrastructure.Migrations
                 column: "IsActive");
 
             migrationBuilder.CreateIndex(
-                name: "IX_legal_documents_Type",
+                name: "IX_legal_documents_TeamId_IsActive",
                 table: "legal_documents",
-                column: "Type");
+                columns: new[] { "TeamId", "IsActive" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_profiles_UserId",
@@ -895,6 +926,18 @@ namespace Humans.Infrastructure.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_user_emails_Email",
+                table: "user_emails",
+                column: "Email",
+                unique: true,
+                filter: "\"IsVerified\" = true");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_user_emails_UserId",
+                table: "user_emails",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_user_logins_UserId",
                 table: "user_logins",
                 column: "UserId");
@@ -915,13 +958,6 @@ namespace Humans.Infrastructure.Migrations
                 column: "Email");
 
             migrationBuilder.CreateIndex(
-                name: "IX_users_PreferredEmail",
-                table: "users",
-                column: "PreferredEmail",
-                unique: true,
-                filter: "\"PreferredEmailVerified\" = true AND \"PreferredEmail\" IS NOT NULL");
-
-            migrationBuilder.CreateIndex(
                 name: "UserNameIndex",
                 table: "users",
                 column: "NormalizedUserName",
@@ -931,11 +967,80 @@ namespace Humans.Infrastructure.Migrations
                 name: "IX_volunteer_history_entries_ProfileId",
                 table: "volunteer_history_entries",
                 column: "ProfileId");
+
+            // Immutability triggers for GDPR audit trail compliance
+            migrationBuilder.Sql("""
+                CREATE OR REPLACE FUNCTION prevent_consent_record_modification()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    IF TG_OP = 'UPDATE' THEN
+                        RAISE EXCEPTION 'UPDATE operations are not allowed on consent_records table. Consent records are immutable for audit trail purposes.';
+                    ELSIF TG_OP = 'DELETE' THEN
+                        RAISE EXCEPTION 'DELETE operations are not allowed on consent_records table. Consent records are immutable for audit trail purposes.';
+                    END IF;
+                    RETURN NULL;
+                END;
+                $$ LANGUAGE plpgsql;
+
+                DROP TRIGGER IF EXISTS prevent_consent_record_update ON consent_records;
+                CREATE TRIGGER prevent_consent_record_update
+                    BEFORE UPDATE ON consent_records
+                    FOR EACH ROW
+                    EXECUTE FUNCTION prevent_consent_record_modification();
+
+                DROP TRIGGER IF EXISTS prevent_consent_record_delete ON consent_records;
+                CREATE TRIGGER prevent_consent_record_delete
+                    BEFORE DELETE ON consent_records
+                    FOR EACH ROW
+                    EXECUTE FUNCTION prevent_consent_record_modification();
+
+                COMMENT ON TABLE consent_records IS 'Immutable audit trail of user consent. INSERT only - UPDATE and DELETE are blocked by trigger.';
+                """);
+
+            migrationBuilder.Sql("""
+                CREATE OR REPLACE FUNCTION prevent_audit_log_modification()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    IF TG_OP = 'UPDATE' THEN
+                        RAISE EXCEPTION 'UPDATE operations are not allowed on audit_log table. Audit log entries are immutable.';
+                    ELSIF TG_OP = 'DELETE' THEN
+                        RAISE EXCEPTION 'DELETE operations are not allowed on audit_log table. Audit log entries are immutable.';
+                    END IF;
+                    RETURN NULL;
+                END;
+                $$ LANGUAGE plpgsql;
+
+                DROP TRIGGER IF EXISTS prevent_audit_log_update ON audit_log;
+                CREATE TRIGGER prevent_audit_log_update
+                    BEFORE UPDATE ON audit_log
+                    FOR EACH ROW
+                    EXECUTE FUNCTION prevent_audit_log_modification();
+
+                DROP TRIGGER IF EXISTS prevent_audit_log_delete ON audit_log;
+                CREATE TRIGGER prevent_audit_log_delete
+                    BEFORE DELETE ON audit_log
+                    FOR EACH ROW
+                    EXECUTE FUNCTION prevent_audit_log_modification();
+
+                COMMENT ON TABLE audit_log IS 'Immutable audit trail of system and admin actions. INSERT only - UPDATE and DELETE are blocked by trigger.';
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("""
+                DROP TRIGGER IF EXISTS prevent_consent_record_update ON consent_records;
+                DROP TRIGGER IF EXISTS prevent_consent_record_delete ON consent_records;
+                DROP FUNCTION IF EXISTS prevent_consent_record_modification();
+                """);
+
+            migrationBuilder.Sql("""
+                DROP TRIGGER IF EXISTS prevent_audit_log_update ON audit_log;
+                DROP TRIGGER IF EXISTS prevent_audit_log_delete ON audit_log;
+                DROP FUNCTION IF EXISTS prevent_audit_log_modification();
+                """);
+
             migrationBuilder.DropTable(
                 name: "application_state_history");
 
@@ -962,6 +1067,9 @@ namespace Humans.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "user_claims");
+
+            migrationBuilder.DropTable(
+                name: "user_emails");
 
             migrationBuilder.DropTable(
                 name: "user_logins");
@@ -997,10 +1105,10 @@ namespace Humans.Infrastructure.Migrations
                 name: "legal_documents");
 
             migrationBuilder.DropTable(
-                name: "teams");
+                name: "users");
 
             migrationBuilder.DropTable(
-                name: "users");
+                name: "teams");
         }
     }
 }

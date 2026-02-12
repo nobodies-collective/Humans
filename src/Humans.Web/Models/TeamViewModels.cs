@@ -22,7 +22,7 @@ public class TeamSummaryViewModel
     public bool IsSystemTeam { get; set; }
     public bool RequiresApproval { get; set; }
     public bool IsCurrentUserMember { get; set; }
-    public bool IsCurrentUserMetalead { get; set; }
+    public bool IsCurrentUserLead { get; set; }
 }
 
 public class TeamDetailViewModel
@@ -42,7 +42,7 @@ public class TeamDetailViewModel
 
     // Current user context
     public bool IsCurrentUserMember { get; set; }
-    public bool IsCurrentUserMetalead { get; set; }
+    public bool IsCurrentUserLead { get; set; }
     public bool CanCurrentUserJoin { get; set; }
     public bool CanCurrentUserLeave { get; set; }
     public bool CanCurrentUserManage { get; set; }
@@ -60,7 +60,7 @@ public class TeamMemberViewModel
     public string? CustomProfilePictureUrl { get; set; }
     public string Role { get; set; } = string.Empty;
     public DateTime JoinedAt { get; set; }
-    public bool IsMetalead { get; set; }
+    public bool IsLead { get; set; }
 
     /// <summary>
     /// The effective profile picture URL (custom upload takes priority over Google avatar).
@@ -83,7 +83,7 @@ public class MyTeamMembershipViewModel
     public string TeamSlug { get; set; } = string.Empty;
     public bool IsSystemTeam { get; set; }
     public string Role { get; set; } = string.Empty;
-    public bool IsMetalead { get; set; }
+    public bool IsLead { get; set; }
     public DateTime JoinedAt { get; set; }
     public bool CanLeave { get; set; }
     public int PendingRequestCount { get; set; }

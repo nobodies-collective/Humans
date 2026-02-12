@@ -90,7 +90,7 @@ Profile includes a computed `MembershipStatus` property:
 
 ### Data Visibility Matrix
 
-| Field | Member | Other Members | Metalead | Board | Admin |
+| Field | Member | Other Members | Lead | Board | Admin |
 |-------|--------|---------------|----------|-------|-------|
 | Burner Name | Yes | Yes | Yes | Yes | Yes |
 | Legal Name | Yes | No | No | Yes | Yes |

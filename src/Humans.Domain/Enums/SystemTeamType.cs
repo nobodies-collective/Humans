@@ -17,10 +17,10 @@ public enum SystemTeamType
     Volunteers = 1,
 
     /// <summary>
-    /// All users who are metaleads of any team.
+    /// All users who are leads of any team.
     /// Auto-synced based on TeamMember roles.
     /// </summary>
-    Metaleads = 2,
+    Leads = 2,
 
     /// <summary>
     /// Board members with active RoleAssignment.

@@ -92,7 +92,7 @@ Since the service account does NOT use impersonation, it can only access resourc
     "Domain": "nobodies.team"
   },
   "TeamResourceManagement": {
-    "AllowMetaleadsToManageResources": false
+    "AllowLeadsToManageResources": false
   }
 }
 ```

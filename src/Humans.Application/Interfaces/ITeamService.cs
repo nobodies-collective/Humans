@@ -148,9 +148,9 @@ public interface ITeamService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks if a user is a metalead of a team.
+    /// Checks if a user is a lead of a team.
     /// </summary>
-    Task<bool> IsUserMetaleadOfTeamAsync(
+    Task<bool> IsUserLeadOfTeamAsync(
         Guid teamId,
         Guid userId,
         CancellationToken cancellationToken = default);

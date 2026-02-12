@@ -199,7 +199,7 @@ public class TeamMembershipViewModel
     public Guid TeamId { get; set; }
     public string TeamName { get; set; } = string.Empty;
     public string TeamSlug { get; set; } = string.Empty;
-    public bool IsMetalead { get; set; }
+    public bool IsLead { get; set; }
     public bool IsSystemTeam { get; set; }
 }
 

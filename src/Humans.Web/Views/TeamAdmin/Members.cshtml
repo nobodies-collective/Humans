@@ -79,7 +79,7 @@
                                 </div>
                             </td>
                             <td>
-                                @if (member.IsMetalead)
+                                @if (member.IsLead)
                                 {
                                     <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
                                 }
@@ -93,7 +93,7 @@
                             {
                                 <td>
                                     <div class="d-flex gap-1" role="group">
-                                        @if (member.IsMetalead)
+                                        @if (member.IsLead)
                                         {
                                             <form asp-action="SetRole" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
@@ -107,9 +107,9 @@
                                         {
                                             <form asp-action="SetRole" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
-                                                <input type="hidden" name="Role" value="@TeamMemberRole.Metalead" />
+                                                <input type="hidden" name="Role" value="@TeamMemberRole.Lead" />
                                                 <button type="submit" class="btn btn-sm btn-outline-primary" data-confirm="@Localizer["TeamAdmin_PromoteConfirm"].Value">
-                                                    @Localizer["TeamAdmin_PromoteToMetalead"]
+                                                    @Localizer["TeamAdmin_PromoteToLead"]
                                                 </button>
                                             </form>
                                         }

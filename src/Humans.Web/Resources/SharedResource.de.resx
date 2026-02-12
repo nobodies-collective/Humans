@@ -385,6 +385,7 @@
   <data name="ConsentReview_SpanishLegalNote" xml:space="preserve"><value>Ich verstehe, dass die spanische Fassung der rechtsverbindliche Text ist.</value></data>
   <data name="ConsentReview_BackToList" xml:space="preserve"><value>Zurück zur Liste</value></data>
   <data name="ConsentReview_GiveConsent" xml:space="preserve"><value>Einwilligung erteilen</value></data>
+  <data name="ConsentReview_CheckboxRequired" xml:space="preserve"><value>Bitte aktivieren Sie dieses Kontrollk&#xE4;stchen, um zu best&#xE4;tigen, dass Sie die Bedingungen gelesen haben und ihnen zustimmen.</value></data>
 
   <!-- Consent Controller TempData -->
   <data name="Consent_MustCheck" xml:space="preserve"><value>Sie müssen das Einwilligungsfeld ankreuzen, um fortzufahren.</value></data>
@@ -444,7 +445,7 @@
   <data name="MyTeams_Withdraw" xml:space="preserve"><value>Zurückziehen</value></data>
 
   <!-- Join Team View -->
-  <data name="JoinTeam_RequiresApproval" xml:space="preserve"><value>Für dieses Team ist eine Genehmigung erforderlich. Ihre Anfrage wird von den Team-Metaleads oder Vorstandsmitgliedern geprüft.</value></data>
+  <data name="JoinTeam_RequiresApproval" xml:space="preserve"><value>Für dieses Team ist eine Genehmigung erforderlich. Ihre Anfrage wird von den Team-Leads oder Vorstandsmitgliedern geprüft.</value></data>
   <data name="JoinTeam_MessageLabel" xml:space="preserve"><value>Nachricht (optional)</value></data>
   <data name="JoinTeam_MessagePlaceholder" xml:space="preserve"><value>Erzählen Sie dem Team, warum Sie beitreten möchten...</value></data>
   <data name="JoinTeam_SubmitRequest" xml:space="preserve"><value>Anfrage absenden</value></data>
@@ -670,7 +671,7 @@
   <data name="AdminTeams_TeamName" xml:space="preserve"><value>Teamname</value></data>
   <data name="AdminTeams_DescriptionOptional" xml:space="preserve"><value>Beschreibung (optional)</value></data>
   <data name="AdminTeams_RequireApproval" xml:space="preserve"><value>Genehmigung zum Beitritt erforderlich</value></data>
-  <data name="AdminTeams_RequireApprovalHelp" xml:space="preserve"><value>Wenn aktiviert, müssen neue Mitglieder von einem Team-Metalead oder Vorstandsmitglied genehmigt werden.</value></data>
+  <data name="AdminTeams_RequireApprovalHelp" xml:space="preserve"><value>Wenn aktiviert, müssen neue Mitglieder von einem Team-Lead oder Vorstandsmitglied genehmigt werden.</value></data>
 
   <!-- ======================== -->
   <!-- Admin Edit Team View     -->
@@ -695,7 +696,7 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Rolle auswählen...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Vollständiger Systemzugriff</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Vorstandsmitglied-Berechtigungen</value></data>
-  <data name="AdminAddRole_MetaleadDesc" xml:space="preserve"><value>Team-Lead-Rolle</value></data>
+  <data name="AdminAddRole_LeadDesc" xml:space="preserve"><value>Team-Lead-Rolle</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notizen (optional)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Grund der Zuweisung</value></data>
 
@@ -722,7 +723,7 @@
   <data name="TeamAdmin_DemoteConfirm" xml:space="preserve"><value>Diesen Benutzer zum Mitglied herabstufen?</value></data>
   <data name="TeamAdmin_DemoteToMember" xml:space="preserve"><value>Zum Mitglied herabstufen</value></data>
   <data name="TeamAdmin_PromoteConfirm" xml:space="preserve"><value>Diesen Benutzer zum Lead befördern?</value></data>
-  <data name="TeamAdmin_PromoteToMetalead" xml:space="preserve"><value>Zum Lead befördern</value></data>
+  <data name="TeamAdmin_PromoteToLead" xml:space="preserve"><value>Zum Lead befördern</value></data>
   <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>Dieses Mitglied aus dem Team entfernen?</value></data>
   <data name="TeamAdmin_Remove" xml:space="preserve"><value>Entfernen</value></data>
   <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>Noch keine Mitglieder in diesem Team.</value></data>

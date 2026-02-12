@@ -5,7 +5,7 @@ Admin roles are managed through the `role_assignments` table with temporal assig
 ## Prerequisites
 
 - The user must already exist in the `users` table (i.e., they've logged in at least once via Google OAuth)
-- Access to the PostgreSQL database via Docker: `docker exec profilesnet-db-1 psql -U profiles -d humans`
+- Access to the PostgreSQL database via Docker: `docker exec humans-db-1 psql -U humans -d humans`
 
 ## Steps
 
@@ -41,7 +41,7 @@ The `RoleAssignmentClaimsTransformation` runs on authentication, so the new role
 |------|----------|---------|
 | `Admin` | `RoleNames.Admin` | Full system access |
 | `Board` | `RoleNames.Board` | Board member, elevated permissions |
-| `Metalead` | `RoleNames.Metalead` | Team lead |
+| `Lead` | `RoleNames.Lead` | Team lead |
 
 ## Revoking a role
 
@@ -55,4 +55,4 @@ UPDATE role_assignments SET "ValidTo" = now() WHERE "UserId" = '<user-id>' AND "
 
 - Roles can also be assigned/revoked through the admin UI at `/Admin/Members/<user-id>` once you have an existing admin user
 - The admin UI is accessible to users with `Admin` or `Board` roles
-- Only `Admin` role users can assign the `Admin` role through the UI; `Board` members can assign `Board` and `Metalead`
+- Only `Admin` role users can assign the `Admin` role through the UI; `Board` members can assign `Board` and `Lead`

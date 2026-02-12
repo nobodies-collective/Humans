@@ -46,7 +46,7 @@ public interface ITeamResourceService
 
     /// <summary>
     /// Checks whether a user can manage resources for a team.
-    /// Board members can always manage. Metaleads can manage if the admin setting allows it.
+    /// Board members can always manage. Leads can manage if the admin setting allows it.
     /// </summary>
     Task<bool> CanManageTeamResourcesAsync(Guid teamId, Guid userId, CancellationToken ct = default);
 

@@ -16,7 +16,7 @@ public static class RoleNames
     public const string Board = "Board";
 
     /// <summary>
-    /// Team lead role (Metalead).
+    /// Team lead role.
     /// </summary>
-    public const string Metalead = "Metalead";
+    public const string Lead = "Lead";
 }

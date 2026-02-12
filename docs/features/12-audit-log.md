@@ -102,10 +102,10 @@ The service adds entries to the `DbContext` without calling `SaveChangesAsync`. 
 |--------|-------------|-------|
 | User joins open team | TeamJoinedDirectly | User |
 | User leaves team | TeamLeft | User |
-| Join request approved | TeamJoinRequestApproved | Approver (Board/Metalead) |
-| Join request rejected | TeamJoinRequestRejected | Approver (Board/Metalead) |
-| Member removed by admin | TeamMemberRemoved | Admin (Board/Metalead) |
-| Member role changed | TeamMemberRoleChanged | Admin (Board/Metalead) |
+| Join request approved | TeamJoinRequestApproved | Approver (Board/Lead) |
+| Join request rejected | TeamJoinRequestRejected | Approver (Board/Lead) |
+| Member removed by admin | TeamMemberRemoved | Admin (Board/Lead) |
+| Member role changed | TeamMemberRoleChanged | Admin (Board/Lead) |
 
 ### GoogleWorkspaceSyncService
 

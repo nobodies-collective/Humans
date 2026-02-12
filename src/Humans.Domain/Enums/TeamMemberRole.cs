@@ -13,5 +13,5 @@ public enum TeamMemberRole
     /// <summary>
     /// Team lead with administrative privileges.
     /// </summary>
-    Metalead = 1
+    Lead = 1
 }

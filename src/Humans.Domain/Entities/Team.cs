@@ -34,7 +34,7 @@ public class Team
     public bool IsActive { get; set; } = true;
 
     /// <summary>
-    /// Whether joining this team requires approval from a metalead or board member.
+    /// Whether joining this team requires approval from a lead or board member.
     /// </summary>
     public bool RequiresApproval { get; set; } = true;
 

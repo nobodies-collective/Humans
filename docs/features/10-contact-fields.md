@@ -30,7 +30,7 @@ Members need to share contact information (Signal, Telegram, WhatsApp, Discord, 
 - Each field has independent visibility setting
 - Visibility levels from most to least restrictive:
   - Board only
-  - Leads + Board (metaleads and board)
+  - Leads + Board (leads and board)
   - My teams (members sharing a team with me)
   - All active members
 - Default visibility is "All active members"
@@ -107,7 +107,7 @@ GetViewerAccessLevel(ownerUserId, viewerUserId):
 
   2. Board member → BoardOnly (sees everything)
 
-  3. Any metalead (of any team) → LeadsAndBoard
+  3. Any lead (of any team) → LeadsAndBoard
 
   4. Shares team with owner → MyTeams
 
@@ -133,7 +133,7 @@ Alice (board member) views Bob's profile:
 - Sees: All contact fields regardless of visibility
 
 ### Scenario 2: Team Lead Viewing
-Carol (metalead of Art team) views Bob's profile:
+Carol (lead of Art team) views Bob's profile:
 - Access level: LeadsAndBoard (1)
 - Sees: Fields with visibility LeadsAndBoard, MyTeams, or AllActiveProfiles
 - Cannot see: Fields with BoardOnly visibility

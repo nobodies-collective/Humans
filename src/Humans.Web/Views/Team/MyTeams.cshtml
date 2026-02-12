@@ -47,7 +47,7 @@
                                 }
                             </td>
                             <td>
-                                @if (membership.IsMetalead)
+                                @if (membership.IsLead)
                                 {
                                     <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
                                 }
@@ -59,7 +59,7 @@
                             <td>@membership.JoinedAt.ToString("MMM d, yyyy")</td>
                             <td>
                                 <a asp-action="Details" asp-route-slug="@membership.TeamSlug" class="btn btn-sm btn-outline-primary">@Localizer["MyTeams_View"]</a>
-                                @if (membership.IsMetalead)
+                                @if (membership.IsLead)
                                 {
                                     <a asp-controller="TeamAdmin" asp-action="Members" asp-route-slug="@membership.TeamSlug" class="btn btn-sm btn-outline-secondary">
                                         @Localizer["Teams_Manage"]

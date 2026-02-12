@@ -377,6 +377,7 @@
   <data name="ConsentReview_SpanishLegalNote" xml:space="preserve"><value>I understand that the Spanish version is the legally binding text.</value></data>
   <data name="ConsentReview_BackToList" xml:space="preserve"><value>Back to List</value></data>
   <data name="ConsentReview_GiveConsent" xml:space="preserve"><value>Give Consent</value></data>
+  <data name="ConsentReview_CheckboxRequired" xml:space="preserve"><value>Please check this box to confirm you have read and agree to the terms.</value></data>
 
   <!-- Consent Controller TempData -->
   <data name="Consent_MustCheck" xml:space="preserve"><value>You must check the consent checkbox to continue.</value></data>
@@ -437,7 +438,7 @@
   <data name="MyTeams_Withdraw" xml:space="preserve"><value>Withdraw</value></data>
 
   <!-- Join Team View -->
-  <data name="JoinTeam_RequiresApproval" xml:space="preserve"><value>This team requires approval to join. Your request will be reviewed by the team metaleads or board members.</value></data>
+  <data name="JoinTeam_RequiresApproval" xml:space="preserve"><value>This team requires approval to join. Your request will be reviewed by the team leads or board members.</value></data>
   <data name="JoinTeam_MessageLabel" xml:space="preserve"><value>Message (optional)</value></data>
   <data name="JoinTeam_MessagePlaceholder" xml:space="preserve"><value>Tell the team why you want to join...</value></data>
   <data name="JoinTeam_SubmitRequest" xml:space="preserve"><value>Submit Request</value></data>
@@ -663,7 +664,7 @@
   <data name="AdminTeams_TeamName" xml:space="preserve"><value>Team Name</value></data>
   <data name="AdminTeams_DescriptionOptional" xml:space="preserve"><value>Description (optional)</value></data>
   <data name="AdminTeams_RequireApproval" xml:space="preserve"><value>Require approval to join</value></data>
-  <data name="AdminTeams_RequireApprovalHelp" xml:space="preserve"><value>When enabled, new members must be approved by a team metalead or board member.</value></data>
+  <data name="AdminTeams_RequireApprovalHelp" xml:space="preserve"><value>When enabled, new members must be approved by a team lead or board member.</value></data>
 
   <!-- ======================== -->
   <!-- Admin Edit Team View     -->
@@ -688,7 +689,7 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Select a role...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Full system access</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Board member permissions</value></data>
-  <data name="AdminAddRole_MetaleadDesc" xml:space="preserve"><value>Team lead role</value></data>
+  <data name="AdminAddRole_LeadDesc" xml:space="preserve"><value>Team lead role</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notes (optional)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Reason for assignment</value></data>
 
@@ -715,7 +716,7 @@
   <data name="TeamAdmin_DemoteConfirm" xml:space="preserve"><value>Demote this user to Member?</value></data>
   <data name="TeamAdmin_DemoteToMember" xml:space="preserve"><value>Demote to Member</value></data>
   <data name="TeamAdmin_PromoteConfirm" xml:space="preserve"><value>Promote this user to Lead?</value></data>
-  <data name="TeamAdmin_PromoteToMetalead" xml:space="preserve"><value>Promote to Lead</value></data>
+  <data name="TeamAdmin_PromoteToLead" xml:space="preserve"><value>Promote to Lead</value></data>
   <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>Remove this member from the team?</value></data>
   <data name="TeamAdmin_Remove" xml:space="preserve"><value>Remove</value></data>
   <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>No members in this team yet.</value></data>

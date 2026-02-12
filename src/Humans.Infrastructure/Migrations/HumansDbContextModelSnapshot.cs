@@ -650,12 +650,12 @@ namespace Humans.Infrastructure.Migrations
                         {
                             Id = new Guid("00000000-0000-0000-0001-000000000002"),
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17702491570000000L),
-                            Description = "All team metaleads",
+                            Description = "All team leads",
                             IsActive = true,
-                            Name = "Metaleads",
+                            Name = "Leads",
                             RequiresApproval = false,
-                            Slug = "metaleads",
-                            SystemTeamType = "Metaleads",
+                            Slug = "leads",
+                            SystemTeamType = "Leads",
                             UpdatedAt = NodaTime.Instant.FromUnixTimeTicks(17702491570000000L)
                         },
                         new

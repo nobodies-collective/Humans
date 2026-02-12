@@ -25,7 +25,7 @@ Members need a way to personalize their profiles beyond the Google OAuth avatar.
 
 **Acceptance Criteria:**
 - Team detail page shows members in a grid layout with profile pictures
-- Metaleads shown first with larger photos (80x80) and primary border
+- Leads shown first with larger photos (80x80) and primary border
 - Regular members shown with standard photos (64x64)
 - Placeholder initials shown for members without pictures
 - Both custom and Google avatar pictures are displayed

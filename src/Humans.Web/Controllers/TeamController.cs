@@ -52,7 +52,7 @@ public class TeamController : Controller
         var allTeams = await _teamService.GetAllTeamsAsync();
         var userTeams = await _teamService.GetUserTeamsAsync(user.Id);
         var userTeamIds = userTeams.Select(ut => ut.TeamId).ToHashSet();
-        var userMetaleadTeamIds = userTeams.Where(ut => ut.Role == TeamMemberRole.Metalead).Select(ut => ut.TeamId).ToHashSet();
+        var userLeadTeamIds = userTeams.Where(ut => ut.Role == TeamMemberRole.Lead).Select(ut => ut.TeamId).ToHashSet();
 
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
 
@@ -70,7 +70,7 @@ public class TeamController : Controller
                 IsSystemTeam = t.IsSystemTeam,
                 RequiresApproval = t.RequiresApproval,
                 IsCurrentUserMember = userTeamIds.Contains(t.Id),
-                IsCurrentUserMetalead = userMetaleadTeamIds.Contains(t.Id)
+                IsCurrentUserLead = userLeadTeamIds.Contains(t.Id)
             }).ToList();
 
         var viewModel = new TeamIndexViewModel
@@ -101,10 +101,10 @@ public class TeamController : Controller
         }
 
         var isMember = await _teamService.IsUserMemberOfTeamAsync(team.Id, user.Id);
-        var isMetalead = await _teamService.IsUserMetaleadOfTeamAsync(team.Id, user.Id);
+        var isLead = await _teamService.IsUserLeadOfTeamAsync(team.Id, user.Id);
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
         var pendingRequest = await _teamService.GetUserPendingRequestAsync(team.Id, user.Id);
-        var canManage = isMetalead || isBoardMember;
+        var canManage = isLead || isBoardMember;
 
         var pendingRequestCount = 0;
         if (canManage)
@@ -133,7 +133,7 @@ public class TeamController : Controller
             .AsNoTracking()
             .Where(gr => gr.TeamId == team.Id && gr.IsActive)
             .OrderBy(gr => gr.ResourceType)
-            .ThenBy(gr => gr.Name, StringComparer.Ordinal)
+            .ThenBy(gr => gr.Name)
             .ToListAsync();
 
         var viewModel = new TeamDetailViewModel
@@ -173,10 +173,10 @@ public class TeamController : Controller
                     CustomProfilePictureUrl = customPictureByUserId.GetValueOrDefault(m.UserId),
                     Role = m.Role.ToString(),
                     JoinedAt = m.JoinedAt.ToDateTimeUtc(),
-                    IsMetalead = m.Role == TeamMemberRole.Metalead
+                    IsLead = m.Role == TeamMemberRole.Lead
                 }).ToList(),
             IsCurrentUserMember = isMember,
-            IsCurrentUserMetalead = isMetalead,
+            IsCurrentUserLead = isLead,
             CanCurrentUserJoin = !isMember && !team.IsSystemTeam && pendingRequest == null,
             CanCurrentUserLeave = isMember && !team.IsSystemTeam,
             CanCurrentUserManage = canManage,
@@ -290,7 +290,7 @@ public class TeamController : Controller
 
         // Get team IDs where user can manage and team is not a system team
         var manageableTeamIds = memberships
-            .Where(m => (m.Role == TeamMemberRole.Metalead || isBoardMember) && !m.Team.IsSystemTeam)
+            .Where(m => (m.Role == TeamMemberRole.Lead || isBoardMember) && !m.Team.IsSystemTeam)
             .Select(m => m.TeamId)
             .ToList();
 
@@ -306,7 +306,7 @@ public class TeamController : Controller
             TeamSlug = m.Team.Slug,
             IsSystemTeam = m.Team.IsSystemTeam,
             Role = m.Role.ToString(),
-            IsMetalead = m.Role == TeamMemberRole.Metalead,
+            IsLead = m.Role == TeamMemberRole.Lead,
             JoinedAt = m.JoinedAt.ToDateTimeUtc(),
             CanLeave = !m.Team.IsSystemTeam,
             PendingRequestCount = pendingCounts.GetValueOrDefault(m.TeamId, 0)

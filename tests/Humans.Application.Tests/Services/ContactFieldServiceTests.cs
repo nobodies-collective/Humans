@@ -64,7 +64,7 @@ public class ContactFieldServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetViewerAccessLevel_WhenMetalead_ReturnsLeadsAndBoard()
+    public async Task GetViewerAccessLevel_WhenLead_ReturnsLeadsAndBoard()
     {
         var ownerId = Guid.NewGuid();
         var viewerId = Guid.NewGuid();
@@ -73,7 +73,7 @@ public class ContactFieldServiceTests : IDisposable
         _teamService.GetUserTeamsAsync(viewerId, Arg.Any<CancellationToken>())
             .Returns(new List<TeamMember>
             {
-                CreateTeamMember(viewerId, TeamMemberRole.Metalead)
+                CreateTeamMember(viewerId, TeamMemberRole.Lead)
             });
         _teamService.GetUserTeamsAsync(ownerId, Arg.Any<CancellationToken>())
             .Returns(new List<TeamMember>());

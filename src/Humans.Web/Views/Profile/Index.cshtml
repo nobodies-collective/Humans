@@ -200,7 +200,7 @@
                             <a asp-controller="Team" asp-action="Details" asp-route-slug="@team.TeamSlug"
                                class="btn btn-sm @(team.IsSystemTeam ? "btn-outline-secondary" : "btn-outline-primary")">
                                 @team.TeamName
-                                @if (team.IsMetalead)
+                                @if (team.IsLead)
                                 {
                                     <span class="badge bg-warning text-dark ms-1">@Localizer["Profile_Lead"]</span>
                                 }

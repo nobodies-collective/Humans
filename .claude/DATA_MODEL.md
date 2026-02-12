@@ -53,7 +53,7 @@ Lower values are more restrictive. A viewer with access level X can see fields w
 | Value | Level | Who Can See |
 |-------|-------|-------------|
 | BoardOnly | 0 | Board members only |
-| LeadsAndBoard | 1 | Team leads (metaleads) and board |
+| LeadsAndBoard | 1 | Team leads and board |
 | MyTeams | 2 | Members who share a team with the owner |
 | AllActiveProfiles | 3 | All active members |
 
@@ -62,7 +62,7 @@ Lower values are more restrictive. A viewer with access level X can see fields w
 Viewer access is determined by:
 1. **Self** → BoardOnly (sees everything)
 2. **Board member** → BoardOnly (sees everything)
-3. **Any metalead** → LeadsAndBoard
+3. **Any lead** → LeadsAndBoard
 4. **Shares team with owner** → MyTeams
 5. **Active member** → AllActiveProfiles only
 

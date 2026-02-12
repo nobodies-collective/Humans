@@ -41,7 +41,7 @@
                     {
                         <span class="badge bg-success">@Localizer["Teams_Member"]</span>
                     }
-                    @if (Model.IsCurrentUserMetalead)
+                    @if (Model.IsCurrentUserLead)
                     {
                         <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
                     }
@@ -110,14 +110,14 @@
             <div class="card-body">
                 @if (Model.Members.Any())
                 {
-                    var metaleads = Model.Members.Where(m => m.IsMetalead).ToList();
-                    var regularMembers = Model.Members.Where(m => !m.IsMetalead).ToList();
+                    var leads = Model.Members.Where(m => m.IsLead).ToList();
+                    var regularMembers = Model.Members.Where(m => !m.IsLead).ToList();
 
-                    @if (metaleads.Any())
+                    @if (leads.Any())
                     {
                         <h6 class="text-muted mb-3">@Localizer["TeamDetail_TeamLeads"]</h6>
                         <div class="row g-3 mb-4">
-                            @foreach (var member in metaleads)
+                            @foreach (var member in leads)
                             {
                                 <div class="col-6 col-sm-4 col-md-3">
                                     <div class="text-center">
@@ -141,7 +141,7 @@
 
                     @if (regularMembers.Any())
                     {
-                        @if (metaleads.Any())
+                        @if (leads.Any())
                         {
                             <h6 class="text-muted mb-3">@Localizer["Teams_Member"]</h6>
                         }

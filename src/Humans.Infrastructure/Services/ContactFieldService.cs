@@ -19,7 +19,7 @@ public class ContactFieldService : IContactFieldService
 
     // Request-scoped cache for viewer permissions to avoid N+1 queries during listing
     private bool? _cachedIsBoardMember;
-    private bool? _cachedIsAnyMetalead;
+    private bool? _cachedIsAnyLead;
     private HashSet<Guid>? _cachedViewerTeamIds;
 
     public ContactFieldService(
@@ -173,18 +173,18 @@ public class ContactFieldService : IContactFieldService
             return ContactFieldVisibility.BoardOnly;
         }
 
-        // Check if viewer is a metalead of any team
+        // Check if viewer is a lead of any team
         if (_cachedViewerTeamIds == null)
         {
             var viewerTeams = await _teamService.GetUserTeamsAsync(viewerUserId, cancellationToken);
-            _cachedIsAnyMetalead = viewerTeams.Any(tm => tm.Role == TeamMemberRole.Metalead);
+            _cachedIsAnyLead = viewerTeams.Any(tm => tm.Role == TeamMemberRole.Lead);
             _cachedViewerTeamIds = viewerTeams
                 .Where(tm => tm.Team.SystemTeamType != SystemTeamType.Volunteers)
                 .Select(tm => tm.TeamId)
                 .ToHashSet();
         }
 
-        if (_cachedIsAnyMetalead!.Value)
+        if (_cachedIsAnyLead!.Value)
         {
             return ContactFieldVisibility.LeadsAndBoard;
         }
