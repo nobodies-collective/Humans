@@ -1,90 +1,103 @@
-# Preferred Email Address
+# Email Management
 
 ## Business Context
 
-Members sign in using their Google account, which provides their primary email address. However, they may want system notifications (consent reminders, application status updates, suspension notices) sent to a different email address. This feature allows members to specify and verify an alternate email for receiving notifications.
+Members sign in using their Google account, which provides their primary email address. They may want to add additional email addresses for notifications, share specific emails on their profile with different visibility levels, or receive notifications at a non-OAuth address. The UserEmail entity supports multiple emails per user with per-email verification, visibility, and notification targeting.
 
 ## User Stories
 
-### US-11.1: Set Preferred Email
+### US-11.1: Add Email Address
 **As a** member
-**I want to** specify a different email address for system notifications
-**So that** I receive important messages at my preferred inbox
+**I want to** add additional email addresses to my account
+**So that** I can use different emails for notifications or profile visibility
 
 **Acceptance Criteria:**
-- Can enter any valid email address
-- Cannot use the same email as my sign-in (OAuth) email
+- Can add any valid email address
 - Must verify the email before it becomes active
 - Verification email contains a secure link
 - 5-minute cooldown between verification requests (rate limiting)
+- Cannot claim an email already verified by another account
 
 ### US-11.2: Verify Email Address
 **As a** member
-**I want to** verify my preferred email by clicking a link
+**I want to** verify an email by clicking a link
 **So that** the system knows I own that email address
 
 **Acceptance Criteria:**
 - Verification link works without being logged in
 - Link expires based on token provider settings
 - Cannot claim an email already verified by another account
-- After verification, notifications are sent to preferred email
+- Race condition check during verification
 
-### US-11.3: View Current Settings
+### US-11.3: Choose Notification Target
 **As a** member
-**I want to** see my current email configuration
-**So that** I know where my notifications are being sent
+**I want to** choose which email receives system notifications
+**So that** I receive important messages at my preferred inbox
 
 **Acceptance Criteria:**
-- Shows sign-in (OAuth) email
-- Shows preferred email if set
-- Shows verification status (pending/verified)
-- Shows which email currently receives notifications
+- Only verified emails can be set as notification target
+- Exactly one email per user must be the notification target
+- OAuth email is the default notification target
 
-### US-11.4: Remove Preferred Email
+### US-11.4: Set Email Visibility
 **As a** member
-**I want to** remove my preferred email
-**So that** notifications return to my sign-in email
+**I want to** control which emails appear on my profile and who sees them
+**So that** I can share contact info with appropriate audiences
 
 **Acceptance Criteria:**
-- Can remove preferred email at any time
+- Each email has independent visibility (BoardOnly, LeadsAndBoard, MyTeams, AllActiveProfiles, or hidden)
+- Uses the same ContactFieldVisibility levels as ContactField
+- Visibility is null by default (hidden from profile)
+
+### US-11.5: Remove Email
+**As a** member
+**I want to** remove an email address I no longer use
+**So that** my account stays clean
+
+**Acceptance Criteria:**
+- Cannot remove the OAuth login email
+- Cannot remove the current notification target (must reassign first)
 - Confirmation prompt before removal
-- After removal, notifications go to sign-in email
 
 ## Data Model
 
-### User Entity Extensions
+### UserEmail Entity
 ```
-User (extends IdentityUser)
-├── ...existing fields...
-├── PreferredEmail: string? (256)
-├── PreferredEmailVerified: bool
-└── PreferredEmailVerificationSentAt: Instant?
+UserEmail
+├── Id: Guid
+├── UserId: Guid (FK → User)
+├── Email: string (256)
+├── IsVerified: bool
+├── IsOAuth: bool (cannot be deleted)
+├── IsNotificationTarget: bool (exactly one per user)
+├── Visibility: ContactFieldVisibility? (null = hidden)
+├── VerificationSentAt: Instant? (rate limiting)
+├── DisplayOrder: int
+├── CreatedAt: Instant
+└── UpdatedAt: Instant
 ```
 
-### Computed Property
+### Computed Method on User
 ```csharp
-GetEffectiveEmail() =>
-    PreferredEmailVerified && !string.IsNullOrEmpty(PreferredEmail)
-        ? PreferredEmail
-        : Email;
+GetEffectiveEmail() → returns the email marked as notification target
 ```
 
 ## Verification Flow
 
 ```
-[User enters email]
-    → Check not same as OAuth email
+[User adds email]
+    → Validate email format
     → Check uniqueness (among verified emails only)
     → Check rate limit (5 min cooldown)
     → Generate token via Identity
-    → Store pending email (Verified=false)
+    → Create UserEmail record (IsVerified=false)
     → Send verification email
 
 [User clicks link]
     → Validate token
     → Re-check uniqueness (race condition guard)
-    → Set Verified=true
-    → Notifications now go to preferred email
+    → Set IsVerified=true
+    → Email can now be set as notification target or given visibility
 ```
 
 ## Security Considerations
@@ -102,54 +115,26 @@ Uses ASP.NET Identity's built-in token providers:
 
 ### Rate Limiting
 - 5-minute cooldown between verification requests
-- Tracked via `PreferredEmailVerificationSentAt` timestamp
+- Tracked via `VerificationSentAt` timestamp
 - Prevents email bombing
 
-## Database Schema
+## Routes
 
-```sql
--- Added to users table
-ALTER TABLE users ADD COLUMN "PreferredEmail" varchar(256);
-ALTER TABLE users ADD COLUMN "PreferredEmailVerified" boolean NOT NULL DEFAULT false;
-ALTER TABLE users ADD COLUMN "PreferredEmailVerificationSentAt" timestamp with time zone;
-
--- Partial unique index (only verified emails)
-CREATE UNIQUE INDEX IX_users_PreferredEmail
-    ON users("PreferredEmail")
-    WHERE "PreferredEmailVerified" = true AND "PreferredEmail" IS NOT NULL;
-```
-
-## UI Components
-
-### Preferred Email Page (`/Profile/PreferredEmail`)
-- Shows current email settings
-- Form to enter new email address
-- Pending verification status indicator
-- Button to resend verification (with cooldown)
-- Button to remove preferred email
-
-### Integration with Profile Edit
-- Link from Profile Edit page to Preferred Email settings
+| Route | Purpose |
+|-------|---------|
+| `/Profile/Emails` | Manage email addresses (add, verify, remove, set visibility) |
+| `/Profile/PreferredEmail` | Legacy redirect → `/Profile/Emails` |
 
 ## Service Integration
 
-### Background Jobs Updated
-These jobs now use `GetEffectiveEmail()`:
+### Background Jobs
+These jobs use `GetEffectiveEmail()` to send to the notification target:
 - `SendReConsentReminderJob` - consent reminder emails
 - `SuspendNonCompliantMembersJob` - suspension notification emails
-
-### Email Service Interface
-New method added to `IEmailService`:
-```csharp
-Task SendEmailVerificationAsync(
-    string toEmail,
-    string userName,
-    string verificationUrl,
-    CancellationToken cancellationToken = default);
-```
 
 ## Related Features
 
 - [Authentication](01-authentication.md) - OAuth provides primary email
-- [Profiles](02-profiles.md) - Preferred email is a profile setting
+- [Profiles](02-profiles.md) - Email visibility on profile
+- [Contact Fields](10-contact-fields.md) - Shares ContactFieldVisibility enum
 - [Background Jobs](08-background-jobs.md) - Jobs send to effective email

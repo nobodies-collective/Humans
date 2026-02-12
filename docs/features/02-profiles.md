@@ -59,11 +59,9 @@ Profile
 ├── BurnerName: string? (256)
 ├── FirstName: string (256) [legal]
 ├── LastName: string (256) [legal]
+├── Pronouns: string? (50)
 ├── DateOfBirth: LocalDate?
-├── AddressLine1: string? (512)
-├── AddressLine2: string? (512)
 ├── City: string? (256)
-├── PostalCode: string? (20)
 ├── CountryCode: string? (2)
 ├── Latitude: double?
 ├── Longitude: double?

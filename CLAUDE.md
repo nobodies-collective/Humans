@@ -95,6 +95,10 @@ dotnet test Humans.slnx
 dotnet run --project src/Humans.Web
 ```
 
+## Maintenance Log
+
+**After running any recurring maintenance process** (context cleanup, feature spec sync, NuGet check, code simplification, etc.), update `.claude/MAINTENANCE_LOG.md` with the current date and next-due date.
+
 ## Extended Docs
 
 | Topic | File |
@@ -102,6 +106,7 @@ dotnet run --project src/Humans.Web
 | **Coding rules** | **`.claude/CODING_RULES.md`** |
 | Data model | `.claude/DATA_MODEL.md` |
 | Analyzers/ReSharper | `.claude/CODE_ANALYSIS.md` |
+| Maintenance log | `.claude/MAINTENANCE_LOG.md` |
 | **Feature specs** | **`docs/features/`** |
 
 ## Feature Documentation

@@ -64,8 +64,8 @@ Integration test project exists with TestContainers but has 0 tests. Critical co
 #### P2-08: Expand configuration health checks
 `ConfigurationHealthCheck` only validates `GoogleMaps:ApiKey`. Missing checks for OAuth, SMTP, GitHub, and Google Workspace config.
 
-#### P2-10: Feature spec lists AddressLine fields not in Profile entity
-`docs/features/02-profiles.md` lists `AddressLine1`/`AddressLine2` which don't exist in the entity. DateOfBirth has since been added. Update the spec.
+#### P2-10: Feature spec lists AddressLine fields not in Profile entity DONE
+Fixed in feature spec sync 2026-02-12. Removed AddressLine1/AddressLine2/PostalCode, added Pronouns.
 
 #### P1-04: Enforce export throttling
 No rate limiting on GDPR data export. Any user can call `DownloadData` unlimited times.
