@@ -48,12 +48,11 @@ public class ContactFieldService : IContactFieldService
         }
 
         var accessLevel = await GetViewerAccessLevelAsync(profile.UserId, viewerUserId, cancellationToken);
+        var allowedVisibilities = GetAllowedVisibilities(accessLevel);
 
-        // Filter fields by visibility - lower or equal visibility values are more restrictive,
-        // so a viewer with access level X can see fields with visibility >= X
         var fields = await _dbContext.ContactFields
             .AsNoTracking()
-            .Where(cf => cf.ProfileId == profileId && cf.Visibility >= accessLevel)
+            .Where(cf => cf.ProfileId == profileId && allowedVisibilities.Contains(cf.Visibility))
             .OrderBy(cf => cf.DisplayOrder)
             .ThenBy(cf => cf.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -141,6 +140,20 @@ public class ContactFieldService : IContactFieldService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Returns the set of visibility levels a viewer with the given access level can see.
+    /// Visibility is stored as string in DB, so >= comparison doesn't work correctly.
+    /// </summary>
+    private static List<ContactFieldVisibility> GetAllowedVisibilities(ContactFieldVisibility accessLevel) =>
+        accessLevel switch
+        {
+            ContactFieldVisibility.BoardOnly => [ContactFieldVisibility.BoardOnly, ContactFieldVisibility.LeadsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
+            ContactFieldVisibility.LeadsAndBoard => [ContactFieldVisibility.LeadsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
+            ContactFieldVisibility.MyTeams => [ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
+            ContactFieldVisibility.AllActiveProfiles => [ContactFieldVisibility.AllActiveProfiles],
+            _ => [ContactFieldVisibility.AllActiveProfiles]
+        };
 
     public async Task<ContactFieldVisibility> GetViewerAccessLevelAsync(
         Guid ownerUserId,

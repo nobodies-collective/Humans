@@ -1,16 +1,11 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Localization;
-using Microsoft.Extensions.Options;
 using NodaTime;
-using Octokit;
 using Humans.Domain.Enums;
-using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
 using Humans.Web.Extensions;
 using Humans.Web.Models;
@@ -19,8 +14,6 @@ using MemberApplication = Humans.Domain.Entities.Application;
 namespace Humans.Web.Controllers;
 
 [Authorize]
-[Route("[controller]")]
-[Route("Governance")]
 public class ApplicationController : Controller
 {
     private readonly HumansDbContext _dbContext;
@@ -28,31 +21,19 @@ public class ApplicationController : Controller
     private readonly IClock _clock;
     private readonly ILogger<ApplicationController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
-    private readonly IMemoryCache _cache;
-    private readonly GitHubSettings _gitHubSettings;
-
-    private const string StatutesCacheKey = "StatutesContent";
-    private static readonly Regex LanguageFilePattern = new(
-        @"^(?<name>[A-Za-z0-9_-]+?)(?:-(?<lang>[A-Za-z]{2}))?\.md$",
-        RegexOptions.Compiled,
-        TimeSpan.FromSeconds(1));
 
     public ApplicationController(
         HumansDbContext dbContext,
         UserManager<Domain.Entities.User> userManager,
         IClock clock,
         ILogger<ApplicationController> logger,
-        IStringLocalizer<SharedResource> localizer,
-        IMemoryCache cache,
-        IOptions<GitHubSettings> gitHubSettings)
+        IStringLocalizer<SharedResource> localizer)
     {
         _dbContext = dbContext;
         _userManager = userManager;
         _clock = clock;
         _logger = logger;
         _localizer = localizer;
-        _cache = cache;
-        _gitHubSettings = gitHubSettings.Value;
     }
 
     public async Task<IActionResult> Index()
@@ -73,8 +54,6 @@ public class ApplicationController : Controller
             a.Status == ApplicationStatus.Submitted ||
             a.Status == ApplicationStatus.UnderReview);
 
-        var statutesContent = await GetStatutesContentAsync();
-
         var viewModel = new ApplicationIndexViewModel
         {
             Applications = applications.Select(a => new ApplicationSummaryViewModel
@@ -85,8 +64,7 @@ public class ApplicationController : Controller
                 ResolvedAt = a.ResolvedAt?.ToDateTimeUtc(),
                 StatusBadgeClass = a.Status.GetBadgeClass()
             }).ToList(),
-            CanSubmitNew = !hasPendingApplication,
-            StatutesContent = statutesContent
+            CanSubmitNew = !hasPendingApplication
         };
 
         return View(viewModel);
@@ -249,55 +227,4 @@ public class ApplicationController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    /// <summary>
-    /// Fetches statutes markdown content from GitHub, cached for 1 hour.
-    /// </summary>
-    private async Task<Dictionary<string, string>> GetStatutesContentAsync()
-    {
-        if (_cache.TryGetValue(StatutesCacheKey, out Dictionary<string, string>? cached) && cached != null)
-            return cached;
-
-        var content = new Dictionary<string, string>(StringComparer.Ordinal);
-
-        try
-        {
-            var client = new GitHubClient(new ProductHeaderValue("NobodiesHumans"));
-            if (!string.IsNullOrEmpty(_gitHubSettings.AccessToken))
-            {
-                client.Credentials = new Credentials(_gitHubSettings.AccessToken);
-            }
-
-            var files = await client.Repository.Content.GetAllContents(
-                _gitHubSettings.Owner,
-                _gitHubSettings.Repository,
-                "Estatutos");
-
-            foreach (var file in files.Where(f => f.Name.EndsWith(".md", StringComparison.OrdinalIgnoreCase)))
-            {
-                var match = LanguageFilePattern.Match(file.Name);
-                if (!match.Success) continue;
-
-                var lang = match.Groups["lang"].Success ? match.Groups["lang"].Value : "es";
-
-                // Fetch full content (GetAllContents for a directory only returns metadata)
-                var fileContent = await client.Repository.Content.GetAllContents(
-                    _gitHubSettings.Owner,
-                    _gitHubSettings.Repository,
-                    file.Path);
-
-                if (fileContent.Count > 0 && fileContent[0].Content != null)
-                {
-                    content[lang] = fileContent[0].Content;
-                }
-            }
-
-            _cache.Set(StatutesCacheKey, content, TimeSpan.FromHours(1));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to fetch statutes from GitHub");
-        }
-
-        return content;
-    }
 }

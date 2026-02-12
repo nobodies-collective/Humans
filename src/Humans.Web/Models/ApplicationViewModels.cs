@@ -6,11 +6,6 @@ public class ApplicationIndexViewModel
 {
     public List<ApplicationSummaryViewModel> Applications { get; set; } = [];
     public bool CanSubmitNew { get; set; }
-
-    /// <summary>
-    /// Statutes content by language code (e.g., "es" → markdown, "en" → markdown).
-    /// </summary>
-    public Dictionary<string, string> StatutesContent { get; set; } = new(StringComparer.Ordinal);
 }
 
 public class ApplicationSummaryViewModel

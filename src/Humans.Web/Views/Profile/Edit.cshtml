@@ -52,6 +52,12 @@
                         <div class="form-text">@Localizer["ProfileEdit_BurnerNameHelp"]</div>
                     </div>
 
+                    <div class="mb-3">
+                        <label asp-for="Pronouns" class="form-label"></label>
+                        <input asp-for="Pronouns" class="form-control" placeholder="@Localizer["ProfileEdit_PronounsPlaceholder"].Value" />
+                        <span asp-validation-for="Pronouns" class="text-danger"></span>
+                    </div>
+
                     <hr />
                     <h5>@Localizer["Profile_LegalName"]</h5>
                     <p class="text-muted small mb-3">
@@ -109,12 +115,6 @@
                         <textarea asp-for="Bio" class="form-control" rows="4"></textarea>
                         <span asp-validation-for="Bio" class="text-danger"></span>
                         <div class="form-text">@Localizer["ProfileEdit_BioHelp"]</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="Pronouns" class="form-label"></label>
-                        <input asp-for="Pronouns" class="form-control" placeholder="@Localizer["ProfileEdit_PronounsPlaceholder"].Value" />
-                        <span asp-validation-for="Pronouns" class="text-danger"></span>
                     </div>
 
                     <hr />

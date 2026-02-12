@@ -1,15 +1,12 @@
 # Release TODOs
 
-Audit date: 2026-02-05 | Last updated: 2026-02-11
+Audit date: 2026-02-05 | Last updated: 2026-02-12
 
 ---
 
 ## Open Work — Prioritized
 
 ### Priority 1: Bugs
-
-#### #19: Fix profile edit data lost when navigating to Preferred Email
-Clicking "Manage Preferred Email" navigates away from the profile edit form, losing all unsaved changes. Fix with auto-save, confirmation prompt, or in-page flow.
 
 #### P1-16: Stubs silently activate in production if Google credentials missing
 `StubTeamResourceService` creates real DB records with fake Google IDs when credentials are missing. No startup warning. Fix: fail fast in production, or health check reports degraded.
@@ -41,18 +38,6 @@ UI labels were renamed in Batch 2 (ed6e29e pending), but all internal code still
 ---
 
 ### Priority 2: User-Facing Features & Improvements
-
-#### #16: Consolidate phone and contact fields, add validation
-Two separate phone entry points (standalone phone + contact info) are confusing. Country codes non-exhaustive. Email contact fields lack validation. Merge or clarify, expand country codes, add validation.
-
-#### #18: Burner CV: separate position/role from event name
-Event Name field mixes event + position (e.g. "Burning Man 2024, Gate Lead"). Add separate Position/Role field to enable filtering/searching by role.
-
-#### #17: Add Discord as a contact type
-Add Discord username as a contact field type. Future: manage Discord roles/groups automatically based on team membership.
-
-#### #20: Add volunteer location map showing shared city/country
-Map page (Google Maps) showing pins for volunteers who've shared their city/country. Cluster markers, respect visibility settings. Similar pattern to the birthday calendar.
 
 #### #14: Drive Activity Monitor: resolve people/ IDs to email addresses
 Drive Activity API returns `people/` IDs instead of email addresses. Need to resolve these via the People API for meaningful audit display.
@@ -114,6 +99,9 @@ All business logic lives in `AdminController`. Extract to service interfaces for
 
 #### G-09: Team membership caching
 Every page load queries team memberships. At ~500 users, in-memory cache with short TTL would eliminate most DB hits.
+
+#### #22: Add EF Core query monitoring to identify caching opportunities
+Add a `DbCommandInterceptor` tracking query counts by table + operation (SELECT/INSERT/UPDATE/DELETE) in a singleton `ConcurrentDictionary`. Expose via admin page at `/Admin/DbStats`. Informs future `IMemoryCache` adoption for hot read paths. No persistence needed — resets on restart.
 
 #### P1-11: Implement real pagination at query layer
 `GetAllTeamsAsync()` and `GetPendingRequestsForTeamAsync()` load everything into memory, then paginate in LINQ-to-Objects.
@@ -241,3 +229,18 @@ Committed `f04c8cf`. Closes GitHub #11.
 
 ### Codebase simplification: remove dead code and unnecessary abstractions DONE
 Deleted unimplemented `IApplicationService`, unused `ProfileUpdateRequest` DTO, `IConsentRecordRepository` + `ConsentRecordRepository` (inlined into `MembershipCalculator`), and `IVolunteerHistoryService` interface (concrete class registered directly). Fixed duplicate Debug sink in appsettings.Development.json. Improved disabled sync jobs comment. Committed `251da28`.
+
+### #19: Fix profile edit data lost when navigating to Preferred Email DONE
+Added beforeunload guard to profile edit form. Committed `3cf905a`.
+
+### #16: Consolidate phone and contact fields, add validation DONE
+Consolidated emails, removed standalone phone, birthday as month-day. Committed `352c79a`.
+
+### #17: Add Discord as a contact type DONE
+Added Discord as contact field type. Committed `352c79a`.
+
+### #18: Burner CV: separate position/role from event name DONE
+Updated placeholder text to separate event from role. Committed `b424f9b`, `352c79a`.
+
+### #20: Add volunteer location map showing shared city/country DONE
+Google Maps page with volunteer pins. Committed `2664c46`.
