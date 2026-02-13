@@ -210,6 +210,9 @@ public partial class AdminController : Controller
             IsApproved = user.Profile?.IsApproved ?? false,
             HasProfile = user.Profile != null,
             AdminNotes = user.Profile?.AdminNotes,
+            EmergencyContactName = user.Profile?.EmergencyContactName,
+            EmergencyContactPhone = user.Profile?.EmergencyContactPhone,
+            EmergencyContactRelationship = user.Profile?.EmergencyContactRelationship,
             ApplicationCount = user.Applications.Count,
             ConsentCount = user.ConsentRecords.Count,
             Applications = user.Applications
@@ -1481,6 +1484,22 @@ public partial class AdminController : Controller
         }
 
         return path.TrimEnd('/') + "/";
+    }
+
+    [HttpGet("DbVersion")]
+    [AllowAnonymous]
+    [Produces("application/json")]
+    public async Task<IActionResult> DbVersion()
+    {
+        var applied = (await _dbContext.Database.GetAppliedMigrationsAsync()).ToList();
+        var pending = await _dbContext.Database.GetPendingMigrationsAsync();
+
+        return Ok(new
+        {
+            lastApplied = applied.LastOrDefault(),
+            appliedCount = applied.Count,
+            pendingCount = pending.Count()
+        });
     }
 
     [GeneratedRegex(@"^https?://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)/tree/(?<branch>[^/]+)/(?<path>[^\s]+)$", RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]

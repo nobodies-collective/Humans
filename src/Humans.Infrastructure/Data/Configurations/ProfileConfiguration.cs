@@ -47,6 +47,15 @@ public class ProfileConfiguration : IEntityTypeConfiguration<Profile>
 
         builder.Property(p => p.DateOfBirth);
 
+        builder.Property(p => p.EmergencyContactName)
+            .HasMaxLength(256);
+
+        builder.Property(p => p.EmergencyContactPhone)
+            .HasMaxLength(50);
+
+        builder.Property(p => p.EmergencyContactRelationship)
+            .HasMaxLength(100);
+
         builder.Property(p => p.ProfilePictureContentType)
             .HasMaxLength(100);
 

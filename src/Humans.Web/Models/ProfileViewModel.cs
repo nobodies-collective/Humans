@@ -121,6 +121,18 @@ public class ProfileViewModel
         }
     }
 
+    [StringLength(256)]
+    [Display(Name = "Emergency Contact Name")]
+    public string? EmergencyContactName { get; set; }
+
+    [StringLength(50)]
+    [Display(Name = "Emergency Contact Phone")]
+    public string? EmergencyContactPhone { get; set; }
+
+    [StringLength(100)]
+    [Display(Name = "Emergency Contact Relationship")]
+    public string? EmergencyContactRelationship { get; set; }
+
     /// <summary>
     /// Profile picture file upload (max 2MB, JPEG/PNG).
     /// </summary>

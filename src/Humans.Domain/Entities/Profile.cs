@@ -95,6 +95,24 @@ public class Profile
     public LocalDate? DateOfBirth { get; set; }
 
     /// <summary>
+    /// Emergency contact person's name (next of kin, partner, etc.).
+    /// </summary>
+    [PersonalData]
+    public string? EmergencyContactName { get; set; }
+
+    /// <summary>
+    /// Emergency contact person's phone number.
+    /// </summary>
+    [PersonalData]
+    public string? EmergencyContactPhone { get; set; }
+
+    /// <summary>
+    /// Relationship to the emergency contact (e.g., "Partner", "Parent").
+    /// </summary>
+    [PersonalData]
+    public string? EmergencyContactRelationship { get; set; }
+
+    /// <summary>
     /// Custom profile picture data (resized to 256x256, max 2MB).
     /// Stored in database given small scale (~500 users).
     /// </summary>

@@ -14,5 +14,6 @@ Tracks when recurring maintenance processes were last run.
 | Data model doc sync | 2026-02-12 | As needed | As needed | .claude/DATA_MODEL.md vs entities |
 | Navigation audit | 2026-02-12 | 2026-03-12 | Monthly | `/nav-audit` — discoverability, backlinks |
 | GDPR audit | — | — | Quarterly | Exports, consent, PII logging |
+| Migration squash check | — | — | Monthly | Check `/Admin/DbVersion` on prod, QA (humans.n.burn.camp), and local dev. Oldest `lastApplied` across all three is the safe squash boundary. |
 | NuGet full update | — | — | Monthly | Non-security package updates |
 | GitHub issue triage | — | — | Weekly | Sync issues vs todos.md |

@@ -136,6 +136,9 @@ public class ProfileController : Controller
             Pronouns = profile?.Pronouns,
             BirthdayMonth = profile?.DateOfBirth?.Month,
             BirthdayDay = profile?.DateOfBirth?.Day,
+            EmergencyContactName = profile?.EmergencyContactName,
+            EmergencyContactPhone = profile?.EmergencyContactPhone,
+            EmergencyContactRelationship = profile?.EmergencyContactRelationship,
             HasPendingConsents = pendingConsents > 0,
             PendingConsentCount = pendingConsents,
             IsApproved = profile?.IsApproved ?? false,
@@ -212,6 +215,9 @@ public class ProfileController : Controller
             Pronouns = profile?.Pronouns,
             BirthdayMonth = profile?.DateOfBirth?.Month,
             BirthdayDay = profile?.DateOfBirth?.Day,
+            EmergencyContactName = profile?.EmergencyContactName,
+            EmergencyContactPhone = profile?.EmergencyContactPhone,
+            EmergencyContactRelationship = profile?.EmergencyContactRelationship,
             CanViewLegalName = true, // User editing their own profile
             EditableContactFields = contactFields.Select(cf => new ContactFieldEditViewModel
             {
@@ -280,6 +286,9 @@ public class ProfileController : Controller
         profile.Bio = model.Bio;
         profile.Pronouns = model.Pronouns;
         profile.DateOfBirth = model.ParsedBirthday;
+        profile.EmergencyContactName = model.EmergencyContactName;
+        profile.EmergencyContactPhone = model.EmergencyContactPhone;
+        profile.EmergencyContactRelationship = model.EmergencyContactRelationship;
         profile.UpdatedAt = now;
 
         // Handle profile picture removal
@@ -815,6 +824,9 @@ public class ProfileController : Controller
                 profile.Bio,
                 profile.Pronouns,
                 profile.IsSuspended,
+                profile.EmergencyContactName,
+                profile.EmergencyContactPhone,
+                profile.EmergencyContactRelationship,
                 HasCustomProfilePicture = profile.HasCustomProfilePicture,
                 CreatedAt = profile.CreatedAt.ToString(null, CultureInfo.InvariantCulture),
                 UpdatedAt = profile.UpdatedAt.ToString(null, CultureInfo.InvariantCulture)

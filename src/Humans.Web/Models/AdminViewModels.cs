@@ -57,6 +57,9 @@ public class AdminMemberDetailViewModel
     public bool IsApproved { get; set; }
     public bool HasProfile { get; set; }
     public string? AdminNotes { get; set; }
+    public string? EmergencyContactName { get; set; }
+    public string? EmergencyContactPhone { get; set; }
+    public string? EmergencyContactRelationship { get; set; }
 
     // Stats
     public int ApplicationCount { get; set; }

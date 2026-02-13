@@ -1,6 +1,6 @@
 # Release TODOs
 
-Audit date: 2026-02-05 | Last updated: 2026-02-12
+Audit date: 2026-02-05 | Last updated: 2026-02-13
 
 ---
 
@@ -25,6 +25,9 @@ The job class exists but isn't registered in DI or scheduled. Volunteers get sus
 ---
 
 ### Priority 2: User-Facing Features & Improvements
+
+#### #23: Rename "Members" to "Humans" across internal code and UI
+Routes and page titles already done. Remaining: rename view files (Members.cshtml → Humans.cshtml, MemberDetail.cshtml → HumanDetail.cshtml), view models (AdminMember* → AdminHuman*), controller methods, ~30 AdminMember_ localization keys across all 5 .resx files, and feature docs. Do NOT rename TeamMember domain entities.
 
 #### #14: Drive Activity Monitor: resolve people/ IDs to email addresses
 Drive Activity API returns `people/` IDs instead of email addresses. Need to resolve these via the People API for meaningful audit display.
@@ -133,6 +136,9 @@ These need production domain, IP ranges, deployment model, or infrastructure dec
 
 ### #3: Full Lead rename (domain, DB, code) DONE
 Renamed all internal "Lead" references across domain, application, infrastructure, web, tests, migrations, resources, and documentation.
+
+### #24: Add emergency contact field to member profiles DONE
+Emergency contact fields (name, phone, relationship) on Profile. Board-only visibility, GDPR export included, all 5 locales. Also added public `/Admin/DbVersion` endpoint for migration squash checks.
 
 ### #20: Add volunteer location map showing shared city/country DONE
 Google Maps page with volunteer pins. Committed `2664c46`.

@@ -67,11 +67,31 @@ Profile
 ├── Longitude: double?
 ├── PlaceId: string? (256) [Google Places ID]
 ├── Bio: string? (4000)
+├── EmergencyContactName: string? (256) [board only]
+├── EmergencyContactPhone: string? (50) [board only]
+├── EmergencyContactRelationship: string? (100) [board only]
 ├── AdminNotes: string? (4000) [admin only]
 ├── IsSuspended: bool
 ├── CreatedAt: Instant
 └── UpdatedAt: Instant
 ```
+
+## Emergency Contact
+
+Members can optionally provide emergency contact information for safety at events.
+
+### Fields
+- **EmergencyContactName** (string, max 256) — Name of the emergency contact person
+- **EmergencyContactPhone** (string, max 50) — Phone number
+- **EmergencyContactRelationship** (string, max 100) — Relationship (e.g., "Partner", "Parent")
+
+### Visibility Rules
+- **Profile owner**: Can view and edit their own emergency contact on their profile
+- **Board/Admin**: Can view emergency contact on the Admin Member Detail page
+- **Other members**: Cannot see emergency contact information (not shown on public profile views)
+
+### GDPR
+Emergency contact fields are marked `[PersonalData]` and included in the data export (`ExportData`).
 
 ## Membership Status
 
@@ -96,6 +116,7 @@ Profile includes a computed `MembershipStatus` property:
 | City/Country | Yes | Yes | Yes | Yes | Yes |
 | Coordinates | No | No | No | Yes | Yes |
 | Bio | Yes | Yes | Yes | Yes | Yes |
+| Emergency Contact | Yes | No | No | Yes | Yes |
 | Admin Notes | No | No | No | No | Yes |
 
 ## Location Capture Flow

@@ -772,6 +772,14 @@
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Visible uniquement par vous et le conseil d'administration. Utilis&#xE9; pour le calendrier des anniversaires.</value></data>
   <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>Responsables d'&#xE9;quipe</value></data>
 
+  <!-- Emergency Contact -->
+  <data name="Profile_EmergencyContact" xml:space="preserve"><value>Contact d'urgence</value></data>
+  <data name="Profile_EmergencyContactName" xml:space="preserve"><value>Nom</value></data>
+  <data name="Profile_EmergencyContactPhone" xml:space="preserve"><value>T&#xE9;l&#xE9;phone</value></data>
+  <data name="Profile_EmergencyContactRelationship" xml:space="preserve"><value>Relation</value></data>
+  <data name="ProfileEdit_EmergencyContactHelp" xml:space="preserve"><value>Indiquez une personne &#xE0; contacter en cas d'urgence lors d'&#xE9;v&#xE9;nements. Cette information n'est visible que par vous et le conseil d'administration.</value></data>
+  <data name="Profile_EmergencyContactBoardOnly" xml:space="preserve"><value>Visible uniquement par vous et le conseil d'administration.</value></data>
+
   <!-- Birthday Calendar -->
   <data name="Birthdays_Title" xml:space="preserve"><value>Calendrier des anniversaires</value></data>
   <data name="Birthdays_Count" xml:space="preserve"><value>{0} anniversaires en {1}</value></data>

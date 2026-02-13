@@ -117,6 +117,26 @@
                             }
                         </dd>
                     }
+
+                    @if (Model.IsOwnProfile && (!string.IsNullOrEmpty(Model.EmergencyContactName) || !string.IsNullOrEmpty(Model.EmergencyContactPhone)))
+                    {
+                        <dt class="col-sm-3">@Localizer["Profile_EmergencyContact"]</dt>
+                        <dd class="col-sm-9">
+                            @if (!string.IsNullOrEmpty(Model.EmergencyContactName))
+                            {
+                                @Model.EmergencyContactName
+                            }
+                            @if (!string.IsNullOrEmpty(Model.EmergencyContactRelationship))
+                            {
+                                <text> (@Model.EmergencyContactRelationship)</text>
+                            }
+                            @if (!string.IsNullOrEmpty(Model.EmergencyContactPhone))
+                            {
+                                <br /><a href="tel:@Model.EmergencyContactPhone">@Model.EmergencyContactPhone</a>
+                            }
+                            <br /><small class="text-muted">@Localizer["Profile_EmergencyContactBoardOnly"]</small>
+                        </dd>
+                    }
                 </dl>
             </div>
         </div>

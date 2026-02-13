@@ -769,6 +769,14 @@
   <data name="Profile_Day" xml:space="preserve"><value>Day</value></data>
   <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>Team Leads</value></data>
 
+  <!-- Emergency Contact -->
+  <data name="Profile_EmergencyContact" xml:space="preserve"><value>Emergency Contact</value></data>
+  <data name="Profile_EmergencyContactName" xml:space="preserve"><value>Name</value></data>
+  <data name="Profile_EmergencyContactPhone" xml:space="preserve"><value>Phone</value></data>
+  <data name="Profile_EmergencyContactRelationship" xml:space="preserve"><value>Relationship</value></data>
+  <data name="ProfileEdit_EmergencyContactHelp" xml:space="preserve"><value>Provide a contact person for emergencies at events. This information is only visible to you and the Board.</value></data>
+  <data name="Profile_EmergencyContactBoardOnly" xml:space="preserve"><value>Only visible to you and the Board.</value></data>
+
   <!-- ======================== -->
   <!-- Birthday Calendar        -->
   <!-- ======================== -->
