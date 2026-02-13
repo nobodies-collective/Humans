@@ -120,7 +120,7 @@
                             @foreach (var member in leads)
                             {
                                 <div class="col-6 col-sm-4 col-md-3">
-                                    <div class="text-center">
+                                    <a asp-controller="Human" asp-action="View" asp-route-id="@member.UserId" class="text-center text-decoration-none d-block">
                                         @if (!string.IsNullOrEmpty(member.EffectiveProfilePictureUrl))
                                         {
                                             <img src="@member.EffectiveProfilePictureUrl" alt="@member.DisplayName" class="rounded-circle mb-2" style="width: 128px; height: 128px; object-fit: cover; border: 3px solid var(--bs-primary);" />
@@ -133,7 +133,7 @@
                                         }
                                         <div class="fw-semibold small">@member.DisplayName</div>
                                         <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
-                                    </div>
+                                    </a>
                                 </div>
                             }
                         </div>
@@ -149,7 +149,7 @@
                             @foreach (var member in regularMembers)
                             {
                                 <div class="col-6 col-sm-4 col-md-3">
-                                    <div class="text-center">
+                                    <a asp-controller="Human" asp-action="View" asp-route-id="@member.UserId" class="text-center text-decoration-none d-block">
                                         @if (!string.IsNullOrEmpty(member.EffectiveProfilePictureUrl))
                                         {
                                             <img src="@member.EffectiveProfilePictureUrl" alt="@member.DisplayName" class="rounded-circle mb-2" style="width: 102px; height: 102px; object-fit: cover;" />
@@ -161,7 +161,7 @@
                                             </div>
                                         }
                                         <div class="small">@member.DisplayName</div>
-                                    </div>
+                                    </a>
                                 </div>
                             }
                         </div>

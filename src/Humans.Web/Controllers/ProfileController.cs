@@ -435,15 +435,6 @@ public class ProfileController : Controller
         return View(viewModel);
     }
 
-    /// <summary>
-    /// Redirect old PreferredEmail route to Emails.
-    /// </summary>
-    [HttpGet]
-    public IActionResult PreferredEmail()
-    {
-        return RedirectToAction(nameof(Emails));
-    }
-
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddEmail(EmailsViewModel model)
@@ -740,9 +731,7 @@ public class ProfileController : Controller
         return RedirectToAction(nameof(Privacy));
     }
 
-    [HttpGet]
-    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-    public async Task<IActionResult> ExportData()
+    private async Task<IActionResult> ExportData()
     {
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
@@ -874,7 +863,6 @@ public class ProfileController : Controller
 
         _logger.LogInformation("User {UserId} exported their data", user.Id);
 
-        var fileName = $"profiles-data-export-{DateTime.UtcNow:yyyy-MM-dd}.json";
         return Json(export, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
     }
 

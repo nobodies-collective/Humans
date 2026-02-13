@@ -43,7 +43,7 @@
             var app = Model.Applications.First();
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>@Localizer["Governance_YourApplication"]</span>
+                    <a asp-action="Details" asp-route-id="@app.Id" class="text-decoration-none">@Localizer["Governance_YourApplication"]</a>
                     <span class="badge @app.StatusBadgeClass">@app.Status</span>
                 </div>
                 <div class="card-body">

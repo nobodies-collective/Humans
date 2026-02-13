@@ -210,8 +210,12 @@
         @if (Model.Teams.Count > 0)
         {
             <div class="card mb-4">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <span>@Localizer["Profile_Teams"]</span>
+                    @if (Model.IsOwnProfile)
+                    {
+                        <a asp-controller="Team" asp-action="My" class="btn btn-sm btn-outline-primary">@Localizer["Teams_Manage"]</a>
+                    }
                 </div>
                 <div class="card-body py-2">
                     <div class="d-flex flex-wrap gap-2">
