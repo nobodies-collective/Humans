@@ -54,7 +54,7 @@
   <data name="Nav_Home" xml:space="preserve"><value>Inicio</value></data>
   <data name="Nav_MyProfile" xml:space="preserve"><value>Mi perfil</value></data>
   <data name="Nav_Teams" xml:space="preserve"><value>Equipos</value></data>
-  <data name="Nav_Consents" xml:space="preserve"><value>Consentimientos</value></data>
+  <data name="Nav_Consents" xml:space="preserve"><value>Acuerdos</value></data>
   <data name="Nav_Governance" xml:space="preserve"><value>Gobernanza</value></data>
   <data name="Nav_Privacy" xml:space="preserve"><value>Privacidad</value></data>
   <data name="Nav_Admin" xml:space="preserve"><value>Admin</value></data>
@@ -120,17 +120,17 @@
   <!-- ======================== -->
   <data name="Dashboard_Title" xml:space="preserve"><value>Panel de control</value></data>
   <data name="Dashboard_Welcome" xml:space="preserve"><value>Bienvenido/a, {0}</value><comment>{0} = display name</comment></data>
-  <data name="Dashboard_PendingConsentsAlert" xml:space="preserve"><value>&lt;strong&gt;Acci&#xF3;n requerida:&lt;/strong&gt; Tiene {0} consentimiento(s) pendiente(s). &lt;a href="/Consent" class="alert-link"&gt;Rev&#xED;selos y otorgue su consentimiento&lt;/a&gt; para mantener su membres&#xED;a activa.</value><comment>{0} = pending consent count</comment></data>
+  <data name="Dashboard_PendingConsentsAlert" xml:space="preserve"><value>&lt;strong&gt;Acci&#xF3;n requerida:&lt;/strong&gt; Tiene {0} consentimiento(s) pendiente(s). &lt;a href="/Consent" class="alert-link"&gt;Rev&#xED;selos y otorgue su consentimiento&lt;/a&gt; para mantener Su estado de voluntario activa.</value><comment>{0} = pending consent count</comment></data>
   <data name="Dashboard_IncompleteProfileAlert" xml:space="preserve"><value>&lt;strong&gt;Complete su perfil:&lt;/strong&gt; Su perfil est&#xE1; incompleto. &lt;a href="/Profile/Edit" class="alert-link"&gt;A&#xF1;ada su informaci&#xF3;n&lt;/a&gt; para que podamos conocerle mejor.</value></data>
   <data name="Dashboard_ProfileCard" xml:space="preserve"><value>Perfil</value></data>
   <data name="Dashboard_ProfileComplete" xml:space="preserve"><value>Su perfil est&#xE1; completo.</value></data>
   <data name="Dashboard_ProfileIncomplete" xml:space="preserve"><value>Complete su perfil para que podamos conocerle mejor.</value></data>
   <data name="Dashboard_ViewProfile" xml:space="preserve"><value>Ver perfil</value></data>
-  <data name="Dashboard_ConsentsCard" xml:space="preserve"><value>Consentimientos</value></data>
+  <data name="Dashboard_ConsentsCard" xml:space="preserve"><value>Acuerdos</value></data>
   <data name="Dashboard_ConsentsNeeded" xml:space="preserve"><value>&lt;strong&gt;{0}&lt;/strong&gt; de {1} documentos necesitan su consentimiento.</value><comment>{0} = pending count, {1} = total required</comment></data>
-  <data name="Dashboard_ReviewConsents" xml:space="preserve"><value>Revisar consentimientos</value></data>
+  <data name="Dashboard_ReviewConsents" xml:space="preserve"><value>Revisar acuerdos</value></data>
   <data name="Dashboard_ConsentsUpToDate" xml:space="preserve"><value>Todos los consentimientos est&#xE1;n al d&#xED;a.</value></data>
-  <data name="Dashboard_ViewConsents" xml:space="preserve"><value>Ver consentimientos</value></data>
+  <data name="Dashboard_ViewConsents" xml:space="preserve"><value>Ver acuerdos</value></data>
   <data name="Dashboard_NoConsentsRequired" xml:space="preserve"><value>No se requiere consentimiento en este momento.</value></data>
   <data name="Dashboard_LatestApplication" xml:space="preserve"><value>&#xDA;ltima solicitud:</value></data>
   <data name="Dashboard_ViewApplicationHistory" xml:space="preserve"><value>Ver historial de solicitudes</value></data>
@@ -142,11 +142,11 @@
   <data name="Dashboard_Step_Profile" xml:space="preserve"><value>Completa tu perfil</value></data>
   <data name="Dashboard_Step_Consents" xml:space="preserve"><value>Revisa y acepta los documentos requeridos</value></data>
   <data name="Dashboard_Step_Approval" xml:space="preserve"><value>La junta revisa y aprueba tu cuenta</value></data>
-  <data name="Dashboard_YourMembership" xml:space="preserve"><value>Su membres&#xED;a</value></data>
+  <data name="Dashboard_YourMembership" xml:space="preserve"><value>Su estado de voluntario</value></data>
   <data name="Dashboard_MemberSince" xml:space="preserve"><value>Miembro desde</value></data>
   <data name="Dashboard_LastLogin" xml:space="preserve"><value>&#xDA;ltimo acceso</value></data>
   <data name="Dashboard_QuickLinks" xml:space="preserve"><value>Accesos r&#xE1;pidos</value></data>
-  <data name="Dashboard_ManageConsents" xml:space="preserve"><value>Gestionar consentimientos</value></data>
+  <data name="Dashboard_ManageConsents" xml:space="preserve"><value>Revisar acuerdos</value></data>
 
   <!-- ======================== -->
   <!-- Privacy Policy Page      -->
@@ -158,7 +158,7 @@
   <!-- ======================== -->
   <data name="Profile_Title" xml:space="preserve"><value>Mi perfil</value></data>
   <data name="ProfileEdit_Title" xml:space="preserve"><value>Editar perfil</value></data>
-  <data name="ProfilePrivacy_Title" xml:space="preserve"><value>Privacidad y datos</value></data>
+  <data name="ProfilePrivacy_Title" xml:space="preserve"><value>Mis datos</value></data>
   <data name="PreferredEmail_Title" xml:space="preserve"><value>Correo electr&#xF3;nico preferido</value></data>
   <data name="VerifyEmail_Title" xml:space="preserve"><value>Verificaci&#xF3;n de correo electr&#xF3;nico</value></data>
   <data name="VerifyEmail_GoToSettings" xml:space="preserve"><value>Ir a ajustes de correo preferido</value></data>
@@ -182,7 +182,7 @@
   <data name="Profile_NotificationTarget" xml:space="preserve"><value>Las notificaciones del sistema se env&#xED;an a esta direcci&#xF3;n</value></data>
   <data name="Profile_NotificationTargetShort" xml:space="preserve"><value>Notificaciones</value></data>
   <data name="Profile_Teams" xml:space="preserve"><value>Equipos</value></data>
-  <data name="Profile_Lead" xml:space="preserve"><value>L&#xED;der</value></data>
+  <data name="Profile_Lead" xml:space="preserve"><value>L&#xED;der de equipo</value></data>
   <data name="Profile_BurnerCV" xml:space="preserve"><value>Burner CV</value></data>
   <data name="Profile_NoCVEntries" xml:space="preserve"><value>A&#xFA;n no hay entradas.</value></data>
   <data name="Profile_AddFirstEntry" xml:space="preserve"><value>A&#xF1;adir su primera entrada</value></data>
@@ -356,7 +356,7 @@
   <!-- ======================== -->
   <!-- Consent                  -->
   <!-- ======================== -->
-  <data name="ConsentIndex_Title" xml:space="preserve"><value>Gesti&#xF3;n de consentimientos</value></data>
+  <data name="ConsentIndex_Title" xml:space="preserve"><value>Acuerdos</value></data>
   <data name="ConsentReview_Title" xml:space="preserve"><value>Revisar: {0}</value><comment>{0} = document name</comment></data>
 
   <!-- Consent Index View -->
@@ -366,7 +366,7 @@
   <data name="Consent_EffectiveFrom" xml:space="preserve"><value>Vigente desde</value></data>
   <data name="Consent_Consented" xml:space="preserve"><value>Consentido</value></data>
   <data name="Consent_ReviewAndConsent" xml:space="preserve"><value>Revisar y consentir</value></data>
-  <data name="Consent_PendingCount" xml:space="preserve"><value>{0} documento(s) requieren su consentimiento. Por favor, rev&#xED;selos y otorgue su consentimiento para mantener su membres&#xED;a activa.</value><comment>{0} = pending document count</comment></data>
+  <data name="Consent_PendingCount" xml:space="preserve"><value>{0} documento(s) requieren su consentimiento. Por favor, rev&#xED;selos y otorgue su consentimiento para mantener Su estado de voluntario activa.</value><comment>{0} = pending document count</comment></data>
   <data name="Consent_AllConsented" xml:space="preserve"><value>Ha otorgado su consentimiento a todos los documentos requeridos.</value></data>
   <data name="Consent_ActionRequired" xml:space="preserve"><value>Acci&#xF3;n requerida</value></data>
   <data name="Consent_LastUpdated" xml:space="preserve"><value>&#xDA;ltima actualizaci&#xF3;n</value></data>
@@ -496,7 +496,7 @@
   <data name="AdminDashboard_Title" xml:space="preserve"><value>Panel de administraci&#xF3;n</value></data>
   <data name="AdminMembers_Title" xml:space="preserve"><value>Humans</value></data>
   <data name="AdminMemberDetail_Title" xml:space="preserve"><value>Miembro: {0}</value><comment>{0} = display name</comment></data>
-  <data name="AdminApplications_Title" xml:space="preserve"><value>Solicitudes</value></data>
+  <data name="AdminApplications_Title" xml:space="preserve"><value>Solicitudes de asociado</value></data>
   <data name="AdminApplicationDetail_Title" xml:space="preserve"><value>Revisar solicitud</value></data>
   <data name="AdminTeams_Title" xml:space="preserve"><value>Administraci&#xF3;n de equipos</value></data>
   <data name="AdminCreateTeam_Title" xml:space="preserve"><value>Crear equipo</value></data>
@@ -573,7 +573,7 @@
   <data name="Admin_ActiveMembers" xml:space="preserve"><value>Humans activos</value></data>
   <data name="Admin_PendingVolunteers" xml:space="preserve"><value>Voluntarios pendientes</value></data>
   <data name="Admin_PendingApplications" xml:space="preserve"><value>Solicitudes pendientes</value></data>
-  <data name="Admin_PendingConsents" xml:space="preserve"><value>Consentimientos pendientes</value></data>
+  <data name="Admin_PendingConsents" xml:space="preserve"><value>Acuerdos pendientes</value></data>
   <data name="Admin_QuickActions" xml:space="preserve"><value>Acciones r&#xE1;pidas</value></data>
   <data name="Admin_ReviewPendingVolunteers" xml:space="preserve"><value>Revisar voluntarios pendientes</value></data>
   <data name="Admin_ReviewApplications" xml:space="preserve"><value>Revisar solicitudes</value></data>
@@ -610,7 +610,7 @@
   <data name="AdminMember_Approved" xml:space="preserve"><value>Aprobado</value></data>
   <data name="AdminMember_UserId" xml:space="preserve"><value>ID de usuario</value></data>
   <data name="AdminMember_FullName" xml:space="preserve"><value>Nombre completo</value></data>
-  <data name="AdminMember_AdminNotes" xml:space="preserve"><value>Notas de administraci&#xF3;n</value></data>
+  <data name="AdminMember_AdminNotes" xml:space="preserve"><value>Notas de la junta</value></data>
   <data name="AdminMember_RecentApplications" xml:space="preserve"><value>Solicitudes recientes</value></data>
   <data name="AdminMember_RoleAssignments" xml:space="preserve"><value>Asignaciones de roles</value></data>
   <data name="AdminMember_AddRole" xml:space="preserve"><value>A&#xF1;adir rol</value></data>
@@ -625,7 +625,7 @@
   <data name="AdminMember_NoAuditHistory" xml:space="preserve"><value>Sin historial de auditor&#xED;a.</value></data>
   <data name="AdminMember_Statistics" xml:space="preserve"><value>Estad&#xED;sticas</value></data>
   <data name="AdminMember_ApplicationCount" xml:space="preserve"><value>Solicitudes</value></data>
-  <data name="AdminMember_ConsentCount" xml:space="preserve"><value>Consentimientos</value></data>
+  <data name="AdminMember_ConsentCount" xml:space="preserve"><value>Acuerdos</value></data>
   <data name="AdminMember_ApproveVolunteer" xml:space="preserve"><value>Aprobar voluntario</value></data>
   <data name="AdminMember_UnsuspendMember" xml:space="preserve"><value>Levantar suspensi&#xF3;n del miembro</value></data>
   <data name="AdminMember_SuspendConfirm" xml:space="preserve"><value>&#xBF;Est&#xE1; seguro de que desea suspender a este miembro?</value></data>
@@ -768,7 +768,7 @@
 
   <!-- Profile Picture & DOB -->
   <data name="Profile_ProfilePicture" xml:space="preserve"><value>Foto de perfil</value></data>
-  <data name="Profile_DateOfBirth" xml:space="preserve"><value>Fecha de nacimiento</value></data>
+  <data name="Profile_DateOfBirth" xml:space="preserve"><value>Cumplea&#xF1;os</value></data>
   <data name="Profile_PictureTooLarge" xml:space="preserve"><value>La foto de perfil debe ser inferior a 20MB.</value></data>
   <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La foto de perfil debe estar en formato JPEG, PNG o WebP.</value></data>
   <data name="ProfileEdit_GoogleAvatar" xml:space="preserve"><value>(avatar de Google)</value></data>

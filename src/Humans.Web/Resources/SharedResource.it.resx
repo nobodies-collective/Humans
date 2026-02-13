@@ -54,7 +54,7 @@
   <data name="Nav_Home" xml:space="preserve"><value>Home</value></data>
   <data name="Nav_MyProfile" xml:space="preserve"><value>Il mio Profilo</value></data>
   <data name="Nav_Teams" xml:space="preserve"><value>Team</value></data>
-  <data name="Nav_Consents" xml:space="preserve"><value>Consensi</value></data>
+  <data name="Nav_Consents" xml:space="preserve"><value>Accordi</value></data>
   <data name="Nav_Governance" xml:space="preserve"><value>Governance</value></data>
   <data name="Nav_Privacy" xml:space="preserve"><value>Privacy</value></data>
   <data name="Nav_Admin" xml:space="preserve"><value>Admin</value></data>
@@ -126,11 +126,11 @@
   <data name="Dashboard_ProfileComplete" xml:space="preserve"><value>Il Suo profilo è completo.</value></data>
   <data name="Dashboard_ProfileIncomplete" xml:space="preserve"><value>Completi il Suo profilo per aiutarci a conoscerLa meglio.</value></data>
   <data name="Dashboard_ViewProfile" xml:space="preserve"><value>Visualizza Profilo</value></data>
-  <data name="Dashboard_ConsentsCard" xml:space="preserve"><value>Consensi</value></data>
+  <data name="Dashboard_ConsentsCard" xml:space="preserve"><value>Accordi</value></data>
   <data name="Dashboard_ConsentsNeeded" xml:space="preserve"><value>&lt;strong&gt;{0}&lt;/strong&gt; di {1} documenti richiedono il Suo consenso.</value><comment>{0} = pending count, {1} = total required</comment></data>
-  <data name="Dashboard_ReviewConsents" xml:space="preserve"><value>Esamina consensi</value></data>
+  <data name="Dashboard_ReviewConsents" xml:space="preserve"><value>Esamina accordi</value></data>
   <data name="Dashboard_ConsentsUpToDate" xml:space="preserve"><value>Tutti i consensi sono aggiornati.</value></data>
-  <data name="Dashboard_ViewConsents" xml:space="preserve"><value>Visualizza consensi</value></data>
+  <data name="Dashboard_ViewConsents" xml:space="preserve"><value>Visualizza accordi</value></data>
   <data name="Dashboard_NoConsentsRequired" xml:space="preserve"><value>Al momento non sono richiesti consensi per alcun documento.</value></data>
   <data name="Dashboard_LatestApplication" xml:space="preserve"><value>Ultima domanda:</value></data>
   <data name="Dashboard_ViewApplicationHistory" xml:space="preserve"><value>Visualizza storico domande</value></data>
@@ -142,11 +142,11 @@
   <data name="Dashboard_Step_Profile" xml:space="preserve"><value>Completa il tuo profilo</value></data>
   <data name="Dashboard_Step_Consents" xml:space="preserve"><value>Rivedi e accetta i documenti richiesti</value></data>
   <data name="Dashboard_Step_Approval" xml:space="preserve"><value>Il consiglio esamina e approva il tuo account</value></data>
-  <data name="Dashboard_YourMembership" xml:space="preserve"><value>La Sua iscrizione</value></data>
+  <data name="Dashboard_YourMembership" xml:space="preserve"><value>Il Suo stato di volontario</value></data>
   <data name="Dashboard_MemberSince" xml:space="preserve"><value>Membro dal</value></data>
   <data name="Dashboard_LastLogin" xml:space="preserve"><value>Ultimo accesso</value></data>
   <data name="Dashboard_QuickLinks" xml:space="preserve"><value>Link rapidi</value></data>
-  <data name="Dashboard_ManageConsents" xml:space="preserve"><value>Gestisci consensi</value></data>
+  <data name="Dashboard_ManageConsents" xml:space="preserve"><value>Esamina accordi</value></data>
 
   <!-- ======================== -->
   <!-- Privacy Policy Page      -->
@@ -158,7 +158,7 @@
   <!-- ======================== -->
   <data name="Profile_Title" xml:space="preserve"><value>Il mio Profilo</value></data>
   <data name="ProfileEdit_Title" xml:space="preserve"><value>Modifica Profilo</value></data>
-  <data name="ProfilePrivacy_Title" xml:space="preserve"><value>Privacy &amp; Dati</value></data>
+  <data name="ProfilePrivacy_Title" xml:space="preserve"><value>I miei dati</value></data>
   <data name="PreferredEmail_Title" xml:space="preserve"><value>Email preferita</value></data>
   <data name="VerifyEmail_Title" xml:space="preserve"><value>Verifica email</value></data>
   <data name="VerifyEmail_GoToSettings" xml:space="preserve"><value>Vai alle impostazioni email</value></data>
@@ -180,7 +180,7 @@
   <data name="Profile_NoContactInfo" xml:space="preserve"><value>Nessuna informazione di contatto aggiunta.</value></data>
   <data name="Profile_AddSome" xml:space="preserve"><value>Aggiungi</value></data>
   <data name="Profile_Teams" xml:space="preserve"><value>Team</value></data>
-  <data name="Profile_Lead" xml:space="preserve"><value>Lead</value></data>
+  <data name="Profile_Lead" xml:space="preserve"><value>Responsabile del team</value></data>
   <data name="Profile_BurnerCV" xml:space="preserve"><value>Burner CV</value></data>
   <data name="Profile_NoCVEntries" xml:space="preserve"><value>Nessuna voce presente.</value></data>
   <data name="Profile_AddFirstEntry" xml:space="preserve"><value>Aggiungi la prima voce</value></data>
@@ -354,7 +354,7 @@
   <!-- ======================== -->
   <!-- Consent                  -->
   <!-- ======================== -->
-  <data name="ConsentIndex_Title" xml:space="preserve"><value>Gestione consensi</value></data>
+  <data name="ConsentIndex_Title" xml:space="preserve"><value>Accordi</value></data>
   <data name="ConsentReview_Title" xml:space="preserve"><value>Esame: {0}</value><comment>{0} = document name</comment></data>
 
   <!-- Consent Index View -->
@@ -491,7 +491,7 @@
   <data name="AdminDashboard_Title" xml:space="preserve"><value>Dashboard Admin</value></data>
   <data name="AdminMembers_Title" xml:space="preserve"><value>Humans</value></data>
   <data name="AdminMemberDetail_Title" xml:space="preserve"><value>Membro: {0}</value><comment>{0} = display name</comment></data>
-  <data name="AdminApplications_Title" xml:space="preserve"><value>Domande</value></data>
+  <data name="AdminApplications_Title" xml:space="preserve"><value>Domande asociado</value></data>
   <data name="AdminApplicationDetail_Title" xml:space="preserve"><value>Esamina domanda</value></data>
   <data name="AdminTeams_Title" xml:space="preserve"><value>Amministrazione Team</value></data>
   <data name="AdminCreateTeam_Title" xml:space="preserve"><value>Crea Team</value></data>
@@ -568,7 +568,7 @@
   <data name="Admin_ActiveMembers" xml:space="preserve"><value>Humans attivi</value></data>
   <data name="Admin_PendingVolunteers" xml:space="preserve"><value>Volontari in sospeso</value></data>
   <data name="Admin_PendingApplications" xml:space="preserve"><value>Domande in sospeso</value></data>
-  <data name="Admin_PendingConsents" xml:space="preserve"><value>Consensi in sospeso</value></data>
+  <data name="Admin_PendingConsents" xml:space="preserve"><value>Accordi in sospeso</value></data>
   <data name="Admin_QuickActions" xml:space="preserve"><value>Azioni rapide</value></data>
   <data name="Admin_ReviewPendingVolunteers" xml:space="preserve"><value>Esamina volontari in sospeso</value></data>
   <data name="Admin_ReviewApplications" xml:space="preserve"><value>Esamina domande</value></data>
@@ -605,7 +605,7 @@
   <data name="AdminMember_Approved" xml:space="preserve"><value>Approvato</value></data>
   <data name="AdminMember_UserId" xml:space="preserve"><value>ID utente</value></data>
   <data name="AdminMember_FullName" xml:space="preserve"><value>Nome completo</value></data>
-  <data name="AdminMember_AdminNotes" xml:space="preserve"><value>Note dell'amministratore</value></data>
+  <data name="AdminMember_AdminNotes" xml:space="preserve"><value>Note del consiglio</value></data>
   <data name="AdminMember_RecentApplications" xml:space="preserve"><value>Domande recenti</value></data>
   <data name="AdminMember_RoleAssignments" xml:space="preserve"><value>Assegnazione ruoli</value></data>
   <data name="AdminMember_AddRole" xml:space="preserve"><value>Aggiungi ruolo</value></data>
@@ -620,7 +620,7 @@
   <data name="AdminMember_NoAuditHistory" xml:space="preserve"><value>Nessuno storico audit disponibile.</value></data>
   <data name="AdminMember_Statistics" xml:space="preserve"><value>Statistiche</value></data>
   <data name="AdminMember_ApplicationCount" xml:space="preserve"><value>Domande</value></data>
-  <data name="AdminMember_ConsentCount" xml:space="preserve"><value>Consensi</value></data>
+  <data name="AdminMember_ConsentCount" xml:space="preserve"><value>Accordi</value></data>
   <data name="AdminMember_ApproveVolunteer" xml:space="preserve"><value>Approva volontario</value></data>
   <data name="AdminMember_UnsuspendMember" xml:space="preserve"><value>Revoca sospensione</value></data>
   <data name="AdminMember_SuspendConfirm" xml:space="preserve"><value>È sicuro/a di voler sospendere questo membro?</value></data>
@@ -763,7 +763,7 @@
 
   <!-- Profile Picture & DOB -->
   <data name="Profile_ProfilePicture" xml:space="preserve"><value>Foto del profilo</value></data>
-  <data name="Profile_DateOfBirth" xml:space="preserve"><value>Data di nascita</value></data>
+  <data name="Profile_DateOfBirth" xml:space="preserve"><value>Compleanno</value></data>
   <data name="Profile_PictureTooLarge" xml:space="preserve"><value>La foto del profilo deve essere inferiore a 20MB.</value></data>
   <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La foto del profilo deve essere in formato JPEG, PNG o WebP.</value></data>
   <data name="ProfileEdit_GoogleAvatar" xml:space="preserve"><value>(avatar di Google)</value></data>

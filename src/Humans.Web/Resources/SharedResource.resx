@@ -54,7 +54,7 @@
   <data name="Nav_Home" xml:space="preserve"><value>Home</value></data>
   <data name="Nav_MyProfile" xml:space="preserve"><value>My Profile</value></data>
   <data name="Nav_Teams" xml:space="preserve"><value>Teams</value></data>
-  <data name="Nav_Consents" xml:space="preserve"><value>Consents</value></data>
+  <data name="Nav_Consents" xml:space="preserve"><value>Agreements</value></data>
   <data name="Nav_Governance" xml:space="preserve"><value>Governance</value></data>
   <data name="Nav_Privacy" xml:space="preserve"><value>Privacy</value></data>
   <data name="Nav_Admin" xml:space="preserve"><value>Admin</value></data>
@@ -126,11 +126,11 @@
   <data name="Dashboard_ProfileComplete" xml:space="preserve"><value>Your profile is complete.</value></data>
   <data name="Dashboard_ProfileIncomplete" xml:space="preserve"><value>Complete your profile to help us know you better.</value></data>
   <data name="Dashboard_ViewProfile" xml:space="preserve"><value>View Profile</value></data>
-  <data name="Dashboard_ConsentsCard" xml:space="preserve"><value>Consents</value></data>
+  <data name="Dashboard_ConsentsCard" xml:space="preserve"><value>Agreements</value></data>
   <data name="Dashboard_ConsentsNeeded" xml:space="preserve"><value>&lt;strong&gt;{0}&lt;/strong&gt; of {1} documents need your consent.</value><comment>{0} = pending count, {1} = total required</comment></data>
-  <data name="Dashboard_ReviewConsents" xml:space="preserve"><value>Review Consents</value></data>
+  <data name="Dashboard_ReviewConsents" xml:space="preserve"><value>Review Agreements</value></data>
   <data name="Dashboard_ConsentsUpToDate" xml:space="preserve"><value>All consents are up to date.</value></data>
-  <data name="Dashboard_ViewConsents" xml:space="preserve"><value>View Consents</value></data>
+  <data name="Dashboard_ViewConsents" xml:space="preserve"><value>View Agreements</value></data>
   <data name="Dashboard_NoConsentsRequired" xml:space="preserve"><value>No documents require consent at this time.</value></data>
   <data name="Dashboard_LatestApplication" xml:space="preserve"><value>Latest Application:</value></data>
   <data name="Dashboard_ViewApplicationHistory" xml:space="preserve"><value>View application history</value></data>
@@ -142,11 +142,11 @@
   <data name="Dashboard_Step_Profile" xml:space="preserve"><value>Complete your profile</value></data>
   <data name="Dashboard_Step_Consents" xml:space="preserve"><value>Review and consent to required documents</value></data>
   <data name="Dashboard_Step_Approval" xml:space="preserve"><value>The board reviews and approves your account</value></data>
-  <data name="Dashboard_YourMembership" xml:space="preserve"><value>Your Membership</value></data>
+  <data name="Dashboard_YourMembership" xml:space="preserve"><value>Your Volunteer Status</value></data>
   <data name="Dashboard_MemberSince" xml:space="preserve"><value>Member Since</value></data>
   <data name="Dashboard_LastLogin" xml:space="preserve"><value>Last Login</value></data>
   <data name="Dashboard_QuickLinks" xml:space="preserve"><value>Quick Links</value></data>
-  <data name="Dashboard_ManageConsents" xml:space="preserve"><value>Manage Consents</value></data>
+  <data name="Dashboard_ManageConsents" xml:space="preserve"><value>Review Agreements</value></data>
 
   <!-- ======================== -->
   <!-- Privacy Policy Page      -->
@@ -158,7 +158,7 @@
   <!-- ======================== -->
   <data name="Profile_Title" xml:space="preserve"><value>My Profile</value></data>
   <data name="ProfileEdit_Title" xml:space="preserve"><value>Edit Profile</value></data>
-  <data name="ProfilePrivacy_Title" xml:space="preserve"><value>Privacy &amp; Data</value></data>
+  <data name="ProfilePrivacy_Title" xml:space="preserve"><value>My Data</value></data>
   <data name="Emails_Title" xml:space="preserve"><value>Email Addresses</value></data>
   <data name="VerifyEmail_Title" xml:space="preserve"><value>Email Verification</value></data>
   <data name="VerifyEmail_GoToSettings" xml:space="preserve"><value>Go to Email Settings</value></data>
@@ -182,7 +182,7 @@
   <data name="Profile_NotificationTarget" xml:space="preserve"><value>System notifications are sent to this address</value></data>
   <data name="Profile_NotificationTargetShort" xml:space="preserve"><value>Notifications</value></data>
   <data name="Profile_Teams" xml:space="preserve"><value>Teams</value></data>
-  <data name="Profile_Lead" xml:space="preserve"><value>Lead</value></data>
+  <data name="Profile_Lead" xml:space="preserve"><value>Team Lead</value></data>
   <data name="Profile_BurnerCV" xml:space="preserve"><value>Burner CV</value></data>
   <data name="Profile_NoCVEntries" xml:space="preserve"><value>No entries yet.</value></data>
   <data name="Profile_AddFirstEntry" xml:space="preserve"><value>Add your first entry</value></data>
@@ -203,7 +203,7 @@
   <data name="ProfileEdit_AddContactField" xml:space="preserve"><value>Add Contact Field</value></data>
   <data name="ProfileEdit_BurnerCVHelp" xml:space="preserve"><value>Document your involvement in events, roles, and camps. Entries are sorted by date (newest first).</value></data>
   <data name="ProfileEdit_AddEntry" xml:space="preserve"><value>Add Entry</value></data>
-  <data name="ProfileEdit_ManageEmails" xml:space="preserve"><value>Manage Email Addresses</value></data>
+  <data name="ProfileEdit_ManageEmails" xml:space="preserve"><value>Email Addresses</value></data>
   <data name="ProfileEdit_ManageEmailsHelp" xml:space="preserve"><value>Add email addresses, set notification preferences, and control profile visibility.</value></data>
 
   <!-- Profile Privacy View -->
@@ -246,7 +246,7 @@
   <data name="Emails_SendVerification" xml:space="preserve"><value>Send Verification Email</value></data>
   <data name="Emails_ResendCooldown" xml:space="preserve"><value>You can request a new verification email in {0} minute(s).</value><comment>{0} = minutes remaining</comment></data>
   <data name="Emails_BackToEdit" xml:space="preserve"><value>Back to Edit Profile</value></data>
-  <data name="Emails_ManageEmails" xml:space="preserve"><value>Manage Email Addresses</value></data>
+  <data name="Emails_ManageEmails" xml:space="preserve"><value>Email Addresses</value></data>
   <data name="Emails_ManageEmailsHelp" xml:space="preserve"><value>Add additional email addresses, control notifications, and set profile visibility.</value></data>
 
   <!-- Profile Controller TempData -->
@@ -344,7 +344,7 @@
   <!-- ======================== -->
   <!-- Consent                  -->
   <!-- ======================== -->
-  <data name="ConsentIndex_Title" xml:space="preserve"><value>Consent Management</value></data>
+  <data name="ConsentIndex_Title" xml:space="preserve"><value>Agreements</value></data>
   <data name="ConsentReview_Title" xml:space="preserve"><value>Review: {0}</value><comment>{0} = document name</comment></data>
 
   <!-- Consent Index View -->
@@ -484,7 +484,7 @@
   <data name="AdminDashboard_Title" xml:space="preserve"><value>Admin Dashboard</value></data>
   <data name="AdminMembers_Title" xml:space="preserve"><value>Humans</value></data>
   <data name="AdminMemberDetail_Title" xml:space="preserve"><value>Member: {0}</value><comment>{0} = display name</comment></data>
-  <data name="AdminApplications_Title" xml:space="preserve"><value>Applications</value></data>
+  <data name="AdminApplications_Title" xml:space="preserve"><value>Asociado Applications</value></data>
   <data name="AdminApplicationDetail_Title" xml:space="preserve"><value>Review Application</value></data>
   <data name="AdminTeams_Title" xml:space="preserve"><value>Teams Administration</value></data>
   <data name="AdminCreateTeam_Title" xml:space="preserve"><value>Create Team</value></data>
@@ -561,7 +561,7 @@
   <data name="Admin_ActiveMembers" xml:space="preserve"><value>Active Humans</value></data>
   <data name="Admin_PendingVolunteers" xml:space="preserve"><value>Pending Volunteers</value></data>
   <data name="Admin_PendingApplications" xml:space="preserve"><value>Pending Applications</value></data>
-  <data name="Admin_PendingConsents" xml:space="preserve"><value>Pending Consents</value></data>
+  <data name="Admin_PendingConsents" xml:space="preserve"><value>Pending Agreements</value></data>
   <data name="Admin_QuickActions" xml:space="preserve"><value>Quick Actions</value></data>
   <data name="Admin_ReviewPendingVolunteers" xml:space="preserve"><value>Review Pending Volunteers</value></data>
   <data name="Admin_ReviewApplications" xml:space="preserve"><value>Review Applications</value></data>
@@ -598,7 +598,7 @@
   <data name="AdminMember_Approved" xml:space="preserve"><value>Approved</value></data>
   <data name="AdminMember_UserId" xml:space="preserve"><value>User ID</value></data>
   <data name="AdminMember_FullName" xml:space="preserve"><value>Full Name</value></data>
-  <data name="AdminMember_AdminNotes" xml:space="preserve"><value>Admin Notes</value></data>
+  <data name="AdminMember_AdminNotes" xml:space="preserve"><value>Board Notes</value></data>
   <data name="AdminMember_RecentApplications" xml:space="preserve"><value>Recent Applications</value></data>
   <data name="AdminMember_RoleAssignments" xml:space="preserve"><value>Role Assignments</value></data>
   <data name="AdminMember_AddRole" xml:space="preserve"><value>Add Role</value></data>
@@ -613,7 +613,7 @@
   <data name="AdminMember_NoAuditHistory" xml:space="preserve"><value>No audit history.</value></data>
   <data name="AdminMember_Statistics" xml:space="preserve"><value>Statistics</value></data>
   <data name="AdminMember_ApplicationCount" xml:space="preserve"><value>Applications</value></data>
-  <data name="AdminMember_ConsentCount" xml:space="preserve"><value>Consents</value></data>
+  <data name="AdminMember_ConsentCount" xml:space="preserve"><value>Agreements</value></data>
   <data name="AdminMember_ApproveVolunteer" xml:space="preserve"><value>Approve Volunteer</value></data>
   <data name="AdminMember_UnsuspendMember" xml:space="preserve"><value>Unsuspend Member</value></data>
   <data name="AdminMember_SuspendConfirm" xml:space="preserve"><value>Are you sure you want to suspend this member?</value></data>
