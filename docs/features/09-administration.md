@@ -123,11 +123,11 @@ Approval and consent completion both trigger `SyncVolunteersMembershipForUserAsy
 | Route | Action | Description |
 |-------|--------|-------------|
 | `/Admin` | Index | Dashboard |
-| `/Admin/Humans` | Members | Member list with search |
-| `/Admin/Humans/{id}` | MemberDetail | Individual member view |
+| `/Admin/Humans` | Humans | Member list with search |
+| `/Admin/Humans/{id}` | HumanDetail | Individual member view |
 | `/Admin/Humans/{id}/Approve` | ApproveVolunteer | POST: Approve volunteer |
-| `/Admin/Humans/{id}/Suspend` | SuspendMember | POST: Suspend member |
-| `/Admin/Humans/{id}/Unsuspend` | UnsuspendMember | POST: Unsuspend member |
+| `/Admin/Humans/{id}/Suspend` | SuspendHuman | POST: Suspend member |
+| `/Admin/Humans/{id}/Unsuspend` | UnsuspendHuman | POST: Unsuspend member |
 | `/Admin/Applications` | Applications | Application list |
 | `/Admin/Applications/{id}` | ApplicationDetail | Application review |
 | `/Admin/Applications/{id}/Action` | ApplicationAction | POST: Process application |

@@ -1,10 +1,10 @@
-@model Humans.Web.Models.AdminMemberListViewModel
+@model Humans.Web.Models.AdminHumanListViewModel
 @{
-    ViewData["Title"] = Localizer["AdminMembers_Title"].Value;
+    ViewData["Title"] = Localizer["AdminHumans_Title"].Value;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>@Localizer["AdminMembers_Title"]</h1>
+    <h1>@Localizer["AdminHumans_Title"]</h1>
     <span class="text-muted">@string.Format(Localizer["Admin_TotalCount"].Value, Model.TotalCount)</span>
 </div>
 
@@ -19,7 +19,7 @@
                 <button type="submit" class="btn btn-primary">@Localizer["Admin_Search"]</button>
                 @if (!string.IsNullOrEmpty(Model.SearchTerm))
                 {
-                    <a asp-action="Members" class="btn btn-outline-secondary">@Localizer["Admin_Clear"]</a>
+                    <a asp-action="Humans" class="btn btn-outline-secondary">@Localizer["Admin_Clear"]</a>
                 }
             </div>
         </form>
@@ -28,7 +28,7 @@
 
 <div class="card">
     <div class="card-body p-0">
-        @if (Model.Members.Count == 0)
+        @if (Model.Humans.Count == 0)
         {
             <p class="text-muted text-center py-4 mb-0">@Localizer["Admin_NoMembersFound"]</p>
         }
@@ -45,7 +45,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var member in Model.Members)
+                    @foreach (var member in Model.Humans)
                     {
                         <tr>
                             <td>
@@ -97,7 +97,7 @@
                                 }
                             </td>
                             <td class="text-end">
-                                <a asp-action="MemberDetail" asp-route-id="@member.Id" class="btn btn-sm btn-outline-primary">
+                                <a asp-action="HumanDetail" asp-route-id="@member.Id" class="btn btn-sm btn-outline-primary">
                                     @Localizer["MyTeams_View"]
                                 </a>
                             </td>
@@ -117,7 +117,7 @@
             @for (var i = 1; i <= totalPages && i <= 10; i++)
             {
                 <li class="page-item @(i == Model.PageNumber ? "active" : "")">
-                    <a class="page-link" asp-action="Members" asp-route-page="@i" asp-route-search="@Model.SearchTerm">@i</a>
+                    <a class="page-link" asp-action="Humans" asp-route-page="@i" asp-route-search="@Model.SearchTerm">@i</a>
                 </li>
             }
         </ul>

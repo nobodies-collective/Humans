@@ -49,7 +49,7 @@
     <div class="card-body p-0">
         @if (Model.RoleAssignments.Count == 0)
         {
-            <p class="text-muted text-center py-4 mb-0">@Localizer["AdminMember_NoRoleAssignments"]</p>
+            <p class="text-muted text-center py-4 mb-0">@Localizer["AdminHuman_NoRoleAssignments"]</p>
         }
         else
         {
@@ -69,7 +69,7 @@
                     {
                         <tr class="@(ra.IsActive ? "" : "table-secondary")">
                             <td>
-                                <a asp-action="MemberDetail" asp-route-id="@ra.UserId">@ra.UserDisplayName</a>
+                                <a asp-action="HumanDetail" asp-route-id="@ra.UserId">@ra.UserDisplayName</a>
                                 <br />
                                 <small class="text-muted">@ra.UserEmail</small>
                             </td>
@@ -88,20 +88,20 @@
                             <td>
                                 @if (ra.IsActive)
                                 {
-                                    <span class="badge bg-success">@Localizer["AdminMember_Active"]</span>
+                                    <span class="badge bg-success">@Localizer["AdminHuman_Active"]</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary">@Localizer["AdminMember_Ended"]</span>
+                                    <span class="badge bg-secondary">@Localizer["AdminHuman_Ended"]</span>
                                 }
                             </td>
                             <td class="text-end">
                                 @if (ra.IsActive)
                                 {
                                     <form asp-action="EndRole" asp-route-id="@ra.Id" method="post" class="d-inline"
-                                          data-confirm="@Localizer["AdminMember_EndRoleConfirm"].Value">
+                                          data-confirm="@Localizer["AdminHuman_EndRoleConfirm"].Value">
                                         @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">@Localizer["AdminMember_End"]</button>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">@Localizer["AdminHuman_End"]</button>
                                     </form>
                                 }
                             </td>

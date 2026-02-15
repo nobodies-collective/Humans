@@ -482,8 +482,8 @@
   <!-- Admin                    -->
   <!-- ======================== -->
   <data name="AdminDashboard_Title" xml:space="preserve"><value>Admin Dashboard</value></data>
-  <data name="AdminMembers_Title" xml:space="preserve"><value>Humans</value></data>
-  <data name="AdminMemberDetail_Title" xml:space="preserve"><value>Member: {0}</value><comment>{0} = display name</comment></data>
+  <data name="AdminHumans_Title" xml:space="preserve"><value>Humans</value></data>
+  <data name="AdminHumanDetail_Title" xml:space="preserve"><value>Member: {0}</value><comment>{0} = display name</comment></data>
   <data name="AdminApplications_Title" xml:space="preserve"><value>Asociado Applications</value></data>
   <data name="AdminApplicationDetail_Title" xml:space="preserve"><value>Review Application</value></data>
   <data name="AdminTeams_Title" xml:space="preserve"><value>Teams Administration</value></data>
@@ -577,7 +577,7 @@
   <data name="Admin_NoRecentActivity" xml:space="preserve"><value>No recent activity recorded.</value></data>
 
   <!-- ======================== -->
-  <!-- Admin Members View       -->
+  <!-- Admin Humans View        -->
   <!-- ======================== -->
   <data name="Admin_TotalCount" xml:space="preserve"><value>{0} total</value><comment>{0} = count</comment></data>
   <data name="Admin_SearchPlaceholder" xml:space="preserve"><value>Search by email or name...</value></data>
@@ -590,35 +590,35 @@
   <data name="Admin_NoProfile" xml:space="preserve"><value>No Profile</value></data>
 
   <!-- ======================== -->
-  <!-- Admin Member Detail View -->
+  <!-- Admin Human Detail View  -->
   <!-- ======================== -->
-  <data name="AdminMember_Information" xml:space="preserve"><value>Member Information</value></data>
-  <data name="AdminMember_Suspended" xml:space="preserve"><value>Suspended</value></data>
-  <data name="AdminMember_PendingApproval" xml:space="preserve"><value>Pending Approval</value></data>
-  <data name="AdminMember_Approved" xml:space="preserve"><value>Approved</value></data>
-  <data name="AdminMember_UserId" xml:space="preserve"><value>User ID</value></data>
-  <data name="AdminMember_FullName" xml:space="preserve"><value>Full Name</value></data>
-  <data name="AdminMember_AdminNotes" xml:space="preserve"><value>Board Notes</value></data>
-  <data name="AdminMember_RecentApplications" xml:space="preserve"><value>Recent Applications</value></data>
-  <data name="AdminMember_RoleAssignments" xml:space="preserve"><value>Role Assignments</value></data>
-  <data name="AdminMember_AddRole" xml:space="preserve"><value>Add Role</value></data>
-  <data name="AdminMember_Active" xml:space="preserve"><value>Active</value></data>
-  <data name="AdminMember_Ended" xml:space="preserve"><value>Ended</value></data>
-  <data name="AdminMember_From" xml:space="preserve"><value>From</value></data>
-  <data name="AdminMember_To" xml:space="preserve"><value>to</value></data>
-  <data name="AdminMember_EndRoleConfirm" xml:space="preserve"><value>End this role assignment?</value></data>
-  <data name="AdminMember_End" xml:space="preserve"><value>End</value></data>
-  <data name="AdminMember_NoRoleAssignments" xml:space="preserve"><value>No role assignments.</value></data>
-  <data name="AdminMember_AuditHistory" xml:space="preserve"><value>Audit History</value></data>
-  <data name="AdminMember_NoAuditHistory" xml:space="preserve"><value>No audit history.</value></data>
-  <data name="AdminMember_Statistics" xml:space="preserve"><value>Statistics</value></data>
-  <data name="AdminMember_ApplicationCount" xml:space="preserve"><value>Applications</value></data>
-  <data name="AdminMember_ConsentCount" xml:space="preserve"><value>Agreements</value></data>
-  <data name="AdminMember_ApproveVolunteer" xml:space="preserve"><value>Approve Volunteer</value></data>
-  <data name="AdminMember_UnsuspendMember" xml:space="preserve"><value>Unsuspend Member</value></data>
-  <data name="AdminMember_SuspendConfirm" xml:space="preserve"><value>Are you sure you want to suspend this member?</value></data>
-  <data name="AdminMember_SuspendReasonPlaceholder" xml:space="preserve"><value>Reason for suspension (optional)</value></data>
-  <data name="AdminMember_SuspendMember" xml:space="preserve"><value>Suspend Member</value></data>
+  <data name="AdminHuman_Information" xml:space="preserve"><value>Member Information</value></data>
+  <data name="AdminHuman_Suspended" xml:space="preserve"><value>Suspended</value></data>
+  <data name="AdminHuman_PendingApproval" xml:space="preserve"><value>Pending Approval</value></data>
+  <data name="AdminHuman_Approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="AdminHuman_UserId" xml:space="preserve"><value>User ID</value></data>
+  <data name="AdminHuman_FullName" xml:space="preserve"><value>Full Name</value></data>
+  <data name="AdminHuman_AdminNotes" xml:space="preserve"><value>Board Notes</value></data>
+  <data name="AdminHuman_RecentApplications" xml:space="preserve"><value>Recent Applications</value></data>
+  <data name="AdminHuman_RoleAssignments" xml:space="preserve"><value>Role Assignments</value></data>
+  <data name="AdminHuman_AddRole" xml:space="preserve"><value>Add Role</value></data>
+  <data name="AdminHuman_Active" xml:space="preserve"><value>Active</value></data>
+  <data name="AdminHuman_Ended" xml:space="preserve"><value>Ended</value></data>
+  <data name="AdminHuman_From" xml:space="preserve"><value>From</value></data>
+  <data name="AdminHuman_To" xml:space="preserve"><value>to</value></data>
+  <data name="AdminHuman_EndRoleConfirm" xml:space="preserve"><value>End this role assignment?</value></data>
+  <data name="AdminHuman_End" xml:space="preserve"><value>End</value></data>
+  <data name="AdminHuman_NoRoleAssignments" xml:space="preserve"><value>No role assignments.</value></data>
+  <data name="AdminHuman_AuditHistory" xml:space="preserve"><value>Audit History</value></data>
+  <data name="AdminHuman_NoAuditHistory" xml:space="preserve"><value>No audit history.</value></data>
+  <data name="AdminHuman_Statistics" xml:space="preserve"><value>Statistics</value></data>
+  <data name="AdminHuman_ApplicationCount" xml:space="preserve"><value>Applications</value></data>
+  <data name="AdminHuman_ConsentCount" xml:space="preserve"><value>Agreements</value></data>
+  <data name="AdminHuman_ApproveVolunteer" xml:space="preserve"><value>Approve Volunteer</value></data>
+  <data name="AdminHuman_UnsuspendMember" xml:space="preserve"><value>Unsuspend Member</value></data>
+  <data name="AdminHuman_SuspendConfirm" xml:space="preserve"><value>Are you sure you want to suspend this member?</value></data>
+  <data name="AdminHuman_SuspendReasonPlaceholder" xml:space="preserve"><value>Reason for suspension (optional)</value></data>
+  <data name="AdminHuman_SuspendMember" xml:space="preserve"><value>Suspend Member</value></data>
 
   <!-- ======================== -->
   <!-- Admin Applications View  -->

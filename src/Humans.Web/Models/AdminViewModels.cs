@@ -17,16 +17,16 @@ public class RecentActivityViewModel
     public string Type { get; set; } = string.Empty;
 }
 
-public class AdminMemberListViewModel
+public class AdminHumanListViewModel
 {
-    public List<AdminMemberViewModel> Members { get; set; } = [];
+    public List<AdminHumanViewModel> Humans { get; set; } = [];
     public string? SearchTerm { get; set; }
     public int TotalCount { get; set; }
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 20;
 }
 
-public class AdminMemberViewModel
+public class AdminHumanViewModel
 {
     public Guid Id { get; set; }
     public string Email { get; set; } = string.Empty;
@@ -39,7 +39,7 @@ public class AdminMemberViewModel
     public bool IsApproved { get; set; }
 }
 
-public class AdminMemberDetailViewModel
+public class AdminHumanDetailViewModel
 {
     public Guid UserId { get; set; }
     public string Email { get; set; } = string.Empty;
@@ -64,12 +64,12 @@ public class AdminMemberDetailViewModel
     // Stats
     public int ApplicationCount { get; set; }
     public int ConsentCount { get; set; }
-    public List<AdminMemberApplicationViewModel> Applications { get; set; } = [];
+    public List<AdminHumanApplicationViewModel> Applications { get; set; } = [];
     public List<AdminRoleAssignmentViewModel> RoleAssignments { get; set; } = [];
     public List<AuditLogEntryViewModel> AuditLog { get; set; } = [];
 }
 
-public class AdminMemberApplicationViewModel
+public class AdminHumanApplicationViewModel
 {
     public Guid Id { get; set; }
     public string Status { get; set; } = string.Empty;

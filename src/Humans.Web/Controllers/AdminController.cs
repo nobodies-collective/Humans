@@ -100,7 +100,7 @@ public class AdminController : Controller
     }
 
     [HttpGet("Humans")]
-    public async Task<IActionResult> Members(string? search, string? filter, int page = 1)
+    public async Task<IActionResult> Humans(string? search, string? filter, int page = 1)
     {
         var pageSize = 20;
         var query = _dbContext.Users.AsQueryable();
@@ -123,7 +123,7 @@ public class AdminController : Controller
             .OrderByDescending(u => u.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(u => new AdminMemberViewModel
+            .Select(u => new AdminHumanViewModel
             {
                 Id = u.Id,
                 Email = u.Email ?? string.Empty,
@@ -139,9 +139,9 @@ public class AdminController : Controller
             })
             .ToListAsync();
 
-        var viewModel = new AdminMemberListViewModel
+        var viewModel = new AdminHumanListViewModel
         {
-            Members = members,
+            Humans = members,
             SearchTerm = search,
             TotalCount = totalCount,
             PageNumber = page,
@@ -152,7 +152,7 @@ public class AdminController : Controller
     }
 
     [HttpGet("Humans/{id}")]
-    public async Task<IActionResult> MemberDetail(Guid id)
+    public async Task<IActionResult> HumanDetail(Guid id)
     {
         var user = await _dbContext.Users
             .Include(u => u.Profile)
@@ -190,7 +190,7 @@ public class AdminController : Controller
             })
             .ToListAsync();
 
-        var viewModel = new AdminMemberDetailViewModel
+        var viewModel = new AdminHumanDetailViewModel
         {
             UserId = user.Id,
             Email = user.Email ?? string.Empty,
@@ -214,7 +214,7 @@ public class AdminController : Controller
             Applications = user.Applications
                 .OrderByDescending(a => a.SubmittedAt)
                 .Take(5)
-                .Select(a => new AdminMemberApplicationViewModel
+                .Select(a => new AdminHumanApplicationViewModel
                 {
                     Id = a.Id,
                     Status = a.Status.ToString(),
@@ -425,7 +425,7 @@ public class AdminController : Controller
 
     [HttpPost("Humans/{id}/Suspend")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SuspendMember(Guid id, string? notes)
+    public async Task<IActionResult> SuspendHuman(Guid id, string? notes)
     {
         var user = await _dbContext.Users
             .Include(u => u.Profile)
@@ -455,12 +455,12 @@ public class AdminController : Controller
         _logger.LogInformation("Admin {AdminId} suspended member {MemberId}", currentUser?.Id, id);
 
         TempData["SuccessMessage"] = _localizer["Admin_MemberSuspended"].Value;
-        return RedirectToAction(nameof(MemberDetail), new { id });
+        return RedirectToAction(nameof(HumanDetail), new { id });
     }
 
     [HttpPost("Humans/{id}/Unsuspend")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UnsuspendMember(Guid id)
+    public async Task<IActionResult> UnsuspendHuman(Guid id)
     {
         var user = await _dbContext.Users
             .Include(u => u.Profile)
@@ -489,7 +489,7 @@ public class AdminController : Controller
         _logger.LogInformation("Admin {AdminId} unsuspended member {MemberId}", currentUser?.Id, id);
 
         TempData["SuccessMessage"] = _localizer["Admin_MemberUnsuspended"].Value;
-        return RedirectToAction(nameof(MemberDetail), new { id });
+        return RedirectToAction(nameof(HumanDetail), new { id });
     }
 
     [HttpPost("Humans/{id}/Approve")]
@@ -527,7 +527,7 @@ public class AdminController : Controller
         _logger.LogInformation("Admin {AdminId} approved volunteer {MemberId}", currentUser?.Id, id);
 
         TempData["SuccessMessage"] = _localizer["Admin_VolunteerApproved"].Value;
-        return RedirectToAction(nameof(MemberDetail), new { id });
+        return RedirectToAction(nameof(HumanDetail), new { id });
     }
 
     [HttpGet("Teams")]
@@ -795,7 +795,7 @@ public class AdminController : Controller
         if (hasOverlap)
         {
             TempData["ErrorMessage"] = string.Format(_localizer["Admin_RoleAlreadyActive"].Value, model.RoleName);
-            return RedirectToAction(nameof(MemberDetail), new { id });
+            return RedirectToAction(nameof(HumanDetail), new { id });
         }
 
         var roleAssignment = new RoleAssignment
@@ -828,7 +828,7 @@ public class AdminController : Controller
         }
 
         TempData["SuccessMessage"] = string.Format(_localizer["Admin_RoleAssigned"].Value, model.RoleName);
-        return RedirectToAction(nameof(MemberDetail), new { id });
+        return RedirectToAction(nameof(HumanDetail), new { id });
     }
 
     [HttpPost("Roles/{id}/End")]
@@ -855,7 +855,7 @@ public class AdminController : Controller
         if (!roleAssignment.IsActive(now))
         {
             TempData["ErrorMessage"] = _localizer["Admin_RoleNotActive"].Value;
-            return RedirectToAction(nameof(MemberDetail), new { id = roleAssignment.UserId });
+            return RedirectToAction(nameof(HumanDetail), new { id = roleAssignment.UserId });
         }
 
         var currentUser = await _userManager.GetUserAsync(User);
@@ -888,7 +888,7 @@ public class AdminController : Controller
         }
 
         TempData["SuccessMessage"] = string.Format(_localizer["Admin_RoleEnded"].Value, roleAssignment.RoleName, roleAssignment.User.DisplayName);
-        return RedirectToAction(nameof(MemberDetail), new { id = roleAssignment.UserId });
+        return RedirectToAction(nameof(HumanDetail), new { id = roleAssignment.UserId });
     }
 
     [HttpGet("GoogleSync")]
@@ -1071,7 +1071,7 @@ public class AdminController : Controller
     }
 
     [HttpGet("Humans/{id}/GoogleSyncAudit")]
-    public async Task<IActionResult> MemberGoogleSyncAudit(Guid id)
+    public async Task<IActionResult> HumanGoogleSyncAudit(Guid id)
     {
         var user = await _dbContext.Users
             .AsNoTracking()
@@ -1087,7 +1087,7 @@ public class AdminController : Controller
         var viewModel = new GoogleSyncAuditListViewModel
         {
             Title = $"Google Sync Audit: {user.DisplayName}",
-            BackUrl = Url.Action(nameof(MemberDetail), new { id }),
+            BackUrl = Url.Action(nameof(HumanDetail), new { id }),
             BackLabel = "Back to Member Detail",
             Entries = entries.Select(e => new GoogleSyncAuditEntryViewModel
             {

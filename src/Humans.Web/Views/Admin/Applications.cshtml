@@ -15,7 +15,7 @@
                 @Localizer["AdminApp_Pending"]
             </a>
             <a asp-action="Applications" asp-route-status="Approved" class="btn @(Model.StatusFilter == "Approved" ? "btn-primary" : "btn-outline-primary")">
-                @Localizer["AdminMember_Approved"]
+                @Localizer["AdminHuman_Approved"]
             </a>
             <a asp-action="Applications" asp-route-status="Rejected" class="btn @(Model.StatusFilter == "Rejected" ? "btn-primary" : "btn-outline-primary")">
                 @Localizer["AdminApp_Rejected"]

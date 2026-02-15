@@ -14,8 +14,8 @@ Audit date: 2026-02-05 | Last updated: 2026-02-15
 
 ### Priority 2: User-Facing Features & Improvements
 
-#### #23: Rename "Members" to "Humans" across internal code and UI
-Routes and page titles already done. Remaining: rename view files (Members.cshtml → Humans.cshtml, MemberDetail.cshtml → HumanDetail.cshtml), view models (AdminMember* → AdminHuman*), controller methods, ~30 AdminMember_ localization keys across all 5 .resx files, and feature docs. Do NOT rename TeamMember domain entities.
+#### #26: Add custom Prometheus metrics to /metrics endpoint
+`Humans.Metrics` meter is registered but emits nothing. Add `ObservableGauge` callbacks for membership status, compliance risk, role distribution, team/resource health. Add counters for emails sent, admin actions, job runs. Use `IMemoryCache` for gauge queries.
 
 #### #14: Drive Activity Monitor: resolve people/ IDs to email addresses
 Drive Activity API returns `people/` IDs instead of email addresses. Need to resolve these via the People API for meaningful audit display.
@@ -60,7 +60,7 @@ No rate limiting on GDPR data export. Any user can call `DownloadData` unlimited
 Helper methods re-query resources already loaded by parent methods. Redundant DB round-trips.
 
 #### G-07: AdminController over-fetches data
-`MemberDetail` loads ALL applications and consent records via `Include` when it only needs a few. `Members` list relies on implicit Include behavior.
+`HumanDetail` loads ALL applications and consent records via `Include` when it only needs a few. `Humans` list relies on implicit Include behavior.
 
 #### G-08: Centralize admin business logic into services
 Legal docs slice extracted to `AdminLegalDocumentsController` + `IAdminLegalDocumentService`. Remaining: role management, member management, application review slices still in `AdminController`.
@@ -133,6 +133,9 @@ Outbox pattern implemented: `TeamService` enqueues `GoogleSyncOutboxEvent` rows 
 
 ### #3: Full Lead rename (domain, DB, code) DONE
 Renamed all internal "Lead" references across domain, application, infrastructure, web, tests, migrations, resources, and documentation.
+
+### #23: Rename "Members" to "Humans" across internal code and UI DONE
+Renamed view models (AdminMember* → AdminHuman*), controller methods (Members → Humans, MemberDetail → HumanDetail, SuspendMember → SuspendHuman, UnsuspendMember → UnsuspendHuman, MemberGoogleSyncAudit → HumanGoogleSyncAudit), view files, ~30 AdminMember_ localization keys across all 5 .resx files, asp-action references, and feature docs. TeamMember domain entities untouched.
 
 ### #24: Add emergency contact field to member profiles DONE
 Emergency contact fields (name, phone, relationship) on Profile. Board-only visibility, GDPR export included, all 5 locales. Also added public `/Admin/DbVersion` endpoint for migration squash checks.
