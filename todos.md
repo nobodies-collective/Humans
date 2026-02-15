@@ -82,8 +82,8 @@ Add a `DbCommandInterceptor` tracking query counts by table + operation (SELECT/
 #### P2-04: Review prerelease/beta observability packages
 Two OpenTelemetry packages pinned to beta versions. Check for stable releases or document risk acceptance.
 
-#### F-06: Email body localization
-Email subjects are localized but body content is still inline HTML with string interpolation. Full template engine is a future improvement.
+#### #25 / F-06: Localize email content and fix background job culture context
+Email subjects are localized but body content is still inline HTML with string interpolation. Additionally, background jobs (`SendReConsentReminderJob`, `SuspendNonCompliantMembersJob`, `ProcessAccountDeletionsJob`) don't set `CurrentUICulture` to each user's `PreferredLanguage` before calling `IEmailService`, so even subjects come out English-only for job-triggered emails.
 
 ---
 

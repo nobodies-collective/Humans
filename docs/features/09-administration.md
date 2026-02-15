@@ -140,6 +140,7 @@ Approval and consent completion both trigger `SyncVolunteersMembershipForUserAsy
 | `/Admin/GoogleSync` | GoogleSync | Google resource sync status |
 | `/Admin/AuditLog` | AuditLog | Global audit log |
 | `/Admin/Configuration` | Configuration | Configuration status page |
+| `/Admin/EmailPreview` | EmailPreview | Preview all system emails with language tabs |
 | `/Admin/SyncSystemTeams` | SyncSystemTeams | POST: Trigger system team sync |
 
 ## Dashboard Metrics
@@ -347,6 +348,7 @@ _logger.LogInformation(
 | Legal Documents | `/Admin/LegalDocuments` | - |
 | Google Sync Status | `/Admin/GoogleSync` | - |
 | Audit Log | `/Admin/AuditLog` | - |
+| Email Preview | `/Admin/EmailPreview` | - |
 | Configuration Status | `/Admin/Configuration` | - |
 | Background Jobs | `/hangfire` | - |
 

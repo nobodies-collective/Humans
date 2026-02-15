@@ -8,8 +8,10 @@ using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Jobs;
+using Microsoft.Extensions.Options;
 using Humans.Web.Extensions;
 using Humans.Web.Models;
 using MemberApplication = Humans.Domain.Entities.Application;
@@ -1151,6 +1153,248 @@ public class AdminController : Controller
 
         return View(new AdminConfigurationViewModel { Items = items });
     }
+    [HttpGet("EmailPreview")]
+    public IActionResult EmailPreview([FromServices] IOptions<EmailSettings> emailSettings)
+    {
+        var settings = emailSettings.Value;
+        var cultures = new[] { "en", "es", "de", "fr", "it" };
+
+        var sampleName = "Maria Garc\u00eda";
+        var sampleEmail = "maria@example.com";
+        var sampleDocs = new[] { "Volunteer Agreement", "Privacy Policy" };
+
+        var previews = new Dictionary<string, List<EmailPreviewItem>>(StringComparer.Ordinal);
+
+        foreach (var culture in cultures)
+        {
+            var ci = new System.Globalization.CultureInfo(culture);
+            var prev = System.Globalization.CultureInfo.CurrentUICulture;
+            System.Globalization.CultureInfo.CurrentUICulture = ci;
+
+            try
+            {
+                previews[culture] = GenerateEmailPreviews(settings, sampleName, sampleEmail, sampleDocs);
+            }
+            finally
+            {
+                System.Globalization.CultureInfo.CurrentUICulture = prev;
+            }
+        }
+
+        return View(new EmailPreviewViewModel { Previews = previews });
+    }
+
+    private List<EmailPreviewItem> GenerateEmailPreviews(EmailSettings settings, string name, string email, string[] docs)
+    {
+        string Encode(string s) => System.Net.WebUtility.HtmlEncode(s);
+        var baseUrl = settings.BaseUrl;
+
+        return
+        [
+            new()
+            {
+                Id = "application-submitted",
+                Name = "Application Submitted (to Admin)",
+                Recipient = settings.AdminAddress,
+                Subject = string.Format(_localizer["Email_ApplicationSubmitted_Subject"].Value, name),
+                Body = $"""
+                    <h2>New Membership Application</h2>
+                    <p>A new membership application has been submitted.</p>
+                    <ul>
+                        <li><strong>Applicant:</strong> {Encode(name)}</li>
+                        <li><strong>Application ID:</strong> {Guid.Empty}</li>
+                    </ul>
+                    <p><a href="{baseUrl}/Admin/Applications">Review Application</a></p>
+                    """
+            },
+            new()
+            {
+                Id = "application-approved",
+                Name = "Application Approved",
+                Recipient = email,
+                Subject = _localizer["Email_ApplicationApproved_Subject"].Value,
+                Body = $"""
+                    <h2>{_localizer["Email_ApplicationApproved_Heading"].Value}</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>We're delighted to inform you that your membership application has been approved.
+                    Welcome to Humans!</p>
+                    <p>You can now access your member profile and explore teams:</p>
+                    <ul>
+                        <li><a href="{baseUrl}/Profile">View Your Profile</a></li>
+                        <li><a href="{baseUrl}/Teams">Browse Teams</a></li>
+                        <li><a href="{baseUrl}/Consent">Review Legal Documents</a></li>
+                    </ul>
+                    <p>If you have any questions, don't hesitate to reach out.</p>
+                    <p>Welcome aboard!<br/>The Humans Team</p>
+                    """
+            },
+            new()
+            {
+                Id = "application-rejected",
+                Name = "Application Rejected",
+                Recipient = email,
+                Subject = _localizer["Email_ApplicationRejected_Subject"].Value,
+                Body = $"""
+                    <h2>Application Update</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>Thank you for your interest in joining us. After careful review,
+                    we regret to inform you that we are unable to approve your membership application at this time.</p>
+                    <p><strong>Reason:</strong> Incomplete profile information</p>
+                    <p>If you have any questions or would like to discuss this decision,
+                    please contact us at <a href="mailto:{settings.AdminAddress}">{settings.AdminAddress}</a>.</p>
+                    <p>Best regards,<br/>The Humans Team</p>
+                    """
+            },
+            new()
+            {
+                Id = "reconsent-required",
+                Name = "Re-Consent Required (single doc)",
+                Recipient = email,
+                Subject = string.Format(_localizer["Email_ReConsentRequired_Subject_Single"].Value, docs[0]),
+                Body = $"""
+                    <h2>Legal Document Update</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>We have updated the following required documents:</p>
+                    <ul>
+                        <li><strong>{Encode(docs[0])}</strong></li>
+                    </ul>
+                    <p>As a member, you need to review and accept these updated documents to maintain your active membership status.</p>
+                    <p><a href="{baseUrl}/Consent">Review and Accept</a></p>
+                    <p>If you have any questions about the changes, please contact us.</p>
+                    <p>Thank you,<br/>The Humans Team</p>
+                    """
+            },
+            new()
+            {
+                Id = "reconsents-required",
+                Name = "Re-Consents Required (multiple docs)",
+                Recipient = email,
+                Subject = _localizer["Email_ReConsentRequired_Subject_Multiple"].Value,
+                Body = $"""
+                    <h2>Legal Document Update</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>We have updated the following required documents:</p>
+                    <ul>
+                        {string.Join("\n", docs.Select(d => $"<li><strong>{Encode(d)}</strong></li>"))}
+                    </ul>
+                    <p>As a member, you need to review and accept these updated documents to maintain your active membership status.</p>
+                    <p><a href="{baseUrl}/Consent">Review and Accept</a></p>
+                    <p>If you have any questions about the changes, please contact us.</p>
+                    <p>Thank you,<br/>The Humans Team</p>
+                    """
+            },
+            new()
+            {
+                Id = "reconsent-reminder",
+                Name = "Re-Consent Reminder",
+                Recipient = email,
+                Subject = string.Format(System.Globalization.CultureInfo.CurrentCulture, _localizer["Email_ReConsentReminder_Subject"].Value, 14),
+                Body = $"""
+                    <h2>Consent Reminder</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>This is a reminder that you have <strong>14 days</strong> remaining to review and accept
+                    the following updated documents:</p>
+                    <ul>
+                        {string.Join("\n", docs.Select(d => $"<li>{Encode(d)}</li>"))}
+                    </ul>
+                    <p>If you do not accept these documents before the deadline, your membership access may be temporarily suspended.</p>
+                    <p><a href="{baseUrl}/Consent">Review Documents Now</a></p>
+                    <p>Thank you,<br/>The Humans Team</p>
+                    """
+            },
+            new()
+            {
+                Id = "welcome",
+                Name = "Welcome",
+                Recipient = email,
+                Subject = _localizer["Email_Welcome_Subject"].Value,
+                Body = $"""
+                    <h2>{_localizer["Email_Welcome_Heading"].Value}</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>Welcome to the Humans member portal!</p>
+                    <p>Here's what you can do:</p>
+                    <ul>
+                        <li><a href="{baseUrl}/Profile">Complete your profile</a></li>
+                        <li><a href="{baseUrl}/Teams">Join teams and working groups</a></li>
+                        <li><a href="{baseUrl}/Consent">Review legal documents</a></li>
+                    </ul>
+                    <p>If you have any questions, feel free to reach out to us.</p>
+                    <p>Best regards,<br/>The Humans Team</p>
+                    """
+            },
+            new()
+            {
+                Id = "access-suspended",
+                Name = "Access Suspended",
+                Recipient = email,
+                Subject = _localizer["Email_AccessSuspended_Subject"].Value,
+                Body = $"""
+                    <h2>Access Suspended</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>Your membership access has been temporarily suspended.</p>
+                    <p><strong>Reason:</strong> Outstanding consent requirements</p>
+                    <p>To restore your access, please take the required action:</p>
+                    <ul>
+                        <li><a href="{baseUrl}/Consent">Review pending consent requirements</a></li>
+                    </ul>
+                    <p>If you believe this is an error or have questions, please contact us at
+                    <a href="mailto:{settings.AdminAddress}">{settings.AdminAddress}</a>.</p>
+                    <p>The Humans Team</p>
+                    """
+            },
+            new()
+            {
+                Id = "email-verification",
+                Name = "Email Verification",
+                Recipient = "preferred@example.com",
+                Subject = _localizer["Email_VerifyEmail_Subject"].Value,
+                Body = $"""
+                    <h2>Email Verification</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>You requested to set <strong>preferred@example.com</strong> as your preferred email address.</p>
+                    <p>Please click the link below to verify this email address:</p>
+                    <p><a href="{baseUrl}/Profile/VerifyEmail?token=sample-token">Verify Email Address</a></p>
+                    <p>This link will expire in 24 hours.</p>
+                    <p>If you did not request this change, you can safely ignore this email.</p>
+                    <p>The Humans Team</p>
+                    """
+            },
+            new()
+            {
+                Id = "deletion-requested",
+                Name = "Account Deletion Requested",
+                Recipient = email,
+                Subject = _localizer["Email_DeletionRequested_Subject"].Value,
+                Body = $"""
+                    <h2>Account Deletion Request Received</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>We have received your request to delete your account. Your account and all associated data
+                    will be permanently deleted on <strong>March 15, 2026</strong>.</p>
+                    <p>If you change your mind, you can cancel this request before the deletion date by visiting:</p>
+                    <p><a href="{baseUrl}/Profile/Privacy">Cancel Deletion Request</a></p>
+                    <p>After deletion, this action cannot be undone and all your data will be permanently removed.</p>
+                    <p>The Humans Team</p>
+                    """
+            },
+            new()
+            {
+                Id = "account-deleted",
+                Name = "Account Deleted",
+                Recipient = email,
+                Subject = _localizer["Email_AccountDeleted_Subject"].Value,
+                Body = $"""
+                    <h2>Account Deleted</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>As requested, your Humans account has been permanently deleted.
+                    All your personal data has been removed from our systems.</p>
+                    <p>Thank you for being part of our community. If you ever wish to rejoin,
+                    you're welcome to submit a new membership application.</p>
+                    <p>Best wishes,<br/>The Humans Team</p>
+                    """
+            }
+        ];
+    }
+
     [HttpGet("DbVersion")]
     [AllowAnonymous]
     [Produces("application/json")]

@@ -222,3 +222,17 @@ public class AdminConfigurationViewModel
 {
     public List<ConfigurationItemViewModel> Items { get; set; } = [];
 }
+
+public class EmailPreviewViewModel
+{
+    public Dictionary<string, List<EmailPreviewItem>> Previews { get; set; } = new(StringComparer.Ordinal);
+}
+
+public class EmailPreviewItem
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Recipient { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+}
