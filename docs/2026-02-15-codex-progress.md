@@ -10,7 +10,7 @@ Execution log for `docs/2026-02-15-codex-plan.md` with checkpoint-based iteratio
 4. Commit a checkpoint.
 
 ## Current Phase
-`Phase 4` (Google sync outbox boundary) -> `Phase 5` (startup modularization)
+`Phase 5` (startup modularization) complete
 
 ## Decisions
 - 2026-02-15: Do **not** add DB exclusion/non-overlap constraint for role windows in Phase 1.
@@ -92,6 +92,7 @@ Execution log for `docs/2026-02-15-codex-plan.md` with checkpoint-based iteratio
     - `NU1301` (cannot reach NuGet signature endpoint)
     - `NU1101` (required packages/analyzers not available offline)
 - 2026-02-15: Removed regenerated local build artifact folder `.dotnet/` from workspace.
+- 2026-02-15: Checkpoint commit created: `77ff372` (`feat(sync): add outbox-backed google sync dispatcher`).
 - 2026-02-15: Phase 5 startup modularization started (optional).
   - Added service-registration extension:
     - `InfrastructureServiceCollectionExtensions.AddHumansInfrastructure(...)`
@@ -101,6 +102,7 @@ Execution log for `docs/2026-02-15-codex-plan.md` with checkpoint-based iteratio
 - 2026-02-15: Validation pass attempted for Phase 5.
   - `dotnet build Humans.slnx --no-restore` remains blocked by `NU1301` (NuGet signature endpoint unreachable in this sandbox).
 - 2026-02-15: Removed regenerated local build artifact folder `.dotnet/` from workspace.
+- 2026-02-15: Checkpoint commit created: `bd10d27` (`refactor(startup): move infra and recurring jobs to extensions`).
 
 ## Next Step
-- Create the optional modularization checkpoint commit.
+- Validate and run migrations/tests in a network-enabled environment, then smoke-test admin legal-doc and team membership sync flows.
