@@ -8,9 +8,7 @@ Audit date: 2026-02-05 | Last updated: 2026-02-15
 
 ### Priority 1: Bugs
 
-#### P1-12: Google group sync misses paginated results
-`Members.List()` and `Permissions.List()` don't handle `NextPageToken`. Groups with >200 members will have members silently dropped or removed.
-**Where:** `GoogleWorkspaceSyncService.cs:334,554`
+*(none open)*
 
 ---
 
@@ -159,6 +157,9 @@ Consolidated emails, removed standalone phone, birthday as month-day. Committed 
 
 ### Codebase simplification: remove dead code and unnecessary abstractions DONE
 Committed `251da28`.
+
+### P1-12: Google group sync pagination DONE (stale)
+All three call sites (`SyncTeamGroupMembersAsync`, `PreviewGroupSyncAsync`, `ListDrivePermissionsAsync`) already handle `NextPageToken` with `do/while` loops. Bug was fixed as part of earlier work; todo was stale.
 
 ### Earlier completed items (condensed)
 - F-01: Profile pictures with team photo gallery (`f04c8cf`)
