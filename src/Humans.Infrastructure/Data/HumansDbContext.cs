@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -9,12 +10,14 @@ namespace Humans.Infrastructure.Data;
 /// <summary>
 /// Database context for the Humans application.
 /// </summary>
-public class HumansDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
+public class HumansDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>, IDataProtectionKeyContext
 {
     public HumansDbContext(DbContextOptions<HumansDbContext> options)
         : base(options)
     {
     }
+
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();

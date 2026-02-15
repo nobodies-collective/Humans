@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Threading.RateLimiting;
 using Hangfire;
 using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -81,6 +82,11 @@ builder.Services.AddDbContext<HumansDbContext>(options =>
         options.EnableDetailedErrors();
     }
 });
+
+// Persist Data Protection keys to the database so auth cookies survive container restarts
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<HumansDbContext>()
+    .SetApplicationName("Humans.Web");
 
 // Configure ASP.NET Core Identity
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>

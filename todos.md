@@ -96,7 +96,6 @@ These need production domain, IP ranges, deployment model, or infrastructure dec
 | P0-03 | Restrict health and metrics endpoints | Deployment model (public OK for now per R-03, revisit post-launch) |
 | P0-12 | Docker healthcheck broken (curl missing) | Docker/K8s deployment |
 | P0-13 | Replace insecure default credentials in docker-compose | Secrets management |
-| P2-01 | Persist Data Protection keys | Production storage decision |
 | P2-02 | Add explicit cookie/security policy settings | Production HTTPS setup |
 | P2-05 | Improve consent metadata fidelity (IP/UA accuracy) | Verify proxy trust is working correctly post-deploy |
 
@@ -114,6 +113,9 @@ These need production domain, IP ranges, deployment model, or infrastructure dec
 ---
 
 ## Completed
+
+### P2-01: Persist Data Protection keys to database DONE
+Keys persisted to PostgreSQL via `PersistKeysToDbContext<HumansDbContext>()`. Auth cookies survive container restarts and Coolify redeploys. Migration `AddDataProtectionKeys` creates the table. Zero deploy-time config needed.
 
 ### P1-16: Fail fast in production if Google credentials missing DONE
 `AddHumansInfrastructure` throws `InvalidOperationException` at startup in Production if Google Workspace credentials are not configured. Stubs still available in Development/Staging.
