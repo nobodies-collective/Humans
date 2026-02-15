@@ -17,12 +17,8 @@ using NodaTime.Serialization.SystemTextJson;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
-using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
-using Humans.Infrastructure.Jobs;
-using Humans.Infrastructure.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Health;
 using Microsoft.Extensions.Localization;
@@ -157,45 +153,7 @@ builder.Services.AddHealthChecks()
     .AddCheck<GitHubHealthCheck>("github")
     .AddCheck<GoogleWorkspaceHealthCheck>("google-workspace");
 
-// Register Configuration
-builder.Services.Configure<GitHubSettings>(builder.Configuration.GetSection(GitHubSettings.SectionName));
-builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection(EmailSettings.SectionName));
-builder.Services.Configure<GoogleWorkspaceSettings>(builder.Configuration.GetSection(GoogleWorkspaceSettings.SectionName));
-builder.Services.Configure<TeamResourceManagementSettings>(builder.Configuration.GetSection(TeamResourceManagementSettings.SectionName));
-
-// Register Application Services
-builder.Services.AddScoped<ITeamService, TeamService>();
-builder.Services.AddScoped<IContactFieldService, ContactFieldService>();
-builder.Services.AddScoped<IUserEmailService, UserEmailService>();
-builder.Services.AddScoped<VolunteerHistoryService>();
-builder.Services.AddScoped<ILegalDocumentSyncService, LegalDocumentSyncService>();
-builder.Services.AddScoped<IAdminLegalDocumentService, AdminLegalDocumentService>();
-// Use real Google Workspace service if credentials configured, otherwise use stub
-var googleWorkspaceConfig = builder.Configuration.GetSection(GoogleWorkspaceSettings.SectionName);
-if (!string.IsNullOrEmpty(googleWorkspaceConfig["ServiceAccountKeyPath"]) ||
-    !string.IsNullOrEmpty(googleWorkspaceConfig["ServiceAccountKeyJson"]))
-{
-    builder.Services.AddScoped<IGoogleSyncService, GoogleWorkspaceSyncService>();
-    builder.Services.AddScoped<ITeamResourceService, TeamResourceService>();
-    builder.Services.AddScoped<IDriveActivityMonitorService, DriveActivityMonitorService>();
-}
-else
-{
-    builder.Services.AddScoped<IGoogleSyncService, StubGoogleSyncService>();
-    builder.Services.AddScoped<ITeamResourceService, StubTeamResourceService>();
-    builder.Services.AddScoped<IDriveActivityMonitorService, StubDriveActivityMonitorService>();
-}
-builder.Services.AddScoped<IEmailService, SmtpEmailService>();
-builder.Services.AddScoped<IMembershipCalculator, MembershipCalculator>();
-builder.Services.AddScoped<IRoleAssignmentService, RoleAssignmentService>();
-builder.Services.AddScoped<IAuditLogService, AuditLogService>();
-builder.Services.AddScoped<SystemTeamSyncJob>();
-builder.Services.AddScoped<SyncLegalDocumentsJob>();
-builder.Services.AddScoped<ProcessAccountDeletionsJob>();
-builder.Services.AddScoped<SuspendNonCompliantMembersJob>();
-builder.Services.AddScoped<GoogleResourceReconciliationJob>();
-builder.Services.AddScoped<DriveActivityMonitorJob>();
-builder.Services.AddScoped<ProcessGoogleSyncOutboxJob>();
+builder.Services.AddHumansInfrastructure(builder.Configuration);
 
 // Configure Response Compression
 builder.Services.AddResponseCompression(options =>
@@ -400,9 +358,6 @@ app.MapHangfireDashboard("/hangfire", new DashboardOptions
         : [new Humans.Web.HangfireAuthorizationFilter()]
 });
 
-// Schedule recurring jobs
-//
-// PAUSED: These jobs modify Google Workspace permissions (add/remove members from
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
@@ -417,47 +372,7 @@ app.MapRazorPages();
     await dbContext.Database.MigrateAsync();
 }
 
-// Google permission-modifying jobs are currently DISABLED (SystemTeamSyncJob,
-// GoogleResourceReconciliationJob). They could be destructive if our upstream data
-// (team membership, role assignments, consent status) isn't correct yet.
-// Enable automated sync once the upfront onboarding and approval processes
-// are validated end-to-end. Until then, use the manual "Sync Now" button
-// at /Admin/GoogleSync for controlled, one-off syncs.
-//
-// RecurringJob.AddOrUpdate<SystemTeamSyncJob>(
-//     "system-team-sync",
-//     job => job.ExecuteAsync(CancellationToken.None),
-//     Cron.Hourly);
-//
-// RecurringJob.AddOrUpdate<GoogleResourceReconciliationJob>(
-//     "google-resource-reconciliation",
-//     job => job.ExecuteAsync(CancellationToken.None),
-//     "0 3 * * *");
-
-RecurringJob.AddOrUpdate<ProcessAccountDeletionsJob>(
-    "process-account-deletions",
-    job => job.ExecuteAsync(CancellationToken.None),
-    Cron.Daily);
-
-RecurringJob.AddOrUpdate<SyncLegalDocumentsJob>(
-    "legal-document-sync",
-    job => job.ExecuteAsync(CancellationToken.None),
-    "0 4 * * *");
-
-RecurringJob.AddOrUpdate<SuspendNonCompliantMembersJob>(
-    "suspend-non-compliant-members",
-    job => job.ExecuteAsync(CancellationToken.None),
-    "30 4 * * *");
-
-RecurringJob.AddOrUpdate<ProcessGoogleSyncOutboxJob>(
-    "process-google-sync-outbox",
-    job => job.ExecuteAsync(CancellationToken.None),
-    Cron.Minutely);
-
-RecurringJob.AddOrUpdate<DriveActivityMonitorJob>(
-    "drive-activity-monitor",
-    job => job.ExecuteAsync(CancellationToken.None),
-    Cron.Hourly);
+app.UseHumansRecurringJobs();
 
 await app.RunAsync();
 

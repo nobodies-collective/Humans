@@ -10,7 +10,7 @@ Execution log for `docs/2026-02-15-codex-plan.md` with checkpoint-based iteratio
 4. Commit a checkpoint.
 
 ## Current Phase
-`Phase 3` (admin legal-docs decomposition) -> `Phase 4` (Google sync outbox boundary)
+`Phase 4` (Google sync outbox boundary) -> `Phase 5` (startup modularization)
 
 ## Decisions
 - 2026-02-15: Do **not** add DB exclusion/non-overlap constraint for role windows in Phase 1.
@@ -92,6 +92,15 @@ Execution log for `docs/2026-02-15-codex-plan.md` with checkpoint-based iteratio
     - `NU1301` (cannot reach NuGet signature endpoint)
     - `NU1101` (required packages/analyzers not available offline)
 - 2026-02-15: Removed regenerated local build artifact folder `.dotnet/` from workspace.
+- 2026-02-15: Phase 5 startup modularization started (optional).
+  - Added service-registration extension:
+    - `InfrastructureServiceCollectionExtensions.AddHumansInfrastructure(...)`
+  - Added recurring-job scheduling extension:
+    - `RecurringJobExtensions.UseHumansRecurringJobs(...)`
+  - Updated `Program.cs` to use both extensions and removed inline registration/scheduling blocks.
+- 2026-02-15: Validation pass attempted for Phase 5.
+  - `dotnet build Humans.slnx --no-restore` remains blocked by `NU1301` (NuGet signature endpoint unreachable in this sandbox).
+- 2026-02-15: Removed regenerated local build artifact folder `.dotnet/` from workspace.
 
 ## Next Step
-- Create a Phase 4 checkpoint commit, then continue with optional startup modularization if time remains.
+- Create the optional modularization checkpoint commit.
