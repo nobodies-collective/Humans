@@ -48,9 +48,6 @@ Structured logs include emails and user IDs in plaintext. No redaction or classi
 #### P2-07: Add integration tests for critical paths
 Integration test project exists with TestContainers but has 0 tests. Critical compliance paths (consent, auth, deletion) untested end-to-end.
 
-#### P2-08: Expand configuration health checks
-`ConfigurationHealthCheck` only validates `GoogleMaps:ApiKey`. Missing checks for OAuth, SMTP, GitHub, and Google Workspace config.
-
 #### P1-04: Enforce export throttling
 No rate limiting on GDPR data export. Any user can call `DownloadData` unlimited times.
 **Where:** `ProfileController.cs:739`
@@ -157,6 +154,9 @@ Consolidated emails, removed standalone phone, birthday as month-day. Committed 
 
 ### Codebase simplification: remove dead code and unnecessary abstractions DONE
 Committed `251da28`.
+
+### P2-08: Expand configuration health checks DONE
+Added OAuth, Email, and GitHub config keys to `ConfigurationHealthCheck`. Now checks 9 required keys (was 1). Dedicated connectivity checks (SMTP, GitHub, GoogleWorkspace) remain separate.
 
 ### P1-12: Google group sync pagination DONE (stale)
 All three call sites (`SyncTeamGroupMembersAsync`, `PreviewGroupSyncAsync`, `ListDrivePermissionsAsync`) already handle `NextPageToken` with `do/while` loops. Bug was fixed as part of earlier work; todo was stale.

@@ -9,9 +9,19 @@ public class ConfigurationHealthCheck : IHealthCheck
 {
     private readonly IConfiguration _configuration;
 
-    // Required configuration keys - app won't function correctly without these
+    // Required configuration keys - app won't function correctly without these.
+    // Dedicated health checks (SMTP, GitHub, GoogleWorkspace) test connectivity;
+    // this check just verifies the config values are present.
     private static readonly string[] RequiredKeys =
     [
+        "Authentication:Google:ClientId",
+        "Authentication:Google:ClientSecret",
+        "Email:SmtpHost",
+        "Email:FromAddress",
+        "Email:BaseUrl",
+        "GitHub:Owner",
+        "GitHub:Repository",
+        "GitHub:AccessToken",
         "GoogleMaps:ApiKey"
     ];
 
