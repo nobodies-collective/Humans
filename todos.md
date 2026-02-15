@@ -87,17 +87,12 @@ Email subjects are localized but body content is still inline HTML with string i
 
 ---
 
-### Blocked — Requires Production Environment
+### Deferred — Revisit Post-Launch
 
-These need production domain, IP ranges, deployment model, or infrastructure decisions.
-
-| ID | Issue | Blocked On |
-|----|-------|------------|
-| P0-03 | Restrict health and metrics endpoints | Deployment model (public OK for now per R-03, revisit post-launch) |
-| P0-12 | Docker healthcheck broken (curl missing) | Docker/K8s deployment |
-| P0-13 | Replace insecure default credentials in docker-compose | Secrets management |
-| P2-02 | Add explicit cookie/security policy settings | Production HTTPS setup |
-| P2-05 | Improve consent metadata fidelity (IP/UA accuracy) | Verify proxy trust is working correctly post-deploy |
+| ID | Issue | Status |
+|----|-------|--------|
+| P0-03 | Restrict health and metrics endpoints | Public OK per R-03, revisit post-launch |
+| P2-05 | Verify consent metadata fidelity (IP/UA accuracy) | Code uses `RemoteIpAddress` + `UseForwardedHeaders` — should be correct. Verify real IPs appear in consent records after first deploy. |
 
 ---
 
@@ -113,6 +108,15 @@ These need production domain, IP ranges, deployment model, or infrastructure dec
 ---
 
 ## Completed
+
+### P0-12: Docker healthcheck DONE
+Added `curl` to runtime image and `HEALTHCHECK` directive hitting `/health/live`. Coolify/Docker will detect unhealthy containers.
+
+### P0-13: Remove insecure default credentials from docker-compose DONE
+Replaced `:-humans` fallback with `:?POSTGRES_PASSWORD must be set` — compose fails loudly if env var missing. Updated `.env.example`.
+
+### P2-02: Add explicit cookie/security policy settings DONE
+`ConfigureApplicationCookie` with `SecurePolicy.Always`, `SameSite.Lax`, `HttpOnly = true`. TLS terminated by Coolify reverse proxy.
 
 ### P2-01: Persist Data Protection keys to database DONE
 Keys persisted to PostgreSQL via `PersistKeysToDbContext<HumansDbContext>()`. Auth cookies survive container restarts and Coolify redeploys. Migration `AddDataProtectionKeys` creates the table. Zero deploy-time config needed.

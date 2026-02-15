@@ -97,6 +97,16 @@ builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
     .AddEntityFrameworkStores<HumansDbContext>()
     .AddDefaultTokenProviders();
 
+// Configure cookie security policy (TLS terminated by Coolify/reverse proxy)
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.LoginPath = "/Account/Login";
+    options.AccessDeniedPath = "/Account/AccessDenied";
+});
+
 // Configure Authentication with Google OAuth
 builder.Services.AddAuthentication()
     .AddGoogle(options =>

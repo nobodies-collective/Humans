@@ -22,9 +22,10 @@ RUN dotnet publish src/Humans.Web/Humans.Web.csproj -c Release -o /app/publish -
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Install native dependencies for SkiaSharp
+# Install native dependencies for SkiaSharp + curl for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libfontconfig1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -42,6 +43,10 @@ USER appuser
 # Expose ports
 EXPOSE 8080
 EXPOSE 9090
+
+# Health check using the liveness endpoint (aspnet:10.0 is Debian-based, curl available via apt)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8080/health/live || exit 1
 
 # Entry point
 ENTRYPOINT ["dotnet", "Humans.Web.dll"]
