@@ -1403,6 +1403,9 @@ public class AdminController : Controller
         ];
     }
 
+    // Intentionally anonymous: exposes only migration names and counts (no sensitive data).
+    // Used by dev tooling to check which migrations have been applied in QA/prod,
+    // so old migrations can be safely squashed and removed from the repo.
     [HttpGet("DbVersion")]
     [AllowAnonymous]
     [Produces("application/json")]

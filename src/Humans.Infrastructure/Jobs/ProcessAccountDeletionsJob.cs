@@ -164,15 +164,27 @@ public class ProcessAccountDeletionsJob
             user.Profile.Longitude = null;
             user.Profile.PlaceId = null;
             user.Profile.AdminNotes = null;
+            user.Profile.Pronouns = null;
+            user.Profile.DateOfBirth = null;
+            user.Profile.ProfilePictureData = null;
+            user.Profile.ProfilePictureContentType = null;
+            user.Profile.EmergencyContactName = null;
+            user.Profile.EmergencyContactPhone = null;
+            user.Profile.EmergencyContactRelationship = null;
         }
 
-        // Remove contact fields
+        // Remove contact fields and volunteer history
         if (user.Profile != null)
         {
             var contactFields = await _dbContext.ContactFields
                 .Where(cf => cf.ProfileId == user.Profile.Id)
                 .ToListAsync(cancellationToken);
             _dbContext.ContactFields.RemoveRange(contactFields);
+
+            var volunteerHistory = await _dbContext.VolunteerHistoryEntries
+                .Where(vh => vh.ProfileId == user.Profile.Id)
+                .ToListAsync(cancellationToken);
+            _dbContext.VolunteerHistoryEntries.RemoveRange(volunteerHistory);
         }
 
         // End team memberships

@@ -1,14 +1,35 @@
 # Release TODOs
 
-Audit date: 2026-02-05 | Last updated: 2026-02-15
+Audit date: 2026-02-05 | Last updated: 2026-02-16
 
 ---
 
 ## Open Work — Prioritized
 
-### Priority 1: Bugs
+### Priority 1: GDPR & Security (Pre-Launch Blockers)
 
-*(none open)*
+#### P1-17: GDPR anonymization incomplete — missing PII fields
+`ProcessAccountDeletionsJob.AnonymizeUserAsync` clears core profile fields but misses: `EmergencyContactName`, `EmergencyContactPhone`, `EmergencyContactRelation`, `Pronouns`, `DateOfBirth`, `ProfilePictureData` (byte[]), and `VolunteerHistoryEntries` (related entity). Emergency contacts are third-party personal data — highest priority.
+**Where:** `ProcessAccountDeletionsJob.cs:124-192`
+**Source:** Multi-model production readiness assessment (2026-02-16), consensus Claude + Codex
+
+#### P1-18: Account deletion must trigger Google deprovisioning
+When a user account is anonymized, their Google Group memberships and Drive permissions are not revoked. Former members retain access until manual intervention. The deletion job should call `RemoveUserFromAllResourcesAsync` before anonymizing.
+**Where:** `ProcessAccountDeletionsJob.cs`, `GoogleWorkspaceSyncService.cs:592`
+**Source:** Multi-model production readiness assessment (2026-02-16), consensus Codex + Gemini + Claude
+
+#### P1-19: Sanitize markdown-to-HTML in consent review (XSS)
+`Review.cshtml` renders legal document markdown via `@Html.Raw()`. Combined with CSP `unsafe-inline`, a compromised GitHub repo could inject scripts. Add an HTML sanitizer (e.g. `HtmlSanitizer` NuGet) to the render path.
+**Where:** `Views/Consent/Review.cshtml:89,148`, `Program.cs:330`
+**Source:** Multi-model production readiness assessment (2026-02-16), Codex unique finding
+
+#### P1-21: Add missing database constraints (pre-production window)
+Add before production data exists — these become painful to add retroactively:
+- `google_resources`: CHECK constraint requiring exactly one of `team_id`/`user_id` non-null
+- `role_assignments`: CHECK constraint `valid_to IS NULL OR valid_to > valid_from`
+- See also P1-09 for the exclusion constraint on temporal overlap
+**Where:** New migration
+**Source:** Multi-model refactoring recommendations (2026-02-15), Claude unique finding
 
 ---
 
@@ -27,6 +48,16 @@ Drive Activity API returns `people/` IDs instead of email addresses. Need to res
 #### P1-09: Enforce uniqueness for active role assignments (DB-level)
 App-layer overlap guard added (`RoleAssignmentService.HasOverlappingAssignmentAsync`), but DB-level exclusion constraint on `tsrange(valid_from, valid_to)` is still deferred. Low urgency since admin UI validates before insert.
 **Where:** `RoleAssignmentConfiguration.cs`
+
+#### P1-22: Add row-level locking to outbox processor
+`ProcessGoogleSyncOutboxJob` reads pending events without `FOR UPDATE SKIP LOCKED`, risking duplicate processing if the job overlaps. Low risk at single-server scale but good defensive design.
+**Where:** `ProcessGoogleSyncOutboxJob.cs:41-52`
+**Source:** Multi-model production readiness assessment (2026-02-16), Codex unique finding
+
+#### P1-23: Tighten CSP — remove `unsafe-inline`
+`Content-Security-Policy` includes `script-src 'self' 'unsafe-inline'` which weakens XSS protection. Move to nonce-based CSP for inline scripts.
+**Where:** `Program.cs:328-330`
+**Source:** Multi-model production readiness assessment (2026-02-16), consensus Claude + Codex
 
 #### P1-13: Apply configured Google group settings during provisioning
 `GoogleWorkspaceSettings.GroupSettings` properties (WhoCanViewMembership, AllowExternalMembers, etc.) are defined but never applied. Groups get Google defaults. Per R-04, external members must be allowed.
