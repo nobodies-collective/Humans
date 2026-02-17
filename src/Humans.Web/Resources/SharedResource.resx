@@ -691,7 +691,6 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Select a role...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Full system access</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Board member permissions</value></data>
-  <data name="AdminAddRole_LeadDesc" xml:space="preserve"><value>Team lead role</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notes (optional)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Reason for assignment</value></data>
 

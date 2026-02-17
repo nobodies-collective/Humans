@@ -698,7 +698,6 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>S&#xE9;lectionner un r&#xF4;le...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Acc&#xE8;s complet au syst&#xE8;me</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Permissions de membre du conseil</value></data>
-  <data name="AdminAddRole_LeadDesc" xml:space="preserve"><value>R&#xF4;le de responsable d'&#xE9;quipe</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notes (facultatif)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Motif de l'attribution</value></data>
 

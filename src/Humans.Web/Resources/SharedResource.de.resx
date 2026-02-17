@@ -698,7 +698,6 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Rolle auswählen...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Vollständiger Systemzugriff</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Vorstandsmitglied-Berechtigungen</value></data>
-  <data name="AdminAddRole_LeadDesc" xml:space="preserve"><value>Team-Lead-Rolle</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notizen (optional)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Grund der Zuweisung</value></data>
 

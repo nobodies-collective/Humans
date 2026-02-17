@@ -111,7 +111,10 @@ public class HumanController : Controller
             EmergencyContactName = canViewLegalName ? profile.EmergencyContactName : null,
             EmergencyContactPhone = canViewLegalName ? profile.EmergencyContactPhone : null,
             EmergencyContactRelationship = canViewLegalName ? profile.EmergencyContactRelationship : null,
+            HasPendingConsents = membershipSnapshot.PendingConsentCount > 0,
+            PendingConsentCount = membershipSnapshot.PendingConsentCount,
             MembershipStatus = membershipSnapshot.Status.ToString(),
+            IsApproved = profile.IsApproved,
             IsOwnProfile = isOwnProfile,
             CanViewLegalName = canViewLegalName,
             UserEmails = visibleEmails.Select(e => new UserEmailDisplayViewModel

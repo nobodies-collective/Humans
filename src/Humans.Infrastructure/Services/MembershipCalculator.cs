@@ -68,9 +68,18 @@ public class MembershipCalculator : IMembershipCalculator
     {
         var status = await ComputeStatusAsync(userId, cancellationToken);
 
-        var requiredVersions = await GetRequiredDocumentVersionsForTeamAsync(
-            SystemTeamIds.Volunteers, cancellationToken);
-        var requiredVersionIds = requiredVersions.Select(v => v.Id).ToList();
+        // Get required docs from all teams the user is eligible for
+        var eligibleTeamIds = await GetRequiredTeamIdsForUserAsync(userId, cancellationToken);
+        var allRequiredVersionIds = new List<Guid>();
+
+        foreach (var teamId in eligibleTeamIds)
+        {
+            var versions = await GetRequiredDocumentVersionsForTeamAsync(teamId, cancellationToken);
+            allRequiredVersionIds.AddRange(versions.Select(v => v.Id));
+        }
+
+        // Deduplicate in case a doc is shared across teams
+        var requiredVersionIds = allRequiredVersionIds.Distinct().ToList();
 
         var consentedVersionIds = await GetConsentedVersionIdsAsync(userId, cancellationToken);
         var missingVersionIds = requiredVersionIds
@@ -283,6 +292,42 @@ public class MembershipCalculator : IMembershipCalculator
         }
 
         return result;
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetRequiredTeamIdsForUserAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        // Start with current team memberships
+        var teamIds = await _dbContext.TeamMembers
+            .Where(tm => tm.UserId == userId && tm.LeftAt == null)
+            .Select(tm => tm.TeamId)
+            .ToListAsync(cancellationToken);
+
+        // Always include Volunteers (global docs apply to everyone)
+        if (!teamIds.Contains(SystemTeamIds.Volunteers))
+        {
+            teamIds.Add(SystemTeamIds.Volunteers);
+        }
+
+        // Include Leads if user is Lead of any user-created team
+        if (!teamIds.Contains(SystemTeamIds.Leads))
+        {
+            var isLeadAnywhere = await _dbContext.TeamMembers
+                .AnyAsync(tm =>
+                    tm.UserId == userId &&
+                    tm.LeftAt == null &&
+                    tm.Role == TeamMemberRole.Lead &&
+                    tm.Team.SystemTeamType == SystemTeamType.None,
+                    cancellationToken);
+
+            if (isLeadAnywhere)
+            {
+                teamIds.Add(SystemTeamIds.Leads);
+            }
+        }
+
+        return teamIds;
     }
 
     private async Task<List<Domain.Entities.DocumentVersion>> GetRequiredDocumentVersionsForTeamAsync(

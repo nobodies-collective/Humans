@@ -60,17 +60,8 @@ public class ConsentController : Controller
 
         var now = _clock.GetCurrentInstant();
 
-        // Get user's team memberships (active)
-        var userTeamIds = await _dbContext.TeamMembers
-            .Where(tm => tm.UserId == user.Id && !tm.LeftAt.HasValue)
-            .Select(tm => tm.TeamId)
-            .ToListAsync();
-
-        // Always include Volunteers team (global docs apply to all active members)
-        if (!userTeamIds.Contains(Domain.Constants.SystemTeamIds.Volunteers))
-        {
-            userTeamIds.Add(Domain.Constants.SystemTeamIds.Volunteers);
-        }
+        // Get all team IDs whose required documents apply to this user
+        var userTeamIds = await _membershipCalculator.GetRequiredTeamIdsForUserAsync(user.Id);
 
         // Get all active required documents for the user's teams
         var documents = await _dbContext.LegalDocuments
@@ -251,8 +242,9 @@ public class ConsentController : Controller
             "User {UserId} consented to document {DocumentName} version {Version}",
             user.Id, version.LegalDocument.Name, version.VersionNumber);
 
-        // Sync Volunteers team membership (adds user if approved + all consents done)
+        // Sync system team memberships (adds user if eligible + all consents done)
         await _systemTeamSyncJob.SyncVolunteersMembershipForUserAsync(user.Id);
+        await _systemTeamSyncJob.SyncLeadsMembershipForUserAsync(user.Id);
 
         TempData["SuccessMessage"] = string.Format(_localizer["Consent_ThankYou"].Value, version.LegalDocument.Name);
         return RedirectToAction(nameof(Index));

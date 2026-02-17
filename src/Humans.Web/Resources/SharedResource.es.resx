@@ -703,7 +703,6 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Seleccionar un rol...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Acceso completo al sistema</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Permisos de miembro de la junta</value></data>
-  <data name="AdminAddRole_LeadDesc" xml:space="preserve"><value>Rol de l&#xED;der de equipo</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notas (opcional)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Motivo de la asignaci&#xF3;n</value></data>
 

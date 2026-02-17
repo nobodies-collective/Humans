@@ -219,6 +219,36 @@ public class SystemTeamSyncJob
         await SyncTeamMembershipAsync(team, eligibleUserIds, cancellationToken, singleUserSync: userId);
     }
 
+    /// <summary>
+    /// Syncs Leads team membership for a single user. Call this after changing
+    /// a team member's role to/from Lead.
+    /// </summary>
+    public async Task SyncLeadsMembershipForUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var team = await GetSystemTeamAsync(SystemTeamType.Leads, cancellationToken);
+        if (team == null)
+        {
+            _logger.LogWarning("Leads system team not found");
+            return;
+        }
+
+        // Check if user is currently Lead of any user-created team
+        var isLeadAnywhere = await _dbContext.TeamMembers
+            .AsNoTracking()
+            .AnyAsync(tm =>
+                tm.UserId == userId &&
+                tm.LeftAt == null &&
+                tm.Role == TeamMemberRole.Lead &&
+                tm.Team.SystemTeamType == SystemTeamType.None,
+                cancellationToken);
+
+        var isEligible = isLeadAnywhere
+            && await _membershipCalculator.HasAllRequiredConsentsForTeamAsync(userId, SystemTeamIds.Leads, cancellationToken);
+
+        var eligibleUserIds = isEligible ? [userId] : new List<Guid>();
+        await SyncTeamMembershipAsync(team, eligibleUserIds, cancellationToken, singleUserSync: userId);
+    }
+
     private async Task<Team?> GetSystemTeamAsync(SystemTeamType systemTeamType, CancellationToken cancellationToken)
     {
         return await _dbContext.Teams
