@@ -93,7 +93,7 @@
     </div>
     <div class="card-body">
         <p>@Localizer["ProfilePrivacy_DPOContact"]</p>
-        <p><strong>@Localizer["ProfilePrivacy_Email"]</strong> <a href="mailto:@(ViewData["AdminEmail"])">@ViewData["AdminEmail"]</a></p>
+        <p><strong>@Localizer["ProfilePrivacy_Email"]</strong> <a href="mailto:@(ViewData["DpoEmail"])">@ViewData["DpoEmail"]</a></p>
         <p>
             <a asp-controller="Home" asp-action="Privacy">@Localizer["ProfilePrivacy_ViewFullPolicy"]</a>
         </p>

@@ -79,7 +79,7 @@ public class HomeController : Controller
 
     public IActionResult Privacy()
     {
-        ViewData["AdminEmail"] = _configuration["Email:AdminAddress"];
+        ViewData["DpoEmail"] = _configuration["Email:DpoAddress"];
         return View();
     }
 
