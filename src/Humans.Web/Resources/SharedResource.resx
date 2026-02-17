@@ -599,6 +599,7 @@
   <data name="AdminHuman_UserId" xml:space="preserve"><value>User ID</value></data>
   <data name="AdminHuman_FullName" xml:space="preserve"><value>Full Name</value></data>
   <data name="AdminHuman_AdminNotes" xml:space="preserve"><value>Board Notes</value></data>
+  <data name="AdminHuman_AdminNotesGdprHint" xml:space="preserve"><value>This member can request to see these notes under GDPR.</value></data>
   <data name="AdminHuman_RecentApplications" xml:space="preserve"><value>Recent Applications</value></data>
   <data name="AdminHuman_RoleAssignments" xml:space="preserve"><value>Role Assignments</value></data>
   <data name="AdminHuman_AddRole" xml:space="preserve"><value>Add Role</value></data>

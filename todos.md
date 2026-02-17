@@ -1,6 +1,7 @@
 # Release TODOs
 
-Audit date: 2026-02-05 | Last updated: 2026-02-16
+Audit date: 2026-02-05
+Last synced: 2026-02-17T23:58
 
 ---
 
@@ -20,6 +21,15 @@ Drive Activity API returns `people/` IDs instead of email addresses. Need to res
 
 #### #28: Finish asociado application workflow for launch
 Localization gaps (English remains in some views), verify `Application.Language` tracking, test all state machine transitions, add feature gate to open/close applications.
+
+#### #29: Link birthday calendar entries to member profiles
+Birthday calendar entries are plain text — add links to `/Human/View/{id}` for display names and profile pictures, matching the team detail page pattern.
+
+#### #30: Reorganize profile page card layout and information flow
+Consolidate 4 profile cards into 2 (public profile + board-only), reorder fields for natural flow (photo+name → teams → location/birthday → contact → bio → CV), fix birthday visibility (should be public), fix nav card vertical alignment. Open questions: "how I'd like to contribute" and "notes for the board" fields.
+
+#### #31: Send email notification when user is added to a team
+Notify users when they're added to a team (volunteer approval, join request, manual add). Email lists the team, its Google resources, and links to the team page. Fallback to account email if no notification target set.
 
 #### #27: Revoke team memberships immediately on deletion request
 Currently users keep full access during the 30-day deletion grace period. Should immediately remove from all teams and end role assignments on request. Returning users must re-consent and rejoin. Google deprovisioning via normal sync job.
@@ -50,9 +60,6 @@ App-layer overlap guard added (`RoleAssignmentService.HasOverlappingAssignmentAs
 
 ### Priority 4: Quality & Compliance
 
-#### G-01: AdminNotes GDPR exposure decision
-GDPR data export omits `AdminNotes`. May qualify as personal data. Needs a documented decision: include in export, or document legal basis for exclusion.
-
 #### P2-09: PII logging policy and redaction
 Structured logs include emails and user IDs in plaintext. No redaction or classification policy. GDPR data minimization gap.
 
@@ -61,10 +68,6 @@ Structured logs include emails and user IDs in plaintext. No redaction or classi
 
 #### P2-07: Add integration tests for critical paths
 Integration test project exists with TestContainers but has 0 tests. Critical compliance paths (consent, auth, deletion) untested end-to-end.
-
-#### P1-04: Enforce export throttling
-No rate limiting on GDPR data export. Any user can call `DownloadData` unlimited times.
-**Where:** `ProfileController.cs:739`
 
 ---
 
@@ -117,6 +120,9 @@ Email subjects are localized but body content is still inline HTML with string i
 ---
 
 ## Completed
+
+### G-01: AdminNotes GDPR exposure RESOLVED
+Decision: AdminNotes field is fine as-is. Users can request to see what's stored about them (GDPR subject access request), so board members should be mindful of what they write. No code change needed.
 
 ### P1-19: Sanitize markdown-to-HTML in consent and governance views DONE
 Added `HtmlSanitizer` (Ganss.Xss) to both `Consent/Review.cshtml` and `Governance/Index.cshtml` markdown render paths. Markdig output is now sanitized before `@Html.Raw()`. Committed `34a8f79`.
