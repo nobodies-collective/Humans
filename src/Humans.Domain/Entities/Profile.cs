@@ -140,6 +140,19 @@ public class Profile
     public string? AdminNotes { get; set; }
 
     /// <summary>
+    /// How the member would like to contribute (skills, interests, availability).
+    /// Publicly visible on the profile.
+    /// </summary>
+    [PersonalData]
+    public string? ContributionInterests { get; set; }
+
+    /// <summary>
+    /// Notes from the member intended for the Board (visible to self and board only).
+    /// </summary>
+    [PersonalData]
+    public string? BoardNotes { get; set; }
+
+    /// <summary>
     /// Whether the member has been manually suspended.
     /// </summary>
     public bool IsSuspended { get; set; }
