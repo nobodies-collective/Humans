@@ -1,7 +1,7 @@
 # Release TODOs
 
 Audit date: 2026-02-05
-Last synced: 2026-02-17T15:20
+Last synced: 2026-02-17T22:30
 
 ---
 
@@ -22,23 +22,11 @@ Drive Activity API returns `people/` IDs instead of email addresses. Need to res
 #### #28: Finish asociado application workflow for launch
 Localization gaps (English remains in some views), verify `Application.Language` tracking, test all state machine transitions, add feature gate to open/close applications.
 
-#### #29: Link birthday calendar entries to member profiles
-Birthday calendar entries are plain text — add links to `/Human/View/{id}` for display names and profile pictures, matching the team detail page pattern.
-
-#### #30: Reorganize profile page card layout and information flow
-Consolidate 4 profile cards into 2 (public profile + board-only), reorder fields for natural flow (photo+name → teams → location/birthday → contact → bio → CV), fix birthday visibility (should be public), fix nav card vertical alignment. Open questions: "how I'd like to contribute" and "notes for the board" fields.
-
-#### #31: Send email notification when user is added to a team
-Notify users when they're added to a team (volunteer approval, join request, manual add). Email lists the team, its Google resources, and links to the team page. Fallback to account email if no notification target set.
-
 #### #33: Add Discord integration to sync team/role-based server roles via API
 Discord bot integration to automatically assign/remove Discord server roles based on Humans team memberships and role assignments. Configurable team→Discord role mappings, drift detection, audit logging, and manual sync UI at `/Admin/DiscordSync`.
 
 #### #32: Fix Lead role — remove standalone RoleAssignment, derive from TeamMemberRole.Lead only
 `RoleNames.Lead` exists as an assignable governance role in Admin → Roles, but Lead should be derived solely from `TeamMemberRole.Lead` on user-created teams. Remove Lead from assignable roles, clean up orphaned RoleAssignment records, keep existing `SystemTeamSyncJob` derivation logic.
-
-#### #34: Add environment banner for non-production deployments
-Red banner at top of every page in non-production environments (QA/Staging, Development) so users don't mistake QA for production. No banner in production. Uses `Environment` tag helper in `_Layout.cshtml`.
 
 #### #27: Revoke team memberships immediately on deletion request
 Currently users keep full access during the 30-day deletion grace period. Should immediately remove from all teams and end role assignments on request. Returning users must re-consent and rejoin. Google deprovisioning via normal sync job.
@@ -84,6 +72,24 @@ Integration test project exists with TestContainers but has 0 tests. Critical co
 
 #### G-03: N+1 queries in GoogleWorkspaceSyncService
 Helper methods re-query resources already loaded by parent methods. Redundant DB round-trips.
+
+#### #37: Add ProfileCard ViewComponent to consolidate profile rendering
+Profile info is rendered independently in `/Profile`, `/Human/{id}`, and `/Admin/Humans/{id}` with duplicated controller logic and drifting ViewModels. Create a `ProfileCardViewComponent` that owns data fetching, permission checks, and rendering for the shared profile card. Admin-only sections (roles, audit, actions) stay outside the component.
+
+#### #38: Add TempDataAlerts ViewComponent to replace 20 duplicated alert blocks
+Same success/error/info dismissible alert banner copy-pasted across 20 views. Replace with `<vc:temp-data-alerts />` that reads TempData directly.
+
+#### #39: Add UserAvatar ViewComponent to consolidate avatar rendering
+Photo-or-initials-fallback avatar pattern duplicated in 8 views at varying sizes (32px–160px). Parameterize by size and optional bg-class.
+
+#### #40: Add RoleBadge partial to consolidate Lead/Member pills
+Lead/Member badge logic duplicated in 5 views with a color inconsistency (bg-warning vs bg-primary for Lead). Extract shared partial.
+
+#### #41: Add ApplicationHistory partial to deduplicate timeline rendering
+Application status history timeline near-identical in `Application/Details` and `Admin/ApplicationDetail`. Extract shared partial, fix localization inconsistency.
+
+#### G-06b: Wire remaining views to use StatusBadgeExtensions
+`StatusBadgeExtensions.GetMembershipStatusBadgeClass()` exists but `Profile/Index.cshtml` and `Admin/Humans.cshtml` use inline switch statements instead. Wire them to the existing extension method for consistency.
 
 #### G-07: AdminController over-fetches data
 `HumanDetail` loads ALL applications and consent records via `Include` when it only needs a few. `Humans` list relies on implicit Include behavior.
@@ -132,6 +138,18 @@ Admin email previews (`/Admin/EmailPreview`) use duplicated static HTML in `Admi
 ---
 
 ## Completed
+
+### #34: Add environment banner for non-production deployments DONE
+Colored banner below navbar in non-production environments. Committed `66c19f1`.
+
+### #29: Link birthday calendar entries to member profiles DONE
+Birthday entries now link to member profiles via `/Human/View/{id}`. Committed `66c19f1`.
+
+### #31: Send email notification when user is added to a team DONE
+Members receive email with team resources when added via approval, join request, or system sync. Committed `247385c`.
+
+### #30: Reorganize profile page card layout and information flow DONE
+Consolidated 4 cards to 2 (public + board-private), teams as pills under name, edit page reordered to match, added ContributionInterests and BoardNotes fields, fixed email visibility enum comparison bug, OAuth email backfill migration. Committed `d96376d`.
 
 ### G-01: AdminNotes GDPR exposure RESOLVED
 Decision: AdminNotes field is fine as-is. Users can request to see what's stored about them (GDPR subject access request), so board members should be mindful of what they write. No code change needed.

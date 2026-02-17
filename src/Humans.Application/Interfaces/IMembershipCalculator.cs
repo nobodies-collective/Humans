@@ -81,4 +81,13 @@ public interface IMembershipCalculator
     Task<MembershipSnapshot> GetMembershipSnapshotAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all team IDs whose required documents apply to a user.
+    /// Includes current memberships plus system teams the user is eligible for
+    /// (e.g., Leads team if the user is Lead of any user-created team).
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetRequiredTeamIdsForUserAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
 }

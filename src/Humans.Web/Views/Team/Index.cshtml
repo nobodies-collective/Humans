@@ -58,7 +58,11 @@
                         <small class="text-muted">
                             @string.Format(Localizer["Teams_MemberCount"].Value, team.MemberCount)
                         </small>
-                        @if (team.IsCurrentUserMember)
+                        @if (team.IsCurrentUserLead)
+                        {
+                            <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
+                        }
+                        else if (team.IsCurrentUserMember)
                         {
                             <span class="badge bg-success">@Localizer["Teams_Member"]</span>
                         }

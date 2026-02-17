@@ -41,7 +41,6 @@ The `RoleAssignmentClaimsTransformation` runs on authentication, so the new role
 |------|----------|---------|
 | `Admin` | `RoleNames.Admin` | Full system access |
 | `Board` | `RoleNames.Board` | Board member, elevated permissions |
-| `Lead` | `RoleNames.Lead` | Team lead |
 
 ## Revoking a role
 
@@ -55,4 +54,5 @@ UPDATE role_assignments SET "ValidTo" = now() WHERE "UserId" = '<user-id>' AND "
 
 - Roles can also be assigned/revoked through the admin UI at `/Admin/Humans/<user-id>` once you have an existing admin user
 - The admin UI is accessible to users with `Admin` or `Board` roles
-- Only `Admin` role users can assign the `Admin` role through the UI; `Board` members can assign `Board` and `Lead`
+- Only `Admin` role users can assign the `Admin` role through the UI; `Board` members can assign `Board`
+- Team Lead status is derived from `TeamMemberRole.Lead` on user-created teams (not a standalone RoleAssignment)

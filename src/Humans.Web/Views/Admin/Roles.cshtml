@@ -23,10 +23,6 @@
                class="btn @(Model.RoleFilter == "Board" ? "btn-primary" : "btn-outline-primary")">
                 Board
             </a>
-            <a asp-action="Roles" asp-route-role="Lead" asp-route-showInactive="@Model.ShowInactive"
-               class="btn @(Model.RoleFilter == "Lead" ? "btn-primary" : "btn-outline-primary")">
-                Lead
-            </a>
         </div>
         <div>
             @if (Model.ShowInactive)

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Localization;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Infrastructure.Jobs;
 using Humans.Web.Models;
 
 namespace Humans.Web.Controllers;
@@ -18,6 +19,7 @@ public class TeamAdminController : Controller
     private readonly ITeamResourceService _teamResourceService;
     private readonly IGoogleSyncService _googleSyncService;
     private readonly UserManager<User> _userManager;
+    private readonly SystemTeamSyncJob _systemTeamSyncJob;
     private readonly ILogger<TeamAdminController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
@@ -26,6 +28,7 @@ public class TeamAdminController : Controller
         ITeamResourceService teamResourceService,
         IGoogleSyncService googleSyncService,
         UserManager<User> userManager,
+        SystemTeamSyncJob systemTeamSyncJob,
         ILogger<TeamAdminController> logger,
         IStringLocalizer<SharedResource> localizer)
     {
@@ -33,6 +36,7 @@ public class TeamAdminController : Controller
         _teamResourceService = teamResourceService;
         _googleSyncService = googleSyncService;
         _userManager = userManager;
+        _systemTeamSyncJob = systemTeamSyncJob;
         _logger = logger;
         _localizer = localizer;
     }
@@ -250,6 +254,10 @@ public class TeamAdminController : Controller
         try
         {
             await _teamService.SetMemberRoleAsync(team.Id, userId, model.Role, user.Id);
+
+            // Sync Leads system team membership (handles both promotion and demotion)
+            await _systemTeamSyncJob.SyncLeadsMembershipForUserAsync(userId);
+
             TempData["SuccessMessage"] = string.Format(_localizer["TeamAdmin_RoleUpdated"].Value, model.Role);
         }
         catch (InvalidOperationException ex)

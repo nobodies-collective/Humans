@@ -14,9 +14,4 @@ public static class RoleNames
     /// Board member role with elevated permissions.
     /// </summary>
     public const string Board = "Board";
-
-    /// <summary>
-    /// Team lead role.
-    /// </summary>
-    public const string Lead = "Lead";
 }

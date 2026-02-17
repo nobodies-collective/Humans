@@ -73,10 +73,24 @@ public class AdminController : Controller
         var pendingVolunteers = await _dbContext.Profiles
             .CountAsync(p => !p.IsApproved && !p.IsSuspended);
 
-        // Calculate users with missing required consents
+        // Calculate users with missing required consents (Volunteers docs = global)
         var allUserIds = await _dbContext.Users.Select(u => u.Id).ToListAsync();
-        var usersWithAllConsents = await _membershipCalculator.GetUsersWithAllRequiredConsentsAsync(allUserIds);
-        var pendingConsents = allUserIds.Count - usersWithAllConsents.Count;
+        var usersWithAllVolunteerConsents = await _membershipCalculator.GetUsersWithAllRequiredConsentsAsync(allUserIds);
+
+        // Also count Leads missing their team-specific docs
+        var leadUserIds = await _dbContext.TeamMembers
+            .Where(tm => tm.LeftAt == null && tm.Role == TeamMemberRole.Lead && tm.Team.SystemTeamType == SystemTeamType.None)
+            .Select(tm => tm.UserId)
+            .Distinct()
+            .ToListAsync();
+        var leadsWithAllConsents = leadUserIds.Count > 0
+            ? await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(leadUserIds, SystemTeamIds.Leads)
+            : (IReadOnlySet<Guid>)new HashSet<Guid>();
+
+        // A user has pending consents if missing any Volunteers doc OR (if they're a Lead) any Leads doc
+        var pendingConsents = allUserIds.Count(id =>
+            !usersWithAllVolunteerConsents.Contains(id) ||
+            (leadUserIds.Contains(id) && !leadsWithAllConsents.Contains(id)));
 
         var recentActivity = await _dbContext.AuditLogEntries
             .AsNoTracking()
@@ -752,8 +766,8 @@ public class AdminController : Controller
             UserId = id,
             UserDisplayName = user.DisplayName,
             AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.Lead]
-                : [RoleNames.Board, RoleNames.Lead]
+                ? [RoleNames.Admin, RoleNames.Board]
+                : [RoleNames.Board]
         };
 
         return View(viewModel);
@@ -775,8 +789,8 @@ public class AdminController : Controller
             model.UserId = id;
             model.UserDisplayName = user.DisplayName;
             model.AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.Lead]
-                : [RoleNames.Board, RoleNames.Lead];
+                ? [RoleNames.Admin, RoleNames.Board]
+                : [RoleNames.Board];
             return View(model);
         }
 
@@ -1452,11 +1466,10 @@ public class AdminController : Controller
             return true;
         }
 
-        // Board members can manage Board and Lead roles
+        // Board members can manage the Board role
         if (User.IsInRole(RoleNames.Board))
         {
-            return string.Equals(roleName, RoleNames.Board, StringComparison.Ordinal)
-                || string.Equals(roleName, RoleNames.Lead, StringComparison.Ordinal);
+            return string.Equals(roleName, RoleNames.Board, StringComparison.Ordinal);
         }
 
         return false;
