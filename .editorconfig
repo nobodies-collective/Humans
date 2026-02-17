@@ -8,6 +8,7 @@ tab_width = 4
 end_of_line = lf
 dotnet_diagnostic.MA0004.severity = none
 dotnet_diagnostic.MA0053.severity = warning
+resharper_lambda_expression_can_be_made_static_highlighting = none
 
 [*.csproj]
 indent_style = tab
