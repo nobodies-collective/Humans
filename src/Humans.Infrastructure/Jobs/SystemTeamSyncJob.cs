@@ -18,6 +18,7 @@ public class SystemTeamSyncJob
     private readonly IMembershipCalculator _membershipCalculator;
     private readonly IGoogleSyncService _googleSyncService;
     private readonly IAuditLogService _auditLogService;
+    private readonly IEmailService _emailService;
     private readonly ILogger<SystemTeamSyncJob> _logger;
     private readonly IClock _clock;
 
@@ -26,6 +27,7 @@ public class SystemTeamSyncJob
         IMembershipCalculator membershipCalculator,
         IGoogleSyncService googleSyncService,
         IAuditLogService auditLogService,
+        IEmailService emailService,
         ILogger<SystemTeamSyncJob> logger,
         IClock clock)
     {
@@ -33,6 +35,7 @@ public class SystemTeamSyncJob
         _membershipCalculator = membershipCalculator;
         _googleSyncService = googleSyncService;
         _auditLogService = auditLogService;
+        _emailService = emailService;
         _logger = logger;
         _clock = clock;
     }
@@ -303,6 +306,38 @@ public class SystemTeamSyncJob
             _logger.LogInformation(
                 "Synced {TeamName} team: added {AddCount}, removed {RemoveCount}",
                 team.Name, toAdd.Count, toRemove.Count);
+        }
+
+        // Send "added to team" emails for newly added members
+        if (toAdd.Count > 0)
+        {
+            var resources = await _dbContext.GoogleResources
+                .AsNoTracking()
+                .Where(gr => gr.TeamId == team.Id && gr.IsActive)
+                .Select(gr => new { gr.Name, gr.Url })
+                .ToListAsync(cancellationToken);
+            var resourceTuples = resources.Select(r => (r.Name, r.Url)).ToList();
+
+            var addedUsers = await _dbContext.Users
+                .Include(u => u.UserEmails)
+                .Where(u => toAdd.Contains(u.Id))
+                .ToListAsync(cancellationToken);
+
+            foreach (var user in addedUsers)
+            {
+                try
+                {
+                    var email = user.GetEffectiveEmail() ?? user.Email!;
+                    await _emailService.SendAddedToTeamAsync(
+                        email, user.DisplayName, team.Name, team.Slug,
+                        resourceTuples, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send added-to-team email for user {UserId} team {TeamId}",
+                        user.Id, team.Id);
+                }
+            }
         }
     }
 }

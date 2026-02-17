@@ -116,6 +116,7 @@
                 <div class="card-header">@Localizer["AdminHuman_AdminNotes"]</div>
                 <div class="card-body">
                     <p class="mb-0" style="white-space: pre-wrap;">@Model.AdminNotes</p>
+                    <small class="text-muted mt-2 d-block">@Localizer["AdminHuman_AdminNotesGdprHint"]</small>
                 </div>
             </div>
         }
@@ -277,6 +278,7 @@
                         @Html.AntiForgeryToken()
                         <div class="mb-2">
                             <textarea name="notes" class="form-control" rows="2" placeholder="@Localizer["AdminHuman_SuspendReasonPlaceholder"].Value"></textarea>
+                            <small class="form-text text-muted">@Localizer["AdminHuman_AdminNotesGdprHint"]</small>
                         </div>
                         <button type="submit" class="btn btn-danger w-100">@Localizer["AdminHuman_SuspendMember"]</button>
                     </form>

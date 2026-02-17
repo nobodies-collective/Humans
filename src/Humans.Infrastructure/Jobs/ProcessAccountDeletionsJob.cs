@@ -171,6 +171,8 @@ public class ProcessAccountDeletionsJob
             user.Profile.EmergencyContactName = null;
             user.Profile.EmergencyContactPhone = null;
             user.Profile.EmergencyContactRelationship = null;
+            user.Profile.ContributionInterests = null;
+            user.Profile.BoardNotes = null;
         }
 
         // Remove contact fields and volunteer history

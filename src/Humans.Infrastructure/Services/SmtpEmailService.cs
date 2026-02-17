@@ -1,6 +1,7 @@
 using System.Globalization;
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,17 +20,20 @@ public class SmtpEmailService : IEmailService
     private readonly HumansMetricsService _metrics;
     private readonly ILogger<SmtpEmailService> _logger;
     private readonly IStringLocalizer _localizer;
+    private readonly string _environmentName;
 
     public SmtpEmailService(
         IOptions<EmailSettings> settings,
         HumansMetricsService metrics,
         ILogger<SmtpEmailService> logger,
-        IStringLocalizerFactory localizerFactory)
+        IStringLocalizerFactory localizerFactory,
+        IHostEnvironment hostEnvironment)
     {
         _settings = settings.Value;
         _metrics = metrics;
         _logger = logger;
         _localizer = localizerFactory.Create("SharedResource", "Humans.Web");
+        _environmentName = hostEnvironment.EnvironmentName;
     }
 
     /// <inheritdoc />
@@ -287,6 +291,40 @@ public class SmtpEmailService : IEmailService
         _metrics.RecordEmailSent("account_deleted");
     }
 
+    /// <inheritdoc />
+    public async Task SendAddedToTeamAsync(
+        string userEmail,
+        string userName,
+        string teamName,
+        string teamSlug,
+        IEnumerable<(string Name, string? Url)> resources,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = string.Format(CultureInfo.CurrentCulture, _localizer["Email_AddedToTeam_Subject"].Value, teamName);
+        var teamUrl = $"{_settings.BaseUrl}/Teams/{teamSlug}";
+        var resourceList = resources.ToList();
+        var resourcesHtml = resourceList.Count > 0
+            ? "<p>Your team has the following resources:</p><ul>" +
+              string.Join("\n", resourceList.Select(r =>
+                  !string.IsNullOrEmpty(r.Url)
+                      ? $"<li><a href=\"{r.Url}\">{HtmlEncode(r.Name)}</a></li>"
+                      : $"<li>{HtmlEncode(r.Name)}</li>")) +
+              "</ul>"
+            : "";
+
+        var body = $"""
+            <h2>Welcome to {HtmlEncode(teamName)}!</h2>
+            <p>Dear {HtmlEncode(userName)},</p>
+            <p>You have been added to the <strong>{HtmlEncode(teamName)}</strong> team.</p>
+            {resourcesHtml}
+            <p><a href="{teamUrl}">View Team Page</a></p>
+            <p>The Humans Team</p>
+            """;
+
+        await SendEmailAsync(userEmail, subject, body, cancellationToken);
+        _metrics.RecordEmailSent("added_to_team");
+    }
+
     private async Task SendEmailAsync(
         string toAddress,
         string subject,
@@ -334,6 +372,18 @@ public class SmtpEmailService : IEmailService
 
     private string WrapInTemplate(string content)
     {
+        var isProduction = string.Equals(_environmentName, "Production", StringComparison.OrdinalIgnoreCase);
+        var envLabel = string.Equals(_environmentName, "Staging", StringComparison.OrdinalIgnoreCase)
+            ? "QA"
+            : _environmentName.ToUpperInvariant();
+        var envBanner = isProduction
+            ? ""
+            : $"""
+                <div style="background:#a0522d;color:#fff;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;padding:4px 0;">
+                    {HtmlEncode(envLabel)} &bull; {HtmlEncode(envLabel)} &bull; {HtmlEncode(envLabel)}
+                </div>
+                """;
+
         return """
             <!DOCTYPE html>
             <html>
@@ -349,7 +399,7 @@ public class SmtpEmailService : IEmailService
                 </style>
             </head>
             <body>
-            """ + content + $"""
+            """ + envBanner + content + $"""
                 <div class="footer">
                     <p>Humans &mdash; Nobodies Collective<br/>
                     <a href="{_settings.BaseUrl}">{_settings.BaseUrl}</a></p>

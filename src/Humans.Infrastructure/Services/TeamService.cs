@@ -17,17 +17,20 @@ public partial class TeamService : ITeamService
 {
     private readonly HumansDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
+    private readonly IEmailService _emailService;
     private readonly IClock _clock;
     private readonly ILogger<TeamService> _logger;
 
     public TeamService(
         HumansDbContext dbContext,
         IAuditLogService auditLogService,
+        IEmailService emailService,
         IClock clock,
         ILogger<TeamService> logger)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
+        _emailService = emailService;
         _clock = clock;
         _logger = logger;
     }
@@ -295,6 +298,8 @@ public partial class TeamService : ITeamService
 
         _logger.LogInformation("User {UserId} joined team {TeamId} directly", userId, teamId);
 
+        await SendAddedToTeamEmailAsync(userId, team, cancellationToken);
+
         return member;
     }
 
@@ -417,6 +422,8 @@ public partial class TeamService : ITeamService
 
         _logger.LogInformation("Approver {ApproverId} approved join request {RequestId} for user {UserId} to team {TeamId}",
             approverUserId, requestId, request.UserId, request.TeamId);
+
+        await SendAddedToTeamEmailAsync(request.UserId, request.Team!, cancellationToken);
 
         return member;
     }
@@ -672,6 +679,33 @@ public partial class TeamService : ITeamService
             .OrderBy(tm => tm.Role)
             .ThenBy(tm => tm.JoinedAt)
             .ToListAsync(cancellationToken);
+    }
+
+    private async Task SendAddedToTeamEmailAsync(Guid userId, Team team, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var user = await _dbContext.Users
+                .Include(u => u.UserEmails)
+                .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+            if (user == null) return;
+
+            var email = user.GetEffectiveEmail() ?? user.Email!;
+            var resources = await _dbContext.GoogleResources
+                .AsNoTracking()
+                .Where(gr => gr.TeamId == team.Id && gr.IsActive)
+                .Select(gr => new { gr.Name, gr.Url })
+                .ToListAsync(cancellationToken);
+
+            await _emailService.SendAddedToTeamAsync(
+                email, user.DisplayName, team.Name, team.Slug,
+                resources.Select(r => (r.Name, r.Url)),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send added-to-team email for user {UserId} team {TeamId}", userId, team.Id);
+        }
     }
 
     private void EnqueueGoogleSyncOutboxEvent(

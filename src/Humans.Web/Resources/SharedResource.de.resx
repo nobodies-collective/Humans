@@ -542,6 +542,7 @@
   <data name="Email_VerifyEmail_Subject" xml:space="preserve"><value>Bestätigen Sie Ihre E-Mail-Adresse</value></data>
   <data name="Email_DeletionRequested_Subject" xml:space="preserve"><value>Kontolöschung beantragt</value></data>
   <data name="Email_AccountDeleted_Subject" xml:space="preserve"><value>Ihr Konto wurde gelöscht</value></data>
+  <data name="Email_AddedToTeam_Subject" xml:space="preserve"><value>Sie wurden dem Team {0} hinzugef&#xFC;gt</value><comment>{0} = team name</comment></data>
 
   <!-- ======================== -->
   <!-- My Teams View (missing)  -->
@@ -606,6 +607,7 @@
   <data name="AdminHuman_UserId" xml:space="preserve"><value>Benutzer-ID</value></data>
   <data name="AdminHuman_FullName" xml:space="preserve"><value>Vollständiger Name</value></data>
   <data name="AdminHuman_AdminNotes" xml:space="preserve"><value>Vorstandsnotizen</value></data>
+  <data name="AdminHuman_AdminNotesGdprHint" xml:space="preserve"><value>Dieses Mitglied kann diese Notizen gemäß DSGVO einsehen.</value></data>
   <data name="AdminHuman_RecentApplications" xml:space="preserve"><value>Letzte Anträge</value></data>
   <data name="AdminHuman_RoleAssignments" xml:space="preserve"><value>Rollenzuweisungen</value></data>
   <data name="AdminHuman_AddRole" xml:space="preserve"><value>Rolle hinzufügen</value></data>
@@ -794,5 +796,14 @@
   <data name="Map_Count" xml:space="preserve"><value>{0} Freiwillige mit Standort</value></data>
   <data name="Map_None" xml:space="preserve"><value>Noch kein Freiwilliger hat seinen Standort angegeben.</value></data>
   <data name="Map_Privacy" xml:space="preserve"><value>Nur Mitglieder, die ihren Standort angegeben haben, werden angezeigt. Der Standort ist ungef&#xE4;hr und basiert auf der Stadt.</value></data>
+
+  <!-- ======================== -->
+  <!-- Contribution & Board     -->
+  <!-- ======================== -->
+  <data name="Profile_ContributionInterests" xml:space="preserve"><value>Wie ich beitragen möchte</value></data>
+  <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Teile deine Fähigkeiten, Interessen und wie du dich einbringen möchtest. Für alle Mitglieder sichtbar.</value></data>
+  <data name="Profile_BoardNotes" xml:space="preserve"><value>Notizen für den Vorstand</value></data>
+  <data name="ProfileEdit_BoardNotesHelp" xml:space="preserve"><value>Private Notizen für den Vorstand. Nur für dich und Vorstandsmitglieder sichtbar.</value></data>
+  <data name="Profile_BoardInformation" xml:space="preserve"><value>Vorstand &amp; private Informationen</value></data>
 
 </root>

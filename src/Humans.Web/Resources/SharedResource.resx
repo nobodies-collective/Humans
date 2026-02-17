@@ -535,6 +535,7 @@
   <data name="Email_VerifyEmail_Subject" xml:space="preserve"><value>Verify Your Email Address</value></data>
   <data name="Email_DeletionRequested_Subject" xml:space="preserve"><value>Account Deletion Requested</value></data>
   <data name="Email_AccountDeleted_Subject" xml:space="preserve"><value>Your Account Has Been Deleted</value></data>
+  <data name="Email_AddedToTeam_Subject" xml:space="preserve"><value>You've been added to {0}</value><comment>{0} = team name</comment></data>
 
   <!-- ======================== -->
   <!-- My Teams View (missing)  -->
@@ -599,6 +600,7 @@
   <data name="AdminHuman_UserId" xml:space="preserve"><value>User ID</value></data>
   <data name="AdminHuman_FullName" xml:space="preserve"><value>Full Name</value></data>
   <data name="AdminHuman_AdminNotes" xml:space="preserve"><value>Board Notes</value></data>
+  <data name="AdminHuman_AdminNotesGdprHint" xml:space="preserve"><value>This member can request to see these notes under GDPR.</value></data>
   <data name="AdminHuman_RecentApplications" xml:space="preserve"><value>Recent Applications</value></data>
   <data name="AdminHuman_RoleAssignments" xml:space="preserve"><value>Role Assignments</value></data>
   <data name="AdminHuman_AddRole" xml:space="preserve"><value>Add Role</value></data>
@@ -793,5 +795,14 @@
   <data name="Map_Count" xml:space="preserve"><value>{0} volunteers with location</value></data>
   <data name="Map_None" xml:space="preserve"><value>No volunteers have set their location yet.</value></data>
   <data name="Map_Privacy" xml:space="preserve"><value>Only members who have set their location are shown. Location is approximate and based on city.</value></data>
+
+  <!-- ======================== -->
+  <!-- Contribution & Board     -->
+  <!-- ======================== -->
+  <data name="Profile_ContributionInterests" xml:space="preserve"><value>How I'd Like to Contribute</value></data>
+  <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Share your skills, interests, and how you'd like to get involved. Visible to all members.</value></data>
+  <data name="Profile_BoardNotes" xml:space="preserve"><value>Notes for the Board</value></data>
+  <data name="ProfileEdit_BoardNotesHelp" xml:space="preserve"><value>Private notes for the Board. Only visible to you and Board members.</value></data>
+  <data name="Profile_BoardInformation" xml:space="preserve"><value>Board &amp; Private Information</value></data>
 
 </root>

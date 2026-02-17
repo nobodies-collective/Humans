@@ -144,4 +144,18 @@ public class StubEmailService : IEmailService
             userEmail, userName);
         return Task.CompletedTask;
     }
+
+    public Task SendAddedToTeamAsync(
+        string userEmail,
+        string userName,
+        string teamName,
+        string teamSlug,
+        IEnumerable<(string Name, string? Url)> resources,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "[STUB] Would send added-to-team email to {Email} ({UserName}) for team {TeamName}",
+            userEmail, userName, teamName);
+        return Task.CompletedTask;
+    }
 }

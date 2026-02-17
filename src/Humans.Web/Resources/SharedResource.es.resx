@@ -547,6 +547,7 @@
   <data name="Email_VerifyEmail_Subject" xml:space="preserve"><value>Verifique su direcci&#xF3;n de correo electr&#xF3;nico</value></data>
   <data name="Email_DeletionRequested_Subject" xml:space="preserve"><value>Solicitud de eliminaci&#xF3;n de cuenta</value></data>
   <data name="Email_AccountDeleted_Subject" xml:space="preserve"><value>Su cuenta ha sido eliminada</value></data>
+  <data name="Email_AddedToTeam_Subject" xml:space="preserve"><value>Se le ha a&#xF1;adido al equipo {0}</value><comment>{0} = team name</comment></data>
 
   <!-- ======================== -->
   <!-- My Teams View (missing)  -->
@@ -611,6 +612,7 @@
   <data name="AdminHuman_UserId" xml:space="preserve"><value>ID de usuario</value></data>
   <data name="AdminHuman_FullName" xml:space="preserve"><value>Nombre completo</value></data>
   <data name="AdminHuman_AdminNotes" xml:space="preserve"><value>Notas de la junta</value></data>
+  <data name="AdminHuman_AdminNotesGdprHint" xml:space="preserve"><value>Este miembro puede solicitar ver estas notas según el RGPD.</value></data>
   <data name="AdminHuman_RecentApplications" xml:space="preserve"><value>Solicitudes recientes</value></data>
   <data name="AdminHuman_RoleAssignments" xml:space="preserve"><value>Asignaciones de roles</value></data>
   <data name="AdminHuman_AddRole" xml:space="preserve"><value>A&#xF1;adir rol</value></data>
@@ -799,5 +801,14 @@
   <data name="Map_Count" xml:space="preserve"><value>{0} voluntarios con ubicaci&#xF3;n</value></data>
   <data name="Map_None" xml:space="preserve"><value>Ning&#xFA;n voluntario ha establecido su ubicaci&#xF3;n a&#xFA;n.</value></data>
   <data name="Map_Privacy" xml:space="preserve"><value>Solo se muestran los miembros que han establecido su ubicaci&#xF3;n. La ubicaci&#xF3;n es aproximada y se basa en la ciudad.</value></data>
+
+  <!-- ======================== -->
+  <!-- Contribution & Board     -->
+  <!-- ======================== -->
+  <data name="Profile_ContributionInterests" xml:space="preserve"><value>Como me gustaría contribuir</value></data>
+  <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Comparte tus habilidades, intereses y cómo te gustaría participar. Visible para todos los miembros.</value></data>
+  <data name="Profile_BoardNotes" xml:space="preserve"><value>Notas para la Junta</value></data>
+  <data name="ProfileEdit_BoardNotesHelp" xml:space="preserve"><value>Notas privadas para la Junta. Solo visibles para ti y los miembros de la Junta.</value></data>
+  <data name="Profile_BoardInformation" xml:space="preserve"><value>Información privada y de la Junta</value></data>
 
 </root>

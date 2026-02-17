@@ -141,4 +141,21 @@ public interface IEmailService
         string userEmail,
         string userName,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a notification that the user has been added to a team.
+    /// </summary>
+    /// <param name="userEmail">The user's email.</param>
+    /// <param name="userName">The user's name.</param>
+    /// <param name="teamName">The team name.</param>
+    /// <param name="teamSlug">The team's URL slug (used to construct the team page link).</param>
+    /// <param name="resources">Google resources associated with the team (name + URL pairs).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SendAddedToTeamAsync(
+        string userEmail,
+        string userName,
+        string teamName,
+        string teamSlug,
+        IEnumerable<(string Name, string? Url)> resources,
+        CancellationToken cancellationToken = default);
 }

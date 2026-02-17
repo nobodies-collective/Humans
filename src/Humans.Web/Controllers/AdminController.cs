@@ -1399,6 +1399,25 @@ public class AdminController : Controller
                     you're welcome to submit a new membership application.</p>
                     <p>Best wishes,<br/>The Humans Team</p>
                     """
+            },
+            new()
+            {
+                Id = "added-to-team",
+                Name = "Added to Team",
+                Recipient = email,
+                Subject = string.Format(_localizer["Email_AddedToTeam_Subject"].Value, "Art Collective"),
+                Body = $"""
+                    <h2>Welcome to Art Collective!</h2>
+                    <p>Dear {Encode(name)},</p>
+                    <p>You have been added to the <strong>Art Collective</strong> team.</p>
+                    <p>Your team has the following resources:</p>
+                    <ul>
+                        <li><a href="https://drive.google.com/drive/folders/example">Art Collective Shared Drive</a></li>
+                        <li><a href="https://groups.google.com/g/art-collective">art-collective@nobodies.team</a></li>
+                    </ul>
+                    <p><a href="{baseUrl}/Teams/art-collective">View Team Page</a></p>
+                    <p>The Humans Team</p>
+                    """
             }
         ];
     }
