@@ -45,6 +45,12 @@ public class ProfileController : Controller
         "image/png",
         "image/webp"
     };
+    private static readonly System.Text.Json.JsonSerializerOptions ExportJsonOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
 
     public ProfileController(
         HumansDbContext dbContext,
@@ -900,7 +906,7 @@ public class ProfileController : Controller
 
         _logger.LogInformation("User {UserId} exported their data", user.Id);
 
-        return Json(export, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        return Json(export, ExportJsonOptions);
     }
 
     [HttpGet]
@@ -923,7 +929,7 @@ public class ProfileController : Controller
         }
 
         var json = System.Text.Json.JsonSerializer.Serialize(result.Value,
-            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            ExportJsonOptions);
 
         var bytes = System.Text.Encoding.UTF8.GetBytes(json);
         var fileName = $"nobodies-profiles-export-{DateTime.UtcNow:yyyy-MM-dd}.json";
