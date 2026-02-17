@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy project files for restore
-COPY Directory.Build.props Directory.Packages.props ./
+COPY .editorconfig Directory.Build.props Directory.Packages.props ./
 COPY src/Humans.Domain/Humans.Domain.csproj src/Humans.Domain/
 COPY src/Humans.Application/Humans.Application.csproj src/Humans.Application/
 COPY src/Humans.Infrastructure/Humans.Infrastructure.csproj src/Humans.Infrastructure/
@@ -12,7 +12,8 @@ COPY src/Humans.Web/Humans.Web.csproj src/Humans.Web/
 # Restore packages
 RUN dotnet restore src/Humans.Web/Humans.Web.csproj
 
-# Copy source code
+# Copy source code and .git (for commit hash in footer; discarded after build stage)
+COPY .git .git
 COPY src/ src/
 
 # Build and publish
