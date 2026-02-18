@@ -11,21 +11,7 @@
     </ol>
 </nav>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 <div class="row">
     <div class="col-md-8">
@@ -39,11 +25,11 @@
                     }
                     @if (Model.IsCurrentUserMember)
                     {
-                        <span class="badge bg-success">@Localizer["Teams_Member"]</span>
+                        @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Member)
                     }
                     @if (Model.IsCurrentUserLead)
                     {
-                        <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
+                        @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Lead)
                     }
                 </div>
             </div>
@@ -121,18 +107,13 @@
                             {
                                 <div class="col-6 col-sm-4 col-md-3">
                                     <a asp-controller="Human" asp-action="View" asp-route-id="@member.UserId" class="text-center text-decoration-none d-block">
-                                        @if (!string.IsNullOrEmpty(member.EffectiveProfilePictureUrl))
-                                        {
-                                            <img src="@member.EffectiveProfilePictureUrl" alt="@member.DisplayName" class="rounded-circle mb-2" style="width: 128px; height: 128px; object-fit: cover; border: 3px solid var(--bs-primary);" />
-                                        }
-                                        else
-                                        {
-                                            <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white mx-auto mb-2" style="width: 128px; height: 128px; font-size: 2.4rem;">
-                                                @member.DisplayName[0]
-                                            </div>
-                                        }
+                                        <vc:user-avatar profile-picture-url="@member.EffectiveProfilePictureUrl"
+                                                        display-name="@member.DisplayName"
+                                                        size="128"
+                                                        css-class="mb-2 mx-auto border border-primary border-3"
+                                                        bg-color="bg-primary" />
                                         <div class="fw-semibold small">@member.DisplayName</div>
-                                        <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
+                                        @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Lead)
                                     </a>
                                 </div>
                             }
@@ -150,16 +131,10 @@
                             {
                                 <div class="col-6 col-sm-4 col-md-3">
                                     <a asp-controller="Human" asp-action="View" asp-route-id="@member.UserId" class="text-center text-decoration-none d-block">
-                                        @if (!string.IsNullOrEmpty(member.EffectiveProfilePictureUrl))
-                                        {
-                                            <img src="@member.EffectiveProfilePictureUrl" alt="@member.DisplayName" class="rounded-circle mb-2" style="width: 102px; height: 102px; object-fit: cover;" />
-                                        }
-                                        else
-                                        {
-                                            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white mx-auto mb-2" style="width: 102px; height: 102px; font-size: 1.9rem;">
-                                                @member.DisplayName[0]
-                                            </div>
-                                        }
+                                        <vc:user-avatar profile-picture-url="@member.EffectiveProfilePictureUrl"
+                                                        display-name="@member.DisplayName"
+                                                        size="102"
+                                                        css-class="mb-2 mx-auto" />
                                         <div class="small">@member.DisplayName</div>
                                     </a>
                                 </div>

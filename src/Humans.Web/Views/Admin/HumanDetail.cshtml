@@ -1,3 +1,4 @@
+@using Humans.Web.ViewComponents
 @model Humans.Web.Models.AdminHumanDetailViewModel
 @{
     ViewData["Title"] = string.Format(Localizer["AdminHumanDetail_Title"].Value, Model.DisplayName);
@@ -11,31 +12,19 @@
     </ol>
 </nav>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 <div class="row">
     <div class="col-md-8">
+        @* Admin-specific info card (user ID, joined, last login) *@
         <div class="card mb-4">
             <div class="card-header">@Localizer["AdminHuman_Information"]</div>
             <div class="card-body">
                 <div class="row mb-3">
                     <div class="col-md-2">
-                        @if (!string.IsNullOrEmpty(Model.ProfilePictureUrl))
-                        {
-                            <img src="@Model.ProfilePictureUrl" alt="" class="rounded-circle img-fluid">
-                        }
-                        else
-                        {
-                            <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 80px; height: 80px; font-size: 2rem;">
-                                @(string.IsNullOrEmpty(Model.DisplayName) ? "?" : Model.DisplayName[0])
-                            </div>
-                        }
+                        <vc:user-avatar profile-picture-url="@Model.ProfilePictureUrl"
+                                        display-name="@Model.DisplayName"
+                                        size="80" />
                     </div>
                     <div class="col-md-10">
                         <h4>@Model.DisplayName</h4>
@@ -75,40 +64,12 @@
                             <span class="text-muted">@Localizer["Admin_Never"]</span>
                         }
                     </dd>
-
-                    @if (!string.IsNullOrEmpty(Model.FirstName) || !string.IsNullOrEmpty(Model.LastName))
-                    {
-                        <dt class="col-sm-3">@Localizer["AdminHuman_FullName"]</dt>
-                        <dd class="col-sm-9">@Model.FirstName @Model.LastName</dd>
-                    }
-
-                    @if (!string.IsNullOrEmpty(Model.City))
-                    {
-                        <dt class="col-sm-3">@Localizer["Profile_Location"]</dt>
-                        <dd class="col-sm-9">@Model.City, @Model.CountryCode</dd>
-                    }
-
-                    @if (!string.IsNullOrEmpty(Model.EmergencyContactName) || !string.IsNullOrEmpty(Model.EmergencyContactPhone))
-                    {
-                        <dt class="col-sm-3">@Localizer["Profile_EmergencyContact"]</dt>
-                        <dd class="col-sm-9">
-                            @if (!string.IsNullOrEmpty(Model.EmergencyContactName))
-                            {
-                                @Model.EmergencyContactName
-                            }
-                            @if (!string.IsNullOrEmpty(Model.EmergencyContactRelationship))
-                            {
-                                <text> (@Model.EmergencyContactRelationship)</text>
-                            }
-                            @if (!string.IsNullOrEmpty(Model.EmergencyContactPhone))
-                            {
-                                <text> — </text><a href="tel:@Model.EmergencyContactPhone">@Model.EmergencyContactPhone</a>
-                            }
-                        </dd>
-                    }
                 </dl>
             </div>
         </div>
+
+        @* Profile card (shared component) *@
+        <vc:profile-card user-id="@Model.UserId" view-mode="@ProfileCardViewMode.Admin" />
 
         @if (!string.IsNullOrEmpty(Model.AdminNotes))
         {

@@ -11,21 +11,7 @@
     </ol>
 </nav>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 <div class="row">
     <div class="col-md-8">
@@ -38,16 +24,10 @@
             <div class="card-header">@Localizer["AdminApp_Applicant"]</div>
             <div class="card-body">
                 <div class="d-flex align-items-center">
-                    @if (!string.IsNullOrEmpty(Model.UserProfilePictureUrl))
-                    {
-                        <img src="@Model.UserProfilePictureUrl" alt="" class="rounded-circle me-3" style="width: 48px; height: 48px;">
-                    }
-                    else
-                    {
-                        <div class="bg-secondary rounded-circle me-3 d-flex align-items-center justify-content-center text-white" style="width: 48px; height: 48px;">
-                            @(string.IsNullOrEmpty(Model.UserDisplayName) ? "?" : Model.UserDisplayName[0])
-                        </div>
-                    }
+                    <vc:user-avatar profile-picture-url="@Model.UserProfilePictureUrl"
+                                    display-name="@Model.UserDisplayName"
+                                    size="48"
+                                    css-class="me-3" />
                     <div>
                         <h5 class="mb-0">@Model.UserDisplayName</h5>
                         <small class="text-muted">@Model.UserEmail</small>
@@ -169,32 +149,7 @@
         }
 
         <div class="card">
-            <div class="card-header">@Localizer["ApplicationDetail_History"]</div>
-            <div class="card-body">
-                @if (Model.History.Count == 0)
-                {
-                    <p class="text-muted mb-0">@Localizer["ApplicationDetail_NoHistory"]</p>
-                }
-                else
-                {
-                    <ul class="list-unstyled mb-0">
-                        @foreach (var entry in Model.History)
-                        {
-                            <li class="mb-3 pb-3 border-bottom">
-                                <div class="d-flex justify-content-between">
-                                    <strong>@entry.Status</strong>
-                                    <small class="text-muted">@entry.ChangedAt.ToString("d MMM")</small>
-                                </div>
-                                <small class="text-muted">by @entry.ChangedBy</small>
-                                @if (!string.IsNullOrEmpty(entry.Notes))
-                                {
-                                    <p class="mt-1 mb-0 small">@entry.Notes</p>
-                                }
-                            </li>
-                        }
-                    </ul>
-                }
-            </div>
+            @await Html.PartialAsync("_ApplicationHistory", Model.History)
         </div>
     </div>
 </div>

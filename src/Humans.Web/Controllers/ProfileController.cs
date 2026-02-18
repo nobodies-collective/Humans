@@ -91,93 +91,21 @@ public class ProfileController : Controller
         }
 
         var profile = await _dbContext.Profiles
+            .AsNoTracking()
             .FirstOrDefaultAsync(p => p.UserId == user.Id);
 
-        // Get canonical membership + consent status in one call.
+        // Get consent status for the alert banners (profile card handles its own data).
         var membershipSnapshot = await _membershipCalculator.GetMembershipSnapshotAsync(user.Id);
-        var pendingConsents = membershipSnapshot.PendingConsentCount;
-
-        // Get contact fields (user viewing their own profile sees all)
-        var contactFields = profile != null
-            ? await _contactFieldService.GetVisibleContactFieldsAsync(profile.Id, user.Id)
-            : [];
-
-        // Get visible user emails (owner sees all visible emails)
-        var visibleEmails = await _userEmailService.GetVisibleEmailsAsync(
-            user.Id, ContactFieldVisibility.BoardOnly);
-
-        // Get volunteer history entries
-        var volunteerHistory = profile != null
-            ? await _volunteerHistoryService.GetAllAsync(profile.Id)
-            : [];
-
-        // Get user's teams (excluding Volunteers system team)
-        var userTeams = await _teamService.GetUserTeamsAsync(user.Id);
-        var displayableTeams = userTeams
-            .Where(tm => tm.Team.SystemTeamType != SystemTeamType.Volunteers)
-            .OrderBy(tm => tm.Team.Name, StringComparer.Ordinal)
-            .Select(tm => new TeamMembershipViewModel
-            {
-                TeamId = tm.TeamId,
-                TeamName = tm.Team.Name,
-                TeamSlug = tm.Team.Slug,
-                IsLead = tm.Role == TeamMemberRole.Lead,
-                IsSystemTeam = tm.Team.IsSystemTeam
-            })
-            .ToList();
-
-        var hasCustomPicture = profile?.HasCustomProfilePicture == true;
 
         var viewModel = new ProfileViewModel
         {
             Id = profile?.Id ?? Guid.Empty,
-            Email = user.Email ?? string.Empty,
-            DisplayName = user.DisplayName,
-            ProfilePictureUrl = user.ProfilePictureUrl,
-            HasCustomProfilePicture = hasCustomPicture,
-            CustomProfilePictureUrl = hasCustomPicture ? Url.Action(nameof(Picture), new { id = profile!.Id }) : null,
-            BurnerName = profile?.BurnerName ?? string.Empty,
-            FirstName = profile?.FirstName ?? string.Empty,
-            LastName = profile?.LastName ?? string.Empty,
-            City = profile?.City,
-            CountryCode = profile?.CountryCode,
-            Bio = profile?.Bio,
-            Pronouns = profile?.Pronouns,
-            ContributionInterests = profile?.ContributionInterests,
-            BoardNotes = profile?.BoardNotes,
-            BirthdayMonth = profile?.DateOfBirth?.Month,
-            BirthdayDay = profile?.DateOfBirth?.Day,
-            EmergencyContactName = profile?.EmergencyContactName,
-            EmergencyContactPhone = profile?.EmergencyContactPhone,
-            EmergencyContactRelationship = profile?.EmergencyContactRelationship,
-            HasPendingConsents = pendingConsents > 0,
-            PendingConsentCount = pendingConsents,
+            UserId = user.Id,
+            HasPendingConsents = membershipSnapshot.PendingConsentCount > 0,
+            PendingConsentCount = membershipSnapshot.PendingConsentCount,
             IsApproved = profile?.IsApproved ?? false,
-            MembershipStatus = membershipSnapshot.Status.ToString(),
             IsOwnProfile = true,
-            CanViewLegalName = true, // User viewing their own profile
-            UserEmails = visibleEmails.Select(e => new UserEmailDisplayViewModel
-            {
-                Email = e.Email,
-                IsNotificationTarget = e.IsNotificationTarget,
-                Visibility = e.Visibility
-            }).ToList(),
-            ContactFields = contactFields.Select(cf => new ContactFieldViewModel
-            {
-                Id = cf.Id,
-                FieldType = cf.FieldType,
-                Label = cf.Label,
-                Value = cf.Value,
-                Visibility = cf.Visibility
-            }).ToList(),
-            VolunteerHistory = volunteerHistory.Select(vh => new VolunteerHistoryEntryViewModel
-            {
-                Id = vh.Id,
-                Date = vh.Date,
-                EventName = vh.EventName,
-                Description = vh.Description
-            }).ToList(),
-            Teams = displayableTeams
+            DisplayName = user.DisplayName,
         };
 
         return View(viewModel);

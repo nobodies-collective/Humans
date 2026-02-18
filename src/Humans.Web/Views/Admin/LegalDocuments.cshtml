@@ -5,26 +5,12 @@
 
 <h1>Legal Documents</h1>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <form method="get" class="d-flex align-items-center gap-2">
         <label for="teamId" class="form-label mb-0">Team:</label>
-        <select name="teamId" id="teamId" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+        <select name="teamId" id="teamId" class="form-select form-select-sm" style="width: auto;">
             <option value="">All teams</option>
             @foreach (var team in Model.Teams)
             {
@@ -93,8 +79,7 @@
                                 {
                                     <form asp-controller="AdminLegalDocuments" asp-action="ArchiveLegalDocument" asp-route-id="@doc.Id" method="post" class="d-inline">
                                         @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-outline-danger btn-sm"
-                                                onclick="return confirm('Archive this document? It will no longer be required for consent.')">Archive</button>
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Archive this document? It will no longer be required for consent.">Archive</button>
                                     </form>
                                 }
                         </td>
@@ -104,3 +89,17 @@
         </table>
     </div>
 </div>
+
+<script>
+    document.getElementById('teamId').addEventListener('change', function () {
+        this.form.submit();
+    });
+
+    document.querySelectorAll('[data-confirm]').forEach(function (button) {
+        button.addEventListener('click', function (e) {
+            if (!confirm(this.getAttribute('data-confirm'))) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>

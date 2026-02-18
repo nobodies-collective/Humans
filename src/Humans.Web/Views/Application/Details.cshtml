@@ -10,21 +10,7 @@
     </ol>
 </nav>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 <div class="row">
     <div class="col-md-8">
@@ -106,32 +92,7 @@
 
     <div class="col-md-4">
         <div class="card">
-            <div class="card-header">@Localizer["ApplicationDetail_History"]</div>
-            <div class="card-body">
-                @if (Model.History.Count == 0)
-                {
-                    <p class="text-muted mb-0">@Localizer["ApplicationDetail_NoHistory"]</p>
-                }
-                else
-                {
-                    <ul class="list-unstyled mb-0">
-                        @foreach (var entry in Model.History)
-                        {
-                            <li class="mb-3 pb-3 border-bottom">
-                                <div class="d-flex justify-content-between">
-                                    <strong>@entry.Status</strong>
-                                    <small class="text-muted">@entry.ChangedAt.ToString("d MMM yyyy")</small>
-                                </div>
-                                <small class="text-muted">@Localizer["ApplicationDetail_By"] @entry.ChangedBy</small>
-                                @if (!string.IsNullOrEmpty(entry.Notes))
-                                {
-                                    <p class="mt-1 mb-0 small">@entry.Notes</p>
-                                }
-                            </li>
-                        }
-                    </ul>
-                }
-            </div>
+            @await Html.PartialAsync("_ApplicationHistory", Model.History)
         </div>
 
         <div class="mt-3">

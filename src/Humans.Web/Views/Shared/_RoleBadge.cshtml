@@ -1,0 +1,10 @@
+@model TeamMemberRole
+@inject IStringLocalizer<SharedResource> Localizer
+@if (Model == TeamMemberRole.Lead)
+{
+    <span class="badge bg-warning text-dark">@Localizer["Profile_Lead"]</span>
+}
+else
+{
+    <span class="badge bg-secondary">@Localizer["Teams_Member"]</span>
+}

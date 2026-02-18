@@ -10,21 +10,7 @@
             @Localizer["Emails_Description"]
         </p>
 
-        @if (TempData["SuccessMessage"] != null)
-        {
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                @TempData["SuccessMessage"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        }
-
-        @if (TempData["ErrorMessage"] != null)
-        {
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                @TempData["ErrorMessage"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        }
+        <vc:temp-data-alerts />
 
         <div class="card mb-4">
             <div class="card-header">
@@ -99,7 +85,7 @@
                                             <form asp-action="SetEmailVisibility" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
                                                 <input type="hidden" name="emailId" value="@email.Id" />
-                                                <select name="visibility" class="form-select form-select-sm" style="width: auto; display: inline-block;" onchange="this.form.submit()">
+                                                <select name="visibility" class="form-select form-select-sm js-auto-submit" style="width: auto; display: inline-block;">
                                                     <option value="" selected="@(email.Visibility == null)">Hidden</option>
                                                     <option value="AllActiveProfiles" selected="@(email.Visibility == ContactFieldVisibility.AllActiveProfiles)">All members</option>
                                                     <option value="MyTeams" selected="@(email.Visibility == ContactFieldVisibility.MyTeams)">My teams</option>
@@ -179,4 +165,9 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.querySelectorAll('.js-auto-submit').forEach(function (el) {
+            el.addEventListener('change', function () { this.form.submit(); });
+        });
+    </script>
 }

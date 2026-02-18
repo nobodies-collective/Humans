@@ -46,6 +46,7 @@ public static class StatusBadgeExtensions
         {
             "Active" => "bg-success",
             "Pending" => "bg-info",
+            "Pending Approval" => "bg-warning",
             "Inactive" => "bg-warning text-dark",
             "Incomplete" => "bg-secondary",
             "Suspended" => "bg-danger",

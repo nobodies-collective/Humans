@@ -14,21 +14,7 @@
 <h1>@Localizer["TeamAdmin_ManageResources"]</h1>
 <p class="text-muted">@Localizer["MyTeams_Team"]: @Model.TeamName</p>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 <div class="card mb-4">
     <div class="card-header">@Localizer["TeamAdmin_ServiceAccountTitle"]</div>
@@ -36,7 +22,7 @@
         <p class="mb-2">@Localizer["TeamAdmin_ShareWithServiceAccount"]</p>
         <div class="input-group mb-3" style="max-width: 600px;">
             <input type="text" class="form-control" value="@Model.ServiceAccountEmail" readonly id="serviceAccountEmail">
-            <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('serviceAccountEmail').value)">@Localizer["TeamAdmin_Copy"]</button>
+            <button class="btn btn-outline-secondary" type="button" id="copyServiceAccountBtn">@Localizer["TeamAdmin_Copy"]</button>
         </div>
         <ul class="mb-0 text-muted small">
             <li><strong>@Localizer["TeamAdmin_DriveFolders"]:</strong> @Localizer["TeamAdmin_DriveFoldersHelp"]</li>
@@ -177,3 +163,17 @@ else
     <a asp-action="Members" asp-route-slug="@Model.TeamSlug" class="btn btn-outline-primary">@Localizer["TeamAdmin_ManageMembers"]</a>
     <a asp-action="Requests" asp-route-slug="@Model.TeamSlug" class="btn btn-outline-primary">@Localizer["TeamAdmin_ViewPendingRequests"]</a>
 </div>
+
+<script>
+    document.getElementById('copyServiceAccountBtn').addEventListener('click', function () {
+        navigator.clipboard.writeText(document.getElementById('serviceAccountEmail').value);
+    });
+
+    document.querySelectorAll('[data-confirm]').forEach(function (button) {
+        button.addEventListener('click', function (e) {
+            if (!confirm(this.getAttribute('data-confirm'))) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>

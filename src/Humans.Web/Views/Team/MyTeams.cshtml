@@ -5,21 +5,7 @@
 
 <h1>@Localizer["MyTeams_Title"]</h1>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 @if (Model.Memberships.Any())
 {
@@ -47,14 +33,7 @@
                                 }
                             </td>
                             <td>
-                                @if (membership.IsLead)
-                                {
-                                    <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-secondary">@Localizer["Teams_Member"]</span>
-                                }
+                                @await Html.PartialAsync("_RoleBadge", membership.IsLead ? TeamMemberRole.Lead : TeamMemberRole.Member)
                             </td>
                             <td>@membership.JoinedAt.ToString("MMM d, yyyy")</td>
                             <td>

@@ -50,16 +50,10 @@
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center">
-                                    @if (!string.IsNullOrEmpty(member.ProfilePictureUrl))
-                                    {
-                                        <img src="@member.ProfilePictureUrl" alt="" class="rounded-circle me-2" style="width: 32px; height: 32px;">
-                                    }
-                                    else
-                                    {
-                                        <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center text-white" style="width: 32px; height: 32px; font-size: 0.8rem;">
-                                            @(string.IsNullOrEmpty(member.DisplayName) ? "?" : member.DisplayName[0])
-                                        </div>
-                                    }
+                                    <vc:user-avatar profile-picture-url="@member.ProfilePictureUrl"
+                                                    display-name="@member.DisplayName"
+                                                    size="32"
+                                                    css-class="me-2" />
                                     <div>
                                         <div>@member.DisplayName</div>
                                         <small class="text-muted">@member.Email</small>
@@ -80,14 +74,7 @@
                             <td>
                                 @if (member.HasProfile)
                                 {
-                                    var badgeClass = member.MembershipStatus switch
-                                    {
-                                        "Active" => "bg-success",
-                                        "Pending Approval" => "bg-warning",
-                                        "Suspended" => "bg-danger",
-                                        _ => "bg-secondary"
-                                    };
-                                    <span class="badge @badgeClass">
+                                    <span class="badge @StatusBadgeExtensions.GetMembershipStatusBadgeClass(member.MembershipStatus)">
                                         @member.MembershipStatus
                                     </span>
                                 }

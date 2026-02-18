@@ -14,21 +14,7 @@
 <h1>@Localizer["TeamAdmin_ManageMembers"]</h1>
 <p class="text-muted">@Localizer["MyTeams_Team"]: @Model.TeamName @(Model.IsSystemTeam ? string.Format("({0})", Localizer["TeamAdmin_SystemTeam"].Value) : "")</p>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 @if (Model.IsSystemTeam)
 {
@@ -59,16 +45,10 @@
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center">
-                                    @if (!string.IsNullOrEmpty(member.ProfilePictureUrl))
-                                    {
-                                        <img src="@member.ProfilePictureUrl" alt="" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;">
-                                    }
-                                    else
-                                    {
-                                        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
-                                            <span class="text-white">@member.DisplayName[0]</span>
-                                        </div>
-                                    }
+                                    <vc:user-avatar profile-picture-url="@member.ProfilePictureUrl"
+                                                    display-name="@member.DisplayName"
+                                                    size="40"
+                                                    css-class="me-2" />
                                     <div>
                                         <a asp-controller="Human" asp-action="View" asp-route-id="@member.UserId" class="text-decoration-none">
                                             <strong>@member.DisplayName</strong>
@@ -78,14 +58,7 @@
                                 </div>
                             </td>
                             <td>
-                                @if (member.IsLead)
-                                {
-                                    <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-secondary">@Localizer["Teams_Member"]</span>
-                                }
+                                @await Html.PartialAsync("_RoleBadge", member.IsLead ? TeamMemberRole.Lead : TeamMemberRole.Member)
                             </td>
                             <td>@member.JoinedAt.ToString("MMM d, yyyy")</td>
                             @if (Model.CanManageRoles)

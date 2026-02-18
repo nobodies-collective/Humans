@@ -15,21 +15,7 @@
     </div>
 </div>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
     @foreach (var team in Model.Teams)
@@ -60,11 +46,11 @@
                         </small>
                         @if (team.IsCurrentUserLead)
                         {
-                            <span class="badge bg-primary">@Localizer["Profile_Lead"]</span>
+                            @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Lead)
                         }
                         else if (team.IsCurrentUserMember)
                         {
-                            <span class="badge bg-success">@Localizer["Teams_Member"]</span>
+                            @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Member)
                         }
                         else if (team.RequiresApproval && !team.IsSystemTeam)
                         {

@@ -6,16 +6,10 @@
 <div class="row mb-4">
     <div class="col">
         <div class="d-flex align-items-center">
-            @if (!string.IsNullOrEmpty(Model.ProfilePictureUrl))
-            {
-                <img src="@Model.ProfilePictureUrl" alt="" class="rounded-circle me-3" style="width: 64px; height: 64px;">
-            }
-            else
-            {
-                <div class="bg-secondary rounded-circle me-3 d-flex align-items-center justify-content-center text-white" style="width: 64px; height: 64px; font-size: 1.5rem;">
-                    @(string.IsNullOrEmpty(Model.DisplayName) ? "?" : Model.DisplayName[0])
-                </div>
-            }
+            <vc:user-avatar profile-picture-url="@Model.ProfilePictureUrl"
+                            display-name="@Model.DisplayName"
+                            size="64"
+                            css-class="me-3" />
             <div>
                 <h1 class="mb-0">@Html.Raw(string.Format(Localizer["Dashboard_Welcome"].Value, Model.DisplayName))</h1>
                 <span class="badge @StatusBadgeExtensions.GetMembershipStatusBadgeClass(Model.MembershipStatus) fs-6">@Model.MembershipStatus</span>

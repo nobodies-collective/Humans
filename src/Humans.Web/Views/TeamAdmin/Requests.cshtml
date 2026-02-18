@@ -15,21 +15,7 @@
 <h1>@Localizer["TeamDetail_PendingRequests"]</h1>
 <p class="text-muted">@Localizer["MyTeams_Team"]: @Model.TeamNameFilter</p>
 
-@if (TempData["SuccessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
+<vc:temp-data-alerts />
 
 @if (Model.Requests.Any())
 {
@@ -50,16 +36,10 @@
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center">
-                                    @if (!string.IsNullOrEmpty(request.UserProfilePictureUrl))
-                                    {
-                                        <img src="@request.UserProfilePictureUrl" alt="" class="rounded-circle me-2" style="width: 32px; height: 32px; object-fit: cover;">
-                                    }
-                                    else
-                                    {
-                                        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
-                                            <span class="text-white small">@request.UserDisplayName[0]</span>
-                                        </div>
-                                    }
+                                    <vc:user-avatar profile-picture-url="@request.UserProfilePictureUrl"
+                                                    display-name="@request.UserDisplayName"
+                                                    size="32"
+                                                    css-class="me-2" />
                                     <div>
                                         <strong>@request.UserDisplayName</strong><br>
                                         <small class="text-muted">@request.UserEmail</small>

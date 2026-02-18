@@ -41,16 +41,10 @@
                         <div class="me-3 text-center" style="min-width: 40px;">
                             <span class="fs-4 fw-bold text-primary">@birthday.DayOfMonth</span>
                         </div>
-                        @if (!string.IsNullOrEmpty(birthday.EffectiveProfilePictureUrl))
-                        {
-                            <img src="@birthday.EffectiveProfilePictureUrl" alt="@birthday.DisplayName" class="rounded-circle me-3" style="width: 48px; height: 48px; object-fit: cover;" />
-                        }
-                        else
-                        {
-                            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white me-3" style="width: 48px; height: 48px; font-size: 1.1rem;">
-                                @birthday.DisplayName[0]
-                            </div>
-                        }
+                        <vc:user-avatar profile-picture-url="@birthday.EffectiveProfilePictureUrl"
+                                        display-name="@birthday.DisplayName"
+                                        size="48"
+                                        css-class="me-3" />
                         <div>
                             <div class="fw-semibold">@birthday.DisplayName</div>
                             @if (birthday.TeamNames.Count > 0)
