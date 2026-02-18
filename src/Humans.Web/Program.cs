@@ -23,8 +23,10 @@ using Humans.Infrastructure.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Extensions;
 using Humans.Web.Health;
+using Humans.Web.Middleware;
 using Microsoft.Extensions.Localization;
 using Npgsql;
+using Humans.Infrastructure.Logging;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,6 +36,7 @@ var logConfig = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
     .Enrich.WithProperty("Application", "Humans.Web")
+    .Enrich.With<PiiRedactionEnricher>()
     .WriteTo.Console();
 
 if (Debugger.IsAttached)
@@ -122,6 +125,7 @@ builder.Services.AddAuthentication()
 
 // Configure Authorization
 builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation, RoleAssignmentClaimsTransformation>();
 
 // Configure Hangfire
@@ -325,16 +329,10 @@ app.Use(async (context, next) =>
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
     context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
-    context.Response.Headers.Append("Content-Security-Policy",
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com; " +
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; " +
-        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " +
-        "img-src 'self' https: data:; " +
-        "connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com https://places.googleapis.com; " +
-        "frame-ancestors 'none'");
     await next();
 });
+
+app.UseMiddleware<CspNonceMiddleware>();
 
 app.UseRouting();
 
@@ -413,3 +411,6 @@ static async Task WriteDetailedHealthResponse(HttpContext context, HealthReport 
 
     await context.Response.WriteAsJsonAsync(result);
 }
+
+// Make Program accessible to WebApplicationFactory<Program> in integration tests
+public partial class Program;
