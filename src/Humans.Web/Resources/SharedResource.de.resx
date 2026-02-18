@@ -512,9 +512,9 @@
   <data name="Admin_SpecifyInfoNeeded" xml:space="preserve"><value>Bitte geben Sie an, welche Informationen benötigt werden.</value></data>
   <data name="Admin_MoreInfoRequested" xml:space="preserve"><value>Weitere Informationen wurden vom Antragsteller angefordert.</value></data>
   <data name="Admin_UnknownAction" xml:space="preserve"><value>Unbekannte Aktion.</value></data>
-  <data name="Admin_MemberSuspended" xml:space="preserve"><value>Mitglied wurde gesperrt.</value></data>
-  <data name="Admin_MemberUnsuspended" xml:space="preserve"><value>Sperre des Mitglieds wurde aufgehoben.</value></data>
-  <data name="Admin_VolunteerApproved" xml:space="preserve"><value>Freiwilliger wurde genehmigt.</value></data>
+  <data name="Admin_MemberSuspended" xml:space="preserve"><value>Human wurde gesperrt.</value></data>
+  <data name="Admin_MemberUnsuspended" xml:space="preserve"><value>Sperre des Humans wurde aufgehoben.</value></data>
+  <data name="Admin_VolunteerApproved" xml:space="preserve"><value>Human wurde genehmigt.</value></data>
   <data name="Admin_TeamCreated" xml:space="preserve"><value>Team „{0}" erfolgreich erstellt.</value><comment>{0} = team name</comment></data>
   <data name="Admin_TeamCreateError" xml:space="preserve"><value>Beim Erstellen des Teams ist ein Fehler aufgetreten.</value></data>
   <data name="Admin_TeamUpdated" xml:space="preserve"><value>Team erfolgreich aktualisiert.</value></data>
@@ -623,11 +623,11 @@
   <data name="AdminHuman_Statistics" xml:space="preserve"><value>Statistiken</value></data>
   <data name="AdminHuman_ApplicationCount" xml:space="preserve"><value>Anträge</value></data>
   <data name="AdminHuman_ConsentCount" xml:space="preserve"><value>Vereinbarungen</value></data>
-  <data name="AdminHuman_ApproveVolunteer" xml:space="preserve"><value>Freiwilligen genehmigen</value></data>
+  <data name="AdminHuman_ApproveVolunteer" xml:space="preserve"><value>Human genehmigen</value></data>
   <data name="AdminHuman_UnsuspendMember" xml:space="preserve"><value>Sperre aufheben</value></data>
-  <data name="AdminHuman_SuspendConfirm" xml:space="preserve"><value>Sind Sie sicher, dass Sie dieses Mitglied sperren möchten?</value></data>
+  <data name="AdminHuman_SuspendConfirm" xml:space="preserve"><value>Sind Sie sicher, dass Sie diesen Human sperren möchten?</value></data>
   <data name="AdminHuman_SuspendReasonPlaceholder" xml:space="preserve"><value>Grund der Sperrung (optional)</value></data>
-  <data name="AdminHuman_SuspendMember" xml:space="preserve"><value>Mitglied sperren</value></data>
+  <data name="AdminHuman_SuspendMember" xml:space="preserve"><value>Human sperren</value></data>
 
   <!-- ======================== -->
   <!-- Admin Applications View  -->

@@ -505,9 +505,9 @@
   <data name="Admin_SpecifyInfoNeeded" xml:space="preserve"><value>Please specify what information is needed.</value></data>
   <data name="Admin_MoreInfoRequested" xml:space="preserve"><value>More information has been requested from the applicant.</value></data>
   <data name="Admin_UnknownAction" xml:space="preserve"><value>Unknown action.</value></data>
-  <data name="Admin_MemberSuspended" xml:space="preserve"><value>Member has been suspended.</value></data>
-  <data name="Admin_MemberUnsuspended" xml:space="preserve"><value>Member has been unsuspended.</value></data>
-  <data name="Admin_VolunteerApproved" xml:space="preserve"><value>Volunteer has been approved.</value></data>
+  <data name="Admin_MemberSuspended" xml:space="preserve"><value>Human has been suspended.</value></data>
+  <data name="Admin_MemberUnsuspended" xml:space="preserve"><value>Human has been unsuspended.</value></data>
+  <data name="Admin_VolunteerApproved" xml:space="preserve"><value>Human has been approved.</value></data>
   <data name="Admin_TeamCreated" xml:space="preserve"><value>Team "{0}" created successfully.</value><comment>{0} = team name</comment></data>
   <data name="Admin_TeamCreateError" xml:space="preserve"><value>An error occurred while creating the team.</value></data>
   <data name="Admin_TeamUpdated" xml:space="preserve"><value>Team updated successfully.</value></data>
@@ -616,11 +616,11 @@
   <data name="AdminHuman_Statistics" xml:space="preserve"><value>Statistics</value></data>
   <data name="AdminHuman_ApplicationCount" xml:space="preserve"><value>Applications</value></data>
   <data name="AdminHuman_ConsentCount" xml:space="preserve"><value>Agreements</value></data>
-  <data name="AdminHuman_ApproveVolunteer" xml:space="preserve"><value>Approve Volunteer</value></data>
-  <data name="AdminHuman_UnsuspendMember" xml:space="preserve"><value>Unsuspend Member</value></data>
-  <data name="AdminHuman_SuspendConfirm" xml:space="preserve"><value>Are you sure you want to suspend this member?</value></data>
+  <data name="AdminHuman_ApproveVolunteer" xml:space="preserve"><value>Approve Human</value></data>
+  <data name="AdminHuman_UnsuspendMember" xml:space="preserve"><value>Unsuspend Human</value></data>
+  <data name="AdminHuman_SuspendConfirm" xml:space="preserve"><value>Are you sure you want to suspend this human?</value></data>
   <data name="AdminHuman_SuspendReasonPlaceholder" xml:space="preserve"><value>Reason for suspension (optional)</value></data>
-  <data name="AdminHuman_SuspendMember" xml:space="preserve"><value>Suspend Member</value></data>
+  <data name="AdminHuman_SuspendMember" xml:space="preserve"><value>Suspend Human</value></data>
 
   <!-- ======================== -->
   <!-- Admin Applications View  -->

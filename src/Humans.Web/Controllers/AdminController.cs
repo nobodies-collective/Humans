@@ -465,7 +465,7 @@ public class AdminController : Controller
         await _dbContext.SaveChangesAsync();
 
         _metrics.RecordMemberSuspended("admin");
-        _logger.LogInformation("Admin {AdminId} suspended member {MemberId}", currentUser?.Id, id);
+        _logger.LogInformation("Admin {AdminId} suspended human {HumanId}", currentUser?.Id, id);
 
         TempData["SuccessMessage"] = _localizer["Admin_MemberSuspended"].Value;
         return RedirectToAction(nameof(HumanDetail), new { id });
@@ -499,7 +499,7 @@ public class AdminController : Controller
 
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("Admin {AdminId} unsuspended member {MemberId}", currentUser?.Id, id);
+        _logger.LogInformation("Admin {AdminId} unsuspended human {HumanId}", currentUser?.Id, id);
 
         TempData["SuccessMessage"] = _localizer["Admin_MemberUnsuspended"].Value;
         return RedirectToAction(nameof(HumanDetail), new { id });
@@ -538,7 +538,7 @@ public class AdminController : Controller
         await _systemTeamSyncJob.SyncVolunteersMembershipForUserAsync(id);
 
         _metrics.RecordVolunteerApproved();
-        _logger.LogInformation("Admin {AdminId} approved volunteer {MemberId}", currentUser?.Id, id);
+        _logger.LogInformation("Admin {AdminId} approved human {HumanId}", currentUser?.Id, id);
 
         TempData["SuccessMessage"] = _localizer["Admin_VolunteerApproved"].Value;
         return RedirectToAction(nameof(HumanDetail), new { id });

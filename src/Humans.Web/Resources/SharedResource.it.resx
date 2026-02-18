@@ -512,9 +512,9 @@
   <data name="Admin_SpecifyInfoNeeded" xml:space="preserve"><value>Specifichi quali informazioni sono necessarie.</value></data>
   <data name="Admin_MoreInfoRequested" xml:space="preserve"><value>Ulteriori informazioni sono state richieste al candidato.</value></data>
   <data name="Admin_UnknownAction" xml:space="preserve"><value>Azione sconosciuta.</value></data>
-  <data name="Admin_MemberSuspended" xml:space="preserve"><value>Il membro è stato sospeso.</value></data>
-  <data name="Admin_MemberUnsuspended" xml:space="preserve"><value>La sospensione del membro è stata revocata.</value></data>
-  <data name="Admin_VolunteerApproved" xml:space="preserve"><value>Il volontario è stato approvato.</value></data>
+  <data name="Admin_MemberSuspended" xml:space="preserve"><value>Il human è stato sospeso.</value></data>
+  <data name="Admin_MemberUnsuspended" xml:space="preserve"><value>La sospensione del human è stata revocata.</value></data>
+  <data name="Admin_VolunteerApproved" xml:space="preserve"><value>Il human è stato approvato.</value></data>
   <data name="Admin_TeamCreated" xml:space="preserve"><value>Team "{0}" creato con successo.</value><comment>{0} = team name</comment></data>
   <data name="Admin_TeamCreateError" xml:space="preserve"><value>Si è verificato un errore durante la creazione del team.</value></data>
   <data name="Admin_TeamUpdated" xml:space="preserve"><value>Team aggiornato con successo.</value></data>
@@ -623,11 +623,11 @@
   <data name="AdminHuman_Statistics" xml:space="preserve"><value>Statistiche</value></data>
   <data name="AdminHuman_ApplicationCount" xml:space="preserve"><value>Domande</value></data>
   <data name="AdminHuman_ConsentCount" xml:space="preserve"><value>Accordi</value></data>
-  <data name="AdminHuman_ApproveVolunteer" xml:space="preserve"><value>Approva volontario</value></data>
+  <data name="AdminHuman_ApproveVolunteer" xml:space="preserve"><value>Approva human</value></data>
   <data name="AdminHuman_UnsuspendMember" xml:space="preserve"><value>Revoca sospensione</value></data>
-  <data name="AdminHuman_SuspendConfirm" xml:space="preserve"><value>È sicuro/a di voler sospendere questo membro?</value></data>
+  <data name="AdminHuman_SuspendConfirm" xml:space="preserve"><value>È sicuro/a di voler sospendere questo human?</value></data>
   <data name="AdminHuman_SuspendReasonPlaceholder" xml:space="preserve"><value>Motivo della sospensione (facoltativo)</value></data>
-  <data name="AdminHuman_SuspendMember" xml:space="preserve"><value>Sospendi membro</value></data>
+  <data name="AdminHuman_SuspendMember" xml:space="preserve"><value>Sospendi human</value></data>
 
   <!-- ======================== -->
   <!-- Admin Applications View  -->

@@ -29,6 +29,25 @@
     // Default active tab: user's language if available, else Spanish
     var userLang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
     var defaultLang = Model.Content.ContainsKey(userLang) ? userLang : "es";
+
+    // Build per-language translations for consent checkbox text (used by tab-switch JS)
+    var rm = new System.Resources.ResourceManager(
+        "Humans.Web.SharedResource",
+        typeof(Humans.Web.SharedResource).Assembly);
+
+    var consentTranslations = new Dictionary<string, object>();
+    foreach (var lang in orderedLanguages)
+    {
+        var culture = new System.Globalization.CultureInfo(lang.Key);
+        consentTranslations[lang.Key] = new
+        {
+            checkbox = rm.GetString("ConsentReview_ConsentCheckbox", culture) ?? "",
+            legalNote = rm.GetString("ConsentReview_SpanishLegalNote", culture) ?? "",
+            validationMsg = rm.GetString("ConsentReview_CheckboxRequired", culture) ?? ""
+        };
+    }
+
+    var spanishLegalNote = rm.GetString("ConsentReview_SpanishLegalNote", new System.Globalization.CultureInfo("es")) ?? "";
 }
 
 <nav aria-label="breadcrumb">
@@ -111,9 +130,9 @@
                             <input class="form-check-input" type="checkbox" name="ExplicitConsent" value="true" id="explicitConsent"
                                    data-val-required="@Localizer["ConsentReview_CheckboxRequired"]">
                             <label class="form-check-label" for="explicitConsent">
-                                <strong>@Localizer["ConsentReview_ConsentCheckbox"]</strong>
+                                <strong id="consent-checkbox-text">@Localizer["ConsentReview_ConsentCheckbox"]</strong>
                                 <br />
-                                <small class="text-muted">
+                                <small class="text-muted" id="consent-legal-note">
                                     @Localizer["ConsentReview_SpanishLegalNote"]
                                 </small>
                             </label>
@@ -164,12 +183,53 @@
 </style>
 
 <script>
-    const cb = document.getElementById('explicitConsent');
-    if (cb) {
-        const msg = cb.dataset.valRequired;
-        cb.setCustomValidity(msg);
-        cb.addEventListener('change', function () {
-            this.setCustomValidity(this.checked ? '' : msg);
-        });
-    }
+    (function () {
+        var translations = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(consentTranslations));
+        var spanishLegalNote = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(spanishLegalNote));
+        var defaultLang = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(defaultLang));
+
+        var cb = document.getElementById('explicitConsent');
+        var checkboxText = document.getElementById('consent-checkbox-text');
+        var legalNote = document.getElementById('consent-legal-note');
+
+        function updateConsentText(lang) {
+            var t = translations[lang];
+            if (!t || !checkboxText || !legalNote || !cb) return;
+
+            checkboxText.textContent = t.checkbox;
+
+            if (lang === 'es') {
+                legalNote.innerHTML = t.legalNote;
+            } else {
+                legalNote.innerHTML = t.legalNote + '<br><em>' + spanishLegalNote + '</em>';
+            }
+
+            cb.dataset.valRequired = t.validationMsg;
+            if (!cb.checked) {
+                cb.setCustomValidity(t.validationMsg);
+            }
+        }
+
+        // Validation setup
+        if (cb) {
+            var msg = cb.dataset.valRequired;
+            cb.setCustomValidity(msg);
+            cb.addEventListener('change', function () {
+                this.setCustomValidity(this.checked ? '' : this.dataset.valRequired);
+            });
+        }
+
+        // Tab switch handler
+        var tabContainer = document.getElementById('contentTabs');
+        if (tabContainer) {
+            tabContainer.addEventListener('shown.bs.tab', function (e) {
+                var tabId = e.target.id;
+                var lang = tabId.replace('tab-', '');
+                updateConsentText(lang);
+            });
+        }
+
+        // Initialize with default tab language
+        updateConsentText(defaultLang);
+    })();
 </script>
