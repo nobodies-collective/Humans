@@ -784,6 +784,7 @@
   <!-- Birthday Calendar -->
   <data name="Birthdays_Title" xml:space="preserve"><value>Calendrier des anniversaires</value></data>
   <data name="Birthdays_Count" xml:space="preserve"><value>{0} anniversaires en {1}</value></data>
+  <data name="Birthdays_Count_One" xml:space="preserve"><value>{0} anniversaire en {1}</value></data>
   <data name="Birthdays_None" xml:space="preserve"><value>Aucun anniversaire en {0}.</value></data>
   <data name="Birthdays_Privacy" xml:space="preserve"><value>Seuls les humans ayant renseign&#xE9; leur date de naissance sont affich&#xE9;s. La date de naissance n'est visible que par le human et le conseil.</value></data>
 
