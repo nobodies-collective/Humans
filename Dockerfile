@@ -15,11 +15,11 @@ RUN dotnet restore src/Humans.Web/Humans.Web.csproj
 # Copy source code
 COPY src/ src/
 
-# Coolify passes SOURCE_COMMIT as a build arg; fall back to git rev-parse for local builds
+# Coolify passes SOURCE_COMMIT as a build arg; deploy-qa.sh sets it from the host repo
 ARG SOURCE_COMMIT=""
 RUN dotnet publish src/Humans.Web/Humans.Web.csproj -c Release -o /app/publish --no-restore \
     -p:TreatWarningsAsErrors=false \
-    -p:SourceRevisionId="${SOURCE_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || true)}"
+    -p:SourceRevisionId="${SOURCE_COMMIT}"
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
