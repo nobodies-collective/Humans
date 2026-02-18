@@ -786,7 +786,7 @@
   <data name="Birthdays_Count" xml:space="preserve"><value>{0} compleanni in {1}</value></data>
   <data name="Birthdays_Count_One" xml:space="preserve"><value>{0} compleanno in {1}</value></data>
   <data name="Birthdays_None" xml:space="preserve"><value>Nessun compleanno in {0}.</value></data>
-  <data name="Birthdays_Privacy" xml:space="preserve"><value>Vengono mostrati solo gli humans che hanno impostato la propria data di nascita. La data di nascita &#xE8; visibile solo all'human e al consiglio.</value></data>
+  <data name="Birthdays_Privacy" xml:space="preserve"><value>Vengono mostrati solo gli humans che hanno impostato il proprio compleanno.</value></data>
 
   <!-- ======================== -->
   <!-- Volunteer Map            -->

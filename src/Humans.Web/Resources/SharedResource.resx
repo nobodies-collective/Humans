@@ -785,7 +785,7 @@
   <data name="Birthdays_Count" xml:space="preserve"><value>{0} birthdays in {1}</value></data>
   <data name="Birthdays_Count_One" xml:space="preserve"><value>{0} birthday in {1}</value></data>
   <data name="Birthdays_None" xml:space="preserve"><value>No birthdays in {0}.</value></data>
-  <data name="Birthdays_Privacy" xml:space="preserve"><value>Only humans who have set their date of birth are shown. Date of birth is only visible to the human and board.</value></data>
+  <data name="Birthdays_Privacy" xml:space="preserve"><value>Only humans who have set their birthday are shown.</value></data>
 
   <!-- ======================== -->
   <!-- Volunteer Map            -->
