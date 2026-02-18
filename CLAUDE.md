@@ -101,6 +101,8 @@ Two-remote workflow with QA gating:
 - `git push origin main` — deploy to QA
 - `gh pr create -R nobodies-collective/Humans --head peterdrier:main` — PR to production
 
+**QA deployment:** Always use `./deploy-qa.sh` to start QA. This script pulls latest changes, sets `SOURCE_COMMIT` for the footer git hash, and rebuilds/restarts the containers. Use `--no-pull` if you've already pulled. Never use bare `docker compose up` for QA — always use the deploy script.
+
 ## Build Commands
 
 ```bash
