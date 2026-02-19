@@ -40,7 +40,8 @@ public class ApplicationConfiguration : IEntityTypeConfiguration<MemberApplicati
             .IsRequired();
 
         builder.Property(a => a.UpdatedAt)
-            .IsRequired();
+            .IsRequired()
+            .IsConcurrencyToken();
 
         builder.HasOne(a => a.ReviewedByUser)
             .WithMany()

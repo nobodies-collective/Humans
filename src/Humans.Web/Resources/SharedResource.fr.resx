@@ -864,6 +864,7 @@
   <data name="OnboardingReview_RejectHelp" xml:space="preserve"><value>Le refus refusera d&#xE9;finitivement l'inscription de ce human et enverra un email de notification.</value></data>
   <data name="OnboardingReview_Rejected" xml:space="preserve"><value>L'inscription a &#xE9;t&#xE9; refus&#xE9;e.</value></data>
   <data name="OnboardingReview_AlreadyRejected" xml:space="preserve"><value>Ce human a d&#xE9;j&#xE0; &#xE9;t&#xE9; refus&#xE9;.</value></data>
+  <data name="OnboardingReview_ConsentsRequired" xml:space="preserve"><value>L'int&#xE9;gration ne peut pas &#xEA;tre valid&#xE9;e tant que tous les accords requis ne sont pas sign&#xE9;s.</value></data>
 
   <!-- Board Voting -->
   <data name="Nav_BoardVoting" xml:space="preserve"><value>Vote du Conseil</value></data>

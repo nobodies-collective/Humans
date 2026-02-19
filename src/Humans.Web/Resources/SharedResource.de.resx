@@ -864,6 +864,7 @@
   <data name="OnboardingReview_RejectHelp" xml:space="preserve"><value>Die Ablehnung verweigert die Anmeldung dieses Humans dauerhaft und sendet eine Benachrichtigungs-E-Mail.</value></data>
   <data name="OnboardingReview_Rejected" xml:space="preserve"><value>Die Anmeldung wurde abgelehnt.</value></data>
   <data name="OnboardingReview_AlreadyRejected" xml:space="preserve"><value>Dieser Human wurde bereits abgelehnt.</value></data>
+  <data name="OnboardingReview_ConsentsRequired" xml:space="preserve"><value>Die Einarbeitung kann erst freigegeben werden, wenn alle erforderlichen Vereinbarungen unterzeichnet sind.</value></data>
 
   <!-- Board Voting -->
   <data name="Nav_BoardVoting" xml:space="preserve"><value>Vorstandsabstimmung</value></data>

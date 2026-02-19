@@ -869,6 +869,7 @@
   <data name="OnboardingReview_RejectHelp" xml:space="preserve"><value>Rechazar denegar&#xE1; permanentemente el registro de este human y enviar&#xE1; un email de notificaci&#xF3;n.</value></data>
   <data name="OnboardingReview_Rejected" xml:space="preserve"><value>El registro ha sido rechazado.</value></data>
   <data name="OnboardingReview_AlreadyRejected" xml:space="preserve"><value>Este human ya ha sido rechazado.</value></data>
+  <data name="OnboardingReview_ConsentsRequired" xml:space="preserve"><value>No se puede aprobar la incorporaci&#xF3;n hasta que se firmen todos los acuerdos requeridos.</value></data>
 
   <!-- Board Voting -->
   <data name="Nav_BoardVoting" xml:space="preserve"><value>Votaci&#xF3;n de la Junta</value></data>

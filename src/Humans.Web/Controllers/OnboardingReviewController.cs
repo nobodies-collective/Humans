@@ -145,6 +145,13 @@ public class OnboardingReviewController : Controller
             return NotFound();
         }
 
+        var hasAllRequiredConsents = await _membershipCalculator.HasAllRequiredConsentsAsync(userId);
+        if (!hasAllRequiredConsents)
+        {
+            TempData["ErrorMessage"] = _localizer["OnboardingReview_ConsentsRequired"].Value;
+            return RedirectToAction(nameof(Index));
+        }
+
         var now = _clock.GetCurrentInstant();
 
         profile.ConsentCheckStatus = ConsentCheckStatus.Cleared;
@@ -541,7 +548,18 @@ public class OnboardingReviewController : Controller
             _dbContext.BoardVotes.RemoveRange(application.BoardVotes);
 
             // Save before sync — sync queries DB with AsNoTracking and needs persisted state
-            await _dbContext.SaveChangesAsync();
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex,
+                    "Concurrency conflict while finalizing application {ApplicationId} as approved by {UserId}",
+                    application.Id, currentUser.Id);
+                TempData["ErrorMessage"] = _localizer["BoardVoting_ApplicationNotVotable"].Value;
+                return RedirectToAction(nameof(BoardVoting));
+            }
 
             // Sync team membership (must run after SaveChanges)
             if (application.MembershipTier == MembershipTier.Colaborador)
@@ -577,7 +595,18 @@ public class OnboardingReviewController : Controller
             // Delete individual BoardVote records (GDPR data minimization)
             _dbContext.BoardVotes.RemoveRange(application.BoardVotes);
 
-            await _dbContext.SaveChangesAsync();
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex,
+                    "Concurrency conflict while finalizing application {ApplicationId} as rejected by {UserId}",
+                    application.Id, currentUser.Id);
+                TempData["ErrorMessage"] = _localizer["BoardVoting_ApplicationNotVotable"].Value;
+                return RedirectToAction(nameof(BoardVoting));
+            }
 
             try
             {

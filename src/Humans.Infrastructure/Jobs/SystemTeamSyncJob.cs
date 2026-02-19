@@ -212,22 +212,37 @@ public class SystemTeamSyncJob
             userIds, teamId, cancellationToken);
         var eligibleUserIds = eligibleSet.ToList();
 
-        // Downgrade Profile.MembershipTier for users who NO LONGER HAVE an active approved application for this tier.
-        // We check against 'userIds' (which are users with approved, non-expired applications), 
-        // NOT 'eligibleUserIds' (which is further filtered by consent).
+        // Downgrade Profile.MembershipTier for users who no longer have an active approved application for this tier.
+        // Before downgrading to Volunteer, check if the user holds an active application for the OTHER higher tier.
         var todayInstant = _clock.GetCurrentInstant();
+        var usersWithOtherActiveTier = await _dbContext.Applications
+            .AsNoTracking()
+            .Where(a => a.Status == ApplicationStatus.Approved
+                && a.MembershipTier != tier
+                && a.MembershipTier != MembershipTier.Volunteer
+                && (a.TermExpiresAt == null || a.TermExpiresAt >= today))
+            .Select(a => new { a.UserId, a.MembershipTier })
+            .ToListAsync(cancellationToken);
+        var otherTierByUser = usersWithOtherActiveTier
+            .GroupBy(a => a.UserId)
+            .ToDictionary(g => g.Key, g => g.First().MembershipTier);
+
         var toDowngrade = await _dbContext.Profiles
+            .Include(p => p.User)
             .Where(p => p.MembershipTier == tier && !userIds.Contains(p.UserId))
             .ToListAsync(cancellationToken);
 
         foreach (var profile in toDowngrade)
         {
-            profile.MembershipTier = MembershipTier.Volunteer;
+            var newTier = otherTierByUser.TryGetValue(profile.UserId, out var otherTier)
+                ? otherTier
+                : MembershipTier.Volunteer;
+            profile.MembershipTier = newTier;
             profile.UpdatedAt = todayInstant;
 
             await _auditLogService.LogAsync(
                 AuditAction.TierDowngraded, "Profile", profile.UserId,
-                $"Membership tier downgraded to Volunteer for {profile.User?.DisplayName ?? "User"} due to term expiry",
+                $"Membership tier changed to {newTier} for {profile.User?.DisplayName ?? "Unknown"} due to {tier} term expiry",
                 nameof(SystemTeamSyncJob),
                 relatedEntityId: profile.UserId, relatedEntityType: "User");
         }

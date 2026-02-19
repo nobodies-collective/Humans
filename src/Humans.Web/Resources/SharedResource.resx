@@ -863,6 +863,7 @@
   <data name="OnboardingReview_RejectHelp" xml:space="preserve"><value>Rejecting will permanently deny this human's signup and send a notification email.</value></data>
   <data name="OnboardingReview_Rejected" xml:space="preserve"><value>Signup has been rejected.</value></data>
   <data name="OnboardingReview_AlreadyRejected" xml:space="preserve"><value>This human has already been rejected.</value></data>
+  <data name="OnboardingReview_ConsentsRequired" xml:space="preserve"><value>Cannot clear onboarding until all required agreements are signed.</value></data>
 
   <!-- Board Voting -->
   <data name="Nav_BoardVoting" xml:space="preserve"><value>Board Voting</value></data>

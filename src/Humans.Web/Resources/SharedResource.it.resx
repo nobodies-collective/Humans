@@ -864,6 +864,7 @@
   <data name="OnboardingReview_RejectHelp" xml:space="preserve"><value>Il rifiuto negher&#xE0; permanentemente la registrazione di questo human e invierà un'email di notifica.</value></data>
   <data name="OnboardingReview_Rejected" xml:space="preserve"><value>La registrazione &#xE8; stata rifiutata.</value></data>
   <data name="OnboardingReview_AlreadyRejected" xml:space="preserve"><value>Questo human &#xE8; gi&#xE0; stato rifiutato.</value></data>
+  <data name="OnboardingReview_ConsentsRequired" xml:space="preserve"><value>L'onboarding non pu&#xF2; essere approvato finch&#xE9; non vengono firmati tutti gli accordi richiesti.</value></data>
 
   <!-- Board Voting -->
   <data name="Nav_BoardVoting" xml:space="preserve"><value>Voto del Consiglio</value></data>
