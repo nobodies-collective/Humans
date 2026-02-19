@@ -56,6 +56,26 @@
             </div>
         }
 
+        @if (!string.IsNullOrEmpty(Model.SignificantContribution))
+        {
+            <div class="card mb-4">
+                <div class="card-header">@Localizer["Application_SignificantContribution"]</div>
+                <div class="card-body">
+                    <p class="mb-0" style="white-space: pre-wrap;">@Model.SignificantContribution</p>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(Model.RoleUnderstanding))
+        {
+            <div class="card mb-4">
+                <div class="card-header">@Localizer["Application_RoleUnderstanding"]</div>
+                <div class="card-body">
+                    <p class="mb-0" style="white-space: pre-wrap;">@Model.RoleUnderstanding</p>
+                </div>
+            </div>
+        }
+
         @if (!string.IsNullOrEmpty(Model.ReviewNotes))
         {
             <div class="card mb-4">

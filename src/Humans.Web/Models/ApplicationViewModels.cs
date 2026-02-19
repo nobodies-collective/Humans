@@ -25,6 +25,9 @@ public class ApplicationDetailViewModel
     public string Status { get; set; } = string.Empty;
     public string Motivation { get; set; } = string.Empty;
     public string? AdditionalInfo { get; set; }
+    public string? SignificantContribution { get; set; }
+    public string? RoleUnderstanding { get; set; }
+    public MembershipTier MembershipTier { get; set; }
     public DateTime SubmittedAt { get; set; }
     public DateTime? ReviewStartedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
@@ -55,6 +58,18 @@ public class ApplicationCreateViewModel
     [StringLength(1000)]
     [Display(Name = "Additional Information (optional)")]
     public string? AdditionalInfo { get; set; }
+
+    /// <summary>
+    /// Asociado-only: significant contribution to Nowhere or another Burn.
+    /// </summary>
+    [StringLength(2000)]
+    public string? SignificantContribution { get; set; }
+
+    /// <summary>
+    /// Asociado-only: understanding of the asociado role and why they want it.
+    /// </summary>
+    [StringLength(2000)]
+    public string? RoleUnderstanding { get; set; }
 
     [Required]
     [Display(Name = "I confirm that the information provided is accurate")]

@@ -195,15 +195,24 @@
   <data name="Profile_Motivation" xml:space="preserve"><value>Motivaci&#xF3;n</value></data>
   <data name="Profile_AdditionalInfo" xml:space="preserve"><value>Informaci&#xF3;n adicional (opcional)</value></data>
   <data name="Profile_MotivationRequired" xml:space="preserve"><value>Se requiere una declaraci&#xF3;n de motivaci&#xF3;n para las solicitudes de Colaborador y Asociado.</value></data>
-  <data name="ProfileEdit_TierDescription" xml:space="preserve"><value>Elige c&#xF3;mo quieres participar. Los voluntarios tienen acceso completo a todos los recursos de la comunidad. Colaboradores y Asociados asumen responsabilidades de gobernanza adicionales y requieren aprobaci&#xF3;n de la Junta.</value></data>
-  <data name="ProfileEdit_TierVolunteerDesc" xml:space="preserve"><value>Acceso completo a la comunidad, equipos y eventos</value></data>
-  <data name="ProfileEdit_TierColaboradorDesc" xml:space="preserve"><value>Contribuidor activo con mandato de 2 a&#xF1;os (requiere aprobaci&#xF3;n de la Junta)</value></data>
-  <data name="ProfileEdit_TierAsociadoDesc" xml:space="preserve"><value>Miembro con derecho a voto y mandato de 2 a&#xF1;os (requiere aprobaci&#xF3;n de la Junta)</value></data>
+  <data name="ProfileEdit_TierDescription" xml:space="preserve"><value>Elige c&#xF3;mo quieres participar:</value></data>
+  <data name="ProfileEdit_TierVolunteerDesc" xml:space="preserve"><value>Quieres venir al evento, contribuir con tu energ&#xED;a, trabajar un turno o unirte a un equipo. Sin compromiso formal con la gobernanza de la asociaci&#xF3;n. La mayor&#xED;a de la gente est&#xE1; aqu&#xED; y es completamente v&#xE1;lido.</value></data>
+  <data name="ProfileEdit_TierColaboradorDesc" xml:space="preserve"><value>Quieres involucrarte m&#xE1;s: unirte a grupos de trabajo, asistir a las Asambleas Generales y ser parte de las conversaciones organizativas. A&#xFA;n no est&#xE1;s listo/a (o no eres elegible) para derechos de voto, pero quieres un asiento sin voto en la mesa.</value></data>
+  <data name="ProfileEdit_TierAsociadoDesc" xml:space="preserve"><value>Has liderado o contribuido de manera significativa a un &#xE1;rea del evento o la comunidad, entiendes que este rol se trata de tomar decisiones de gobernanza en nombre de toda la comunidad, y est&#xE1;s preparado/a para asumir esa responsabilidad en serio. Si no est&#xE1;s seguro/a, colaborador es probablemente la mejor opci&#xF3;n por ahora.</value></data>
+  <data name="ProfileEdit_TierAsociadoSubtitle" xml:space="preserve"><value>miembro con voto</value></data>
+  <data name="ProfileEdit_TierChangeNote" xml:space="preserve"><value>Nota: Siempre puedes solicitar cambiar esto m&#xE1;s adelante.</value></data>
   <data name="ProfileEdit_TierLocked" xml:space="preserve"><value>Tu nivel est&#xE1; bloqueado porque tienes una solicitud activa o pendiente.</value></data>
   <data name="ProfileEdit_ApplicationSection" xml:space="preserve"><value>Solicitud</value></data>
   <data name="ProfileEdit_ApplicationDescription" xml:space="preserve"><value>Cu&#xE9;ntanos sobre tu motivaci&#xF3;n. Esto ser&#xE1; revisado por la Junta junto con tu perfil.</value></data>
   <data name="ProfileEdit_MotivationPlaceholder" xml:space="preserve"><value>&#xBF;Por qu&#xE9; quieres ser Colaborador/Asociado? &#xBF;Qu&#xE9; esperas aportar?</value></data>
   <data name="ProfileEdit_MotivationHelp" xml:space="preserve"><value>M&#xED;nimo 50 caracteres. Esto ayuda a la Junta a entender tus objetivos.</value></data>
+  <data name="Application_AsociadoQuestionsHeader" xml:space="preserve"><value>Preguntas adicionales para solicitantes de Asociado</value></data>
+  <data name="Application_SignificantContribution" xml:space="preserve"><value>&#xBF;Cu&#xE1;l ha sido tu contribuci&#xF3;n m&#xE1;s significativa a Nowhere?</value></data>
+  <data name="Application_SignificantContributionPlaceholder" xml:space="preserve"><value>Si no se te ocurre ninguna, pero has contribuido significativamente a otro Burn, cu&#xE9;ntanos sobre eso.</value></data>
+  <data name="Application_SignificantContributionRequired" xml:space="preserve"><value>Por favor describe tu contribuci&#xF3;n m&#xE1;s significativa para una solicitud de Asociado.</value></data>
+  <data name="Application_RoleUnderstanding" xml:space="preserve"><value>En tus propias palabras, &#xBF;qu&#xE9; entiendes que es el rol de un asociado y por qu&#xE9; quieres esa responsabilidad?</value></data>
+  <data name="Application_RoleUnderstandingPlaceholder" xml:space="preserve"><value>Cu&#xE9;ntanos qu&#xE9; significa este rol para ti y por qu&#xE9; est&#xE1;s preparado/a.</value></data>
+  <data name="Application_RoleUnderstandingRequired" xml:space="preserve"><value>Por favor describe tu comprensi&#xF3;n del rol de asociado.</value></data>
   <data name="Profile_BurnerCV" xml:space="preserve"><value>Burner CV</value></data>
   <data name="Profile_NoCVEntries" xml:space="preserve"><value>A&#xFA;n no hay entradas.</value></data>
   <data name="Profile_AddFirstEntry" xml:space="preserve"><value>A&#xF1;adir su primera entrada</value></data>
@@ -335,7 +344,7 @@
 
   <!-- Governance Create View -->
   <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>Nueva solicitud</value></data>
-  <data name="GovernanceCreate_Lead" xml:space="preserve"><value>Los asociados son miembros con derecho a voto que participan en las decisiones de gobernanza. Esto est&#xE1; destinado a l&#xED;deres comunitarios y voluntarios comprometidos a largo plazo.</value></data>
+  <data name="GovernanceCreate_Lead" xml:space="preserve"><value>Colaboradores y Asociados asumen responsabilidades de gobernanza. Elige el nivel que mejor se adapte a tu nivel de participaci&#xF3;n.</value></data>
   <data name="GovernanceCreate_MotivationPlaceholder" xml:space="preserve"><value>Por favor, comparta su motivaci&#xF3;n para unirse...</value></data>
   <data name="GovernanceCreate_MotivationHelp" xml:space="preserve"><value>M&#xED;nimo 50 caracteres. Cu&#xE9;ntenos sobre usted y por qu&#xE9; desea formar parte del colectivo.</value></data>
   <data name="GovernanceCreate_AdditionalInfoPlaceholder" xml:space="preserve"><value>Cualquier informaci&#xF3;n adicional que desee compartir...</value></data>

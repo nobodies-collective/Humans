@@ -22,11 +22,19 @@
 
                     <div class="mb-4">
                         <label asp-for="MembershipTier" class="form-label">@Localizer["Profile_MembershipTier"]</label>
-                        <select asp-for="MembershipTier" class="form-select">
+                        <select asp-for="MembershipTier" class="form-select" id="tierSelect">
                             <option value="Colaborador">Colaborador</option>
                             <option value="Asociado">Asociado</option>
                         </select>
                         <span asp-validation-for="MembershipTier" class="text-danger"></span>
+                        <div class="form-text">
+                            <div id="tierDescColaborador" style="display: @(Model.MembershipTier != Humans.Domain.Enums.MembershipTier.Asociado ? "block" : "none");">
+                                @Localizer["ProfileEdit_TierColaboradorDesc"]
+                            </div>
+                            <div id="tierDescAsociado" style="display: @(Model.MembershipTier == Humans.Domain.Enums.MembershipTier.Asociado ? "block" : "none");">
+                                @Localizer["ProfileEdit_TierAsociadoDesc"]
+                            </div>
+                        </div>
                     </div>
 
                     <div class="mb-4">
@@ -43,6 +51,24 @@
                             placeholder="@Localizer["GovernanceCreate_AdditionalInfoPlaceholder"].Value"></textarea>
                         <span asp-validation-for="AdditionalInfo" class="text-danger"></span>
                         <div class="form-text">@Localizer["GovernanceCreate_AdditionalInfoHelp"]</div>
+                    </div>
+
+                    <div id="asociadoQuestionsCreate" style="display: @(Model.MembershipTier == Humans.Domain.Enums.MembershipTier.Asociado ? "block" : "none");">
+                        <h6>@Localizer["Application_AsociadoQuestionsHeader"]</h6>
+
+                        <div class="mb-4">
+                            <label asp-for="SignificantContribution" class="form-label">@Localizer["Application_SignificantContribution"]</label>
+                            <textarea asp-for="SignificantContribution" class="form-control" rows="4"
+                                placeholder="@Localizer["Application_SignificantContributionPlaceholder"].Value"></textarea>
+                            <span asp-validation-for="SignificantContribution" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-4">
+                            <label asp-for="RoleUnderstanding" class="form-label">@Localizer["Application_RoleUnderstanding"]</label>
+                            <textarea asp-for="RoleUnderstanding" class="form-control" rows="4"
+                                placeholder="@Localizer["Application_RoleUnderstandingPlaceholder"].Value"></textarea>
+                            <span asp-validation-for="RoleUnderstanding" class="text-danger"></span>
+                        </div>
                     </div>
 
                     <hr />
@@ -94,4 +120,26 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function() {
+            const tierSelect = document.getElementById('tierSelect');
+            const asociadoQuestions = document.getElementById('asociadoQuestionsCreate');
+            const descColab = document.getElementById('tierDescColaborador');
+            const descAsociado = document.getElementById('tierDescAsociado');
+            if (!tierSelect) return;
+
+            tierSelect.addEventListener('change', function() {
+                const isAsociado = this.value === 'Asociado';
+                if (asociadoQuestions) {
+                    asociadoQuestions.style.display = isAsociado ? 'block' : 'none';
+                    // Clear hidden fields so stale values aren't submitted
+                    if (!isAsociado) {
+                        asociadoQuestions.querySelectorAll('textarea').forEach(t => t.value = '');
+                    }
+                }
+                if (descColab) descColab.style.display = isAsociado ? 'none' : 'block';
+                if (descAsociado) descAsociado.style.display = isAsociado ? 'block' : 'none';
+            });
+        })();
+    </script>
 }

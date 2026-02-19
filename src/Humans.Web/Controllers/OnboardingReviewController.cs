@@ -398,6 +398,8 @@ public class OnboardingReviewController : Controller
             Status = application.Status,
             ApplicationMotivation = application.Motivation,
             AdditionalInfo = application.AdditionalInfo,
+            SignificantContribution = application.SignificantContribution,
+            RoleUnderstanding = application.RoleUnderstanding,
             SubmittedAt = application.SubmittedAt.ToDateTimeUtc(),
             Votes = application.BoardVotes
                 .Select(v => new BoardVoteDetailItemViewModel

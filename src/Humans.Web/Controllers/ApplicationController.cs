@@ -142,6 +142,25 @@ public class ApplicationController : Controller
             return View(model);
         }
 
+        // Validate Asociado-specific fields
+        if (model.MembershipTier == MembershipTier.Asociado)
+        {
+            if (string.IsNullOrWhiteSpace(model.SignificantContribution))
+            {
+                ModelState.AddModelError(nameof(model.SignificantContribution),
+                    _localizer["Application_SignificantContributionRequired"].Value);
+            }
+            if (string.IsNullOrWhiteSpace(model.RoleUnderstanding))
+            {
+                ModelState.AddModelError(nameof(model.RoleUnderstanding),
+                    _localizer["Application_RoleUnderstandingRequired"].Value);
+            }
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+        }
+
         var application = new MemberApplication
         {
             Id = Guid.NewGuid(),
@@ -149,6 +168,10 @@ public class ApplicationController : Controller
             MembershipTier = model.MembershipTier,
             Motivation = model.Motivation,
             AdditionalInfo = model.AdditionalInfo,
+            SignificantContribution = model.MembershipTier == MembershipTier.Asociado
+                ? model.SignificantContribution : null,
+            RoleUnderstanding = model.MembershipTier == MembershipTier.Asociado
+                ? model.RoleUnderstanding : null,
             Language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName,
             SubmittedAt = now,
             UpdatedAt = now
@@ -197,6 +220,9 @@ public class ApplicationController : Controller
             Status = application.Status.ToString(),
             Motivation = application.Motivation,
             AdditionalInfo = application.AdditionalInfo,
+            SignificantContribution = application.SignificantContribution,
+            RoleUnderstanding = application.RoleUnderstanding,
+            MembershipTier = application.MembershipTier,
             SubmittedAt = application.SubmittedAt.ToDateTimeUtc(),
             ReviewStartedAt = application.ReviewStartedAt?.ToDateTimeUtc(),
             ResolvedAt = application.ResolvedAt?.ToDateTimeUtc(),

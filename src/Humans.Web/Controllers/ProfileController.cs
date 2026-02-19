@@ -187,6 +187,8 @@ public class ProfileController : Controller
             IsTierLocked = hasPendingOrApprovedApplication,
             ApplicationMotivation = pendingApplication?.Motivation,
             ApplicationAdditionalInfo = pendingApplication?.AdditionalInfo,
+            ApplicationSignificantContribution = pendingApplication?.SignificantContribution,
+            ApplicationRoleUnderstanding = pendingApplication?.RoleUnderstanding,
             EditableContactFields = contactFields.Select(cf => new ContactFieldEditViewModel
             {
                 Id = cf.Id,
@@ -322,6 +324,27 @@ public class ProfileController : Controller
                 return View(model);
             }
 
+            // Validate Asociado-specific fields
+            if (model.SelectedTier == MembershipTier.Asociado)
+            {
+                if (string.IsNullOrWhiteSpace(model.ApplicationSignificantContribution))
+                {
+                    ModelState.AddModelError(nameof(model.ApplicationSignificantContribution),
+                        _localizer["Application_SignificantContributionRequired"].Value);
+                }
+                if (string.IsNullOrWhiteSpace(model.ApplicationRoleUnderstanding))
+                {
+                    ModelState.AddModelError(nameof(model.ApplicationRoleUnderstanding),
+                        _localizer["Application_RoleUnderstandingRequired"].Value);
+                }
+                if (!ModelState.IsValid)
+                {
+                    model.IsInitialSetup = true;
+                    ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
+                    return View(model);
+                }
+            }
+
             // Auto-create or update inline application for Colaborador/Asociado
             if (model.SelectedTier != MembershipTier.Volunteer)
             {
@@ -335,6 +358,10 @@ public class ProfileController : Controller
                     existingApp.Motivation = model.ApplicationMotivation!;
                     existingApp.AdditionalInfo = model.ApplicationAdditionalInfo;
                     existingApp.MembershipTier = model.SelectedTier;
+                    existingApp.SignificantContribution = model.SelectedTier == MembershipTier.Asociado
+                        ? model.ApplicationSignificantContribution : null;
+                    existingApp.RoleUnderstanding = model.SelectedTier == MembershipTier.Asociado
+                        ? model.ApplicationRoleUnderstanding : null;
                     existingApp.UpdatedAt = now;
                 }
                 else
@@ -347,6 +374,10 @@ public class ProfileController : Controller
                         MembershipTier = model.SelectedTier,
                         Motivation = model.ApplicationMotivation!,
                         AdditionalInfo = model.ApplicationAdditionalInfo,
+                        SignificantContribution = model.SelectedTier == MembershipTier.Asociado
+                            ? model.ApplicationSignificantContribution : null,
+                        RoleUnderstanding = model.SelectedTier == MembershipTier.Asociado
+                            ? model.ApplicationRoleUnderstanding : null,
                         Language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName,
                         SubmittedAt = now,
                         UpdatedAt = now
@@ -892,8 +923,11 @@ public class ProfileController : Controller
             {
                 a.Id,
                 a.Status,
+                a.MembershipTier,
                 a.Motivation,
                 a.AdditionalInfo,
+                a.SignificantContribution,
+                a.RoleUnderstanding,
                 SubmittedAt = a.SubmittedAt.ToString(null, CultureInfo.InvariantCulture),
                 ResolvedAt = a.ResolvedAt?.ToString(null, CultureInfo.InvariantCulture)
             }),

@@ -48,6 +48,8 @@ public class BoardVotingDetailViewModel
     public ApplicationStatus Status { get; set; }
     public string ApplicationMotivation { get; set; } = string.Empty;
     public string? AdditionalInfo { get; set; }
+    public string? SignificantContribution { get; set; }
+    public string? RoleUnderstanding { get; set; }
     public DateTime SubmittedAt { get; set; }
     public List<BoardVoteDetailItemViewModel> Votes { get; set; } = [];
     public VoteChoice? CurrentUserVote { get; set; }

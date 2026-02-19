@@ -193,15 +193,24 @@
   <data name="Profile_Motivation" xml:space="preserve"><value>Motivation</value></data>
   <data name="Profile_AdditionalInfo" xml:space="preserve"><value>Informations suppl&#xE9;mentaires (facultatif)</value></data>
   <data name="Profile_MotivationRequired" xml:space="preserve"><value>Une d&#xE9;claration de motivation est requise pour les candidatures Colaborador et Asociado.</value></data>
-  <data name="ProfileEdit_TierDescription" xml:space="preserve"><value>Choisissez comment vous souhaitez participer. Les b&#xE9;n&#xE9;voles ont un acc&#xE8;s complet &#xE0; toutes les ressources communautaires. Les Colaboradors et Asociados assument des responsabilit&#xE9;s de gouvernance suppl&#xE9;mentaires et n&#xE9;cessitent l'approbation du Conseil.</value></data>
-  <data name="ProfileEdit_TierVolunteerDesc" xml:space="preserve"><value>Acc&#xE8;s complet &#xE0; la communaut&#xE9;, aux &#xE9;quipes et aux &#xE9;v&#xE9;nements</value></data>
-  <data name="ProfileEdit_TierColaboradorDesc" xml:space="preserve"><value>Contributeur actif avec mandat de 2 ans (approbation du Conseil requise)</value></data>
-  <data name="ProfileEdit_TierAsociadoDesc" xml:space="preserve"><value>Membre votant avec droits de gouvernance et mandat de 2 ans (approbation du Conseil requise)</value></data>
+  <data name="ProfileEdit_TierDescription" xml:space="preserve"><value>Choisissez comment vous souhaitez participer :</value></data>
+  <data name="ProfileEdit_TierVolunteerDesc" xml:space="preserve"><value>Vous voulez venir &#xE0; l'&#xE9;v&#xE9;nement, apporter votre &#xE9;nergie, travailler un cr&#xE9;neau ou rejoindre une &#xE9;quipe. Pas d'engagement formel envers la gouvernance de l'association. La plupart des gens sont ici et c'est tout &#xE0; fait valable.</value></data>
+  <data name="ProfileEdit_TierColaboradorDesc" xml:space="preserve"><value>Vous voulez vous impliquer davantage : rejoindre des groupes de travail, assister aux Assembl&#xE9;es G&#xE9;n&#xE9;rales et faire partie des conversations organisationnelles. Vous n'&#xEA;tes pas encore pr&#xEA;t(e) (ou &#xE9;ligible) pour les droits de vote, mais vous voulez un si&#xE8;ge sans vote &#xE0; la table.</value></data>
+  <data name="ProfileEdit_TierAsociadoDesc" xml:space="preserve"><value>Vous avez dirig&#xE9; ou contribu&#xE9; de mani&#xE8;re significative &#xE0; un domaine de l'&#xE9;v&#xE9;nement ou de la communaut&#xE9;, vous comprenez que ce r&#xF4;le consiste &#xE0; prendre des d&#xE9;cisions de gouvernance au nom de toute la communaut&#xE9;, et vous &#xEA;tes pr&#xEA;t(e) &#xE0; assumer cette responsabilit&#xE9; s&#xE9;rieusement. En cas de doute, collaborateur est probablement le meilleur choix pour le moment.</value></data>
+  <data name="ProfileEdit_TierAsociadoSubtitle" xml:space="preserve"><value>membre votant</value></data>
+  <data name="ProfileEdit_TierChangeNote" xml:space="preserve"><value>Note : Vous pouvez toujours demander &#xE0; changer cela plus tard.</value></data>
   <data name="ProfileEdit_TierLocked" xml:space="preserve"><value>Votre niveau est verrouill&#xE9; car vous avez une candidature active ou en attente.</value></data>
   <data name="ProfileEdit_ApplicationSection" xml:space="preserve"><value>Candidature</value></data>
   <data name="ProfileEdit_ApplicationDescription" xml:space="preserve"><value>Parlez-nous de votre motivation. Cela sera examin&#xE9; par le Conseil avec votre profil.</value></data>
   <data name="ProfileEdit_MotivationPlaceholder" xml:space="preserve"><value>Pourquoi souhaitez-vous devenir Colaborador/Asociado ? Qu'esp&#xE9;rez-vous apporter ?</value></data>
   <data name="ProfileEdit_MotivationHelp" xml:space="preserve"><value>Minimum 50 caract&#xE8;res. Cela aide le Conseil &#xE0; comprendre vos objectifs.</value></data>
+  <data name="Application_AsociadoQuestionsHeader" xml:space="preserve"><value>Questions suppl&#xE9;mentaires pour les candidats Asociado</value></data>
+  <data name="Application_SignificantContribution" xml:space="preserve"><value>Quelle a &#xE9;t&#xE9; votre contribution la plus significative &#xE0; Nowhere ?</value></data>
+  <data name="Application_SignificantContributionPlaceholder" xml:space="preserve"><value>Si vous n'en trouvez pas, mais avez contribu&#xE9; de mani&#xE8;re significative &#xE0; un autre Burn, parlez-nous-en.</value></data>
+  <data name="Application_SignificantContributionRequired" xml:space="preserve"><value>Veuillez d&#xE9;crire votre contribution la plus significative pour une candidature Asociado.</value></data>
+  <data name="Application_RoleUnderstanding" xml:space="preserve"><value>Dans vos propres mots, que comprenez-vous du r&#xF4;le d'un asociado et pourquoi voulez-vous cette responsabilit&#xE9; ?</value></data>
+  <data name="Application_RoleUnderstandingPlaceholder" xml:space="preserve"><value>Dites-nous ce que ce r&#xF4;le signifie pour vous et pourquoi vous &#xEA;tes pr&#xEA;t(e).</value></data>
+  <data name="Application_RoleUnderstandingRequired" xml:space="preserve"><value>Veuillez d&#xE9;crire votre compr&#xE9;hension du r&#xF4;le d'asociado.</value></data>
   <data name="Profile_BurnerCV" xml:space="preserve"><value>Burner CV</value></data>
   <data name="Profile_NoCVEntries" xml:space="preserve"><value>Aucune entr&#xE9;e pour le moment.</value></data>
   <data name="Profile_AddFirstEntry" xml:space="preserve"><value>Ajouter votre premi&#xE8;re entr&#xE9;e</value></data>
@@ -333,7 +342,7 @@
 
   <!-- Governance Create View -->
   <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>Nouvelle candidature</value></data>
-  <data name="GovernanceCreate_Lead" xml:space="preserve"><value>Les asociados sont des membres votants qui participent aux d&#xE9;cisions de gouvernance. Cela est destin&#xE9; aux leaders communautaires et aux b&#xE9;n&#xE9;voles engag&#xE9;s sur le long terme.</value></data>
+  <data name="GovernanceCreate_Lead" xml:space="preserve"><value>Les Colaboradors et Asociados assument des responsabilit&#xE9;s de gouvernance. Choisissez le niveau qui correspond le mieux &#xE0; votre implication.</value></data>
   <data name="GovernanceCreate_MotivationPlaceholder" xml:space="preserve"><value>Veuillez partager votre motivation pour nous rejoindre...</value></data>
   <data name="GovernanceCreate_MotivationHelp" xml:space="preserve"><value>Minimum 50 caract&#xE8;res. Parlez-nous de vous et expliquez pourquoi vous souhaitez faire partie du collectif.</value></data>
   <data name="GovernanceCreate_AdditionalInfoPlaceholder" xml:space="preserve"><value>Toute information compl&#xE9;mentaire que vous souhaitez partager...</value></data>

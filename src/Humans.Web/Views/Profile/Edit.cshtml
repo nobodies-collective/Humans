@@ -217,7 +217,7 @@
                         var isColaborador = Model.SelectedTier == Humans.Domain.Enums.MembershipTier.Colaborador;
                         var isAsociado = Model.SelectedTier == Humans.Domain.Enums.MembershipTier.Asociado;
                         <div class="mb-3">
-                            <div class="form-check mb-2">
+                            <div class="form-check mb-3">
                                 @if (Model.IsTierLocked)
                                 {
                                     <input class="form-check-input" type="radio" name="SelectedTier" value="Volunteer" id="tierVolunteer" checked="@isVolunteer" disabled />
@@ -227,10 +227,10 @@
                                     <input class="form-check-input" type="radio" name="SelectedTier" value="Volunteer" id="tierVolunteer" checked="@isVolunteer" />
                                 }
                                 <label class="form-check-label" for="tierVolunteer">
-                                    <strong>Volunteer</strong> — @Localizer["ProfileEdit_TierVolunteerDesc"]
+                                    <strong>Volunteer</strong> — <span class="text-muted">@Localizer["ProfileEdit_TierVolunteerDesc"]</span>
                                 </label>
                             </div>
-                            <div class="form-check mb-2">
+                            <div class="form-check mb-3">
                                 @if (Model.IsTierLocked)
                                 {
                                     <input class="form-check-input" type="radio" name="SelectedTier" value="Colaborador" id="tierColaborador" checked="@isColaborador" disabled />
@@ -240,10 +240,10 @@
                                     <input class="form-check-input" type="radio" name="SelectedTier" value="Colaborador" id="tierColaborador" checked="@isColaborador" />
                                 }
                                 <label class="form-check-label" for="tierColaborador">
-                                    <strong>Colaborador</strong> — @Localizer["ProfileEdit_TierColaboradorDesc"]
+                                    <strong>Colaborador</strong> — <span class="text-muted">@Localizer["ProfileEdit_TierColaboradorDesc"]</span>
                                 </label>
                             </div>
-                            <div class="form-check mb-2">
+                            <div class="form-check mb-3">
                                 @if (Model.IsTierLocked)
                                 {
                                     <input class="form-check-input" type="radio" name="SelectedTier" value="Asociado" id="tierAsociado" checked="@isAsociado" disabled />
@@ -253,12 +253,13 @@
                                     <input class="form-check-input" type="radio" name="SelectedTier" value="Asociado" id="tierAsociado" checked="@isAsociado" />
                                 }
                                 <label class="form-check-label" for="tierAsociado">
-                                    <strong>Asociado</strong> — @Localizer["ProfileEdit_TierAsociadoDesc"]
+                                    <strong>Asociado</strong> <span class="text-muted">(@Localizer["ProfileEdit_TierAsociadoSubtitle"])</span> — <span class="text-muted">@Localizer["ProfileEdit_TierAsociadoDesc"]</span>
                                 </label>
                             </div>
+                            <p class="text-muted small mb-0"><em>@Localizer["ProfileEdit_TierChangeNote"]</em></p>
                             @if (Model.IsTierLocked)
                             {
-                                <div class="form-text text-warning">@Localizer["ProfileEdit_TierLocked"]</div>
+                                <div class="form-text text-warning mt-2">@Localizer["ProfileEdit_TierLocked"]</div>
                             }
                         </div>
 
@@ -279,6 +280,23 @@
                                         <label asp-for="ApplicationAdditionalInfo" class="form-label">@Localizer["Profile_AdditionalInfo"]</label>
                                         <textarea asp-for="ApplicationAdditionalInfo" class="form-control" rows="3"></textarea>
                                         <span asp-validation-for="ApplicationAdditionalInfo" class="text-danger"></span>
+                                    </div>
+
+                                    <div id="asociadoQuestionsInline" style="display: @(Model.SelectedTier == Humans.Domain.Enums.MembershipTier.Asociado ? "block" : "none");">
+                                        <hr />
+                                        <h6>@Localizer["Application_AsociadoQuestionsHeader"]</h6>
+
+                                        <div class="mb-3">
+                                            <label asp-for="ApplicationSignificantContribution" class="form-label">@Localizer["Application_SignificantContribution"]</label>
+                                            <textarea asp-for="ApplicationSignificantContribution" class="form-control" rows="4" placeholder="@Localizer["Application_SignificantContributionPlaceholder"].Value"></textarea>
+                                            <span asp-validation-for="ApplicationSignificantContribution" class="text-danger"></span>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label asp-for="ApplicationRoleUnderstanding" class="form-label">@Localizer["Application_RoleUnderstanding"]</label>
+                                            <textarea asp-for="ApplicationRoleUnderstanding" class="form-control" rows="4" placeholder="@Localizer["Application_RoleUnderstandingPlaceholder"].Value"></textarea>
+                                            <span asp-validation-for="ApplicationRoleUnderstanding" class="text-danger"></span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -697,15 +715,23 @@
         })();
     </script>
     <script>
-        // Tier selection show/hide for application section
+        // Tier selection show/hide for application section and Asociado questions
         (function() {
             const tierRadios = document.querySelectorAll('input[name="SelectedTier"]');
             const appSection = document.getElementById('applicationSection');
+            const asociadoQuestions = document.getElementById('asociadoQuestionsInline');
             if (!appSection || tierRadios.length === 0) return;
 
             tierRadios.forEach(radio => {
                 radio.addEventListener('change', function() {
                     appSection.style.display = this.value === 'Volunteer' ? 'none' : 'block';
+                    if (asociadoQuestions) {
+                        asociadoQuestions.style.display = this.value === 'Asociado' ? 'block' : 'none';
+                        // Clear hidden fields so stale values aren't submitted
+                        if (this.value !== 'Asociado') {
+                            asociadoQuestions.querySelectorAll('textarea').forEach(t => t.value = '');
+                        }
+                    }
                 });
             });
         })();

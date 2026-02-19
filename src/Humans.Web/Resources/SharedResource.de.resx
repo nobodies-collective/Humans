@@ -193,15 +193,24 @@
   <data name="Profile_Motivation" xml:space="preserve"><value>Motivation</value></data>
   <data name="Profile_AdditionalInfo" xml:space="preserve"><value>Zus&#xE4;tzliche Informationen (optional)</value></data>
   <data name="Profile_MotivationRequired" xml:space="preserve"><value>Eine Motivationserkl&#xE4;rung ist f&#xFC;r Colaborador- und Asociado-Antr&#xE4;ge erforderlich.</value></data>
-  <data name="ProfileEdit_TierDescription" xml:space="preserve"><value>W&#xE4;hlen Sie, wie Sie teilnehmen m&#xF6;chten. Freiwillige haben vollen Zugang zu allen Gemeinschaftsressourcen. Colaboradors und Asociados &#xFC;bernehmen zus&#xE4;tzliche Governance-Aufgaben und ben&#xF6;tigen eine Vorstandsgenehmigung.</value></data>
-  <data name="ProfileEdit_TierVolunteerDesc" xml:space="preserve"><value>Voller Zugang zur Gemeinschaft, Teams und Veranstaltungen</value></data>
-  <data name="ProfileEdit_TierColaboradorDesc" xml:space="preserve"><value>Aktiver Mitwirkender mit 2-Jahres-Mandat (Vorstandsgenehmigung erforderlich)</value></data>
-  <data name="ProfileEdit_TierAsociadoDesc" xml:space="preserve"><value>Stimmberechtigtes Mitglied mit Governance-Rechten und 2-Jahres-Mandat (Vorstandsgenehmigung erforderlich)</value></data>
+  <data name="ProfileEdit_TierDescription" xml:space="preserve"><value>W&#xE4;hle, wie du teilnehmen m&#xF6;chtest:</value></data>
+  <data name="ProfileEdit_TierVolunteerDesc" xml:space="preserve"><value>Du m&#xF6;chtest zum Event kommen, deine Energie einbringen, eine Schicht &#xFC;bernehmen oder einem Team beitreten. Keine formale Verpflichtung gegen&#xFC;ber der Vereinsf&#xFC;hrung. Die meisten Leute sind hier und das ist v&#xF6;llig in Ordnung.</value></data>
+  <data name="ProfileEdit_TierColaboradorDesc" xml:space="preserve"><value>Du m&#xF6;chtest dich st&#xE4;rker einbringen: Arbeitsgruppen beitreten, an Generalversammlungen teilnehmen und Teil der organisatorischen Gespr&#xE4;che sein. Du bist noch nicht bereit (oder berechtigt) f&#xFC;r Stimmrechte, aber du m&#xF6;chtest einen Sitz ohne Stimmrecht am Tisch.</value></data>
+  <data name="ProfileEdit_TierAsociadoDesc" xml:space="preserve"><value>Du hast einen Bereich des Events oder der Gemeinschaft ma&#xDF;geblich geleitet oder dazu beigetragen, du verstehst, dass es bei dieser Rolle darum geht, Governance-Entscheidungen im Namen der gesamten Gemeinschaft zu treffen, und du bist bereit, diese Verantwortung ernst zu nehmen. Wenn du unsicher bist, ist Colaborador wahrscheinlich die bessere Wahl f&#xFC;r den Moment.</value></data>
+  <data name="ProfileEdit_TierAsociadoSubtitle" xml:space="preserve"><value>stimmberechtigtes Mitglied</value></data>
+  <data name="ProfileEdit_TierChangeNote" xml:space="preserve"><value>Hinweis: Du kannst jederzeit eine &#xC4;nderung beantragen.</value></data>
   <data name="ProfileEdit_TierLocked" xml:space="preserve"><value>Ihre Stufe ist gesperrt, da Sie einen aktiven oder ausstehenden Antrag haben.</value></data>
   <data name="ProfileEdit_ApplicationSection" xml:space="preserve"><value>Antrag</value></data>
   <data name="ProfileEdit_ApplicationDescription" xml:space="preserve"><value>Erz&#xE4;hlen Sie uns von Ihrer Motivation. Dies wird vom Vorstand zusammen mit Ihrem Profil gepr&#xFC;ft.</value></data>
   <data name="ProfileEdit_MotivationPlaceholder" xml:space="preserve"><value>Warum m&#xF6;chten Sie Colaborador/Asociado werden? Was m&#xF6;chten Sie beitragen?</value></data>
   <data name="ProfileEdit_MotivationHelp" xml:space="preserve"><value>Mindestens 50 Zeichen. Dies hilft dem Vorstand, Ihre Ziele zu verstehen.</value></data>
+  <data name="Application_AsociadoQuestionsHeader" xml:space="preserve"><value>Zus&#xE4;tzliche Fragen f&#xFC;r Asociado-Bewerber</value></data>
+  <data name="Application_SignificantContribution" xml:space="preserve"><value>Was war dein bedeutendster Beitrag zu Nowhere?</value></data>
+  <data name="Application_SignificantContributionPlaceholder" xml:space="preserve"><value>Wenn dir keiner einf&#xE4;llt, du aber wesentlich zu einem anderen Burn beigetragen hast, erz&#xE4;hle uns davon.</value></data>
+  <data name="Application_SignificantContributionRequired" xml:space="preserve"><value>Bitte beschreibe deinen bedeutendsten Beitrag f&#xFC;r einen Asociado-Antrag.</value></data>
+  <data name="Application_RoleUnderstanding" xml:space="preserve"><value>Was verstehst du in deinen eigenen Worten unter der Rolle eines Asociado und warum m&#xF6;chtest du diese Verantwortung?</value></data>
+  <data name="Application_RoleUnderstandingPlaceholder" xml:space="preserve"><value>Erz&#xE4;hle uns, was diese Rolle f&#xFC;r dich bedeutet und warum du bereit daf&#xFC;r bist.</value></data>
+  <data name="Application_RoleUnderstandingRequired" xml:space="preserve"><value>Bitte beschreibe dein Verst&#xE4;ndnis der Asociado-Rolle.</value></data>
   <data name="Profile_BurnerCV" xml:space="preserve"><value>Burner CV</value></data>
   <data name="Profile_NoCVEntries" xml:space="preserve"><value>Noch keine Einträge.</value></data>
   <data name="Profile_AddFirstEntry" xml:space="preserve"><value>Ersten Eintrag hinzufügen</value></data>
@@ -333,7 +342,7 @@
 
   <!-- Governance Create View -->
   <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>Neuer Antrag</value></data>
-  <data name="GovernanceCreate_Lead" xml:space="preserve"><value>Asociados sind stimmberechtigte Mitglieder, die an Governance-Entscheidungen teilnehmen. Dies ist für Community-Leiter und langfristig engagierte Freiwillige gedacht.</value></data>
+  <data name="GovernanceCreate_Lead" xml:space="preserve"><value>Colaboradors und Asociados &#xFC;bernehmen Governance-Verantwortung. W&#xE4;hle die Stufe, die am besten zu deinem Engagement passt.</value></data>
   <data name="GovernanceCreate_MotivationPlaceholder" xml:space="preserve"><value>Bitte teilen Sie Ihre Motivation für den Beitritt mit...</value></data>
   <data name="GovernanceCreate_MotivationHelp" xml:space="preserve"><value>Mindestens 50 Zeichen. Erzählen Sie uns von sich und warum Sie Teil des Kollektivs werden möchten.</value></data>
   <data name="GovernanceCreate_AdditionalInfoPlaceholder" xml:space="preserve"><value>Weitere Informationen, die Sie teilen möchten...</value></data>

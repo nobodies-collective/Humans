@@ -194,6 +194,20 @@ public class ProfileViewModel
     public string? ApplicationAdditionalInfo { get; set; }
 
     /// <summary>
+    /// Asociado-only: significant contribution to Nowhere or another Burn.
+    /// </summary>
+    [StringLength(2000)]
+    [DataType(DataType.MultilineText)]
+    public string? ApplicationSignificantContribution { get; set; }
+
+    /// <summary>
+    /// Asociado-only: understanding of the asociado role and why they want it.
+    /// </summary>
+    [StringLength(2000)]
+    [DataType(DataType.MultilineText)]
+    public string? ApplicationRoleUnderstanding { get; set; }
+
+    /// <summary>
     /// The effective profile picture URL (custom upload takes priority over Google avatar).
     /// </summary>
     public string? EffectiveProfilePictureUrl => HasCustomProfilePicture

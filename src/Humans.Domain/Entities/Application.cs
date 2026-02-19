@@ -50,6 +50,16 @@ public class Application
     public string? AdditionalInfo { get; set; }
 
     /// <summary>
+    /// Asociado-only: the applicant's most significant contribution to Nowhere (or another Burn).
+    /// </summary>
+    public string? SignificantContribution { get; set; }
+
+    /// <summary>
+    /// Asociado-only: the applicant's understanding of the asociado role and why they want it.
+    /// </summary>
+    public string? RoleUnderstanding { get; set; }
+
+    /// <summary>
     /// The UI language the applicant was using when they submitted the application (ISO 639-1 code, e.g. "es", "en").
     /// </summary>
     public string? Language { get; set; }
