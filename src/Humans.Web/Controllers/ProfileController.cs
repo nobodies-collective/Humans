@@ -190,6 +190,10 @@ public class ProfileController : Controller
             ApplicationAdditionalInfo = pendingApplication?.AdditionalInfo,
             ApplicationSignificantContribution = pendingApplication?.SignificantContribution,
             ApplicationRoleUnderstanding = pendingApplication?.RoleUnderstanding,
+            NoPriorBurnExperience = profile?.NoPriorBurnExperience ?? false,
+            ShowPrivateFirst = string.IsNullOrEmpty(profile?.FirstName)
+                && string.IsNullOrEmpty(profile?.LastName)
+                && string.IsNullOrEmpty(profile?.EmergencyContactName),
             EditableContactFields = contactFields.Select(cf => new ContactFieldEditViewModel
             {
                 Id = cf.Id,
@@ -262,6 +266,7 @@ public class ProfileController : Controller
         profile.EmergencyContactName = model.EmergencyContactName;
         profile.EmergencyContactPhone = model.EmergencyContactPhone;
         profile.EmergencyContactRelationship = model.EmergencyContactRelationship;
+        profile.NoPriorBurnExperience = model.NoPriorBurnExperience;
         profile.UpdatedAt = now;
 
         // Handle profile picture removal
@@ -297,6 +302,21 @@ public class ProfileController : Controller
             profile.ProfilePictureContentType = contentType;
         }
 
+        // Validate Burner CV: must have entries OR check "no prior experience"
+        var hasVolunteerHistory = model.EditableVolunteerHistory
+            .Any(vh => !string.IsNullOrWhiteSpace(vh.EventName) && vh.ParsedDate.HasValue);
+        if (!model.NoPriorBurnExperience && !hasVolunteerHistory)
+        {
+            ModelState.AddModelError(nameof(model.NoPriorBurnExperience),
+                _localizer["Profile_BurnerCVRequired"].Value);
+            model.IsInitialSetup = !profile.IsApproved;
+            model.ShowPrivateFirst = string.IsNullOrEmpty(model.FirstName)
+                && string.IsNullOrEmpty(model.LastName)
+                && string.IsNullOrEmpty(model.EmergencyContactName);
+            ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
+            return View(model);
+        }
+
         // Handle tier selection during initial setup
         var isInitialSetup = !profile.IsApproved;
         if (isInitialSetup)
@@ -321,6 +341,9 @@ public class ProfileController : Controller
                 ModelState.AddModelError(nameof(model.ApplicationMotivation),
                     _localizer["Profile_MotivationRequired"].Value);
                 model.IsInitialSetup = true;
+                model.ShowPrivateFirst = string.IsNullOrEmpty(model.FirstName)
+                    && string.IsNullOrEmpty(model.LastName)
+                    && string.IsNullOrEmpty(model.EmergencyContactName);
                 ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
                 return View(model);
             }
@@ -341,6 +364,9 @@ public class ProfileController : Controller
                 if (!ModelState.IsValid)
                 {
                     model.IsInitialSetup = true;
+                    model.ShowPrivateFirst = string.IsNullOrEmpty(model.FirstName)
+                        && string.IsNullOrEmpty(model.LastName)
+                        && string.IsNullOrEmpty(model.EmergencyContactName);
                     ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
                     return View(model);
                 }

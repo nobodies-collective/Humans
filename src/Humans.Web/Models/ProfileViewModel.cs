@@ -166,6 +166,18 @@ public class ProfileViewModel
     public bool IsInitialSetup { get; set; }
 
     /// <summary>
+    /// Whether the Private Information section should be shown first.
+    /// True when FirstName, LastName, and EmergencyContactName are all empty (new user).
+    /// </summary>
+    public bool ShowPrivateFirst { get; set; }
+
+    /// <summary>
+    /// Whether the member has declared no prior burn experience.
+    /// When true, Burner CV entries are not required.
+    /// </summary>
+    public bool NoPriorBurnExperience { get; set; }
+
+    /// <summary>
     /// Selected membership tier. During initial setup, the user can choose Colaborador/Asociado.
     /// Defaults to Volunteer if not specified.
     /// </summary>

@@ -71,6 +71,9 @@ public class ProfileConfiguration : IEntityTypeConfiguration<Profile>
         builder.Property(p => p.EmergencyContactRelationship)
             .HasMaxLength(100);
 
+        builder.Property(p => p.NoPriorBurnExperience)
+            .HasDefaultValue(false);
+
         builder.Property(p => p.ProfilePictureContentType)
             .HasMaxLength(100);
 

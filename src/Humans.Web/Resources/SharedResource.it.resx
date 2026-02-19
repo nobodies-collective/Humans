@@ -219,7 +219,7 @@
   <!-- Profile Edit View -->
   <data name="ProfileEdit_BurnerNamePlaceholder" xml:space="preserve"><value>Il nome con cui è conosciuto/a</value></data>
   <data name="ProfileEdit_BurnerNameHelp" xml:space="preserve"><value>Questo è il Suo nome visualizzato pubblico, visibile a tutti.</value></data>
-  <data name="ProfileEdit_LegalNameHelp" xml:space="preserve"><value>Richiesto per documenti ufficiali e firme. Visibile solo a Lei e ai membri del Consiglio.</value></data>
+  <data name="ProfileEdit_LegalNameHelp" xml:space="preserve"><value>Richiesto per documenti ufficiali e firme.</value></data>
   <data name="ProfileEdit_Select" xml:space="preserve"><value>Seleziona</value></data>
   <data name="ProfileEdit_City" xml:space="preserve"><value>Città</value></data>
   <data name="ProfileEdit_CityHelp" xml:space="preserve"><value>Cerchi la Sua città per impostare la Sua posizione.</value></data>
@@ -813,7 +813,7 @@
   <data name="Profile_EmergencyContactName" xml:space="preserve"><value>Nome</value></data>
   <data name="Profile_EmergencyContactPhone" xml:space="preserve"><value>Telefono</value></data>
   <data name="Profile_EmergencyContactRelationship" xml:space="preserve"><value>Relazione</value></data>
-  <data name="ProfileEdit_EmergencyContactHelp" xml:space="preserve"><value>Fornisci una persona da contattare in caso di emergenza durante gli eventi. Queste informazioni sono visibili solo a te e al consiglio.</value></data>
+  <data name="ProfileEdit_EmergencyContactHelp" xml:space="preserve"><value>Fornisci una persona da contattare in caso di emergenza durante gli eventi.</value></data>
   <data name="Profile_EmergencyContactBoardOnly" xml:space="preserve"><value>Visibile solo a te e al consiglio.</value></data>
 
   <!-- Birthday Calendar -->
@@ -833,12 +833,22 @@
   <data name="Map_Privacy" xml:space="preserve"><value>Vengono mostrati solo gli humans che hanno impostato la propria posizione. La posizione &#xE8; approssimativa e basata sulla citt&#xE0;.</value></data>
 
   <!-- ======================== -->
+  <!-- Profile Edit Sections    -->
+  <!-- ======================== -->
+  <data name="ProfileEdit_SectionGeneral" xml:space="preserve"><value>Informazioni generali</value></data>
+  <data name="ProfileEdit_SectionContributor" xml:space="preserve"><value>Informazioni sulla contribuzione</value></data>
+  <data name="ProfileEdit_ContributorNote" xml:space="preserve"><value>Pu&#xF2; essere considerata per le domande di Colaborador o Asociado.</value></data>
+  <data name="Profile_NoPriorBurnExperience" xml:space="preserve"><value>Non ho esperienza precedente di burn</value></data>
+  <data name="Profile_BurnerCVRequired" xml:space="preserve"><value>Aggiungi almeno una voce al Burner CV o seleziona la casella 'nessuna esperienza precedente di burn'.</value></data>
+  <data name="Profile_LegalFirstNames" xml:space="preserve"><value>Nome/i legale/i</value></data>
+
+  <!-- ======================== -->
   <!-- Contribution & Board     -->
   <!-- ======================== -->
   <data name="Profile_ContributionInterests" xml:space="preserve"><value>Come vorrei contribuire</value></data>
   <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Condividi le tue competenze, interessi e come vorresti partecipare. Visibile a tutti i membri.</value></data>
   <data name="Profile_BoardNotes" xml:space="preserve"><value>Note per il Consiglio</value></data>
-  <data name="ProfileEdit_BoardNotesHelp" xml:space="preserve"><value>Note private per il Consiglio. Visibili solo a te e ai membri del Consiglio.</value></data>
+  <data name="ProfileEdit_BoardNotesHelp" xml:space="preserve"><value>Note private per il Consiglio.</value></data>
   <data name="Profile_BoardInformation" xml:space="preserve"><value>Consiglio &amp; informazioni private</value></data>
 
   <!-- Onboarding Review -->

@@ -7,12 +7,23 @@
     <div class="col-12" style="max-width: 900px;">
         <h1>@Localizer["ProfileEdit_Title"]</h1>
 
-        <div class="card">
-            <div class="card-body">
-                <form asp-action="Edit" method="post" enctype="multipart/form-data">
-                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+        <form asp-action="Edit" method="post" enctype="multipart/form-data">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-                    <h5>@Localizer["Profile_ProfilePicture"]</h5>
+            @* === Section ordering: Private first when fields are empty (new user) === *@
+            @if (Model.ShowPrivateFirst)
+            {
+                <partial name="_EditSectionPrivate" model="Model" />
+            }
+
+            @* ====================== *@
+            @* Section 1: General     *@
+            @* ====================== *@
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3>@Localizer["ProfileEdit_SectionGeneral"]</h3>
+
+                    <h6>@Localizer["Profile_ProfilePicture"]</h6>
                     <div class="mb-3">
                         <div class="d-flex align-items-center gap-3 mb-2">
                             @if (Model.HasCustomProfilePicture && !string.IsNullOrEmpty(Model.CustomProfilePictureUrl))
@@ -59,7 +70,7 @@
                     </div>
 
                     <hr />
-                    <h5>@Localizer["Profile_Location"]</h5>
+                    <h6>@Localizer["Profile_Location"]</h6>
 
                     <div class="mb-3">
                         <label for="locationSearch" class="form-label">@Localizer["ProfileEdit_City"]</label>
@@ -90,7 +101,7 @@
                     }
 
                     <hr />
-                    <h5>@Localizer["Profile_DateOfBirth"]</h5>
+                    <h6>@Localizer["Profile_DateOfBirth"]</h6>
                     <div class="row mb-3">
                         <div class="col-md-3">
                             <label asp-for="BirthdayMonth" class="form-label">@Localizer["Profile_Month"]</label>
@@ -115,7 +126,7 @@
                     </div>
 
                     <hr />
-                    <h5>@Localizer["Profile_ContactInformation"]</h5>
+                    <h6>@Localizer["Profile_ContactInformation"]</h6>
                     <p class="text-muted small mb-3">
                         @Localizer["ProfileEdit_ContactInfoHelp"]
                     </p>
@@ -203,6 +214,66 @@
                         <span asp-validation-for="Bio" class="text-danger"></span>
                         <div class="form-text">@Localizer["ProfileEdit_BioHelp"]</div>
                     </div>
+                </div>
+            </div>
+
+            @* ========================== *@
+            @* Section 2: Contributor     *@
+            @* ========================== *@
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3>@Localizer["ProfileEdit_SectionContributor"]</h3>
+
+                    <h6>@Localizer["Profile_BurnerCV"]</h6>
+                    <p class="text-muted small mb-3">
+                        @Localizer["ProfileEdit_BurnerCVHelp"]
+                    </p>
+
+                    <div id="volunteerHistoryContainer">
+                        @for (var i = 0; i < Model.EditableVolunteerHistory.Count; i++)
+                        {
+                            <div class="volunteer-history-row card mb-2" data-index="@i">
+                                <div class="card-body py-2">
+                                    <div class="row g-2 align-items-start">
+                                        <input type="hidden" name="EditableVolunteerHistory[@i].Id" value="@Model.EditableVolunteerHistory[i].Id" />
+
+                                        <div class="col-md-2">
+                                            <label class="form-label small">Date</label>
+                                            <input type="date" name="EditableVolunteerHistory[@i].DateString" value="@Model.EditableVolunteerHistory[i].DateString" class="form-control form-control-sm" required />
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <label class="form-label small">Event Name</label>
+                                            <input type="text" name="EditableVolunteerHistory[@i].EventName" value="@Model.EditableVolunteerHistory[i].EventName" class="form-control form-control-sm" required placeholder="e.g., Burning Man 2024" maxlength="256" />
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <label class="form-label small">Description</label>
+                                            <input type="text" name="EditableVolunteerHistory[@i].Description" value="@Model.EditableVolunteerHistory[i].Description" class="form-control form-control-sm" placeholder="e.g., Gate Lead" maxlength="2000" />
+                                        </div>
+
+                                        <div class="col-md-2 text-end" style="padding-top: 1.5rem;">
+                                            <button type="button" class="btn btn-outline-danger btn-sm remove-volunteer-history" title="Remove this entry">
+                                                <i class="fa-solid fa-trash me-1"></i> Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <button type="button" id="addVolunteerHistory" class="btn btn-outline-secondary btn-sm mb-3">
+                        <i class="fa-solid fa-plus me-1"></i> @Localizer["ProfileEdit_AddEntry"]
+                    </button>
+
+                    <div class="form-check mb-3" id="noPriorBurnContainer">
+                        <input type="checkbox" asp-for="NoPriorBurnExperience" class="form-check-input" id="noPriorBurnCheckbox" />
+                        <label asp-for="NoPriorBurnExperience" class="form-check-label">@Localizer["Profile_NoPriorBurnExperience"]</label>
+                        <span asp-validation-for="NoPriorBurnExperience" class="text-danger d-block"></span>
+                    </div>
+
+                    <hr />
 
                     <div class="mb-3">
                         <label asp-for="ContributionInterests" class="form-label">@Localizer["Profile_ContributionInterests"]</label>
@@ -210,16 +281,24 @@
                         <span asp-validation-for="ContributionInterests" class="text-danger"></span>
                         <div class="form-text">@Localizer["ProfileEdit_ContributionInterestsHelp"]</div>
                     </div>
+                </div>
+            </div>
 
-                    @if (Model.IsInitialSetup)
-                    {
-                        <hr />
-                        <h5>@Localizer["Profile_MembershipTier"]</h5>
+            @* ========================== *@
+            @* Section 3: Application     *@
+            @* ========================== *@
+            @if (Model.IsInitialSetup)
+            {
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h3>@Localizer["Profile_MembershipTier"]</h3>
                         <p class="text-muted small mb-3">@Localizer["ProfileEdit_TierDescription"]</p>
 
-                        var isVolunteer = Model.SelectedTier == Humans.Domain.Enums.MembershipTier.Volunteer;
-                        var isColaborador = Model.SelectedTier == Humans.Domain.Enums.MembershipTier.Colaborador;
-                        var isAsociado = Model.SelectedTier == Humans.Domain.Enums.MembershipTier.Asociado;
+                        @{
+                            var isVolunteer = Model.SelectedTier == Humans.Domain.Enums.MembershipTier.Volunteer;
+                            var isColaborador = Model.SelectedTier == Humans.Domain.Enums.MembershipTier.Colaborador;
+                            var isAsociado = Model.SelectedTier == Humans.Domain.Enums.MembershipTier.Asociado;
+                        }
                         <div class="mb-3">
                             <div class="form-check mb-3">
                                 @if (Model.IsTierLocked)
@@ -305,117 +384,23 @@
                                 </div>
                             </div>
                         </div>
-                    }
-
-                    <hr />
-                    <h5>@Localizer["Profile_BurnerCV"]</h5>
-                    <p class="text-muted small mb-3">
-                        @Localizer["ProfileEdit_BurnerCVHelp"]
-                    </p>
-
-                    <div id="volunteerHistoryContainer">
-                        @for (var i = 0; i < Model.EditableVolunteerHistory.Count; i++)
-                        {
-                            <div class="volunteer-history-row card mb-2" data-index="@i">
-                                <div class="card-body py-2">
-                                    <div class="row g-2 align-items-start">
-                                        <input type="hidden" name="EditableVolunteerHistory[@i].Id" value="@Model.EditableVolunteerHistory[i].Id" />
-
-                                        <div class="col-md-2">
-                                            <label class="form-label small">Date</label>
-                                            <input type="date" name="EditableVolunteerHistory[@i].DateString" value="@Model.EditableVolunteerHistory[i].DateString" class="form-control form-control-sm" required />
-                                        </div>
-
-                                        <div class="col-md-4">
-                                            <label class="form-label small">Event Name</label>
-                                            <input type="text" name="EditableVolunteerHistory[@i].EventName" value="@Model.EditableVolunteerHistory[i].EventName" class="form-control form-control-sm" required placeholder="e.g., Burning Man 2024" maxlength="256" />
-                                        </div>
-
-                                        <div class="col-md-4">
-                                            <label class="form-label small">Description</label>
-                                            <input type="text" name="EditableVolunteerHistory[@i].Description" value="@Model.EditableVolunteerHistory[i].Description" class="form-control form-control-sm" placeholder="e.g., Gate Lead" maxlength="2000" />
-                                        </div>
-
-                                        <div class="col-md-2 text-end" style="padding-top: 1.5rem;">
-                                            <button type="button" class="btn btn-outline-danger btn-sm remove-volunteer-history" title="Remove this entry">
-                                                <i class="fa-solid fa-trash me-1"></i> Remove
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        }
                     </div>
+                </div>
+            }
 
-                    <button type="button" id="addVolunteerHistory" class="btn btn-outline-secondary btn-sm mb-3">
-                        <i class="fa-solid fa-plus me-1"></i> @Localizer["ProfileEdit_AddEntry"]
-                    </button>
+            @* ========================== *@
+            @* Section 4: Private         *@
+            @* ========================== *@
+            @if (!Model.ShowPrivateFirst)
+            {
+                <partial name="_EditSectionPrivate" model="Model" />
+            }
 
-                    <hr />
-                    <h5 class="text-muted"><i class="fa-solid fa-lock me-1"></i> @Localizer["Profile_BoardInformation"]</h5>
-                    <p class="text-muted small mb-3">@Localizer["Profile_OnlyVisibleToYouAndBoard"]</p>
-
-                    <h5>@Localizer["Profile_LegalName"]</h5>
-                    <p class="text-muted small mb-3">
-                        @Localizer["ProfileEdit_LegalNameHelp"]
-                    </p>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label asp-for="FirstName" class="form-label"></label>
-                            <input asp-for="FirstName" class="form-control" />
-                            <span asp-validation-for="FirstName" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <label asp-for="LastName" class="form-label"></label>
-                            <input asp-for="LastName" class="form-control" />
-                            <span asp-validation-for="LastName" class="text-danger"></span>
-                        </div>
-                    </div>
-
-                    <hr />
-                    <h5>@Localizer["Profile_EmergencyContact"]</h5>
-                    <p class="text-muted small mb-3">
-                        @Localizer["ProfileEdit_EmergencyContactHelp"]
-                    </p>
-
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label asp-for="EmergencyContactName" class="form-label">@Localizer["Profile_EmergencyContactName"]</label>
-                            <input asp-for="EmergencyContactName" class="form-control" />
-                            <span asp-validation-for="EmergencyContactName" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <label asp-for="EmergencyContactPhone" class="form-label">@Localizer["Profile_EmergencyContactPhone"]</label>
-                            <input asp-for="EmergencyContactPhone" class="form-control" type="tel" />
-                            <span asp-validation-for="EmergencyContactPhone" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <label asp-for="EmergencyContactRelationship" class="form-label">@Localizer["Profile_EmergencyContactRelationship"]</label>
-                            <input asp-for="EmergencyContactRelationship" class="form-control" placeholder="e.g., Partner, Parent" />
-                            <span asp-validation-for="EmergencyContactRelationship" class="text-danger"></span>
-                        </div>
-                    </div>
-
-                    <hr />
-                    <h5>@Localizer["Profile_BoardNotes"]</h5>
-                    <p class="text-muted small mb-3">
-                        @Localizer["ProfileEdit_BoardNotesHelp"]
-                    </p>
-                    <div class="mb-3">
-                        <textarea asp-for="BoardNotes" class="form-control" rows="3"></textarea>
-                        <span asp-validation-for="BoardNotes" class="text-danger"></span>
-                    </div>
-
-                    <hr />
-
-                    <div class="d-flex justify-content-between">
-                        <a asp-action="Index" class="btn btn-outline-secondary">@Localizer["Common_Cancel"]</a>
-                        <button type="submit" class="btn btn-primary">@Localizer["Common_Save"]</button>
-                    </div>
-                </form>
+            <div class="d-flex justify-content-between">
+                <a asp-action="Index" class="btn btn-outline-secondary">@Localizer["Common_Cancel"]</a>
+                <button type="submit" class="btn btn-primary">@Localizer["Common_Save"]</button>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -733,6 +718,25 @@
                         }
                     }
                 });
+            });
+        })();
+    </script>
+    <script>
+        // Client-side CV validation: block submit if no CV rows and checkbox unchecked
+        (function() {
+            const form = document.querySelector('form[action*="Edit"]');
+            const checkbox = document.getElementById('noPriorBurnCheckbox');
+            const historyContainer = document.getElementById('volunteerHistoryContainer');
+            if (!form || !checkbox || !historyContainer) return;
+
+            form.addEventListener('submit', function(e) {
+                const hasRows = historyContainer.querySelectorAll('.volunteer-history-row').length > 0;
+                if (!checkbox.checked && !hasRows) {
+                    e.preventDefault();
+                    // Focus the checkbox area
+                    checkbox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    checkbox.focus();
+                }
             });
         })();
     </script>

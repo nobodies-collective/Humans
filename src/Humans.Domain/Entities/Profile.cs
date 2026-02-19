@@ -267,6 +267,12 @@ public class Profile
     public ICollection<ContactField> ContactFields { get; } = new List<ContactField>();
 
     /// <summary>
+    /// Whether the member has declared they have no prior burn experience.
+    /// When true, Burner CV entries are not required.
+    /// </summary>
+    public bool NoPriorBurnExperience { get; set; }
+
+    /// <summary>
     /// Volunteer history entries documenting involvement in events, roles, and camps.
     /// </summary>
     public ICollection<VolunteerHistoryEntry> VolunteerHistory { get; } = new List<VolunteerHistoryEntry>();

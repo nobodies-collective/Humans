@@ -71,6 +71,7 @@ Profile
 ├── EmergencyContactPhone: string? (50) [board only]
 ├── EmergencyContactRelationship: string? (100) [board only]
 ├── AdminNotes: string? (4000) [admin only]
+├── NoPriorBurnExperience: bool (default false)
 ├── IsSuspended: bool
 ├── CreatedAt: Instant
 └── UpdatedAt: Instant
@@ -152,6 +153,30 @@ Profile includes a computed `MembershipStatus` property:
 └──────────────────────┘
 ```
 
+## Profile Edit Sections
+
+The Profile Edit page (`/Profile/Edit`) is organized into four card sections within a single form:
+
+### Section 1: General Information (always visible)
+Profile picture, burner name, pronouns, location (Google Places), birthday, contact information, bio.
+
+### Section 2: Contributor Information (always visible)
+Burner CV entries with "No prior burn experience" checkbox, contribution interests. Includes a note that this info may be considered for tier applications.
+
+### Section 3: Application (initial setup only)
+Membership tier selection, motivation, additional info, Asociado-specific questions. Only shown when `IsInitialSetup` is true. After onboarding, users apply via `/Application/Create`.
+
+### Section 4: Private Information (always visible)
+Legal first name(s), last name, emergency contact, board notes. Prefixed with lock icon and "only visible to you and the board" note.
+
+### Section Ordering
+- **Normal order:** General → Contributor → Application (if initial) → Private
+- **ShowPrivateFirst:** Private → General → Contributor → Application (if initial)
+- `ShowPrivateFirst` is true when FirstName, LastName, and EmergencyContactName are all empty (new user hasn't filled them in yet)
+
+### Burner CV Validation
+Users must provide at least one Burner CV entry **or** check the "No prior burn experience" checkbox. Validated both client-side (on submit) and server-side.
+
 ## Validation Rules
 
 | Field | Validation |
@@ -161,6 +186,7 @@ Profile includes a computed `MembershipStatus` property:
 | BurnerName | Optional, max 256 chars |
 | Bio | Optional, max 4000 chars |
 | CountryCode | Optional, ISO 3166-1 alpha-2 |
+| Burner CV | At least one entry OR NoPriorBurnExperience checked |
 
 ## Admin Capabilities
 
