@@ -47,8 +47,18 @@ public class MembershipCalculator : IMembershipCalculator
             return MembershipStatus.Pending;
         }
 
+        // A user is considered active if they have governance role assignments
+        // OR are a member of the Volunteers team (i.e., a plain volunteer).
         var hasActiveRoles = await HasActiveRolesAsync(userId, cancellationToken);
-        if (!hasActiveRoles)
+        var isVolunteerMember = await _dbContext.TeamMembers
+            .AsNoTracking()
+            .AnyAsync(tm =>
+                tm.UserId == userId &&
+                tm.TeamId == SystemTeamIds.Volunteers &&
+                tm.LeftAt == null,
+                cancellationToken);
+
+        if (!hasActiveRoles && !isVolunteerMember)
         {
             return MembershipStatus.None;
         }
