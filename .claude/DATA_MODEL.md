@@ -77,13 +77,12 @@ Tier application entity with state machine workflow. Used for Colaborador and As
 | Id | Guid | Primary key |
 | UserId | Guid | FK to User |
 | MembershipTier | MembershipTier | Tier being applied for (Colaborador or Asociado) |
-| Status | ApplicationStatus | Current state (Submitted, UnderReview, Approved, Rejected, Withdrawn) |
+| Status | ApplicationStatus | Current state (Submitted, Approved, Rejected, Withdrawn) |
 | Motivation | string (4000) | Required motivation statement |
 | AdditionalInfo | string? (4000) | Optional additional information |
 | Language | string? (10) | UI language at submission (ISO 639-1 code) |
 | SubmittedAt | Instant | When submitted |
 | UpdatedAt | Instant | Last update |
-| ReviewStartedAt | Instant? | When review started |
 | ResolvedAt | Instant? | When resolved (approved/rejected/withdrawn) |
 | ReviewedByUserId | Guid? | Reviewer ID |
 | ReviewNotes | string? (4000) | Reviewer notes / rejection reason |
@@ -158,8 +157,7 @@ Stored as string via `HasConversion<string>()`.
 
 | Value | Int | Description |
 |-------|-----|-------------|
-| Submitted | 0 | Initial state |
-| UnderReview | 1 | Board is reviewing/voting |
+| Submitted | 0 | Initial state, awaiting Board vote |
 | Approved | 2 | Accepted — tier granted |
 | Rejected | 3 | Denied — stays at current tier |
 | Withdrawn | 4 | Applicant cancelled |

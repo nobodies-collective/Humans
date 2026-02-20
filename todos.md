@@ -1,7 +1,7 @@
 # Release TODOs
 
 Audit date: 2026-02-05
-Last synced: 2026-02-20T12:00
+Last synced: 2026-02-21
 
 ---
 
@@ -16,8 +16,7 @@ Dedicated page for app-specific operational disclosures (delegated coordinator r
 
 ### Priority 2: Quick Fixes (do now, standalone)
 
-#### #58: Add hard-delete user function for dev/QA environments
-Admin-only, non-production-only hard delete to fully remove a test user and all related data. Needed for iterating on onboarding/profile/consent flows without accumulating junk accounts. Must handle RESTRICT FKs (nullify actor references), bypass consent_records/audit_log DELETE triggers, and cascade everything else. Danger-styled button on HumanDetail with confirmation modal.
+*(empty — all quick fixes done)*
 
 ---
 
@@ -42,15 +41,6 @@ Board voting dashboard implemented with Yay/Maybe/No/Abstain votes, per-board-me
 ---
 
 ### Priority 5: UI/Navigation Improvements
-
-#### #57: Add application transparency statistics for members
-Governance policy Section 8 requires aggregate application statistics (received, approved, rejected by tier/quarter) published to members, plus published criteria set. Admin report view and member-facing stats on Governance page.
-
-#### #55: Show tier application status alongside volunteer approval banner on profile
-Profile "pending approval" banner only shows volunteer status. Should also indicate pending Colaborador/Asociado application status, since these are separate tracks and omitting one can confuse users.
-
-#### #50: Split teams page into "my teams" and "other teams" sections
-Reorganize Teams Index into two sections: user's teams at top, other teams below. May consolidate with MyTeams page.
 
 #### #14: Drive Activity Monitor: resolve people/ IDs to email addresses
 Drive Activity API returns `people/` IDs instead of email addresses. Need to resolve these via the People API for meaningful audit display.
@@ -269,3 +259,18 @@ Committed `a53696d`. #44: Consent review checkbox text now follows the active do
 
 ### #49: Reorganize profile edit into four named sections DONE
 Committed `2e98cbd`. Restructured Profile Edit from a single flat card into 4 distinct cards within one form: General Information, Contributor Information, Application (initial setup only), Private Information. Folds in #45 (Private section shown first when private fields are empty) and #47 (require Burner CV or "no prior burn experience" checkbox). Renamed "Legal First Name" → "Legal First Name(s)" in all 5 locales. Added `NoPriorBurnExperience` domain property with EF migration, client-side + server-side CV validation, `ShowPrivateFirst` conditional ordering, and `_EditSectionPrivate.cshtml` partial.
+
+### #58: Add dev/QA user purge function DONE
+Committed `32468ea`. Admin-only PurgeHuman endpoint (non-production gated). Severs OAuth login, clears UserEmails, changes email to `purged-{guid}@deleted.local`, locks out account — so the same Gmail can log back in fresh. Danger-styled button on HumanDetail inside `<environment exclude="Production">`.
+
+### Onboarding QA stabilization (part of #52/#53/#54) DONE
+Committed `32468ea`. Removed unnecessary StartReview/UnderReview application states — Submitted now transitions directly to Approved/Rejected/Withdrawn. Fixed board vote concurrency error (vote no longer touches Application entity). Fixed invisible membership tier badge (bg-purple → bg-primary). Simplified OnboardingReview Detail and BoardVotingDetail first cards (removed duplicated profile info, inlined motivation). Added vote date column. Clickable board voting rows. Application/Create tier selector switched to radio buttons with always-visible descriptions.
+
+### #55: Show tier application status on profile banner DONE
+Committed `d503e2b`. Profile page now shows a banner with the user's latest tier application status (Submitted/Approved/Rejected) and a link to the Governance page. Skips Withdrawn applications. Localized in all 5 languages.
+
+### #57: Add application transparency statistics to Governance page DONE
+Committed `ebc54b0`. Governance page shows aggregate application statistics: total, approved, rejected, pending counts, Colaborador/Asociado breakdown, and approval rate percentage. Visible to all members per Section 8 transparency requirements.
+
+### #50: Split teams page into My Teams / Other Teams DONE
+Committed `793bceb`. Teams Index page now shows "My Teams" section at top with user's teams, "Other Teams" section below with remaining teams. Extracted `_TeamCard.cshtml` partial to eliminate card markup duplication. Pagination applies to Other Teams only. Separate `/Teams/My` page retained for Leave/Manage actions.

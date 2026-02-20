@@ -65,7 +65,7 @@ The Application entity also serves **upgrades** (Volunteer→Colaborador, Volunt
 **So that** I can cancel if I change my mind
 
 **Acceptance Criteria:**
-- Can withdraw from Submitted or UnderReview status
+- Can withdraw from Submitted status
 - Withdrawal is recorded in state history
 - Can submit new application after withdrawal
 
@@ -111,7 +111,6 @@ Application
 ├── Language: string? (10) [ISO 639-1 code]
 ├── SubmittedAt: Instant
 ├── UpdatedAt: Instant
-├── ReviewStartedAt: Instant?
 ├── ResolvedAt: Instant?
 ├── ReviewedByUserId: Guid?
 ├── ReviewNotes: string? (4000)
@@ -150,8 +149,7 @@ Individual votes are deleted when the application is finalized (GDPR data minimi
 
 ### ApplicationStatus Enum
 ```
-Submitted = 0    // Initial state, awaiting review
-UnderReview = 1  // Board is reviewing/voting
+Submitted = 0    // Initial state, awaiting Board vote
 Approved = 2     // Application accepted — tier granted
 Rejected = 3     // Application denied — stays at current tier
 Withdrawn = 4    // Applicant cancelled
@@ -182,33 +180,21 @@ Abstain = 3  // No position
           ┌────────────────┼────────────────┐
           │                │                │
     ┌─────▼─────┐    ┌─────▼─────┐    ┌─────▼─────┐
-    │  Withdraw │    │ StartReview│    │           │
-    └─────┬─────┘    └─────┬─────┘    │           │
-          │                │          │           │
-    ┌─────▼─────┐    ┌─────▼─────┐    │           │
-    │ Withdrawn │    │UnderReview│    │           │
-    └───────────┘    └─────┬─────┘    │           │
-                           │          │           │
-          ┌────────┬───────┼───────┬──┘           │
-          │        │       │       │              │
-    ┌─────▼────┐ ┌─▼───┐ ┌─▼────┐ ┌▼──────────┐  │
-    │ Approve  │ │Reject│ │Withdraw│RequestInfo│  │
-    └─────┬────┘ └──┬──┘ └───┬───┘ └─────┬─────┘  │
-          │         │        │           │        │
-    ┌─────▼────┐ ┌──▼────┐ ┌─▼───────┐   │        │
-    │ Approved │ │Rejected│ │Withdrawn│   └────────┘
-    └──────────┘ └────────┘ └─────────┘   (back to Submitted)
+    │  Withdraw │    │  Approve  │    │  Reject   │
+    └─────┬─────┘    └─────┬─────┘    └─────┬─────┘
+          │                │                │
+    ┌─────▼─────┐    ┌─────▼─────┐    ┌─────▼─────┐
+    │ Withdrawn │    │ Approved  │    │ Rejected  │
+    └───────────┘    └───────────┘    └───────────┘
 ```
 
 ### State Transitions
 
 | Trigger | From | To | Actor | Notes Required |
 |---------|------|-----|-------|----------------|
-| StartReview | Submitted | UnderReview | Board/Admin | No |
-| Approve | UnderReview | Approved | Board/Admin | Optional (DecisionNote) |
-| Reject | UnderReview | Rejected | Board/Admin | Yes (DecisionNote required) |
-| RequestMoreInfo | UnderReview | Submitted | Board/Admin | Yes |
-| Withdraw | Submitted, UnderReview | Withdrawn | Applicant | No |
+| Approve | Submitted | Approved | Board/Admin | Optional (DecisionNote) |
+| Reject | Submitted | Rejected | Board/Admin | Yes (DecisionNote required) |
+| Withdraw | Submitted | Withdrawn | Applicant | No |
 
 ## Application Creation
 
@@ -271,7 +257,6 @@ When an Application is approved:
 | Status | Badge Class | Color |
 |--------|-------------|-------|
 | Submitted | bg-primary | Blue |
-| UnderReview | bg-info | Cyan |
 | Approved | bg-success | Green |
 | Rejected | bg-danger | Red |
 | Withdrawn | bg-secondary | Gray |

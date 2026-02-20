@@ -16,6 +16,7 @@ Members need to maintain personal information for organizational records while p
 - Shows membership status badge
 - Displays list of team memberships
 - Shows consent status for legal documents
+- Shows tier application status banner (Submitted/Approved/Rejected) linking to Governance page, if the user has a non-withdrawn tier application
 
 ### US-2.2: Edit Personal Information
 **As a** member

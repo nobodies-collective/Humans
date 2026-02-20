@@ -164,7 +164,7 @@ public class AdminDashboardViewModel
 | Total Members | `Users.Count()` | Default |
 | Active Members | `Profiles.Count(p => !p.IsSuspended)` | Green |
 | Pending Volunteers | `Profiles.Count(p => !p.IsApproved && !p.IsSuspended)` | Yellow (bordered) |
-| Pending Apps | `Applications.Count(Submitted OR UnderReview)` | Yellow |
+| Pending Apps | `Applications.Count(Submitted)` | Yellow |
 | Pending Consents | `Users with missing consents` | Blue |
 
 ## Member Management
@@ -214,7 +214,7 @@ public class AdminDashboardViewModel
 ## Application Management
 
 ### Application List
-- **Default filter**: Pending (Submitted + UnderReview)
+- **Default filter**: Pending (Submitted)
 - **Sort**: By submission date (oldest first)
 - **Columns**: Applicant, Email, Status, Submitted, Motivation preview
 
@@ -222,7 +222,7 @@ public class AdminDashboardViewModel
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ Application #abc123                                     │
-│ Status: [Under Review]                                  │
+│ Status: [Submitted]                                     │
 ├─────────────────────────────────────────────────────────┤
 │ APPLICANT                                               │
 │ [Photo] Bob Smith                                       │
@@ -236,10 +236,9 @@ public class AdminDashboardViewModel
 ├─────────────────────────────────────────────────────────┤
 │ TIMELINE                                                │
 │ • Submitted: Jan 15, 2024 10:30                        │
-│ • Review started: Jan 16, 2024 by Admin                │
 ├─────────────────────────────────────────────────────────┤
 │ ACTIONS                     Notes: [_______________]    │
-│ [Approve] [Reject] [Request More Info]                  │
+│ [Approve] [Reject]                                      │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -247,10 +246,8 @@ public class AdminDashboardViewModel
 
 | Action | From Status | Result | Notes Required |
 |--------|-------------|--------|----------------|
-| Start Review | Submitted | UnderReview | No |
-| Approve | UnderReview | Approved | Optional |
-| Reject | UnderReview | Rejected | Yes |
-| Request Info | UnderReview | Submitted | Yes |
+| Approve | Submitted | Approved | Optional (DecisionNote) |
+| Reject | Submitted | Rejected | Yes (DecisionNote required) |
 
 ## Team Management
 

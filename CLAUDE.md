@@ -64,11 +64,11 @@ The `consent_records` table has database triggers that prevent UPDATE and DELETE
 The Application entity is for **Colaborador and Asociado tier applications only**, NOT for becoming a volunteer.
 
 ```
-Submitted → UnderReview → Approved/Rejected
+Submitted → Approved/Rejected
          ↘ Withdrawn ↙
 ```
 
-Triggers: `StartReview`, `Approve`, `Reject`, `Withdraw`, `RequestMoreInfo`
+Triggers: `Approve`, `Reject`, `Withdraw`
 
 ## Namespace Alias
 

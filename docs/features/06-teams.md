@@ -12,11 +12,13 @@ Nobodies Collective operates through self-organizing working groups (teams). Tea
 **So that** I can discover groups I might want to join
 
 **Acceptance Criteria:**
-- Lists all active teams with name and description
-- Shows member count for each team
-- Indicates if user is already a member
+- Page split into two sections: "My Teams" at top, "Other Teams" below
+- "My Teams" shows teams the user belongs to (empty state: "You haven't joined any teams yet")
+- "Other Teams" shows remaining teams with pagination
+- Each team card shows name, description, member count, role badge, and system badge
 - Shows if team requires approval to join
 - Distinguishes system teams from user-created teams
+- Separate `/Teams/My` page retained for Leave/Manage actions
 
 ### US-6.2: View Team Details
 **As a** member
