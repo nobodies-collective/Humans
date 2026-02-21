@@ -280,6 +280,7 @@
   <data name="Emails_BackToEdit" xml:space="preserve"><value>Back to Edit Profile</value></data>
   <data name="Emails_ManageEmails" xml:space="preserve"><value>Email Addresses</value></data>
   <data name="Emails_ManageEmailsHelp" xml:space="preserve"><value>Add additional email addresses, control notifications, and set profile visibility.</value></data>
+  <data name="Emails_ManageLater" xml:space="preserve"><value>You can add and manage additional email addresses from your profile after completing setup.</value></data>
 
   <!-- Profile Controller TempData -->
   <data name="Profile_Updated" xml:space="preserve"><value>Profile updated successfully.</value></data>

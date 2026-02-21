@@ -199,11 +199,21 @@
                     </button>
 
                     <div class="mb-3">
-                        <a asp-action="Emails" class="btn btn-outline-secondary">
-                            <i class="fa-solid fa-envelope me-1"></i>
-                            @Localizer["Emails_ManageEmails"]
-                        </a>
-                        <div class="form-text">@Localizer["Emails_ManageEmailsHelp"]</div>
+                        @if (Model.IsInitialSetup)
+                        {
+                            <p class="text-muted small mb-0">
+                                <i class="fa-solid fa-envelope me-1"></i>
+                                @Localizer["Emails_ManageLater"]
+                            </p>
+                        }
+                        else
+                        {
+                            <a asp-action="Emails" class="btn btn-outline-secondary">
+                                <i class="fa-solid fa-envelope me-1"></i>
+                                @Localizer["Emails_ManageEmails"]
+                            </a>
+                            <div class="form-text">@Localizer["Emails_ManageEmailsHelp"]</div>
+                        }
                     </div>
 
                     <hr />
