@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using NodaTime;
 using Humans.Application.Interfaces;
-using Humans.Domain;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
@@ -29,6 +28,7 @@ public class OnboardingReviewController : Controller
     private readonly IMembershipCalculator _membershipCalculator;
     private readonly IAuditLogService _auditLogService;
     private readonly IEmailService _emailService;
+    private readonly IApplicationDecisionService _applicationDecisionService;
     private readonly SystemTeamSyncJob _syncJob;
     private readonly ILogger<OnboardingReviewController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
@@ -40,6 +40,7 @@ public class OnboardingReviewController : Controller
         IMembershipCalculator membershipCalculator,
         IAuditLogService auditLogService,
         IEmailService emailService,
+        IApplicationDecisionService applicationDecisionService,
         SystemTeamSyncJob syncJob,
         ILogger<OnboardingReviewController> logger,
         IStringLocalizer<SharedResource> localizer)
@@ -50,6 +51,7 @@ public class OnboardingReviewController : Controller
         _membershipCalculator = membershipCalculator;
         _auditLogService = auditLogService;
         _emailService = emailService;
+        _applicationDecisionService = applicationDecisionService;
         _syncJob = syncJob;
         _logger = logger;
         _localizer = localizer;
@@ -435,7 +437,10 @@ public class OnboardingReviewController : Controller
 
         if (application.Status != ApplicationStatus.Submitted)
         {
-            TempData["ErrorMessage"] = _localizer["BoardVoting_ApplicationNotVotable"].Value;
+            _logger.LogWarning("Vote rejected: application {ApplicationId} has status {Status}, expected Submitted",
+                applicationId, application.Status);
+            TempData["ErrorMessage"] = string.Format(
+                _localizer["BoardVoting_ApplicationNotVotable_WithStatus"].Value, application.Status);
             return RedirectToAction(nameof(BoardVoting));
         }
 
@@ -483,31 +488,14 @@ public class OnboardingReviewController : Controller
     [Authorize(Roles = $"{RoleNames.Board},{RoleNames.Admin}")]
     public async Task<IActionResult> Finalize(BoardVotingFinalizeModel model)
     {
-        var application = await _dbContext.Applications
-            .Include(a => a.User)
-                .ThenInclude(u => u.Profile)
-            .Include(a => a.BoardVotes)
-            .FirstOrDefaultAsync(a => a.Id == model.ApplicationId);
-
-        if (application == null)
-        {
-            return NotFound();
-        }
-
-        if (application.Status != ApplicationStatus.Submitted)
-        {
-            TempData["ErrorMessage"] = _localizer["BoardVoting_ApplicationNotVotable"].Value;
-            return RedirectToAction(nameof(BoardVoting));
-        }
-
         var currentUser = await _userManager.GetUserAsync(User);
         if (currentUser == null)
-        {
             return NotFound();
-        }
 
         // Require at least one board vote before finalization
-        if (application.BoardVotes.Count == 0)
+        var voteCount = await _dbContext.BoardVotes
+            .CountAsync(v => v.ApplicationId == model.ApplicationId);
+        if (voteCount == 0)
         {
             TempData["ErrorMessage"] = _localizer["BoardVoting_NoVotes"].Value;
             return RedirectToAction(nameof(BoardVotingDetail), new { applicationId = model.ApplicationId });
@@ -518,11 +506,9 @@ public class OnboardingReviewController : Controller
         if (!string.IsNullOrWhiteSpace(model.BoardMeetingDate))
         {
             var pattern = NodaTime.Text.LocalDatePattern.Iso;
-            var result = pattern.Parse(model.BoardMeetingDate);
-            if (result.Success)
-            {
-                meetingDate = result.Value;
-            }
+            var parseResult = pattern.Parse(model.BoardMeetingDate);
+            if (parseResult.Success)
+                meetingDate = parseResult.Value;
         }
 
         if (meetingDate == null)
@@ -531,110 +517,34 @@ public class OnboardingReviewController : Controller
             return RedirectToAction(nameof(BoardVotingDetail), new { applicationId = model.ApplicationId });
         }
 
-        application.BoardMeetingDate = meetingDate;
-        application.DecisionNote = model.DecisionNote;
-
+        ApplicationDecisionResult result;
         if (model.Approved)
         {
-            application.Approve(currentUser.Id, model.DecisionNote, _clock);
-
-            // Compute term expiry: next Dec 31 of an odd year that is at least 2 years from now
-            var today = _clock.GetCurrentInstant().InUtc().Date;
-            application.TermExpiresAt = TermExpiryCalculator.ComputeTermExpiry(today);
-
-            // Update Profile membership tier
-            var profile = application.User.Profile;
-            if (profile != null)
-            {
-                profile.MembershipTier = application.MembershipTier;
-                profile.UpdatedAt = _clock.GetCurrentInstant();
-            }
-
-            await _auditLogService.LogAsync(
-                AuditAction.TierApplicationApproved, "Application", application.Id,
-                $"{application.MembershipTier} application approved for {application.User.DisplayName} by {currentUser.DisplayName}",
-                currentUser.Id, currentUser.DisplayName);
-
-            // Delete individual BoardVote records (GDPR data minimization)
-            _dbContext.BoardVotes.RemoveRange(application.BoardVotes);
-
-            // Save before sync — sync queries DB with AsNoTracking and needs persisted state
-            try
-            {
-                await _dbContext.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                _logger.LogWarning(ex,
-                    "Concurrency conflict while finalizing application {ApplicationId} as approved by {UserId}",
-                    application.Id, currentUser.Id);
-                TempData["ErrorMessage"] = _localizer["BoardVoting_ApplicationNotVotable"].Value;
-                return RedirectToAction(nameof(BoardVoting));
-            }
-
-            // Sync team membership (must run after SaveChanges)
-            if (application.MembershipTier == MembershipTier.Colaborador)
-            {
-                await _syncJob.SyncColaboradorsMembershipForUserAsync(application.UserId, CancellationToken.None);
-            }
-            else if (application.MembershipTier == MembershipTier.Asociado)
-            {
-                await _syncJob.SyncAsociadosMembershipForUserAsync(application.UserId, CancellationToken.None);
-            }
-
-            try
-            {
-                await _emailService.SendApplicationApprovedAsync(
-                    application.User.Email ?? string.Empty,
-                    application.User.DisplayName,
-                    application.User.PreferredLanguage);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send application approval email for {ApplicationId}", application.Id);
-            }
+            result = await _applicationDecisionService.ApproveAsync(
+                model.ApplicationId, currentUser.Id, currentUser.DisplayName,
+                model.DecisionNote, meetingDate);
         }
         else
         {
-            application.Reject(currentUser.Id, model.DecisionNote ?? string.Empty, _clock);
-
-            await _auditLogService.LogAsync(
-                AuditAction.TierApplicationRejected, "Application", application.Id,
-                $"{application.MembershipTier} application rejected for {application.User.DisplayName} by {currentUser.DisplayName}",
-                currentUser.Id, currentUser.DisplayName);
-
-            // Delete individual BoardVote records (GDPR data minimization)
-            _dbContext.BoardVotes.RemoveRange(application.BoardVotes);
-
-            try
-            {
-                await _dbContext.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                _logger.LogWarning(ex,
-                    "Concurrency conflict while finalizing application {ApplicationId} as rejected by {UserId}",
-                    application.Id, currentUser.Id);
-                TempData["ErrorMessage"] = _localizer["BoardVoting_ApplicationNotVotable"].Value;
-                return RedirectToAction(nameof(BoardVoting));
-            }
-
-            try
-            {
-                await _emailService.SendApplicationRejectedAsync(
-                    application.User.Email ?? string.Empty,
-                    application.User.DisplayName,
-                    model.DecisionNote ?? string.Empty,
-                    application.User.PreferredLanguage);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send application rejection email for {ApplicationId}", application.Id);
-            }
+            result = await _applicationDecisionService.RejectAsync(
+                model.ApplicationId, currentUser.Id, currentUser.DisplayName,
+                model.DecisionNote ?? string.Empty, meetingDate);
         }
 
-        _logger.LogInformation("Application {ApplicationId} finalized as {Decision} by {UserId}",
-            application.Id, model.Approved ? "Approved" : "Rejected", currentUser.Id);
+        if (!result.Success)
+        {
+            _logger.LogWarning("Finalize failed for application {ApplicationId}: {ErrorKey}",
+                model.ApplicationId, result.ErrorKey);
+            TempData["ErrorMessage"] = result.ErrorKey switch
+            {
+                "NotFound" => _localizer["BoardVoting_ApplicationNotFound"].Value,
+                "NotSubmitted" => string.Format(
+                    _localizer["BoardVoting_ApplicationNotVotable_WithStatus"].Value, "check Admin detail"),
+                "ConcurrencyConflict" => _localizer["BoardVoting_ConcurrencyConflict"].Value,
+                _ => _localizer["BoardVoting_ApplicationNotVotable"].Value
+            };
+            return RedirectToAction(nameof(BoardVoting));
+        }
 
         TempData["SuccessMessage"] = _localizer["BoardVoting_Finalized"].Value;
         return RedirectToAction(nameof(BoardVoting));

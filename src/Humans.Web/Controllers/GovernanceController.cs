@@ -61,12 +61,11 @@ public class GovernanceController : Controller
 
         var statutesContent = await GetStatutesContentAsync();
 
-        // Aggregate application statistics for transparency (Section 8)
-        var allApplications = await _dbContext.Applications
-            .AsNoTracking()
-            .Where(a => a.Status != ApplicationStatus.Withdrawn)
-            .Select(a => new { a.Status, a.MembershipTier })
-            .ToListAsync();
+        // Tier member counts for the sidebar
+        var colaboradorCount = await _dbContext.Profiles
+            .CountAsync(p => p.MembershipTier == MembershipTier.Colaborador && !p.IsSuspended);
+        var asociadoCount = await _dbContext.Profiles
+            .CountAsync(p => p.MembershipTier == MembershipTier.Asociado && !p.IsSuspended);
 
         var viewModel = new GovernanceIndexViewModel
         {
@@ -78,12 +77,8 @@ public class GovernanceController : Controller
             ApplicationStatusBadgeClass = latestApplication?.Status.GetBadgeClass(),
             CanApply = latestApplication == null ||
                 latestApplication.Status != ApplicationStatus.Submitted,
-            TotalApplications = allApplications.Count,
-            ApprovedCount = allApplications.Count(a => a.Status == ApplicationStatus.Approved),
-            RejectedCount = allApplications.Count(a => a.Status == ApplicationStatus.Rejected),
-            PendingCount = allApplications.Count(a => a.Status == ApplicationStatus.Submitted),
-            ColaboradorApplied = allApplications.Count(a => a.MembershipTier == MembershipTier.Colaborador),
-            AsociadoApplied = allApplications.Count(a => a.MembershipTier == MembershipTier.Asociado)
+            ColaboradorCount = colaboradorCount,
+            AsociadoCount = asociadoCount
         };
 
         return View(viewModel);

@@ -341,12 +341,17 @@
   <data name="Governance_BoardReviews" xml:space="preserve"><value>Il Consiglio esamina le domande in base al coinvolgimento nella comunità e all'allineamento con la missione del collettivo.</value></data>
   <data name="Governance_NoteNotRequired" xml:space="preserve"><value>Nota: non è necessario essere asociado per accedere alle risorse o partecipare agli eventi.</value></data>
   <data name="Governance_Statutes" xml:space="preserve"><value>Statuto</value></data>
-  <data name="Governance_ApplicationStats" xml:space="preserve"><value>Statistiche delle candidature</value></data>
-  <data name="Governance_StatsTotal" xml:space="preserve"><value>Totale</value></data>
-  <data name="Governance_StatsApproved" xml:space="preserve"><value>Approvate</value></data>
-  <data name="Governance_StatsRejected" xml:space="preserve"><value>Respinte</value></data>
-  <data name="Governance_StatsPending" xml:space="preserve"><value>In attesa</value></data>
-  <data name="Governance_StatsApprovalRate" xml:space="preserve"><value>Tasso di approvazione</value></data>
+  <data name="Governance_MemberCounts" xml:space="preserve"><value>Comunit&#xE0;</value></data>
+  <data name="Governance_Colaboradores" xml:space="preserve"><value>Colaboradores</value></data>
+  <data name="Governance_Asociados" xml:space="preserve"><value>Asociados</value></data>
+
+  <!-- Admin Application Statistics -->
+  <data name="Admin_ApplicationStats" xml:space="preserve"><value>Statistiche delle candidature</value></data>
+  <data name="Admin_StatsTotal" xml:space="preserve"><value>Totale</value></data>
+  <data name="Admin_StatsApproved" xml:space="preserve"><value>Approvate</value></data>
+  <data name="Admin_StatsRejected" xml:space="preserve"><value>Respinte</value></data>
+  <data name="Admin_StatsPending" xml:space="preserve"><value>In attesa</value></data>
+  <data name="Admin_StatsApprovalRate" xml:space="preserve"><value>Tasso di approvazione</value></data>
 
   <!-- Governance Create View -->
   <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>Nuova domanda</value></data>
@@ -924,6 +929,9 @@
   <data name="BoardVoting_RejectConfirm" xml:space="preserve"><value>Questo rifiuter&#xE0; la domanda. Continuare?</value></data>
   <data name="BoardVoting_Finalized" xml:space="preserve"><value>La decisione sulla domanda &#xE8; stata finalizzata.</value></data>
   <data name="BoardVoting_ApplicationNotVotable" xml:space="preserve"><value>Questa domanda non &#xE8; pi&#xF9; aperta al voto.</value></data>
+  <data name="BoardVoting_ApplicationNotVotable_WithStatus" xml:space="preserve"><value>Non &#xE8; possibile votare questa domanda (stato attuale: {0}).</value></data>
+  <data name="BoardVoting_ApplicationNotFound" xml:space="preserve"><value>Domanda non trovata.</value></data>
+  <data name="BoardVoting_ConcurrencyConflict" xml:space="preserve"><value>Questa domanda &#xE8; stata modificata da un altro utente. Ricarica e riprova.</value></data>
   <data name="BoardVoting_AdditionalInfo" xml:space="preserve"><value>Informazioni aggiuntive</value></data>
   <data name="BoardVoting_NoVotes" xml:space="preserve"><value>Impossibile finalizzare: &#xE8; richiesto almeno un voto del consiglio.</value></data>
   <data name="BoardVoting_MeetingDateRequired" xml:space="preserve"><value>Impossibile finalizzare: &#xE8; richiesta una data della riunione del consiglio.</value></data>

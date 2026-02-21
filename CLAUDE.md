@@ -94,6 +94,16 @@ Coolify strips `.git` from the Docker build context. Do NOT use `COPY .git` in t
 - **Single server deployment** — no distributed coordination, no multi-instance concerns. Database concurrency conflicts (e.g., DbContext thread safety) are irrelevant for parallelization decisions since there's only one process.
 - **Prefer in-memory caching over query optimization.** At this scale, loading entire datasets into RAM (e.g., all teams, all members) is cheaper and simpler than optimizing individual DB queries. Use `IMemoryCache` freely.
 - **Don't over-engineer for scale.** Pagination, batching, and query optimization matter less when the total dataset fits comfortably in memory. Simple, correct code beats performant-but-complex code.
+- **No concurrency tokens.** Do NOT add `IsConcurrencyToken()`, `[ConcurrencyCheck]`, or row versioning to any entity. At single-server scale with ~500 users, concurrency conflicts don't happen and optimistic concurrency only causes bugs. Never add them without explicit user permission.
+
+## Debugging: Check the Log File
+
+When debugging runtime errors, **always check the log file first** before speculating about causes. The Serilog file sink writes to:
+
+- **With debugger**: `%LOCALAPPDATA%\Temp\human\humans-YYYYMMDD.log`
+- **Console**: always enabled via `WriteTo.Console()`
+
+Use `Grep` on the log file filtering by entity ID, error keywords, or timestamp. Write diagnostic log messages (`_logger.LogWarning`/`LogError`) that include entity IDs, actual values, and expected values — not just "operation failed". When something goes wrong, the log should tell you *why*.
 
 ## LSP Integration
 

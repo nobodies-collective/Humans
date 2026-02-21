@@ -10,6 +10,13 @@ public class AdminDashboardViewModel
     public int PendingApplications { get; set; }
     public int PendingConsents { get; set; }
     public List<RecentActivityViewModel> RecentActivity { get; set; } = [];
+
+    // Application statistics
+    public int TotalApplications { get; set; }
+    public int ApprovedApplications { get; set; }
+    public int RejectedApplications { get; set; }
+    public int ColaboradorApplied { get; set; }
+    public int AsociadoApplied { get; set; }
 }
 
 public class RecentActivityViewModel

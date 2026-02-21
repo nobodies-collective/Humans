@@ -82,8 +82,8 @@ Helper methods re-query resources already loaded by parent methods. Redundant DB
 #### G-07: AdminController over-fetches data
 `HumanDetail` loads ALL applications and consent records via `Include` when it only needs a few. `Humans` list relies on implicit Include behavior.
 
-#### G-08: Centralize admin business logic into services
-Legal docs slice extracted to `AdminLegalDocumentsController` + `IAdminLegalDocumentService`. Remaining: role management, member management, application review slices still in `AdminController`.
+#### #59 / G-08: Extract duplicated controller business logic into shared services
+Legal docs slice extracted to `AdminLegalDocumentsController` + `IAdminLegalDocumentService`. Application approve/reject extracted to `IApplicationDecisionService`. Remaining: signup rejection (duplicated in Admin + OnboardingReview), volunteer approval (duplicated in Admin + OnboardingReview), and extending `IRoleAssignmentService` with assign/end/reassign orchestration. Consolidate into fewest services needed — extend existing interfaces where possible.
 
 #### G-09: Team membership caching
 Every page load queries team memberships. At ~500 users, in-memory cache with short TTL would eliminate most DB hits.

@@ -110,6 +110,21 @@ public class AdminController : Controller
             })
             .ToListAsync();
 
+        // Application statistics (non-withdrawn)
+        var appStats = await _dbContext.Applications
+            .AsNoTracking()
+            .Where(a => a.Status != ApplicationStatus.Withdrawn)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Total = g.Count(),
+                Approved = g.Count(a => a.Status == ApplicationStatus.Approved),
+                Rejected = g.Count(a => a.Status == ApplicationStatus.Rejected),
+                Colaborador = g.Count(a => a.MembershipTier == MembershipTier.Colaborador),
+                Asociado = g.Count(a => a.MembershipTier == MembershipTier.Asociado)
+            })
+            .FirstOrDefaultAsync();
+
         var viewModel = new AdminDashboardViewModel
         {
             TotalMembers = totalMembers,
@@ -117,7 +132,12 @@ public class AdminController : Controller
             PendingVolunteers = pendingVolunteers,
             PendingApplications = pendingApplications,
             PendingConsents = pendingConsents,
-            RecentActivity = recentActivity
+            RecentActivity = recentActivity,
+            TotalApplications = appStats?.Total ?? 0,
+            ApprovedApplications = appStats?.Approved ?? 0,
+            RejectedApplications = appStats?.Rejected ?? 0,
+            ColaboradorApplied = appStats?.Colaborador ?? 0,
+            AsociadoApplied = appStats?.Asociado ?? 0
         };
 
         return View(viewModel);
@@ -376,164 +396,6 @@ public class AdminController : Controller
         return View(viewModel);
     }
 
-    [HttpPost("Applications/{id}/Action")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ApplicationAction(Guid id, AdminApplicationActionModel model)
-    {
-        var currentUser = await _userManager.GetUserAsync(User);
-        if (currentUser == null)
-        {
-            return Unauthorized();
-        }
-
-        var application = await _dbContext.Applications
-            .Include(a => a.StateHistory)
-            .FirstOrDefaultAsync(a => a.Id == id);
-
-        if (application == null)
-        {
-            return NotFound();
-        }
-
-        switch (model.Action.ToUpperInvariant())
-        {
-            case "APPROVE":
-                if (application.Status != ApplicationStatus.Submitted)
-                {
-                    TempData["ErrorMessage"] = _localizer["Admin_CannotApprove"].Value;
-                    break;
-                }
-                application.Approve(currentUser.Id, model.Notes, _clock);
-
-                // Compute term expiry
-                var approveToday = _clock.GetCurrentInstant().InUtc().Date;
-                application.TermExpiresAt = TermExpiryCalculator.ComputeTermExpiry(approveToday);
-
-                // Update profile membership tier
-                var approveProfile = await _dbContext.Profiles
-                    .FirstOrDefaultAsync(p => p.UserId == application.UserId);
-                if (approveProfile != null)
-                {
-                    approveProfile.MembershipTier = application.MembershipTier;
-                    approveProfile.UpdatedAt = _clock.GetCurrentInstant();
-                }
-
-                await _auditLogService.LogAsync(
-                    AuditAction.TierApplicationApproved, "Application", application.Id,
-                    $"{application.MembershipTier} application approved by admin {currentUser.DisplayName}",
-                    currentUser.Id, currentUser.DisplayName);
-
-                // Delete individual BoardVote records (GDPR data minimization)
-                var approveVotes = await _dbContext.BoardVotes
-                    .Where(v => v.ApplicationId == application.Id)
-                    .ToListAsync();
-                _dbContext.BoardVotes.RemoveRange(approveVotes);
-
-                _metrics.RecordApplicationProcessed("approved");
-                _logger.LogInformation("Admin {AdminId} approved application {ApplicationId}",
-                    currentUser.Id, application.Id);
-
-                // Save before sync — sync uses AsNoTracking and needs persisted state
-                await _dbContext.SaveChangesAsync();
-
-                // Sync team membership
-                if (application.MembershipTier == MembershipTier.Colaborador)
-                {
-                    await _systemTeamSyncJob.SyncColaboradorsMembershipForUserAsync(application.UserId, CancellationToken.None);
-                }
-                else if (application.MembershipTier == MembershipTier.Asociado)
-                {
-                    await _systemTeamSyncJob.SyncAsociadosMembershipForUserAsync(application.UserId, CancellationToken.None);
-                }
-
-                try
-                {
-                    var user = await _dbContext.Users.FindAsync(application.UserId);
-                    await _emailService.SendApplicationApprovedAsync(
-                        user?.Email ?? string.Empty,
-                        user?.DisplayName ?? string.Empty,
-                        user?.PreferredLanguage);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send application approval email for {ApplicationId}", application.Id);
-                }
-
-                TempData["SuccessMessage"] = _localizer["Admin_ApplicationApproved"].Value;
-                return RedirectToAction(nameof(ApplicationDetail), new { id });
-
-            case "REJECT":
-                if (application.Status != ApplicationStatus.Submitted)
-                {
-                    TempData["ErrorMessage"] = _localizer["Admin_CannotReject"].Value;
-                    break;
-                }
-                if (string.IsNullOrWhiteSpace(model.Notes))
-                {
-                    TempData["ErrorMessage"] = _localizer["Admin_ProvideRejectionReason"].Value;
-                    break;
-                }
-                application.Reject(currentUser.Id, model.Notes, _clock);
-
-                await _auditLogService.LogAsync(
-                    AuditAction.TierApplicationRejected, "Application", application.Id,
-                    $"{application.MembershipTier} application rejected by admin {currentUser.DisplayName}",
-                    currentUser.Id, currentUser.DisplayName);
-
-                // Delete individual BoardVote records (GDPR data minimization)
-                var rejectVotes = await _dbContext.BoardVotes
-                    .Where(v => v.ApplicationId == application.Id)
-                    .ToListAsync();
-                _dbContext.BoardVotes.RemoveRange(rejectVotes);
-
-                _metrics.RecordApplicationProcessed("rejected");
-                _logger.LogInformation("Admin {AdminId} rejected application {ApplicationId}",
-                    currentUser.Id, application.Id);
-
-                await _dbContext.SaveChangesAsync();
-
-                try
-                {
-                    var user = await _dbContext.Users.FindAsync(application.UserId);
-                    await _emailService.SendApplicationRejectedAsync(
-                        user?.Email ?? string.Empty,
-                        user?.DisplayName ?? string.Empty,
-                        model.Notes,
-                        user?.PreferredLanguage);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send application rejection email for {ApplicationId}", application.Id);
-                }
-
-                TempData["SuccessMessage"] = _localizer["Admin_ApplicationRejected"].Value;
-                return RedirectToAction(nameof(ApplicationDetail), new { id });
-
-            case "REQUESTINFO":
-                if (application.Status != ApplicationStatus.Submitted)
-                {
-                    TempData["ErrorMessage"] = _localizer["Admin_CannotRequestInfo"].Value;
-                    break;
-                }
-                if (string.IsNullOrWhiteSpace(model.Notes))
-                {
-                    TempData["ErrorMessage"] = _localizer["Admin_SpecifyInfoNeeded"].Value;
-                    break;
-                }
-                application.RequestMoreInfo(currentUser.Id, model.Notes, _clock);
-                _logger.LogInformation("Admin {AdminId} requested more info for application {ApplicationId}",
-                    currentUser.Id, application.Id);
-                TempData["SuccessMessage"] = _localizer["Admin_MoreInfoRequested"].Value;
-                break;
-
-            default:
-                TempData["ErrorMessage"] = _localizer["Admin_UnknownAction"].Value;
-                break;
-        }
-
-        await _dbContext.SaveChangesAsync();
-        return RedirectToAction(nameof(ApplicationDetail), new { id });
-    }
 
     [HttpPost("Humans/{id}/Suspend")]
     [ValidateAntiForgeryToken]

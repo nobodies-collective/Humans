@@ -53,6 +53,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IMembershipCalculator, MembershipCalculator>();
         services.AddScoped<IRoleAssignmentService, RoleAssignmentService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<IApplicationDecisionService, ApplicationDecisionService>();
         services.AddScoped<SystemTeamSyncJob>();
         services.AddScoped<SyncLegalDocumentsJob>();
         services.AddScoped<SendReConsentReminderJob>();

@@ -92,49 +92,6 @@
             </div>
         }
 
-        @if (Model.TotalApplications > 0)
-        {
-            <div class="card mt-4">
-                <div class="card-header">@Localizer["Governance_ApplicationStats"]</div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-6 col-sm-3 mb-3">
-                            <div class="fs-3 fw-bold">@Model.TotalApplications</div>
-                            <small class="text-muted">@Localizer["Governance_StatsTotal"]</small>
-                        </div>
-                        <div class="col-6 col-sm-3 mb-3">
-                            <div class="fs-3 fw-bold text-success">@Model.ApprovedCount</div>
-                            <small class="text-muted">@Localizer["Governance_StatsApproved"]</small>
-                        </div>
-                        <div class="col-6 col-sm-3 mb-3">
-                            <div class="fs-3 fw-bold text-danger">@Model.RejectedCount</div>
-                            <small class="text-muted">@Localizer["Governance_StatsRejected"]</small>
-                        </div>
-                        <div class="col-6 col-sm-3 mb-3">
-                            <div class="fs-3 fw-bold text-primary">@Model.PendingCount</div>
-                            <small class="text-muted">@Localizer["Governance_StatsPending"]</small>
-                        </div>
-                    </div>
-                    <hr />
-                    <div class="row text-center">
-                        <div class="col-6">
-                            <span class="fw-bold">@Model.ColaboradorApplied</span> <small class="text-muted">Colaborador</small>
-                        </div>
-                        <div class="col-6">
-                            <span class="fw-bold">@Model.AsociadoApplied</span> <small class="text-muted">Asociado</small>
-                        </div>
-                    </div>
-                    @if (Model.ApprovedCount + Model.RejectedCount > 0)
-                    {
-                        var approvalRate = (int)Math.Round(100.0 * Model.ApprovedCount / (Model.ApprovedCount + Model.RejectedCount));
-                        <div class="text-center mt-3">
-                            <small class="text-muted">@Localizer["Governance_StatsApprovalRate"]: <strong>@approvalRate%</strong></small>
-                        </div>
-                    }
-                </div>
-            </div>
-        }
-
         @if (orderedLanguages.Count > 0)
         {
             <div class="card mt-4">
@@ -201,6 +158,17 @@
                 </ul>
                 <p class="mb-2 text-muted"><small>@Localizer["Governance_BoardReviews"]</small></p>
                 <p class="mb-0 text-muted"><small>@Localizer["Governance_NoteNotRequired"]</small></p>
+            </div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-header">@Localizer["Governance_MemberCounts"]</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-8">@Localizer["Governance_Colaboradores"]</dt>
+                    <dd class="col-4 text-end mb-2">@Model.ColaboradorCount</dd>
+                    <dt class="col-8">@Localizer["Governance_Asociados"]</dt>
+                    <dd class="col-4 text-end mb-0">@Model.AsociadoCount</dd>
+                </dl>
             </div>
         </div>
     </div>

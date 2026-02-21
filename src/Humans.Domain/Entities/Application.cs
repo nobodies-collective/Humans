@@ -222,7 +222,6 @@ public class Application
     {
         StateHistory.Add(new ApplicationStateHistory
         {
-            Id = Guid.NewGuid(),
             ApplicationId = Id,
             Status = newStatus,
             ChangedByUserId = actorUserId,

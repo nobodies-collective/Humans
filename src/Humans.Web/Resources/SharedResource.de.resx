@@ -341,12 +341,17 @@
   <data name="Governance_BoardReviews" xml:space="preserve"><value>Der Vorstand prüft Anträge auf Grundlage des Community-Engagements und der Übereinstimmung mit der Mission des Kollektivs.</value></data>
   <data name="Governance_NoteNotRequired" xml:space="preserve"><value>Hinweis: Sie müssen kein Asociado sein, um auf Ressourcen zuzugreifen oder an Veranstaltungen teilzunehmen.</value></data>
   <data name="Governance_Statutes" xml:space="preserve"><value>Satzung</value></data>
-  <data name="Governance_ApplicationStats" xml:space="preserve"><value>Antragsstatistiken</value></data>
-  <data name="Governance_StatsTotal" xml:space="preserve"><value>Gesamt</value></data>
-  <data name="Governance_StatsApproved" xml:space="preserve"><value>Genehmigt</value></data>
-  <data name="Governance_StatsRejected" xml:space="preserve"><value>Abgelehnt</value></data>
-  <data name="Governance_StatsPending" xml:space="preserve"><value>Ausstehend</value></data>
-  <data name="Governance_StatsApprovalRate" xml:space="preserve"><value>Genehmigungsrate</value></data>
+  <data name="Governance_MemberCounts" xml:space="preserve"><value>Gemeinschaft</value></data>
+  <data name="Governance_Colaboradores" xml:space="preserve"><value>Colaboradores</value></data>
+  <data name="Governance_Asociados" xml:space="preserve"><value>Asociados</value></data>
+
+  <!-- Admin Application Statistics -->
+  <data name="Admin_ApplicationStats" xml:space="preserve"><value>Antragsstatistiken</value></data>
+  <data name="Admin_StatsTotal" xml:space="preserve"><value>Gesamt</value></data>
+  <data name="Admin_StatsApproved" xml:space="preserve"><value>Genehmigt</value></data>
+  <data name="Admin_StatsRejected" xml:space="preserve"><value>Abgelehnt</value></data>
+  <data name="Admin_StatsPending" xml:space="preserve"><value>Ausstehend</value></data>
+  <data name="Admin_StatsApprovalRate" xml:space="preserve"><value>Genehmigungsrate</value></data>
 
   <!-- Governance Create View -->
   <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>Neuer Antrag</value></data>
@@ -924,6 +929,9 @@
   <data name="BoardVoting_RejectConfirm" xml:space="preserve"><value>Dies lehnt den Antrag ab. Fortfahren?</value></data>
   <data name="BoardVoting_Finalized" xml:space="preserve"><value>Die Antragsentscheidung wurde finalisiert.</value></data>
   <data name="BoardVoting_ApplicationNotVotable" xml:space="preserve"><value>Dieser Antrag ist nicht mehr zur Abstimmung offen.</value></data>
+  <data name="BoardVoting_ApplicationNotVotable_WithStatus" xml:space="preserve"><value>&#xDC;ber diesen Antrag kann nicht abgestimmt werden (aktueller Status: {0}).</value></data>
+  <data name="BoardVoting_ApplicationNotFound" xml:space="preserve"><value>Antrag nicht gefunden.</value></data>
+  <data name="BoardVoting_ConcurrencyConflict" xml:space="preserve"><value>Dieser Antrag wurde von einem anderen Benutzer ge&#xE4;ndert. Bitte neu laden und erneut versuchen.</value></data>
   <data name="BoardVoting_AdditionalInfo" xml:space="preserve"><value>Zus&#xE4;tzliche Informationen</value></data>
   <data name="BoardVoting_NoVotes" xml:space="preserve"><value>Kann nicht abgeschlossen werden: Mindestens eine Vorstandsstimme ist erforderlich.</value></data>
   <data name="BoardVoting_MeetingDateRequired" xml:space="preserve"><value>Kann nicht abgeschlossen werden: Ein Datum der Vorstandssitzung ist erforderlich.</value></data>
