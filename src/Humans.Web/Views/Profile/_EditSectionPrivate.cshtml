@@ -15,7 +15,7 @@
                 <span asp-validation-for="FirstName" class="text-danger"></span>
             </div>
             <div class="col-md-6">
-                <label asp-for="LastName" class="form-label"></label>
+                <label asp-for="LastName" class="form-label">@Localizer["Profile_LegalLastNames"]</label>
                 <input asp-for="LastName" class="form-control" />
                 <span asp-validation-for="LastName" class="text-danger"></span>
             </div>

@@ -34,7 +34,7 @@ public class ProfileViewModel
 
     [Required]
     [StringLength(100)]
-    [Display(Name = "Legal Last Name")]
+    [Display(Name = "Legal Last Name(s)")]
     public string LastName { get; set; } = string.Empty;
 
     /// <summary>

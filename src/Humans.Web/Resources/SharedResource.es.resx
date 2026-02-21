@@ -870,6 +870,7 @@
   <data name="Profile_NoPriorBurnExperience" xml:space="preserve"><value>No tengo experiencia previa en burns</value></data>
   <data name="Profile_BurnerCVRequired" xml:space="preserve"><value>Por favor, a&#xF1;ade al menos una entrada de Burner CV o marca la casilla de 'sin experiencia previa en burns'.</value></data>
   <data name="Profile_LegalFirstNames" xml:space="preserve"><value>Nombre(s) legal(es)</value></data>
+  <data name="Profile_LegalLastNames" xml:space="preserve"><value>Apellido(s) legal(es)</value></data>
 
   <!-- ======================== -->
   <!-- Contribution & Board     -->

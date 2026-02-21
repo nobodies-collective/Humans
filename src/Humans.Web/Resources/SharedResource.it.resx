@@ -865,6 +865,7 @@
   <data name="Profile_NoPriorBurnExperience" xml:space="preserve"><value>Non ho esperienza precedente di burn</value></data>
   <data name="Profile_BurnerCVRequired" xml:space="preserve"><value>Aggiungi almeno una voce al Burner CV o seleziona la casella 'nessuna esperienza precedente di burn'.</value></data>
   <data name="Profile_LegalFirstNames" xml:space="preserve"><value>Nome/i legale/i</value></data>
+  <data name="Profile_LegalLastNames" xml:space="preserve"><value>Cognome/i legale/i</value></data>
 
   <!-- ======================== -->
   <!-- Contribution & Board     -->

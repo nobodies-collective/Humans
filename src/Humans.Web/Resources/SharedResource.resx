@@ -864,6 +864,7 @@
   <data name="Profile_NoPriorBurnExperience" xml:space="preserve"><value>I have no prior burn experience</value></data>
   <data name="Profile_BurnerCVRequired" xml:space="preserve"><value>Please add at least one Burner CV entry or check the 'no prior burn experience' box.</value></data>
   <data name="Profile_LegalFirstNames" xml:space="preserve"><value>Legal First Name(s)</value></data>
+  <data name="Profile_LegalLastNames" xml:space="preserve"><value>Legal Last Name(s)</value></data>
 
   <!-- ======================== -->
   <!-- Contribution & Board     -->
