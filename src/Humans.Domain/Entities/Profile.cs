@@ -257,6 +257,13 @@ public class Profile
     public string FullName => $"{FirstName} {LastName}".Trim();
 
     /// <summary>
+    /// Best available name for email greetings: BurnerName > FirstName > "there".
+    /// </summary>
+    public string EmailGreetingName =>
+        !string.IsNullOrWhiteSpace(BurnerName) ? BurnerName :
+        !string.IsNullOrWhiteSpace(FirstName) ? FirstName : "there";
+
+    /// <summary>
     /// Whether this profile has a custom uploaded profile picture.
     /// </summary>
     public bool HasCustomProfilePicture => ProfilePictureData != null && ProfilePictureData.Length > 0;

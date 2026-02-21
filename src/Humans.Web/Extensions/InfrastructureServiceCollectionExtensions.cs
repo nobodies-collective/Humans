@@ -49,6 +49,7 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddScoped<IDriveActivityMonitorService, StubDriveActivityMonitorService>();
         }
 
+        services.AddScoped<IEmailRenderer, EmailRenderer>();
         services.AddScoped<IEmailService, SmtpEmailService>();
         services.AddScoped<IMembershipCalculator, MembershipCalculator>();
         services.AddScoped<IRoleAssignmentService, RoleAssignmentService>();

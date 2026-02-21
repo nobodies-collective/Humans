@@ -950,4 +950,123 @@
   <data name="Dashboard_RenewNow" xml:space="preserve"><value>Jetzt verl&#xE4;ngern</value></data>
   <data name="Email_TermRenewalReminder_Subject" xml:space="preserve"><value>Deine {0}-Mitgliedschaft l&#xE4;uft bald aus</value><comment>{0} = tier name</comment></data>
 
+  <data name="Email_ReasonLine" xml:space="preserve"><value>&lt;p&gt;&lt;strong&gt;Grund:&lt;/strong&gt; {0}&lt;/p&gt;</value><comment>{0} = reason text (HTML-encoded by caller)</comment></data>
+  <data name="Email_ResourcesSection" xml:space="preserve"><value>&lt;p&gt;Dein Team hat folgende Ressourcen:&lt;/p&gt;&lt;ul&gt;{0}&lt;/ul&gt;</value><comment>{0} = resource list items HTML</comment></data>
+
+  <data name="Email_ApplicationSubmitted_Body" xml:space="preserve"><value>&lt;h2&gt;Neuer Mitgliedschaftsantrag&lt;/h2&gt;
+&lt;p&gt;Ein neuer Mitgliedschaftsantrag wurde eingereicht.&lt;/p&gt;
+&lt;ul&gt;
+    &lt;li&gt;&lt;strong&gt;Antragsteller:&lt;/strong&gt; {0}&lt;/li&gt;
+    &lt;li&gt;&lt;strong&gt;Antrags-ID:&lt;/strong&gt; {1}&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;a href="{2}/Admin/Applications"&gt;Antrag pr&#xFC;fen&lt;/a&gt;&lt;/p&gt;</value><comment>{0} = applicant name, {1} = application ID, {2} = base URL</comment></data>
+
+  <data name="Email_ApplicationApproved_Body" xml:space="preserve"><value>&lt;h2&gt;Dein Antrag wurde genehmigt!&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Wir freuen uns, dir mitteilen zu k&#xF6;nnen, dass dein {1}-Antrag genehmigt wurde. Willkommen bei Humans!&lt;/p&gt;
+&lt;p&gt;Du kannst jetzt auf dein Profil zugreifen und Teams erkunden:&lt;/p&gt;
+&lt;ul&gt;
+    &lt;li&gt;&lt;a href="{2}/Profile"&gt;Dein Profil ansehen&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href="{2}/Teams"&gt;Teams durchsuchen&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href="{2}/Consent"&gt;Rechtliche Dokumente pr&#xFC;fen&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Bei Fragen z&#xF6;gere nicht, uns zu kontaktieren.&lt;/p&gt;
+&lt;p&gt;Willkommen!&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = tier, {2} = base URL</comment></data>
+
+  <data name="Email_ApplicationRejected_Body" xml:space="preserve"><value>&lt;h2&gt;Aktualisierung zum Antrag&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Vielen Dank f&#xFC;r dein Interesse. Nach sorgf&#xE4;ltiger Pr&#xFC;fung m&#xFC;ssen wir dir leider mitteilen, dass wir deinen {1}-Antrag derzeit nicht genehmigen k&#xF6;nnen.&lt;/p&gt;
+{2}
+&lt;p&gt;Bei Fragen oder wenn du diese Entscheidung besprechen m&#xF6;chtest, kontaktiere uns unter &lt;a href="mailto:{3}"&gt;{3}&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Mit freundlichen Gr&#xFC;&#xDF;en,&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = tier, {2} = reason HTML (or empty), {3} = admin email</comment></data>
+
+  <data name="Email_SignupRejected_Body" xml:space="preserve"><value>&lt;h2&gt;Aktualisierung zur Anmeldung&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Vielen Dank f&#xFC;r dein Interesse. Nach sorgf&#xE4;ltiger Pr&#xFC;fung m&#xFC;ssen wir dir leider mitteilen, dass wir deine Anmeldung derzeit nicht genehmigen k&#xF6;nnen.&lt;/p&gt;
+{1}
+&lt;p&gt;Bei Fragen oder wenn du diese Entscheidung besprechen m&#xF6;chtest, kontaktiere uns unter &lt;a href="mailto:{2}"&gt;{2}&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Mit freundlichen Gr&#xFC;&#xDF;en,&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = reason HTML (or empty), {2} = admin email</comment></data>
+
+  <data name="Email_ReConsentsRequired_Body" xml:space="preserve"><value>&lt;h2&gt;Aktualisierung rechtlicher Dokumente&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Wir haben die folgenden erforderlichen Dokumente aktualisiert:&lt;/p&gt;
+&lt;ul&gt;
+    {1}
+&lt;/ul&gt;
+&lt;p&gt;Als Human musst du diese aktualisierten Dokumente pr&#xFC;fen und akzeptieren, um deinen aktiven Status zu behalten.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}/Consent"&gt;Pr&#xFC;fen und akzeptieren&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Bei Fragen zu den &#xC4;nderungen kontaktiere uns bitte.&lt;/p&gt;
+&lt;p&gt;Danke,&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = document list items HTML, {2} = base URL</comment></data>
+
+  <data name="Email_ReConsentReminder_Body" xml:space="preserve"><value>&lt;h2&gt;Erinnerung zur Zustimmung&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Dies ist eine Erinnerung, dass du noch &lt;strong&gt;{1} Tage&lt;/strong&gt; Zeit hast, die folgenden aktualisierten Dokumente zu pr&#xFC;fen und zu akzeptieren:&lt;/p&gt;
+&lt;ul&gt;
+    {2}
+&lt;/ul&gt;
+&lt;p&gt;Wenn du diese Dokumente nicht vor Ablauf der Frist akzeptierst, kann dein Zugang vor&#xFC;bergehend gesperrt werden.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{3}/Consent"&gt;Dokumente jetzt pr&#xFC;fen&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Danke,&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = days remaining, {2} = document list items HTML, {3} = base URL</comment></data>
+
+  <data name="Email_Welcome_Body" xml:space="preserve"><value>&lt;h2&gt;Willkommen!&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Willkommen im Humans-Portal!&lt;/p&gt;
+&lt;p&gt;Das kannst du tun:&lt;/p&gt;
+&lt;ul&gt;
+    &lt;li&gt;&lt;a href="{1}/Profile"&gt;Dein Profil vervollst&#xE4;ndigen&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href="{1}/Teams"&gt;Teams und Arbeitsgruppen beitreten&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href="{1}/Consent"&gt;Rechtliche Dokumente pr&#xFC;fen&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Bei Fragen melde dich gerne bei uns.&lt;/p&gt;
+&lt;p&gt;Mit freundlichen Gr&#xFC;&#xDF;en,&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = base URL</comment></data>
+
+  <data name="Email_AccessSuspended_Body" xml:space="preserve"><value>&lt;h2&gt;Zugang gesperrt&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Dein Zugang wurde vor&#xFC;bergehend gesperrt.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Grund:&lt;/strong&gt; {1}&lt;/p&gt;
+&lt;p&gt;Um deinen Zugang wiederherzustellen, f&#xFC;hre bitte die erforderliche Aktion durch:&lt;/p&gt;
+&lt;ul&gt;
+    &lt;li&gt;&lt;a href="{2}/Consent"&gt;Ausstehende Zustimmungsanforderungen pr&#xFC;fen&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Wenn du glaubst, dass es sich um einen Fehler handelt, kontaktiere uns unter &lt;a href="mailto:{3}"&gt;{3}&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = reason, {2} = base URL, {3} = admin email</comment></data>
+
+  <data name="Email_EmailVerification_Body" xml:space="preserve"><value>&lt;h2&gt;E-Mail-Verifizierung&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Du hast angefordert, &lt;strong&gt;{1}&lt;/strong&gt; als bevorzugte E-Mail-Adresse festzulegen.&lt;/p&gt;
+&lt;p&gt;Klicke auf den folgenden Link, um diese E-Mail-Adresse zu verifizieren:&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}"&gt;E-Mail-Adresse verifizieren&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Dieser Link l&#xE4;uft in 24 Stunden ab.&lt;/p&gt;
+&lt;p&gt;Wenn du diese &#xC4;nderung nicht angefordert hast, kannst du diese E-Mail ignorieren.&lt;/p&gt;
+&lt;p&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = email address, {2} = verification URL</comment></data>
+
+  <data name="Email_AccountDeletionRequested_Body" xml:space="preserve"><value>&lt;h2&gt;Kontol&#xF6;schungsanfrage erhalten&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Wir haben deine Anfrage zur Kontol&#xF6;schung erhalten. Dein Konto und alle zugehorigen Daten werden am &lt;strong&gt;{1}&lt;/strong&gt; dauerhaft gel&#xF6;scht.&lt;/p&gt;
+&lt;p&gt;Wenn du es dir anders &#xFC;berlegst, kannst du diese Anfrage vor dem L&#xF6;schdatum stornieren:&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}/Profile/Privacy"&gt;L&#xF6;schungsanfrage stornieren&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Nach der L&#xF6;schung kann diese Aktion nicht r&#xFC;ckg&#xE4;ngig gemacht werden und alle Daten werden dauerhaft entfernt.&lt;/p&gt;
+&lt;p&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = formatted deletion date, {2} = base URL</comment></data>
+
+  <data name="Email_AccountDeleted_Body" xml:space="preserve"><value>&lt;h2&gt;Konto gel&#xF6;scht&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Wie gew&#xFC;nscht wurde dein Humans-Konto dauerhaft gel&#xF6;scht. Alle deine pers&#xF6;nlichen Daten wurden aus unseren Systemen entfernt.&lt;/p&gt;
+&lt;p&gt;Vielen Dank, dass du Teil unserer Gemeinschaft warst. Wenn du jemals zur&#xFC;ckkehren m&#xF6;chtest, kannst du ein neues Konto erstellen.&lt;/p&gt;
+&lt;p&gt;Alles Gute,&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name</comment></data>
+
+  <data name="Email_AddedToTeam_Body" xml:space="preserve"><value>&lt;h2&gt;Willkommen bei {1}!&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Du wurdest zum Team &lt;strong&gt;{1}&lt;/strong&gt; hinzugef&#xFC;gt.&lt;/p&gt;
+{2}
+&lt;p&gt;&lt;a href="{3}"&gt;Teamseite ansehen&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = team name, {2} = resources HTML (or empty), {3} = team URL</comment></data>
+
+  <data name="Email_TermRenewalReminder_Body" xml:space="preserve"><value>&lt;h2&gt;Verl&#xE4;ngerung der Amtszeit&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Deine &lt;strong&gt;{1}&lt;/strong&gt;-Amtszeit l&#xE4;uft am &lt;strong&gt;{2}&lt;/strong&gt; ab.&lt;/p&gt;
+&lt;p&gt;Wenn du als {1} weitermachen m&#xF6;chtest, reiche bitte vor Ablauf einen Verl&#xE4;ngerungsantrag ein.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{3}/Application/Create"&gt;Verl&#xE4;ngerungsantrag einreichen&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Ohne Verl&#xE4;ngerung bleibst du ein aktiver Human, hast aber keinen {1}-Zugang mehr.&lt;/p&gt;
+&lt;p&gt;Vielen Dank f&#xFC;r dein Engagement!&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = tier name, {2} = expiry date, {3} = base URL</comment></data>
+
 </root>

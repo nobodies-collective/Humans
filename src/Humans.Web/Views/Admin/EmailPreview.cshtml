@@ -12,8 +12,7 @@
     };
 
     var orderedLanguages = Model.Previews
-        .OrderByDescending(kv => kv.Key == "en")
-        .ThenBy(kv => languageNames.TryGetValue(kv.Key, out var n) ? n : kv.Key, StringComparer.Ordinal)
+        .OrderBy(kv => languageNames.TryGetValue(kv.Key, out var n) ? n : kv.Key, StringComparer.Ordinal)
         .ToList();
 
     var defaultLang = "en";
@@ -32,8 +31,7 @@
 </div>
 
 <p class="text-muted mb-4">
-    Preview all system emails with sample data. Subjects and headings are localized per language tab.
-    Body content is currently English-only (see <code>F-06</code> in todos).
+    Preview all system emails with sample data. Subjects and body content are localized per language tab.
 </p>
 
 <ul class="nav nav-tabs" id="langTabs" role="tablist">

@@ -950,4 +950,123 @@
   <data name="Dashboard_RenewNow" xml:space="preserve"><value>Renouveler maintenant</value></data>
   <data name="Email_TermRenewalReminder_Subject" xml:space="preserve"><value>Votre mandat de {0} expire bient&#xF4;t</value><comment>{0} = tier name</comment></data>
 
+  <data name="Email_ReasonLine" xml:space="preserve"><value>&lt;p&gt;&lt;strong&gt;Motif :&lt;/strong&gt; {0}&lt;/p&gt;</value><comment>{0} = reason text (HTML-encoded by caller)</comment></data>
+  <data name="Email_ResourcesSection" xml:space="preserve"><value>&lt;p&gt;Votre &#xE9;quipe dispose des ressources suivantes :&lt;/p&gt;&lt;ul&gt;{0}&lt;/ul&gt;</value><comment>{0} = resource list items HTML</comment></data>
+
+  <data name="Email_ApplicationSubmitted_Body" xml:space="preserve"><value>&lt;h2&gt;Nouvelle demande d'adh&#xE9;sion&lt;/h2&gt;
+&lt;p&gt;Une nouvelle demande d'adh&#xE9;sion a &#xE9;t&#xE9; soumise.&lt;/p&gt;
+&lt;ul&gt;
+    &lt;li&gt;&lt;strong&gt;Candidat :&lt;/strong&gt; {0}&lt;/li&gt;
+    &lt;li&gt;&lt;strong&gt;ID de demande :&lt;/strong&gt; {1}&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;a href="{2}/Admin/Applications"&gt;Examiner la demande&lt;/a&gt;&lt;/p&gt;</value><comment>{0} = applicant name, {1} = application ID, {2} = base URL</comment></data>
+
+  <data name="Email_ApplicationApproved_Body" xml:space="preserve"><value>&lt;h2&gt;Votre demande a &#xE9;t&#xE9; approuv&#xE9;e !&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Nous avons le plaisir de vous informer que votre demande de {1} a &#xE9;t&#xE9; approuv&#xE9;e. Bienvenue chez Humans !&lt;/p&gt;
+&lt;p&gt;Vous pouvez d&#xE9;sormais acc&#xE9;der &#xE0; votre profil et explorer les &#xE9;quipes :&lt;/p&gt;
+&lt;ul&gt;
+    &lt;li&gt;&lt;a href="{2}/Profile"&gt;Voir votre profil&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href="{2}/Teams"&gt;Parcourir les &#xE9;quipes&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href="{2}/Consent"&gt;Consulter les documents l&#xE9;gaux&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Si vous avez des questions, n'h&#xE9;sitez pas &#xE0; nous contacter.&lt;/p&gt;
+&lt;p&gt;Bienvenue !&lt;br/&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = tier, {2} = base URL</comment></data>
+
+  <data name="Email_ApplicationRejected_Body" xml:space="preserve"><value>&lt;h2&gt;Mise &#xE0; jour de la demande&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Merci de votre int&#xE9;r&#xEA;t. Apr&#xE8;s un examen attentif, nous avons le regret de vous informer que nous ne pouvons pas approuver votre demande de {1} pour le moment.&lt;/p&gt;
+{2}
+&lt;p&gt;Si vous avez des questions ou souhaitez discuter de cette d&#xE9;cision, contactez-nous &#xE0; &lt;a href="mailto:{3}"&gt;{3}&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Cordialement,&lt;br/&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = tier, {2} = reason HTML (or empty), {3} = admin email</comment></data>
+
+  <data name="Email_SignupRejected_Body" xml:space="preserve"><value>&lt;h2&gt;Mise &#xE0; jour de l'inscription&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Merci de votre int&#xE9;r&#xEA;t. Apr&#xE8;s un examen attentif, nous avons le regret de vous informer que nous ne pouvons pas approuver votre inscription pour le moment.&lt;/p&gt;
+{1}
+&lt;p&gt;Si vous avez des questions ou souhaitez discuter de cette d&#xE9;cision, contactez-nous &#xE0; &lt;a href="mailto:{2}"&gt;{2}&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Cordialement,&lt;br/&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = reason HTML (or empty), {2} = admin email</comment></data>
+
+  <data name="Email_ReConsentsRequired_Body" xml:space="preserve"><value>&lt;h2&gt;Mise &#xE0; jour des documents l&#xE9;gaux&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Nous avons mis &#xE0; jour les documents requis suivants :&lt;/p&gt;
+&lt;ul&gt;
+    {1}
+&lt;/ul&gt;
+&lt;p&gt;En tant que human, vous devez consulter et accepter ces documents mis &#xE0; jour pour maintenir votre statut actif.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}/Consent"&gt;Consulter et accepter&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Si vous avez des questions sur les modifications, contactez-nous.&lt;/p&gt;
+&lt;p&gt;Merci,&lt;br/&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = document list items HTML, {2} = base URL</comment></data>
+
+  <data name="Email_ReConsentReminder_Body" xml:space="preserve"><value>&lt;h2&gt;Rappel de consentement&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Ceci est un rappel : il vous reste &lt;strong&gt;{1} jours&lt;/strong&gt; pour consulter et accepter les documents mis &#xE0; jour suivants :&lt;/p&gt;
+&lt;ul&gt;
+    {2}
+&lt;/ul&gt;
+&lt;p&gt;Si vous n'acceptez pas ces documents avant la date limite, votre acc&#xE8;s pourra &#xEA;tre temporairement suspendu.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{3}/Consent"&gt;Consulter les documents maintenant&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Merci,&lt;br/&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = days remaining, {2} = document list items HTML, {3} = base URL</comment></data>
+
+  <data name="Email_Welcome_Body" xml:space="preserve"><value>&lt;h2&gt;Bienvenue !&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Bienvenue sur le portail Humans !&lt;/p&gt;
+&lt;p&gt;Voici ce que vous pouvez faire :&lt;/p&gt;
+&lt;ul&gt;
+    &lt;li&gt;&lt;a href="{1}/Profile"&gt;Compl&#xE9;ter votre profil&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href="{1}/Teams"&gt;Rejoindre des &#xE9;quipes et groupes de travail&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href="{1}/Consent"&gt;Consulter les documents l&#xE9;gaux&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Si vous avez des questions, n'h&#xE9;sitez pas &#xE0; nous contacter.&lt;/p&gt;
+&lt;p&gt;Cordialement,&lt;br/&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = base URL</comment></data>
+
+  <data name="Email_AccessSuspended_Body" xml:space="preserve"><value>&lt;h2&gt;Acc&#xE8;s suspendu&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Votre acc&#xE8;s a &#xE9;t&#xE9; temporairement suspendu.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Motif :&lt;/strong&gt; {1}&lt;/p&gt;
+&lt;p&gt;Pour r&#xE9;tablir votre acc&#xE8;s, veuillez effectuer l'action requise :&lt;/p&gt;
+&lt;ul&gt;
+    &lt;li&gt;&lt;a href="{2}/Consent"&gt;Consulter les exigences de consentement en attente&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Si vous pensez qu'il s'agit d'une erreur, contactez-nous &#xE0; &lt;a href="mailto:{3}"&gt;{3}&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = reason, {2} = base URL, {3} = admin email</comment></data>
+
+  <data name="Email_EmailVerification_Body" xml:space="preserve"><value>&lt;h2&gt;V&#xE9;rification de l'adresse e-mail&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Vous avez demand&#xE9; &#xE0; d&#xE9;finir &lt;strong&gt;{1}&lt;/strong&gt; comme adresse e-mail pr&#xE9;f&#xE9;r&#xE9;e.&lt;/p&gt;
+&lt;p&gt;Cliquez sur le lien ci-dessous pour v&#xE9;rifier cette adresse :&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}"&gt;V&#xE9;rifier l'adresse e-mail&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Ce lien expire dans 24 heures.&lt;/p&gt;
+&lt;p&gt;Si vous n'avez pas demand&#xE9; ce changement, vous pouvez ignorer cet e-mail.&lt;/p&gt;
+&lt;p&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = email address, {2} = verification URL</comment></data>
+
+  <data name="Email_AccountDeletionRequested_Body" xml:space="preserve"><value>&lt;h2&gt;Demande de suppression de compte re&#xE7;ue&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Nous avons re&#xE7;u votre demande de suppression de compte. Votre compte et toutes les donn&#xE9;es associ&#xE9;es seront d&#xE9;finitivement supprim&#xE9;s le &lt;strong&gt;{1}&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Si vous changez d'avis, vous pouvez annuler cette demande avant la date de suppression :&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}/Profile/Privacy"&gt;Annuler la demande de suppression&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Apr&#xE8;s la suppression, cette action ne peut pas &#xEA;tre annul&#xE9;e et toutes vos donn&#xE9;es seront d&#xE9;finitivement supprim&#xE9;es.&lt;/p&gt;
+&lt;p&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = formatted deletion date, {2} = base URL</comment></data>
+
+  <data name="Email_AccountDeleted_Body" xml:space="preserve"><value>&lt;h2&gt;Compte supprim&#xE9;&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Comme demand&#xE9;, votre compte Humans a &#xE9;t&#xE9; d&#xE9;finitivement supprim&#xE9;. Toutes vos donn&#xE9;es personnelles ont &#xE9;t&#xE9; retir&#xE9;es de nos syst&#xE8;mes.&lt;/p&gt;
+&lt;p&gt;Merci d'avoir fait partie de notre communaut&#xE9;. Si vous souhaitez nous rejoindre &#xE0; nouveau, vous &#xEA;tes bienvenu(e) pour cr&#xE9;er un nouveau compte.&lt;/p&gt;
+&lt;p&gt;Cordialement,&lt;br/&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name</comment></data>
+
+  <data name="Email_AddedToTeam_Body" xml:space="preserve"><value>&lt;h2&gt;Bienvenue dans {1} !&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Vous avez &#xE9;t&#xE9; ajout&#xE9;(e) &#xE0; l'&#xE9;quipe &lt;strong&gt;{1}&lt;/strong&gt;.&lt;/p&gt;
+{2}
+&lt;p&gt;&lt;a href="{3}"&gt;Voir la page de l'&#xE9;quipe&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = team name, {2} = resources HTML (or empty), {3} = team URL</comment></data>
+
+  <data name="Email_TermRenewalReminder_Body" xml:space="preserve"><value>&lt;h2&gt;Renouvellement du mandat&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Votre mandat de &lt;strong&gt;{1}&lt;/strong&gt; expire le &lt;strong&gt;{2}&lt;/strong&gt;.&lt;/p&gt;
+&lt;p&gt;Si vous souhaitez continuer en tant que {1}, veuillez soumettre une demande de renouvellement avant la fin de votre mandat.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{3}/Application/Create"&gt;Soumettre une demande de renouvellement&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Sans renouvellement, vous resterez un human actif mais n'aurez plus l'acc&#xE8;s de niveau {1}.&lt;/p&gt;
+&lt;p&gt;Merci pour votre engagement !&lt;br/&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = tier name, {2} = expiry date, {3} = base URL</comment></data>
+
 </root>
