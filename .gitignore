@@ -114,6 +114,9 @@ secrets.json
 ehthumbs.db
 Thumbs.db
 
+# .NET SDK artifacts (leaked from Docker builds)
+.dotnet/
+
 # Docker
 docker-compose.override.yml
 
