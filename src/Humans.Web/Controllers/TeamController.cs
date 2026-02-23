@@ -135,12 +135,12 @@ public class TeamController : Controller
         var profilesWithCustomPictures = await _dbContext.Profiles
             .AsNoTracking()
             .Where(p => memberUserIds.Contains(p.UserId) && p.ProfilePictureData != null)
-            .Select(p => new { p.Id, p.UserId })
+            .Select(p => new { p.Id, p.UserId, p.UpdatedAt })
             .ToListAsync();
 
         var customPictureByUserId = profilesWithCustomPictures.ToDictionary(
             p => p.UserId,
-            p => Url.Action("Picture", "Profile", new { id = p.Id })!);
+            p => Url.Action("Picture", "Profile", new { id = p.Id, v = p.UpdatedAt.ToUnixTimeTicks() })!);
 
         // Load active Google resources for this team
         var googleResources = await _dbContext.GoogleResources

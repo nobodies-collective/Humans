@@ -830,9 +830,9 @@
   <data name="Profile_ProfilePicture" xml:space="preserve"><value>Foto de perfil</value></data>
   <data name="Profile_DateOfBirth" xml:space="preserve"><value>Cumplea&#xF1;os</value></data>
   <data name="Profile_PictureTooLarge" xml:space="preserve"><value>La foto de perfil debe ser inferior a 20MB.</value></data>
-  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La foto de perfil debe estar en formato JPEG, PNG o WebP.</value></data>
+  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La foto de perfil debe estar en formato JPEG, PNG, WebP o HEIC.</value></data>
   <data name="ProfileEdit_GoogleAvatar" xml:space="preserve"><value>(avatar de Google)</value></data>
-  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Suba una imagen JPEG, PNG o WebP (m&#xE1;x. 20MB). Las im&#xE1;genes grandes se redimensionan autom&#xE1;ticamente. Esto reemplaza su avatar de Google.</value></data>
+  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Suba una imagen JPEG, PNG, WebP o HEIC (m&#xE1;x. 20MB). Las im&#xE1;genes grandes se redimensionan autom&#xE1;ticamente. Esto reemplaza su avatar de Google.</value></data>
   <data name="ProfileEdit_RemovePicture" xml:space="preserve"><value>Eliminar foto personalizada (volver al avatar de Google)</value></data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Solo visible para usted y la junta directiva. Se usa para el calendario de cumplea&#xF1;os.</value></data>
   <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>L&#xED;deres del equipo</value></data>

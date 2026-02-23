@@ -14,7 +14,6 @@ using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Services;
-using SkiaSharp;
 using Humans.Web.Extensions;
 using Humans.Web.Models;
 using MemberApplication = Humans.Domain.Entities.Application;
@@ -46,7 +45,22 @@ public class ProfileController : Controller
     {
         "image/jpeg",
         "image/png",
-        "image/webp"
+        "image/webp",
+        "image/heic",
+        "image/heif",
+        "image/avif"
+    };
+    private static readonly HashSet<string> HeifContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/heic",
+        "image/heif",
+        "image/avif"
+    };
+    private static readonly Dictionary<string, string> HeifExtensionToContentType = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".heic"] = "image/heic",
+        [".heif"] = "image/heif",
+        [".avif"] = "image/avif"
     };
     private static readonly System.Text.Json.JsonSerializerOptions ExportJsonOptions = new()
     {
@@ -179,7 +193,9 @@ public class ProfileController : Controller
             DisplayName = user.DisplayName,
             ProfilePictureUrl = user.ProfilePictureUrl,
             HasCustomProfilePicture = hasCustomPicture,
-            CustomProfilePictureUrl = hasCustomPicture ? Url.Action(nameof(Picture), new { id = profile!.Id }) : null,
+            CustomProfilePictureUrl = hasCustomPicture
+                ? Url.Action(nameof(Picture), new { id = profile!.Id, v = profile.UpdatedAt.ToUnixTimeTicks() })
+                : null,
             BurnerName = profile?.BurnerName ?? user.DisplayName,
             FirstName = profile?.FirstName ?? string.Empty,
             LastName = profile?.LastName ?? string.Empty,
@@ -302,7 +318,19 @@ public class ProfileController : Controller
                 return View(model);
             }
 
-            if (!AllowedImageContentTypes.Contains(model.ProfilePictureUpload.ContentType))
+            // Browsers often send application/octet-stream for HEIC/HEIF files;
+            // resolve the actual content type from the file extension in that case.
+            var uploadContentType = model.ProfilePictureUpload.ContentType;
+            if (!AllowedImageContentTypes.Contains(uploadContentType))
+            {
+                var ext = Path.GetExtension(model.ProfilePictureUpload.FileName);
+                if (ext != null && HeifExtensionToContentType.TryGetValue(ext, out var mapped))
+                {
+                    uploadContentType = mapped;
+                }
+            }
+
+            if (!AllowedImageContentTypes.Contains(uploadContentType))
             {
                 ModelState.AddModelError(nameof(model.ProfilePictureUpload),
                     _localizer["Profile_PictureInvalidFormat"].Value);
@@ -312,9 +340,17 @@ public class ProfileController : Controller
 
             using var uploadStream = new MemoryStream();
             await model.ProfilePictureUpload.CopyToAsync(uploadStream);
-            var (resizedData, contentType) = ResizeProfilePicture(uploadStream.ToArray());
-            profile.ProfilePictureData = resizedData;
-            profile.ProfilePictureContentType = contentType;
+            var result = ResizeProfilePicture(uploadStream.ToArray(), uploadContentType);
+            if (result == null)
+            {
+                ModelState.AddModelError(nameof(model.ProfilePictureUpload),
+                    _localizer["Profile_PictureInvalidFormat"].Value);
+                ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
+                return View(model);
+            }
+
+            profile.ProfilePictureData = result.Value.Data;
+            profile.ProfilePictureContentType = result.Value.ContentType;
         }
 
         // Validate Burner CV: must have entries OR check "no prior experience"
@@ -511,35 +547,8 @@ public class ProfileController : Controller
         return File(profile.ProfilePictureData, profile.ProfilePictureContentType);
     }
 
-    private static (byte[] Data, string ContentType) ResizeProfilePicture(byte[] imageData)
-    {
-        using var original = SKBitmap.Decode(imageData);
-        if (original == null)
-        {
-            throw new InvalidOperationException("Could not decode the uploaded image.");
-        }
-
-        var width = original.Width;
-        var height = original.Height;
-        var longSide = Math.Max(width, height);
-
-        if (longSide > MaxProfilePictureLongSide)
-        {
-            var scale = (float)MaxProfilePictureLongSide / longSide;
-            width = (int)(width * scale);
-            height = (int)(height * scale);
-
-            using var resized = original.Resize(new SKImageInfo(width, height), SKSamplingOptions.Default);
-            using var image = SKImage.FromBitmap(resized);
-            using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 85);
-            return (encoded.ToArray(), "image/jpeg");
-        }
-
-        // Image is already small enough — re-encode as JPEG for consistent storage
-        using var smallImage = SKImage.FromBitmap(original);
-        using var smallEncoded = smallImage.Encode(SKEncodedImageFormat.Jpeg, 85);
-        return (smallEncoded.ToArray(), "image/jpeg");
-    }
+    private (byte[] Data, string ContentType)? ResizeProfilePicture(byte[] imageData, string contentType) =>
+        Helpers.ProfilePictureProcessor.ResizeProfilePicture(imageData, contentType, _logger);
 
     [HttpGet]
     public async Task<IActionResult> Emails()

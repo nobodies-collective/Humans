@@ -117,7 +117,7 @@ public class ProfileCardViewComponent : ViewComponent
 
         var hasCustomPicture = profile?.HasCustomProfilePicture == true;
         var pictureUrl = hasCustomPicture
-            ? Url.Action("Picture", "Profile", new { id = profile!.Id })
+            ? Url.Action("Picture", "Profile", new { id = profile!.Id, v = profile.UpdatedAt.ToUnixTimeTicks() })
             : null;
 
         var model = new ProfileCardViewModel

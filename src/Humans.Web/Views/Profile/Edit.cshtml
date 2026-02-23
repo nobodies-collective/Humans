@@ -42,7 +42,7 @@
                                 </div>
                             }
                         </div>
-                        <input type="file" asp-for="ProfilePictureUpload" class="form-control" accept="image/jpeg,image/png,image/webp" />
+                        <input type="file" asp-for="ProfilePictureUpload" class="form-control" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif,.avif" />
                         <span asp-validation-for="ProfilePictureUpload" class="text-danger"></span>
                         <div class="form-text">@Localizer["ProfileEdit_PictureHelp"]</div>
                         @if (Model.HasCustomProfilePicture)

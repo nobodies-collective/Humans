@@ -9,4 +9,8 @@
     <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="TestData\sample.heic" />
+  </ItemGroup>
+
 </Project>

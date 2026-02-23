@@ -26,6 +26,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # Install native dependencies for SkiaSharp + curl for healthcheck
+# (libheif native binaries are provided by the LibHeif.Native NuGet package)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libfontconfig1 \
     curl \

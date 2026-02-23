@@ -825,9 +825,9 @@
   <data name="Profile_ProfilePicture" xml:space="preserve"><value>Foto del profilo</value></data>
   <data name="Profile_DateOfBirth" xml:space="preserve"><value>Compleanno</value></data>
   <data name="Profile_PictureTooLarge" xml:space="preserve"><value>La foto del profilo deve essere inferiore a 20MB.</value></data>
-  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La foto del profilo deve essere in formato JPEG, PNG o WebP.</value></data>
+  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La foto del profilo deve essere in formato JPEG, PNG, WebP o HEIC.</value></data>
   <data name="ProfileEdit_GoogleAvatar" xml:space="preserve"><value>(avatar di Google)</value></data>
-  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Carica un'immagine JPEG, PNG o WebP (max 20MB). Le immagini grandi vengono ridimensionate automaticamente. Questo sostituisce il tuo avatar di Google.</value></data>
+  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Carica un'immagine JPEG, PNG, WebP o HEIC (max 20MB). Le immagini grandi vengono ridimensionate automaticamente. Questo sostituisce il tuo avatar di Google.</value></data>
   <data name="ProfileEdit_RemovePicture" xml:space="preserve"><value>Rimuovi foto personalizzata (torna all'avatar di Google)</value></data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Visibile solo a te e al consiglio. Utilizzato per il calendario dei compleanni.</value></data>
   <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>Responsabili del team</value></data>
