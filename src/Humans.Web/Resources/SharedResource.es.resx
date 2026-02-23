@@ -1075,4 +1075,12 @@
 &lt;p&gt;Si no renuevas, seguir&#xE1;s siendo un human activo pero ya no tendr&#xE1;s acceso de nivel {1}.&lt;/p&gt;
 &lt;p&gt;&#xA1;Gracias por tu participaci&#xF3;n!&lt;br/&gt;El equipo de Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = tier name, {2} = expiry date, {3} = base URL</comment></data>
 
+  <data name="Email_BoardDailyDigest_Subject" xml:space="preserve"><value>Resumen de la Junta: Nuevas aprobaciones del {0}</value><comment>{0} = date (YYYY-MM-DD)</comment></data>
+
+  <data name="Email_BoardDailyDigest_Body" xml:space="preserve"><value>&lt;h2&gt;Resumen diario de aprobaciones&lt;/h2&gt;
+&lt;p&gt;Hola {0},&lt;/p&gt;
+&lt;p&gt;Los siguientes humans fueron aprobados el &lt;strong&gt;{1}&lt;/strong&gt;:&lt;/p&gt;
+{2}
+&lt;p&gt;El equipo de Humans&lt;/p&gt;</value><comment>{0} = board member name, {1} = date, {2} = tier sections HTML</comment></data>
+
 </root>

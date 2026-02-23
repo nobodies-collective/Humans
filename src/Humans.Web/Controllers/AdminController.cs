@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using NodaTime;
+using Humans.Application.DTOs;
 using Humans.Application.Interfaces;
 using Humans.Domain;
 using Humans.Domain.Constants;
@@ -1324,6 +1325,14 @@ public class AdminController : Controller
 
             var c14 = renderer.RenderTermRenewalReminder(name, "Colaborador", "April 1, 2026", culture);
             items.Add(new EmailPreviewItem { Id = "term-renewal-reminder", Name = "Term Renewal Reminder", Recipient = email, Subject = c14.Subject, Body = c14.HtmlBody });
+
+            var sampleDigestGroups = new List<BoardDigestTierGroup>
+            {
+                new("Volunteer", new[] { "Alice Johnson", "Bob Smith" }),
+                new("Colaborador", new[] { "Carlos García" })
+            };
+            var c15 = renderer.RenderBoardDailyDigest(name, "2026-02-22", sampleDigestGroups, culture);
+            items.Add(new EmailPreviewItem { Id = "board-daily-digest", Name = "Board Daily Digest", Recipient = email, Subject = c15.Subject, Body = c15.HtmlBody });
 
             previews[culture] = items;
         }

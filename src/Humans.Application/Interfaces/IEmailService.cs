@@ -1,3 +1,4 @@
+using Humans.Application.DTOs;
 using Humans.Domain.Enums;
 
 namespace Humans.Application.Interfaces;
@@ -216,6 +217,23 @@ public interface IEmailService
         string userName,
         string tierName,
         string expiresAt,
+        string? culture = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a Board daily digest email summarizing new approvals.
+    /// </summary>
+    /// <param name="email">The Board member's email.</param>
+    /// <param name="name">The Board member's display name.</param>
+    /// <param name="date">The date being summarized (e.g. "2026-02-22").</param>
+    /// <param name="groups">Tier groups with approved display names.</param>
+    /// <param name="culture">The recipient's preferred culture (ISO code, e.g. "es").</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task SendBoardDailyDigestAsync(
+        string email,
+        string name,
+        string date,
+        IReadOnlyList<BoardDigestTierGroup> groups,
         string? culture = null,
         CancellationToken cancellationToken = default);
 }

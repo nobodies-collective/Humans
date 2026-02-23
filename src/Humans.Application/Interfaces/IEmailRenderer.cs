@@ -1,3 +1,4 @@
+using Humans.Application.DTOs;
 using Humans.Domain.Enums;
 
 namespace Humans.Application.Interfaces;
@@ -78,4 +79,9 @@ public interface IEmailRenderer
     /// Term renewal reminder for Colaborador/Asociado.
     /// </summary>
     EmailContent RenderTermRenewalReminder(string userName, string tierName, string expiresAt, string? culture = null);
+
+    /// <summary>
+    /// Board daily digest of new approvals.
+    /// </summary>
+    EmailContent RenderBoardDailyDigest(string boardMemberName, string date, IReadOnlyList<BoardDigestTierGroup> tierGroups, string? culture = null);
 }

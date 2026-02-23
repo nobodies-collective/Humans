@@ -1070,4 +1070,12 @@
 &lt;p&gt;Ohne Verl&#xE4;ngerung bleibst du ein aktiver Human, hast aber keinen {1}-Zugang mehr.&lt;/p&gt;
 &lt;p&gt;Vielen Dank f&#xFC;r dein Engagement!&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = tier name, {2} = expiry date, {3} = base URL</comment></data>
 
+  <data name="Email_BoardDailyDigest_Subject" xml:space="preserve"><value>Vorstandsbericht: Neue Genehmigungen am {0}</value><comment>{0} = date (YYYY-MM-DD)</comment></data>
+
+  <data name="Email_BoardDailyDigest_Body" xml:space="preserve"><value>&lt;h2&gt;T&#xE4;gliche Genehmigungen&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Die folgenden Humans wurden am &lt;strong&gt;{1}&lt;/strong&gt; genehmigt:&lt;/p&gt;
+{2}
+&lt;p&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = board member name, {1} = date, {2} = tier sections HTML</comment></data>
+
 </root>

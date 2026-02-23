@@ -63,5 +63,12 @@ public static class RecurringJobExtensions
             "term-renewal-reminder",
             job => job.ExecuteAsync(CancellationToken.None),
             "0 5 * * 1");
+
+        // Send Board daily digest of new approvals from the previous UTC day.
+        // Runs daily at 02:00 UTC.
+        RecurringJob.AddOrUpdate<SendBoardDailyDigestJob>(
+            "send-board-daily-digest",
+            job => job.ExecuteAsync(CancellationToken.None),
+            "0 2 * * *");
     }
 }
