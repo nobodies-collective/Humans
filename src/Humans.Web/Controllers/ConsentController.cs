@@ -23,7 +23,6 @@ public class ConsentController : Controller
     private readonly HumansDbContext _dbContext;
     private readonly UserManager<User> _userManager;
     private readonly IMembershipCalculator _membershipCalculator;
-    private readonly IGoogleSyncService _googleSyncService;
     private readonly SystemTeamSyncJob _systemTeamSyncJob;
     private readonly HumansMetricsService _metrics;
     private readonly IClock _clock;
@@ -34,7 +33,6 @@ public class ConsentController : Controller
         HumansDbContext dbContext,
         UserManager<User> userManager,
         IMembershipCalculator membershipCalculator,
-        IGoogleSyncService googleSyncService,
         SystemTeamSyncJob systemTeamSyncJob,
         HumansMetricsService metrics,
         IClock clock,
@@ -44,7 +42,6 @@ public class ConsentController : Controller
         _dbContext = dbContext;
         _userManager = userManager;
         _membershipCalculator = membershipCalculator;
-        _googleSyncService = googleSyncService;
         _systemTeamSyncJob = systemTeamSyncJob;
         _metrics = metrics;
         _clock = clock;

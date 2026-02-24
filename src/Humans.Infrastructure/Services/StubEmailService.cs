@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Humans.Application.DTOs;
 using Humans.Application.Interfaces;
 using Humans.Domain.Enums;
 
@@ -6,7 +7,7 @@ namespace Humans.Infrastructure.Services;
 
 /// <summary>
 /// Stub implementation of IEmailService that logs actions without sending real emails.
-/// Replace with real implementation when email service integration is ready.
+/// Used for local/dev scenarios where SMTP transport is intentionally disabled.
 /// </summary>
 public class StubEmailService : IEmailService
 {
@@ -197,6 +198,20 @@ public class StubEmailService : IEmailService
         _logger.LogInformation(
             "[STUB] Would send term renewal reminder to {Email} ({UserName}) [Culture: {Culture}] for {Tier} expiring {ExpiresAt}",
             userEmail, userName, culture, tierName, expiresAt);
+        return Task.CompletedTask;
+    }
+
+    public Task SendBoardDailyDigestAsync(
+        string email,
+        string name,
+        string date,
+        IReadOnlyList<BoardDigestTierGroup> groups,
+        string? culture = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "[STUB] Would send Board daily digest to {Email} ({Name}) [Culture: {Culture}] for {Date} with {GroupCount} tier groups",
+            email, name, culture, date, groups.Count);
         return Task.CompletedTask;
     }
 }

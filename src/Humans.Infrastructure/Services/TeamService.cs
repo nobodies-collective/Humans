@@ -423,7 +423,7 @@ public partial class TeamService : ITeamService
         _logger.LogInformation("Approver {ApproverId} approved join request {RequestId} for user {UserId} to team {TeamId}",
             approverUserId, requestId, request.UserId, request.TeamId);
 
-        await SendAddedToTeamEmailAsync(request.UserId, request.Team!, cancellationToken);
+        await SendAddedToTeamEmailAsync(request.UserId, request.Team, cancellationToken);
 
         return member;
     }

@@ -14,7 +14,6 @@ public class SyncLegalDocumentsJob
 {
     private readonly ILegalDocumentSyncService _syncService;
     private readonly IEmailService _emailService;
-    private readonly IMembershipCalculator _membershipCalculator;
     private readonly HumansDbContext _dbContext;
     private readonly HumansMetricsService _metrics;
     private readonly ILogger<SyncLegalDocumentsJob> _logger;
@@ -23,7 +22,6 @@ public class SyncLegalDocumentsJob
     public SyncLegalDocumentsJob(
         ILegalDocumentSyncService syncService,
         IEmailService emailService,
-        IMembershipCalculator membershipCalculator,
         HumansDbContext dbContext,
         HumansMetricsService metrics,
         ILogger<SyncLegalDocumentsJob> logger,
@@ -31,7 +29,6 @@ public class SyncLegalDocumentsJob
     {
         _syncService = syncService;
         _emailService = emailService;
-        _membershipCalculator = membershipCalculator;
         _dbContext = dbContext;
         _metrics = metrics;
         _logger = logger;

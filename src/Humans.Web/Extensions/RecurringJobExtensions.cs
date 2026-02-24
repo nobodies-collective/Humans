@@ -5,10 +5,8 @@ namespace Humans.Web.Extensions;
 
 public static class RecurringJobExtensions
 {
-    public static void UseHumansRecurringJobs(this WebApplication app)
+    public static void UseHumansRecurringJobs(this WebApplication _)
     {
-        _ = app;
-
         // Google permission-modifying jobs are currently DISABLED (SystemTeamSyncJob,
         // GoogleResourceReconciliationJob). They could be destructive if upstream
         // membership/consent data is incorrect during rollout.
@@ -63,5 +61,12 @@ public static class RecurringJobExtensions
             "term-renewal-reminder",
             job => job.ExecuteAsync(CancellationToken.None),
             "0 5 * * 1");
+
+        // Send Board daily digest of new approvals from the previous UTC day.
+        // Runs daily at 02:00 UTC.
+        RecurringJob.AddOrUpdate<SendBoardDailyDigestJob>(
+            "send-board-daily-digest",
+            job => job.ExecuteAsync(CancellationToken.None),
+            "0 2 * * *");
     }
 }

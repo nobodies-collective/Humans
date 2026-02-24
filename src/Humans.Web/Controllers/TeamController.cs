@@ -19,7 +19,6 @@ public class TeamController : Controller
     private readonly ITeamService _teamService;
     private readonly UserManager<User> _userManager;
     private readonly HumansDbContext _dbContext;
-    private readonly ILogger<TeamController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IConfiguration _configuration;
 
@@ -27,14 +26,12 @@ public class TeamController : Controller
         ITeamService teamService,
         UserManager<User> userManager,
         HumansDbContext dbContext,
-        ILogger<TeamController> logger,
         IStringLocalizer<SharedResource> localizer,
         IConfiguration configuration)
     {
         _teamService = teamService;
         _userManager = userManager;
         _dbContext = dbContext;
-        _logger = logger;
         _localizer = localizer;
         _configuration = configuration;
     }
@@ -56,7 +53,7 @@ public class TeamController : Controller
 
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
 
-        TeamSummaryViewModel ToSummary(Domain.Entities.Team t) => new()
+        TeamSummaryViewModel ToSummary(Team t) => new()
         {
             Id = t.Id,
             Name = t.Name,
@@ -135,12 +132,12 @@ public class TeamController : Controller
         var profilesWithCustomPictures = await _dbContext.Profiles
             .AsNoTracking()
             .Where(p => memberUserIds.Contains(p.UserId) && p.ProfilePictureData != null)
-            .Select(p => new { p.Id, p.UserId })
+            .Select(p => new { p.Id, p.UserId, p.UpdatedAt })
             .ToListAsync();
 
         var customPictureByUserId = profilesWithCustomPictures.ToDictionary(
             p => p.UserId,
-            p => Url.Action("Picture", "Profile", new { id = p.Id })!);
+            p => Url.Action("Picture", "Profile", new { id = p.Id, v = p.UpdatedAt.ToUnixTimeTicks() })!);
 
         // Load active Google resources for this team
         var googleResources = await _dbContext.GoogleResources

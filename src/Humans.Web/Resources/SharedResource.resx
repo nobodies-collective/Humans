@@ -349,7 +349,6 @@
   <data name="Admin_StatsApproved" xml:space="preserve"><value>Approved</value></data>
   <data name="Admin_StatsRejected" xml:space="preserve"><value>Rejected</value></data>
   <data name="Admin_StatsPending" xml:space="preserve"><value>Pending</value></data>
-  <data name="Admin_StatsApprovalRate" xml:space="preserve"><value>Approval rate</value></data>
 
   <!-- Governance Create View -->
   <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>New Application</value></data>
@@ -821,9 +820,9 @@
   <data name="Profile_ProfilePicture" xml:space="preserve"><value>Profile Picture</value></data>
   <data name="Profile_DateOfBirth" xml:space="preserve"><value>Birthday</value></data>
   <data name="Profile_PictureTooLarge" xml:space="preserve"><value>Profile picture must be under 20MB.</value></data>
-  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>Profile picture must be JPEG, PNG, or WebP format.</value></data>
+  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>Profile picture must be JPEG, PNG, WebP, or HEIC format.</value></data>
   <data name="ProfileEdit_GoogleAvatar" xml:space="preserve"><value>(Google avatar)</value></data>
-  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Upload a JPEG, PNG, or WebP image (max 20MB). Large images are automatically resized. This replaces your Google avatar.</value></data>
+  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Upload a JPEG, PNG, WebP, or HEIC image (max 20MB). Large images are automatically resized. This replaces your Google avatar.</value></data>
   <data name="ProfileEdit_RemovePicture" xml:space="preserve"><value>Remove custom picture (revert to Google avatar)</value></data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Only month and day are stored — we don't collect birth year.</value></data>
   <data name="Profile_Month" xml:space="preserve"><value>Month</value></data>
@@ -1069,5 +1068,13 @@
 &lt;p&gt;&lt;a href="{3}/Application/Create"&gt;Submit Renewal Application&lt;/a&gt;&lt;/p&gt;
 &lt;p&gt;If you do not renew, you will remain an active human but will no longer have {1}-level access.&lt;/p&gt;
 &lt;p&gt;Thank you for your continued involvement!&lt;br/&gt;The Humans Team&lt;/p&gt;</value><comment>{0} = user name, {1} = tier name, {2} = expiry date, {3} = base URL</comment></data>
+
+  <data name="Email_BoardDailyDigest_Subject" xml:space="preserve"><value>Board Digest: New Approvals on {0}</value><comment>{0} = date (YYYY-MM-DD)</comment></data>
+
+  <data name="Email_BoardDailyDigest_Body" xml:space="preserve"><value>&lt;h2&gt;Daily Approval Digest&lt;/h2&gt;
+&lt;p&gt;Dear {0},&lt;/p&gt;
+&lt;p&gt;The following humans were approved on &lt;strong&gt;{1}&lt;/strong&gt;:&lt;/p&gt;
+{2}
+&lt;p&gt;The Humans Team&lt;/p&gt;</value><comment>{0} = board member name, {1} = date, {2} = tier sections HTML</comment></data>
 
 </root>

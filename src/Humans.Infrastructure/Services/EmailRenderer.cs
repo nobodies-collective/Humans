@@ -1,4 +1,5 @@
 using System.Globalization;
+using Humans.Application.DTOs;
 using Humans.Application.Interfaces;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Configuration;
@@ -235,6 +236,23 @@ public class EmailRenderer : IEmailRenderer
                 HtmlEncode(tierName),
                 HtmlEncode(expiresAt),
                 _settings.BaseUrl);
+            return new EmailContent(subject, body);
+        }
+    }
+
+    public EmailContent RenderBoardDailyDigest(string boardMemberName, string date, IReadOnlyList<BoardDigestTierGroup> tierGroups, string? culture = null)
+    {
+        using (WithCulture(culture))
+        {
+            var subject = string.Format(CultureInfo.CurrentCulture, _localizer["Email_BoardDailyDigest_Subject"].Value, date);
+            var tierSectionsHtml = string.Join("\n", tierGroups.Select(g =>
+                $"<h3>{HtmlEncode(g.TierLabel)}</h3>\n<ul>\n{string.Join("\n", g.DisplayNames.Select(n => $"<li>{HtmlEncode(n)}</li>"))}\n</ul>"));
+            var body = string.Format(
+                CultureInfo.CurrentCulture,
+                _localizer["Email_BoardDailyDigest_Body"].Value,
+                HtmlEncode(boardMemberName),
+                HtmlEncode(date),
+                tierSectionsHtml);
             return new EmailContent(subject, body);
         }
     }

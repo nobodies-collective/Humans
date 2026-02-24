@@ -126,7 +126,8 @@ public class AdminLegalDocumentServiceTests : IDisposable
 
         updated.Should().BeTrue();
         version.Should().NotBeNull();
-        version!.ChangesSummary.Should().Be("Clarified scope");
+        version.Should().NotBeNull();
+        version.ChangesSummary.Should().Be("Clarified scope");
     }
 
     [Fact]

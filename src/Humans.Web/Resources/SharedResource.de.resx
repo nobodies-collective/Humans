@@ -358,7 +358,6 @@
   <data name="Admin_StatsApproved" xml:space="preserve"><value>Genehmigt</value></data>
   <data name="Admin_StatsRejected" xml:space="preserve"><value>Abgelehnt</value></data>
   <data name="Admin_StatsPending" xml:space="preserve"><value>Ausstehend</value></data>
-  <data name="Admin_StatsApprovalRate" xml:space="preserve"><value>Genehmigungsrate</value></data>
 
   <!-- Governance Create View -->
   <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>Neuer Antrag</value></data>
@@ -825,9 +824,9 @@
   <data name="Profile_ProfilePicture" xml:space="preserve"><value>Profilbild</value></data>
   <data name="Profile_DateOfBirth" xml:space="preserve"><value>Geburtstag</value></data>
   <data name="Profile_PictureTooLarge" xml:space="preserve"><value>Das Profilbild darf maximal 20MB gro&#xDF; sein.</value></data>
-  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>Das Profilbild muss im JPEG-, PNG- oder WebP-Format sein.</value></data>
+  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>Das Profilbild muss im JPEG-, PNG-, WebP- oder HEIC-Format sein.</value></data>
   <data name="ProfileEdit_GoogleAvatar" xml:space="preserve"><value>(Google-Avatar)</value></data>
-  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Laden Sie ein JPEG-, PNG- oder WebP-Bild hoch (max. 20MB). Gro&#xDF;e Bilder werden automatisch verkleinert. Dies ersetzt Ihren Google-Avatar.</value></data>
+  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Laden Sie ein JPEG-, PNG-, WebP- oder HEIC-Bild hoch (max. 20MB). Gro&#xDF;e Bilder werden automatisch verkleinert. Dies ersetzt Ihren Google-Avatar.</value></data>
   <data name="ProfileEdit_RemovePicture" xml:space="preserve"><value>Benutzerdefiniertes Bild entfernen (zum Google-Avatar zur&#xFC;ckkehren)</value></data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Nur f&#xFC;r Sie und den Vorstand sichtbar. Wird f&#xFC;r den Geburtstagskalender verwendet.</value></data>
   <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>Teamleiter</value></data>
@@ -1069,5 +1068,13 @@
 &lt;p&gt;&lt;a href="{3}/Application/Create"&gt;Verl&#xE4;ngerungsantrag einreichen&lt;/a&gt;&lt;/p&gt;
 &lt;p&gt;Ohne Verl&#xE4;ngerung bleibst du ein aktiver Human, hast aber keinen {1}-Zugang mehr.&lt;/p&gt;
 &lt;p&gt;Vielen Dank f&#xFC;r dein Engagement!&lt;br/&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = user name, {1} = tier name, {2} = expiry date, {3} = base URL</comment></data>
+
+  <data name="Email_BoardDailyDigest_Subject" xml:space="preserve"><value>Vorstandsbericht: Neue Genehmigungen am {0}</value><comment>{0} = date (YYYY-MM-DD)</comment></data>
+
+  <data name="Email_BoardDailyDigest_Body" xml:space="preserve"><value>&lt;h2&gt;T&#xE4;gliche Genehmigungen&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;Die folgenden Humans wurden am &lt;strong&gt;{1}&lt;/strong&gt; genehmigt:&lt;/p&gt;
+{2}
+&lt;p&gt;Das Humans-Team&lt;/p&gt;</value><comment>{0} = board member name, {1} = date, {2} = tier sections HTML</comment></data>
 
 </root>

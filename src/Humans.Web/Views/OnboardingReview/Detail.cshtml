@@ -52,15 +52,15 @@
             </div>
         }
 
-        <vc:profile-card user-id="@Model.UserId" view-mode="@Humans.Web.ViewComponents.ProfileCardViewMode.Admin" />
+        <vc:profile-card user-id="@Model.UserId" view-mode="@ProfileCardViewMode.Admin" />
     </div>
 
     <div class="col-md-4">
         <div class="card mb-4">
             <div class="card-header">@Localizer["OnboardingReview_Actions"]</div>
             <div class="card-body">
-                @if (Model.ConsentCheckStatus == Humans.Domain.Enums.ConsentCheckStatus.Pending ||
-                     Model.ConsentCheckStatus == Humans.Domain.Enums.ConsentCheckStatus.Flagged)
+                @if (Model.ConsentCheckStatus == ConsentCheckStatus.Pending ||
+                     Model.ConsentCheckStatus == ConsentCheckStatus.Flagged)
                 {
                     <form asp-action="Clear" asp-route-userId="@Model.UserId" method="post" class="mb-3">
                         @Html.AntiForgeryToken()
@@ -76,7 +76,7 @@
 
                     <hr />
 
-                    @if (Model.ConsentCheckStatus != Humans.Domain.Enums.ConsentCheckStatus.Flagged)
+                    @if (Model.ConsentCheckStatus != ConsentCheckStatus.Flagged)
                     {
                         <form asp-action="Flag" asp-route-userId="@Model.UserId" method="post">
                             @Html.AntiForgeryToken()
@@ -104,7 +104,7 @@
                         <div class="form-text">@Localizer["OnboardingReview_RejectHelp"]</div>
                     </form>
                 }
-                else if (Model.ConsentCheckStatus == Humans.Domain.Enums.ConsentCheckStatus.Cleared)
+                else if (Model.ConsentCheckStatus == ConsentCheckStatus.Cleared)
                 {
                     <div class="text-success text-center">
                         <i class="fa-solid fa-circle-check fa-2x mb-2"></i>

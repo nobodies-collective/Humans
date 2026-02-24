@@ -1,4 +1,5 @@
 using System.Globalization;
+using Humans.Application.DTOs;
 using Humans.Domain.Enums;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -220,6 +221,20 @@ public class SmtpEmailService : IEmailService
         var content = _renderer.RenderTermRenewalReminder(userName, tierName, expiresAt, culture);
         await SendEmailAsync(userEmail, content.Subject, content.HtmlBody, cancellationToken);
         _metrics.RecordEmailSent("term_renewal_reminder");
+    }
+
+    /// <inheritdoc />
+    public async Task SendBoardDailyDigestAsync(
+        string email,
+        string name,
+        string date,
+        IReadOnlyList<BoardDigestTierGroup> groups,
+        string? culture = null,
+        CancellationToken cancellationToken = default)
+    {
+        var content = _renderer.RenderBoardDailyDigest(name, date, groups, culture);
+        await SendEmailAsync(email, content.Subject, content.HtmlBody, cancellationToken);
+        _metrics.RecordEmailSent("board_daily_digest");
     }
 
     private async Task SendEmailAsync(

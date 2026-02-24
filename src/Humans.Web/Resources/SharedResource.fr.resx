@@ -358,7 +358,6 @@
   <data name="Admin_StatsApproved" xml:space="preserve"><value>Approuv&#xE9;es</value></data>
   <data name="Admin_StatsRejected" xml:space="preserve"><value>Rejet&#xE9;es</value></data>
   <data name="Admin_StatsPending" xml:space="preserve"><value>En attente</value></data>
-  <data name="Admin_StatsApprovalRate" xml:space="preserve"><value>Taux d'approbation</value></data>
 
   <!-- Governance Create View -->
   <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>Nouvelle candidature</value></data>
@@ -825,9 +824,9 @@
   <data name="Profile_ProfilePicture" xml:space="preserve"><value>Photo de profil</value></data>
   <data name="Profile_DateOfBirth" xml:space="preserve"><value>Anniversaire</value></data>
   <data name="Profile_PictureTooLarge" xml:space="preserve"><value>La photo de profil doit faire moins de 20 Mo.</value></data>
-  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La photo de profil doit &#xEA;tre au format JPEG, PNG ou WebP.</value></data>
+  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La photo de profil doit &#xEA;tre au format JPEG, PNG, WebP ou HEIC.</value></data>
   <data name="ProfileEdit_GoogleAvatar" xml:space="preserve"><value>(avatar Google)</value></data>
-  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>T&#xE9;l&#xE9;chargez une image JPEG, PNG ou WebP (max. 20 Mo). Les grandes images sont redimensionn&#xE9;es automatiquement. Ceci remplace votre avatar Google.</value></data>
+  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>T&#xE9;l&#xE9;chargez une image JPEG, PNG, WebP ou HEIC (max. 20 Mo). Les grandes images sont redimensionn&#xE9;es automatiquement. Ceci remplace votre avatar Google.</value></data>
   <data name="ProfileEdit_RemovePicture" xml:space="preserve"><value>Supprimer la photo personnalis&#xE9;e (revenir &#xE0; l'avatar Google)</value></data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Visible uniquement par vous et le conseil d'administration. Utilis&#xE9; pour le calendrier des anniversaires.</value></data>
   <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>Responsables d'&#xE9;quipe</value></data>
@@ -1069,5 +1068,13 @@
 &lt;p&gt;&lt;a href="{3}/Application/Create"&gt;Soumettre une demande de renouvellement&lt;/a&gt;&lt;/p&gt;
 &lt;p&gt;Sans renouvellement, vous resterez un human actif mais n'aurez plus l'acc&#xE8;s de niveau {1}.&lt;/p&gt;
 &lt;p&gt;Merci pour votre engagement !&lt;br/&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = tier name, {2} = expiry date, {3} = base URL</comment></data>
+
+  <data name="Email_BoardDailyDigest_Subject" xml:space="preserve"><value>R&#xE9;sum&#xE9; du conseil : Nouvelles approbations du {0}</value><comment>{0} = date (YYYY-MM-DD)</comment></data>
+
+  <data name="Email_BoardDailyDigest_Body" xml:space="preserve"><value>&lt;h2&gt;R&#xE9;sum&#xE9; quotidien des approbations&lt;/h2&gt;
+&lt;p&gt;Bonjour {0},&lt;/p&gt;
+&lt;p&gt;Les humans suivants ont &#xE9;t&#xE9; approuv&#xE9;s le &lt;strong&gt;{1}&lt;/strong&gt; :&lt;/p&gt;
+{2}
+&lt;p&gt;L'&#xE9;quipe Humans&lt;/p&gt;</value><comment>{0} = board member name, {1} = date, {2} = tier sections HTML</comment></data>
 
 </root>

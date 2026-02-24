@@ -1,4 +1,3 @@
-@using Humans.Web.ViewComponents
 @model Humans.Web.Models.AdminHumanDetailViewModel
 @{
     ViewData["Title"] = string.Format(Localizer["AdminHumanDetail_Title"].Value, Model.DisplayName);
@@ -77,8 +76,8 @@
                         {
                             var badgeClass = Model.ConsentCheckStatus.Value switch
                             {
-                                Humans.Domain.Enums.ConsentCheckStatus.Cleared => "bg-success",
-                                Humans.Domain.Enums.ConsentCheckStatus.Flagged => "bg-danger",
+                                ConsentCheckStatus.Cleared => "bg-success",
+                                ConsentCheckStatus.Flagged => "bg-danger",
                                 _ => "bg-warning"
                             };
                             <span class="badge @badgeClass">@Model.ConsentCheckStatus.Value</span>

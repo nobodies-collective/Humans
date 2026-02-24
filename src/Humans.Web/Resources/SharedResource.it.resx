@@ -358,7 +358,6 @@
   <data name="Admin_StatsApproved" xml:space="preserve"><value>Approvate</value></data>
   <data name="Admin_StatsRejected" xml:space="preserve"><value>Respinte</value></data>
   <data name="Admin_StatsPending" xml:space="preserve"><value>In attesa</value></data>
-  <data name="Admin_StatsApprovalRate" xml:space="preserve"><value>Tasso di approvazione</value></data>
 
   <!-- Governance Create View -->
   <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>Nuova domanda</value></data>
@@ -825,9 +824,9 @@
   <data name="Profile_ProfilePicture" xml:space="preserve"><value>Foto del profilo</value></data>
   <data name="Profile_DateOfBirth" xml:space="preserve"><value>Compleanno</value></data>
   <data name="Profile_PictureTooLarge" xml:space="preserve"><value>La foto del profilo deve essere inferiore a 20MB.</value></data>
-  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La foto del profilo deve essere in formato JPEG, PNG o WebP.</value></data>
+  <data name="Profile_PictureInvalidFormat" xml:space="preserve"><value>La foto del profilo deve essere in formato JPEG, PNG, WebP o HEIC.</value></data>
   <data name="ProfileEdit_GoogleAvatar" xml:space="preserve"><value>(avatar di Google)</value></data>
-  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Carica un'immagine JPEG, PNG o WebP (max 20MB). Le immagini grandi vengono ridimensionate automaticamente. Questo sostituisce il tuo avatar di Google.</value></data>
+  <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Carica un'immagine JPEG, PNG, WebP o HEIC (max 20MB). Le immagini grandi vengono ridimensionate automaticamente. Questo sostituisce il tuo avatar di Google.</value></data>
   <data name="ProfileEdit_RemovePicture" xml:space="preserve"><value>Rimuovi foto personalizzata (torna all'avatar di Google)</value></data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Visibile solo a te e al consiglio. Utilizzato per il calendario dei compleanni.</value></data>
   <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>Responsabili del team</value></data>
@@ -1069,5 +1068,13 @@
 &lt;p&gt;&lt;a href="{3}/Application/Create"&gt;Invia domanda di rinnovo&lt;/a&gt;&lt;/p&gt;
 &lt;p&gt;Senza rinnovo, rimarrai un human attivo ma non avrai pi&#xF9; l'accesso di livello {1}.&lt;/p&gt;
 &lt;p&gt;Grazie per il tuo impegno!&lt;br/&gt;Il team di Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = tier name, {2} = expiry date, {3} = base URL</comment></data>
+
+  <data name="Email_BoardDailyDigest_Subject" xml:space="preserve"><value>Riepilogo del consiglio: Nuove approvazioni del {0}</value><comment>{0} = date (YYYY-MM-DD)</comment></data>
+
+  <data name="Email_BoardDailyDigest_Body" xml:space="preserve"><value>&lt;h2&gt;Riepilogo giornaliero delle approvazioni&lt;/h2&gt;
+&lt;p&gt;Ciao {0},&lt;/p&gt;
+&lt;p&gt;I seguenti humans sono stati approvati il &lt;strong&gt;{1}&lt;/strong&gt;:&lt;/p&gt;
+{2}
+&lt;p&gt;Il team di Humans&lt;/p&gt;</value><comment>{0} = board member name, {1} = date, {2} = tier sections HTML</comment></data>
 
 </root>

@@ -233,12 +233,10 @@ public class LegalDocumentSyncService : ILegalDocumentSyncService
         }
 
         // Fetch canonical file to get commit SHA
-        string canonicalContent;
         string commitSha;
         try
         {
             var result = await GetFileContentAsync(canonicalEntry.Value, cancellationToken);
-            canonicalContent = result.Content;
             commitSha = result.Sha;
         }
         catch (NotFoundException)

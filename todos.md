@@ -1,56 +1,17 @@
 # Release TODOs
 
 Audit date: 2026-02-05
-Last synced: 2026-02-21T14:30
+Last synced: 2026-02-24
 
 ---
 
 ## Open Work — Prioritized
 
-### Priority 1: GDPR & Security (Pre-Launch Blockers)
+### Blocked — Waiting on External Input
 
 #### #56: Add site policies page for app-specific legal disclosures
 Dedicated page for app-specific operational disclosures (delegated coordinator roles + enhanced access, contact point, visibility model, automated provisioning) with multi-language privacy policy viewer below (same tabbed UX as Governance statutes). Replaces current hardcoded English-only Privacy page.
-
----
-
-### Priority 2: Quick Fixes (do now, standalone)
-
-#### QA-01: "Approved" badge not localized in non-English locales
-On the Spanish dashboard (and likely other locales), the "Approved" badge in the Governance section stays in English. Should be "Aprobado" / "Genehmigt" / etc.
-**Where:** Dashboard view, Governance card — badge rendering
-
-#### QA-02: `/Application` page title says "Governance"
-Navigating to `/Application` renders a page titled "Governance" showing only the application status card (missing statutes and community stats). Should use a distinct title like "My Applications" to differentiate from `/Governance`.
-**Where:** `Application/Index.cshtml` or routing
-
-#### QA-03: Language names missing diacritics in language switcher
-"Espanol" should be "Español" and "Francais" should be "Français" in the language dropdown.
-**Where:** `_Layout.cshtml` or language configuration
-
-#### QA-04: Enable custom error pages in Development mode
-`UseStatusCodePagesWithReExecute` is inside the `!IsDevelopment()` block (`Program.cs:299-304`), so 404s return bare empty responses in dev/QA. Move it outside the conditional so the friendly 404 page shows in all environments.
-**Where:** `Program.cs:299-304`
-
----
-
----
-
-### Priority 4: Onboarding Redesign Epic (#52) — IMPLEMENTED, STABILIZING
-
-Core implementation landed in `8a9ee4e` with 5 follow-up fix commits (`67eb438`, `6c40f27`, `46a9046`, `f638a46`, `a49e27e`). Needs QA validation.
-
-#### #52: Redesign onboarding with three membership tiers (EPIC) — IMPLEMENTED
-Three tiers implemented: Volunteer (auto-accepted after consent check), Colaborador (board vote), Asociado (board vote + specific questions). Tier selection at signup, MembershipCalculator computes status. Remaining: QA testing, edge cases.
-
-#### #54: Add Consent and Volunteer Coordinator roles with onboarding gate — IMPLEMENTED
-Consent Coordinator role implemented with onboarding gate. Consent check must be cleared before volunteer is auto-approved. Remaining: QA testing.
-
-#### #53: Add board voting system for application reviews — IMPLEMENTED
-Board voting dashboard implemented with Yay/Maybe/No/Abstain votes, per-board-member columns, approve/reject actions. Remaining: QA testing.
-
-#### #46 Part 2: Add reject signup action — IMPLEMENTED
-`RejectSignup` endpoint implemented in `OnboardingReviewController`. Reject button, optional reason, email notification, audit log all in place. Committed as part of onboarding epic.
+**Blocked:** Waiting on Pepe for legal advice on disclosure content.
 
 ---
 
@@ -82,12 +43,7 @@ App-layer overlap guard added (`RoleAssignmentService.HasOverlappingAssignmentAs
 
 ---
 
-### Priority 7: Quality & Compliance
-
-
----
-
-### Priority 8: Technical Debt (Low Priority)
+### Priority 7: Technical Debt (Low Priority)
 
 #### G-03: N+1 queries in GoogleWorkspaceSyncService
 Helper methods re-query resources already loaded by parent methods. Redundant DB round-trips.
@@ -102,6 +58,9 @@ Legal docs slice extracted to `AdminLegalDocumentsController` + `IAdminLegalDocu
 #### #60: Replace magic string ViewModel properties with domain enums
 ~50+ sites across 20+ ViewModels, 10+ controllers, and 3 views use `.ToString()` on domain enums instead of passing typed enums through. Affects `ApplicationStatus`, `MembershipStatus`, `TeamMemberRole`, `SystemTeamType`, `GoogleResourceType`, `TeamJoinRequestStatus`, `AuditAction`, `GoogleSyncSource`, `MembershipTier`. Also fix `StatusBadgeExtensions` to accept enums and add coding rules to prevent recurrence.
 
+#### Replace audit log entity type magic strings with nameof()
+~40 instances of hardcoded `"User"`, `"Team"`, `"Profile"`, `"Application"`, `"GoogleResource"` strings passed to `IAuditLogService` across 11 files. Replace with `nameof(User)`, `nameof(Team)`, etc. for type safety. Also 3 `Url.Action` calls in TeamController/ProfileCardViewComponent use hardcoded `"Picture"` instead of `nameof(ProfileController.Picture)`.
+
 #### G-09: Team membership caching
 Every page load queries team memberships. At ~500 users, in-memory cache with short TTL would eliminate most DB hits.
 
@@ -114,11 +73,6 @@ Add a `DbCommandInterceptor` tracking query counts by table + operation (SELECT/
 #### P2-04: Review prerelease/beta observability packages
 Two OpenTelemetry packages pinned to beta versions. Check for stable releases or document risk acceptance.
 
-#### #25 / F-06: Localize email content and fix background job culture context
-Email subjects are localized but body content is still inline HTML with string interpolation. Additionally, background jobs (`SendReConsentReminderJob`, `SuspendNonCompliantMembersJob`, `ProcessAccountDeletionsJob`) don't set `CurrentUICulture` to each user's `PreferredLanguage` before calling `IEmailService`, so even subjects come out English-only for job-triggered emails.
-
-#### #35: Refactor email previews to use live templates instead of static HTML
-Admin email previews (`/Admin/EmailPreview`) use duplicated static HTML in `AdminController.GenerateEmailPreviews()` — separate from the real `SmtpEmailService` templates. Replace with calls through the actual email rendering path using stub data (Volunteers team for team-related emails). This picks up the real CSS, environment banner, and localization. **Batch with #25.**
 
 ---
 
@@ -291,3 +245,19 @@ Committed `ebc54b0`. Governance page shows aggregate application statistics: tot
 
 ### #50: Split teams page into My Teams / Other Teams DONE
 Committed `793bceb`. Teams Index page now shows "My Teams" section at top with user's teams, "Other Teams" section below with remaining teams. Extracted `_TeamCard.cshtml` partial to eliminate card markup duplication. Pagination applies to Other Teams only. Separate `/Teams/My` page retained for Leave/Manage actions.
+
+### #52/#53/#54/#46: Onboarding redesign epic DONE
+Three tiers (Volunteer/Colaborador/Asociado), board voting, Consent Coordinator gate, reject signup. Landed `8a9ee4e` + 5 follow-up fixes. QA validated, issues closed.
+
+### #62: Fix missing id attributes on dynamically-generated form fields in profile edit DONE
+Committed `e3f1ad5`. Added `id` attributes to dynamically-created contact field and volunteer history rows in `/Profile/Edit`.
+
+### #63: Add daily board digest email for new member approvals DONE
+Committed `1e2b29f`. Nightly Hangfire job (02:00 UTC) emails each Board member a summary of the previous UTC day's volunteer and tier application approvals, grouped by tier. Skips on zero-approval days. Localized templates in all 5 locales. Admin email preview added.
+
+### QA-01 through QA-04: Localize status badges, fix page title, diacritics, error pages DONE
+Committed `a884b22`. Fixed "Approved" badge localization, `/Application` page title, language name diacritics, and custom error pages in dev mode.
+
+### #25 / F-06: Localize email bodies DONE
+### #35: Deduplicate email previews DONE
+Committed `08c4d84`. Extracted `IEmailRenderer` to separate rendering from SMTP transport, eliminating ~250 lines of duplicated body HTML. All 14 email body texts localized via SharedResource resx keys across en/es/de/fr/it. Email preview page uses per-locale personas and adds TermRenewalReminder preview.
