@@ -19,7 +19,6 @@ public class TeamController : Controller
     private readonly ITeamService _teamService;
     private readonly UserManager<User> _userManager;
     private readonly HumansDbContext _dbContext;
-    private readonly ILogger<TeamController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IConfiguration _configuration;
 
@@ -27,14 +26,12 @@ public class TeamController : Controller
         ITeamService teamService,
         UserManager<User> userManager,
         HumansDbContext dbContext,
-        ILogger<TeamController> logger,
         IStringLocalizer<SharedResource> localizer,
         IConfiguration configuration)
     {
         _teamService = teamService;
         _userManager = userManager;
         _dbContext = dbContext;
-        _logger = logger;
         _localizer = localizer;
         _configuration = configuration;
     }
@@ -56,7 +53,7 @@ public class TeamController : Controller
 
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
 
-        TeamSummaryViewModel ToSummary(Domain.Entities.Team t) => new()
+        TeamSummaryViewModel ToSummary(Team t) => new()
         {
             Id = t.Id,
             Name = t.Name,

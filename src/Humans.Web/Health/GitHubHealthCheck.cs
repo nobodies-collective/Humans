@@ -42,7 +42,7 @@ public class GitHubHealthCheck : IHealthCheck
             }
 
             // Verify we can access the repository
-            var repo = await client.Repository.Get(_settings.Owner, _settings.Repository);
+            await client.Repository.Get(_settings.Owner, _settings.Repository);
 
             // Check rate limit status
             var rateLimit = client.GetLastApiInfo()?.RateLimit;

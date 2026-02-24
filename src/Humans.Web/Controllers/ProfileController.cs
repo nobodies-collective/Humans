@@ -31,27 +31,18 @@ public class ProfileController : Controller
     private readonly IContactFieldService _contactFieldService;
     private readonly VolunteerHistoryService _volunteerHistoryService;
     private readonly IEmailService _emailService;
-    private readonly ITeamService _teamService;
     private readonly IMembershipCalculator _membershipCalculator;
     private readonly IUserEmailService _userEmailService;
     private readonly IAuditLogService _auditLogService;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
-    private const string EmailVerificationTokenPurpose = "UserEmailVerification";
     private const int VerificationCooldownMinutes = 5;
     private const int MaxProfilePictureUploadBytes = 20 * 1024 * 1024; // 20MB upload limit
-    private const int MaxProfilePictureLongSide = 1000;
     private static readonly HashSet<string> AllowedImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
         "image/png",
         "image/webp",
-        "image/heic",
-        "image/heif",
-        "image/avif"
-    };
-    private static readonly HashSet<string> HeifContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
         "image/heic",
         "image/heif",
         "image/avif"
@@ -78,7 +69,6 @@ public class ProfileController : Controller
         IContactFieldService contactFieldService,
         VolunteerHistoryService volunteerHistoryService,
         IEmailService emailService,
-        ITeamService teamService,
         IMembershipCalculator membershipCalculator,
         IUserEmailService userEmailService,
         IAuditLogService auditLogService,
@@ -92,7 +82,6 @@ public class ProfileController : Controller
         _contactFieldService = contactFieldService;
         _volunteerHistoryService = volunteerHistoryService;
         _emailService = emailService;
-        _teamService = teamService;
         _membershipCalculator = membershipCalculator;
         _userEmailService = userEmailService;
         _auditLogService = auditLogService;
@@ -324,7 +313,7 @@ public class ProfileController : Controller
             if (!AllowedImageContentTypes.Contains(uploadContentType))
             {
                 var ext = Path.GetExtension(model.ProfilePictureUpload.FileName);
-                if (ext != null && HeifExtensionToContentType.TryGetValue(ext, out var mapped))
+                if (!string.IsNullOrEmpty(ext) && HeifExtensionToContentType.TryGetValue(ext, out var mapped))
                 {
                     uploadContentType = mapped;
                 }

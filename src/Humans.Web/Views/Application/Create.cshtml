@@ -24,8 +24,8 @@
                         <label class="form-label">@Localizer["Profile_MembershipTier"]</label>
                         <p class="text-muted small mb-3">@Localizer["ProfileEdit_TierDescription"]</p>
                         @{
-                            var isColaborador = Model.MembershipTier != Humans.Domain.Enums.MembershipTier.Asociado;
-                            var isAsociado = Model.MembershipTier == Humans.Domain.Enums.MembershipTier.Asociado;
+                            var isColaborador = Model.MembershipTier != MembershipTier.Asociado;
+                            var isAsociado = Model.MembershipTier == MembershipTier.Asociado;
                         }
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="radio" name="MembershipTier" value="Colaborador" id="tierColaborador" checked="@isColaborador" />
@@ -58,7 +58,7 @@
                         <div class="form-text">@Localizer["GovernanceCreate_AdditionalInfoHelp"]</div>
                     </div>
 
-                    <div id="asociadoQuestionsCreate" style="display: @(Model.MembershipTier == Humans.Domain.Enums.MembershipTier.Asociado ? "block" : "none");">
+                    <div id="asociadoQuestionsCreate" style="display: @(Model.MembershipTier == MembershipTier.Asociado ? "block" : "none");">
                         <h6>@Localizer["Application_AsociadoQuestionsHeader"]</h6>
 
                         <div class="mb-4">

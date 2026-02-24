@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 using Octokit;
 using Humans.Domain.Enums;
@@ -22,7 +21,6 @@ public class GovernanceController : Controller
     private readonly HumansDbContext _dbContext;
     private readonly UserManager<Domain.Entities.User> _userManager;
     private readonly ILogger<GovernanceController> _logger;
-    private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IMemoryCache _cache;
     private readonly GitHubSettings _gitHubSettings;
 
@@ -36,14 +34,12 @@ public class GovernanceController : Controller
         HumansDbContext dbContext,
         UserManager<Domain.Entities.User> userManager,
         ILogger<GovernanceController> logger,
-        IStringLocalizer<SharedResource> localizer,
         IMemoryCache cache,
         IOptions<GitHubSettings> gitHubSettings)
     {
         _dbContext = dbContext;
         _userManager = userManager;
         _logger = logger;
-        _localizer = localizer;
         _cache = cache;
         _gitHubSettings = gitHubSettings.Value;
     }

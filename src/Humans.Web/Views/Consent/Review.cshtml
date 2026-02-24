@@ -31,9 +31,7 @@
     var defaultLang = Model.Content.ContainsKey(userLang) ? userLang : "es";
 
     // Build per-language translations for consent checkbox text (used by tab-switch JS)
-    var rm = new System.Resources.ResourceManager(
-        "Humans.Web.SharedResource",
-        typeof(Humans.Web.SharedResource).Assembly);
+    var rm = new System.Resources.ResourceManager(typeof(SharedResource));
 
     var consentTranslations = new Dictionary<string, object>();
     foreach (var lang in orderedLanguages)

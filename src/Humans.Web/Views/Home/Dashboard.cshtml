@@ -33,7 +33,7 @@
 @if (!Model.IsVolunteerMember)
 {
     var consentsComplete = Model.PendingConsents == 0 && Model.TotalRequiredConsents > 0;
-    var consentCheckCleared = Model.ConsentCheckStatus == Humans.Domain.Enums.ConsentCheckStatus.Cleared;
+    var consentCheckCleared = Model.ConsentCheckStatus == ConsentCheckStatus.Cleared;
     <div class="alert alert-info" role="alert">
         <h5 class="alert-heading">@Localizer["Dashboard_OnboardingTitle"]</h5>
         <p class="mb-2">@Localizer["Dashboard_OnboardingDescription"]</p>
@@ -111,7 +111,7 @@ else if (Model.PendingConsents > 0)
 
         @if (Model.IsVolunteerMember)
         {
-            @if (Model.MembershipTier != Humans.Domain.Enums.MembershipTier.Volunteer)
+            @if (Model.MembershipTier != MembershipTier.Volunteer)
             {
                 <div class="card mb-4">
                     <div class="card-header">

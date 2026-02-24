@@ -58,6 +58,9 @@ Legal docs slice extracted to `AdminLegalDocumentsController` + `IAdminLegalDocu
 #### #60: Replace magic string ViewModel properties with domain enums
 ~50+ sites across 20+ ViewModels, 10+ controllers, and 3 views use `.ToString()` on domain enums instead of passing typed enums through. Affects `ApplicationStatus`, `MembershipStatus`, `TeamMemberRole`, `SystemTeamType`, `GoogleResourceType`, `TeamJoinRequestStatus`, `AuditAction`, `GoogleSyncSource`, `MembershipTier`. Also fix `StatusBadgeExtensions` to accept enums and add coding rules to prevent recurrence.
 
+#### Replace audit log entity type magic strings with nameof()
+~40 instances of hardcoded `"User"`, `"Team"`, `"Profile"`, `"Application"`, `"GoogleResource"` strings passed to `IAuditLogService` across 11 files. Replace with `nameof(User)`, `nameof(Team)`, etc. for type safety. Also 3 `Url.Action` calls in TeamController/ProfileCardViewComponent use hardcoded `"Picture"` instead of `nameof(ProfileController.Picture)`.
+
 #### G-09: Team membership caching
 Every page load queries team memberships. At ~500 users, in-memory cache with short TTL would eliminate most DB hits.
 

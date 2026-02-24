@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using LibHeifSharp;
-using Microsoft.Extensions.Logging;
 using SkiaSharp;
 
 namespace Humans.Web.Helpers;

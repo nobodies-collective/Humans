@@ -8,7 +8,6 @@ using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Services;
 using Xunit;
-using MemberApplication = Humans.Domain.Entities.Application;
 
 namespace Humans.Application.Tests.Services;
 
@@ -186,7 +185,6 @@ public class MembershipCalculatorTests : IDisposable
     public async Task GetRequiredTeamIdsForUserAsync_IncludesCurrentTeamMemberships()
     {
         var userId = Guid.NewGuid();
-        var now = _clock.GetCurrentInstant();
         var geeks = SeedTeam("Geeks", SystemTeamType.None);
         var volunteers = SeedTeam("Volunteers", SystemTeamType.Volunteers, SystemTeamIds.Volunteers);
         SeedTeamMember(geeks.Id, userId, TeamMemberRole.Member);
@@ -212,7 +210,7 @@ public class MembershipCalculatorTests : IDisposable
 
         // System teams
         SeedTeam("Volunteers", SystemTeamType.Volunteers, SystemTeamIds.Volunteers);
-        var leadsTeam = SeedTeam("Leads", SystemTeamType.Leads, SystemTeamIds.Leads);
+        SeedTeam("Leads", SystemTeamType.Leads, SystemTeamIds.Leads);
 
         // User-created team where user is Lead
         var geeks = SeedTeam("Geeks", SystemTeamType.None);

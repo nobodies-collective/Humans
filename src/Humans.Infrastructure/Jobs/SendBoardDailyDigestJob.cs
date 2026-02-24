@@ -79,7 +79,7 @@ public class SendBoardDailyDigestJob
                     && a.ResolvedAt != null
                     && a.ResolvedAt.Value >= windowStart
                     && a.ResolvedAt.Value < windowEnd)
-                .Select(a => new { a.MembershipTier, DisplayName = a.User.DisplayName })
+                .Select(a => new { a.MembershipTier, a.User.DisplayName })
                 .ToListAsync(cancellationToken);
 
             foreach (var tierGroup in tierApprovals
