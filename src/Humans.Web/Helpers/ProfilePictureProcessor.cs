@@ -1,8 +1,6 @@
 using System.Runtime.InteropServices;
+using ImageMagick;
 using LibHeifSharp;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Processing;
 using SkiaSharp;
 
 namespace Humans.Web.Helpers;
@@ -23,7 +21,7 @@ internal static class ProfilePictureProcessor
     {
         if (!HeifContentTypes.Contains(contentType))
         {
-            return ResizeWithImageSharp(imageData, logger);
+            return ResizeWithMagick(imageData, logger);
         }
 
         // HEIF/AVIF path: decode with LibHeifSharp, resize with SkiaSharp
@@ -58,37 +56,28 @@ internal static class ProfilePictureProcessor
         }
     }
 
-    // ImageSharp preserves EXIF metadata (including the orientation tag) through
-    // load → resize → save, so the output JPEG displays correctly in all browsers.
-    private static (byte[] Data, string ContentType)? ResizeWithImageSharp(byte[] imageData, ILogger? logger)
+    // AutoOrient() rotates pixels to match the EXIF orientation tag, then strips the tag,
+    // so the output JPEG always displays correctly regardless of EXIF support in the viewer.
+    private static (byte[] Data, string ContentType)? ResizeWithMagick(byte[] imageData, ILogger? logger)
     {
         try
         {
-            using var ms = new MemoryStream(imageData);
-            using var image = Image.Load(ms);
+            using var image = new MagickImage(imageData);
+            image.AutoOrient();
 
             var longSide = Math.Max(image.Width, image.Height);
             if (longSide > MaxProfilePictureLongSide)
             {
-                image.Mutate(x => x.Resize(new ResizeOptions
-                {
-                    Size = new Size(MaxProfilePictureLongSide, MaxProfilePictureLongSide),
-                    Mode = ResizeMode.Max,
-                }));
+                image.Resize(new MagickGeometry(MaxProfilePictureLongSide, MaxProfilePictureLongSide));
             }
 
-            using var output = new MemoryStream();
-            image.SaveAsJpeg(output, new JpegEncoder { Quality = 85 });
-            return (output.ToArray(), "image/jpeg");
+            image.Format = MagickFormat.Jpeg;
+            image.Quality = 85;
+            return (image.ToByteArray(), "image/jpeg");
         }
-        catch (UnknownImageFormatException ex)
+        catch (MagickException ex)
         {
-            logger?.LogWarning(ex, "Unknown image format ({Length} bytes)", imageData.Length);
-            return null;
-        }
-        catch (InvalidImageContentException ex)
-        {
-            logger?.LogWarning(ex, "Invalid image content ({Length} bytes)", imageData.Length);
+            logger?.LogWarning(ex, "Failed to process image ({Length} bytes)", imageData.Length);
             return null;
         }
     }
