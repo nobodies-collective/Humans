@@ -114,7 +114,7 @@
             }
             @if (commitHash != null)
             {
-                <a href="https://github.com/nobodies-collective/Humans/commit/@commitHash" target="_blank" rel="noopener noreferrer" class="text-muted small font-monospace">@commitHash</a>
+                <a href="https://github.com/nobodies-collective/Humans/commit/@commitHash" target="_blank" rel="noopener noreferrer" class="text-muted small font-monospace">@commitHash[..Math.Min(8, commitHash.Length)]</a>
             }
         </div>
     </footer>
