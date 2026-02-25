@@ -26,6 +26,7 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="SixLabors.ImageSharp" />
     <PackageReference Include="LibHeifSharp" />
     <PackageReference Include="PhotoSauce.NativeCodecs.Libheif" />
     <PackageReference Include="SkiaSharp" />

@@ -1,5 +1,8 @@
 using System.Runtime.InteropServices;
 using LibHeifSharp;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Processing;
 using SkiaSharp;
 
 namespace Humans.Web.Helpers;
@@ -18,23 +21,13 @@ internal static class ProfilePictureProcessor
     internal static (byte[] Data, string ContentType)? ResizeProfilePicture(
         byte[] imageData, string contentType, ILogger? logger = null)
     {
-        SKBitmap? original;
-        if (HeifContentTypes.Contains(contentType))
+        if (!HeifContentTypes.Contains(contentType))
         {
-            original = DecodeHeifToSkBitmap(imageData, logger);
-        }
-        else
-        {
-            using var skData = SKData.CreateCopy(imageData);
-            using var codec = SKCodec.Create(skData);
-            if (codec == null)
-            {
-                return null;
-            }
-
-            original = SKBitmap.Decode(codec);
+            return ResizeWithImageSharp(imageData, logger);
         }
 
+        // HEIF/AVIF path: decode with LibHeifSharp, resize with SkiaSharp
+        var original = DecodeHeifToSkBitmap(imageData, logger);
         if (original == null)
         {
             return null;
@@ -62,6 +55,41 @@ internal static class ProfilePictureProcessor
             using var smallImage = SKImage.FromBitmap(original);
             using var smallEncoded = smallImage.Encode(SKEncodedImageFormat.Jpeg, 85);
             return (smallEncoded.ToArray(), "image/jpeg");
+        }
+    }
+
+    // ImageSharp preserves EXIF metadata (including the orientation tag) through
+    // load → resize → save, so the output JPEG displays correctly in all browsers.
+    private static (byte[] Data, string ContentType)? ResizeWithImageSharp(byte[] imageData, ILogger? logger)
+    {
+        try
+        {
+            using var ms = new MemoryStream(imageData);
+            using var image = Image.Load(ms);
+
+            var longSide = Math.Max(image.Width, image.Height);
+            if (longSide > MaxProfilePictureLongSide)
+            {
+                image.Mutate(x => x.Resize(new ResizeOptions
+                {
+                    Size = new Size(MaxProfilePictureLongSide, MaxProfilePictureLongSide),
+                    Mode = ResizeMode.Max,
+                }));
+            }
+
+            using var output = new MemoryStream();
+            image.SaveAsJpeg(output, new JpegEncoder { Quality = 85 });
+            return (output.ToArray(), "image/jpeg");
+        }
+        catch (UnknownImageFormatException ex)
+        {
+            logger?.LogWarning(ex, "Unknown image format ({Length} bytes)", imageData.Length);
+            return null;
+        }
+        catch (InvalidImageContentException ex)
+        {
+            logger?.LogWarning(ex, "Invalid image content ({Length} bytes)", imageData.Length);
+            return null;
         }
     }
 
