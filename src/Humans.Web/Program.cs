@@ -58,8 +58,6 @@ Log.Logger = logConfig.CreateLogger();
 builder.Host.UseSerilog();
 
 // Add services to the container
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 // Configure NodaTime clock
 builder.Services.AddSingleton<IClock>(SystemClock.Instance);
@@ -70,16 +68,24 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
 });
 
-// Configure Npgsql data source with NodaTime and dynamic JSON (for jsonb Dictionary columns)
-var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-dataSourceBuilder.UseNodaTime();
-dataSourceBuilder.EnableDynamicJson();
-var dataSource = dataSourceBuilder.Build();
+// Configure Npgsql data source with NodaTime and dynamic JSON (for jsonb Dictionary columns).
+// Registered as a DI singleton so the connection string is resolved at service-resolution time,
+// allowing integration tests to override configuration via WebApplicationFactory.
+builder.Services.AddSingleton(sp =>
+{
+    var connStr = sp.GetRequiredService<IConfiguration>()
+        .GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    var dsb = new NpgsqlDataSourceBuilder(connStr);
+    dsb.UseNodaTime();
+    dsb.EnableDynamicJson();
+    return dsb.Build();
+});
 
 // Configure EF Core with PostgreSQL
-builder.Services.AddDbContext<HumansDbContext>(options =>
+builder.Services.AddDbContext<HumansDbContext>((sp, options) =>
 {
-    options.UseNpgsql(dataSource, npgsqlOptions =>
+    options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>(), npgsqlOptions =>
     {
         npgsqlOptions.UseNodaTime();
         npgsqlOptions.MigrationsAssembly("Humans.Infrastructure");
@@ -134,14 +140,28 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation, RoleAssignmentClaimsTransformation>();
 
 // Configure Hangfire
-builder.Services.AddHangfire(config => config
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UsePostgreSqlStorage(options =>
-        options.UseNpgsqlConnection(connectionString)));
+builder.Services.AddHangfire((sp, config) =>
+{
+    config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings();
 
-builder.Services.AddHangfireServer();
+    // Skip Postgres storage in test environment — Hangfire's static GlobalConfiguration
+    // and JobStorage.Current are per-AppDomain, which conflicts with parallel
+    // WebApplicationFactory instances each pointing at different Testcontainers.
+    if (!sp.GetRequiredService<IHostEnvironment>().IsEnvironment("Testing"))
+    {
+        config.UsePostgreSqlStorage(options =>
+            options.UseNpgsqlConnection(
+                sp.GetRequiredService<IConfiguration>()
+                    .GetConnectionString("DefaultConnection")!));
+    }
+});
+
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHangfireServer();
+}
 
 // Configure OpenTelemetry
 var serviceName = "Humans.Web";
@@ -172,7 +192,7 @@ builder.Services.AddSingleton(new ActivitySource(serviceName, serviceVersion));
 
 // Configure Health Checks
 builder.Services.AddHealthChecks()
-    .AddNpgSql(connectionString, name: "postgresql")
+    .AddNpgSql(sp => sp.GetRequiredService<NpgsqlDataSource>(), name: "postgresql")
     .AddHangfire(options => options.MinimumAvailableServers = 1, name: "hangfire")
     .AddCheck<ConfigurationHealthCheck>("configuration")
     .AddCheck<SmtpHealthCheck>("smtp")
@@ -372,13 +392,18 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 // Prometheus metrics endpoint
 app.MapPrometheusScrapingEndpoint("/metrics");
 
-// Hangfire dashboard (admin only in production)
-app.MapHangfireDashboard("/hangfire", new DashboardOptions
+// Hangfire dashboard (admin only in production).
+// Skipped in Testing — MapHangfireDashboard resolves JobStorage from DI eagerly,
+// and Hangfire's static JobStorage.Current isn't set until after migrations.
+if (!app.Environment.IsEnvironment("Testing"))
 {
-    Authorization = app.Environment.IsDevelopment()
-        ? []
-        : [new Humans.Web.HangfireAuthorizationFilter()]
-});
+    app.MapHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = app.Environment.IsDevelopment()
+            ? []
+            : [new Humans.Web.HangfireAuthorizationFilter()]
+    });
+}
 
 app.MapControllerRoute(
     name: "default",
@@ -394,7 +419,16 @@ app.MapRazorPages();
     await dbContext.Database.MigrateAsync();
 }
 
-app.UseHumansRecurringJobs();
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    // Force Hangfire global configuration to initialize (sets JobStorage.Current)
+    // before registering recurring jobs. The AddHangfire((sp, config) => ...) overload
+    // defers the config lambda until IGlobalConfiguration is resolved from DI;
+    // RecurringJob.AddOrUpdate() uses the static JobStorage.Current, so we must
+    // ensure it's set first.
+    app.Services.GetRequiredService<IGlobalConfiguration>();
+    app.UseHumansRecurringJobs();
+}
 
 await app.RunAsync();
 
