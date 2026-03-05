@@ -593,14 +593,38 @@
                 return template.content.firstChild;
             }
 
+            const phoneTypes = ['Phone', 'WhatsApp'];
+            const phonePlaceholder = '@Localizer["Validation_PhonePlaceholder"].Value';
+            const phoneTitle = '@Localizer["Validation_PhoneHint"].Value';
+            const defaultPlaceholder = 'Enter contact info';
+
+            function applyPhoneValidation(valueInput, isPhone) {
+                if (isPhone) {
+                    valueInput.setAttribute('pattern', '\\+.+');
+                    valueInput.setAttribute('title', phoneTitle);
+                    valueInput.placeholder = phonePlaceholder;
+                    valueInput.type = 'tel';
+                } else {
+                    valueInput.removeAttribute('pattern');
+                    valueInput.removeAttribute('title');
+                    valueInput.placeholder = defaultPlaceholder;
+                    valueInput.type = 'text';
+                }
+            }
+
             function setupRow(row) {
                 const typeSelect = row.querySelector('.field-type-select');
                 const customLabelCol = row.querySelector('.custom-label-col');
                 const removeBtn = row.querySelector('.remove-contact-field');
+                const valueInput = row.querySelector('.contact-value-input');
 
-                typeSelect.addEventListener('change', function() {
-                    customLabelCol.style.display = this.value === 'Other' ? 'block' : 'none';
-                });
+                function onTypeChange() {
+                    customLabelCol.style.display = typeSelect.value === 'Other' ? 'block' : 'none';
+                    applyPhoneValidation(valueInput, phoneTypes.includes(typeSelect.value));
+                }
+
+                typeSelect.addEventListener('change', onTypeChange);
+                onTypeChange();
 
                 removeBtn.addEventListener('click', function() {
                     row.remove();

@@ -880,6 +880,9 @@
   <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Comparte tus habilidades, intereses y cómo te gustaría participar. Visible para todos los miembros.</value></data>
   <data name="Profile_BoardNotes" xml:space="preserve"><value>Notas para la Junta</value></data>
   <data name="ProfileEdit_BoardNotesHelp" xml:space="preserve"><value>Notas privadas para la Junta.</value></data>
+  <data name="Validation_PhoneE164" xml:space="preserve"><value>{0} debe empezar con + y c&#xF3;digo de pa&#xED;s (ej. +34 612 345 678)</value></data>
+  <data name="Validation_PhonePlaceholder" xml:space="preserve"><value>+34 612 345 678</value></data>
+  <data name="Validation_PhoneHint" xml:space="preserve"><value>Debe empezar con + y c&#xF3;digo de pa&#xED;s (ej. +34 612 345 678)</value></data>
   <data name="Profile_BoardInformation" xml:space="preserve"><value>Información privada y de la Junta</value></data>
 
   <!-- Onboarding Review -->

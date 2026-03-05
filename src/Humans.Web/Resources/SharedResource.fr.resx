@@ -875,6 +875,9 @@
   <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Partagez vos compétences, intérêts et comment vous aimeriez vous impliquer. Visible par tous les membres.</value></data>
   <data name="Profile_BoardNotes" xml:space="preserve"><value>Notes pour le Conseil</value></data>
   <data name="ProfileEdit_BoardNotesHelp" xml:space="preserve"><value>Notes privées pour le Conseil.</value></data>
+  <data name="Validation_PhoneE164" xml:space="preserve"><value>{0} doit commencer par + et l'indicatif du pays (ex. +34 612 345 678)</value></data>
+  <data name="Validation_PhonePlaceholder" xml:space="preserve"><value>+34 612 345 678</value></data>
+  <data name="Validation_PhoneHint" xml:space="preserve"><value>Doit commencer par + et l'indicatif du pays (ex. +34 612 345 678)</value></data>
   <data name="Profile_BoardInformation" xml:space="preserve"><value>Conseil &amp; informations privées</value></data>
 
   <!-- Onboarding Review -->

@@ -275,6 +275,27 @@ public class ProfileController : Controller
             await _dbContext.SaveChangesAsync(); // Save to get the profile ID for contact fields
         }
 
+        // Validate phone numbers start with + (E.164 format)
+        var phoneTypes = new[] { ContactFieldType.Phone, ContactFieldType.WhatsApp };
+        foreach (var cf in model.EditableContactFields.Where(cf => !string.IsNullOrWhiteSpace(cf.Value) && phoneTypes.Contains(cf.FieldType)))
+        {
+            if (!cf.Value.TrimStart().StartsWith('+'))
+            {
+                ModelState.AddModelError(string.Empty,
+                    _localizer["Validation_PhoneE164", cf.FieldType.ToString()].Value);
+                ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
+                return View(model);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(model.EmergencyContactPhone) && !model.EmergencyContactPhone.TrimStart().StartsWith('+'))
+        {
+            ModelState.AddModelError(nameof(model.EmergencyContactPhone),
+                _localizer["Validation_PhoneE164", _localizer["Profile_EmergencyContactPhone"].Value].Value);
+            ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
+            return View(model);
+        }
+
         profile.BurnerName = model.BurnerName;
         profile.FirstName = model.FirstName;
         profile.LastName = model.LastName;

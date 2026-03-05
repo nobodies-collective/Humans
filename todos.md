@@ -9,9 +9,6 @@ Last synced: 2026-03-05
 
 ### Priority 2: Small-Medium Enhancements
 
-#### #80: Enforce E.164 format (+country code) for phone number fields
-Phone and WhatsApp contact fields and emergency contact phone must start with `+` and country code. Client + server validation, placeholder hints, prompt existing members to update non-compliant numbers.
-
 #### #77: Reasons why an Asociado is accepted (or applying)
 Board members voting on Asociado applications should be required to select which bylaw criteria the applicant meets. Optionally, the applicant could also state their reasons when applying.
 
@@ -134,6 +131,9 @@ Two OpenTelemetry packages pinned to beta versions. Check for stable releases or
 ---
 
 ## Completed
+
+### #80: Enforce E.164 phone format DONE
+Phone/WhatsApp contact fields and emergency contact phone now require + country code prefix. Client-side: dynamic pattern/placeholder/type=tel on Phone/WhatsApp fields, static on emergency phone. Server-side: controller validates before save with localized error. All 5 languages. Existing numbers untouched until next edit. Committed `5d90b77`.
 
 ### #72: Add clear CTA to homepage DONE
 Added "New here? Sign in with Google to get started." text above the sign-in button on the pre-login homepage. Localized in all 5 languages. Committed `534554a`.
