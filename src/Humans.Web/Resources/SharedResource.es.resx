@@ -551,6 +551,12 @@
   <!-- ======================== -->
   <data name="AdminDashboard_Title" xml:space="preserve"><value>Panel de administraci&#xF3;n</value></data>
   <data name="AdminHumans_Title" xml:space="preserve"><value>Humans</value></data>
+  <data name="AdminHumans_AllStatuses" xml:space="preserve"><value>Todos</value></data>
+  <data name="AdminHumans_Active" xml:space="preserve"><value>Activos</value></data>
+  <data name="AdminHumans_Pending" xml:space="preserve"><value>Pendientes</value></data>
+  <data name="AdminHumans_Suspended" xml:space="preserve"><value>Suspendidos</value></data>
+  <data name="AdminHumans_Inactive" xml:space="preserve"><value>Inactivos</value></data>
+  <data name="AdminHumans_Deleting" xml:space="preserve"><value>Pendiente de borrado</value></data>
   <data name="AdminHumanDetail_Title" xml:space="preserve"><value>Miembro: {0}</value><comment>{0} = display name</comment></data>
   <data name="AdminApplications_Title" xml:space="preserve"><value>Solicitudes de asociado</value></data>
   <data name="AdminApplicationDetail_Title" xml:space="preserve"><value>Revisar solicitud</value></data>

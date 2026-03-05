@@ -149,7 +149,7 @@ public class AdminController : Controller
     }
 
     [HttpGet("Humans")]
-    public async Task<IActionResult> Humans(string? search, string? filter, int page = 1)
+    public async Task<IActionResult> Humans(string? search, string? filter, string sort = "name", string dir = "asc", int page = 1)
     {
         var pageSize = 20;
         var query = _dbContext.Users.AsQueryable();
@@ -161,17 +161,30 @@ public class AdminController : Controller
                 u.DisplayName.Contains(search));
         }
 
-        if (string.Equals(filter, "pending", StringComparison.OrdinalIgnoreCase))
+        // Status filtering
+        switch (filter?.ToLowerInvariant())
         {
-            query = query.Where(u => u.Profile != null && !u.Profile.IsApproved && !u.Profile.IsSuspended);
+            case "active":
+                query = query.Where(u => u.Profile != null && u.Profile.IsApproved && !u.Profile.IsSuspended);
+                break;
+            case "pending":
+                query = query.Where(u => u.Profile != null && !u.Profile.IsApproved && !u.Profile.IsSuspended);
+                break;
+            case "suspended":
+                query = query.Where(u => u.Profile != null && u.Profile.IsSuspended);
+                break;
+            case "inactive":
+                query = query.Where(u => u.Profile == null);
+                break;
+            case "deleting":
+                query = query.Where(u => u.DeletionRequestedAt != null);
+                break;
         }
 
         var totalCount = await query.CountAsync();
 
-        var members = await query
-            .OrderByDescending(u => u.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        // Materialize for flexible sorting (fine at ~500 users)
+        var allMatching = await query
             .Select(u => new AdminHumanViewModel
             {
                 Id = u.Id,
@@ -188,10 +201,32 @@ public class AdminController : Controller
             })
             .ToListAsync();
 
+        var ascending = !string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+        IEnumerable<AdminHumanViewModel> sorted = sort?.ToLowerInvariant() switch
+        {
+            "joined" => ascending
+                ? allMatching.OrderBy(m => m.CreatedAt)
+                : allMatching.OrderByDescending(m => m.CreatedAt),
+            "login" => ascending
+                ? allMatching.OrderBy(m => m.LastLoginAt.HasValue ? 0 : 1).ThenBy(m => m.LastLoginAt)
+                : allMatching.OrderBy(m => m.LastLoginAt.HasValue ? 0 : 1).ThenByDescending(m => m.LastLoginAt),
+            "status" => ascending
+                ? allMatching.OrderBy(m => m.MembershipStatus, StringComparer.OrdinalIgnoreCase)
+                : allMatching.OrderByDescending(m => m.MembershipStatus, StringComparer.OrdinalIgnoreCase),
+            _ => ascending
+                ? allMatching.OrderBy(m => m.DisplayName, StringComparer.OrdinalIgnoreCase)
+                : allMatching.OrderByDescending(m => m.DisplayName, StringComparer.OrdinalIgnoreCase),
+        };
+
+        var members = sorted.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
         var viewModel = new AdminHumanListViewModel
         {
             Humans = members,
             SearchTerm = search,
+            StatusFilter = filter,
+            SortBy = sort?.ToLowerInvariant() ?? "name",
+            SortDir = ascending ? "asc" : "desc",
             TotalCount = totalCount,
             PageNumber = page,
             PageSize = pageSize

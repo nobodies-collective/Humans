@@ -546,6 +546,12 @@
   <!-- ======================== -->
   <data name="AdminDashboard_Title" xml:space="preserve"><value>Dashboard Admin</value></data>
   <data name="AdminHumans_Title" xml:space="preserve"><value>Humans</value></data>
+  <data name="AdminHumans_AllStatuses" xml:space="preserve"><value>Tutti</value></data>
+  <data name="AdminHumans_Active" xml:space="preserve"><value>Attivi</value></data>
+  <data name="AdminHumans_Pending" xml:space="preserve"><value>In attesa</value></data>
+  <data name="AdminHumans_Suspended" xml:space="preserve"><value>Sospesi</value></data>
+  <data name="AdminHumans_Inactive" xml:space="preserve"><value>Inattivi</value></data>
+  <data name="AdminHumans_Deleting" xml:space="preserve"><value>In attesa di cancellazione</value></data>
   <data name="AdminHumanDetail_Title" xml:space="preserve"><value>Membro: {0}</value><comment>{0} = display name</comment></data>
   <data name="AdminApplications_Title" xml:space="preserve"><value>Domande asociado</value></data>
   <data name="AdminApplicationDetail_Title" xml:space="preserve"><value>Esamina domanda</value></data>

@@ -30,6 +30,9 @@ public class AdminHumanListViewModel
 {
     public List<AdminHumanViewModel> Humans { get; set; } = [];
     public string? SearchTerm { get; set; }
+    public string? StatusFilter { get; set; }
+    public string SortBy { get; set; } = "name";
+    public string SortDir { get; set; } = "asc";
     public int TotalCount { get; set; }
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 20;
