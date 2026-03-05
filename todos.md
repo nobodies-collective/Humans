@@ -16,11 +16,6 @@ Board members voting on Asociado applications should be required to select which
 
 ### Priority 3: Medium Features
 
-#### #84: Admin/Humans table — column sorting, status filtering, default sort order
-Clickable column headers for sort (toggle asc/desc), status filter dropdown/tabs, intentional default sort (alphabetical or by team/role, not insert order). Audit other tables too.
-
----
-
 ### Blocked — Waiting on External Input
 
 #### #56: Add site policies page for app-specific legal disclosures
@@ -30,11 +25,6 @@ Dedicated page for app-specific operational disclosures (delegated coordinator r
 ---
 
 ### Priority 4: Architecture / Refactoring
-
-#### #70: Extract IOnboardingService and expand IApplicationDecisionService
-Service-layer refactoring to move data mutations out of controllers. Consolidates duplicated consent-check logic, fixes missing deprovision call in `AdminController.RejectSignup`, and moves cache eviction from 10 scattered sites to 2 services. Full plan at `~/.claude/plans/sharded-swinging-thompson.md`. See [#70](https://github.com/nobodies-collective/Humans/issues/70).
-
----
 
 ### Priority 5: UI/Navigation Improvements
 
@@ -84,7 +74,7 @@ Helper methods re-query resources already loaded by parent methods. Redundant DB
 `HumanDetail` loads ALL applications and consent records via `Include` when it only needs a few. `Humans` list relies on implicit Include behavior.
 
 #### #59 / G-08: Extract duplicated controller business logic into shared services
-Legal docs slice extracted to `AdminLegalDocumentsController` + `IAdminLegalDocumentService`. Application approve/reject extracted to `IApplicationDecisionService`. Remaining: signup rejection (duplicated in Admin + OnboardingReview), volunteer approval (duplicated in Admin + OnboardingReview), and extending `IRoleAssignmentService` with assign/end/reassign orchestration. Consolidate into fewest services needed — extend existing interfaces where possible.
+Legal docs slice extracted to `AdminLegalDocumentsController` + `IAdminLegalDocumentService`. Application approve/reject extracted to `IApplicationDecisionService`. #70 extracted `IOnboardingService`, `IConsentService`, `IProfileService` — removing DbContext from OnboardingReview, Application, Consent, and Profile controllers. Remaining: extending `IRoleAssignmentService` with assign/end/reassign orchestration and removing remaining DbContext usage from AdminController.
 
 #### #60: Replace magic string ViewModel properties with domain enums
 ~50+ sites across 20+ ViewModels, 10+ controllers, and 3 views use `.ToString()` on domain enums instead of passing typed enums through. Affects `ApplicationStatus`, `MembershipStatus`, `TeamMemberRole`, `SystemTeamType`, `GoogleResourceType`, `TeamJoinRequestStatus`, `AuditAction`, `GoogleSyncSource`, `MembershipTier`. Also fix `StatusBadgeExtensions` to accept enums and add coding rules to prevent recurrence.
@@ -128,6 +118,12 @@ Two OpenTelemetry packages pinned to beta versions. Check for stable releases or
 ---
 
 ## Completed
+
+### #70: Extract IOnboardingService, expand IApplicationDecisionService, remove DbContext from controllers DONE
+Extracted 3 new service interfaces (`IOnboardingService`, `IConsentService`, `IProfileService`) and expanded `IApplicationDecisionService` with 4 new methods. Removed `DbContext` from OnboardingReviewController, ApplicationController, ConsentController, and ProfileController. Consolidated duplicated consent-check-to-Pending logic. Fixed bugs: AdminController.RejectSignup missing deprovision, AdminController.ApproveVolunteer missing cache eviction. AdminController mutations (Suspend/Unsuspend/Approve/Reject) now delegate to IOnboardingService. Committed `f351b82`, `931aa7d`, `c9a2388`, `bba766f`.
+
+### #84: Admin/Humans table sorting, filtering, default sort DONE
+Clickable column headers (name, joined, last login, status) with toggle asc/desc. Status filter bar: All/Active/Pending/Suspended/Inactive/Pending Deletion. Default sort changed to alphabetical. All state preserved across search/filter/sort/pagination. Localized in 5 languages. Committed `4456115`.
 
 ### #85: Map: restrict to active volunteers + profile links DONE
 Added `IsApproved` filter to map query so only approved volunteers appear. Map InfoWindow now links display names to `/Human/{userId}` profiles. Committed `50ebc77`.
