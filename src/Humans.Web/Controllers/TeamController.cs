@@ -272,9 +272,10 @@ public class TeamController : Controller
         var markers = await _dbContext.Profiles
             .AsNoTracking()
             .Include(p => p.User)
-            .Where(p => p.Latitude != null && p.Longitude != null && !p.IsSuspended)
+            .Where(p => p.Latitude != null && p.Longitude != null && !p.IsSuspended && p.IsApproved)
             .Select(p => new MapMarkerViewModel
             {
+                UserId = p.UserId,
                 DisplayName = p.User.DisplayName,
                 Latitude = p.Latitude!.Value,
                 Longitude = p.Longitude!.Value,

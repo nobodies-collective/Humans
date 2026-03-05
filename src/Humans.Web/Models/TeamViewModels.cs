@@ -212,6 +212,7 @@ public class MapViewModel
 
 public class MapMarkerViewModel
 {
+    public Guid UserId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }

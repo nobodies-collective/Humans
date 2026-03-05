@@ -12,9 +12,6 @@ Last synced: 2026-03-05
 #### #77: Reasons why an Asociado is accepted (or applying)
 Board members voting on Asociado applications should be required to select which bylaw criteria the applicant meets. Optionally, the applicant could also state their reasons when applying.
 
-#### #85: Map: connect-with-people functionality + restrict to active volunteers only
-Map pins should enable connection (link to profiles, "say hi"). Only show active volunteers — exclude people who haven't completed onboarding.
-
 ---
 
 ### Priority 3: Medium Features
@@ -131,6 +128,9 @@ Two OpenTelemetry packages pinned to beta versions. Check for stable releases or
 ---
 
 ## Completed
+
+### #85: Map: restrict to active volunteers + profile links DONE
+Added `IsApproved` filter to map query so only approved volunteers appear. Map InfoWindow now links display names to `/Human/{userId}` profiles. Committed `50ebc77`.
 
 ### #80: Enforce E.164 phone format DONE
 Phone/WhatsApp contact fields and emergency contact phone now require + country code prefix. Client-side: dynamic pattern/placeholder/type=tel on Phone/WhatsApp fields, static on emergency phone. Server-side: controller validates before save with localized error. All 5 languages. Existing numbers untouched until next edit. Committed `5d90b77`.

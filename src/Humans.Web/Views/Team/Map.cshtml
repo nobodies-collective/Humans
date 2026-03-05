@@ -70,7 +70,8 @@ else
                     });
 
                     const location = [m.city, m.countryCode].filter(Boolean).join(", ");
-                    const content = `<div style="padding: 4px 0;"><strong>${m.displayName}</strong>${location ? `<br><span style="color: #666;">${location}</span>` : ''}</div>`;
+                    const profileUrl = `/Human/${m.userId}`;
+                    const content = `<div style="padding: 4px 0;"><strong><a href="${profileUrl}">${m.displayName}</a></strong>${location ? `<br><span style="color: #666;">${location}</span>` : ''}</div>`;
 
                     marker.addEventListener("gmp-click", () => {
                         infoWindow.setContent(content);
