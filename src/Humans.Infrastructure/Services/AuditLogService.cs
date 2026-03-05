@@ -141,4 +141,50 @@ public class AuditLogService : IAuditLogService
             .Take(200)
             .ToListAsync();
     }
+
+    public async Task<IReadOnlyList<AuditLogEntry>> GetRecentAsync(int count, CancellationToken ct = default)
+    {
+        return await _dbContext.AuditLogEntries
+            .AsNoTracking()
+            .OrderByDescending(e => e.OccurredAt)
+            .Take(count)
+            .ToListAsync(ct);
+    }
+
+    public async Task<(IReadOnlyList<AuditLogEntry> Items, int TotalCount, int AnomalyCount)> GetFilteredAsync(
+        string? actionFilter, int page, int pageSize, CancellationToken ct = default)
+    {
+        var query = _dbContext.AuditLogEntries.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(actionFilter) && Enum.TryParse<AuditAction>(actionFilter, out var actionEnum))
+        {
+            query = query.Where(e => e.Action == actionEnum);
+        }
+
+        var totalCount = await query.CountAsync(ct);
+
+        var items = await query
+            .OrderByDescending(e => e.OccurredAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        var anomalyCount = await _dbContext.AuditLogEntries
+            .AsNoTracking()
+            .CountAsync(e => e.Action == AuditAction.AnomalousPermissionDetected, ct);
+
+        return (items, totalCount, anomalyCount);
+    }
+
+    public async Task<IReadOnlyList<AuditLogEntry>> GetByUserAsync(Guid userId, int count, CancellationToken ct = default)
+    {
+        return await _dbContext.AuditLogEntries
+            .AsNoTracking()
+            .Where(e =>
+                (e.EntityType == "User" && e.EntityId == userId) ||
+                (e.RelatedEntityId == userId))
+            .OrderByDescending(e => e.OccurredAt)
+            .Take(count)
+            .ToListAsync(ct);
+    }
 }

@@ -54,4 +54,9 @@ public interface ITeamResourceService
     /// Gets the service account email address for display in sharing instructions.
     /// </summary>
     Task<string> GetServiceAccountEmailAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets a single Google resource by ID, including its team.
+    /// </summary>
+    Task<GoogleResource?> GetResourceByIdAsync(Guid resourceId, CancellationToken ct = default);
 }

@@ -42,4 +42,20 @@ public interface IAuditLogService
     /// Gets Google sync audit entries for a specific user.
     /// </summary>
     Task<IReadOnlyList<AuditLogEntry>> GetGoogleSyncByUserAsync(Guid userId);
+
+    /// <summary>
+    /// Gets the most recent audit log entries.
+    /// </summary>
+    Task<IReadOnlyList<AuditLogEntry>> GetRecentAsync(int count, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets filtered audit log entries with pagination.
+    /// </summary>
+    Task<(IReadOnlyList<AuditLogEntry> Items, int TotalCount, int AnomalyCount)> GetFilteredAsync(
+        string? actionFilter, int page, int pageSize, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets audit entries where the user is either the primary or related entity.
+    /// </summary>
+    Task<IReadOnlyList<AuditLogEntry>> GetByUserAsync(Guid userId, int count, CancellationToken ct = default);
 }

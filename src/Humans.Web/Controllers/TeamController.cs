@@ -2,12 +2,10 @@ using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
-using Humans.Infrastructure.Data;
 using Humans.Web.Models;
 
 namespace Humans.Web.Controllers;
@@ -18,20 +16,23 @@ public class TeamController : Controller
 {
     private readonly ITeamService _teamService;
     private readonly UserManager<User> _userManager;
-    private readonly HumansDbContext _dbContext;
+    private readonly IProfileService _profileService;
+    private readonly ITeamResourceService _teamResourceService;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IConfiguration _configuration;
 
     public TeamController(
         ITeamService teamService,
         UserManager<User> userManager,
-        HumansDbContext dbContext,
+        IProfileService profileService,
+        ITeamResourceService teamResourceService,
         IStringLocalizer<SharedResource> localizer,
         IConfiguration configuration)
     {
         _teamService = teamService;
         _userManager = userManager;
-        _dbContext = dbContext;
+        _profileService = profileService;
+        _teamResourceService = teamResourceService;
         _localizer = localizer;
         _configuration = configuration;
     }
@@ -129,23 +130,14 @@ public class TeamController : Controller
         var memberUserIds = activeMembers.Select(m => m.UserId).ToList();
 
         // Load profiles that have custom pictures (only need Id and UserId, not the picture data)
-        var profilesWithCustomPictures = await _dbContext.Profiles
-            .AsNoTracking()
-            .Where(p => memberUserIds.Contains(p.UserId) && p.ProfilePictureData != null)
-            .Select(p => new { p.Id, p.UserId, p.UpdatedAt })
-            .ToListAsync();
+        var profilesWithCustomPictures = await _profileService.GetCustomPictureInfoByUserIdsAsync(memberUserIds);
 
         var customPictureByUserId = profilesWithCustomPictures.ToDictionary(
             p => p.UserId,
-            p => Url.Action("Picture", "Profile", new { id = p.Id, v = p.UpdatedAt.ToUnixTimeTicks() })!);
+            p => Url.Action("Picture", "Profile", new { id = p.ProfileId, v = p.UpdatedAtTicks })!);
 
         // Load active Google resources for this team
-        var googleResources = await _dbContext.GoogleResources
-            .AsNoTracking()
-            .Where(gr => gr.TeamId == team.Id && gr.IsActive)
-            .OrderBy(gr => gr.ResourceType)
-            .ThenBy(gr => gr.Name)
-            .ToListAsync();
+        var googleResources = await _teamResourceService.GetTeamResourcesAsync(team.Id);
 
         var viewModel = new TeamDetailViewModel
         {
@@ -211,37 +203,12 @@ public class TeamController : Controller
         if (currentMonth < 1 || currentMonth > 12)
             currentMonth = DateTime.UtcNow.Month;
 
-        // Load all active profiles that have a date of birth and are in at least one team
-        var profilesWithBirthdays = await _dbContext.Profiles
-            .AsNoTracking()
-            .Include(p => p.User)
-            .Where(p => p.DateOfBirth != null && !p.IsSuspended)
-            .Where(p => p.DateOfBirth!.Value.Month == currentMonth)
-            .OrderBy(p => p.DateOfBirth!.Value.Day)
-            .Select(p => new
-            {
-                p.UserId,
-                p.User.DisplayName,
-                p.User.ProfilePictureUrl,
-                HasCustomPicture = p.ProfilePictureData != null,
-                ProfileId = p.Id,
-                p.DateOfBirth!.Value.Day,
-                p.DateOfBirth!.Value.Month
-            })
-            .ToListAsync();
+        // Load all active profiles that have a date of birth
+        var profilesWithBirthdays = await _profileService.GetBirthdayProfilesAsync(currentMonth);
 
         // Load team memberships for these users
         var userIds = profilesWithBirthdays.Select(p => p.UserId).ToList();
-        var teamMemberships = await _dbContext.Set<TeamMember>()
-            .AsNoTracking()
-            .Include(tm => tm.Team)
-            .Where(tm => userIds.Contains(tm.UserId) && tm.LeftAt == null && tm.Team.SystemTeamType == SystemTeamType.None)
-            .Select(tm => new { tm.UserId, tm.Team.Name })
-            .ToListAsync();
-
-        var teamsByUser = teamMemberships
-            .GroupBy(tm => tm.UserId)
-            .ToDictionary(g => g.Key, g => g.Select(tm => tm.Name).Distinct(StringComparer.Ordinal).ToList());
+        var teamsByUser = await _teamService.GetNonSystemTeamNamesByUserIdsAsync(userIds);
 
         var monthName = new DateTime(2000, currentMonth, 1).ToString("MMMM", CultureInfo.CurrentCulture);
 
@@ -269,20 +236,17 @@ public class TeamController : Controller
     [HttpGet("Map")]
     public async Task<IActionResult> Map()
     {
-        var markers = await _dbContext.Profiles
-            .AsNoTracking()
-            .Include(p => p.User)
-            .Where(p => p.Latitude != null && p.Longitude != null && !p.IsSuspended && p.IsApproved)
-            .Select(p => new MapMarkerViewModel
-            {
-                UserId = p.UserId,
-                DisplayName = p.User.DisplayName,
-                Latitude = p.Latitude!.Value,
-                Longitude = p.Longitude!.Value,
-                City = p.City,
-                CountryCode = p.CountryCode
-            })
-            .ToListAsync();
+        var profiles = await _profileService.GetApprovedProfilesWithLocationAsync();
+
+        var markers = profiles.Select(p => new MapMarkerViewModel
+        {
+            UserId = p.UserId,
+            DisplayName = p.DisplayName,
+            Latitude = p.Latitude,
+            Longitude = p.Longitude,
+            City = p.City,
+            CountryCode = p.CountryCode
+        }).ToList();
 
         ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
 

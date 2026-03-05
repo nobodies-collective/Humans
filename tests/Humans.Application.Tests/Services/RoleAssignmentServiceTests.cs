@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
 using Humans.Infrastructure.Data;
@@ -23,7 +24,14 @@ public class RoleAssignmentServiceTests : IDisposable
 
         _dbContext = new HumansDbContext(options);
         _clock = new FakeClock(Instant.FromUtc(2026, 2, 15, 15, 30));
-        _service = new RoleAssignmentService(_dbContext);
+        // These tests only exercise HasOverlappingAssignmentAsync which uses only _dbContext
+        _service = new RoleAssignmentService(
+            _dbContext,
+            null!,
+            null!,
+            _clock,
+            null!,
+            NullLogger<RoleAssignmentService>.Instance);
     }
 
     public void Dispose()

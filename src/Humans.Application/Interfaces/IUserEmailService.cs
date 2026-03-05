@@ -73,4 +73,13 @@ public interface IUserEmailService
     Task RemoveAllEmailsAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds an OAuth-sourced email (already verified, no token needed).
+    /// Used during first-time OAuth login to record the provider email.
+    /// </summary>
+    Task AddOAuthEmailAsync(
+        Guid userId,
+        string email,
+        CancellationToken cancellationToken = default);
 }

@@ -765,4 +765,45 @@ public partial class TeamService : ITeamService
 
         return result;
     }
+
+    public async Task<IReadOnlyDictionary<Guid, List<string>>> GetNonSystemTeamNamesByUserIdsAsync(
+        IEnumerable<Guid> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        var userIdList = userIds.ToList();
+        if (userIdList.Count == 0)
+            return new Dictionary<Guid, List<string>>();
+
+        var memberships = await _dbContext.TeamMembers
+            .AsNoTracking()
+            .Include(tm => tm.Team)
+            .Where(tm => userIdList.Contains(tm.UserId) && tm.LeftAt == null && tm.Team.SystemTeamType == SystemTeamType.None)
+            .Select(tm => new { tm.UserId, tm.Team.Name })
+            .ToListAsync(cancellationToken);
+
+        return memberships
+            .GroupBy(tm => tm.UserId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(tm => tm.Name).Distinct(StringComparer.Ordinal).ToList());
+    }
+
+    public async Task<(IReadOnlyList<Team> Items, int TotalCount)> GetAllTeamsForAdminAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.Teams
+            .Include(t => t.Members.Where(m => m.LeftAt == null))
+            .Include(t => t.JoinRequests.Where(r => r.Status == TeamJoinRequestStatus.Pending))
+            .OrderBy(t => t.SystemTeamType)
+            .ThenBy(t => t.Name);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
 }

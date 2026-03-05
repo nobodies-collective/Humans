@@ -288,6 +288,31 @@ public class UserEmailService : IUserEmailService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task AddOAuthEmailAsync(
+        Guid userId,
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var now = _clock.GetCurrentInstant();
+
+        var userEmail = new UserEmail
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Email = email,
+            IsOAuth = true,
+            IsVerified = true,
+            IsNotificationTarget = true,
+            Visibility = ContactFieldVisibility.BoardOnly,
+            DisplayOrder = 0,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        _dbContext.UserEmails.Add(userEmail);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     /// <summary>
     /// Returns the set of visibility levels a viewer with the given access level can see.
     /// Visibility is stored as string in DB, so >= comparison doesn't work correctly.

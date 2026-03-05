@@ -200,4 +200,18 @@ public interface ITeamService
     Task<IReadOnlyDictionary<Guid, int>> GetPendingRequestCountsByTeamIdsAsync(
         IEnumerable<Guid> teamIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets non-system team names for users, grouped by user ID.
+    /// Used for birthday display.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, List<string>>> GetNonSystemTeamNamesByUserIdsAsync(
+        IEnumerable<Guid> userIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all teams for admin list with active member counts and pending request counts.
+    /// </summary>
+    Task<(IReadOnlyList<Team> Items, int TotalCount)> GetAllTeamsForAdminAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default);
 }

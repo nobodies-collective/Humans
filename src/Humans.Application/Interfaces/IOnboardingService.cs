@@ -45,4 +45,8 @@ public interface IOnboardingService
 
     // --- Shared: consent-check pending (used by ConsentController + ProfileController) ---
     Task<bool> SetConsentCheckPendingIfEligibleAsync(Guid userId, CancellationToken ct = default);
+
+    // --- Admin ---
+    Task<DTOs.AdminDashboardData> GetAdminDashboardAsync(CancellationToken ct = default);
+    Task<OnboardingResult> PurgeHumanAsync(Guid userId, CancellationToken ct = default);
 }

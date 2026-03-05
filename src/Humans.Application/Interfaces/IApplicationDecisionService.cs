@@ -40,6 +40,11 @@ public interface IApplicationDecisionService
 
     Task<ApplicationDecisionResult> WithdrawAsync(
         Guid applicationId, Guid userId, CancellationToken ct = default);
+
+    Task<(IReadOnlyList<MemberApplication> Items, int TotalCount)> GetFilteredApplicationsAsync(
+        string? statusFilter, string? tierFilter, int page, int pageSize, CancellationToken ct = default);
+
+    Task<MemberApplication?> GetApplicationDetailAsync(Guid applicationId, CancellationToken ct = default);
 }
 
 public record ApplicationDecisionResult(bool Success, string? ErrorKey = null, Guid? ApplicationId = null);

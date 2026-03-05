@@ -664,4 +664,12 @@ public partial class TeamResourceService : ITeamResourceService
 
     [GeneratedRegex(@"drive\.google\.com/open\?id=(?<id>[a-zA-Z0-9_-]+)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 1000)]
     private static partial Regex DriveOpenUrlPattern();
+
+    public async Task<GoogleResource?> GetResourceByIdAsync(Guid resourceId, CancellationToken ct = default)
+    {
+        return await _dbContext.GoogleResources
+            .AsNoTracking()
+            .Include(r => r.Team)
+            .FirstOrDefaultAsync(r => r.Id == resourceId, ct);
+    }
 }

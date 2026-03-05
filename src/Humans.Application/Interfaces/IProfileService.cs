@@ -29,4 +29,20 @@ public interface IProfileService
     Task<object> ExportDataAsync(Guid userId, CancellationToken ct = default);
     Task<(bool CanAdd, int MinutesUntilResend, Guid? PendingEmailId)>
         GetEmailCooldownInfoAsync(Guid pendingEmailId, CancellationToken ct = default);
+
+    Task<(int ColaboradorCount, int AsociadoCount)> GetTierCountsAsync(CancellationToken ct = default);
+
+    Task<IReadOnlyList<(Guid ProfileId, Guid UserId, long UpdatedAtTicks)>>
+        GetCustomPictureInfoByUserIdsAsync(IEnumerable<Guid> userIds, CancellationToken ct = default);
+
+    Task<IReadOnlyList<(Guid UserId, string DisplayName, string? ProfilePictureUrl, bool HasCustomPicture, Guid ProfileId, int Day, int Month)>>
+        GetBirthdayProfilesAsync(int month, CancellationToken ct = default);
+
+    Task<IReadOnlyList<(Guid UserId, string DisplayName, double Latitude, double Longitude, string? City, string? CountryCode)>>
+        GetApprovedProfilesWithLocationAsync(CancellationToken ct = default);
+
+    Task<IReadOnlyList<DTOs.AdminHumanRow>> GetFilteredHumansAsync(
+        string? search, string? statusFilter, CancellationToken ct = default);
+
+    Task<DTOs.AdminHumanDetailData?> GetAdminHumanDetailAsync(Guid userId, CancellationToken ct = default);
 }

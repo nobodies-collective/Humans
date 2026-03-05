@@ -302,4 +302,48 @@ public class ApplicationDecisionService : IApplicationDecisionService
 
         return new ApplicationDecisionResult(true);
     }
+
+    public async Task<(IReadOnlyList<MemberApplication> Items, int TotalCount)> GetFilteredApplicationsAsync(
+        string? statusFilter, string? tierFilter, int page, int pageSize, CancellationToken ct = default)
+    {
+        var query = _dbContext.Applications
+            .AsNoTracking()
+            .Include(a => a.User)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(statusFilter) && Enum.TryParse<ApplicationStatus>(statusFilter, out var statusEnum))
+        {
+            query = query.Where(a => a.Status == statusEnum);
+        }
+        else
+        {
+            // Default: show pending applications
+            query = query.Where(a => a.Status == ApplicationStatus.Submitted);
+        }
+
+        if (!string.IsNullOrWhiteSpace(tierFilter) && Enum.TryParse<MembershipTier>(tierFilter, out var tierEnum))
+        {
+            query = query.Where(a => a.MembershipTier == tierEnum);
+        }
+
+        var totalCount = await query.CountAsync(ct);
+
+        var items = await query
+            .OrderBy(a => a.SubmittedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return (items, totalCount);
+    }
+
+    public async Task<MemberApplication?> GetApplicationDetailAsync(Guid applicationId, CancellationToken ct = default)
+    {
+        return await _dbContext.Applications
+            .Include(a => a.User)
+            .Include(a => a.ReviewedByUser)
+            .Include(a => a.StateHistory)
+                .ThenInclude(h => h.ChangedByUser)
+            .FirstOrDefaultAsync(a => a.Id == applicationId, ct);
+    }
 }

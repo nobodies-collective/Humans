@@ -1,33 +1,34 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
-using Humans.Infrastructure.Data;
 using Humans.Web.Models;
 
 namespace Humans.Web.Controllers;
 
 public class HomeController : Controller
 {
-    private readonly HumansDbContext _dbContext;
     private readonly UserManager<User> _userManager;
     private readonly IMembershipCalculator _membershipCalculator;
+    private readonly IProfileService _profileService;
+    private readonly IApplicationDecisionService _applicationDecisionService;
     private readonly IConfiguration _configuration;
     private readonly IClock _clock;
 
     public HomeController(
-        HumansDbContext dbContext,
         UserManager<User> userManager,
         IMembershipCalculator membershipCalculator,
+        IProfileService profileService,
+        IApplicationDecisionService applicationDecisionService,
         IConfiguration configuration,
         IClock clock)
     {
-        _dbContext = dbContext;
         _userManager = userManager;
         _membershipCalculator = membershipCalculator;
+        _profileService = profileService;
+        _applicationDecisionService = applicationDecisionService;
         _configuration = configuration;
         _clock = clock;
     }
@@ -46,16 +47,13 @@ public class HomeController : Controller
             return View();
         }
 
-        var profile = await _dbContext.Profiles
-            .FirstOrDefaultAsync(p => p.UserId == user.Id);
+        var profile = await _profileService.GetProfileAsync(user.Id);
 
         var membershipSnapshot = await _membershipCalculator.GetMembershipSnapshotAsync(user.Id);
 
-        // Get latest application
-        var latestApplication = await _dbContext.Applications
-            .Where(a => a.UserId == user.Id)
-            .OrderByDescending(a => a.SubmittedAt)
-            .FirstOrDefaultAsync();
+        // Get all applications for the user
+        var applications = await _applicationDecisionService.GetUserApplicationsAsync(user.Id);
+        var latestApplication = applications.Count > 0 ? applications[0] : null;
 
         var hasPendingApp = latestApplication != null &&
             latestApplication.Status == ApplicationStatus.Submitted;
@@ -68,13 +66,12 @@ public class HomeController : Controller
 
         if (currentTier != MembershipTier.Volunteer)
         {
-            var latestApprovedApp = await _dbContext.Applications
-                .Where(a => a.UserId == user.Id
-                    && a.Status == ApplicationStatus.Approved
+            var latestApprovedApp = applications
+                .Where(a => a.Status == ApplicationStatus.Approved
                     && a.MembershipTier == currentTier
                     && a.TermExpiresAt != null)
                 .OrderByDescending(a => a.TermExpiresAt)
-                .FirstOrDefaultAsync();
+                .FirstOrDefault();
 
             if (latestApprovedApp?.TermExpiresAt != null)
             {

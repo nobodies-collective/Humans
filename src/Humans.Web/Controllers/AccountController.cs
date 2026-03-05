@@ -2,9 +2,9 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using NodaTime;
+using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
-using Humans.Infrastructure.Data;
 
 namespace Humans.Web.Controllers;
 
@@ -14,20 +14,20 @@ public class AccountController : Controller
     private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
     private readonly ILogger<AccountController> _logger;
-    private readonly HumansDbContext _dbContext;
+    private readonly IUserEmailService _userEmailService;
 
     public AccountController(
         SignInManager<User> signInManager,
         UserManager<User> userManager,
         IClock clock,
         ILogger<AccountController> logger,
-        HumansDbContext dbContext)
+        IUserEmailService userEmailService)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _clock = clock;
         _logger = logger;
-        _dbContext = dbContext;
+        _userEmailService = userEmailService;
     }
 
     [HttpGet]
@@ -118,22 +118,7 @@ public class AccountController : Controller
             if (createResult.Succeeded)
             {
                 // Create OAuth UserEmail record for the login email
-                var now = _clock.GetCurrentInstant();
-                var userEmail = new UserEmail
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = user.Id,
-                    Email = email,
-                    IsOAuth = true,
-                    IsVerified = true,
-                    IsNotificationTarget = true,
-                    Visibility = ContactFieldVisibility.BoardOnly,
-                    DisplayOrder = 0,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                };
-                _dbContext.UserEmails.Add(userEmail);
-                await _dbContext.SaveChangesAsync();
+                await _userEmailService.AddOAuthEmailAsync(user.Id, email);
 
                 await _signInManager.SignInAsync(user, isPersistent: false);
                 _logger.LogInformation("User created an account using {Provider}", info.LoginProvider);

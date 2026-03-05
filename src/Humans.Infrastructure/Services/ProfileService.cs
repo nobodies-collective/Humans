@@ -47,6 +47,7 @@ public class ProfileService : IProfileService
     {
         return await _dbContext.Profiles
             .AsNoTracking()
+            .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.UserId == userId, ct);
     }
 
@@ -456,6 +457,163 @@ public class ProfileService : IProfileService
                 ra.CreatedByUserId
             })
         };
+    }
+
+    public async Task<(int ColaboradorCount, int AsociadoCount)> GetTierCountsAsync(CancellationToken ct = default)
+    {
+        var colaboradorCount = await _dbContext.Profiles
+            .CountAsync(p => p.MembershipTier == MembershipTier.Colaborador && !p.IsSuspended, ct);
+        var asociadoCount = await _dbContext.Profiles
+            .CountAsync(p => p.MembershipTier == MembershipTier.Asociado && !p.IsSuspended, ct);
+
+        return (colaboradorCount, asociadoCount);
+    }
+
+    public async Task<IReadOnlyList<(Guid ProfileId, Guid UserId, long UpdatedAtTicks)>>
+        GetCustomPictureInfoByUserIdsAsync(IEnumerable<Guid> userIds, CancellationToken ct = default)
+    {
+        var userIdList = userIds.ToList();
+        return await _dbContext.Profiles
+            .AsNoTracking()
+            .Where(p => userIdList.Contains(p.UserId) && p.ProfilePictureData != null)
+            .Select(p => new ValueTuple<Guid, Guid, long>(p.Id, p.UserId, p.UpdatedAt.ToUnixTimeTicks()))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<(Guid UserId, string DisplayName, string? ProfilePictureUrl, bool HasCustomPicture, Guid ProfileId, int Day, int Month)>>
+        GetBirthdayProfilesAsync(int month, CancellationToken ct = default)
+    {
+        return await _dbContext.Profiles
+            .AsNoTracking()
+            .Include(p => p.User)
+            .Where(p => p.DateOfBirth != null && !p.IsSuspended)
+            .Where(p => p.DateOfBirth!.Value.Month == month)
+            .OrderBy(p => p.DateOfBirth!.Value.Day)
+            .Select(p => new ValueTuple<Guid, string, string?, bool, Guid, int, int>(
+                p.UserId,
+                p.User.DisplayName,
+                p.User.ProfilePictureUrl,
+                p.ProfilePictureData != null,
+                p.Id,
+                p.DateOfBirth!.Value.Day,
+                p.DateOfBirth!.Value.Month))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<(Guid UserId, string DisplayName, double Latitude, double Longitude, string? City, string? CountryCode)>>
+        GetApprovedProfilesWithLocationAsync(CancellationToken ct = default)
+    {
+        return await _dbContext.Profiles
+            .AsNoTracking()
+            .Include(p => p.User)
+            .Where(p => p.Latitude != null && p.Longitude != null && !p.IsSuspended && p.IsApproved)
+            .Select(p => new ValueTuple<Guid, string, double, double, string?, string?>(
+                p.UserId,
+                p.User.DisplayName,
+                p.Latitude!.Value,
+                p.Longitude!.Value,
+                p.City,
+                p.CountryCode))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Application.DTOs.AdminHumanRow>> GetFilteredHumansAsync(
+        string? search, string? statusFilter, CancellationToken ct = default)
+    {
+        var query = _dbContext.Users.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(u =>
+                u.Email!.Contains(search) ||
+                u.DisplayName.Contains(search));
+        }
+
+        switch (statusFilter?.ToLowerInvariant())
+        {
+            case "active":
+                query = query.Where(u => u.Profile != null && u.Profile.IsApproved && !u.Profile.IsSuspended);
+                break;
+            case "pending":
+                query = query.Where(u => u.Profile != null && !u.Profile.IsApproved && !u.Profile.IsSuspended);
+                break;
+            case "suspended":
+                query = query.Where(u => u.Profile != null && u.Profile.IsSuspended);
+                break;
+            case "inactive":
+                query = query.Where(u => u.Profile == null);
+                break;
+            case "deleting":
+                query = query.Where(u => u.DeletionRequestedAt != null);
+                break;
+        }
+
+        return await query
+            .Select(u => new Application.DTOs.AdminHumanRow(
+                u.Id,
+                u.Email ?? string.Empty,
+                u.DisplayName,
+                u.ProfilePictureUrl,
+                u.CreatedAt.ToDateTimeUtc(),
+                u.LastLoginAt != null ? u.LastLoginAt.Value.ToDateTimeUtc() : null,
+                u.Profile != null,
+                u.Profile != null && u.Profile.IsApproved,
+                u.Profile != null
+                    ? (u.Profile.IsSuspended ? "Suspended" : (!u.Profile.IsApproved ? "Pending Approval" : "Active"))
+                    : "Inactive"))
+            .ToListAsync(ct);
+    }
+
+    public async Task<Application.DTOs.AdminHumanDetailData?> GetAdminHumanDetailAsync(Guid userId, CancellationToken ct = default)
+    {
+        var user = await _dbContext.Users
+            .Include(u => u.Profile)
+            .Include(u => u.Applications)
+            .Include(u => u.ConsentRecords)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct);
+
+        if (user == null)
+            return null;
+
+        var roleAssignments = await _dbContext.RoleAssignments
+            .AsNoTracking()
+            .Include(ra => ra.CreatedByUser)
+            .Where(ra => ra.UserId == userId)
+            .OrderByDescending(ra => ra.ValidFrom)
+            .ToListAsync(ct);
+
+        var auditEntries = await _dbContext.AuditLogEntries
+            .AsNoTracking()
+            .Where(e =>
+                (e.EntityType == "User" && e.EntityId == userId) ||
+                (e.RelatedEntityId == userId))
+            .OrderByDescending(e => e.OccurredAt)
+            .Take(50)
+            .Select(e => new Application.DTOs.AdminAuditEntry(
+                e.Action.ToString(),
+                e.Description,
+                e.OccurredAt.ToDateTimeUtc(),
+                e.ActorName,
+                e.ActorUserId == null))
+            .ToListAsync(ct);
+
+        string? rejectedByName = null;
+        if (user.Profile?.RejectedByUserId != null)
+        {
+            var rejectedByUser = await _dbContext.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == user.Profile.RejectedByUserId.Value, ct);
+            rejectedByName = rejectedByUser?.DisplayName;
+        }
+
+        return new Application.DTOs.AdminHumanDetailData(
+            user,
+            user.Profile,
+            user.Applications.OrderByDescending(a => a.SubmittedAt).ToList(),
+            user.ConsentRecords.Count,
+            roleAssignments,
+            auditEntries,
+            rejectedByName);
     }
 
     public async Task<(bool CanAdd, int MinutesUntilResend, Guid? PendingEmailId)>

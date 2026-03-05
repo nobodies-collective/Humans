@@ -2,13 +2,12 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Octokit;
+using Humans.Application.Interfaces;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Configuration;
-using Humans.Infrastructure.Data;
 using Humans.Web.Extensions;
 using Humans.Web.Models;
 
@@ -18,11 +17,12 @@ namespace Humans.Web.Controllers;
 [Route("[controller]")]
 public class GovernanceController : Controller
 {
-    private readonly HumansDbContext _dbContext;
     private readonly UserManager<Domain.Entities.User> _userManager;
     private readonly ILogger<GovernanceController> _logger;
     private readonly IMemoryCache _cache;
     private readonly GitHubSettings _gitHubSettings;
+    private readonly IProfileService _profileService;
+    private readonly IApplicationDecisionService _applicationDecisionService;
 
     private const string StatutesCacheKey = "StatutesContent";
     private static readonly Regex LanguageFilePattern = new(
@@ -31,17 +31,19 @@ public class GovernanceController : Controller
         TimeSpan.FromSeconds(1));
 
     public GovernanceController(
-        HumansDbContext dbContext,
         UserManager<Domain.Entities.User> userManager,
         ILogger<GovernanceController> logger,
         IMemoryCache cache,
-        IOptions<GitHubSettings> gitHubSettings)
+        IOptions<GitHubSettings> gitHubSettings,
+        IProfileService profileService,
+        IApplicationDecisionService applicationDecisionService)
     {
-        _dbContext = dbContext;
         _userManager = userManager;
         _logger = logger;
         _cache = cache;
         _gitHubSettings = gitHubSettings.Value;
+        _profileService = profileService;
+        _applicationDecisionService = applicationDecisionService;
     }
 
     public async Task<IActionResult> Index()
@@ -50,18 +52,13 @@ public class GovernanceController : Controller
         if (user == null)
             return NotFound();
 
-        var latestApplication = await _dbContext.Applications
-            .Where(a => a.UserId == user.Id)
-            .OrderByDescending(a => a.SubmittedAt)
-            .FirstOrDefaultAsync();
+        var applications = await _applicationDecisionService.GetUserApplicationsAsync(user.Id);
+        var latestApplication = applications.Count > 0 ? applications[0] : null;
 
         var statutesContent = await GetStatutesContentAsync();
 
         // Tier member counts for the sidebar
-        var colaboradorCount = await _dbContext.Profiles
-            .CountAsync(p => p.MembershipTier == MembershipTier.Colaborador && !p.IsSuspended);
-        var asociadoCount = await _dbContext.Profiles
-            .CountAsync(p => p.MembershipTier == MembershipTier.Asociado && !p.IsSuspended);
+        var (colaboradorCount, asociadoCount) = await _profileService.GetTierCountsAsync();
 
         var viewModel = new GovernanceIndexViewModel
         {

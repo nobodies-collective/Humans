@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 using Humans.Application;
@@ -21,7 +20,6 @@ public class ConsentService : IConsentService
     private readonly SystemTeamSyncJob _syncJob;
     private readonly HumansMetricsService _metrics;
     private readonly IClock _clock;
-    private readonly IMemoryCache _cache;
     private readonly ILogger<ConsentService> _logger;
 
     public ConsentService(
@@ -31,7 +29,6 @@ public class ConsentService : IConsentService
         SystemTeamSyncJob syncJob,
         HumansMetricsService metrics,
         IClock clock,
-        IMemoryCache cache,
         ILogger<ConsentService> logger)
     {
         _dbContext = dbContext;
@@ -40,7 +37,6 @@ public class ConsentService : IConsentService
         _syncJob = syncJob;
         _metrics = metrics;
         _clock = clock;
-        _cache = cache;
         _logger = logger;
     }
 

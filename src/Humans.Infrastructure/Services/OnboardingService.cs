@@ -445,4 +445,82 @@ public class OnboardingService : IOnboardingService
         await _syncJob.SyncColaboradorsMembershipForUserAsync(userId, CancellationToken.None);
         await _syncJob.SyncAsociadosMembershipForUserAsync(userId, CancellationToken.None);
     }
+
+    public async Task<Application.DTOs.AdminDashboardData> GetAdminDashboardAsync(CancellationToken ct = default)
+    {
+        var totalMembers = await _dbContext.Users.CountAsync(ct);
+        var activeMembers = await _dbContext.Profiles.CountAsync(p => !p.IsSuspended, ct);
+        var pendingVolunteers = await _dbContext.Profiles
+            .CountAsync(p => !p.IsApproved && !p.IsSuspended, ct);
+        var pendingApplications = await _dbContext.Applications
+            .CountAsync(a => a.Status == ApplicationStatus.Submitted, ct);
+
+        // Calculate users with missing required consents
+        var allUserIds = await _dbContext.Users.Select(u => u.Id).ToListAsync(ct);
+        var usersWithAllVolunteerConsents = await _membershipCalculator.GetUsersWithAllRequiredConsentsAsync(allUserIds);
+
+        var leadUserIds = await _dbContext.TeamMembers
+            .Where(tm => tm.LeftAt == null && tm.Role == TeamMemberRole.Lead && tm.Team.SystemTeamType == SystemTeamType.None)
+            .Select(tm => tm.UserId)
+            .Distinct()
+            .ToListAsync(ct);
+        var leadsWithAllConsents = leadUserIds.Count > 0
+            ? await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(leadUserIds, SystemTeamIds.Leads)
+            : new HashSet<Guid>();
+
+        var pendingConsents = allUserIds.Count(id =>
+            !usersWithAllVolunteerConsents.Contains(id) ||
+            (leadUserIds.Contains(id) && !leadsWithAllConsents.Contains(id)));
+
+        // Application statistics (non-withdrawn)
+        var appStats = await _dbContext.Applications
+            .AsNoTracking()
+            .Where(a => a.Status != ApplicationStatus.Withdrawn)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Total = g.Count(),
+                Approved = g.Count(a => a.Status == ApplicationStatus.Approved),
+                Rejected = g.Count(a => a.Status == ApplicationStatus.Rejected),
+                Colaborador = g.Count(a => a.MembershipTier == MembershipTier.Colaborador),
+                Asociado = g.Count(a => a.MembershipTier == MembershipTier.Asociado)
+            })
+            .FirstOrDefaultAsync(ct);
+
+        return new Application.DTOs.AdminDashboardData(
+            totalMembers, activeMembers, pendingVolunteers, pendingApplications, pendingConsents,
+            appStats?.Total ?? 0, appStats?.Approved ?? 0, appStats?.Rejected ?? 0,
+            appStats?.Colaborador ?? 0, appStats?.Asociado ?? 0);
+    }
+
+    public async Task<OnboardingResult> PurgeHumanAsync(Guid userId, CancellationToken ct = default)
+    {
+        var user = await _dbContext.Users.FindAsync([userId], ct);
+        if (user == null)
+            return new OnboardingResult(false, "NotFound");
+
+        var displayName = user.DisplayName;
+
+        // Remove UserEmails so the unique index doesn't block the new account
+        var userEmails = await _dbContext.UserEmails.Where(e => e.UserId == userId).ToListAsync(ct);
+        _dbContext.UserEmails.RemoveRange(userEmails);
+
+        // Change email so email-based lookup won't match
+        var purgedEmail = $"purged-{Guid.NewGuid()}@deleted.local";
+        user.Email = purgedEmail;
+        user.NormalizedEmail = purgedEmail.ToUpperInvariant();
+        user.UserName = purgedEmail;
+        user.NormalizedUserName = purgedEmail.ToUpperInvariant();
+        user.DisplayName = $"Purged ({displayName})";
+
+        // Lock out the account permanently
+        user.LockoutEnabled = true;
+        user.LockoutEnd = DateTimeOffset.MaxValue;
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        _logger.LogWarning("Purged human {DisplayName} ({HumanId})", displayName, userId);
+
+        return new OnboardingResult(true);
+    }
 }

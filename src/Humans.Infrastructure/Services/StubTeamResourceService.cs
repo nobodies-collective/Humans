@@ -201,4 +201,13 @@ public class StubTeamResourceService : ITeamResourceService
     {
         return Task.FromResult("stub-service-account@project.iam.gserviceaccount.com");
     }
+
+    /// <inheritdoc />
+    public async Task<GoogleResource?> GetResourceByIdAsync(Guid resourceId, CancellationToken ct = default)
+    {
+        return await _dbContext.GoogleResources
+            .AsNoTracking()
+            .Include(r => r.Team)
+            .FirstOrDefaultAsync(r => r.Id == resourceId, ct);
+    }
 }
