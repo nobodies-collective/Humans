@@ -172,7 +172,18 @@
 
                                         <div class="col-md-3">
                                             <input type="text" name="EditableContactFields[@i].Value" id="EditableContactFields_@(i)__Value" value="@Model.EditableContactFields[i].Value" class="form-control form-control-sm contact-value-input" required placeholder="Enter contact info" />
-                                            <span class="text-danger small field-validation-error" data-valmsg-for="EditableContactFields[@i].Value"></span>
+                                            @{
+                                                var fieldKey = $"EditableContactFields[{i}].Value";
+                                                var fieldErrors = ViewData.ModelState[fieldKey]?.Errors;
+                                            }
+                                            @if (fieldErrors?.Count > 0)
+                                            {
+                                                <span class="text-danger small field-validation-error">@fieldErrors[0].ErrorMessage</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-danger small field-validation-error" data-valmsg-for="EditableContactFields[@i].Value"></span>
+                                            }
                                         </div>
 
                                         <div class="col-md-3">
@@ -837,6 +848,12 @@
             firstNameInput?.addEventListener('input', checkBurnerNameMatch);
             lastNameInput?.addEventListener('input', checkBurnerNameMatch);
             checkBurnerNameMatch();
+
+            // Scroll to first validation error
+            const firstError = document.querySelector('.field-validation-error:not(:empty), .text-danger:not(:empty)');
+            if (firstError) {
+                firstError.closest('.mb-3, .col-md-3, .card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
 
             // Clear on submit so saving doesn't trigger warning
             form.addEventListener('submit', () => { dirty = false; });

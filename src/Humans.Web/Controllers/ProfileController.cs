@@ -212,14 +212,13 @@ public class ProfileController : Controller
 
         // Validate phone numbers start with + (E.164 format)
         var phoneTypes = new[] { ContactFieldType.Phone, ContactFieldType.WhatsApp };
-        foreach (var cf in model.EditableContactFields.Where(cf => !string.IsNullOrWhiteSpace(cf.Value) && phoneTypes.Contains(cf.FieldType)))
+        for (var i = 0; i < model.EditableContactFields.Count; i++)
         {
-            if (!cf.Value.TrimStart().StartsWith('+'))
+            var cf = model.EditableContactFields[i];
+            if (!string.IsNullOrWhiteSpace(cf.Value) && phoneTypes.Contains(cf.FieldType) && !cf.Value.TrimStart().StartsWith('+'))
             {
-                ModelState.AddModelError(string.Empty,
+                ModelState.AddModelError($"EditableContactFields[{i}].Value",
                     _localizer["Validation_PhoneE164", _localizer["Profile_" + cf.FieldType].Value].Value);
-                ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
-                return View(model);
             }
         }
 
@@ -227,6 +226,10 @@ public class ProfileController : Controller
         {
             ModelState.AddModelError(nameof(model.EmergencyContactPhone),
                 _localizer["Validation_PhoneE164", _localizer["Profile_EmergencyContactPhone"].Value].Value);
+        }
+
+        if (ModelState.ErrorCount > 0)
+        {
             ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
             return View(model);
         }
