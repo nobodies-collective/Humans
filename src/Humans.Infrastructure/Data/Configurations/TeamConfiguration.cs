@@ -37,6 +37,9 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
             .HasConversion<string>()
             .HasMaxLength(50);
 
+        builder.Property(t => t.GoogleGroupPrefix)
+            .HasMaxLength(64);
+
         builder.Property(t => t.CreatedAt)
             .IsRequired();
 
@@ -65,8 +68,13 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
 
         builder.HasIndex(t => t.SystemTeamType);
 
-        // Ignore computed property
+        builder.HasIndex(t => t.GoogleGroupPrefix)
+            .IsUnique()
+            .HasFilter("\"GoogleGroupPrefix\" IS NOT NULL");
+
+        // Ignore computed properties
         builder.Ignore(t => t.IsSystemTeam);
+        builder.Ignore(t => t.GoogleGroupEmail);
 
         // Seed system teams
         builder.HasData(
@@ -79,6 +87,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 IsActive = true,
                 RequiresApproval = false,
                 SystemTeamType = SystemTeamType.Volunteers,
+                GoogleGroupPrefix = (string?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             },
@@ -91,6 +100,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 IsActive = true,
                 RequiresApproval = false,
                 SystemTeamType = SystemTeamType.Leads,
+                GoogleGroupPrefix = (string?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             },
@@ -103,6 +113,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 IsActive = true,
                 RequiresApproval = false,
                 SystemTeamType = SystemTeamType.Board,
+                GoogleGroupPrefix = (string?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             },
@@ -115,6 +126,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 IsActive = true,
                 RequiresApproval = false,
                 SystemTeamType = SystemTeamType.Asociados,
+                GoogleGroupPrefix = (string?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             },
@@ -127,6 +139,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 IsActive = true,
                 RequiresApproval = false,
                 SystemTeamType = SystemTeamType.Colaboradors,
+                GoogleGroupPrefix = (string?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             });

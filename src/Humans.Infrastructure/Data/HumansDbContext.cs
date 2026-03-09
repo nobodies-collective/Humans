@@ -37,6 +37,7 @@ public class HumansDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
     public DbSet<VolunteerHistoryEntry> VolunteerHistoryEntries => Set<VolunteerHistoryEntry>();
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
     public DbSet<BoardVote> BoardVotes => Set<BoardVote>();
+    public DbSet<SyncServiceSettings> SyncServiceSettings => Set<SyncServiceSettings>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
