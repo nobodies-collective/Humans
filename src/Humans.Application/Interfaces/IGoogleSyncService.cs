@@ -1,5 +1,6 @@
 using Humans.Application.DTOs;
 using Humans.Domain.Entities;
+using Humans.Domain.Enums;
 
 namespace Humans.Application.Interfaces;
 
@@ -21,25 +22,22 @@ public interface IGoogleSyncService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Syncs access permissions for a Google resource.
+    /// Unified sync entry point. Computes diff for all active resources of the given type,
+    /// then optionally executes adds/removes based on the action.
+    /// Used by preview, manual actions, and scheduled jobs.
     /// </summary>
-    /// <param name="resourceId">The Google resource ID.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task SyncResourcePermissionsAsync(Guid resourceId, CancellationToken cancellationToken = default);
+    Task<SyncPreviewResult> SyncResourcesByTypeAsync(
+        GoogleResourceType resourceType,
+        SyncAction action,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Syncs all Google resources.
+    /// Sync a single resource. Same logic as SyncResourcesByTypeAsync but for one resource.
     /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task SyncAllResourcesAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Previews what SyncAllResourcesAsync would do without making any changes.
-    /// Compares expected state (DB) with actual state (Google) for each active resource.
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A preview of all diffs.</returns>
-    Task<SyncPreviewResult> PreviewSyncAllAsync(CancellationToken cancellationToken = default);
+    Task<ResourceSyncDiff> SyncSingleResourceAsync(
+        Guid resourceId,
+        SyncAction action,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the status of a Google resource.
