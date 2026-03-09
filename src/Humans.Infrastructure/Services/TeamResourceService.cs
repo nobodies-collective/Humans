@@ -398,6 +398,13 @@ public partial class TeamResourceService : ITeamResourceService
             return true;
         }
 
+        // TeamsAdmin can always manage resources
+        var isTeamsAdmin = await _teamService.IsUserTeamsAdminAsync(userId, ct);
+        if (isTeamsAdmin)
+        {
+            return true;
+        }
+
         // Leads can manage if the setting allows it
         if (_resourceSettings.AllowLeadsToManageResources)
         {

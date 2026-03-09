@@ -166,6 +166,11 @@ public interface ITeamService
     Task<bool> IsUserBoardMemberAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Checks if a user is a teams admin (has active TeamsAdmin RoleAssignment).
+    /// </summary>
+    Task<bool> IsUserTeamsAdminAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Sets a member's role within a team.
     /// </summary>
     Task SetMemberRoleAsync(

@@ -464,6 +464,7 @@ public partial class TeamService : ITeamService
         CancellationToken cancellationToken = default)
     {
         var isBoardMember = await IsUserBoardMemberAsync(approverUserId, cancellationToken);
+        var isTeamsAdmin = !isBoardMember && await IsUserTeamsAdminAsync(approverUserId, cancellationToken);
 
         // Get teams where user is lead
         var leadTeamIds = await _dbContext.TeamMembers
@@ -478,9 +479,9 @@ public partial class TeamService : ITeamService
             .Include(r => r.User)
             .Where(r => r.Status == TeamJoinRequestStatus.Pending);
 
-        if (isBoardMember)
+        if (isBoardMember || isTeamsAdmin)
         {
-            // Board members can approve all requests
+            // Board members and TeamsAdmins can approve all requests
         }
         else if (leadTeamIds.Count > 0)
         {
@@ -537,6 +538,13 @@ public partial class TeamService : ITeamService
             return true;
         }
 
+        // TeamsAdmin can approve for any team
+        var isTeamsAdmin = await IsUserTeamsAdminAsync(userId, cancellationToken);
+        if (isTeamsAdmin)
+        {
+            return true;
+        }
+
         // Leads can approve their own team
         return await IsUserLeadOfTeamAsync(teamId, userId, cancellationToken);
     }
@@ -578,6 +586,18 @@ public partial class TeamService : ITeamService
             .AnyAsync(ra =>
                 ra.UserId == userId &&
                 ra.RoleName == RoleNames.Board &&
+                ra.ValidFrom <= now &&
+                (ra.ValidTo == null || ra.ValidTo > now),
+                cancellationToken);
+    }
+
+    public async Task<bool> IsUserTeamsAdminAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var now = _clock.GetCurrentInstant();
+        return await _dbContext.RoleAssignments
+            .AnyAsync(ra =>
+                ra.UserId == userId &&
+                ra.RoleName == RoleNames.TeamsAdmin &&
                 ra.ValidFrom <= now &&
                 (ra.ValidTo == null || ra.ValidTo > now),
                 cancellationToken);

@@ -593,8 +593,8 @@ public class AdminController : Controller
             UserId = id,
             UserDisplayName = user.DisplayName,
             AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
-                : [RoleNames.Board, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
         };
 
         return View(viewModel);
@@ -616,8 +616,8 @@ public class AdminController : Controller
             model.UserId = id;
             model.UserDisplayName = user.DisplayName;
             model.AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
-                : [RoleNames.Board, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator];
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator];
             return View(model);
         }
 
@@ -1061,6 +1061,7 @@ public class AdminController : Controller
         if (User.IsInRole(RoleNames.Board))
         {
             return string.Equals(roleName, RoleNames.Board, StringComparison.Ordinal) ||
+                   string.Equals(roleName, RoleNames.TeamsAdmin, StringComparison.Ordinal) ||
                    string.Equals(roleName, RoleNames.ConsentCoordinator, StringComparison.Ordinal) ||
                    string.Equals(roleName, RoleNames.VolunteerCoordinator, StringComparison.Ordinal);
         }
