@@ -18,6 +18,7 @@ public class TeamController : Controller
     private readonly UserManager<User> _userManager;
     private readonly IProfileService _profileService;
     private readonly ITeamResourceService _teamResourceService;
+    private readonly IGoogleSyncService _googleSyncService;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IConfiguration _configuration;
 
@@ -26,6 +27,7 @@ public class TeamController : Controller
         UserManager<User> userManager,
         IProfileService profileService,
         ITeamResourceService teamResourceService,
+        IGoogleSyncService googleSyncService,
         IStringLocalizer<SharedResource> localizer,
         IConfiguration configuration)
     {
@@ -33,6 +35,7 @@ public class TeamController : Controller
         _userManager = userManager;
         _profileService = profileService;
         _teamResourceService = teamResourceService;
+        _googleSyncService = googleSyncService;
         _localizer = localizer;
         _configuration = configuration;
     }
@@ -82,6 +85,8 @@ public class TeamController : Controller
             .Take(pageSize)
             .Select(ToSummary)
             .ToList();
+
+        ViewBag.CanViewSync = User.IsInRole("TeamsAdmin") || User.IsInRole("Board") || User.IsInRole("Admin");
 
         var viewModel = new TeamIndexViewModel
         {
@@ -439,5 +444,42 @@ public class TeamController : Controller
         }
 
         return RedirectToAction(nameof(MyTeams));
+    }
+
+    [HttpGet("Sync")]
+    [Authorize(Roles = "TeamsAdmin,Board,Admin")]
+    public IActionResult Sync()
+    {
+        var viewModel = new TeamSyncViewModel
+        {
+            CanExecuteActions = User.IsInRole("Admin")
+        };
+        return View(viewModel);
+    }
+
+    [HttpGet("Sync/Preview/{resourceType}")]
+    [Authorize(Roles = "TeamsAdmin,Board,Admin")]
+    public async Task<IActionResult> SyncPreview(GoogleResourceType resourceType)
+    {
+        var result = await _googleSyncService.SyncResourcesByTypeAsync(resourceType, SyncAction.Preview);
+        return Json(result);
+    }
+
+    [HttpPost("Sync/Execute/{resourceId}")]
+    [Authorize(Roles = "Admin")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SyncExecute(Guid resourceId, [FromQuery] SyncAction action)
+    {
+        var result = await _googleSyncService.SyncSingleResourceAsync(resourceId, action);
+        return Json(result);
+    }
+
+    [HttpPost("Sync/ExecuteAll/{resourceType}")]
+    [Authorize(Roles = "Admin")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SyncExecuteAll(GoogleResourceType resourceType, [FromQuery] SyncAction action)
+    {
+        var result = await _googleSyncService.SyncResourcesByTypeAsync(resourceType, action);
+        return Json(result);
     }
 }
