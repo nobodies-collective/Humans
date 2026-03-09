@@ -47,6 +47,7 @@ public class TeamDetailViewModel
     public bool CanCurrentUserJoin { get; set; }
     public bool CanCurrentUserLeave { get; set; }
     public bool CanCurrentUserManage { get; set; }
+    public bool CanCurrentUserEditTeam { get; set; }
     public Guid? CurrentUserPendingRequestId { get; set; }
     public int PendingRequestCount { get; set; }
 }
