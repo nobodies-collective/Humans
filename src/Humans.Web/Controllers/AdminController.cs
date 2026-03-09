@@ -685,24 +685,29 @@ public class AdminController : Controller
     [HttpGet("GoogleSync")]
     public async Task<IActionResult> GoogleSync()
     {
-        var preview = await _googleSyncService.PreviewSyncAllAsync();
+        var drivePreview = await _googleSyncService.SyncResourcesByTypeAsync(
+            GoogleResourceType.DriveFolder, SyncAction.Preview);
+        var groupPreview = await _googleSyncService.SyncResourcesByTypeAsync(
+            GoogleResourceType.Group, SyncAction.Preview);
+
+        var allDiffs = drivePreview.Diffs.Concat(groupPreview.Diffs).ToList();
 
         var viewModel = new GoogleSyncViewModel
         {
-            TotalResources = preview.TotalResources,
-            InSyncCount = preview.InSyncCount,
-            DriftCount = preview.DriftCount,
-            ErrorCount = preview.Diffs.Count(d => d.ErrorMessage != null),
-            Resources = preview.Diffs
+            TotalResources = allDiffs.Count,
+            InSyncCount = allDiffs.Count(d => d.IsInSync),
+            DriftCount = allDiffs.Count(d => !d.IsInSync && d.ErrorMessage == null),
+            ErrorCount = allDiffs.Count(d => d.ErrorMessage != null),
+            Resources = allDiffs
                 .OrderBy(d => d.IsInSync)
-                .ThenBy(d => d.TeamName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(d => string.Join(", ", d.LinkedTeams), StringComparer.OrdinalIgnoreCase)
                 .ThenBy(d => d.ResourceName, StringComparer.OrdinalIgnoreCase)
                 .Select(d => new GoogleSyncResourceViewModel
                 {
                     ResourceId = d.ResourceId,
                     ResourceName = d.ResourceName,
                     ResourceType = d.ResourceType,
-                    TeamName = d.TeamName,
+                    TeamName = string.Join(", ", d.LinkedTeams),
                     Url = d.Url,
                     ErrorMessage = d.ErrorMessage,
                     IsInSync = d.IsInSync,
@@ -741,7 +746,8 @@ public class AdminController : Controller
 
         try
         {
-            await _googleSyncService.SyncAllResourcesAsync();
+            await _googleSyncService.SyncResourcesByTypeAsync(GoogleResourceType.DriveFolder, SyncAction.AddOnly);
+            await _googleSyncService.SyncResourcesByTypeAsync(GoogleResourceType.Group, SyncAction.AddOnly);
             _logger.LogInformation("Admin {AdminId} triggered manual Google resource sync", currentUser?.Id);
             TempData["SuccessMessage"] = _localizer["Admin_GoogleSyncSuccess"].Value;
         }

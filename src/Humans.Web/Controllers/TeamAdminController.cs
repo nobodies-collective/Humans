@@ -502,7 +502,7 @@ public class TeamAdminController : Controller
 
         try
         {
-            await _googleSyncService.SyncResourcePermissionsAsync(resourceId);
+            await _googleSyncService.SyncSingleResourceAsync(resourceId, SyncAction.AddOnly);
             TempData["SuccessMessage"] = _localizer["TeamAdmin_ResourceSynced"].Value;
         }
         catch (Exception ex)
