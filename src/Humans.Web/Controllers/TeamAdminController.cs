@@ -11,7 +11,7 @@ using Humans.Web.Models;
 namespace Humans.Web.Controllers;
 
 [Authorize]
-[Route("Teams/{slug}/Admin")]
+[Route("Teams/{slug}")]
 public class TeamAdminController : Controller
 {
     private readonly ITeamService _teamService;

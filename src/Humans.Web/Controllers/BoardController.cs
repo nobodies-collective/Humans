@@ -353,7 +353,7 @@ public class BoardController : Controller
         return RedirectToAction(nameof(HumanDetail), new { id });
     }
 
-    [HttpGet("Teams")]
+    [HttpGet("/Teams/Summary")]
     public async Task<IActionResult> Teams(int page = 1)
     {
         var pageSize = 20;
@@ -382,13 +382,13 @@ public class BoardController : Controller
         return View(viewModel);
     }
 
-    [HttpGet("Teams/Create")]
+    [HttpGet("/Teams/Create")]
     public IActionResult CreateTeam()
     {
         return View(new CreateTeamViewModel());
     }
 
-    [HttpPost("Teams/Create")]
+    [HttpPost("/Teams/Create")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateTeam(CreateTeamViewModel model)
     {
@@ -424,7 +424,7 @@ public class BoardController : Controller
         }
     }
 
-    [HttpGet("Teams/{id}/Edit")]
+    [HttpGet("/Teams/{id}/Edit")]
     public async Task<IActionResult> EditTeam(Guid id)
     {
         var team = await _teamService.GetTeamByIdAsync(id);
@@ -448,7 +448,7 @@ public class BoardController : Controller
         return View(viewModel);
     }
 
-    [HttpPost("Teams/{id}/Edit")]
+    [HttpPost("/Teams/{id}/Edit")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditTeam(Guid id, EditTeamViewModel model)
     {
@@ -486,7 +486,7 @@ public class BoardController : Controller
         }
     }
 
-    [HttpPost("Teams/{id}/Delete")]
+    [HttpPost("/Teams/{id}/Delete")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteTeam(Guid id)
     {
