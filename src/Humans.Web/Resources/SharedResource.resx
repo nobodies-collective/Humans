@@ -972,7 +972,7 @@
     &lt;li&gt;&lt;strong&gt;Applicant:&lt;/strong&gt; {0}&lt;/li&gt;
     &lt;li&gt;&lt;strong&gt;Application ID:&lt;/strong&gt; {1}&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;a href="{2}/Admin/Applications"&gt;Review Application&lt;/a&gt;&lt;/p&gt;</value><comment>{0} = applicant name, {1} = application ID, {2} = base URL</comment></data>
+&lt;p&gt;&lt;a href="{2}/Board/Applications"&gt;Review Application&lt;/a&gt;&lt;/p&gt;</value><comment>{0} = applicant name, {1} = application ID, {2} = base URL</comment></data>
 
   <data name="Email_ApplicationApproved_Body" xml:space="preserve"><value>&lt;h2&gt;Your Application Has Been Approved!&lt;/h2&gt;
 &lt;p&gt;Dear {0},&lt;/p&gt;

@@ -972,7 +972,7 @@
     &lt;li&gt;&lt;strong&gt;Candidat :&lt;/strong&gt; {0}&lt;/li&gt;
     &lt;li&gt;&lt;strong&gt;ID de demande :&lt;/strong&gt; {1}&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;a href="{2}/Admin/Applications"&gt;Examiner la demande&lt;/a&gt;&lt;/p&gt;</value><comment>{0} = applicant name, {1} = application ID, {2} = base URL</comment></data>
+&lt;p&gt;&lt;a href="{2}/Board/Applications"&gt;Examiner la demande&lt;/a&gt;&lt;/p&gt;</value><comment>{0} = applicant name, {1} = application ID, {2} = base URL</comment></data>
 
   <data name="Email_ApplicationApproved_Body" xml:space="preserve"><value>&lt;h2&gt;Votre demande a &#xE9;t&#xE9; approuv&#xE9;e !&lt;/h2&gt;
 &lt;p&gt;Bonjour {0},&lt;/p&gt;
