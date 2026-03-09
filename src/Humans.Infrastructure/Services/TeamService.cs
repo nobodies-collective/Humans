@@ -39,6 +39,7 @@ public partial class TeamService : ITeamService
         string name,
         string? description,
         bool requiresApproval,
+        string? googleGroupPrefix = null,
         CancellationToken cancellationToken = default)
     {
         var baseSlug = GenerateSlug(name);
@@ -57,6 +58,7 @@ public partial class TeamService : ITeamService
                 Slug = slug,
                 IsActive = true,
                 RequiresApproval = requiresApproval,
+                GoogleGroupPrefix = googleGroupPrefix,
                 SystemTeamType = SystemTeamType.None,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -135,6 +137,7 @@ public partial class TeamService : ITeamService
         string? description,
         bool requiresApproval,
         bool isActive,
+        string? googleGroupPrefix = null,
         CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams.FindAsync(new object[] { teamId }, cancellationToken)
@@ -149,6 +152,7 @@ public partial class TeamService : ITeamService
         team.Description = description;
         team.RequiresApproval = requiresApproval;
         team.IsActive = isActive;
+        team.GoogleGroupPrefix = googleGroupPrefix;
         team.UpdatedAt = _clock.GetCurrentInstant();
 
         await _dbContext.SaveChangesAsync(cancellationToken);

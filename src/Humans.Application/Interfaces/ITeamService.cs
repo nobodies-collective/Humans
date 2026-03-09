@@ -15,6 +15,7 @@ public interface ITeamService
         string name,
         string? description,
         bool requiresApproval,
+        string? googleGroupPrefix = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -51,6 +52,7 @@ public interface ITeamService
         string? description,
         bool requiresApproval,
         bool isActive,
+        string? googleGroupPrefix = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
