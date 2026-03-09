@@ -219,14 +219,12 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
 
         var createRequest = cloudIdentity.Groups.Create(group);
         createRequest.InitialGroupConfig =
-            Google.Apis.CloudIdentity.v1.GroupsResource.CreateRequest.InitialGroupConfigEnum.EMPTY;
-        await createRequest.ExecuteAsync(cancellationToken);
+            Google.Apis.CloudIdentity.v1.GroupsResource.CreateRequest.InitialGroupConfigEnum.WITHINITIALOWNER;
+        var operation = await createRequest.ExecuteAsync(cancellationToken);
 
-        // Look up the created group to get its resource name
-        var lookupRequest = cloudIdentity.Groups.Lookup();
-        lookupRequest.GroupKeyId = groupEmail;
-        var lookupResponse = await lookupRequest.ExecuteAsync(cancellationToken);
-        var createdGroupId = lookupResponse.Name["groups/".Length..];
+        // Extract group ID from the operation response
+        var groupResourceName = (string)operation.Response["name"];
+        var createdGroupId = groupResourceName["groups/".Length..];
 
         // Apply configured group settings
         try
@@ -394,9 +392,9 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 pageToken = membersResponse.NextPageToken;
             } while (!string.IsNullOrEmpty(pageToken));
         }
-        catch (Google.GoogleApiException ex) when (ex.Error?.Code == 404)
+        catch (Google.GoogleApiException ex) when (ex.Error?.Code is 404 or 403)
         {
-            _logger.LogWarning("Group {GroupId} not found in Google", groupResource.GoogleId);
+            _logger.LogWarning("Group {GroupId} not found in Google (HTTP {Code})", groupResource.GoogleId, ex.Error.Code);
             return;
         }
 
@@ -711,10 +709,10 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                     pageToken = membersResponse.NextPageToken;
                 } while (!string.IsNullOrEmpty(pageToken));
             }
-            catch (Google.GoogleApiException ex) when (ex.Error?.Code == 404)
+            catch (Google.GoogleApiException ex) when (ex.Error?.Code is 404 or 403)
             {
-                _logger.LogWarning("Group {GroupId} not found in Google for resource {ResourceId}",
-                    resource.GoogleId, resource.Id);
+                _logger.LogWarning("Group {GroupId} not found in Google for resource {ResourceId} (HTTP {Code})",
+                    resource.GoogleId, resource.Id, ex.Error.Code);
                 resource.ErrorMessage = "Group not found in Google";
                 return new ResourceSyncDiff
                 {
@@ -1123,10 +1121,13 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             _logger.LogInformation("Linked existing Google Group {GroupId} ({Email}) to team {TeamId}",
                 groupId, email, teamId);
         }
-        catch (Google.GoogleApiException ex) when (ex.Error?.Code == 404)
+        catch (Google.GoogleApiException ex) when (ex.Error?.Code is 404 or 403)
         {
-            // Group doesn't exist — create it
-            _logger.LogInformation("Google Group '{Email}' not found, creating for team {TeamId}", email, teamId);
+            // Cloud Identity returns 403 (not 404) when a group doesn't exist.
+            // In both cases, fall through to creation — if it's a real permission
+            // issue, ProvisionTeamGroupAsync will also fail.
+            _logger.LogInformation("Google Group '{Email}' not found (HTTP {Code}), creating for team {TeamId}",
+                email, ex.Error.Code, teamId);
             await ProvisionTeamGroupAsync(teamId, email, team.Name, cancellationToken);
         }
     }
