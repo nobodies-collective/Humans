@@ -217,6 +217,10 @@ public class TeamController : Controller
 
         var monthName = new DateTime(2000, currentMonth, 1).ToString("MMMM", CultureInfo.CurrentCulture);
 
+        var effectiveUrls = await Helpers.ProfilePictureUrlHelper.BuildEffectiveUrlsAsync(
+            _profileService, Url,
+            profilesWithBirthdays.Select(p => (p.UserId, p.ProfilePictureUrl)));
+
         var viewModel = new BirthdayCalendarViewModel
         {
             CurrentMonth = currentMonth,
@@ -225,9 +229,7 @@ public class TeamController : Controller
             {
                 UserId = p.UserId,
                 DisplayName = p.DisplayName,
-                EffectiveProfilePictureUrl = p.HasCustomPicture
-                    ? Url.Action("Picture", "Profile", new { id = p.ProfileId })
-                    : p.ProfilePictureUrl,
+                EffectiveProfilePictureUrl = effectiveUrls.GetValueOrDefault(p.UserId),
                 DayOfMonth = p.Day,
                 Month = p.Month,
                 MonthName = monthName,
@@ -243,11 +245,15 @@ public class TeamController : Controller
     {
         var profiles = await _profileService.GetApprovedProfilesWithLocationAsync();
 
+        var effectiveUrls = await Helpers.ProfilePictureUrlHelper.BuildEffectiveUrlsAsync(
+            _profileService, Url,
+            profiles.Select(p => (p.UserId, p.ProfilePictureUrl)));
+
         var markers = profiles.Select(p => new MapMarkerViewModel
         {
             UserId = p.UserId,
             DisplayName = p.DisplayName,
-            ProfilePictureUrl = p.ProfilePictureUrl,
+            ProfilePictureUrl = effectiveUrls.GetValueOrDefault(p.UserId),
             Latitude = p.Latitude,
             Longitude = p.Longitude,
             City = p.City,
