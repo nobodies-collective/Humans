@@ -475,6 +475,7 @@
   <data name="TeamDetail_LeaveTeam" xml:space="preserve"><value>Leave Team</value></data>
   <data name="TeamDetail_SystemMembership" xml:space="preserve"><value>Membership in system teams is managed automatically.</value></data>
   <data name="TeamDetail_TeamManagement" xml:space="preserve"><value>Team Management</value></data>
+  <data name="TeamDetail_EditTeam" xml:space="preserve"><value>Edit Team</value></data>
   <data name="TeamDetail_PendingRequests" xml:space="preserve"><value>Pending Requests</value></data>
   <data name="TeamDetail_ManageResources" xml:space="preserve"><value>Manage Resources</value></data>
   <data name="TeamDetail_Resources" xml:space="preserve"><value>Resources</value></data>

@@ -482,6 +482,7 @@
   <data name="TeamDetail_LeaveTeam" xml:space="preserve"><value>Lascia il Team</value></data>
   <data name="TeamDetail_SystemMembership" xml:space="preserve"><value>L'appartenenza ai team di sistema è gestita automaticamente.</value></data>
   <data name="TeamDetail_TeamManagement" xml:space="preserve"><value>Gestione Team</value></data>
+  <data name="TeamDetail_EditTeam" xml:space="preserve"><value>Modifica team</value></data>
   <data name="TeamDetail_PendingRequests" xml:space="preserve"><value>Richieste in sospeso</value></data>
   <data name="TeamDetail_ManageResources" xml:space="preserve"><value>Gestisci risorse</value></data>
   <data name="TeamDetail_Resources" xml:space="preserve"><value>Risorse</value></data>
