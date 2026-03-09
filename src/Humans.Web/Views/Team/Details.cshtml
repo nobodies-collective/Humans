@@ -202,9 +202,12 @@
             <div class="card">
                 <div class="card-header">@Localizer["TeamDetail_TeamManagement"]</div>
                 <div class="list-group list-group-flush">
-                    <a asp-controller="Board" asp-action="EditTeam" asp-route-id="@Model.Id" class="list-group-item list-group-item-action">
-                        @Localizer["TeamDetail_EditTeam"]
-                    </a>
+                    @if (Model.CanCurrentUserEditTeam)
+                    {
+                        <a asp-controller="Board" asp-action="EditTeam" asp-route-id="@Model.Id" class="list-group-item list-group-item-action">
+                            @Localizer["TeamDetail_EditTeam"]
+                        </a>
+                    }
                     <a asp-controller="TeamAdmin" asp-action="Requests" asp-route-slug="@Model.Slug" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                         @Localizer["TeamDetail_PendingRequests"]
                         @if (Model.PendingRequestCount > 0)

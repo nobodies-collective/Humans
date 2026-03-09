@@ -121,7 +121,8 @@ public class TeamController : Controller
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
         var isAdmin = await _teamService.IsUserAdminAsync(user.Id);
         var pendingRequest = await _teamService.GetUserPendingRequestAsync(team.Id, user.Id);
-        var canManage = isLead || isBoardMember || isAdmin;
+        var isTeamsAdmin = User.IsInRole("TeamsAdmin");
+        var canManage = isLead || isBoardMember || isAdmin || isTeamsAdmin;
 
         var pendingRequestCount = 0;
         if (canManage)
@@ -188,6 +189,7 @@ public class TeamController : Controller
             CanCurrentUserJoin = !isMember && !team.IsSystemTeam && pendingRequest == null,
             CanCurrentUserLeave = isMember && !team.IsSystemTeam,
             CanCurrentUserManage = canManage,
+            CanCurrentUserEditTeam = isBoardMember || isAdmin,
             CurrentUserPendingRequestId = pendingRequest?.Id,
             PendingRequestCount = pendingRequestCount
         };

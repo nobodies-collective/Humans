@@ -405,7 +405,18 @@ public class BoardController : Controller
 
             if (!string.IsNullOrEmpty(model.GoogleGroupPrefix))
             {
-                await _googleSyncService.EnsureTeamGroupAsync(team.Id);
+                try
+                {
+                    await _googleSyncService.EnsureTeamGroupAsync(team.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to create Google Group for new team {TeamId}, clearing prefix", team.Id);
+                    await _teamService.UpdateTeamAsync(team.Id, team.Name, team.Description, team.RequiresApproval, team.IsActive, null);
+                    TempData["SuccessMessage"] = string.Format(_localizer["Admin_TeamCreated"].Value, team.Name);
+                    TempData["ErrorMessage"] = $"Team created but Google Group setup failed: {ex.Message}. The group prefix has been cleared.";
+                    return RedirectToAction(nameof(Teams));
+                }
             }
 
             TempData["SuccessMessage"] = string.Format(_localizer["Admin_TeamCreated"].Value, team.Name);
@@ -469,7 +480,17 @@ public class BoardController : Controller
             _logger.LogInformation("Admin {AdminId} updated team {TeamId}", currentUser?.Id, id);
 
             // Handles prefix set, changed, or cleared (deactivates old resource if needed)
-            await _googleSyncService.EnsureTeamGroupAsync(id);
+            try
+            {
+                await _googleSyncService.EnsureTeamGroupAsync(id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to sync Google Group for team {TeamId}", id);
+                TempData["SuccessMessage"] = _localizer["Admin_TeamUpdated"].Value;
+                TempData["ErrorMessage"] = $"Team updated but Google Group setup failed: {ex.Message}";
+                return RedirectToAction(nameof(Teams));
+            }
 
             TempData["SuccessMessage"] = _localizer["Admin_TeamUpdated"].Value;
             return RedirectToAction(nameof(Teams));
