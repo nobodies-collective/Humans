@@ -81,53 +81,14 @@
                 <a asp-controller="AdminLegalDocuments" asp-action="LegalDocuments" class="list-group-item list-group-item-action">
                     Legal Documents
                 </a>
-                <a asp-controller="Admin" asp-action="GoogleSync" class="list-group-item list-group-item-action">
-                    @Localizer["Admin_GoogleSyncStatus"]
-                </a>
                 <a asp-action="AuditLog" class="list-group-item list-group-item-action">
                     Audit Log
-                </a>
-                <a asp-controller="Admin" asp-action="EmailPreview" class="list-group-item list-group-item-action">
-                    Email Preview
-                </a>
-                <a asp-controller="Admin" asp-action="Configuration" class="list-group-item list-group-item-action">
-                    Configuration Status
-                </a>
-                <a href="/hangfire" class="list-group-item list-group-item-action">
-                    @Localizer["Admin_BackgroundJobs"]
                 </a>
             </div>
         </div>
     </div>
 
     <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">@Localizer["Admin_SystemHealth"]</div>
-            <div class="card-body">
-                <ul class="list-unstyled mb-0">
-                    <li class="mb-2">
-                        <span class="badge bg-success me-2">OK</span>
-                        @Localizer["Admin_DatabaseConnection"]
-                    </li>
-                    <li class="mb-2">
-                        <span class="badge bg-success me-2">OK</span>
-                        @Localizer["Admin_BackgroundJobs"]
-                    </li>
-                    <li>
-                        <a href="/health/ready" target="_blank">@Localizer["Admin_ViewHealthCheck"]</a>
-                    </li>
-                </ul>
-                <hr />
-                <form asp-controller="Admin" asp-action="SyncSystemTeams" method="post">
-                    @Html.AntiForgeryToken()
-                    <button type="submit" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-arrow-repeat me-1"></i>Sync System Teams
-                    </button>
-                    <small class="text-muted d-block mt-1">Recalculates Volunteers, Leads, and Board team membership.</small>
-                </form>
-            </div>
-        </div>
-
         @if (Model.TotalApplications > 0)
         {
             <div class="card mt-3">

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using NodaTime;
 using Humans.Application.Interfaces;
@@ -410,6 +411,11 @@ public class BoardController : Controller
             TempData["SuccessMessage"] = string.Format(_localizer["Admin_TeamCreated"].Value, team.Name);
             return RedirectToAction(nameof(Teams));
         }
+        catch (DbUpdateException)
+        {
+            ModelState.AddModelError("GoogleGroupPrefix", "This Google Group prefix is already in use by another team.");
+            return View(model);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating team");
@@ -462,10 +468,8 @@ public class BoardController : Controller
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} updated team {TeamId}", currentUser?.Id, id);
 
-            if (!string.IsNullOrEmpty(model.GoogleGroupPrefix))
-            {
-                await _googleSyncService.EnsureTeamGroupAsync(id);
-            }
+            // Handles prefix set, changed, or cleared (deactivates old resource if needed)
+            await _googleSyncService.EnsureTeamGroupAsync(id);
 
             TempData["SuccessMessage"] = _localizer["Admin_TeamUpdated"].Value;
             return RedirectToAction(nameof(Teams));
@@ -473,6 +477,11 @@ public class BoardController : Controller
         catch (InvalidOperationException ex)
         {
             ModelState.AddModelError("", ex.Message);
+            return View(model);
+        }
+        catch (DbUpdateException)
+        {
+            ModelState.AddModelError("GoogleGroupPrefix", "This Google Group prefix is already in use by another team.");
             return View(model);
         }
     }

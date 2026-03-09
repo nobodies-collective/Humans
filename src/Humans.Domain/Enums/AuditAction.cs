@@ -30,4 +30,5 @@ public enum AuditAction
     TierApplicationApproved,
     TierApplicationRejected,
     TierDowngraded,
+    GoogleResourceDeactivated,
 }

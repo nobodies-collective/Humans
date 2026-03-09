@@ -1005,20 +1005,58 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             return;
         }
 
-        if (team.GoogleGroupPrefix == null)
-        {
-            _logger.LogDebug("Team {TeamId} has no GoogleGroupPrefix, skipping group ensure", teamId);
-            return;
-        }
-
-        // Check if an active Group resource already exists
         var existingGroup = team.GoogleResources
             .FirstOrDefault(r => r.ResourceType == GoogleResourceType.Group && r.IsActive);
 
+        // If prefix was cleared, deactivate any active group resource
+        if (team.GoogleGroupPrefix == null)
+        {
+            if (existingGroup != null)
+            {
+                existingGroup.IsActive = false;
+                _logger.LogInformation("Deactivated Group resource {ResourceId} for team {TeamId} (prefix cleared)",
+                    existingGroup.Id, teamId);
+
+                await _auditLogService.LogAsync(
+                    AuditAction.GoogleResourceDeactivated, "GoogleResource", existingGroup.Id,
+                    "Deactivated Google Group resource (prefix cleared)",
+                    nameof(GoogleWorkspaceSyncService),
+                    relatedEntityId: teamId, relatedEntityType: "Team");
+
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            else
+            {
+                _logger.LogDebug("Team {TeamId} has no GoogleGroupPrefix and no active group, nothing to do", teamId);
+            }
+            return;
+        }
+
+        var expectedUrl = $"https://groups.google.com/a/{_settings.Domain}/g/{team.GoogleGroupPrefix}";
+
+        // If existing group matches current prefix, nothing to do
+        if (existingGroup != null &&
+            string.Equals(existingGroup.Url, expectedUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug("Team {TeamId} already has active Group resource {ResourceId} matching prefix",
+                teamId, existingGroup.Id);
+            return;
+        }
+
+        // If existing group doesn't match (prefix changed), deactivate old resource
         if (existingGroup != null)
         {
-            _logger.LogDebug("Team {TeamId} already has active Group resource {ResourceId}", teamId, existingGroup.Id);
-            return;
+            existingGroup.IsActive = false;
+            _logger.LogInformation("Deactivated Group resource {ResourceId} for team {TeamId} (prefix changed to '{Prefix}')",
+                existingGroup.Id, teamId, team.GoogleGroupPrefix);
+
+            await _auditLogService.LogAsync(
+                AuditAction.GoogleResourceDeactivated, "GoogleResource", existingGroup.Id,
+                $"Deactivated Google Group resource (prefix changed to '{team.GoogleGroupPrefix}')",
+                nameof(GoogleWorkspaceSyncService),
+                relatedEntityId: teamId, relatedEntityType: "Team");
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
         var email = $"{team.GoogleGroupPrefix}@{_settings.Domain}";
