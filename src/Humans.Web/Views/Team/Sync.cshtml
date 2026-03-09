@@ -209,16 +209,19 @@
             html += '<tbody>';
             for (let j = 0; j < diff.members.length; j++) {
                 const m = diff.members[j];
-                let stateClass, stateLabel;
+                let stateClass, stateLabel, badgeClass;
                 if (m.state === 0) { // Correct
-                    stateClass = 'text-success';
                     stateLabel = 'Correct';
+                    badgeClass = 'bg-success';
                 } else if (m.state === 1) { // Missing
-                    stateClass = 'text-warning';
                     stateLabel = 'Missing';
+                    badgeClass = 'bg-warning text-dark';
+                } else if (m.state === 3) { // Inherited
+                    stateLabel = 'Inherited';
+                    badgeClass = 'bg-secondary';
                 } else { // Extra
-                    stateClass = 'text-danger';
                     stateLabel = 'Extra';
+                    badgeClass = 'bg-danger';
                 }
                 const memberTeams = m.teamNames && m.teamNames.length > 0
                     ? m.teamNames.map(function (t) { return '<span class="badge bg-light text-dark border me-1">' + escapeHtml(t) + '</span>'; }).join('')
@@ -226,7 +229,7 @@
                 html += '<tr class="member-row" data-member-state="' + m.state + '">';
                 html += '<td>' + escapeHtml(m.email) + '</td>';
                 html += '<td>' + escapeHtml(m.displayName) + '</td>';
-                html += '<td><span class="badge ' + (m.state === 0 ? 'bg-success' : m.state === 1 ? 'bg-warning text-dark' : 'bg-danger') + '">' + stateLabel + '</span></td>';
+                html += '<td><span class="badge ' + badgeClass + '">' + stateLabel + '</span></td>';
                 html += '<td>' + memberTeams + '</td>';
                 html += '</tr>';
             }
@@ -246,9 +249,10 @@
         pane.querySelectorAll('.resource-in-sync').forEach(function (card) {
             card.style.display = changesOnly ? 'none' : '';
         });
-        // Show/hide correct member rows
+        // Show/hide correct and inherited member rows
         pane.querySelectorAll('.member-row').forEach(function (row) {
-            if (row.getAttribute('data-member-state') === '0') {
+            var state = row.getAttribute('data-member-state');
+            if (state === '0' || state === '3') {
                 row.style.display = changesOnly ? 'none' : '';
             }
         });

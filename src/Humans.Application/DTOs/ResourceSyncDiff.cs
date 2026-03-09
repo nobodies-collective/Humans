@@ -18,7 +18,8 @@ public enum MemberSyncState
 {
     Correct,
     Missing,
-    Extra
+    Extra,
+    Inherited
 }
 
 /// <summary>
@@ -46,7 +47,7 @@ public class ResourceSyncDiff
     public List<string> MembersToRemove => Members
         .Where(m => m.State == MemberSyncState.Extra)
         .Select(m => m.Email).ToList();
-    public bool IsInSync => !Members.Any(m => m.State != MemberSyncState.Correct) && ErrorMessage == null;
+    public bool IsInSync => !Members.Any(m => m.State is MemberSyncState.Missing or MemberSyncState.Extra) && ErrorMessage == null;
 }
 
 /// <summary>

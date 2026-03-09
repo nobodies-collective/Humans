@@ -892,11 +892,16 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             // Current: Drive permissions
             var drive = await GetDriveServiceAsync();
             var permissions = await ListDrivePermissionsAsync(drive, primary.GoogleId, cancellationToken);
-            var currentEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // All user permissions (direct + inherited) — for checking if member already has access
+            var allEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Only direct managed permissions — for detecting removable extras
+            var directEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var perm in permissions)
             {
                 if (IsAnyUserPermission(perm))
-                    currentEmails.Add(perm.EmailAddress);
+                    allEmails.Add(perm.EmailAddress);
+                if (IsDirectManagedPermission(perm))
+                    directEmails.Add(perm.EmailAddress);
             }
 
             // Build member sync status list
@@ -904,14 +909,14 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
 
             foreach (var (email, (displayName, teamNames)) in membersByEmail)
             {
-                var state = currentEmails.Contains(email)
+                var state = allEmails.Contains(email)
                     ? MemberSyncState.Correct
                     : MemberSyncState.Missing;
                 members.Add(new MemberSyncStatus(email, displayName, state, teamNames));
             }
 
             var saEmail = await GetServiceAccountEmailAsync();
-            foreach (var email in currentEmails)
+            foreach (var email in allEmails)
             {
                 // Skip the service account — it manages the resources
                 if (string.Equals(email, saEmail, StringComparison.OrdinalIgnoreCase))
@@ -919,7 +924,10 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
 
                 if (!membersByEmail.ContainsKey(email))
                 {
-                    members.Add(new MemberSyncStatus(email, email, MemberSyncState.Extra, []));
+                    var state = directEmails.Contains(email)
+                        ? MemberSyncState.Extra
+                        : MemberSyncState.Inherited;
+                    members.Add(new MemberSyncStatus(email, email, state, []));
                 }
             }
 
