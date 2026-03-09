@@ -273,8 +273,9 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         string userEmail,
         CancellationToken cancellationToken = default)
     {
-        // Removal disabled — sync is add-only until automated sync is validated
-        _logger.LogInformation("Skipping Google Group removal for {UserEmail} from {GroupResourceId} (removal disabled)",
+        // Per-user outbox flow: add-only. Bulk removals are handled by
+        // SyncResourcesByTypeAsync with SyncAction.AddAndRemove.
+        _logger.LogInformation("Skipping per-user Google Group removal for {UserEmail} from {GroupResourceId} (outbox flow is add-only)",
             userEmail, groupResourceId);
         return Task.CompletedTask;
     }
@@ -430,8 +431,9 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        // Removal disabled — sync is add-only until automated sync is validated
-        _logger.LogInformation("Skipping Google resource removal for user {UserId} from team {TeamId} (removal disabled)",
+        // Per-user outbox flow: add-only. Bulk removals are handled by
+        // SyncResourcesByTypeAsync with SyncAction.AddAndRemove.
+        _logger.LogInformation("Skipping per-user Google resource removal for user {UserId} from team {TeamId} (outbox flow is add-only)",
             userId, teamId);
         return Task.CompletedTask;
     }
@@ -545,7 +547,8 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             }
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        if (action != SyncAction.Preview)
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new SyncPreviewResult { Diffs = diffs };
     }
@@ -593,7 +596,8 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             diff = await SyncDriveResourceGroupAsync(allWithSameGoogleId, action, now, cancellationToken);
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        if (action != SyncAction.Preview)
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
         return diff;
     }
@@ -722,8 +726,11 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 }
             }
 
-            resource.LastSyncedAt = now;
-            resource.ErrorMessage = null;
+            if (action != SyncAction.Preview)
+            {
+                resource.LastSyncedAt = now;
+                resource.ErrorMessage = null;
+            }
 
             return new ResourceSyncDiff
             {
@@ -739,7 +746,8 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error syncing group resource {ResourceId}", resource.Id);
-            resource.ErrorMessage = ex.Message;
+            if (action != SyncAction.Preview)
+                resource.ErrorMessage = ex.Message;
             return new ResourceSyncDiff
             {
                 ResourceId = resource.Id,
@@ -897,11 +905,14 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 }
             }
 
-            // Update LastSyncedAt on all resource rows with this GoogleId
-            foreach (var resource in resources)
+            // Update LastSyncedAt on all resource rows with this GoogleId (skip on Preview)
+            if (action != SyncAction.Preview)
             {
-                resource.LastSyncedAt = now;
-                resource.ErrorMessage = null;
+                foreach (var resource in resources)
+                {
+                    resource.LastSyncedAt = now;
+                    resource.ErrorMessage = null;
+                }
             }
 
             return new ResourceSyncDiff
@@ -918,9 +929,12 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error syncing Drive resource group {GoogleId}", primary.GoogleId);
-            foreach (var resource in resources)
+            if (action != SyncAction.Preview)
             {
-                resource.ErrorMessage = ex.Message;
+                foreach (var resource in resources)
+                {
+                    resource.ErrorMessage = ex.Message;
+                }
             }
             return new ResourceSyncDiff
             {
