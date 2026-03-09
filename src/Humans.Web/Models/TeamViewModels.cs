@@ -148,6 +148,10 @@ public class CreateTeamViewModel
     [StringLength(2000)]
     public string? Description { get; set; }
 
+    [StringLength(64)]
+    [RegularExpression(@"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", ErrorMessage = "Only lowercase letters, numbers, and hyphens allowed")]
+    public string? GoogleGroupPrefix { get; set; }
+
     public bool RequiresApproval { get; set; } = true;
 }
 
@@ -161,6 +165,13 @@ public class EditTeamViewModel
 
     [StringLength(2000)]
     public string? Description { get; set; }
+
+    [StringLength(64)]
+    [RegularExpression(@"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", ErrorMessage = "Only lowercase letters, numbers, and hyphens allowed")]
+    public string? GoogleGroupPrefix { get; set; }
+
+    // Display-only — computed from prefix
+    public string? GoogleGroupEmail { get; set; }
 
     public bool RequiresApproval { get; set; }
     public bool IsActive { get; set; }

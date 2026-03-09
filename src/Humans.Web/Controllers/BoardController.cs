@@ -28,6 +28,7 @@ public class BoardController : Controller
     private readonly ILogger<BoardController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IOnboardingService _onboardingService;
+    private readonly IGoogleSyncService _googleSyncService;
 
     public BoardController(
         UserManager<User> userManager,
@@ -40,7 +41,8 @@ public class BoardController : Controller
         IClock clock,
         ILogger<BoardController> logger,
         IStringLocalizer<SharedResource> localizer,
-        IOnboardingService onboardingService)
+        IOnboardingService onboardingService,
+        IGoogleSyncService googleSyncService)
     {
         _userManager = userManager;
         _teamService = teamService;
@@ -53,6 +55,7 @@ public class BoardController : Controller
         _logger = logger;
         _localizer = localizer;
         _onboardingService = onboardingService;
+        _googleSyncService = googleSyncService;
     }
 
     [HttpGet("")]
@@ -395,9 +398,14 @@ public class BoardController : Controller
 
         try
         {
-            var team = await _teamService.CreateTeamAsync(model.Name, model.Description, model.RequiresApproval);
+            var team = await _teamService.CreateTeamAsync(model.Name, model.Description, model.RequiresApproval, model.GoogleGroupPrefix);
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} created team {TeamId} ({TeamName})", currentUser?.Id, team.Id, team.Name);
+
+            if (!string.IsNullOrEmpty(model.GoogleGroupPrefix))
+            {
+                await _googleSyncService.EnsureTeamGroupAsync(team.Id);
+            }
 
             TempData["SuccessMessage"] = string.Format(_localizer["Admin_TeamCreated"].Value, team.Name);
             return RedirectToAction(nameof(Teams));
@@ -424,6 +432,8 @@ public class BoardController : Controller
             Id = team.Id,
             Name = team.Name,
             Description = team.Description,
+            GoogleGroupPrefix = team.GoogleGroupPrefix,
+            GoogleGroupEmail = team.GoogleGroupEmail,
             RequiresApproval = team.RequiresApproval,
             IsActive = team.IsActive,
             IsSystemTeam = team.IsSystemTeam
@@ -448,9 +458,14 @@ public class BoardController : Controller
 
         try
         {
-            await _teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive);
+            await _teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive, model.GoogleGroupPrefix);
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} updated team {TeamId}", currentUser?.Id, id);
+
+            if (!string.IsNullOrEmpty(model.GoogleGroupPrefix))
+            {
+                await _googleSyncService.EnsureTeamGroupAsync(id);
+            }
 
             TempData["SuccessMessage"] = _localizer["Admin_TeamUpdated"].Value;
             return RedirectToAction(nameof(Teams));
