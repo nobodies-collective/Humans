@@ -357,9 +357,6 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         _logger.LogInformation("Synced group members for team {TeamId}: {MemberCount} members", teamId, teamMembers.Count);
     }
 
-    // NOTE: SyncResourcePermissionsAsync and SyncAllResourcesAsync removed — Task 6 will
-    // replace them with SyncResourcesByTypeAsync / SyncSingleResourceAsync.
-
     /// <inheritdoc />
     public async Task<GoogleResource?> GetResourceStatusAsync(
         Guid resourceId,
@@ -439,9 +436,6 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         return Task.CompletedTask;
     }
 
-    // NOTE: PreviewSyncAllAsync, PreviewGroupSyncAsync, PreviewDriveFolderSyncAsync removed —
-    // Task 6 will replace them with unified SyncResourcesByTypeAsync / SyncSingleResourceAsync.
-
     /// <summary>
     /// Returns true if this is any user permission (direct or inherited), excluding
     /// service accounts and non-user types. Used to determine if a user already has
@@ -514,23 +508,431 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
     }
 
     /// <inheritdoc />
-    public Task<SyncPreviewResult> SyncResourcesByTypeAsync(
+    public async Task<SyncPreviewResult> SyncResourcesByTypeAsync(
         GoogleResourceType resourceType,
         SyncAction action,
         CancellationToken cancellationToken = default)
     {
-        // TODO: Task 6 will implement the unified sync code path
-        throw new NotSupportedException("SyncResourcesByTypeAsync will be implemented in Task 6");
+        _logger.LogInformation("SyncResourcesByType: type={ResourceType}, action={Action}", resourceType, action);
+
+        var resources = await _dbContext.GoogleResources
+            .Include(r => r.Team)
+                .ThenInclude(t => t.Members.Where(tm => tm.LeftAt == null))
+                    .ThenInclude(tm => tm.User)
+            .Where(r => r.ResourceType == resourceType && r.IsActive)
+            .ToListAsync(cancellationToken);
+
+        var diffs = new List<ResourceSyncDiff>();
+        var now = _clock.GetCurrentInstant();
+
+        if (resourceType == GoogleResourceType.Group)
+        {
+            // Groups: one group per team
+            foreach (var resource in resources)
+            {
+                var diff = await SyncGroupResourceAsync(resource, action, now, cancellationToken);
+                diffs.Add(diff);
+            }
+        }
+        else
+        {
+            // Drive resources: group by GoogleId since multiple teams can share one resource
+            var grouped = resources.GroupBy(r => r.GoogleId, StringComparer.Ordinal);
+            foreach (var group in grouped)
+            {
+                var diff = await SyncDriveResourceGroupAsync(group.ToList(), action, now, cancellationToken);
+                diffs.Add(diff);
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new SyncPreviewResult { Diffs = diffs };
     }
 
     /// <inheritdoc />
-    public Task<ResourceSyncDiff> SyncSingleResourceAsync(
+    public async Task<ResourceSyncDiff> SyncSingleResourceAsync(
         Guid resourceId,
         SyncAction action,
         CancellationToken cancellationToken = default)
     {
-        // TODO: Task 6 will implement the unified sync code path
-        throw new NotSupportedException("SyncSingleResourceAsync will be implemented in Task 6");
+        _logger.LogInformation("SyncSingleResource: resourceId={ResourceId}, action={Action}", resourceId, action);
+
+        var resource = await _dbContext.GoogleResources
+            .Include(r => r.Team)
+                .ThenInclude(t => t.Members.Where(tm => tm.LeftAt == null))
+                    .ThenInclude(tm => tm.User)
+            .FirstOrDefaultAsync(r => r.Id == resourceId, cancellationToken);
+
+        if (resource == null)
+        {
+            return new ResourceSyncDiff
+            {
+                ResourceId = resourceId,
+                ErrorMessage = "Resource not found"
+            };
+        }
+
+        var now = _clock.GetCurrentInstant();
+        ResourceSyncDiff diff;
+
+        if (resource.ResourceType == GoogleResourceType.Group)
+        {
+            diff = await SyncGroupResourceAsync(resource, action, now, cancellationToken);
+        }
+        else
+        {
+            // Drive resource: find ALL resources with same GoogleId to get full team union
+            var allWithSameGoogleId = await _dbContext.GoogleResources
+                .Include(r => r.Team)
+                    .ThenInclude(t => t.Members.Where(tm => tm.LeftAt == null))
+                        .ThenInclude(tm => tm.User)
+                .Where(r => r.GoogleId == resource.GoogleId && r.IsActive)
+                .ToListAsync(cancellationToken);
+
+            diff = await SyncDriveResourceGroupAsync(allWithSameGoogleId, action, now, cancellationToken);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return diff;
+    }
+
+    private async Task<ResourceSyncDiff> SyncGroupResourceAsync(
+        GoogleResource resource,
+        SyncAction action,
+        Instant now,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Expected: team's active members
+            var expectedMembers = resource.Team.Members
+                .Where(tm => tm.User.Email != null)
+                .Select(tm => new { tm.User.Email, tm.User.DisplayName })
+                .ToList();
+            var expectedEmails = new HashSet<string>(
+                expectedMembers.Select(m => m.Email!), StringComparer.OrdinalIgnoreCase);
+
+            // Current: Google Group members
+            var directory = await GetDirectoryServiceAsync();
+            var currentEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                string? pageToken = null;
+                do
+                {
+                    var membersRequest = directory.Members.List(resource.GoogleId);
+                    membersRequest.MaxResults = 200;
+                    if (pageToken != null)
+                        membersRequest.PageToken = pageToken;
+
+                    var membersResponse = await membersRequest.ExecuteAsync(cancellationToken);
+
+                    if (membersResponse.MembersValue != null)
+                    {
+                        foreach (var member in membersResponse.MembersValue)
+                        {
+                            if (!string.IsNullOrEmpty(member.Email))
+                                currentEmails.Add(member.Email);
+                        }
+                    }
+
+                    pageToken = membersResponse.NextPageToken;
+                } while (!string.IsNullOrEmpty(pageToken));
+            }
+            catch (Google.GoogleApiException ex) when (ex.Error?.Code == 404)
+            {
+                _logger.LogWarning("Group {GroupId} not found in Google for resource {ResourceId}",
+                    resource.GoogleId, resource.Id);
+                resource.ErrorMessage = "Group not found in Google";
+                return new ResourceSyncDiff
+                {
+                    ResourceId = resource.Id,
+                    ResourceName = resource.Name,
+                    ResourceType = resource.ResourceType.ToString(),
+                    GoogleId = resource.GoogleId,
+                    Url = resource.Url,
+                    LinkedTeams = [resource.Team.Name],
+                    ErrorMessage = "Group not found in Google"
+                };
+            }
+
+            // Build member sync status list
+            var members = new List<MemberSyncStatus>();
+            var teamName = resource.Team.Name;
+
+            foreach (var expected in expectedMembers)
+            {
+                var state = currentEmails.Contains(expected.Email!)
+                    ? MemberSyncState.Correct
+                    : MemberSyncState.Missing;
+                members.Add(new MemberSyncStatus(expected.Email!, expected.DisplayName, state, [teamName]));
+            }
+
+            foreach (var email in currentEmails)
+            {
+                if (!expectedEmails.Contains(email))
+                {
+                    members.Add(new MemberSyncStatus(email, email, MemberSyncState.Extra, []));
+                }
+            }
+
+            // Execute if not Preview
+            if (action != SyncAction.Preview)
+            {
+                foreach (var member in members.Where(m => m.State == MemberSyncState.Missing))
+                {
+                    try
+                    {
+                        await AddUserToGroupAsync(resource.Id, member.Email, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to add {Email} to group {GroupId}",
+                            member.Email, resource.GoogleId);
+                    }
+                }
+
+                if (action == SyncAction.AddAndRemove)
+                {
+                    foreach (var member in members.Where(m => m.State == MemberSyncState.Extra))
+                    {
+                        try
+                        {
+                            await directory.Members.Delete(resource.GoogleId, member.Email)
+                                .ExecuteAsync(cancellationToken);
+
+                            await _auditLogService.LogGoogleSyncAsync(
+                                AuditAction.GoogleResourceAccessRevoked, resource.Id,
+                                $"Removed {member.Email} from Google Group ({resource.Name})",
+                                nameof(GoogleWorkspaceSyncService),
+                                member.Email, "MEMBER", GoogleSyncSource.ManualSync, success: true);
+
+                            _logger.LogInformation("Removed {Email} from group {GroupId}",
+                                member.Email, resource.GoogleId);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to remove {Email} from group {GroupId}",
+                                member.Email, resource.GoogleId);
+                        }
+                    }
+                }
+            }
+
+            resource.LastSyncedAt = now;
+            resource.ErrorMessage = null;
+
+            return new ResourceSyncDiff
+            {
+                ResourceId = resource.Id,
+                ResourceName = resource.Name,
+                ResourceType = resource.ResourceType.ToString(),
+                GoogleId = resource.GoogleId,
+                Url = resource.Url,
+                LinkedTeams = [teamName],
+                Members = members
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error syncing group resource {ResourceId}", resource.Id);
+            resource.ErrorMessage = ex.Message;
+            return new ResourceSyncDiff
+            {
+                ResourceId = resource.Id,
+                ResourceName = resource.Name,
+                ResourceType = resource.ResourceType.ToString(),
+                GoogleId = resource.GoogleId,
+                Url = resource.Url,
+                LinkedTeams = [resource.Team.Name],
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    private async Task<ResourceSyncDiff> SyncDriveResourceGroupAsync(
+        List<GoogleResource> resources,
+        SyncAction action,
+        Instant now,
+        CancellationToken cancellationToken)
+    {
+        var primary = resources[0];
+
+        try
+        {
+            // Expected: union of all linked teams' active members
+            var membersByEmail = new Dictionary<string, (string DisplayName, List<string> TeamNames)>(
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var resource in resources)
+            {
+                var teamName = resource.Team.Name;
+                foreach (var tm in resource.Team.Members)
+                {
+                    if (tm.User.Email == null) continue;
+
+                    if (membersByEmail.TryGetValue(tm.User.Email, out var existing))
+                    {
+                        if (!existing.TeamNames.Contains(teamName, StringComparer.Ordinal))
+                            existing.TeamNames.Add(teamName);
+                    }
+                    else
+                    {
+                        membersByEmail[tm.User.Email] = (tm.User.DisplayName, new List<string> { teamName });
+                    }
+                }
+            }
+
+            var linkedTeams = resources.Select(r => r.Team.Name).Distinct(StringComparer.Ordinal).ToList();
+
+            // Current: Drive permissions
+            var drive = await GetDriveServiceAsync();
+            var permissions = await ListDrivePermissionsAsync(drive, primary.GoogleId, cancellationToken);
+            var currentEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var perm in permissions)
+            {
+                if (IsAnyUserPermission(perm))
+                    currentEmails.Add(perm.EmailAddress);
+            }
+
+            // Build member sync status list
+            var members = new List<MemberSyncStatus>();
+
+            foreach (var (email, (displayName, teamNames)) in membersByEmail)
+            {
+                var state = currentEmails.Contains(email)
+                    ? MemberSyncState.Correct
+                    : MemberSyncState.Missing;
+                members.Add(new MemberSyncStatus(email, displayName, state, teamNames));
+            }
+
+            foreach (var email in currentEmails)
+            {
+                if (!membersByEmail.ContainsKey(email))
+                {
+                    members.Add(new MemberSyncStatus(email, email, MemberSyncState.Extra, []));
+                }
+            }
+
+            // Execute if not Preview
+            if (action != SyncAction.Preview)
+            {
+                foreach (var member in members.Where(m => m.State == MemberSyncState.Missing))
+                {
+                    try
+                    {
+                        var permission = new Google.Apis.Drive.v3.Data.Permission
+                        {
+                            Type = "user",
+                            Role = "writer",
+                            EmailAddress = member.Email
+                        };
+
+                        var createReq = drive.Permissions.Create(permission, primary.GoogleId);
+                        createReq.SupportsAllDrives = true;
+                        await createReq.ExecuteAsync(cancellationToken);
+
+                        await _auditLogService.LogGoogleSyncAsync(
+                            AuditAction.GoogleResourceAccessGranted, primary.Id,
+                            $"Granted Drive access to {member.Email} ({primary.Name})",
+                            nameof(GoogleWorkspaceSyncService),
+                            member.Email, "writer", GoogleSyncSource.ManualSync, success: true);
+
+                        _logger.LogInformation("Granted Drive access to {Email} on {GoogleId}",
+                            member.Email, primary.GoogleId);
+                    }
+                    catch (Google.GoogleApiException ex) when (ex.Error?.Code == 400)
+                    {
+                        _logger.LogDebug("Permission already exists for {Email} on {GoogleId}",
+                            member.Email, primary.GoogleId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to grant Drive access to {Email} on {GoogleId}",
+                            member.Email, primary.GoogleId);
+                    }
+                }
+
+                if (action == SyncAction.AddAndRemove)
+                {
+                    foreach (var member in members.Where(m => m.State == MemberSyncState.Extra))
+                    {
+                        try
+                        {
+                            // Find the direct managed permission for this user
+                            var permToRemove = permissions.FirstOrDefault(p =>
+                                IsDirectManagedPermission(p) &&
+                                string.Equals(p.EmailAddress, member.Email, StringComparison.OrdinalIgnoreCase));
+
+                            if (permToRemove == null)
+                            {
+                                _logger.LogInformation(
+                                    "Skipping removal of {Email} from {GoogleId} — permission is inherited, not direct",
+                                    member.Email, primary.GoogleId);
+                                continue;
+                            }
+
+                            var deleteReq = drive.Permissions.Delete(primary.GoogleId, permToRemove.Id);
+                            deleteReq.SupportsAllDrives = true;
+                            await deleteReq.ExecuteAsync(cancellationToken);
+
+                            await _auditLogService.LogGoogleSyncAsync(
+                                AuditAction.GoogleResourceAccessRevoked, primary.Id,
+                                $"Removed Drive access for {member.Email} ({primary.Name})",
+                                nameof(GoogleWorkspaceSyncService),
+                                member.Email, "writer", GoogleSyncSource.ManualSync, success: true);
+
+                            _logger.LogInformation("Removed Drive access for {Email} on {GoogleId}",
+                                member.Email, primary.GoogleId);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to remove Drive access for {Email} on {GoogleId}",
+                                member.Email, primary.GoogleId);
+                        }
+                    }
+                }
+            }
+
+            // Update LastSyncedAt on all resource rows with this GoogleId
+            foreach (var resource in resources)
+            {
+                resource.LastSyncedAt = now;
+                resource.ErrorMessage = null;
+            }
+
+            return new ResourceSyncDiff
+            {
+                ResourceId = primary.Id,
+                ResourceName = primary.Name,
+                ResourceType = primary.ResourceType.ToString(),
+                GoogleId = primary.GoogleId,
+                Url = primary.Url,
+                LinkedTeams = linkedTeams,
+                Members = members
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error syncing Drive resource group {GoogleId}", primary.GoogleId);
+            foreach (var resource in resources)
+            {
+                resource.ErrorMessage = ex.Message;
+            }
+            return new ResourceSyncDiff
+            {
+                ResourceId = primary.Id,
+                ResourceName = primary.Name,
+                ResourceType = primary.ResourceType.ToString(),
+                GoogleId = primary.GoogleId,
+                Url = primary.Url,
+                LinkedTeams = resources.Select(r => r.Team.Name).Distinct(StringComparer.Ordinal).ToList(),
+                ErrorMessage = ex.Message
+            };
+        }
     }
 
     /// <inheritdoc />

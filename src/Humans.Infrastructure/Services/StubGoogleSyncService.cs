@@ -41,24 +41,6 @@ public class StubGoogleSyncService : IGoogleSyncService
         return Task.FromResult(resource);
     }
 
-    public Task SyncResourcePermissionsAsync(Guid resourceId, CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("[STUB] Would sync permissions for resource {ResourceId}", resourceId);
-        return Task.CompletedTask;
-    }
-
-    public Task SyncAllResourcesAsync(CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("[STUB] Would sync all Google resources");
-        return Task.CompletedTask;
-    }
-
-    public Task<SyncPreviewResult> PreviewSyncAllAsync(CancellationToken cancellationToken = default)
-    {
-        _logger.LogInformation("[STUB] Would preview sync for all Google resources");
-        return Task.FromResult(new SyncPreviewResult());
-    }
-
     public Task<GoogleResource?> GetResourceStatusAsync(Guid resourceId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("[STUB] Would get status for resource {ResourceId}", resourceId);
