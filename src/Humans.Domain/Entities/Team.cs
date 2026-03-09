@@ -44,6 +44,18 @@ public class Team
     public SystemTeamType SystemTeamType { get; set; } = SystemTeamType.None;
 
     /// <summary>
+    /// Google Group email prefix (before @nobodies.team). Null means no group for this team.
+    /// </summary>
+    public string? GoogleGroupPrefix { get; set; }
+
+    /// <summary>
+    /// Full Google Group email address, or null if no prefix is set.
+    /// </summary>
+    public string? GoogleGroupEmail => GoogleGroupPrefix != null
+        ? $"{GoogleGroupPrefix}@nobodies.team"
+        : null;
+
+    /// <summary>
     /// When the team was created.
     /// </summary>
     public Instant CreatedAt { get; init; }

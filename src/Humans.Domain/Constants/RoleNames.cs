@@ -26,4 +26,10 @@ public static class RoleNames
     /// Read-only access to onboarding review queue. Bypasses MembershipRequiredFilter.
     /// </summary>
     public const string VolunteerCoordinator = "VolunteerCoordinator";
+
+    /// <summary>
+    /// Teams Administrator — can manage all teams, approve membership, assign leads,
+    /// and configure Google Group prefixes system-wide.
+    /// </summary>
+    public const string TeamsAdmin = "TeamsAdmin";
 }
