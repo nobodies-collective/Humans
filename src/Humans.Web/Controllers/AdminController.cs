@@ -318,6 +318,50 @@ public class AdminController : Controller
         return RedirectToAction(nameof(GoogleSync));
     }
 
+    [HttpGet("SyncSettings")]
+    public async Task<IActionResult> SyncSettings([FromServices] ISyncSettingsService syncSettingsService)
+    {
+        var settings = await syncSettingsService.GetAllAsync();
+        var viewModel = new SyncSettingsViewModel
+        {
+            Settings = settings.Select(s => new SyncServiceSettingViewModel
+            {
+                ServiceType = s.ServiceType,
+                ServiceName = FormatServiceName(s.ServiceType),
+                CurrentMode = s.SyncMode,
+                UpdatedAt = s.UpdatedAt.ToDateTimeUtc(),
+                UpdatedByName = s.UpdatedByUser?.DisplayName
+            }).ToList()
+        };
+        return View(viewModel);
+    }
+
+    [HttpPost("SyncSettings")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateSyncSetting(
+        [FromServices] ISyncSettingsService syncSettingsService,
+        SyncServiceType serviceType, SyncMode mode)
+    {
+        var currentUser = await _userManager.GetUserAsync(User);
+        if (currentUser == null) return Unauthorized();
+
+        await syncSettingsService.UpdateModeAsync(serviceType, mode, currentUser.Id);
+
+        _logger.LogInformation("Admin {AdminId} changed {ServiceType} sync mode to {Mode}",
+            currentUser.Id, serviceType, mode);
+
+        TempData["SuccessMessage"] = $"Sync mode for {FormatServiceName(serviceType)} updated to {mode}.";
+        return RedirectToAction(nameof(SyncSettings));
+    }
+
+    private static string FormatServiceName(SyncServiceType type) => type switch
+    {
+        SyncServiceType.GoogleDrive => "Google Drive",
+        SyncServiceType.GoogleGroups => "Google Groups",
+        SyncServiceType.Discord => "Discord",
+        _ => type.ToString()
+    };
+
     // Intentionally anonymous: exposes only migration names and counts (no sensitive data).
     // Used by dev tooling to check which migrations have been applied in QA/prod,
     // so old migrations can be safely squashed and removed from the repo.
