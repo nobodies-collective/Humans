@@ -111,9 +111,11 @@ Team
 ├── IsActive: bool
 ├── RequiresApproval: bool
 ├── SystemTeamType: SystemTeamType [enum]
+├── GoogleGroupPrefix: string? (100) [email prefix before @nobodies.team]
 ├── CreatedAt: Instant
 ├── UpdatedAt: Instant
 ├── Computed: IsSystemTeam (SystemTeamType != None)
+├── Computed: GoogleGroupEmail (prefix + "@nobodies.team", or null)
 └── Navigation: Members, JoinRequests, GoogleResources
 ```
 
@@ -252,6 +254,45 @@ bool CanApprove(teamId, userId)
 }
 ```
 
+## TeamsAdmin Role
+
+The `TeamsAdmin` role provides system-wide team management capabilities without requiring Board or Admin access.
+
+### Capabilities
+- Manage all teams (edit settings, approve join requests, assign leads)
+- Configure `GoogleGroupPrefix` on teams
+- View sync status at `/Teams/Sync`
+
+### Limitations
+- Cannot execute sync actions (Admin-only)
+- Cannot access Admin area pages (Sync Settings, Configuration, etc.)
+- Cannot assign roles
+
+### Authorization
+TeamsAdmin bypasses the `MembershipRequiredFilter` (like ConsentCoordinator and VolunteerCoordinator), so it works even if the user hasn't completed full volunteer onboarding.
+
+## Google Group Lifecycle
+
+Teams can be associated with a Google Group via the `GoogleGroupPrefix` property.
+
+### Setting a Prefix
+When a TeamsAdmin, Board, or Admin user sets `GoogleGroupPrefix` on a team (e.g., `"events"`):
+1. The computed `GoogleGroupEmail` becomes `events@nobodies.team`
+2. `EnsureTeamGroupAsync` is called to create or link the Google Group
+3. The group is created with configured `GroupSettings` (from `GoogleWorkspace:Groups` in appsettings)
+4. A `GoogleResource` record (type: Group) is created and linked to the team
+
+### Clearing a Prefix
+When `GoogleGroupPrefix` is cleared:
+1. Any active Group resource for the team is deactivated (`IsActive = false`)
+2. The Google Group itself is NOT deleted (soft unlink only)
+
+### Changing a Prefix
+When the prefix changes (e.g., `"events"` to `"events-team"`):
+1. The old Group resource is deactivated
+2. A new Google Group is created with the new email
+3. A new `GoogleResource` record is linked
+
 ## Join Workflow
 
 ### Direct Join (No Approval)
@@ -350,11 +391,12 @@ Real implementation will manage Google Drive folder permissions.
 | `/Teams/{slug}` | Team details |
 | `/Teams/{slug}/Join` | Join form |
 | `/Teams/My` | User's teams |
+| `/Teams/Sync` | Sync status (TeamsAdmin, Board, Admin) |
 | `/Teams/{slug}/Admin/Requests` | Pending requests |
 | `/Teams/{slug}/Admin/Members` | Manage members |
-| `/Admin/Teams` | Admin team management |
-| `/Admin/Teams/Create` | Create team form |
-| `/Admin/Teams/{id}/Edit` | Edit team |
+| `/Board/Teams` | Board team management |
+| `/Board/Teams/Create` | Create team form |
+| `/Board/Teams/{id}/Edit` | Edit team (includes GoogleGroupPrefix field) |
 
 ## Related Features
 

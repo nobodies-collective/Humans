@@ -16,7 +16,7 @@ Several system operations need to run automatically without user interaction: sy
 | GoogleResourceReconciliationJob | **DISABLED** | Full Google resource reconciliation |
 | DriveActivityMonitorJob | Hourly | Check Drive Activity API for anomalous permission changes |
 
-> **Note:** `SystemTeamSyncJob` and `GoogleResourceReconciliationJob` are currently disabled because they modify Google Shared Drive and Group permissions. Use the manual "Sync Now" button at `/Admin/GoogleSync` until automated sync is validated.
+> **Note:** `SystemTeamSyncJob` and `GoogleResourceReconciliationJob` are currently disabled because they modify Google Shared Drive and Group permissions. Use the manual "Sync Now" button at `/Teams/Sync` until automated sync is validated. Per-service sync modes are configured at `/Admin/SyncSettings`.
 
 ## Job Details
 
@@ -194,22 +194,33 @@ Both call `SyncVolunteersMembershipForUserAsync(userId)`, which evaluates a sing
 
 ### GoogleResourceReconciliationJob
 
-**Purpose**: Full reconciliation of all Google resources (Shared Drive folders + Groups) with the expected state from the database.
+**Purpose**: Full reconciliation of all Google resources (Shared Drive folders + Groups) with the expected state from the database. Reads per-service sync mode from the `sync_service_settings` table to determine what actions to take.
 
 **Schedule**: Daily at 3:00 AM (**CURRENTLY DISABLED**)
 
 **Process**:
 ```
-1. Call SyncAllResourcesAsync()
-   - For each active GoogleResource:
-     a. Groups: paginate members from Google, diff with DB, add/remove
-     b. Shared Drive folders: paginate direct permissions (excluding inherited),
-        diff with DB, add/remove
-   - Per-resource error handling (log + store ErrorMessage, continue)
-2. Update LastSyncedAt on each resource
+1. For each service type (GoogleDrive, GoogleGroups):
+   a. Read SyncMode from sync_service_settings
+   b. If mode is None → skip this service entirely
+   c. Map SyncMode to SyncAction:
+      - AddOnly → SyncAction.AddOnly (adds only)
+      - AddAndRemove → SyncAction.AddAndRemove (adds + removes)
+   d. Call SyncResourcesByTypeAsync(resourceType, action)
+      - Computes diff for all active resources of that type
+      - Executes adds (and removes if AddAndRemove) per resource
+      - Per-resource error handling (log + store ErrorMessage, continue)
+      - Updates LastSyncedAt on each resource
 ```
 
-> **Currently disabled** in Program.cs. Use manual "Sync Now" at `/Admin/GoogleSync` instead.
+**Sync modes** (configured at `/Admin/SyncSettings` by Admin users):
+| Mode | Behavior |
+|------|----------|
+| `None` | Job skips this service entirely |
+| `AddOnly` | Only adds missing members — never removes |
+| `AddAndRemove` | Full sync: adds missing + removes extra members |
+
+> **Currently disabled** in Program.cs. Use manual "Sync Now" at `/Teams/Sync` or configure sync modes at `/Admin/SyncSettings` instead.
 
 ## Hangfire Configuration
 
