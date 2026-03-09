@@ -1,7 +1,7 @@
 # Release TODOs
 
 Audit date: 2026-02-05
-Last synced: 2026-03-05
+Last synced: 2026-03-09
 
 ---
 
@@ -58,10 +58,6 @@ App-layer overlap guard added (`RoleAssignmentService.HasOverlappingAssignmentAs
 **Source:** Multi-model production readiness assessment (2026-02-16), Codex unique finding
 
 
-#### P1-13: Apply configured Google group settings during provisioning
-`GoogleWorkspaceSettings.GroupSettings` properties (WhoCanViewMembership, AllowExternalMembers, etc.) are defined but never applied. Groups get Google defaults. Per R-04, external members must be allowed.
-**Where:** `GoogleWorkspaceSettings.cs:49-78`, `GoogleWorkspaceSyncService.cs:208-215`
-
 ---
 
 ### Priority 7: Technical Debt (Low Priority)
@@ -70,11 +66,6 @@ App-layer overlap guard added (`RoleAssignmentService.HasOverlappingAssignmentAs
 Helper methods re-query resources already loaded by parent methods. Redundant DB round-trips.
 
 
-#### G-07: AdminController over-fetches data
-`HumanDetail` loads ALL applications and consent records via `Include` when it only needs a few. `Humans` list relies on implicit Include behavior.
-
-#### #59 / G-08: Extract duplicated controller business logic into shared services
-Legal docs slice extracted to `AdminLegalDocumentsController` + `IAdminLegalDocumentService`. Application approve/reject extracted to `IApplicationDecisionService`. #70 extracted `IOnboardingService`, `IConsentService`, `IProfileService` — removing DbContext from OnboardingReview, Application, Consent, and Profile controllers. Remaining: extending `IRoleAssignmentService` with assign/end/reassign orchestration and removing remaining DbContext usage from AdminController.
 
 #### #60: Replace magic string ViewModel properties with domain enums
 ~50+ sites across 20+ ViewModels, 10+ controllers, and 3 views use `.ToString()` on domain enums instead of passing typed enums through. Affects `ApplicationStatus`, `MembershipStatus`, `TeamMemberRole`, `SystemTeamType`, `GoogleResourceType`, `TeamJoinRequestStatus`, `AuditAction`, `GoogleSyncSource`, `MembershipTier`. Also fix `StatusBadgeExtensions` to accept enums and add coding rules to prevent recurrence.
@@ -118,6 +109,15 @@ Two OpenTelemetry packages pinned to beta versions. Check for stable releases or
 ---
 
 ## Completed
+
+### P1-13: Apply configured Google group settings during provisioning DONE
+Group creation now applies `GoogleWorkspace:Groups` settings (WhoCanViewMembership, WhoCanPostMessage, AllowExternalMembers). Also: unified sync code path (`SyncResourcesByTypeAsync`/`SyncSingleResourceAsync`), per-service sync modes (`sync_service_settings` table), `TeamsAdmin` role, `GoogleGroupPrefix` on Team, Board/Admin controller split, sync status page at `/Teams/Sync`, admin sync settings at `/Admin/SyncSettings`.
+
+### #59 / G-08: Extract duplicated controller business logic into shared services DONE
+Expanded 8 service interfaces (IAuditLogService, IProfileService, ITeamService, IRoleAssignmentService, IUserEmailService, ITeamResourceService, IApplicationDecisionService, IOnboardingService) with methods previously inline in controllers. AdminController shrinks by ~400 lines. DbContext removed from AccountController, GovernanceController, HomeController, HumanController, TeamController (AdminController retains it only for DbVersion migration introspection). Also resolves G-07 (AdminController over-fetches) via new `AdminDashboardData`, `AdminHumanDetailData`, `AdminHumanRow` DTOs. Committed `9b9b6b9`.
+
+### G-07: AdminController over-fetches data DONE
+Resolved as part of #59/G-08. Raw EF `Include` queries replaced with dedicated DTOs (`AdminDashboardData`, `AdminHumanDetailData`, `AdminHumanRow`) that fetch only needed data. Committed `9b9b6b9`.
 
 ### #70: Extract IOnboardingService, expand IApplicationDecisionService, remove DbContext from controllers DONE
 Extracted 3 new service interfaces (`IOnboardingService`, `IConsentService`, `IProfileService`) and expanded `IApplicationDecisionService` with 4 new methods. Removed `DbContext` from OnboardingReviewController, ApplicationController, ConsentController, and ProfileController. Consolidated duplicated consent-check-to-Pending logic. Fixed bugs: AdminController.RejectSignup missing deprovision, AdminController.ApproveVolunteer missing cache eviction. AdminController mutations (Suspend/Unsuspend/Approve/Reject) now delegate to IOnboardingService. Committed `f351b82`, `931aa7d`, `c9a2388`, `bba766f`.

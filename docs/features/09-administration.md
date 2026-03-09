@@ -118,30 +118,55 @@ Approval and consent completion both trigger `SyncVolunteersMembershipForUserAsy
 ### Data Model
 - `Profile.IsApproved` (bool, default false): Must be true for `SystemTeamSyncJob` to enroll the user in Volunteers team
 
-## Admin Controller Routes
+## Controller Routes
+
+### BoardController (`/Board/`) — Board, Admin
 
 | Route | Action | Description |
 |-------|--------|-------------|
-| `/Admin` | Index | Dashboard |
-| `/Admin/Humans` | Humans | Member list with search |
-| `/Admin/Humans/{id}` | HumanDetail | Individual member view |
-| `/Admin/Humans/{id}/Approve` | ApproveVolunteer | POST: Approve volunteer |
-| `/Admin/Humans/{id}/Suspend` | SuspendHuman | POST: Suspend member |
-| `/Admin/Humans/{id}/Unsuspend` | UnsuspendHuman | POST: Unsuspend member |
-| `/Admin/Applications` | Applications | Application list |
-| `/Admin/Applications/{id}` | ApplicationDetail | Application review |
-| `/Admin/Applications/{id}/Action` | ApplicationAction | POST: Process application |
-| `/Admin/Teams` | Teams | Team list |
-| `/Admin/Teams/Create` | CreateTeam | New team form |
-| `/Admin/Teams/{id}/Edit` | EditTeam | Edit team form |
-| `/Admin/Teams/{id}/Delete` | DeleteTeam | POST: Deactivate team |
-| `/Admin/Roles` | Roles | Role assignment management |
-| `/Admin/LegalDocuments` | LegalDocuments | Legal document management |
-| `/Admin/GoogleSync` | GoogleSync | Google resource sync status |
-| `/Admin/AuditLog` | AuditLog | Global audit log |
+| `/Board` | Index | Dashboard |
+| `/Board/Humans` | Humans | Member list with search |
+| `/Board/Humans/{id}` | HumanDetail | Individual member view |
+| `/Board/Humans/{id}/Approve` | ApproveVolunteer | POST: Approve volunteer |
+| `/Board/Humans/{id}/Suspend` | SuspendHuman | POST: Suspend member |
+| `/Board/Humans/{id}/Unsuspend` | UnsuspendHuman | POST: Unsuspend member |
+| `/Board/Humans/{id}/Reject` | RejectSignup | POST: Reject signup |
+| `/Board/Applications` | Applications | Application list |
+| `/Board/Applications/{id}` | ApplicationDetail | Application review |
+| `/Board/Teams` | Teams | Team list |
+| `/Board/Teams/Create` | CreateTeam | New team form |
+| `/Board/Teams/{id}/Edit` | EditTeam | Edit team (includes GoogleGroupPrefix) |
+| `/Board/Teams/{id}/Delete` | DeleteTeam | POST: Deactivate team |
+| `/Board/Roles` | Roles | Role assignment management |
+| `/Board/Humans/{id}/Roles/Add` | AddRole | Add role assignment |
+| `/Board/Roles/{id}/End` | EndRole | POST: End role assignment |
+| `/Board/AuditLog` | AuditLog | Global audit log |
+| `/Board/AuditLog/CheckDriveActivity` | CheckDriveActivity | POST: Manual Drive Activity check |
+| `/Board/GoogleSync/Resource/{id}/Audit` | GoogleSyncAudit | Resource sync audit log |
+| `/Board/Humans/{id}/GoogleSyncAudit` | HumanGoogleSyncAudit | User sync audit log |
+
+### AdminController (`/Admin/`) — Admin only
+
+| Route | Action | Description |
+|-------|--------|-------------|
+| `/Admin` | Index | Admin dashboard |
+| `/Admin/Humans/{id}/Purge` | PurgeHuman | POST: Dev/QA user purge (non-production) |
+| `/Admin/SyncSystemTeams` | SyncSystemTeams | POST: Trigger system team sync |
 | `/Admin/Configuration` | Configuration | Configuration status page |
 | `/Admin/EmailPreview` | EmailPreview | Preview all system emails with language tabs |
-| `/Admin/SyncSystemTeams` | SyncSystemTeams | POST: Trigger system team sync |
+| `/Admin/GoogleSync` | GoogleSync | Legacy Google resource sync status |
+| `/Admin/GoogleSync/Apply` | ApplyGoogleSync | POST: Run legacy full sync |
+| `/Admin/SyncSettings` | SyncSettings | Per-service sync mode configuration |
+| `/Admin/DbVersion` | DbVersion | Database migration version |
+
+### Sync Status (`/Teams/Sync`) — TeamsAdmin, Board, Admin
+
+| Route | Action | Description |
+|-------|--------|-------------|
+| `/Teams/Sync` | Sync | Sync status dashboard (tabbed: Drive/Groups) |
+| `/Teams/Sync/Preview/{resourceType}` | SyncPreview | AJAX: Preview drift for resource type |
+| `/Teams/Sync/Execute/{resourceId}` | SyncExecute | POST: Sync one resource (Admin only) |
+| `/Teams/Sync/ExecuteAll/{resourceType}` | SyncExecuteAll | POST: Sync all of a type (Admin only) |
 
 ## Dashboard Metrics
 
@@ -286,14 +311,26 @@ public class AdminDashboardViewModel
 
 ### Role Separation: Board vs Admin
 
-The admin area uses two distinct roles with different responsibilities:
+The system uses two distinct controller areas, each with its own route prefix:
 
-| Role | Purpose | Can Access Admin Area | Can Access Hangfire | Can Assign Roles |
-|------|---------|----------------------|--------------------|--------------------|
-| **Board** | Governance (members, applications, teams) | Yes | No | Board, Lead |
-| **Admin** | Tech ops (Hangfire, health, metrics) | Yes | Yes | Admin, Board, Lead |
+| Area | Route prefix | Controller | Authorized roles |
+|------|-------------|------------|-----------------|
+| **Board** | `/Board/` | `BoardController` | Board, Admin |
+| **Admin** | `/Admin/` | `AdminController` | Admin only (except where noted) |
+
+**Board area** (`/Board/`): Governance operations — member management, applications, teams, roles, audit log. Accessible to Board and Admin roles.
+
+**Admin area** (`/Admin/`): Technical operations — configuration, sync settings, Hangfire, email preview, system team sync, Google sync (legacy). Accessible to Admin role only.
 
 A user can hold both roles simultaneously. Admin is a superset for role assignment purposes.
+
+### Additional Roles
+
+| Role | Purpose |
+|------|---------|
+| **TeamsAdmin** | System-wide team management (edit teams, approve joins, assign leads, configure Google Group prefixes). Can view sync status at `/Teams/Sync` but cannot execute sync actions. |
+| **ConsentCoordinator** | Safety checks on new humans during onboarding |
+| **VolunteerCoordinator** | Read-only access to onboarding review queue |
 
 ### How It Works
 
@@ -335,18 +372,25 @@ _logger.LogInformation(
 
 ## Quick Actions (Dashboard)
 
+### Board Dashboard (`/Board`)
+
 | Action | Link | Badge |
 |--------|------|-------|
-| Review Pending Volunteers | `/Admin/Humans?filter=pending` | Pending count |
-| Review Applications | `/Admin/Applications` | Pending count |
-| Manage Humans | `/Admin/Humans` | - |
-| Manage Teams | `/Admin/Teams` | - |
-| Manage Roles | `/Admin/Roles` | - |
-| Legal Documents | `/Admin/LegalDocuments` | - |
-| Google Sync Status | `/Admin/GoogleSync` | - |
-| Audit Log | `/Admin/AuditLog` | - |
-| Email Preview | `/Admin/EmailPreview` | - |
+| Review Pending Volunteers | `/Board/Humans?filter=pending` | Pending count |
+| Review Applications | `/Board/Applications` | Pending count |
+| Manage Humans | `/Board/Humans` | - |
+| Manage Teams | `/Board/Teams` | - |
+| Manage Roles | `/Board/Roles` | - |
+| Audit Log | `/Board/AuditLog` | - |
+| Sync Status | `/Teams/Sync` | - |
+
+### Admin Dashboard (`/Admin`)
+
+| Action | Link | Badge |
+|--------|------|-------|
+| Sync Settings | `/Admin/SyncSettings` | - |
 | Configuration Status | `/Admin/Configuration` | - |
+| Email Preview | `/Admin/EmailPreview` | - |
 | Background Jobs | `/hangfire` | - |
 
 ## System Health

@@ -48,12 +48,14 @@ Nobodies Collective uses Google Workspace for collaboration. The system integrat
 **So that** I can troubleshoot access issues and verify correctness
 
 **Acceptance Criteria:**
-- Admin page at `/Admin/GoogleSync` shows all active resources
-- Summary cards: Total Resources, In Sync, Drifted, Errors
+- Sync status page at `/Teams/Sync` shows all active resources (accessible to TeamsAdmin, Board, Admin)
+- Tabbed interface: Google Drive tab and Google Groups tab
+- Per-tab preview loads via AJAX (read-only API calls)
+- Summary cards per tab: Total Resources, In Sync, Drifted, Errors
 - Per-resource table showing members to add/remove
 - Drifted resources shown first
-- "Sync Now" button for manual sync
-- Preview is read-only (no changes on page load)
+- "Sync Now" button per resource (Admin-only, executes adds/removes based on sync mode)
+- "Sync All" button per tab (Admin-only)
 - Inherited Shared Drive permissions are excluded from drift detection
 
 ### US-7.5: Link Existing Shared Drive Folder
@@ -153,10 +155,9 @@ public interface IGoogleSyncService
     // Shared Drive folder provisioning
     Task<GoogleResource> ProvisionTeamFolderAsync(Guid teamId, string folderName, CancellationToken ct);
 
-    // Permission management
-    Task SyncResourcePermissionsAsync(Guid resourceId, CancellationToken ct);
-    Task SyncAllResourcesAsync(CancellationToken ct);
-    Task<SyncPreviewResult> PreviewSyncAllAsync(CancellationToken ct);
+    // Unified sync — replaces the old SyncResourcePermissionsAsync/SyncAllResourcesAsync/PreviewSyncAllAsync
+    Task<SyncPreviewResult> SyncResourcesByTypeAsync(GoogleResourceType resourceType, SyncAction action, CancellationToken ct);
+    Task<ResourceSyncDiff> SyncSingleResourceAsync(Guid resourceId, SyncAction action, CancellationToken ct);
 
     // Team membership changes
     Task AddUserToTeamResourcesAsync(Guid teamId, Guid userId, CancellationToken ct);
@@ -165,7 +166,8 @@ public interface IGoogleSyncService
     // Status
     Task<GoogleResource?> GetResourceStatusAsync(Guid resourceId, CancellationToken ct);
 
-    // Google Groups
+    // Google Group lifecycle
+    Task EnsureTeamGroupAsync(Guid teamId, CancellationToken ct);
     Task<GoogleResource> ProvisionTeamGroupAsync(Guid teamId, string groupEmail, string groupName, CancellationToken ct);
     Task AddUserToGroupAsync(Guid groupResourceId, string userEmail, CancellationToken ct);
     Task RemoveUserFromGroupAsync(Guid groupResourceId, string userEmail, CancellationToken ct);
@@ -175,6 +177,15 @@ public interface IGoogleSyncService
     Task RestoreUserToAllTeamsAsync(Guid userId, CancellationToken ct);
 }
 ```
+
+### SyncAction Enum
+```
+Preview       = 0  // Compute diff only, make no changes
+AddOnly       = 1  // Compute diff and execute adds only
+AddAndRemove  = 2  // Compute diff and execute adds + removes
+```
+
+Used as a parameter in sync methods (not persisted). The reconciliation job maps its persisted `SyncMode` setting to the appropriate `SyncAction` at runtime.
 
 ### SyncPreviewResult / ResourceSyncDiff
 ```csharp
@@ -240,6 +251,62 @@ For Google Groups:
 
 ### Preview (PreviewSyncAllAsync)
 Same diff logic as full sync, but read-only — no writes to Google APIs.
+
+## Sync Mode Settings
+
+Per-service sync modes control what automated jobs and manual sync actions do. Stored in the `sync_service_settings` table and managed via the Admin Sync Settings page at `/Admin/SyncSettings`.
+
+### SyncServiceSettings Entity
+```
+SyncServiceSettings
+├── Id: Guid
+├── ServiceType: SyncServiceType [enum]
+├── SyncMode: SyncMode [enum]
+├── UpdatedAt: Instant
+└── UpdatedByUserId: Guid? (FK → User)
+```
+
+### SyncServiceType Enum
+```
+GoogleDrive   = 0
+GoogleGroups  = 1
+Discord       = 2  // reserved for future use
+```
+
+### SyncMode Enum
+```
+None          = 0  // Jobs skip this service entirely
+AddOnly       = 1  // Only add missing members
+AddAndRemove  = 2  // Add missing + remove extra members
+```
+
+All services default to `SyncMode.None` (seed data). An Admin must explicitly enable sync from the `/Admin/SyncSettings` page before automated jobs or manual sync will modify Google resources.
+
+### ISyncSettingsService
+```csharp
+public interface ISyncSettingsService
+{
+    Task<List<SyncServiceSettings>> GetAllAsync(CancellationToken ct);
+    Task<SyncMode> GetModeAsync(SyncServiceType serviceType, CancellationToken ct);
+    Task UpdateModeAsync(SyncServiceType serviceType, SyncMode mode, Guid actorUserId, CancellationToken ct);
+}
+```
+
+## Google Group Lifecycle
+
+### GoogleGroupPrefix on Team
+Teams can have a `GoogleGroupPrefix` (e.g., `"events"` produces `events@nobodies.team`). This is set via the team edit form by TeamsAdmin, Board, or Admin users.
+
+### EnsureTeamGroupAsync
+When `GoogleGroupPrefix` is set on a team, `EnsureTeamGroupAsync` is called to:
+1. Check if the team already has an active Group resource
+2. If not, create (or link) the Google Group using the computed email
+3. Apply configured `GroupSettings` (WhoCanViewMembership, WhoCanPostMessage, AllowExternalMembers) from `GoogleWorkspace:Groups` config
+
+When `GoogleGroupPrefix` is cleared, the existing Group resource is deactivated (soft unlink). The Google Group itself is not deleted.
+
+### Group Settings
+Group creation now applies the configured `GoogleWorkspace:Groups` settings from appsettings. Previously, new groups received Google defaults. This ensures groups are configured consistently (e.g., `AllowExternalMembers = true` per R-04).
 
 ## Resource Linking (Pre-Shared Access Model)
 
@@ -329,25 +396,47 @@ Actions:
 | `Resources/{id}/Unlink` | POST | Soft-unlink (IsActive = false) |
 | `Resources/{id}/Sync` | POST | Trigger permission sync |
 
-## Admin Sync Page
+## Sync Status Page
 
-### Route: `/Admin/GoogleSync`
-Global admin page showing drift across all active resources.
+### Route: `/Teams/Sync`
+Accessible to TeamsAdmin, Board, and Admin. Shows drift across all active resources with a tabbed interface (Google Drive / Google Groups).
 
-| Route | Method | Action |
-|-------|--------|--------|
-| `GoogleSync` | GET | Preview drift (read-only API calls) |
-| `GoogleSync/Apply` | POST | Run full sync now |
+| Route | Method | Auth | Action |
+|-------|--------|------|--------|
+| `/Teams/Sync` | GET | TeamsAdmin, Board, Admin | Sync status page |
+| `/Teams/Sync/Preview/{resourceType}` | GET | TeamsAdmin, Board, Admin | AJAX: preview drift for resource type |
+| `/Teams/Sync/Execute/{resourceId}` | POST | Admin only | Execute sync for one resource |
+| `/Teams/Sync/ExecuteAll/{resourceType}` | POST | Admin only | Execute sync for all resources of a type |
 
-### Summary Cards
-- **Total Resources** — count of active GoogleResource records
+### Summary Cards (per tab)
+- **Total Resources** — count of active GoogleResource records of that type
 - **In Sync** — resources where expected == actual
 - **Drifted** — resources with members to add or remove
 - **Errors** — resources where the API call failed
 
 ### Resource Table
-Per resource: Name, Type (Group/Drive), Team, Status badge, members to add/remove.
+Per resource: Name, Team, Status badge, members to add/remove.
 Drifted resources shown first, then in-sync.
+
+### Admin Sync Settings Page
+
+#### Route: `/Admin/SyncSettings`
+Admin-only page for configuring per-service sync modes.
+
+| Route | Method | Action |
+|-------|--------|--------|
+| `/Admin/SyncSettings` | GET | View current sync mode per service |
+| `/Admin/SyncSettings` | POST | Update sync mode for a service |
+
+### Legacy Admin Sync Page
+
+#### Route: `/Admin/GoogleSync`
+Retained for backward compatibility. Shows the old-style combined sync preview/apply.
+
+| Route | Method | Action |
+|-------|--------|--------|
+| `/Admin/GoogleSync` | GET | Preview drift (read-only API calls) |
+| `/Admin/GoogleSync/Apply` | POST | Run full sync now |
 
 ## Stub Implementations
 
@@ -361,12 +450,18 @@ Stub vs. real implementation is selected automatically based on whether `GoogleW
 
 ### GoogleResourceReconciliationJob
 ```
-Schedule: 3:00 AM daily (CURRENTLY DISABLED — manual sync only via /Admin/GoogleSync)
+Schedule: 3:00 AM daily (CURRENTLY DISABLED — manual sync only via /Teams/Sync)
 Purpose: Full reconciliation of all Google resources with DB state
-Process: Calls SyncAllResourcesAsync()
+Process: Reads SyncMode per service from sync_service_settings, then calls
+         SyncResourcesByTypeAsync with the appropriate SyncAction
 ```
 
-> **Currently disabled:** All jobs that modify Google permissions are disabled until the system is validated. Use the manual "Sync Now" button at `/Admin/GoogleSync` instead.
+**Mode-gated behavior:**
+- `SyncMode.None` — job skips the service entirely
+- `SyncMode.AddOnly` — job computes diff and only adds missing members
+- `SyncMode.AddAndRemove` — job computes diff, adds missing and removes extra members
+
+> **Currently disabled:** All jobs that modify Google permissions are disabled until the system is validated. Use the manual "Sync Now" button at `/Teams/Sync` or change sync modes at `/Admin/SyncSettings` instead.
 
 ### SystemTeamSyncJob
 ```
