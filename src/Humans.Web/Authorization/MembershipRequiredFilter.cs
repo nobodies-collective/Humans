@@ -19,7 +19,8 @@ public class MembershipRequiredFilter : IAsyncActionFilter
         "Application", // Submit membership application
         "Consent",     // Sign required legal documents
         "Profile",     // Set up profile during onboarding
-        "Admin",       // Has its own Roles = "Board,Admin" gate
+        "Admin",       // Has its own Roles = "Admin" gate
+        "Board",       // Has its own Roles = "Board,Admin" gate
         "Human",       // Public profile viewing
         "Language",         // Language switching
         "OnboardingReview", // Has its own coordinator/Board role gate

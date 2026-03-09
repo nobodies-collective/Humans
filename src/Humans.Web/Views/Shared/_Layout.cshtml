@@ -71,7 +71,7 @@
                         @if (User.IsInRole("Admin") || User.IsInRole("Board"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link" asp-area="" asp-controller="Admin" asp-action="Index">@Localizer["Nav_Admin"]</a>
+                                <a class="nav-link" asp-area="" asp-controller="Board" asp-action="Index">@Localizer["Nav_Admin"]</a>
                             </li>
                         }
                     </ul>
