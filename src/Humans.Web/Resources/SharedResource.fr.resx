@@ -1099,4 +1099,9 @@
   <data name="Email_BoardDigest_PendingConsents" xml:space="preserve"><value>{0} avec des exigences de consentement en attente</value><comment>{0} = count</comment></data>
   <data name="Email_BoardDigest_PendingDeletions" xml:space="preserve"><value>{0} suppressions de compte en attente</value><comment>{0} = count</comment></data>
 
+  <!-- Navigation restructure -->
+  <data name="Nav_Review" xml:space="preserve"><value>Review</value></data>
+  <data name="Nav_Voting" xml:space="preserve"><value>Voting</value></data>
+  <data name="Nav_Board" xml:space="preserve"><value>Board</value></data>
+
 </root>
