@@ -84,4 +84,15 @@ public interface IEmailRenderer
     /// Board daily digest of new approvals and outstanding items.
     /// </summary>
     EmailContent RenderBoardDailyDigest(string boardMemberName, string date, IReadOnlyList<BoardDigestTierGroup> tierGroups, BoardDigestOutstandingCounts? outstandingCounts = null, string? culture = null);
+
+    /// <summary>
+    /// Facilitated message between volunteers.
+    /// </summary>
+    EmailContent RenderFacilitatedMessage(
+        string recipientName,
+        string senderName,
+        string messageText,
+        bool includeContactInfo,
+        string? senderEmail,
+        string? culture = null);
 }

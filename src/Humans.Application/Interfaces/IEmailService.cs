@@ -227,4 +227,17 @@ public interface IEmailService
         BoardDigestOutstandingCounts? outstandingCounts = null,
         string? culture = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a facilitated message from one volunteer to another.
+    /// </summary>
+    Task SendFacilitatedMessageAsync(
+        string recipientEmail,
+        string recipientName,
+        string senderName,
+        string messageText,
+        bool includeContactInfo,
+        string? senderEmail,
+        string? culture = null,
+        CancellationToken cancellationToken = default);
 }

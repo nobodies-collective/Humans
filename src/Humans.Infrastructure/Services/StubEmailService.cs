@@ -204,4 +204,20 @@ public class StubEmailService : IEmailService
             email, name, culture, date, groups.Count, outstandingCounts);
         return Task.CompletedTask;
     }
+
+    public Task SendFacilitatedMessageAsync(
+        string recipientEmail,
+        string recipientName,
+        string senderName,
+        string messageText,
+        bool includeContactInfo,
+        string? senderEmail,
+        string? culture = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "[STUB] Would send facilitated message to {Email} ({RecipientName}) from {SenderName} [Culture: {Culture}] [IncludeContactInfo: {IncludeContact}]",
+            recipientEmail, recipientName, senderName, culture, includeContactInfo);
+        return Task.CompletedTask;
+    }
 }

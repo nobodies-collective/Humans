@@ -322,6 +322,39 @@ public class EmailRenderer : IEmailRenderer
         return $"<h3>{HtmlEncode(header)}</h3>\n<ul>\n{string.Join("\n", items)}\n</ul>\n<hr/>";
     }
 
+    public EmailContent RenderFacilitatedMessage(
+        string recipientName,
+        string senderName,
+        string messageText,
+        bool includeContactInfo,
+        string? senderEmail,
+        string? culture = null)
+    {
+        using (WithCulture(culture))
+        {
+            var subject = string.Format(
+                CultureInfo.CurrentCulture,
+                _localizer["Email_FacilitatedMessage_Subject"].Value,
+                senderName);
+
+            var sanitizedMessage = HtmlEncode(messageText).Replace("\n", "<br />");
+
+            var contactInfoHtml = includeContactInfo && !string.IsNullOrEmpty(senderEmail)
+                ? $"<p><strong>{HtmlEncode(senderName)}</strong> &mdash; <a href=\"mailto:{HtmlEncode(senderEmail)}\">{HtmlEncode(senderEmail)}</a></p>"
+                : $"<p><em>{HtmlEncode(_localizer["Email_FacilitatedMessage_NoContactInfo"].Value)}</em></p>";
+
+            var body = string.Format(
+                CultureInfo.CurrentCulture,
+                _localizer["Email_FacilitatedMessage_Body"].Value,
+                HtmlEncode(recipientName),
+                HtmlEncode(senderName),
+                sanitizedMessage,
+                contactInfoHtml);
+
+            return new EmailContent(subject, body);
+        }
+    }
+
     private static CultureScope WithCulture(string? culture)
     {
         return new CultureScope(culture);
