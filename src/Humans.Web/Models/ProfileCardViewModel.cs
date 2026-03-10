@@ -75,6 +75,12 @@ public class ProfileCardViewModel
     /// <summary>
     /// Non-BoardOnly emails for the public contact info section.
     /// </summary>
+    /// <summary>
+    /// Whether the viewer should see the "Send a message" button.
+    /// True when viewing another user's profile and no email is visible.
+    /// </summary>
+    public bool CanSendMessage { get; set; }
+
     public IReadOnlyList<UserEmailDisplayViewModel> PublicUserEmails =>
         UserEmails.Where(e => e.Visibility != ContactFieldVisibility.BoardOnly).ToList();
 

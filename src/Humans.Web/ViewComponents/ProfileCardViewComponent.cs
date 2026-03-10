@@ -168,7 +168,9 @@ public class ProfileCardViewComponent : ViewComponent
                 EventName = vh.EventName,
                 Description = vh.Description
             }).ToList(),
-            Teams = displayableTeams
+            Teams = displayableTeams,
+            CanSendMessage = viewMode == ProfileCardViewMode.Public
+                && !visibleEmails.Any()
         };
 
         return View(model);
