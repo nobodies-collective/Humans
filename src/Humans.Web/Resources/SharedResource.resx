@@ -762,6 +762,9 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Select a role...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Full system access</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Board member permissions</value></data>
+  <data name="AdminAddRole_TeamsAdminDesc" xml:space="preserve"><value>Manage all teams and memberships</value></data>
+  <data name="AdminAddRole_ConsentCoordinatorDesc" xml:space="preserve"><value>Safety checks during onboarding</value></data>
+  <data name="AdminAddRole_VolunteerCoordinatorDesc" xml:space="preserve"><value>Onboarding facilitation contact</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notes (optional)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Reason for assignment</value></data>
 

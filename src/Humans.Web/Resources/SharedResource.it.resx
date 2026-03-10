@@ -768,6 +768,9 @@
   <data name="AdminAddRole_SelectRole" xml:space="preserve"><value>Seleziona un ruolo...</value></data>
   <data name="AdminAddRole_AdminDesc" xml:space="preserve"><value>Accesso completo al sistema</value></data>
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Permessi membro del Consiglio</value></data>
+  <data name="AdminAddRole_TeamsAdminDesc" xml:space="preserve"><value>Gestire tutti i team e le iscrizioni</value></data>
+  <data name="AdminAddRole_ConsentCoordinatorDesc" xml:space="preserve"><value>Verifiche di sicurezza durante l'onboarding</value></data>
+  <data name="AdminAddRole_VolunteerCoordinatorDesc" xml:space="preserve"><value>Contatto di facilitazione dell'onboarding</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Note (facoltative)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Motivo dell'assegnazione</value></data>
 
