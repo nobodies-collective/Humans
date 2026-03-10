@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using NodaTime;
 using Humans.Application.Interfaces;
@@ -17,6 +18,7 @@ namespace Humans.Web.Controllers;
 public class HumanController : Controller
 {
     private readonly IProfileService _profileService;
+    private readonly IEmailService _emailService;
     private readonly UserManager<User> _userManager;
     private readonly IAuditLogService _auditLogService;
     private readonly IOnboardingService _onboardingService;
@@ -26,6 +28,7 @@ public class HumanController : Controller
 
     public HumanController(
         IProfileService profileService,
+        IEmailService emailService,
         UserManager<User> userManager,
         IAuditLogService auditLogService,
         IOnboardingService onboardingService,
@@ -34,6 +37,7 @@ public class HumanController : Controller
         IStringLocalizer<SharedResource> localizer)
     {
         _profileService = profileService;
+        _emailService = emailService;
         _userManager = userManager;
         _auditLogService = auditLogService;
         _onboardingService = onboardingService;
@@ -71,6 +75,86 @@ public class HumanController : Controller
         };
 
         return View("~/Views/Profile/Index.cshtml", viewModel);
+    }
+
+    [HttpGet("{id:guid}/SendMessage")]
+    public async Task<IActionResult> SendMessage(Guid id)
+    {
+        var currentUser = await _userManager.GetUserAsync(User);
+        if (currentUser == null)
+            return NotFound();
+
+        if (currentUser.Id == id)
+            return RedirectToAction(nameof(View), new { id });
+
+        var targetUser = await _userManager.FindByIdAsync(id.ToString());
+        if (targetUser == null)
+            return NotFound();
+
+        var viewModel = new SendMessageViewModel
+        {
+            RecipientId = id,
+            RecipientDisplayName = targetUser.DisplayName
+        };
+
+        return View(viewModel);
+    }
+
+    [HttpPost("{id:guid}/SendMessage")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SendMessage(Guid id, SendMessageViewModel model)
+    {
+        var currentUser = await _userManager.GetUserAsync(User);
+        if (currentUser == null)
+            return NotFound();
+
+        if (currentUser.Id == id)
+            return RedirectToAction(nameof(View), new { id });
+
+        var targetUser = await _userManager.Users
+            .Include(u => u.UserEmails)
+            .FirstOrDefaultAsync(u => u.Id == id);
+        if (targetUser == null)
+            return NotFound();
+
+        model.RecipientId = id;
+        model.RecipientDisplayName = targetUser.DisplayName;
+
+        if (!ModelState.IsValid)
+            return View(model);
+
+        // Strip any HTML tags from the message for safety
+        var cleanMessage = System.Text.RegularExpressions.Regex.Replace(
+            model.Message, "<[^>]+>", "", System.Text.RegularExpressions.RegexOptions.None,
+            TimeSpan.FromSeconds(1));
+
+        var sender = await _userManager.Users
+            .Include(u => u.UserEmails)
+            .FirstAsync(u => u.Id == currentUser.Id);
+
+        var recipientEmail = targetUser.GetEffectiveEmail() ?? targetUser.Email!;
+        var senderEmail = sender.GetEffectiveEmail() ?? sender.Email!;
+
+        await _emailService.SendFacilitatedMessageAsync(
+            recipientEmail,
+            targetUser.DisplayName,
+            sender.DisplayName,
+            cleanMessage,
+            model.IncludeContactInfo,
+            senderEmail,
+            targetUser.PreferredLanguage);
+
+        await _auditLogService.LogAsync(
+            AuditAction.FacilitatedMessageSent,
+            "User", targetUser.Id,
+            $"Message sent to {targetUser.DisplayName} (contact info shared: {(model.IncludeContactInfo ? "yes" : "no")})",
+            currentUser.Id, currentUser.DisplayName);
+
+        TempData["SuccessMessage"] = string.Format(
+            _localizer["SendMessage_Success"].Value,
+            targetUser.DisplayName);
+
+        return RedirectToAction(nameof(View), new { id });
     }
 
     [Authorize(Roles = "Board,Admin")]
