@@ -780,7 +780,7 @@ public partial class TeamService : ITeamService
             .Include(tm => tm.User)
             .Where(tm => tm.TeamId == teamId && tm.LeftAt == null)
             .OrderBy(tm => tm.Role)
-            .ThenBy(tm => tm.JoinedAt)
+            .ThenBy(tm => tm.User.DisplayName)
             .ToListAsync(cancellationToken);
     }
 

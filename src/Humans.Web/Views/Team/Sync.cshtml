@@ -72,6 +72,21 @@
         fetch('/Teams/Sync/Preview/' + getResourceTypeValue(resourceType))
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                // Sort resources alphabetically
+                if (data.diffs) {
+                    data.diffs.sort(function (a, b) {
+                        return (a.resourceName || '').localeCompare(b.resourceName || '');
+                    });
+                    // Sort members within each resource: by state then by displayName
+                    data.diffs.forEach(function (diff) {
+                        if (diff.members) {
+                            diff.members.sort(function (a, b) {
+                                if (a.state !== b.state) return a.state - b.state;
+                                return (a.displayName || '').localeCompare(b.displayName || '');
+                            });
+                        }
+                    });
+                }
                 loadedTabs[resourceType] = data;
                 renderTab(pane, data, resourceType);
             })
@@ -228,7 +243,8 @@
                     : '';
                 html += '<tr class="member-row" data-member-state="' + m.state + '">';
                 html += '<td>' + escapeHtml(m.email) + '</td>';
-                html += '<td>' + escapeHtml(m.displayName) + '</td>';
+                var nameDisplay = m.displayName && m.displayName !== m.email ? m.displayName : '';
+                html += '<td>' + escapeHtml(nameDisplay) + '</td>';
                 html += '<td><span class="badge ' + badgeClass + '">' + stateLabel + '</span></td>';
                 html += '<td>' + memberTeams + '</td>';
                 html += '</tr>';

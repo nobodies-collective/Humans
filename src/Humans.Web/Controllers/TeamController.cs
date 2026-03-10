@@ -175,7 +175,7 @@ public class TeamController : Controller
             }).ToList(),
             Members = activeMembers
                 .OrderBy(m => m.Role)
-                .ThenBy(m => m.JoinedAt)
+                .ThenBy(m => m.User.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .Select(m => new TeamMemberViewModel
                 {
                     UserId = m.UserId,

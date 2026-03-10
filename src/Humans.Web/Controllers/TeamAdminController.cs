@@ -144,15 +144,26 @@ public class TeamAdminController : Controller
         var allMembers = await _teamService.GetTeamMembersAsync(team.Id);
         var totalCount = allMembers.Count;
 
-        var members = allMembers
+        var pagedMembers = allMembers
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .ToList();
+
+        var memberUserIds = pagedMembers.Select(m => m.UserId).ToList();
+        var profilesWithCustomPictures = await _profileService.GetCustomPictureInfoByUserIdsAsync(memberUserIds);
+        var customPictureByUserId = profilesWithCustomPictures.ToDictionary(
+            p => p.UserId,
+            p => Url.Action("Picture", "Profile", new { id = p.ProfileId, v = p.UpdatedAtTicks })!);
+
+        var members = pagedMembers
             .Select(m => new TeamMemberViewModel
             {
                 UserId = m.UserId,
                 DisplayName = m.User.DisplayName,
                 Email = m.User.Email ?? "",
                 ProfilePictureUrl = m.User.ProfilePictureUrl,
+                HasCustomProfilePicture = customPictureByUserId.ContainsKey(m.UserId),
+                CustomProfilePictureUrl = customPictureByUserId.GetValueOrDefault(m.UserId),
                 Role = m.Role.ToString(),
                 JoinedAt = m.JoinedAt.ToDateTimeUtc(),
                 IsLead = m.Role == TeamMemberRole.Lead

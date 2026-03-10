@@ -33,26 +33,33 @@
             @string.Format(Localizer[Model.Birthdays.Count == 1 ? "Birthdays_Count_One" : "Birthdays_Count"].Value, Model.Birthdays.Count, Model.CurrentMonthName)
         </div>
         <ul class="list-group list-group-flush">
-            @foreach (var birthday in Model.Birthdays)
+            @foreach (var group in Model.Birthdays.GroupBy(b => b.DayOfMonth).OrderBy(g => g.Key))
             {
                 <li class="list-group-item py-3">
-                    <a asp-controller="Human" asp-action="View" asp-route-id="@birthday.UserId"
-                       class="d-flex align-items-center text-decoration-none text-reset">
+                    <div class="d-flex align-items-start">
                         <div class="me-3 text-center" style="min-width: 40px;">
-                            <span class="fs-4 fw-bold text-primary">@birthday.DayOfMonth</span>
+                            <span class="fs-4 fw-bold text-primary">@group.Key</span>
                         </div>
-                        <vc:user-avatar profile-picture-url="@birthday.EffectiveProfilePictureUrl"
-                                        display-name="@birthday.DisplayName"
-                                        size="48"
-                                        css-class="me-3" />
-                        <div>
-                            <div class="fw-semibold">@birthday.DisplayName</div>
-                            @if (birthday.TeamNames.Count > 0)
+                        <div class="d-flex flex-wrap gap-3">
+                            @foreach (var birthday in group)
                             {
-                                <small class="text-muted">@string.Join(", ", birthday.TeamNames)</small>
+                                <a asp-controller="Human" asp-action="View" asp-route-id="@birthday.UserId"
+                                   class="d-flex align-items-center text-decoration-none text-reset">
+                                    <vc:user-avatar profile-picture-url="@birthday.EffectiveProfilePictureUrl"
+                                                    display-name="@birthday.DisplayName"
+                                                    size="48"
+                                                    css-class="me-2" />
+                                    <div>
+                                        <div class="fw-semibold">@birthday.DisplayName</div>
+                                        @if (birthday.TeamNames.Count > 0)
+                                        {
+                                            <small class="text-muted">@string.Join(", ", birthday.TeamNames)</small>
+                                        }
+                                    </div>
+                                </a>
                             }
                         </div>
-                    </a>
+                    </div>
                 </li>
             }
         </ul>
