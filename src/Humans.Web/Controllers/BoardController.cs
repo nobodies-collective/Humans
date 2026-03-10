@@ -20,7 +20,6 @@ public class BoardController : Controller
     private readonly UserManager<User> _userManager;
     private readonly IAuditLogService _auditLogService;
     private readonly IRoleAssignmentService _roleAssignmentService;
-    private readonly IApplicationDecisionService _applicationDecisionService;
     private readonly ITeamResourceService _teamResourceService;
     private readonly IClock _clock;
     private readonly ILogger<BoardController> _logger;
@@ -31,7 +30,6 @@ public class BoardController : Controller
         UserManager<User> userManager,
         IAuditLogService auditLogService,
         IRoleAssignmentService roleAssignmentService,
-        IApplicationDecisionService applicationDecisionService,
         ITeamResourceService teamResourceService,
         IClock clock,
         ILogger<BoardController> logger,
@@ -41,7 +39,6 @@ public class BoardController : Controller
         _userManager = userManager;
         _auditLogService = auditLogService;
         _roleAssignmentService = roleAssignmentService;
-        _applicationDecisionService = applicationDecisionService;
         _teamResourceService = teamResourceService;
         _clock = clock;
         _logger = logger;
@@ -73,82 +70,6 @@ public class BoardController : Controller
             RejectedApplications = dashboardData.RejectedApplications,
             ColaboradorApplied = dashboardData.ColaboradorApplied,
             AsociadoApplied = dashboardData.AsociadoApplied
-        };
-
-        return View(viewModel);
-    }
-
-    [HttpGet("Applications")]
-    public async Task<IActionResult> Applications(string? status, string? tier, int page = 1)
-    {
-        var pageSize = 20;
-        var (items, totalCount) = await _applicationDecisionService.GetFilteredApplicationsAsync(
-            status, tier, page, pageSize);
-
-        var applications = items.Select(a => new AdminApplicationViewModel
-        {
-            Id = a.Id,
-            UserId = a.UserId,
-            UserEmail = a.User.Email ?? string.Empty,
-            UserDisplayName = a.User.DisplayName,
-            Status = a.Status.ToString(),
-            StatusBadgeClass = a.Status.GetBadgeClass(),
-            SubmittedAt = a.SubmittedAt.ToDateTimeUtc(),
-            MotivationPreview = a.Motivation.Length > 100 ? a.Motivation[..100] + "..." : a.Motivation,
-            MembershipTier = a.MembershipTier.ToString()
-        }).ToList();
-
-        var viewModel = new AdminApplicationListViewModel
-        {
-            Applications = applications,
-            StatusFilter = status,
-            TierFilter = tier,
-            TotalCount = totalCount,
-            PageNumber = page,
-            PageSize = pageSize
-        };
-
-        return View(viewModel);
-    }
-
-    [HttpGet("Applications/{id}")]
-    public async Task<IActionResult> ApplicationDetail(Guid id)
-    {
-        var application = await _applicationDecisionService.GetApplicationDetailAsync(id);
-
-        if (application == null)
-        {
-            return NotFound();
-        }
-
-        var viewModel = new AdminApplicationDetailViewModel
-        {
-            Id = application.Id,
-            UserId = application.UserId,
-            UserEmail = application.User.Email ?? string.Empty,
-            UserDisplayName = application.User.DisplayName,
-            UserProfilePictureUrl = application.User.ProfilePictureUrl,
-            Status = application.Status.ToString(),
-            Motivation = application.Motivation,
-            AdditionalInfo = application.AdditionalInfo,
-            SignificantContribution = application.SignificantContribution,
-            RoleUnderstanding = application.RoleUnderstanding,
-            MembershipTier = application.MembershipTier,
-            Language = application.Language,
-            SubmittedAt = application.SubmittedAt.ToDateTimeUtc(),
-            ReviewStartedAt = application.ReviewStartedAt?.ToDateTimeUtc(),
-            ReviewerName = application.ReviewedByUser?.DisplayName,
-            ReviewNotes = application.ReviewNotes,
-            CanApproveReject = application.Status == ApplicationStatus.Submitted,
-            History = application.StateHistory
-                .OrderByDescending(h => h.ChangedAt)
-                .Select(h => new ApplicationHistoryViewModel
-                {
-                    Status = h.Status.ToString(),
-                    ChangedAt = h.ChangedAt.ToDateTimeUtc(),
-                    ChangedBy = h.ChangedByUser.DisplayName,
-                    Notes = h.Notes
-                }).ToList()
         };
 
         return View(viewModel);
