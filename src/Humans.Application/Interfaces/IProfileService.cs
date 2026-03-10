@@ -45,4 +45,8 @@ public interface IProfileService
         string? search, string? statusFilter, CancellationToken ct = default);
 
     Task<DTOs.AdminHumanDetailData?> GetAdminHumanDetailAsync(Guid userId, CancellationToken ct = default);
+
+    Task<IReadOnlyList<UserSearchResult>> SearchApprovedUsersAsync(string query, CancellationToken ct = default);
 }
+
+public record UserSearchResult(Guid UserId, string DisplayName, string Email);

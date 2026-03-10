@@ -221,4 +221,13 @@ public interface ITeamService
     /// </summary>
     Task<(IReadOnlyList<Team> Items, int TotalCount)> GetAllTeamsForAdminAsync(
         int page, int pageSize, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Directly adds a user to a team (admin/lead action, bypasses join request workflow).
+    /// </summary>
+    Task<TeamMember> AddMemberToTeamAsync(
+        Guid teamId,
+        Guid targetUserId,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default);
 }

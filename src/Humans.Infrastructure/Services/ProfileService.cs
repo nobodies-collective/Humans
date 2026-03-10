@@ -638,4 +638,17 @@ public class ProfileService : IProfileService
 
         return (true, 0, null);
     }
+
+    public async Task<IReadOnlyList<UserSearchResult>> SearchApprovedUsersAsync(string query, CancellationToken ct = default)
+    {
+        var pattern = $"%{query}%";
+        return await _dbContext.Users
+            .Where(u => u.Profile != null && u.Profile.IsApproved && !u.Profile.IsSuspended)
+            .Where(u => EF.Functions.ILike(u.DisplayName, pattern) ||
+                         (u.Email != null && EF.Functions.ILike(u.Email, pattern)))
+            .OrderBy(u => u.DisplayName)
+            .Take(20)
+            .Select(u => new UserSearchResult(u.Id, u.DisplayName, u.Email ?? ""))
+            .ToListAsync(ct);
+    }
 }

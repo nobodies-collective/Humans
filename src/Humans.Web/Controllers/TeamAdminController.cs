@@ -17,6 +17,7 @@ public class TeamAdminController : Controller
     private readonly ITeamService _teamService;
     private readonly ITeamResourceService _teamResourceService;
     private readonly IGoogleSyncService _googleSyncService;
+    private readonly IProfileService _profileService;
     private readonly UserManager<User> _userManager;
     private readonly ISystemTeamSync _systemTeamSyncJob;
     private readonly ILogger<TeamAdminController> _logger;
@@ -26,6 +27,7 @@ public class TeamAdminController : Controller
         ITeamService teamService,
         ITeamResourceService teamResourceService,
         IGoogleSyncService googleSyncService,
+        IProfileService profileService,
         UserManager<User> userManager,
         ISystemTeamSync systemTeamSyncJob,
         ILogger<TeamAdminController> logger,
@@ -34,6 +36,7 @@ public class TeamAdminController : Controller
         _teamService = teamService;
         _teamResourceService = teamResourceService;
         _googleSyncService = googleSyncService;
+        _profileService = profileService;
         _userManager = userManager;
         _systemTeamSyncJob = systemTeamSyncJob;
         _logger = logger;
@@ -260,6 +263,84 @@ public class TeamAdminController : Controller
         }
 
         return RedirectToAction(nameof(Members), new { slug });
+    }
+
+    [HttpPost("Members/Add")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddMember(string slug, AddMemberModel model)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var team = await _teamService.GetTeamBySlugAsync(slug);
+        if (team == null)
+        {
+            return NotFound();
+        }
+
+        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
+        if (!canManage)
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await _teamService.AddMemberToTeamAsync(team.Id, model.UserId, user.Id);
+            TempData["SuccessMessage"] = _localizer["TeamAdmin_MemberAdded"].Value;
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Members), new { slug });
+    }
+
+    [HttpGet("Members/Search")]
+    public async Task<IActionResult> SearchUsers(string slug, string q)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return Unauthorized();
+        }
+
+        var team = await _teamService.GetTeamBySlugAsync(slug);
+        if (team == null)
+        {
+            return NotFound();
+        }
+
+        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
+        if (!canManage)
+        {
+            return Forbid();
+        }
+
+        if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
+        {
+            return Json(Array.Empty<object>());
+        }
+
+        var results = await _profileService.SearchApprovedUsersAsync(q);
+
+        // Exclude existing team members
+        var existingMemberIds = team.Members
+            .Where(m => m.LeftAt == null)
+            .Select(m => m.UserId)
+            .ToHashSet();
+
+        var filtered = results
+            .Where(r => !existingMemberIds.Contains(r.UserId))
+            .Take(10)
+            .Select(r => new { r.UserId, r.DisplayName, r.Email })
+            .ToList();
+
+        return Json(filtered);
     }
 
     [HttpGet("Resources")]

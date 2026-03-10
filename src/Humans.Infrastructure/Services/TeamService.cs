@@ -692,6 +692,76 @@ public partial class TeamService : ITeamService
         _logger.LogInformation("Actor {ActorId} removed user {UserId} from team {TeamId}", actorUserId, userId, teamId);
     }
 
+    public async Task<TeamMember> AddMemberToTeamAsync(
+        Guid teamId,
+        Guid targetUserId,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var team = await _dbContext.Teams.FindAsync(new object[] { teamId }, cancellationToken)
+            ?? throw new InvalidOperationException($"Team {teamId} not found");
+
+        if (team.IsSystemTeam)
+        {
+            throw new InvalidOperationException("Cannot add members to system teams manually");
+        }
+
+        // Check no existing active membership
+        var existingMember = await _dbContext.TeamMembers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(tm => tm.TeamId == teamId && tm.UserId == targetUserId && tm.LeftAt == null, cancellationToken);
+
+        if (existingMember != null)
+        {
+            throw new InvalidOperationException("User is already a member of this team");
+        }
+
+        var member = new TeamMember
+        {
+            Id = Guid.NewGuid(),
+            TeamId = teamId,
+            UserId = targetUserId,
+            Role = TeamMemberRole.Member,
+            JoinedAt = _clock.GetCurrentInstant()
+        };
+
+        _dbContext.TeamMembers.Add(member);
+
+        var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
+        await _auditLogService.LogAsync(
+            AuditAction.TeamMemberAdded, "Team", teamId,
+            $"Member added to {team.Name} by {actor?.DisplayName ?? actorUserId.ToString()}",
+            actorUserId, actor?.DisplayName ?? actorUserId.ToString(),
+            relatedEntityId: targetUserId, relatedEntityType: "User");
+        EnqueueGoogleSyncOutboxEvent(
+            member.Id,
+            teamId,
+            targetUserId,
+            GoogleSyncOutboxEventTypes.AddUserToTeamResources);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "Failed to add user {UserId} to team {TeamId}", targetUserId, teamId);
+
+            if (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+            {
+                throw new InvalidOperationException("User is already a member of this team");
+            }
+
+            throw;
+        }
+
+        _logger.LogInformation("Actor {ActorId} added user {UserId} to team {TeamId}", actorUserId, targetUserId, teamId);
+
+        await SendAddedToTeamEmailAsync(targetUserId, team, cancellationToken);
+
+        return member;
+    }
+
     public async Task<IReadOnlyList<TeamMember>> GetTeamMembersAsync(
         Guid teamId,
         CancellationToken cancellationToken = default)

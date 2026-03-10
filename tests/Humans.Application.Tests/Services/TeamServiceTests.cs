@@ -1032,6 +1032,60 @@ public class TeamServiceTests : IDisposable
         items[1].SystemTeamType.Should().Be(SystemTeamType.Volunteers);
     }
 
+    // ==========================================================================
+    // AddMemberToTeamAsync
+    // ==========================================================================
+
+    [Fact]
+    public async Task AddMemberToTeamAsync_ValidUser_CreatesMembership()
+    {
+        var actor = SeedUser(displayName: "Actor");
+        var target = SeedUser(displayName: "Target");
+        var team = SeedTeam("Alpha");
+        await _dbContext.SaveChangesAsync();
+
+        var result = await _service.AddMemberToTeamAsync(team.Id, target.Id, actor.Id);
+
+        result.Should().NotBeNull();
+        result.TeamId.Should().Be(team.Id);
+        result.UserId.Should().Be(target.Id);
+        result.Role.Should().Be(TeamMemberRole.Member);
+        result.LeftAt.Should().BeNull();
+
+        var memberInDb = await _dbContext.TeamMembers
+            .FirstOrDefaultAsync(tm => tm.TeamId == team.Id && tm.UserId == target.Id && tm.LeftAt == null);
+        memberInDb.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task AddMemberToTeamAsync_AlreadyMember_Throws()
+    {
+        var actor = SeedUser(displayName: "Actor");
+        var target = SeedUser(displayName: "Target");
+        var team = SeedTeam("Alpha");
+        SeedTeamMember(team.Id, target.Id);
+        await _dbContext.SaveChangesAsync();
+
+        var act = () => _service.AddMemberToTeamAsync(team.Id, target.Id, actor.Id);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*already a member*");
+    }
+
+    [Fact]
+    public async Task AddMemberToTeamAsync_SystemTeam_Throws()
+    {
+        var actor = SeedUser(displayName: "Actor");
+        var target = SeedUser(displayName: "Target");
+        var team = SeedTeam("Volunteers", type: SystemTeamType.Volunteers);
+        await _dbContext.SaveChangesAsync();
+
+        var act = () => _service.AddMemberToTeamAsync(team.Id, target.Id, actor.Id);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*system team*");
+    }
+
     // --- Helpers ---
 
     private User SeedUser(Guid? id = null, string displayName = "Test User")
