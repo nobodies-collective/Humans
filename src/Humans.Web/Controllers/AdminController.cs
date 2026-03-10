@@ -22,34 +22,25 @@ public class AdminController : Controller
 {
     private readonly HumansDbContext _dbContext; // Only used by DbVersion (EF migration introspection)
     private readonly UserManager<User> _userManager;
-    private readonly IGoogleSyncService _googleSyncService;
     private readonly ILogger<AdminController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IWebHostEnvironment _environment;
     private readonly IOnboardingService _onboardingService;
-    private readonly IAuditLogService _auditLogService;
-    private readonly ITeamResourceService _teamResourceService;
 
     public AdminController(
         HumansDbContext dbContext,
         UserManager<User> userManager,
-        IGoogleSyncService googleSyncService,
         ILogger<AdminController> logger,
         IStringLocalizer<SharedResource> localizer,
         IWebHostEnvironment environment,
-        IOnboardingService onboardingService,
-        IAuditLogService auditLogService,
-        ITeamResourceService teamResourceService)
+        IOnboardingService onboardingService)
     {
         _dbContext = dbContext;
         _userManager = userManager;
-        _googleSyncService = googleSyncService;
         _logger = logger;
         _localizer = localizer;
         _environment = environment;
         _onboardingService = onboardingService;
-        _auditLogService = auditLogService;
-        _teamResourceService = teamResourceService;
     }
 
     [HttpGet("")]
@@ -266,65 +257,6 @@ public class AdminController : Controller
         return View(new EmailPreviewViewModel { Previews = previews });
     }
 
-    [HttpGet("GoogleSync")]
-    public async Task<IActionResult> GoogleSync()
-    {
-        var drivePreview = await _googleSyncService.SyncResourcesByTypeAsync(
-            GoogleResourceType.DriveFolder, SyncAction.Preview);
-        var groupPreview = await _googleSyncService.SyncResourcesByTypeAsync(
-            GoogleResourceType.Group, SyncAction.Preview);
-
-        var allDiffs = drivePreview.Diffs.Concat(groupPreview.Diffs).ToList();
-
-        var viewModel = new GoogleSyncViewModel
-        {
-            TotalResources = allDiffs.Count,
-            InSyncCount = allDiffs.Count(d => d.IsInSync),
-            DriftCount = allDiffs.Count(d => !d.IsInSync && d.ErrorMessage == null),
-            ErrorCount = allDiffs.Count(d => d.ErrorMessage != null),
-            Resources = allDiffs
-                .OrderBy(d => d.IsInSync)
-                .ThenBy(d => string.Join(", ", d.LinkedTeams), StringComparer.OrdinalIgnoreCase)
-                .ThenBy(d => d.ResourceName, StringComparer.OrdinalIgnoreCase)
-                .Select(d => new GoogleSyncResourceViewModel
-                {
-                    ResourceId = d.ResourceId,
-                    ResourceName = d.ResourceName,
-                    ResourceType = d.ResourceType,
-                    TeamName = string.Join(", ", d.LinkedTeams),
-                    Url = d.Url,
-                    ErrorMessage = d.ErrorMessage,
-                    IsInSync = d.IsInSync,
-                    MembersToAdd = d.MembersToAdd,
-                    MembersToRemove = d.MembersToRemove
-                }).ToList()
-        };
-
-        return View(viewModel);
-    }
-
-    [HttpPost("GoogleSync/Apply")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> GoogleSyncApply()
-    {
-        var currentUser = await _userManager.GetUserAsync(User);
-
-        try
-        {
-            await _googleSyncService.SyncResourcesByTypeAsync(GoogleResourceType.DriveFolder, SyncAction.AddOnly);
-            await _googleSyncService.SyncResourcesByTypeAsync(GoogleResourceType.Group, SyncAction.AddOnly);
-            _logger.LogInformation("Admin {AdminId} triggered manual Google resource sync", currentUser?.Id);
-            TempData["SuccessMessage"] = _localizer["Admin_GoogleSyncSuccess"].Value;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Manual Google resource sync failed");
-            TempData["ErrorMessage"] = _localizer["Admin_GoogleSyncFailed"].Value;
-        }
-
-        return RedirectToAction(nameof(GoogleSync));
-    }
-
     [HttpGet("SyncSettings")]
     public async Task<IActionResult> SyncSettings([FromServices] ISyncSettingsService syncSettingsService)
     {
@@ -388,95 +320,4 @@ public class AdminController : Controller
         });
     }
 
-    [Authorize(Roles = "Board,Admin")]
-    [HttpGet("AuditLog")]
-    public async Task<IActionResult> AuditLog(string? filter, int page = 1)
-    {
-        var pageSize = 50;
-        var (items, totalCount, anomalyCount) = await _auditLogService.GetFilteredAsync(filter, page, pageSize);
-
-        var entries = items.Select(e => new AuditLogEntryViewModel
-        {
-            Action = e.Action.ToString(),
-            Description = e.Description,
-            OccurredAt = e.OccurredAt.ToDateTimeUtc(),
-            ActorName = e.ActorName,
-            IsSystemAction = e.ActorUserId == null
-        }).ToList();
-
-        var viewModel = new AuditLogListViewModel
-        {
-            Entries = entries,
-            ActionFilter = filter,
-            AnomalyCount = anomalyCount,
-            TotalCount = totalCount,
-            PageNumber = page,
-            PageSize = pageSize
-        };
-
-        return View(viewModel);
-    }
-
-    [Authorize(Roles = "Board,Admin")]
-    [HttpPost("AuditLog/CheckDriveActivity")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CheckDriveActivity(
-        [FromServices] IDriveActivityMonitorService monitorService)
-    {
-        var currentUser = await _userManager.GetUserAsync(User);
-
-        try
-        {
-            var count = await monitorService.CheckForAnomalousActivityAsync();
-            _logger.LogInformation("Admin {AdminId} triggered manual Drive activity check: {Count} anomalies",
-                currentUser?.Id, count);
-
-            TempData["SuccessMessage"] = count > 0
-                ? $"Drive activity check completed: {count} anomalous change(s) detected."
-                : "Drive activity check completed: no anomalies detected.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Manual Drive activity check failed");
-            TempData["ErrorMessage"] = "Drive activity check failed. Check logs for details.";
-        }
-
-        return RedirectToAction(nameof(AuditLog), new { filter = nameof(AuditAction.AnomalousPermissionDetected) });
-    }
-
-    [Authorize(Roles = "Board,Admin")]
-    [HttpGet("GoogleSync/Resource/{id}/Audit")]
-    public async Task<IActionResult> GoogleSyncResourceAudit(Guid id)
-    {
-        var resource = await _teamResourceService.GetResourceByIdAsync(id);
-
-        if (resource == null)
-        {
-            return NotFound();
-        }
-
-        var entries = await _auditLogService.GetByResourceAsync(id);
-
-        var viewModel = new GoogleSyncAuditListViewModel
-        {
-            Title = $"Sync Audit: {resource.Name}",
-            BackUrl = Url.Action("GoogleSync", "Admin"),
-            BackLabel = "Back to Google Sync",
-            Entries = entries.Select(e => new GoogleSyncAuditEntryViewModel
-            {
-                Action = e.Action.ToString(),
-                Description = e.Description,
-                UserEmail = e.UserEmail,
-                Role = e.Role,
-                SyncSource = e.SyncSource?.ToString(),
-                OccurredAt = e.OccurredAt.ToDateTimeUtc(),
-                Success = e.Success,
-                ErrorMessage = e.ErrorMessage,
-                ActorName = e.ActorName,
-                RelatedEntityId = e.RelatedEntityId
-            }).ToList()
-        };
-
-        return View("GoogleSyncAudit", viewModel);
-    }
 }
