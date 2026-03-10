@@ -1105,4 +1105,12 @@
   <data name="Nav_Voting" xml:space="preserve"><value>Voting</value></data>
   <data name="Nav_Board" xml:space="preserve"><value>Board</value></data>
 
+  <!-- Team admin: add member -->
+  <data name="TeamAdmin_AddMember" xml:space="preserve"><value>Mitglied hinzuf&#xFC;gen</value></data>
+  <data name="TeamAdmin_SearchHumans" xml:space="preserve"><value>Humans suchen</value></data>
+  <data name="TeamAdmin_SearchPlaceholder" xml:space="preserve"><value>Name oder E-Mail eingeben...</value></data>
+  <data name="TeamAdmin_MemberAdded" xml:space="preserve"><value>Mitglied erfolgreich hinzugef&#xFC;gt.</value></data>
+  <data name="TeamAdmin_NoResults" xml:space="preserve"><value>Keine passenden Humans gefunden</value></data>
+  <data name="TeamAdmin_Add" xml:space="preserve"><value>Hinzuf&#xFC;gen</value></data>
+
 </root>

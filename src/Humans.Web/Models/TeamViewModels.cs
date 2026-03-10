@@ -240,6 +240,11 @@ public class ApproveRejectRequestModel
     public string? Notes { get; set; }
 }
 
+public class AddMemberModel
+{
+    public Guid UserId { get; set; }
+}
+
 public class AdminTeamListViewModel
 {
     public List<AdminTeamViewModel> Teams { get; set; } = [];
