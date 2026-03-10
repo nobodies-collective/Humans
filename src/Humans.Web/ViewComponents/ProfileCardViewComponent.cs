@@ -169,8 +169,8 @@ public class ProfileCardViewComponent : ViewComponent
                 Description = vh.Description
             }).ToList(),
             Teams = displayableTeams,
-            CanSendMessage = viewMode == ProfileCardViewMode.Public
-                && !visibleEmails.Any()
+            CanSendMessage = !isOwnProfile
+                && !visibleEmails.Any(e => e.Visibility >= ContactFieldVisibility.AllActiveProfiles)
         };
 
         return View(model);
