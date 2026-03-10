@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using NodaTime;
 using Octokit;
 using Humans.Application.Interfaces;
 using Humans.Domain.Enums;
@@ -23,6 +24,8 @@ public class GovernanceController : Controller
     private readonly GitHubSettings _gitHubSettings;
     private readonly IProfileService _profileService;
     private readonly IApplicationDecisionService _applicationDecisionService;
+    private readonly IRoleAssignmentService _roleAssignmentService;
+    private readonly IClock _clock;
 
     private const string StatutesCacheKey = "StatutesContent";
     private static readonly Regex LanguageFilePattern = new(
@@ -36,7 +39,9 @@ public class GovernanceController : Controller
         IMemoryCache cache,
         IOptions<GitHubSettings> gitHubSettings,
         IProfileService profileService,
-        IApplicationDecisionService applicationDecisionService)
+        IApplicationDecisionService applicationDecisionService,
+        IRoleAssignmentService roleAssignmentService,
+        IClock clock)
     {
         _userManager = userManager;
         _logger = logger;
@@ -44,6 +49,8 @@ public class GovernanceController : Controller
         _gitHubSettings = gitHubSettings.Value;
         _profileService = profileService;
         _applicationDecisionService = applicationDecisionService;
+        _roleAssignmentService = roleAssignmentService;
+        _clock = clock;
     }
 
     public async Task<IActionResult> Index()
@@ -131,5 +138,41 @@ public class GovernanceController : Controller
         }
 
         return content;
+    }
+
+    [Authorize(Roles = "Board,Admin")]
+    [HttpGet("Roles")]
+    public async Task<IActionResult> Roles(string? role, bool showInactive = false, int page = 1)
+    {
+        var pageSize = 50;
+        var now = _clock.GetCurrentInstant();
+
+        var (assignments, totalCount) = await _roleAssignmentService.GetFilteredAsync(
+            role, activeOnly: !showInactive, page, pageSize, now);
+
+        var viewModel = new AdminRoleAssignmentListViewModel
+        {
+            RoleAssignments = assignments.Select(ra => new AdminRoleAssignmentViewModel
+            {
+                Id = ra.Id,
+                UserId = ra.UserId,
+                UserEmail = ra.User.Email ?? string.Empty,
+                UserDisplayName = ra.User.DisplayName,
+                RoleName = ra.RoleName,
+                ValidFrom = ra.ValidFrom.ToDateTimeUtc(),
+                ValidTo = ra.ValidTo?.ToDateTimeUtc(),
+                Notes = ra.Notes,
+                IsActive = ra.IsActive(now),
+                CreatedByName = ra.CreatedByUser?.DisplayName,
+                CreatedAt = ra.CreatedAt.ToDateTimeUtc()
+            }).ToList(),
+            RoleFilter = role,
+            ShowInactive = showInactive,
+            TotalCount = totalCount,
+            PageNumber = page,
+            PageSize = pageSize
+        };
+
+        return View(viewModel);
     }
 }

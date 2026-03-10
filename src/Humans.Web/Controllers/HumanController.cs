@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using NodaTime;
 using Humans.Application.Interfaces;
+using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Web.Extensions;
@@ -19,6 +20,7 @@ public class HumanController : Controller
     private readonly UserManager<User> _userManager;
     private readonly IAuditLogService _auditLogService;
     private readonly IOnboardingService _onboardingService;
+    private readonly IRoleAssignmentService _roleAssignmentService;
     private readonly IClock _clock;
     private readonly IStringLocalizer<SharedResource> _localizer;
 
@@ -27,6 +29,7 @@ public class HumanController : Controller
         UserManager<User> userManager,
         IAuditLogService auditLogService,
         IOnboardingService onboardingService,
+        IRoleAssignmentService roleAssignmentService,
         IClock clock,
         IStringLocalizer<SharedResource> localizer)
     {
@@ -34,6 +37,7 @@ public class HumanController : Controller
         _userManager = userManager;
         _auditLogService = auditLogService;
         _onboardingService = onboardingService;
+        _roleAssignmentService = roleAssignmentService;
         _clock = clock;
         _localizer = localizer;
     }
@@ -299,5 +303,134 @@ public class HumanController : Controller
         };
 
         return View("GoogleSyncAudit", viewModel);
+    }
+
+    [Authorize(Roles = "Board,Admin")]
+    [HttpGet("Admin/{id:guid}/Roles/Add")]
+    public async Task<IActionResult> AddRole(Guid id)
+    {
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var viewModel = new CreateRoleAssignmentViewModel
+        {
+            UserId = id,
+            UserDisplayName = user.DisplayName,
+            AvailableRoles = User.IsInRole(RoleNames.Admin)
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+        };
+
+        return View(viewModel);
+    }
+
+    [Authorize(Roles = "Board,Admin")]
+    [HttpPost("Admin/{id:guid}/Roles/Add")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddRole(Guid id, CreateRoleAssignmentViewModel model)
+    {
+        var user = await _userManager.FindByIdAsync(id.ToString());
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(model.RoleName))
+        {
+            ModelState.AddModelError(nameof(model.RoleName), "Please select a role.");
+            model.UserId = id;
+            model.UserDisplayName = user.DisplayName;
+            model.AvailableRoles = User.IsInRole(RoleNames.Admin)
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator];
+            return View(model);
+        }
+
+        // Enforce role assignment authorization
+        if (!CanManageRole(model.RoleName))
+        {
+            return Forbid();
+        }
+
+        var currentUser = await _userManager.GetUserAsync(User);
+        if (currentUser == null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await _roleAssignmentService.AssignRoleAsync(
+            id, model.RoleName, currentUser.Id, currentUser.DisplayName, model.Notes);
+
+        if (!result.Success)
+        {
+            TempData["ErrorMessage"] = string.Format(_localizer["Admin_RoleAlreadyActive"].Value, model.RoleName);
+            return RedirectToAction("HumanDetail", new { id });
+        }
+
+        TempData["SuccessMessage"] = string.Format(_localizer["Admin_RoleAssigned"].Value, model.RoleName);
+        return RedirectToAction("HumanDetail", new { id });
+    }
+
+    [Authorize(Roles = "Board,Admin")]
+    [HttpPost("Admin/{id:guid}/Roles/{roleId:guid}/End")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EndRole(Guid id, Guid roleId, string? notes)
+    {
+        var roleAssignment = await _roleAssignmentService.GetByIdAsync(roleId);
+
+        if (roleAssignment == null)
+        {
+            return NotFound();
+        }
+
+        // Enforce role assignment authorization
+        if (!CanManageRole(roleAssignment.RoleName))
+        {
+            return Forbid();
+        }
+
+        var currentUser = await _userManager.GetUserAsync(User);
+        if (currentUser == null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await _roleAssignmentService.EndRoleAsync(
+            roleId, currentUser.Id, currentUser.DisplayName, notes);
+
+        if (!result.Success)
+        {
+            TempData["ErrorMessage"] = _localizer["Admin_RoleNotActive"].Value;
+            return RedirectToAction("HumanDetail", new { id = roleAssignment.UserId });
+        }
+
+        TempData["SuccessMessage"] = string.Format(_localizer["Admin_RoleEnded"].Value, roleAssignment.RoleName, roleAssignment.User.DisplayName);
+        return RedirectToAction("HumanDetail", new { id = roleAssignment.UserId });
+    }
+
+    /// <summary>
+    /// Checks whether the current user can assign/end the specified role.
+    /// Admin can manage any role. Board can manage Board and coordinator roles.
+    /// </summary>
+    private bool CanManageRole(string roleName)
+    {
+        if (User.IsInRole(RoleNames.Admin))
+        {
+            return true;
+        }
+
+        // Board members can manage Board and coordinator roles
+        if (User.IsInRole(RoleNames.Board))
+        {
+            return string.Equals(roleName, RoleNames.Board, StringComparison.Ordinal) ||
+                   string.Equals(roleName, RoleNames.TeamsAdmin, StringComparison.Ordinal) ||
+                   string.Equals(roleName, RoleNames.ConsentCoordinator, StringComparison.Ordinal) ||
+                   string.Equals(roleName, RoleNames.VolunteerCoordinator, StringComparison.Ordinal);
+        }
+
+        return false;
     }
 }

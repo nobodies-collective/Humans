@@ -142,7 +142,7 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span>@Localizer["AdminHuman_RoleAssignments"]</span>
-                <a asp-controller="Board" asp-action="AddRole" asp-route-id="@Model.UserId" class="btn btn-sm btn-outline-primary">@Localizer["AdminHuman_AddRole"]</a>
+                <a asp-action="AddRole" asp-route-id="@Model.UserId" class="btn btn-sm btn-outline-primary">@Localizer["AdminHuman_AddRole"]</a>
             </div>
             @if (Model.RoleAssignments.Count > 0)
             {
@@ -175,7 +175,7 @@
                             </div>
                             @if (role.IsActive)
                             {
-                                <form asp-controller="Board" asp-action="EndRole" asp-route-id="@role.Id" method="post" class="d-inline"
+                                <form asp-action="EndRole" asp-route-id="@Model.UserId" asp-route-roleId="@role.Id" method="post" class="d-inline"
                                       data-confirm="@Localizer["AdminHuman_EndRoleConfirm"].Value">
                                     @Html.AntiForgeryToken()
                                     <button type="submit" class="btn btn-sm btn-outline-danger">@Localizer["AdminHuman_End"]</button>
