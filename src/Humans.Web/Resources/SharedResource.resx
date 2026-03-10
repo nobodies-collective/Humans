@@ -1118,4 +1118,19 @@
   <data name="TeamAdmin_NoResults" xml:space="preserve"><value>No matching humans found</value></data>
   <data name="TeamAdmin_Add" xml:space="preserve"><value>Add</value></data>
 
+  <!-- Facilitated Messaging -->
+  <data name="Email_FacilitatedMessage_Subject" xml:space="preserve"><value>Humans Message from: {0}</value><comment>{0} = sender name</comment></data>
+  <data name="Email_FacilitatedMessage_Body" xml:space="preserve"><value>&lt;h2&gt;Message from {1}&lt;/h2&gt;&lt;p&gt;Hi {0},&lt;/p&gt;&lt;p&gt;{1} has sent you a message through Humans:&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;{2}&lt;/p&gt;&lt;hr /&gt;{3}</value><comment>{0}=recipient, {1}=sender, {2}=message, {3}=contact info html</comment></data>
+  <data name="Email_FacilitatedMessage_NoContactInfo" xml:space="preserve"><value>This human chose not to share their contact information.</value></data>
+  <data name="SendMessage_Title" xml:space="preserve"><value>Send {0} a message</value><comment>{0} = recipient name</comment></data>
+  <data name="SendMessage_Breadcrumb" xml:space="preserve"><value>Send Message</value></data>
+  <data name="SendMessage_Heading" xml:space="preserve"><value>Send {0} a message</value><comment>{0} = recipient name</comment></data>
+  <data name="SendMessage_MessageLabel" xml:space="preserve"><value>Message</value></data>
+  <data name="SendMessage_PlainTextOnly" xml:space="preserve"><value>Plain text only. Maximum 2000 characters.</value></data>
+  <data name="SendMessage_IncludeContactInfo" xml:space="preserve"><value>Include my contact info</value></data>
+  <data name="SendMessage_IncludeContactInfoHelp" xml:space="preserve"><value>Your name and email will be included so they can reply to you directly.</value></data>
+  <data name="SendMessage_Send" xml:space="preserve"><value>Send Message</value></data>
+  <data name="SendMessage_Success" xml:space="preserve"><value>Your message has been sent to {0}.</value><comment>{0} = recipient name</comment></data>
+  <data name="SendMessage_Button" xml:space="preserve"><value>Send {0} a message</value><comment>{0} = display name</comment></data>
+
 </root>
