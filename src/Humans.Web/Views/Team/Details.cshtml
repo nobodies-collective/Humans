@@ -148,6 +148,12 @@
                 }
             </div>
         </div>
+
+        @await Html.PartialAsync("_RosterSection", Model.RoleDefinitions,
+            new ViewDataDictionary(ViewData) {
+                { "CanManage", Model.CanCurrentUserManage },
+                { "Slug", Model.Slug }
+            })
     </div>
 
     <div class="col-md-4">

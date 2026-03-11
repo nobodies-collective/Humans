@@ -149,6 +149,9 @@ public class TeamController : Controller
         // Load active Google resources for this team
         var googleResources = await _teamResourceService.GetTeamResourcesAsync(team.Id);
 
+        // Load role definitions for roster section
+        var roleDefinitions = await _teamService.GetRoleDefinitionsAsync(team.Id);
+
         var viewModel = new TeamDetailViewModel
         {
             Id = team.Id,
@@ -160,6 +163,7 @@ public class TeamController : Controller
             IsSystemTeam = team.IsSystemTeam,
             SystemTeamType = team.SystemTeamType != SystemTeamType.None ? team.SystemTeamType.ToString() : null,
             CreatedAt = team.CreatedAt.ToDateTimeUtc(),
+            RoleDefinitions = roleDefinitions.Select(MapRoleDefinitionToViewModel).ToList(),
             Resources = googleResources.Select(gr => new TeamResourceLinkViewModel
             {
                 Name = gr.Name,
@@ -729,5 +733,36 @@ public class TeamController : Controller
         }
 
         return RedirectToAction(nameof(Summary));
+    }
+
+    private static TeamRoleDefinitionViewModel MapRoleDefinitionToViewModel(TeamRoleDefinition d)
+    {
+        var slots = new List<TeamRoleSlotViewModel>();
+        for (var i = 0; i < d.SlotCount; i++)
+        {
+            var assignment = d.Assignments.FirstOrDefault(a => a.SlotIndex == i);
+            var priority = i < d.Priorities.Count ? d.Priorities[i] : SlotPriority.NiceToHave;
+            slots.Add(new TeamRoleSlotViewModel
+            {
+                SlotIndex = i,
+                Priority = priority.ToString(),
+                PriorityBadgeClass = priority switch
+                {
+                    SlotPriority.Critical => "bg-danger",
+                    SlotPriority.Important => "bg-warning text-dark",
+                    _ => "bg-secondary"
+                },
+                IsFilled = assignment != null,
+                AssignedUserId = assignment?.TeamMember?.UserId,
+                AssignedUserName = assignment?.TeamMember?.User?.DisplayName,
+                TeamMemberId = assignment?.TeamMemberId
+            });
+        }
+        return new TeamRoleDefinitionViewModel
+        {
+            Id = d.Id, Name = d.Name, Description = d.Description,
+            SlotCount = d.SlotCount, Slots = slots, SortOrder = d.SortOrder,
+            IsLeadRole = d.IsLeadRole
+        };
     }
 }

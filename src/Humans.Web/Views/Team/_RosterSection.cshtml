@@ -1,0 +1,59 @@
+@model List<Humans.Web.Models.TeamRoleDefinitionViewModel>
+
+@if (Model.Any())
+{
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Roles</h5>
+            @if ((bool)(ViewData["CanManage"] ?? false))
+            {
+                <a href="@Url.Action("Roles", "TeamAdmin", new { slug = ViewData["Slug"] })"
+                   class="btn btn-sm btn-outline-primary">Edit Roles</a>
+            }
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Role</th>
+                        <th>Slot</th>
+                        <th>Priority</th>
+                        <th>Assigned To</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var role in Model)
+                    {
+                        @foreach (var slot in role.Slots)
+                        {
+                            <tr>
+                                @if (slot.SlotIndex == 0)
+                                {
+                                    <td rowspan="@role.Slots.Count">
+                                        <strong>@role.Name</strong>
+                                        @if (!string.IsNullOrEmpty(role.Description))
+                                        {
+                                            <br /><small class="text-muted">@role.Description</small>
+                                        }
+                                    </td>
+                                }
+                                <td>@(slot.SlotIndex + 1)</td>
+                                <td><span class="badge @slot.PriorityBadgeClass">@slot.Priority</span></td>
+                                <td>
+                                    @if (slot.IsFilled)
+                                    {
+                                        @slot.AssignedUserName
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted fst-italic">Open</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

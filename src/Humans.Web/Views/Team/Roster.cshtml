@@ -1,0 +1,71 @@
+@model Humans.Web.Models.RosterSummaryViewModel
+
+@{
+    ViewData["Title"] = "Team Roster";
+}
+
+<h2>Team Roster</h2>
+
+<div class="mb-3 d-flex gap-2">
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            Priority: @(Model.PriorityFilter ?? "All")
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { status = Model.StatusFilter })">All</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "Critical", status = Model.StatusFilter })">Critical</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "Important", status = Model.StatusFilter })">Important</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "NiceToHave", status = Model.StatusFilter })">Nice to Have</a></li>
+        </ul>
+    </div>
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            Status: @(Model.StatusFilter ?? "All")
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter })">All</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = "Open" })">Open</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = "Filled" })">Filled</a></li>
+        </ul>
+    </div>
+</div>
+
+@if (!Model.Slots.Any())
+{
+    <div class="alert alert-info">No role slots defined across teams.</div>
+}
+else
+{
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Team</th>
+                <th>Role</th>
+                <th>Slot</th>
+                <th>Priority</th>
+                <th>Assigned To</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var slot in Model.Slots)
+            {
+                <tr class="@(slot is { IsFilled: false, Priority: "Critical" } ? "table-danger" : "")">
+                    <td><a href="@Url.Action("Details", "Team", new { slug = slot.TeamSlug })">@slot.TeamName</a></td>
+                    <td>@slot.RoleName</td>
+                    <td>@slot.SlotNumber</td>
+                    <td><span class="badge @slot.PriorityBadgeClass">@slot.Priority</span></td>
+                    <td>
+                        @if (slot.IsFilled)
+                        {
+                            @slot.AssignedUserName
+                        }
+                        else
+                        {
+                            <span class="text-muted fst-italic">Open</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
