@@ -33,13 +33,13 @@ public enum SlotPriority
 | `Name` | string | Max 100, required |
 | `Description` | string? | Max 2000, markdown-friendly |
 | `SlotCount` | int | Required, >= 1 |
-| `Priorities` | `List<SlotPriority>` | JSON column (`jsonb`), length must equal SlotCount |
+| `Priorities` | string | CSV of SlotPriority values (e.g., "Critical,Important,NiceToHave"), length must equal SlotCount |
 | `SortOrder` | int | Display ordering within team |
 | `CreatedAt` | Instant | Set on creation |
 | `UpdatedAt` | Instant | Set on creation and update |
 
 **Indexes:**
-- `(TeamId, Name)` — unique, prevents duplicate role names within a team
+- `(TeamId, lower(Name))` — unique (case-insensitive), prevents duplicate role names within a team
 
 **Navigation:**
 - `Team` (Team)
@@ -85,7 +85,9 @@ New navigation property:
 
 ### Lead Roles
 
-"Lead" role definitions are informational only. They track the desired number of leads and provide a description, but `TeamMember.Role = Lead` remains the source of truth for lead permissions and Leads system team sync. The Lead role definition is not treated differently by the system — it's just a role slot like any other, with the name "Lead".
+There is one unified Lead concept. Every non-system team has a "Lead" role definition (auto-created with the team). Assigning someone to a Lead slot sets `TeamMember.Role = Lead`; unassigning sets it back to `Member` (unless they still occupy another Lead slot). The Lead role definition's `SlotCount` defines how many leads the team wants. `TeamMember.Role = Lead` remains the source of truth for permissions and Leads system team sync — the Lead role definition drives it.
+
+The name "Lead" is reserved and cannot be used for other role definitions. Non-Lead role definitions cannot be renamed to "Lead".
 
 ### Member Departure
 
@@ -95,11 +97,19 @@ New navigation property:
 
 Role definitions cannot be created on system teams (`team.IsSystemTeam == true`). This is consistent with all other mutating operations on system teams being blocked. System teams are: Volunteers, Leads, Board, Asociados, Colaboradors.
 
+### Slot Assignment Can Auto-Add to Team
+
+When assigning a user to a role slot, if the user is not already an active member of the team, the system automatically adds them to the team (equivalent to `AddMemberToTeamAsync`). This reduces friction — a team lead can assign someone to a role without a separate "add member" step. The assignment flow is: check membership → add if needed → assign to slot.
+
 ### EF Configuration Notes
 
-The `Priorities` JSON column requires explicit `HasConversion` with a `ValueConverter` that serializes `List<SlotPriority>` as a JSON array of strings (matching project convention of storing enums as strings). Column type is `jsonb` with a default of `'[]'::jsonb`. Follow the pattern in `DocumentVersionConfiguration`.
+The `Priorities` column is a simple CSV string (e.g., `"Critical,Important,NiceToHave"`). Use a `ValueConverter` to convert between `List<SlotPriority>` and the stored CSV string. Default value: empty string `""`.
 
 The `SlotIndex < SlotCount` invariant is enforced by service-layer validation only. No database CHECK constraint is added, consistent with the project's preference for service-layer validation over database constraints.
+
+### Reserved Slugs
+
+The slug "roster" must be blocked during team creation/editing to prevent conflict with the `GET /Teams/Roster` route. Add to slug validation alongside any other reserved words.
 
 ## Permissions
 
@@ -136,8 +146,8 @@ Added as a new section on the existing `/Teams/{slug}` page, below the current m
 - Each slot row shows: role name, slot number, priority badge (color-coded), assigned member name (or "Open")
 - Open critical slots visually emphasized (e.g., red/warning badge)
 - Role description shown on expand/click (markdown rendered)
-- Team leads and TeamsAdmin see "Edit Roles" button linking to management page
-- Team leads and TeamsAdmin see "Assign" buttons on open slots
+- Authorized users (team leads, TeamsAdmin, Board, Admin) see "Edit Roles" button linking to management page
+- Authorized users see "Assign" buttons on open slots
 
 ### Role Management Page
 
@@ -147,29 +157,31 @@ Accessible via `/Teams/{slug}/Roles` for authorized users:
 - Add new role: name, description (textarea, markdown), slot count, priority per slot, sort order
 - Edit existing role: same fields, with validation when reducing slot count (block if filled slots would be removed)
 - Delete role: confirmation required, warns about existing assignments
-- Assign/unassign members via member picker (reuses existing autocomplete search from AddMember)
+- Assign members via member picker — searches current team members first, but can also search all users (assigning a non-member auto-adds them to the team)
 
 ### Cross-Team Roster Summary
 
 New page at `/Teams/Roster`, accessible to all authenticated users:
 
-- Shows unfilled slots across all active teams
+- Shows all slots across all active teams (both filled and open)
 - Sorted by priority (Critical first), then by team name
-- Columns: Team, Role, Slot #, Priority, Status (Open/Filled)
-- Filterable by priority level
+- Columns: Team, Role, Slot #, Priority, Assigned To (name or "Open")
+- Filterable by priority level and by status (Open/Filled/All)
 - Links to team detail page for each row
 
 ## Validation Rules
 
 - Cannot create role definitions on system teams
 - `SlotCount` must be >= 1
-- `Priorities` array length must equal `SlotCount`
+- `Priorities` CSV length must equal `SlotCount`
 - Cannot assign more members than `SlotCount`
-- Cannot assign a non-active team member to a slot
+- Assigning a user who is not an active team member auto-adds them to the team
 - Cannot assign the same member to the same role definition twice (unique constraint)
 - A member CAN hold multiple different role slots on the same team
 - When reducing `SlotCount`, filled slots beyond the new count must be unassigned first
-- Role name must be unique within a team (case-insensitive)
+- Role name must be unique within a team (case-insensitive, enforced via `lower()` index)
+- "Lead" is a reserved role name — auto-created with each non-system team, cannot be created/deleted manually
+- Team slug "roster" is reserved (blocked during team creation/editing)
 
 ## Audit Logging
 
