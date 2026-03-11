@@ -55,35 +55,13 @@
             </div>
         </div>
 
-        @if (Model.Resources.Count > 0)
-        {
-            <div class="card mb-4">
-                <div class="card-header">
-                    <span>@Localizer["TeamDetail_Resources"]</span>
-                </div>
-                <div class="card-body py-2">
-                    <div class="d-flex flex-wrap gap-2">
-                        @foreach (var resource in Model.Resources)
-                        {
-                            @if (!string.IsNullOrEmpty(resource.Url))
-                            {
-                                <a href="@resource.Url" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
-                                    <i class="@resource.IconClass me-1"></i> @resource.Name
-                                </a>
-                            }
-                            else
-                            {
-                                <span class="btn btn-sm btn-outline-secondary disabled">
-                                    <i class="@resource.IconClass me-1"></i> @resource.Name
-                                </span>
-                            }
-                        }
-                    </div>
-                </div>
-            </div>
-        }
+        @await Html.PartialAsync("_RosterSection", Model.RoleDefinitions,
+            new ViewDataDictionary(ViewData) {
+                { "CanManage", Model.CanCurrentUserManage },
+                { "Slug", Model.Slug }
+            })
 
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <span>@string.Format(Localizer["TeamDetail_Members"].Value, Model.Members.Count)</span>
                 @if (Model.CanCurrentUserManage)
@@ -148,12 +126,6 @@
                 }
             </div>
         </div>
-
-        @await Html.PartialAsync("_RosterSection", Model.RoleDefinitions,
-            new ViewDataDictionary(ViewData) {
-                { "CanManage", Model.CanCurrentUserManage },
-                { "Slug", Model.Slug }
-            })
     </div>
 
     <div class="col-md-4">
@@ -205,7 +177,7 @@
 
         @if (Model.CanCurrentUserManage)
         {
-            <div class="card">
+            <div class="card mb-4">
                 <div class="card-header">@Localizer["TeamDetail_TeamManagement"]</div>
                 <div class="list-group list-group-flush">
                     @if (Model.CanCurrentUserEditTeam)
@@ -227,6 +199,34 @@
                     <a asp-controller="AdminLegalDocuments" asp-action="LegalDocuments" asp-route-teamId="@Model.Id" class="list-group-item list-group-item-action">
                         @Localizer["TeamDetail_ManageConsents"]
                     </a>
+                </div>
+            </div>
+        }
+
+        @if (Model.Resources.Count > 0)
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <span>@Localizer["TeamDetail_Resources"]</span>
+                </div>
+                <div class="card-body py-2">
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var resource in Model.Resources)
+                        {
+                            @if (!string.IsNullOrEmpty(resource.Url))
+                            {
+                                <a href="@resource.Url" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
+                                    <i class="@resource.IconClass me-1"></i> @resource.Name
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="btn btn-sm btn-outline-secondary disabled">
+                                    <i class="@resource.IconClass me-1"></i> @resource.Name
+                                </span>
+                            }
+                        }
+                    </div>
                 </div>
             </div>
         }
