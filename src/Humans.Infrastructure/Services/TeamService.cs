@@ -328,6 +328,15 @@ public partial class TeamService : ITeamService
             throw new InvalidOperationException("User is not a member of this team");
         }
 
+        // Clean up role assignments before departure
+        var roleAssignments = await _dbContext.Set<TeamRoleAssignment>()
+            .Where(a => a.TeamMemberId == member.Id)
+            .ToListAsync(cancellationToken);
+        if (roleAssignments.Count > 0)
+        {
+            _dbContext.Set<TeamRoleAssignment>().RemoveRange(roleAssignments);
+        }
+
         member.LeftAt = _clock.GetCurrentInstant();
 
         var leavingUser = await _dbContext.Users.FindAsync([userId], cancellationToken);
@@ -672,6 +681,15 @@ public partial class TeamService : ITeamService
         var member = await _dbContext.TeamMembers
             .FirstOrDefaultAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.LeftAt == null, cancellationToken)
             ?? throw new InvalidOperationException("User is not a member of this team");
+
+        // Clean up role assignments before departure
+        var roleAssignments = await _dbContext.Set<TeamRoleAssignment>()
+            .Where(a => a.TeamMemberId == member.Id)
+            .ToListAsync(cancellationToken);
+        if (roleAssignments.Count > 0)
+        {
+            _dbContext.Set<TeamRoleAssignment>().RemoveRange(roleAssignments);
+        }
 
         member.LeftAt = _clock.GetCurrentInstant();
 
@@ -1027,8 +1045,42 @@ public partial class TeamService : ITeamService
 
         // Find the team member
         var teamMember = await _dbContext.TeamMembers
-            .FirstOrDefaultAsync(tm => tm.TeamId == definition.TeamId && tm.UserId == targetUserId && tm.LeftAt == null, cancellationToken)
-            ?? throw new InvalidOperationException("User is not an active member of this team");
+            .FirstOrDefaultAsync(tm => tm.TeamId == definition.TeamId && tm.UserId == targetUserId && tm.LeftAt == null, cancellationToken);
+
+        if (teamMember == null)
+        {
+            // Auto-add to team (inlined to keep everything in one SaveChangesAsync)
+            teamMember = new TeamMember
+            {
+                Id = Guid.NewGuid(),
+                TeamId = definition.TeamId,
+                UserId = targetUserId,
+                Role = TeamMemberRole.Member,
+                JoinedAt = _clock.GetCurrentInstant()
+            };
+            _dbContext.TeamMembers.Add(teamMember);
+
+            // Resolve any pending join request
+            var pendingRequest = await _dbContext.TeamJoinRequests
+                .FirstOrDefaultAsync(r => r.TeamId == definition.TeamId
+                    && r.UserId == targetUserId
+                    && r.Status == TeamJoinRequestStatus.Pending, cancellationToken);
+            if (pendingRequest != null)
+            {
+                pendingRequest.Approve(actorUserId, "Added via role assignment", _clock);
+            }
+
+            EnqueueGoogleSyncOutboxEvent(
+                teamMember.Id, definition.TeamId, targetUserId,
+                GoogleSyncOutboxEventTypes.AddUserToTeamResources);
+
+            var actorForAdd = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
+            await _auditLogService.LogAsync(
+                AuditAction.TeamMemberAdded, "Team", definition.TeamId,
+                $"Auto-added to {definition.Team.Name} via role assignment",
+                actorUserId, actorForAdd?.DisplayName ?? actorUserId.ToString(),
+                relatedEntityId: targetUserId, relatedEntityType: "User");
+        }
 
         // Check if already assigned to this role
         if (definition.Assignments.Any(a => a.TeamMemberId == teamMember.Id))
@@ -1057,6 +1109,13 @@ public partial class TeamService : ITeamService
         };
 
         _dbContext.Set<TeamRoleAssignment>().Add(assignment);
+
+        // If this is a Lead role, set TeamMember.Role = Lead
+        // (Leads system team sync is handled by the controller via ISystemTeamSync)
+        if (definition.IsLeadRole && teamMember.Role != TeamMemberRole.Lead)
+        {
+            teamMember.Role = TeamMemberRole.Lead;
+        }
 
         var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
         var targetUser = await _dbContext.Users.FindAsync([targetUserId], cancellationToken);
@@ -1104,6 +1163,21 @@ public partial class TeamService : ITeamService
             relatedEntityId: assignment.TeamMember.UserId, relatedEntityType: "User");
 
         _dbContext.Set<TeamRoleAssignment>().Remove(assignment);
+
+        // If this is a Lead role, check if member has remaining Lead assignments
+        if (definition.IsLeadRole)
+        {
+            var member = assignment.TeamMember;
+            var hasOtherLeadAssignments = await _dbContext.Set<TeamRoleAssignment>()
+                .AnyAsync(a => a.TeamMemberId == teamMemberId
+                    && a.Id != assignment.Id
+                    && a.TeamRoleDefinition.Name == "Lead", cancellationToken);
+
+            if (!hasOtherLeadAssignments && member.Role == TeamMemberRole.Lead)
+            {
+                member.Role = TeamMemberRole.Member;
+            }
+        }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
