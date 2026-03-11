@@ -45,6 +45,10 @@ public partial class TeamService : ITeamService
         var baseSlug = GenerateSlug(name);
         var now = _clock.GetCurrentInstant();
 
+        // Block reserved slugs
+        if (string.Equals(baseSlug, "roster", StringComparison.Ordinal))
+            throw new InvalidOperationException("The team name 'roster' is reserved");
+
         // Retry with incrementing suffix on unique constraint violation
         for (var attempt = 0; attempt < 10; attempt++)
         {
@@ -66,6 +70,21 @@ public partial class TeamService : ITeamService
 
             _dbContext.Teams.Add(team);
 
+            // Auto-create Lead role definition for non-system teams
+            var leadRole = new TeamRoleDefinition
+            {
+                Id = Guid.NewGuid(),
+                TeamId = team.Id,
+                Name = "Lead",
+                Description = "Team leadership role",
+                SlotCount = 1,
+                Priorities = [SlotPriority.Critical],
+                SortOrder = 0,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            _dbContext.Set<TeamRoleDefinition>().Add(leadRole);
+
             try
             {
                 await _dbContext.SaveChangesAsync(cancellationToken);
@@ -77,6 +96,7 @@ public partial class TeamService : ITeamService
                 // Slug collision — detach and retry with next suffix
                 _logger.LogDebug(ex, "Slug collision for '{Slug}', retrying (attempt {Attempt})", slug, attempt + 1);
                 _dbContext.Entry(team).State = EntityState.Detached;
+                _dbContext.Entry(leadRole).State = EntityState.Detached;
             }
         }
 
