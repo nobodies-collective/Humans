@@ -6,6 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>@Localizer["Teams_Title"]</h1>
     <div class="d-flex gap-2">
+        <a asp-action="Roster" class="btn btn-outline-secondary">@Localizer["Nav_Roster"]</a>
         <a asp-action="Birthdays" class="btn btn-outline-secondary">@Localizer["Birthdays_Title"]</a>
         <a asp-action="Map" class="btn btn-outline-secondary">@Localizer["Map_Title"]</a>
         @if (ViewBag.CanViewSync == true)
