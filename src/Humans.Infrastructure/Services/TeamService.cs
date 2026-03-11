@@ -784,6 +784,333 @@ public partial class TeamService : ITeamService
             .ToListAsync(cancellationToken);
     }
 
+    // ==========================================================================
+    // Team Role Definitions
+    // ==========================================================================
+
+    public async Task<TeamRoleDefinition> CreateRoleDefinitionAsync(
+        Guid teamId, string name, string? description, int slotCount,
+        List<SlotPriority> priorities, int sortOrder, Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var team = await _dbContext.Teams.FindAsync(new object[] { teamId }, cancellationToken)
+            ?? throw new InvalidOperationException($"Team {teamId} not found");
+
+        if (team.IsSystemTeam)
+        {
+            throw new InvalidOperationException("Cannot add role definitions to system teams");
+        }
+
+        if (slotCount < 1)
+        {
+            throw new InvalidOperationException("Slot count must be at least 1");
+        }
+
+        if (priorities.Count != slotCount)
+        {
+            throw new InvalidOperationException($"Priorities count ({priorities.Count}) must match slot count ({slotCount})");
+        }
+
+        if (string.Equals(name, "Lead", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The 'Lead' role name is reserved and cannot be created manually");
+        }
+
+        // Check name uniqueness within the team (case-insensitive, backed by lower() index)
+        var nameExists = await _dbContext.Set<TeamRoleDefinition>()
+            .AnyAsync(d => d.TeamId == teamId && EF.Functions.ILike(d.Name, name), cancellationToken);
+        if (nameExists)
+        {
+            throw new InvalidOperationException($"A role definition with name '{name}' already exists for this team");
+        }
+
+        // Verify actor permission
+        var canManage = await CanUserApproveRequestsForTeamAsync(teamId, actorUserId, cancellationToken);
+        if (!canManage)
+        {
+            throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
+        }
+
+        var now = _clock.GetCurrentInstant();
+        var definition = new TeamRoleDefinition
+        {
+            Id = Guid.NewGuid(),
+            TeamId = teamId,
+            Name = name,
+            Description = description,
+            SlotCount = slotCount,
+            Priorities = priorities,
+            SortOrder = sortOrder,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        _dbContext.Set<TeamRoleDefinition>().Add(definition);
+
+        var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
+        await _auditLogService.LogAsync(
+            AuditAction.TeamRoleDefinitionCreated, "TeamRoleDefinition", definition.Id,
+            $"Role definition '{name}' created for team {team.Name}",
+            actorUserId, actor?.DisplayName ?? actorUserId.ToString(),
+            relatedEntityId: teamId, relatedEntityType: "Team");
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Created role definition '{RoleName}' for team {TeamId}", name, teamId);
+
+        return definition;
+    }
+
+    public async Task<TeamRoleDefinition> UpdateRoleDefinitionAsync(
+        Guid roleDefinitionId, string name, string? description, int slotCount,
+        List<SlotPriority> priorities, int sortOrder, Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var definition = await _dbContext.Set<TeamRoleDefinition>()
+            .Include(d => d.Team)
+            .Include(d => d.Assignments)
+            .FirstOrDefaultAsync(d => d.Id == roleDefinitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
+
+        // Verify actor permission
+        var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
+        if (!canManage)
+        {
+            throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
+        }
+
+        if (slotCount < 1)
+        {
+            throw new InvalidOperationException("Slot count must be at least 1");
+        }
+
+        if (priorities.Count != slotCount)
+        {
+            throw new InvalidOperationException($"Priorities count ({priorities.Count}) must match slot count ({slotCount})");
+        }
+
+        // Cannot rename to/from "Lead"
+        if (definition.IsLeadRole)
+        {
+            throw new InvalidOperationException("Cannot rename the Lead role");
+        }
+
+        if (string.Equals(name, "Lead", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Cannot rename a role to 'Lead' — this name is reserved");
+        }
+
+        // Cannot reduce slot count below filled count
+        if (slotCount < definition.Assignments.Count)
+        {
+            throw new InvalidOperationException(
+                $"Cannot reduce slot count to {slotCount} — {definition.Assignments.Count} slots are currently filled");
+        }
+
+        // Check name uniqueness if changed
+        if (!string.Equals(definition.Name, name, StringComparison.Ordinal))
+        {
+            var nameExists = await _dbContext.Set<TeamRoleDefinition>()
+                .AnyAsync(d => d.TeamId == definition.TeamId && d.Id != roleDefinitionId
+                    && EF.Functions.ILike(d.Name, name), cancellationToken);
+            if (nameExists)
+            {
+                throw new InvalidOperationException($"A role definition with name '{name}' already exists for this team");
+            }
+        }
+
+        definition.Name = name;
+        definition.Description = description;
+        definition.SlotCount = slotCount;
+        definition.Priorities = priorities;
+        definition.SortOrder = sortOrder;
+        definition.UpdatedAt = _clock.GetCurrentInstant();
+
+        var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
+        await _auditLogService.LogAsync(
+            AuditAction.TeamRoleDefinitionUpdated, "TeamRoleDefinition", definition.Id,
+            $"Role definition '{name}' updated for team {definition.Team.Name}",
+            actorUserId, actor?.DisplayName ?? actorUserId.ToString(),
+            relatedEntityId: definition.TeamId, relatedEntityType: "Team");
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Updated role definition {RoleDefinitionId} '{RoleName}'", roleDefinitionId, name);
+
+        return definition;
+    }
+
+    public async Task DeleteRoleDefinitionAsync(
+        Guid roleDefinitionId, Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var definition = await _dbContext.Set<TeamRoleDefinition>()
+            .Include(d => d.Team)
+            .Include(d => d.Assignments)
+            .FirstOrDefaultAsync(d => d.Id == roleDefinitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
+
+        if (definition.IsLeadRole)
+        {
+            throw new InvalidOperationException("Cannot delete the Lead role definition");
+        }
+
+        // Verify actor permission
+        var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
+        if (!canManage)
+        {
+            throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
+        }
+
+        var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
+        await _auditLogService.LogAsync(
+            AuditAction.TeamRoleDefinitionDeleted, "TeamRoleDefinition", definition.Id,
+            $"Role definition '{definition.Name}' deleted from team {definition.Team.Name}",
+            actorUserId, actor?.DisplayName ?? actorUserId.ToString(),
+            relatedEntityId: definition.TeamId, relatedEntityType: "Team");
+
+        _dbContext.Set<TeamRoleDefinition>().Remove(definition);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Deleted role definition {RoleDefinitionId} '{RoleName}' from team {TeamId}",
+            roleDefinitionId, definition.Name, definition.TeamId);
+    }
+
+    public async Task<IReadOnlyList<TeamRoleDefinition>> GetRoleDefinitionsAsync(
+        Guid teamId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Set<TeamRoleDefinition>()
+            .Include(d => d.Assignments)
+                .ThenInclude(a => a.TeamMember)
+                    .ThenInclude(m => m.User)
+            .Where(d => d.TeamId == teamId)
+            .OrderBy(d => d.SortOrder).ThenBy(d => d.Name)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TeamRoleDefinition>> GetAllRoleDefinitionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Set<TeamRoleDefinition>()
+            .Include(d => d.Team)
+            .Include(d => d.Assignments)
+                .ThenInclude(a => a.TeamMember)
+                    .ThenInclude(m => m.User)
+            .Where(d => d.Team.IsActive && d.Team.SystemTeamType == SystemTeamType.None)
+            .OrderBy(d => d.Team.Name).ThenBy(d => d.SortOrder).ThenBy(d => d.Name)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
+    // ==========================================================================
+    // Team Role Assignments
+    // ==========================================================================
+
+    public async Task<TeamRoleAssignment> AssignToRoleAsync(
+        Guid roleDefinitionId, Guid targetUserId, Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var definition = await _dbContext.Set<TeamRoleDefinition>()
+            .Include(d => d.Team)
+            .Include(d => d.Assignments)
+            .FirstOrDefaultAsync(d => d.Id == roleDefinitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
+
+        // Verify actor permission
+        var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
+        if (!canManage)
+        {
+            throw new InvalidOperationException("User does not have permission to manage role assignments for this team");
+        }
+
+        // Find the team member
+        var teamMember = await _dbContext.TeamMembers
+            .FirstOrDefaultAsync(tm => tm.TeamId == definition.TeamId && tm.UserId == targetUserId && tm.LeftAt == null, cancellationToken)
+            ?? throw new InvalidOperationException("User is not an active member of this team");
+
+        // Check if already assigned to this role
+        if (definition.Assignments.Any(a => a.TeamMemberId == teamMember.Id))
+        {
+            throw new InvalidOperationException("User is already assigned to this role");
+        }
+
+        // Check if slots are available
+        if (definition.Assignments.Count >= definition.SlotCount)
+        {
+            throw new InvalidOperationException($"All {definition.SlotCount} slots for role '{definition.Name}' are filled");
+        }
+
+        // Find the next available slot index
+        var usedSlots = definition.Assignments.Select(a => a.SlotIndex).ToHashSet();
+        var nextSlotIndex = Enumerable.Range(0, definition.SlotCount).First(i => !usedSlots.Contains(i));
+
+        var assignment = new TeamRoleAssignment
+        {
+            Id = Guid.NewGuid(),
+            TeamRoleDefinitionId = roleDefinitionId,
+            TeamMemberId = teamMember.Id,
+            SlotIndex = nextSlotIndex,
+            AssignedAt = _clock.GetCurrentInstant(),
+            AssignedByUserId = actorUserId
+        };
+
+        _dbContext.Set<TeamRoleAssignment>().Add(assignment);
+
+        var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
+        var targetUser = await _dbContext.Users.FindAsync([targetUserId], cancellationToken);
+        await _auditLogService.LogAsync(
+            AuditAction.TeamRoleAssigned, "TeamRoleDefinition", roleDefinitionId,
+            $"{targetUser?.DisplayName ?? targetUserId.ToString()} assigned to role '{definition.Name}' in {definition.Team.Name}",
+            actorUserId, actor?.DisplayName ?? actorUserId.ToString(),
+            relatedEntityId: targetUserId, relatedEntityType: "User");
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Assigned user {UserId} to role '{RoleName}' (slot {SlotIndex}) in team {TeamId}",
+            targetUserId, definition.Name, nextSlotIndex, definition.TeamId);
+
+        return assignment;
+    }
+
+    public async Task UnassignFromRoleAsync(
+        Guid roleDefinitionId, Guid teamMemberId, Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var definition = await _dbContext.Set<TeamRoleDefinition>()
+            .Include(d => d.Team)
+            .FirstOrDefaultAsync(d => d.Id == roleDefinitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
+
+        var assignment = await _dbContext.Set<TeamRoleAssignment>()
+            .Include(a => a.TeamMember)
+                .ThenInclude(m => m.User)
+            .FirstOrDefaultAsync(a => a.TeamRoleDefinitionId == roleDefinitionId && a.TeamMemberId == teamMemberId, cancellationToken)
+            ?? throw new InvalidOperationException("Assignment not found");
+
+        // Verify actor permission
+        var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
+        if (!canManage)
+        {
+            throw new InvalidOperationException("User does not have permission to manage role assignments for this team");
+        }
+
+        var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
+        await _auditLogService.LogAsync(
+            AuditAction.TeamRoleUnassigned, "TeamRoleDefinition", roleDefinitionId,
+            $"{assignment.TeamMember.User.DisplayName} unassigned from role '{definition.Name}' in {definition.Team.Name}",
+            actorUserId, actor?.DisplayName ?? actorUserId.ToString(),
+            relatedEntityId: assignment.TeamMember.UserId, relatedEntityType: "User");
+
+        _dbContext.Set<TeamRoleAssignment>().Remove(assignment);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Unassigned team member {TeamMemberId} from role '{RoleName}' in team {TeamId}",
+            teamMemberId, definition.Name, definition.TeamId);
+    }
+
     private async Task SendAddedToTeamEmailAsync(Guid userId, Team team, CancellationToken cancellationToken)
     {
         try

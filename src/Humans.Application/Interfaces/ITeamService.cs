@@ -230,4 +230,61 @@ public interface ITeamService
         Guid targetUserId,
         Guid actorUserId,
         CancellationToken cancellationToken = default);
+
+    // ==========================================================================
+    // Team Role Definitions
+    // ==========================================================================
+
+    /// <summary>
+    /// Creates a new role definition for a team.
+    /// </summary>
+    Task<TeamRoleDefinition> CreateRoleDefinitionAsync(
+        Guid teamId, string name, string? description, int slotCount,
+        List<SlotPriority> priorities, int sortOrder, Guid actorUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an existing role definition.
+    /// </summary>
+    Task<TeamRoleDefinition> UpdateRoleDefinitionAsync(
+        Guid roleDefinitionId, string name, string? description, int slotCount,
+        List<SlotPriority> priorities, int sortOrder, Guid actorUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a role definition and its assignments.
+    /// </summary>
+    Task DeleteRoleDefinitionAsync(
+        Guid roleDefinitionId, Guid actorUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all role definitions for a team, with assignments and member details.
+    /// </summary>
+    Task<IReadOnlyList<TeamRoleDefinition>> GetRoleDefinitionsAsync(
+        Guid teamId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all role definitions across active non-system teams.
+    /// </summary>
+    Task<IReadOnlyList<TeamRoleDefinition>> GetAllRoleDefinitionsAsync(
+        CancellationToken cancellationToken = default);
+
+    // ==========================================================================
+    // Team Role Assignments
+    // ==========================================================================
+
+    /// <summary>
+    /// Assigns a team member to the next available slot in a role definition.
+    /// </summary>
+    Task<TeamRoleAssignment> AssignToRoleAsync(
+        Guid roleDefinitionId, Guid targetUserId, Guid actorUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes a team member's assignment from a role definition.
+    /// </summary>
+    Task UnassignFromRoleAsync(
+        Guid roleDefinitionId, Guid teamMemberId, Guid actorUserId,
+        CancellationToken cancellationToken = default);
 }
