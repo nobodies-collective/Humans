@@ -33,7 +33,7 @@ public enum SlotPriority
 | `Name` | string | Max 100, required |
 | `Description` | string? | Max 2000, markdown-friendly |
 | `SlotCount` | int | Required, >= 1 |
-| `Priorities` | `List<SlotPriority>` | JSON column, length must equal SlotCount |
+| `Priorities` | `List<SlotPriority>` | JSON column (`jsonb`), length must equal SlotCount |
 | `SortOrder` | int | Display ordering within team |
 | `CreatedAt` | Instant | Set on creation |
 | `UpdatedAt` | Instant | Set on creation and update |
@@ -52,11 +52,13 @@ public enum SlotPriority
 | `Id` | Guid | PK |
 | `TeamRoleDefinitionId` | Guid | FK → TeamRoleDefinition, required |
 | `TeamMemberId` | Guid | FK → TeamMember, required |
+| `SlotIndex` | int | 0-based position within the role's slots |
 | `AssignedAt` | Instant | Set on assignment |
 | `AssignedByUserId` | Guid | FK → User, required |
 
 **Indexes:**
 - `(TeamRoleDefinitionId, TeamMemberId)` — unique, prevents assigning same person to same role twice
+- `(TeamRoleDefinitionId, SlotIndex)` — unique, prevents two people in the same slot
 
 **Navigation:**
 - `TeamRoleDefinition` (TeamRoleDefinition)
@@ -64,12 +66,12 @@ public enum SlotPriority
 - `AssignedByUser` (User)
 
 **Cascade deletes:**
-- Deleting a `TeamRoleDefinition` deletes its assignments
-- Deleting a `TeamMember` deletes their role assignments
+- Deleting a `TeamRoleDefinition` cascade-deletes its assignments
+- `TeamMember` FK uses `Restrict` — application code handles cleanup on departure (see Member Departure)
 
 ### Slot-to-Priority Mapping
 
-Assignments are ordered by `AssignedAt`. The first person assigned gets slot 1 with `Priorities[0]`, the second gets slot 2 with `Priorities[1]`, etc. The system enforces that the number of assignments does not exceed `SlotCount`.
+Each assignment has an explicit `SlotIndex` (0-based). The priority for a slot is `Priorities[SlotIndex]`. When assigning, the system picks the first open slot index by default. The system enforces that `SlotIndex < SlotCount` and that no two assignments share the same `SlotIndex` within a role definition.
 
 ### Modified Entity: `Team`
 
@@ -87,7 +89,15 @@ New navigation property:
 
 ### Member Departure
 
-When a `TeamMember` leaves a team (or is removed), their slot assignments are automatically cleared via cascade delete (since `TeamMember` deletion/soft-delete triggers). The audit log captures the historical record of who held which slots.
+`TeamMember` uses soft-delete (`LeftAt` set, row retained), so cascade delete does not apply. `LeaveTeamAsync` and `RemoveMemberAsync` in `TeamService` must explicitly delete the departing member's `TeamRoleAssignment` rows before setting `LeftAt`. The audit log captures the historical record of who held which slots.
+
+### System Teams
+
+Role definitions cannot be created on system teams (`team.IsSystemTeam == true`). This is consistent with all other mutating operations on system teams being blocked. System teams are: Volunteers, Leads, Board, Asociados, Colaboradors.
+
+### EF Configuration Notes
+
+The `Priorities` JSON column requires explicit `HasConversion` with a `ValueConverter` that serializes `List<SlotPriority>` as a JSON array of strings (matching project convention of storing enums as strings). Column type is `jsonb` with a default of `'[]'::jsonb`. Follow the pattern in `DocumentVersionConfiguration`.
 
 ## Permissions
 
@@ -96,8 +106,8 @@ When a `TeamMember` leaves a team (or is removed), their slot assignments are au
 | View roster (team detail page) | Any authenticated user |
 | View roster summary (cross-team) | Any authenticated user |
 | View role description | Any authenticated user |
-| Create/edit/delete role definitions | Team lead (own team), TeamAdmin, Board, Admin |
-| Assign/unassign members to slots | Team lead (own team), TeamAdmin, Board, Admin |
+| Create/edit/delete role definitions | Team lead (own team), TeamsAdmin, Board, Admin |
+| Assign/unassign members to slots | Team lead (own team), TeamsAdmin, Board, Admin |
 
 This follows the existing authorization pattern used by `CanUserApproveRequestsForTeamAsync`.
 
@@ -106,13 +116,13 @@ This follows the existing authorization pattern used by `CanUserApproveRequestsF
 | Route | Method | Purpose | Auth |
 |-------|--------|---------|------|
 | `GET /Teams/{slug}` | GET | Existing detail page, now includes roster section | Authenticated |
-| `GET /Teams/Roster` | GET | Cross-team roster summary, unfilled slots by priority | Authenticated |
-| `GET /Teams/{slug}/Roles` | GET | Role management page (CRUD definitions) | Lead/TeamAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles` | POST | Create role definition | Lead/TeamAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles/{id}/Edit` | POST | Update role definition | Lead/TeamAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles/{id}/Delete` | POST | Delete role definition | Lead/TeamAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles/{id}/Assign` | POST | Assign member to slot | Lead/TeamAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles/{id}/Unassign/{memberId}` | POST | Unassign member from slot | Lead/TeamAdmin/Board/Admin |
+| `GET /Teams/Roster` | GET | Cross-team roster summary, unfilled slots by priority (must be in `TeamController` to avoid `{slug}` route conflict) | Authenticated |
+| `GET /Teams/{slug}/Roles` | GET | Role management page (CRUD definitions) | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles` | POST | Create role definition | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles/{id}/Edit` | POST | Update role definition | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles/{id}/Delete` | POST | Delete role definition | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles/{id}/Assign` | POST | Assign member to slot | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles/{id}/Unassign/{memberId}` | POST | Unassign member from slot | Lead/TeamsAdmin/Board/Admin |
 
 ## UI Design
 
@@ -124,8 +134,8 @@ Added as a new section on the existing `/Teams/{slug}` page, below the current m
 - Each slot row shows: role name, slot number, priority badge (color-coded), assigned member name (or "Open")
 - Open critical slots visually emphasized (e.g., red/warning badge)
 - Role description shown on expand/click (markdown rendered)
-- Team leads and TeamAdmin see "Edit Roles" button linking to management page
-- Team leads and TeamAdmin see "Assign" buttons on open slots
+- Team leads and TeamsAdmin see "Edit Roles" button linking to management page
+- Team leads and TeamsAdmin see "Assign" buttons on open slots
 
 ### Role Management Page
 
@@ -149,6 +159,7 @@ New page at `/Teams/Roster`, accessible to all authenticated users:
 
 ## Validation Rules
 
+- Cannot create role definitions on system teams
 - `SlotCount` must be >= 1
 - `Priorities` array length must equal `SlotCount`
 - Cannot assign more members than `SlotCount`
