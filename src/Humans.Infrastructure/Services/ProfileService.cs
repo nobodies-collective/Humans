@@ -238,6 +238,14 @@ public class ProfileService : IProfileService
         await _dbContext.SaveChangesAsync(ct);
         _cache.Remove(CacheKeys.NavBadgeCounts);
 
+        // Update profile cache in-place if profile is approved
+        if (profile.IsApproved && !profile.IsSuspended && user != null)
+        {
+            // Reload volunteer history for cache (lightweight, only for approved profiles)
+            await _dbContext.Entry(profile).Collection(p => p.VolunteerHistory).LoadAsync(ct);
+            UpdateProfileCache(userId, BuildCachedProfile(profile, user));
+        }
+
         // Check consent eligibility
         await _onboardingService.SetConsentCheckPendingIfEligibleAsync(userId, ct);
 
@@ -296,6 +304,7 @@ public class ProfileService : IProfileService
             user.Id, user.DisplayName);
 
         await _dbContext.SaveChangesAsync(ct);
+        UpdateProfileCache(userId, null);
 
         _logger.LogWarning(
             "User {UserId} requested account deletion. Scheduled for {DeletionDate}. " +
@@ -330,6 +339,15 @@ public class ProfileService : IProfileService
         user.DeletionRequestedAt = null;
         user.DeletionScheduledFor = null;
         await _dbContext.SaveChangesAsync(ct);
+
+        // Re-add to profile cache if approved
+        var profile = await _dbContext.Profiles
+            .Include(p => p.VolunteerHistory)
+            .FirstOrDefaultAsync(p => p.UserId == userId, ct);
+        if (profile is { IsApproved: true, IsSuspended: false })
+        {
+            UpdateProfileCache(userId, BuildCachedProfile(profile, user));
+        }
 
         _logger.LogInformation("User {UserId} cancelled account deletion request", userId);
 
@@ -483,50 +501,33 @@ public class ProfileService : IProfileService
     public async Task<IReadOnlyList<(Guid ProfileId, Guid UserId, long UpdatedAtTicks)>>
         GetCustomPictureInfoByUserIdsAsync(IEnumerable<Guid> userIds, CancellationToken ct = default)
     {
-        var userIdList = userIds.ToList();
-        return await _dbContext.Profiles
-            .AsNoTracking()
-            .Where(p => userIdList.Contains(p.UserId) && p.ProfilePictureData != null)
-            .Select(p => new ValueTuple<Guid, Guid, long>(p.Id, p.UserId, p.UpdatedAt.ToUnixTimeTicks()))
-            .ToListAsync(ct);
+        var cached = await GetCachedProfilesAsync(ct);
+        var userIdSet = userIds.ToHashSet();
+        return cached.Values
+            .Where(p => p.HasCustomPicture && userIdSet.Contains(p.UserId))
+            .Select(p => (p.ProfileId, p.UserId, p.UpdatedAtTicks))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<(Guid UserId, string DisplayName, string? ProfilePictureUrl, bool HasCustomPicture, Guid ProfileId, int Day, int Month)>>
         GetBirthdayProfilesAsync(int month, CancellationToken ct = default)
     {
-        return await _dbContext.Profiles
-            .AsNoTracking()
-            .Include(p => p.User)
-            .Where(p => p.DateOfBirth != null && !p.IsSuspended)
-            .Where(p => p.DateOfBirth!.Value.Month == month)
-            .OrderBy(p => p.DateOfBirth!.Value.Day)
-            .Select(p => new ValueTuple<Guid, string, string?, bool, Guid, int, int>(
-                p.UserId,
-                p.User.DisplayName,
-                p.User.ProfilePictureUrl,
-                p.ProfilePictureData != null,
-                p.Id,
-                p.DateOfBirth!.Value.Day,
-                p.DateOfBirth!.Value.Month))
-            .ToListAsync(ct);
+        var cached = await GetCachedProfilesAsync(ct);
+        return cached.Values
+            .Where(p => p.BirthdayMonth == month && p.BirthdayDay.HasValue)
+            .OrderBy(p => p.BirthdayDay)
+            .Select(p => (p.UserId, p.DisplayName, p.ProfilePictureUrl, p.HasCustomPicture, p.ProfileId, p.BirthdayDay!.Value, p.BirthdayMonth!.Value))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<(Guid UserId, string DisplayName, string? ProfilePictureUrl, double Latitude, double Longitude, string? City, string? CountryCode)>>
         GetApprovedProfilesWithLocationAsync(CancellationToken ct = default)
     {
-        return await _dbContext.Profiles
-            .AsNoTracking()
-            .Include(p => p.User)
-            .Where(p => p.Latitude != null && p.Longitude != null && !p.IsSuspended && p.IsApproved)
-            .Select(p => new ValueTuple<Guid, string, string?, double, double, string?, string?>(
-                p.UserId,
-                p.User.DisplayName,
-                p.User.ProfilePictureUrl,
-                p.Latitude!.Value,
-                p.Longitude!.Value,
-                p.City,
-                p.CountryCode))
-            .ToListAsync(ct);
+        var cached = await GetCachedProfilesAsync(ct);
+        return cached.Values
+            .Where(p => p.Latitude.HasValue && p.Longitude.HasValue)
+            .Select(p => (p.UserId, p.DisplayName, p.ProfilePictureUrl, p.Latitude!.Value, p.Longitude!.Value, p.City, p.CountryCode))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<Application.DTOs.AdminHumanRow>> GetFilteredHumansAsync(
@@ -661,5 +662,119 @@ public class ProfileService : IProfileService
             .Take(20)
             .Select(u => new UserSearchResult(u.Id, u.DisplayName, u.Email ?? ""))
             .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<HumanSearchResult>> SearchHumansAsync(string query, CancellationToken ct = default)
+    {
+        var cached = await GetCachedProfilesAsync(ct);
+        var results = new List<HumanSearchResult>();
+
+        foreach (var p in cached.Values)
+        {
+            var (matchField, matchSnippet) = DetermineMatchFromCache(p, query);
+            if (matchField == null) continue;
+
+            results.Add(new HumanSearchResult(
+                p.UserId, p.DisplayName, p.BurnerName, p.City, p.Bio, p.ContributionInterests,
+                p.ProfilePictureUrl, p.HasCustomPicture, p.ProfileId, p.UpdatedAtTicks,
+                matchField, matchSnippet));
+
+            if (results.Count >= 50) break;
+        }
+
+        return results.OrderBy(r => r.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    // ==========================================================================
+    // Profile Cache
+    // ==========================================================================
+
+    private async Task<Dictionary<Guid, CachedProfile>> GetCachedProfilesAsync(CancellationToken ct = default)
+    {
+        return await _cache.GetOrCreateAsync(CacheKeys.ApprovedProfiles, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+
+            var profiles = await _dbContext.Profiles
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Include(p => p.VolunteerHistory)
+                .Where(p => p.IsApproved && !p.IsSuspended)
+                .ToListAsync(ct);
+
+            return profiles.ToDictionary(
+                p => p.UserId,
+                p => BuildCachedProfile(p, p.User));
+        }) ?? [];
+    }
+
+    private static CachedProfile BuildCachedProfile(Profile profile, User user) => new(
+        UserId: user.Id,
+        DisplayName: user.DisplayName,
+        ProfilePictureUrl: user.ProfilePictureUrl,
+        HasCustomPicture: profile.ProfilePictureData != null,
+        ProfileId: profile.Id,
+        UpdatedAtTicks: profile.UpdatedAt.ToUnixTimeTicks(),
+        BurnerName: profile.BurnerName,
+        Bio: profile.Bio,
+        Pronouns: profile.Pronouns,
+        ContributionInterests: profile.ContributionInterests,
+        City: profile.City,
+        CountryCode: profile.CountryCode,
+        Latitude: profile.Latitude,
+        Longitude: profile.Longitude,
+        BirthdayDay: profile.DateOfBirth?.Day,
+        BirthdayMonth: profile.DateOfBirth?.Month,
+        VolunteerHistory: profile.VolunteerHistory
+            .Select(v => new CachedVolunteerEntry(v.EventName, v.Description))
+            .ToList());
+
+    public void UpdateProfileCache(Guid userId, CachedProfile? newValue)
+    {
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? cached) && cached != null)
+        {
+            if (newValue != null)
+                cached[userId] = newValue;
+            else
+                cached.Remove(userId);
+        }
+    }
+
+    private static (string? Field, string? Snippet) DetermineMatchFromCache(CachedProfile p, string query)
+    {
+        if (p.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase))
+            return ("Name", null);
+        if (p.BurnerName?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+            return ("Burner Name", null);
+        if (p.City?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+            return ("City", p.City);
+        if (p.ContributionInterests?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+            return ("Interests", GetSnippet(p.ContributionInterests, query));
+        if (p.Bio?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+            return ("Bio", GetSnippet(p.Bio, query));
+        if (p.Pronouns?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+            return ("Pronouns", p.Pronouns);
+
+        foreach (var v in p.VolunteerHistory)
+        {
+            if (v.EventName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                v.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+                return ("Burner CV", v.EventName);
+        }
+
+        return (null, null);
+    }
+
+    private static string GetSnippet(string text, string query, int contextChars = 60)
+    {
+        var index = text.IndexOf(query, StringComparison.OrdinalIgnoreCase);
+        if (index < 0) return text.Length <= contextChars * 2 ? text : text[..(contextChars * 2)] + "...";
+
+        var start = Math.Max(0, index - contextChars);
+        var end = Math.Min(text.Length, index + query.Length + contextChars);
+        var snippet = text[start..end];
+        if (start > 0) snippet = "..." + snippet;
+        if (end < text.Length) snippet += "...";
+        return snippet;
     }
 }

@@ -18,6 +18,8 @@ public class ProcessAccountDeletionsJob
     private readonly HumansDbContext _dbContext;
     private readonly IEmailService _emailService;
     private readonly IAuditLogService _auditLogService;
+    private readonly IProfileService _profileService;
+    private readonly ITeamService _teamService;
     private readonly HumansMetricsService _metrics;
     private readonly ILogger<ProcessAccountDeletionsJob> _logger;
     private readonly IClock _clock;
@@ -26,6 +28,8 @@ public class ProcessAccountDeletionsJob
         HumansDbContext dbContext,
         IEmailService emailService,
         IAuditLogService auditLogService,
+        IProfileService profileService,
+        ITeamService teamService,
         HumansMetricsService metrics,
         ILogger<ProcessAccountDeletionsJob> logger,
         IClock clock)
@@ -33,6 +37,8 @@ public class ProcessAccountDeletionsJob
         _dbContext = dbContext;
         _emailService = emailService;
         _auditLogService = auditLogService;
+        _profileService = profileService;
+        _teamService = teamService;
         _metrics = metrics;
         _logger = logger;
         _clock = clock;
@@ -79,6 +85,10 @@ public class ProcessAccountDeletionsJob
                     var originalName = user.DisplayName;
 
                     await AnonymizeUserAsync(user, now, cancellationToken);
+
+                    // Remove from caches
+                    _profileService.UpdateProfileCache(user.Id, null);
+                    _teamService.RemoveMemberFromAllTeamsCache(user.Id);
 
                     await _auditLogService.LogAsync(
                         AuditAction.AccountAnonymized, "User", user.Id,

@@ -371,6 +371,25 @@ public class RosterSlotViewModel
     public string? AssignedUserName { get; set; }
 }
 
+public class HumanSearchViewModel
+{
+    public string? Query { get; set; }
+    public List<HumanSearchResultViewModel> Results { get; set; } = [];
+}
+
+public class HumanSearchResultViewModel
+{
+    public Guid UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string? BurnerName { get; set; }
+    public string? City { get; set; }
+    public string? Bio { get; set; }
+    public string? ContributionInterests { get; set; }
+    public string? EffectiveProfilePictureUrl { get; set; }
+    public string? MatchField { get; set; }
+    public string? MatchSnippet { get; set; }
+}
+
 public class AdminTeamListViewModel
 {
     public List<AdminTeamViewModel> Teams { get; set; } = [];

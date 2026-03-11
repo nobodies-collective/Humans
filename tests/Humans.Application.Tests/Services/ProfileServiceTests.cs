@@ -588,9 +588,9 @@ public class ProfileServiceTests : IDisposable
         var u1 = Guid.NewGuid();
         var u2 = Guid.NewGuid();
         var u3 = Guid.NewGuid();
-        await SeedUserWithProfileAsync(u1, withPicture: true);
-        await SeedUserWithProfileAsync(u2, withPicture: true);
-        await SeedUserWithProfileAsync(u3, withPicture: false);
+        await SeedUserWithProfileAsync(u1, isApproved: true, withPicture: true);
+        await SeedUserWithProfileAsync(u2, isApproved: true, withPicture: true);
+        await SeedUserWithProfileAsync(u3, isApproved: true, withPicture: false);
 
         var result = await _service.GetCustomPictureInfoByUserIdsAsync(new[] { u1, u2, u3 });
 
@@ -615,11 +615,11 @@ public class ProfileServiceTests : IDisposable
         await SeedUserAsync(u2);
         await SeedUserAsync(u3);
 
-        var p1 = MakeProfile(u1);
+        var p1 = MakeProfile(u1, isApproved: true);
         p1.DateOfBirth = new LocalDate(4, 3, 20);
-        var p2 = MakeProfile(u2);
+        var p2 = MakeProfile(u2, isApproved: true);
         p2.DateOfBirth = new LocalDate(4, 3, 5);
-        var p3 = MakeProfile(u3);
+        var p3 = MakeProfile(u3, isApproved: true);
         p3.DateOfBirth = new LocalDate(4, 6, 15);
         await _dbContext.Profiles.AddRangeAsync(p1, p2, p3);
         await _dbContext.SaveChangesAsync();
@@ -639,9 +639,9 @@ public class ProfileServiceTests : IDisposable
         await SeedUserAsync(u1);
         await SeedUserAsync(u2);
 
-        var p1 = MakeProfile(u1, isSuspended: true);
+        var p1 = MakeProfile(u1, isApproved: true, isSuspended: true);
         p1.DateOfBirth = new LocalDate(4, 3, 10);
-        var p2 = MakeProfile(u2);
+        var p2 = MakeProfile(u2, isApproved: true);
         p2.DateOfBirth = new LocalDate(4, 3, 15);
         await _dbContext.Profiles.AddRangeAsync(p1, p2);
         await _dbContext.SaveChangesAsync();

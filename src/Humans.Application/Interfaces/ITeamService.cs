@@ -1,7 +1,17 @@
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using NodaTime;
 
 namespace Humans.Application.Interfaces;
+
+public record CachedTeam(
+    Guid Id, string Name, string? Description, string Slug,
+    bool IsSystemTeam, SystemTeamType SystemTeamType, bool RequiresApproval,
+    Instant CreatedAt, List<CachedTeamMember> Members);
+
+public record CachedTeamMember(
+    Guid TeamMemberId, Guid UserId, string DisplayName,
+    string? ProfilePictureUrl, TeamMemberRole Role, Instant JoinedAt);
 
 /// <summary>
 /// Service for managing teams and team membership.
@@ -287,4 +297,13 @@ public interface ITeamService
     Task UnassignFromRoleAsync(
         Guid roleDefinitionId, Guid teamMemberId, Guid actorUserId,
         CancellationToken cancellationToken = default);
+
+    // ==========================================================================
+    // Cache Helpers
+    // ==========================================================================
+
+    /// <summary>
+    /// Removes a user from all teams in the cache (e.g., on account deletion/suspension).
+    /// </summary>
+    void RemoveMemberFromAllTeamsCache(Guid userId);
 }

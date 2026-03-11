@@ -19,6 +19,7 @@ public class SuspendNonCompliantMembersJob
     private readonly IEmailService _emailService;
     private readonly IGoogleSyncService _googleSyncService;
     private readonly IAuditLogService _auditLogService;
+    private readonly IProfileService _profileService;
     private readonly HumansMetricsService _metrics;
     private readonly ILogger<SuspendNonCompliantMembersJob> _logger;
     private readonly IClock _clock;
@@ -29,6 +30,7 @@ public class SuspendNonCompliantMembersJob
         IEmailService emailService,
         IGoogleSyncService googleSyncService,
         IAuditLogService auditLogService,
+        IProfileService profileService,
         HumansMetricsService metrics,
         ILogger<SuspendNonCompliantMembersJob> logger,
         IClock clock)
@@ -38,6 +40,7 @@ public class SuspendNonCompliantMembersJob
         _emailService = emailService;
         _googleSyncService = googleSyncService;
         _auditLogService = auditLogService;
+        _profileService = profileService;
         _metrics = metrics;
         _logger = logger;
         _clock = clock;
@@ -123,6 +126,9 @@ public class SuspendNonCompliantMembersJob
                 _logger.LogWarning(
                     "User {UserId} ({Email}) suspended and removed from {Count} teams",
                     user.Id, effectiveEmail, user.TeamMemberships.Count);
+
+                // Remove from profile cache (suspended)
+                _profileService.UpdateProfileCache(user.Id, null);
 
                 _metrics.RecordMemberSuspended("job");
                 suspendedCount++;

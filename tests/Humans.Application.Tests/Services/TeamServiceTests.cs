@@ -32,6 +32,7 @@ public class TeamServiceTests : IDisposable
             Substitute.For<IAuditLogService>(),
             Substitute.For<IEmailService>(),
             _clock,
+            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
             NullLogger<TeamService>.Instance);
     }
 

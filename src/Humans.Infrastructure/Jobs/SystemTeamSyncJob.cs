@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NodaTime;
+using Humans.Application;
 using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
@@ -20,6 +22,7 @@ public class SystemTeamSyncJob : ISystemTeamSync
     private readonly IGoogleSyncService _googleSyncService;
     private readonly IAuditLogService _auditLogService;
     private readonly IEmailService _emailService;
+    private readonly IMemoryCache _cache;
     private readonly HumansMetricsService _metrics;
     private readonly ILogger<SystemTeamSyncJob> _logger;
     private readonly IClock _clock;
@@ -30,6 +33,7 @@ public class SystemTeamSyncJob : ISystemTeamSync
         IGoogleSyncService googleSyncService,
         IAuditLogService auditLogService,
         IEmailService emailService,
+        IMemoryCache cache,
         HumansMetricsService metrics,
         ILogger<SystemTeamSyncJob> logger,
         IClock clock)
@@ -39,6 +43,7 @@ public class SystemTeamSyncJob : ISystemTeamSync
         _googleSyncService = googleSyncService;
         _auditLogService = auditLogService;
         _emailService = emailService;
+        _cache = cache;
         _metrics = metrics;
         _logger = logger;
         _clock = clock;
@@ -449,6 +454,9 @@ public class SystemTeamSyncJob : ISystemTeamSync
         {
             team.UpdatedAt = now;
             await _dbContext.SaveChangesAsync(cancellationToken);
+
+            // Invalidate team cache — sync job runs infrequently, cache rebuilds on next access
+            _cache.Remove(CacheKeys.ActiveTeams);
 
             _logger.LogInformation(
                 "Synced {TeamName} team: added {AddCount}, removed {RemoveCount}",

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NodaTime;
+using Humans.Application;
 using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
@@ -19,6 +21,7 @@ public partial class TeamService : ITeamService
     private readonly IAuditLogService _auditLogService;
     private readonly IEmailService _emailService;
     private readonly IClock _clock;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<TeamService> _logger;
 
     public TeamService(
@@ -26,12 +29,14 @@ public partial class TeamService : ITeamService
         IAuditLogService auditLogService,
         IEmailService emailService,
         IClock clock,
+        IMemoryCache cache,
         ILogger<TeamService> logger)
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _emailService = emailService;
         _clock = clock;
+        _cache = cache;
         _logger = logger;
     }
 
@@ -46,7 +51,7 @@ public partial class TeamService : ITeamService
         var now = _clock.GetCurrentInstant();
 
         // Block reserved slugs (static routes in TeamController)
-        string[] reservedSlugs = ["roster", "birthdays", "map", "my", "sync", "summary", "create"];
+        string[] reservedSlugs = ["roster", "birthdays", "map", "my", "sync", "summary", "create", "search"];
         if (Array.Exists(reservedSlugs, s => string.Equals(baseSlug, s, StringComparison.Ordinal)))
             throw new InvalidOperationException($"The team name '{name}' conflicts with a reserved route");
 
@@ -89,6 +94,12 @@ public partial class TeamService : ITeamService
             try
             {
                 await _dbContext.SaveChangesAsync(cancellationToken);
+                // Add to cache
+                if (_cache.TryGetValue(CacheKeys.ActiveTeams, out Dictionary<Guid, CachedTeam>? cached) && cached != null)
+                {
+                    cached[team.Id] = new CachedTeam(team.Id, team.Name, team.Description, team.Slug,
+                        team.IsSystemTeam, team.SystemTeamType, team.RequiresApproval, team.CreatedAt, []);
+                }
                 _logger.LogInformation("Created team {TeamName} with slug {Slug}", name, slug);
                 return team;
             }
@@ -124,6 +135,8 @@ public partial class TeamService : ITeamService
 
     public async Task<IReadOnlyList<Team>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
     {
+        // Still used by callers that need Team entities (admin pages).
+        // High-frequency reads should use GetCachedTeamsAsync() via specific methods.
         return await _dbContext.Teams
             .AsNoTracking()
             .Where(t => t.IsActive)
@@ -144,6 +157,8 @@ public partial class TeamService : ITeamService
 
     public async Task<IReadOnlyList<TeamMember>> GetUserTeamsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        // Still returns TeamMember entities for callers that need navigation properties (MyTeams page).
+        // Uses DB query because TeamMember → Team navigation is needed.
         return await _dbContext.TeamMembers
             .AsNoTracking()
             .Where(tm => tm.UserId == userId && tm.LeftAt == null)
@@ -178,6 +193,19 @@ public partial class TeamService : ITeamService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        // Update cache
+        if (_cache.TryGetValue(CacheKeys.ActiveTeams, out Dictionary<Guid, CachedTeam>? cached) && cached != null)
+        {
+            if (!isActive)
+            {
+                cached.Remove(teamId);
+            }
+            else if (cached.TryGetValue(teamId, out var existing))
+            {
+                cached[teamId] = existing with { Name = name, Description = description, RequiresApproval = requiresApproval };
+            }
+        }
+
         _logger.LogInformation("Updated team {TeamId} ({TeamName})", teamId, name);
 
         return team;
@@ -197,6 +225,12 @@ public partial class TeamService : ITeamService
         team.UpdatedAt = _clock.GetCurrentInstant();
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Remove from cache
+        if (_cache.TryGetValue(CacheKeys.ActiveTeams, out Dictionary<Guid, CachedTeam>? cached) && cached != null)
+        {
+            cached.Remove(teamId);
+        }
 
         _logger.LogInformation("Deactivated team {TeamId} ({TeamName})", teamId, team.Name);
     }
@@ -323,6 +357,15 @@ public partial class TeamService : ITeamService
 
         _logger.LogInformation("User {UserId} joined team {TeamId} directly", userId, teamId);
 
+        // Update cache
+        var joinedUser = joiningUser ?? await _dbContext.Users.FindAsync([userId], cancellationToken);
+        if (joinedUser != null)
+        {
+            AddMemberToTeamCache(teamId, new CachedTeamMember(
+                member.Id, userId, joinedUser.DisplayName, joinedUser.ProfilePictureUrl,
+                TeamMemberRole.Member, member.JoinedAt));
+        }
+
         await SendAddedToTeamEmailAsync(userId, team, cancellationToken);
 
         return member;
@@ -373,6 +416,7 @@ public partial class TeamService : ITeamService
             GoogleSyncOutboxEventTypes.RemoveUserFromTeamResources);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        RemoveMemberFromTeamCache(teamId, userId);
 
         _logger.LogInformation("User {UserId} left team {TeamId}", userId, teamId);
     }
@@ -456,6 +500,15 @@ public partial class TeamService : ITeamService
 
         _logger.LogInformation("Approver {ApproverId} approved join request {RequestId} for user {UserId} to team {TeamId}",
             approverUserId, requestId, request.UserId, request.TeamId);
+
+        // Update cache
+        var joinedUser = await _dbContext.Users.FindAsync([request.UserId], cancellationToken);
+        if (joinedUser != null)
+        {
+            AddMemberToTeamCache(request.TeamId, new CachedTeamMember(
+                member.Id, request.UserId, joinedUser.DisplayName, joinedUser.ProfilePictureUrl,
+                TeamMemberRole.Member, member.JoinedAt));
+        }
 
         await SendAddedToTeamEmailAsync(request.UserId, request.Team, cancellationToken);
 
@@ -588,8 +641,8 @@ public partial class TeamService : ITeamService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        return await _dbContext.TeamMembers
-            .AnyAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.LeftAt == null, cancellationToken);
+        var cached = await GetCachedTeamsAsync(cancellationToken);
+        return cached.TryGetValue(teamId, out var team) && team.Members.Any(m => m.UserId == userId);
     }
 
     public async Task<bool> IsUserLeadOfTeamAsync(
@@ -597,8 +650,9 @@ public partial class TeamService : ITeamService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        return await _dbContext.TeamMembers
-            .AnyAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.LeftAt == null && tm.Role == TeamMemberRole.Lead, cancellationToken);
+        var cached = await GetCachedTeamsAsync(cancellationToken);
+        return cached.TryGetValue(teamId, out var team) &&
+               team.Members.Any(m => m.UserId == userId && m.Role == TeamMemberRole.Lead);
     }
 
     public async Task<bool> IsUserAdminAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -707,6 +761,7 @@ public partial class TeamService : ITeamService
             relatedEntityId: userId, relatedEntityType: "User");
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        UpdateMemberRoleInTeamCache(teamId, userId, role);
 
         _logger.LogInformation("Actor {ActorId} set user {UserId} role to {Role} in team {TeamId}",
             actorUserId, userId, role, teamId);
@@ -761,6 +816,7 @@ public partial class TeamService : ITeamService
             GoogleSyncOutboxEventTypes.RemoveUserFromTeamResources);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        RemoveMemberFromTeamCache(teamId, userId);
 
         _logger.LogInformation("Actor {ActorId} removed user {UserId} from team {TeamId}", actorUserId, userId, teamId);
     }
@@ -838,6 +894,15 @@ public partial class TeamService : ITeamService
         }
 
         _logger.LogInformation("Actor {ActorId} added user {UserId} to team {TeamId}", actorUserId, targetUserId, teamId);
+
+        // Update cache
+        var addedUser = await _dbContext.Users.FindAsync([targetUserId], cancellationToken);
+        if (addedUser != null)
+        {
+            AddMemberToTeamCache(teamId, new CachedTeamMember(
+                member.Id, targetUserId, addedUser.DisplayName, addedUser.ProfilePictureUrl,
+                TeamMemberRole.Member, member.JoinedAt));
+        }
 
         await SendAddedToTeamEmailAsync(targetUserId, team, cancellationToken);
 
@@ -1195,6 +1260,26 @@ public partial class TeamService : ITeamService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        // Update cache: if auto-added to team, add member; if promoted to Lead, update role
+        if (targetUser != null)
+        {
+            var cachedMember = new CachedTeamMember(
+                teamMember.Id, targetUserId, targetUser.DisplayName, targetUser.ProfilePictureUrl,
+                teamMember.Role, teamMember.JoinedAt);
+            // Either add or update depending on whether they were auto-added
+            if (_cache.TryGetValue(CacheKeys.ActiveTeams, out Dictionary<Guid, CachedTeam>? cachedTeams) && cachedTeams != null)
+            {
+                if (cachedTeams.TryGetValue(definition.TeamId, out var ct))
+                {
+                    var existingIdx = ct.Members.FindIndex(m => m.UserId == targetUserId);
+                    if (existingIdx >= 0)
+                        ct.Members[existingIdx] = cachedMember;
+                    else
+                        ct.Members.Add(cachedMember);
+                }
+            }
+        }
+
         _logger.LogInformation("Assigned user {UserId} to role '{RoleName}' (slot {SlotIndex}) in team {TeamId}",
             targetUserId, definition.Name, nextSlotIndex, definition.TeamId);
 
@@ -1248,6 +1333,12 @@ public partial class TeamService : ITeamService
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Update cache if role changed (Lead → Member demotion)
+        if (definition.IsLeadRole)
+        {
+            UpdateMemberRoleInTeamCache(definition.TeamId, assignment.TeamMember.UserId, assignment.TeamMember.Role);
+        }
 
         _logger.LogInformation("Unassigned team member {TeamMemberId} from role '{RoleName}' in team {TeamId}",
             teamMemberId, definition.Name, definition.TeamId);
@@ -1354,22 +1445,27 @@ public partial class TeamService : ITeamService
         IEnumerable<Guid> userIds,
         CancellationToken cancellationToken = default)
     {
-        var userIdList = userIds.ToList();
-        if (userIdList.Count == 0)
+        var userIdSet = userIds.ToHashSet();
+        if (userIdSet.Count == 0)
             return new Dictionary<Guid, List<string>>();
 
-        var memberships = await _dbContext.TeamMembers
-            .AsNoTracking()
-            .Include(tm => tm.Team)
-            .Where(tm => userIdList.Contains(tm.UserId) && tm.LeftAt == null && tm.Team.SystemTeamType == SystemTeamType.None)
-            .Select(tm => new { tm.UserId, tm.Team.Name })
-            .ToListAsync(cancellationToken);
+        var cached = await GetCachedTeamsAsync(cancellationToken);
+        var result = new Dictionary<Guid, List<string>>();
 
-        return memberships
-            .GroupBy(tm => tm.UserId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Select(tm => tm.Name).Distinct(StringComparer.Ordinal).ToList());
+        foreach (var team in cached.Values.Where(t => t.SystemTeamType == SystemTeamType.None))
+        {
+            foreach (var member in team.Members.Where(m => userIdSet.Contains(m.UserId)))
+            {
+                if (!result.TryGetValue(member.UserId, out var names))
+                {
+                    names = [];
+                    result[member.UserId] = names;
+                }
+                names.Add(team.Name);
+            }
+        }
+
+        return result;
     }
 
     public async Task<(IReadOnlyList<Team> Items, int TotalCount)> GetAllTeamsForAdminAsync(
@@ -1390,5 +1486,97 @@ public partial class TeamService : ITeamService
             .ToListAsync(cancellationToken);
 
         return (items, totalCount);
+    }
+
+    // ==========================================================================
+    // Team Cache
+    // ==========================================================================
+
+    private async Task<Dictionary<Guid, CachedTeam>> GetCachedTeamsAsync(CancellationToken ct = default)
+    {
+        return await _cache.GetOrCreateAsync(CacheKeys.ActiveTeams, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+
+            var teams = await _dbContext.Teams
+                .AsNoTracking()
+                .Include(t => t.Members.Where(m => m.LeftAt == null))
+                    .ThenInclude(m => m.User)
+                .Where(t => t.IsActive)
+                .ToListAsync(ct);
+
+            return teams.ToDictionary(
+                t => t.Id,
+                t => BuildCachedTeam(t));
+        }) ?? [];
+    }
+
+    private static CachedTeam BuildCachedTeam(Team team) => new(
+        Id: team.Id,
+        Name: team.Name,
+        Description: team.Description,
+        Slug: team.Slug,
+        IsSystemTeam: team.IsSystemTeam,
+        SystemTeamType: team.SystemTeamType,
+        RequiresApproval: team.RequiresApproval,
+        CreatedAt: team.CreatedAt,
+        Members: team.Members
+            .Where(m => m.LeftAt == null)
+            .Select(m => new CachedTeamMember(
+                TeamMemberId: m.Id,
+                UserId: m.UserId,
+                DisplayName: m.User.DisplayName,
+                ProfilePictureUrl: m.User.ProfilePictureUrl,
+                Role: m.Role,
+                JoinedAt: m.JoinedAt))
+            .ToList());
+
+    private void AddMemberToTeamCache(Guid teamId, CachedTeamMember member)
+    {
+        if (_cache.TryGetValue(CacheKeys.ActiveTeams, out Dictionary<Guid, CachedTeam>? cached) && cached != null)
+        {
+            if (cached.TryGetValue(teamId, out var team))
+            {
+                team.Members.Add(member);
+            }
+        }
+    }
+
+    private void RemoveMemberFromTeamCache(Guid teamId, Guid userId)
+    {
+        if (_cache.TryGetValue(CacheKeys.ActiveTeams, out Dictionary<Guid, CachedTeam>? cached) && cached != null)
+        {
+            if (cached.TryGetValue(teamId, out var team))
+            {
+                team.Members.RemoveAll(m => m.UserId == userId);
+            }
+        }
+    }
+
+    private void UpdateMemberRoleInTeamCache(Guid teamId, Guid userId, TeamMemberRole role)
+    {
+        if (_cache.TryGetValue(CacheKeys.ActiveTeams, out Dictionary<Guid, CachedTeam>? cached) && cached != null)
+        {
+            if (cached.TryGetValue(teamId, out var team))
+            {
+                var idx = team.Members.FindIndex(m => m.UserId == userId);
+                if (idx >= 0)
+                {
+                    var m = team.Members[idx];
+                    team.Members[idx] = m with { Role = role };
+                }
+            }
+        }
+    }
+
+    public void RemoveMemberFromAllTeamsCache(Guid userId)
+    {
+        if (_cache.TryGetValue(CacheKeys.ActiveTeams, out Dictionary<Guid, CachedTeam>? cached) && cached != null)
+        {
+            foreach (var team in cached.Values)
+            {
+                team.Members.RemoveAll(m => m.UserId == userId);
+            }
+        }
     }
 }

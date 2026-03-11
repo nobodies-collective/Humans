@@ -177,6 +177,19 @@ public class OnboardingService : IOnboardingService
         await _dbContext.SaveChangesAsync(ct);
         _cache.Remove(CacheKeys.NavBadgeCounts);
 
+        // Add to profile cache (profile is now approved and not suspended)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? profileCache) && profileCache != null)
+        {
+            await _dbContext.Entry(profile).Collection(p => p.VolunteerHistory).LoadAsync(ct);
+            profileCache[userId] = new CachedProfile(
+                userId, profile.User.DisplayName, profile.User.ProfilePictureUrl,
+                profile.ProfilePictureData != null, profile.Id, profile.UpdatedAt.ToUnixTimeTicks(),
+                profile.BurnerName, profile.Bio, profile.Pronouns, profile.ContributionInterests,
+                profile.City, profile.CountryCode, profile.Latitude, profile.Longitude,
+                profile.DateOfBirth?.Day, profile.DateOfBirth?.Month,
+                profile.VolunteerHistory.Select(v => new CachedVolunteerEntry(v.EventName, v.Description)).ToList());
+        }
+
         // Sync Volunteers team membership (adds to team + sends welcome email)
         await _syncJob.SyncVolunteersMembershipForUserAsync(userId, CancellationToken.None);
 
@@ -311,6 +324,12 @@ public class OnboardingService : IOnboardingService
         await _dbContext.SaveChangesAsync(ct);
         _cache.Remove(CacheKeys.NavBadgeCounts);
 
+        // Remove from profile cache (no longer approved)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? profileCache) && profileCache != null)
+        {
+            profileCache.Remove(userId);
+        }
+
         // FIX: Both Admin and OnboardingReview paths now deprovision
         await DeprovisionApprovalGatedSystemTeamsAsync(userId);
 
@@ -357,6 +376,19 @@ public class OnboardingService : IOnboardingService
         // FIX: cache eviction was missing in AdminController
         _cache.Remove(CacheKeys.NavBadgeCounts);
 
+        // Add to profile cache (profile is now approved)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? profileCache) && profileCache != null)
+        {
+            await _dbContext.Entry(user.Profile).Collection(p => p.VolunteerHistory).LoadAsync(ct);
+            profileCache[userId] = new CachedProfile(
+                userId, user.DisplayName, user.ProfilePictureUrl,
+                user.Profile.ProfilePictureData != null, user.Profile.Id, user.Profile.UpdatedAt.ToUnixTimeTicks(),
+                user.Profile.BurnerName, user.Profile.Bio, user.Profile.Pronouns, user.Profile.ContributionInterests,
+                user.Profile.City, user.Profile.CountryCode, user.Profile.Latitude, user.Profile.Longitude,
+                user.Profile.DateOfBirth?.Day, user.Profile.DateOfBirth?.Month,
+                user.Profile.VolunteerHistory.Select(v => new CachedVolunteerEntry(v.EventName, v.Description)).ToList());
+        }
+
         // Sync Volunteers team membership (adds user if they also have all required consents)
         await _syncJob.SyncVolunteersMembershipForUserAsync(userId);
 
@@ -387,6 +419,12 @@ public class OnboardingService : IOnboardingService
 
         await _dbContext.SaveChangesAsync(ct);
 
+        // Remove from profile cache (suspended)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? suspendCache) && suspendCache != null)
+        {
+            suspendCache.Remove(userId);
+        }
+
         _metrics.RecordMemberSuspended("admin");
         _logger.LogInformation("Admin {AdminId} suspended human {HumanId}", adminId, userId);
 
@@ -412,6 +450,22 @@ public class OnboardingService : IOnboardingService
             adminId, adminDisplayName);
 
         await _dbContext.SaveChangesAsync(ct);
+
+        // Re-add to profile cache if approved
+        if (user.Profile.IsApproved)
+        {
+            if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? profileCache) && profileCache != null)
+            {
+                await _dbContext.Entry(user.Profile).Collection(p => p.VolunteerHistory).LoadAsync(ct);
+                profileCache[userId] = new CachedProfile(
+                    userId, user.DisplayName, user.ProfilePictureUrl,
+                    user.Profile.ProfilePictureData != null, user.Profile.Id, user.Profile.UpdatedAt.ToUnixTimeTicks(),
+                    user.Profile.BurnerName, user.Profile.Bio, user.Profile.Pronouns, user.Profile.ContributionInterests,
+                    user.Profile.City, user.Profile.CountryCode, user.Profile.Latitude, user.Profile.Longitude,
+                    user.Profile.DateOfBirth?.Day, user.Profile.DateOfBirth?.Month,
+                    user.Profile.VolunteerHistory.Select(v => new CachedVolunteerEntry(v.EventName, v.Description)).ToList());
+            }
+        }
 
         _logger.LogInformation("Admin {AdminId} unsuspended human {HumanId}", adminId, userId);
 

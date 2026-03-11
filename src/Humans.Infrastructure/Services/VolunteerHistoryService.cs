@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Humans.Application.DTOs;
+using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Infrastructure.Data;
 
@@ -13,11 +14,13 @@ public class VolunteerHistoryService
 {
     private readonly HumansDbContext _dbContext;
     private readonly IClock _clock;
+    private readonly IProfileService _profileService;
 
-    public VolunteerHistoryService(HumansDbContext dbContext, IClock clock)
+    public VolunteerHistoryService(HumansDbContext dbContext, IClock clock, IProfileService profileService)
     {
         _dbContext = dbContext;
         _clock = clock;
+        _profileService = profileService;
     }
 
     public async Task<IReadOnlyList<VolunteerHistoryEntryDto>> GetAllAsync(
@@ -87,5 +90,22 @@ public class VolunteerHistoryService
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Update profile cache with new volunteer history
+        var profile = await _dbContext.Profiles
+            .AsNoTracking()
+            .Include(p => p.User)
+            .Include(p => p.VolunteerHistory)
+            .FirstOrDefaultAsync(p => p.Id == profileId, cancellationToken);
+        if (profile is { IsApproved: true, IsSuspended: false })
+        {
+            _profileService.UpdateProfileCache(profile.UserId, new CachedProfile(
+                profile.UserId, profile.User.DisplayName, profile.User.ProfilePictureUrl,
+                profile.ProfilePictureData != null, profile.Id, profile.UpdatedAt.ToUnixTimeTicks(),
+                profile.BurnerName, profile.Bio, profile.Pronouns, profile.ContributionInterests,
+                profile.City, profile.CountryCode, profile.Latitude, profile.Longitude,
+                profile.DateOfBirth?.Day, profile.DateOfBirth?.Month,
+                profile.VolunteerHistory.Select(v => new CachedVolunteerEntry(v.EventName, v.Description)).ToList()));
+        }
     }
 }
