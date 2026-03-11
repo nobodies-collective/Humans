@@ -968,14 +968,17 @@ public partial class TeamService : ITeamService
         }
 
         // Cannot rename to/from "Lead"
-        if (definition.IsLeadRole)
+        if (!string.Equals(definition.Name, name, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Cannot rename the Lead role");
-        }
+            if (definition.IsLeadRole)
+            {
+                throw new InvalidOperationException("Cannot rename the Lead role");
+            }
 
-        if (string.Equals(name, "Lead", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Cannot rename a role to 'Lead' — this name is reserved");
+            if (string.Equals(name, "Lead", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Cannot rename a role to 'Lead' — this name is reserved");
+            }
         }
 
         // Cannot reduce slot count below filled count
