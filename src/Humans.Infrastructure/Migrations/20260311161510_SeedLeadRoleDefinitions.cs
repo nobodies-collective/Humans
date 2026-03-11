@@ -21,7 +21,7 @@ namespace Humans.Infrastructure.Migrations
                 CROSS JOIN LATERAL (
                     SELECT COUNT(*)::int AS cnt
                     FROM team_members tm
-                    WHERE tm.""TeamId"" = t.""Id"" AND tm.""Role"" = 1 AND tm.""LeftAt"" IS NULL
+                    WHERE tm.""TeamId"" = t.""Id"" AND tm.""Role"" = 'Lead' AND tm.""LeftAt"" IS NULL
                 ) lead_counts
                 WHERE t.""SystemTeamType"" = 'None'
                 AND NOT EXISTS (
@@ -37,7 +37,7 @@ namespace Humans.Infrastructure.Migrations
                        NOW() AT TIME ZONE 'UTC', tm.""UserId""
                 FROM team_members tm
                 INNER JOIN team_role_definitions d ON d.""TeamId"" = tm.""TeamId"" AND lower(d.""Name"") = 'lead'
-                WHERE tm.""Role"" = 1
+                WHERE tm.""Role"" = 'Lead'
                 AND tm.""LeftAt"" IS NULL
                 AND NOT EXISTS (
                     SELECT 1 FROM team_role_assignments a WHERE a.""TeamRoleDefinitionId"" = d.""Id"" AND a.""TeamMemberId"" = tm.""Id""
