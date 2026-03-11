@@ -32,4 +32,9 @@ public enum AuditAction
     TierDowngraded,
     GoogleResourceDeactivated,
     FacilitatedMessageSent,
+    TeamRoleDefinitionCreated,
+    TeamRoleDefinitionUpdated,
+    TeamRoleDefinitionDeleted,
+    TeamRoleAssigned,
+    TeamRoleUnassigned,
 }

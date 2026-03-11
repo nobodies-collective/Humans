@@ -86,6 +86,11 @@ public class Team
     public ICollection<LegalDocument> LegalDocuments { get; } = new List<LegalDocument>();
 
     /// <summary>
+    /// Navigation property to role definitions.
+    /// </summary>
+    public ICollection<TeamRoleDefinition> RoleDefinitions { get; } = new List<TeamRoleDefinition>();
+
+    /// <summary>
     /// Whether this is a system-managed team.
     /// </summary>
     public bool IsSystemTeam => SystemTeamType != SystemTeamType.None;

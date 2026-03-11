@@ -52,4 +52,9 @@ public class TeamMember
     /// Whether this is currently an active membership.
     /// </summary>
     public bool IsActive => !LeftAt.HasValue;
+
+    /// <summary>
+    /// Navigation property to role slot assignments.
+    /// </summary>
+    public ICollection<TeamRoleAssignment> RoleAssignments { get; } = new List<TeamRoleAssignment>();
 }
