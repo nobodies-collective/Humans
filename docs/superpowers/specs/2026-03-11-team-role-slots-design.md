@@ -89,7 +89,7 @@ New navigation property:
 
 ### Member Departure
 
-`TeamMember` uses soft-delete (`LeftAt` set, row retained), so cascade delete does not apply. `LeaveTeamAsync` and `RemoveMemberAsync` in `TeamService` must explicitly delete the departing member's `TeamRoleAssignment` rows before setting `LeftAt`. The audit log captures the historical record of who held which slots.
+`TeamMember` uses soft-delete (`LeftAt` set, row retained), so cascade delete does not apply. `LeaveTeamAsync` and `RemoveMemberAsync` in `TeamService` must explicitly delete the departing member's `TeamRoleAssignment` rows and set `LeftAt` in the same `SaveChangesAsync` call. EF Core issues DELETEs before UPDATEs within a single save, which satisfies the `Restrict` FK constraint. Do not split into separate saves. The audit log captures the historical record of who held which slots.
 
 ### System Teams
 
@@ -98,6 +98,8 @@ Role definitions cannot be created on system teams (`team.IsSystemTeam == true`)
 ### EF Configuration Notes
 
 The `Priorities` JSON column requires explicit `HasConversion` with a `ValueConverter` that serializes `List<SlotPriority>` as a JSON array of strings (matching project convention of storing enums as strings). Column type is `jsonb` with a default of `'[]'::jsonb`. Follow the pattern in `DocumentVersionConfiguration`.
+
+The `SlotIndex < SlotCount` invariant is enforced by service-layer validation only. No database CHECK constraint is added, consistent with the project's preference for service-layer validation over database constraints.
 
 ## Permissions
 
@@ -116,13 +118,13 @@ This follows the existing authorization pattern used by `CanUserApproveRequestsF
 | Route | Method | Purpose | Auth |
 |-------|--------|---------|------|
 | `GET /Teams/{slug}` | GET | Existing detail page, now includes roster section | Authenticated |
-| `GET /Teams/Roster` | GET | Cross-team roster summary, unfilled slots by priority (must be in `TeamController` to avoid `{slug}` route conflict) | Authenticated |
-| `GET /Teams/{slug}/Roles` | GET | Role management page (CRUD definitions) | Lead/TeamsAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles` | POST | Create role definition | Lead/TeamsAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles/{id}/Edit` | POST | Update role definition | Lead/TeamsAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles/{id}/Delete` | POST | Delete role definition | Lead/TeamsAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles/{id}/Assign` | POST | Assign member to slot | Lead/TeamsAdmin/Board/Admin |
-| `POST /Teams/{slug}/Roles/{id}/Unassign/{memberId}` | POST | Unassign member from slot | Lead/TeamsAdmin/Board/Admin |
+| `GET /Teams/Roster` | GET | Cross-team roster summary, unfilled slots by priority (in `TeamController` to avoid `{slug}` route conflict) | Authenticated |
+| `GET /Teams/{slug}/Roles` | GET | Role management page (CRUD definitions, in `TeamAdminController`) | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles` | POST | Create role definition (in `TeamAdminController`) | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles/{id}/Edit` | POST | Update role definition (in `TeamAdminController`) | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles/{id}/Delete` | POST | Delete role definition (in `TeamAdminController`) | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles/{id}/Assign` | POST | Assign member to slot (in `TeamAdminController`) | Lead/TeamsAdmin/Board/Admin |
+| `POST /Teams/{slug}/Roles/{id}/Unassign/{memberId}` | POST | Unassign member from slot (in `TeamAdminController`) | Lead/TeamsAdmin/Board/Admin |
 
 ## UI Design
 
