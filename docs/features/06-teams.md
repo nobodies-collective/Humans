@@ -397,6 +397,24 @@ Real implementation will manage Google Drive folder permissions.
 | `/Teams/Create` | Create team form (Board, Admin) |
 | `/Teams/{id}/Edit` | Edit team (Board, Admin) |
 
+## Role Slots
+
+Teams can define named role slots that members fill. Each role has a configurable number of slots with explicit priority levels (Critical, Important, Nice to Have). This helps teams track which positions are filled and where gaps exist.
+
+### Key Concepts
+
+- **Role Definition**: A named role on a team (e.g., "Social Media", "Designer") with a slot count and priority per slot
+- **Role Assignment**: Links a team member to a specific slot in a role definition
+- **Lead Role**: Auto-created per team, unified with `TeamMember.Role = Lead`
+- **Auto-add**: Assigning a non-member to a role automatically adds them to the team
+- **Roster Summary**: Cross-team view showing all slots with priority/status filtering
+
+### Routes
+
+- `GET /Teams/Roster` — cross-team roster summary
+- `GET /Teams/{slug}/Roles` — role management page
+- Role CRUD and assignment via POST actions on TeamAdminController
+
 ## Related Features
 
 - [Authentication](01-authentication.md) - Board role enables team creation

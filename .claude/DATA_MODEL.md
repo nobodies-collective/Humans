@@ -19,6 +19,8 @@
 | TeamJoinRequest | Requests to join a team |
 | TeamJoinRequestStateHistory | Audit trail of TeamJoinRequest state transitions |
 | GoogleResource | Shared Drive folder + Group provisioning |
+| TeamRoleDefinition | Named role slots on a team (name, description, slot count, priorities) |
+| TeamRoleAssignment | Assigns a team member to a specific slot in a role definition |
 | AuditLogEntry | **APPEND-ONLY** system audit trail (user actions, sync ops) |
 
 ## Relationships
@@ -38,6 +40,10 @@ Profile 1──n VolunteerHistoryEntry
 Team 1──n TeamMember
 Team 1──n TeamJoinRequest
 Team 1──n GoogleResource
+Team 1──n TeamRoleDefinition
+TeamRoleDefinition 1──n TeamRoleAssignment
+TeamMember 1──n TeamRoleAssignment
+
 Team 1──n LegalDocument
 
 LegalDocument 1──n DocumentVersion
