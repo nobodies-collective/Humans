@@ -250,6 +250,41 @@ public class TeamController : Controller
         return View(viewModel);
     }
 
+    [HttpGet("Search")]
+    public async Task<IActionResult> Search(string? q)
+    {
+        var viewModel = new HumanSearchViewModel { Query = q };
+
+        if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
+        {
+            return View(viewModel);
+        }
+
+        var results = await _profileService.SearchHumansAsync(q);
+
+        viewModel.Results = results.Select(r =>
+        {
+            string? pictureUrl = r.HasCustomPicture
+                ? Url.Action("Picture", "Profile", new { id = r.ProfileId, v = r.UpdatedAtTicks })
+                : r.ProfilePictureUrl;
+
+            return new HumanSearchResultViewModel
+            {
+                UserId = r.UserId,
+                DisplayName = r.DisplayName,
+                BurnerName = r.BurnerName,
+                City = r.City,
+                Bio = r.Bio,
+                ContributionInterests = r.ContributionInterests,
+                EffectiveProfilePictureUrl = pictureUrl,
+                MatchField = r.MatchField,
+                MatchSnippet = r.MatchSnippet
+            };
+        }).ToList();
+
+        return View(viewModel);
+    }
+
     [HttpGet("Roster")]
     public async Task<IActionResult> Roster(string? priority, string? status)
     {

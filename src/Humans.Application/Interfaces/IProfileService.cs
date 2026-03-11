@@ -15,6 +15,17 @@ public record ProfileSaveRequest(
     MembershipTier? SelectedTier, string? ApplicationMotivation, string? ApplicationAdditionalInfo,
     string? ApplicationSignificantContribution, string? ApplicationRoleUnderstanding);
 
+public record CachedProfile(
+    Guid UserId, string DisplayName, string? ProfilePictureUrl,
+    bool HasCustomPicture, Guid ProfileId, long UpdatedAtTicks,
+    string? BurnerName, string? Bio, string? Pronouns,
+    string? ContributionInterests,
+    string? City, string? CountryCode, double? Latitude, double? Longitude,
+    int? BirthdayDay, int? BirthdayMonth,
+    IReadOnlyList<CachedVolunteerEntry> VolunteerHistory);
+
+public record CachedVolunteerEntry(string EventName, string? Description);
+
 public interface IProfileService
 {
     Task<Profile?> GetProfileAsync(Guid userId, CancellationToken ct = default);
@@ -47,6 +58,28 @@ public interface IProfileService
     Task<DTOs.AdminHumanDetailData?> GetAdminHumanDetailAsync(Guid userId, CancellationToken ct = default);
 
     Task<IReadOnlyList<UserSearchResult>> SearchApprovedUsersAsync(string query, CancellationToken ct = default);
+
+    Task<IReadOnlyList<HumanSearchResult>> SearchHumansAsync(string query, CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates a single entry in the approved profiles cache.
+    /// Pass null to remove the entry (e.g., on suspension/deletion).
+    /// </summary>
+    void UpdateProfileCache(Guid userId, CachedProfile? newValue);
 }
 
 public record UserSearchResult(Guid UserId, string DisplayName, string Email);
+
+public record HumanSearchResult(
+    Guid UserId,
+    string DisplayName,
+    string? BurnerName,
+    string? City,
+    string? Bio,
+    string? ContributionInterests,
+    string? ProfilePictureUrl,
+    bool HasCustomPicture,
+    Guid ProfileId,
+    long UpdatedAtTicks,
+    string? MatchField,
+    string? MatchSnippet);
