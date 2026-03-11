@@ -101,6 +101,8 @@ Role definitions cannot be created on system teams (`team.IsSystemTeam == true`)
 
 When assigning a user to a role slot, if the user is not already an active member of the team, the system automatically adds them to the team (equivalent to `AddMemberToTeamAsync`). This reduces friction — a team lead can assign someone to a role without a separate "add member" step. The assignment flow is: check membership → add if needed → assign to slot.
 
+If the team has associated legal documents requiring consent, the auto-added member must complete those before gaining access to team resources (Drive folders, Google Groups). Team membership and role assignment proceed immediately — only resource provisioning is gated by consent. This is consistent with the existing consent-gated resource access model.
+
 ### EF Configuration Notes
 
 The `Priorities` column is a simple CSV string (e.g., `"Critical,Important,NiceToHave"`). Use a `ValueConverter` to convert between `List<SlotPriority>` and the stored CSV string. Default value: empty string `""`.
