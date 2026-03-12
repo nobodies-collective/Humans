@@ -12,16 +12,16 @@
             <div class="card-header">System Operations</div>
             <div class="list-group list-group-flush">
                 <a asp-action="Configuration" class="list-group-item list-group-item-action">
-                    <i class="bi bi-gear me-2"></i>Configuration Status
+                    <i class="fa-solid fa-gear me-2"></i>Configuration Status
                 </a>
                 <a asp-action="EmailPreview" class="list-group-item list-group-item-action">
-                    <i class="bi bi-envelope me-2"></i>Email Preview
+                    <i class="fa-solid fa-envelope me-2"></i>Email Preview
                 </a>
                 <a asp-action="SyncSettings" class="list-group-item list-group-item-action">
-                    <i class="bi bi-sliders me-2"></i>Sync Settings
+                    <i class="fa-solid fa-sliders me-2"></i>Sync Settings
                 </a>
                 <a href="/hangfire" class="list-group-item list-group-item-action">
-                    <i class="bi bi-clock-history me-2"></i>@Localizer["Admin_BackgroundJobs"]
+                    <i class="fa-solid fa-clock-rotate-left me-2"></i>@Localizer["Admin_BackgroundJobs"]
                 </a>
             </div>
         </div>
@@ -32,7 +32,7 @@
                 <form asp-action="SyncSystemTeams" method="post">
                     @Html.AntiForgeryToken()
                     <button type="submit" class="btn btn-outline-primary">
-                        <i class="bi bi-arrow-repeat me-1"></i>Sync System Teams
+                        <i class="fa-solid fa-arrows-rotate me-1"></i>Sync System Teams
                     </button>
                     <small class="text-muted d-block mt-1">Recalculates Volunteers, Leads, and Board team membership.</small>
                 </form>
@@ -45,10 +45,10 @@
             <div class="card-header">Quick Links</div>
             <div class="list-group list-group-flush">
                 <a asp-controller="Board" asp-action="Index" class="list-group-item list-group-item-action">
-                    <i class="bi bi-speedometer2 me-2"></i>Board Dashboard
+                    <i class="fa-solid fa-gauge-high me-2"></i>Board Dashboard
                 </a>
                 <a href="/health/ready" target="_blank" class="list-group-item list-group-item-action">
-                    <i class="bi bi-heart-pulse me-2"></i>@Localizer["Admin_ViewHealthCheck"]
+                    <i class="fa-solid fa-heart-pulse me-2"></i>@Localizer["Admin_ViewHealthCheck"]
                 </a>
             </div>
         </div>
