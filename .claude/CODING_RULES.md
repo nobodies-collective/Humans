@@ -113,6 +113,45 @@ private static List<ContactFieldVisibility> GetAllowedVisibilities(ContactFieldV
 
 **This applies to any enum with `HasConversion<string>()`**, not just `ContactFieldVisibility`. The `ContactFieldService` and `UserEmailService` both use the `GetAllowedVisibilities` helper pattern.
 
+## Avoid Magic Strings
+
+Use `nameof()`, constants, or enum references instead of string literals that refer to code identifiers. Magic strings are fragile — they silently break on rename and can't be caught by the compiler.
+
+**Rule:** When a string literal refers to a code element (property, method, class, role, entity type), replace it with a compile-time reference.
+
+**Examples:**
+```csharp
+// WRONG — breaks silently if method is renamed
+return RedirectToAction("HumanDetail");
+
+// CORRECT
+return RedirectToAction(nameof(HumanDetail));
+
+// WRONG — typo creates inconsistent audit data
+await _auditLog.LogAsync("Teem", ...);
+
+// CORRECT — constants catch typos at compile time
+await _auditLog.LogAsync(AuditLogEntityTypes.Team, ...);
+```
+
+**Applies to:** `RedirectToAction`/`RedirectToPage` targets, `TempData`/`ViewData` keys, `IsInRole()` role names, audit log entity types, claim types, and any other string that mirrors a code identifier.
+
+**Exceptions:** Localization resource keys, HTML/CSS class names, and configuration keys that don't map to code identifiers.
+
+## Icons: Font Awesome 6 Only
+
+This project uses **Font Awesome 6** (loaded via CDN in `_Layout.cshtml`). Bootstrap Icons are **not** loaded and will render as invisible/missing.
+
+**Rule:** Always use `fa-solid fa-*` (or `fa-regular fa-*`, `fa-brands fa-*`) classes for icons. Never use `bi bi-*` (Bootstrap Icons).
+
+```html
+<!-- WRONG — Bootstrap Icons not loaded, will be invisible -->
+<i class="bi bi-gear"></i>
+
+<!-- CORRECT — Font Awesome 6 -->
+<i class="fa-solid fa-gear"></i>
+```
+
 ## Localization (i18n)
 
 **Admin pages do not require localization.** Existing localized strings in admin views can stay, but do not add new `@Localizer[...]` calls or resource keys for admin-side views (`/Admin/*`, `/TeamAdmin/*`) until further notice. Only public/user-facing views require localization.
