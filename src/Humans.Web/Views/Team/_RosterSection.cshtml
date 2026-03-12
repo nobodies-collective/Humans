@@ -1,5 +1,18 @@
 @model List<Humans.Web.Models.TeamRoleDefinitionViewModel>
 
+@functions {
+    static readonly Ganss.Xss.HtmlSanitizer Sanitizer = new();
+
+    string ConvertMarkdownToHtml(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return string.Empty;
+
+        var html = Markdig.Markdown.ToHtml(content);
+        return Sanitizer.Sanitize(html);
+    }
+}
+
 @if (Model.Any())
 {
     <div class="card mb-4">
@@ -24,16 +37,21 @@
                 <tbody>
                     @foreach (var role in Model)
                     {
+                        var collapseId = $"role-desc-{role.Id:N}";
                         @foreach (var slot in role.Slots)
                         {
                             <tr>
                                 @if (slot.SlotIndex == 0)
                                 {
-                                    <td rowspan="@role.Slots.Count">
+                                    <td rowspan="@(role.Slots.Count + (string.IsNullOrEmpty(role.Description) ? 0 : 1))">
                                         <strong>@role.Name</strong>
                                         @if (!string.IsNullOrEmpty(role.Description))
                                         {
-                                            <br /><small class="text-muted">@role.Description</small>
+                                            <br />
+                                            <a class="text-muted small text-decoration-none" data-bs-toggle="collapse"
+                                               href="#@collapseId" role="button" aria-expanded="false" aria-controls="@collapseId">
+                                                <i class="bi bi-chevron-down role-desc-chevron"></i> Details
+                                            </a>
                                         }
                                     </td>
                                 }
@@ -48,6 +66,16 @@
                                     {
                                         <span class="text-muted fst-italic">Open</span>
                                     }
+                                </td>
+                            </tr>
+                        }
+                        @if (!string.IsNullOrEmpty(role.Description))
+                        {
+                            <tr class="collapse" id="@collapseId">
+                                <td colspan="3" class="border-top-0 pt-0">
+                                    <div class="role-description small text-muted">
+                                        @Html.Raw(ConvertMarkdownToHtml(role.Description))
+                                    </div>
                                 </td>
                             </tr>
                         }

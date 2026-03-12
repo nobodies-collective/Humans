@@ -48,10 +48,6 @@
                                 <input type="text" class="form-control" name="Name" value="@role.Name" required />
                             }
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Description</label>
-                            <input type="text" class="form-control" name="Description" value="@role.Description" />
-                        </div>
                         <div class="col-md-2">
                             <label class="form-label">Slot Count</label>
                             <input type="number" class="form-control slot-count-input" name="SlotCount" value="@role.SlotCount" min="1" required
@@ -84,6 +80,11 @@
                                 </div>
                             }
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="Description" rows="3"
+                                  placeholder="Supports markdown formatting">@role.Description</textarea>
                     </div>
                 </form>
 
@@ -162,10 +163,6 @@ else
                     <label class="form-label">Name</label>
                     <input type="text" class="form-control" name="Name" required />
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Description</label>
-                    <input type="text" class="form-control" name="Description" />
-                </div>
                 <div class="col-md-2">
                     <label class="form-label">Slot Count</label>
                     <input type="number" class="form-control slot-count-input" name="SlotCount" value="1" min="1" required
@@ -192,6 +189,11 @@ else
                         </select>
                     </div>
                 </div>
+            </div>
+            <div class="mt-2">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" name="Description" rows="3"
+                          placeholder="Supports markdown formatting"></textarea>
             </div>
         </form>
     </div>
