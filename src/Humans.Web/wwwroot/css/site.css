@@ -687,6 +687,16 @@ hr {
     animation-delay: 0.2s;
 }
 
+/* --- Role description expander --- */
+.role-desc-chevron {
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+
+[aria-expanded="true"] .role-desc-chevron {
+    transform: rotate(180deg);
+}
+
 /* --- Reduced motion preference --- */
 @media (prefers-reduced-motion: reduce) {
     .card {
