@@ -1,5 +1,18 @@
 @model Humans.Web.Models.RosterSummaryViewModel
 
+@functions {
+    static readonly Ganss.Xss.HtmlSanitizer Sanitizer = new();
+
+    string ConvertMarkdownToHtml(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return string.Empty;
+
+        var html = Markdig.Markdown.ToHtml(content);
+        return Sanitizer.Sanitize(html);
+    }
+}
+
 @{
     ViewData["Title"] = "Team Roster";
 }
@@ -48,11 +61,26 @@ else
             </tr>
         </thead>
         <tbody>
+            @{
+                var shownDescriptions = new HashSet<Guid>();
+            }
             @foreach (var slot in Model.Slots)
             {
+                var hasDescription = !string.IsNullOrEmpty(slot.RoleDescription);
+                var collapseId = $"roster-desc-{slot.RoleDefinitionId:N}";
+                var isFirstSlotForRole = hasDescription && shownDescriptions.Add(slot.RoleDefinitionId);
                 <tr class="@(slot is { IsFilled: false, Priority: "Critical" } ? "table-danger" : "")">
                     <td><a href="@Url.Action("Details", "Team", new { slug = slot.TeamSlug })">@slot.TeamName</a></td>
-                    <td>@slot.RoleName</td>
+                    <td>
+                        @slot.RoleName
+                        @if (isFirstSlotForRole)
+                        {
+                            <a class="text-muted small text-decoration-none ms-1" data-bs-toggle="collapse"
+                               href="#@collapseId" role="button" aria-expanded="false" aria-controls="@collapseId">
+                                <i class="bi bi-chevron-down role-desc-chevron"></i>
+                            </a>
+                        }
+                    </td>
                     <td>@slot.SlotNumber</td>
                     <td><span class="badge @slot.PriorityBadgeClass">@(slot.Priority == "NiceToHave" ? "Nice to Have" : slot.Priority)</span></td>
                     <td>
@@ -66,6 +94,16 @@ else
                         }
                     </td>
                 </tr>
+                @if (isFirstSlotForRole)
+                {
+                    <tr class="collapse" id="@collapseId">
+                        <td colspan="5" class="border-top-0 pt-0">
+                            <div class="role-description small text-muted">
+                                @Html.Raw(ConvertMarkdownToHtml(slot.RoleDescription!))
+                            </div>
+                        </td>
+                    </tr>
+                }
             }
         </tbody>
     </table>
