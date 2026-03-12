@@ -99,13 +99,7 @@ public class VolunteerHistoryService
             .FirstOrDefaultAsync(p => p.Id == profileId, cancellationToken);
         if (profile is { IsApproved: true, IsSuspended: false })
         {
-            _profileService.UpdateProfileCache(profile.UserId, new CachedProfile(
-                profile.UserId, profile.User.DisplayName, profile.User.ProfilePictureUrl,
-                profile.ProfilePictureData != null, profile.Id, profile.UpdatedAt.ToUnixTimeTicks(),
-                profile.BurnerName, profile.Bio, profile.Pronouns, profile.ContributionInterests,
-                profile.City, profile.CountryCode, profile.Latitude, profile.Longitude,
-                profile.DateOfBirth?.Day, profile.DateOfBirth?.Month,
-                profile.VolunteerHistory.Select(v => new CachedVolunteerEntry(v.EventName, v.Description)).ToList()));
+            _profileService.UpdateProfileCache(profile.UserId, CachedProfile.Create(profile, profile.User));
         }
     }
 }

@@ -951,6 +951,268 @@ public class ProfileServiceTests : IDisposable
         result.Should().NotBeNull();
     }
 
+    // --- Search ---
+
+    [Fact]
+    public async Task SearchHumansAsync_MatchesByDisplayName()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var profile = MakeProfile(userId, isApproved: true);
+        _dbContext.Profiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+        var user = await _dbContext.Users.FirstAsync(u => u.Id == userId);
+        user.DisplayName = "Sparkle Phoenix";
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("Sparkle");
+
+        results.Should().HaveCount(1);
+        results[0].UserId.Should().Be(userId);
+        results[0].MatchField.Should().Be("Name");
+    }
+
+    [Fact]
+    public async Task SearchHumansAsync_MatchesByCity()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var profile = MakeProfile(userId, isApproved: true);
+        profile.City = "Barcelona";
+        _dbContext.Profiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("Barcelona");
+
+        results.Should().HaveCount(1);
+        results[0].MatchField.Should().Be("City");
+    }
+
+    [Fact]
+    public async Task SearchHumansAsync_MatchesByBio()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var profile = MakeProfile(userId, isApproved: true);
+        profile.Bio = "I love fire dancing and community building";
+        _dbContext.Profiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("fire dancing");
+
+        results.Should().HaveCount(1);
+        results[0].MatchField.Should().Be("Bio");
+        results[0].MatchSnippet.Should().Contain("fire dancing");
+    }
+
+    [Fact]
+    public async Task SearchHumansAsync_MatchesByInterests()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var profile = MakeProfile(userId, isApproved: true);
+        profile.ContributionInterests = "Sound engineering and DJing";
+        _dbContext.Profiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("sound");
+
+        results.Should().HaveCount(1);
+        results[0].MatchField.Should().Be("Interests");
+    }
+
+    [Fact]
+    public async Task SearchHumansAsync_MatchesByBurnerName()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var profile = MakeProfile(userId, isApproved: true);
+        profile.BurnerName = "Phoenix Rising";
+        _dbContext.Profiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("Phoenix");
+
+        results.Should().HaveCount(1);
+        results[0].MatchField.Should().Be("Burner Name");
+    }
+
+    [Fact]
+    public async Task SearchHumansAsync_MatchesByVolunteerHistory()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var profile = MakeProfile(userId, isApproved: true);
+        _dbContext.Profiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+
+        _dbContext.VolunteerHistoryEntries.Add(new VolunteerHistoryEntry
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profile.Id,
+            Date = new NodaTime.LocalDate(2025, 6, 1),
+            EventName = "Burning Man 2025",
+            CreatedAt = _clock.GetCurrentInstant(),
+            UpdatedAt = _clock.GetCurrentInstant()
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("Burning Man");
+
+        results.Should().HaveCount(1);
+        results[0].MatchField.Should().Be("Burner CV");
+    }
+
+    [Fact]
+    public async Task SearchHumansAsync_ExcludesSuspended()
+    {
+        var u1 = Guid.NewGuid();
+        var u2 = Guid.NewGuid();
+        await SeedUserAsync(u1);
+        await SeedUserAsync(u2);
+        var p1 = MakeProfile(u1, isApproved: true, isSuspended: true);
+        p1.City = "Madrid";
+        var p2 = MakeProfile(u2, isApproved: true);
+        p2.City = "Madrid";
+        await _dbContext.Profiles.AddRangeAsync(p1, p2);
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("Madrid");
+
+        results.Should().HaveCount(1);
+        results[0].UserId.Should().Be(u2);
+    }
+
+    [Fact]
+    public async Task SearchHumansAsync_CaseInsensitive()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var profile = MakeProfile(userId, isApproved: true);
+        profile.City = "Berlin";
+        _dbContext.Profiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("berlin");
+
+        results.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task SearchHumansAsync_ResultsOrderedByName()
+    {
+        var u1 = Guid.NewGuid();
+        var u2 = Guid.NewGuid();
+        var u3 = Guid.NewGuid();
+        await SeedUserAsync(u1);
+        await SeedUserAsync(u2);
+        await SeedUserAsync(u3);
+        var user1 = await _dbContext.Users.FirstAsync(u => u.Id == u1);
+        user1.DisplayName = "Zara";
+        var user2 = await _dbContext.Users.FirstAsync(u => u.Id == u2);
+        user2.DisplayName = "Alice";
+        var user3 = await _dbContext.Users.FirstAsync(u => u.Id == u3);
+        user3.DisplayName = "Maria";
+        var p1 = MakeProfile(u1, isApproved: true);
+        p1.City = "TestCity";
+        var p2 = MakeProfile(u2, isApproved: true);
+        p2.City = "TestCity";
+        var p3 = MakeProfile(u3, isApproved: true);
+        p3.City = "TestCity";
+        await _dbContext.Profiles.AddRangeAsync(p1, p2, p3);
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("TestCity");
+
+        results.Should().HaveCount(3);
+        results[0].DisplayName.Should().Be("Alice");
+        results[1].DisplayName.Should().Be("Maria");
+        results[2].DisplayName.Should().Be("Zara");
+    }
+
+    [Fact]
+    public async Task SearchHumansAsync_NoMatch_ReturnsEmpty()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var profile = MakeProfile(userId, isApproved: true);
+        _dbContext.Profiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+
+        var results = await _service.SearchHumansAsync("zzzznonexistent");
+
+        results.Should().BeEmpty();
+    }
+
+    // --- Cache behavior ---
+
+    [Fact]
+    public async Task UpdateProfileCache_AddAndRemove()
+    {
+        var userId = Guid.NewGuid();
+        var cached = new CachedProfile(
+            userId, "Test", null, false, Guid.NewGuid(), 123,
+            null, null, null, null, null, null, null, null, null, null, []);
+
+        // Cache not loaded yet — should not throw
+        _service.UpdateProfileCache(userId, cached);
+
+        // Load cache first
+        await SeedUserAsync(userId);
+        var profile = MakeProfile(userId, isApproved: true);
+        _dbContext.Profiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+        await _service.GetApprovedProfilesWithLocationAsync(); // triggers cache load
+
+        // Now add
+        _service.UpdateProfileCache(userId, cached);
+        var searchResults = await _service.SearchHumansAsync("Test");
+        searchResults.Should().Contain(r => r.UserId == userId);
+
+        // Remove
+        _service.UpdateProfileCache(userId, null);
+        searchResults = await _service.SearchHumansAsync("Test");
+        searchResults.Should().NotContain(r => r.UserId == userId);
+    }
+
+    [Fact]
+    public async Task SaveProfileAsync_UpdatesCacheForApprovedProfile()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserWithProfileAsync(userId, isApproved: true);
+
+        // Prime cache
+        await _service.GetApprovedProfilesWithLocationAsync();
+
+        // Save with new city
+        var request = MakeRequest(city: "Valencia");
+        await _service.SaveProfileAsync(userId, "Test User", request, "en");
+
+        // Search should find the updated profile
+        var results = await _service.SearchHumansAsync("Valencia");
+        results.Should().HaveCount(1);
+        results[0].UserId.Should().Be(userId);
+    }
+
+    [Fact]
+    public async Task RequestDeletionAsync_RemovesFromCache()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserWithProfileAsync(userId, isApproved: true);
+
+        // Prime cache
+        await _service.GetApprovedProfilesWithLocationAsync();
+        var resultsBefore = await _service.SearchHumansAsync("Test User");
+        resultsBefore.Should().Contain(r => r.UserId == userId);
+
+        // Request deletion
+        await _service.RequestDeletionAsync(userId);
+
+        // Should be gone from cache
+        var resultsAfter = await _service.SearchHumansAsync("Test User");
+        resultsAfter.Should().NotContain(r => r.UserId == userId);
+    }
+
     // --- Helpers ---
 
     private async Task<User> SeedUserAsync(Guid userId)
@@ -996,11 +1258,12 @@ public class ProfileServiceTests : IDisposable
         string burnerName = "TestBurner", string firstName = "Test", string lastName = "User",
         int? birthdayMonth = null, int? birthdayDay = null,
         bool removeProfilePicture = false,
-        MembershipTier? selectedTier = null, string? applicationMotivation = null)
+        MembershipTier? selectedTier = null, string? applicationMotivation = null,
+        string? city = null)
     {
         return new ProfileSaveRequest(
             BurnerName: burnerName, FirstName: firstName, LastName: lastName,
-            City: null, CountryCode: null, Latitude: null, Longitude: null, PlaceId: null,
+            City: city, CountryCode: null, Latitude: null, Longitude: null, PlaceId: null,
             Bio: null, Pronouns: null, ContributionInterests: null, BoardNotes: null,
             BirthdayMonth: birthdayMonth, BirthdayDay: birthdayDay,
             EmergencyContactName: null, EmergencyContactPhone: null, EmergencyContactRelationship: null,
