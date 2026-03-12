@@ -364,6 +364,8 @@ public class RosterSlotViewModel
     public string TeamName { get; set; } = string.Empty;
     public string TeamSlug { get; set; } = string.Empty;
     public string RoleName { get; set; } = string.Empty;
+    public string? RoleDescription { get; set; }
+    public Guid RoleDefinitionId { get; set; }
     public int SlotNumber { get; set; }
     public string Priority { get; set; } = string.Empty;
     public string PriorityBadgeClass { get; set; } = string.Empty;

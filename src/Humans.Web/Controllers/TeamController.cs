@@ -304,6 +304,8 @@ public class TeamController : Controller
                     TeamName = def.Team.Name,
                     TeamSlug = def.Team.Slug,
                     RoleName = def.Name,
+                    RoleDescription = def.Description,
+                    RoleDefinitionId = def.Id,
                     SlotNumber = i + 1,
                     Priority = priorityStr,
                     PriorityBadgeClass = slotPriority switch
