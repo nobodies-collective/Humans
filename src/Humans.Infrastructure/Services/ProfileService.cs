@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -238,12 +239,11 @@ public class ProfileService : IProfileService
         await _dbContext.SaveChangesAsync(ct);
         _cache.Remove(CacheKeys.NavBadgeCounts);
 
-        // Update profile cache in-place if profile is approved
+        // Update profile cache if profile is approved
         if (profile.IsApproved && !profile.IsSuspended && user != null)
         {
-            // Reload volunteer history for cache (lightweight, only for approved profiles)
             await _dbContext.Entry(profile).Collection(p => p.VolunteerHistory).LoadAsync(ct);
-            UpdateProfileCache(userId, BuildCachedProfile(profile, user));
+            UpdateProfileCache(userId, CachedProfile.Create(profile, user));
         }
 
         // Check consent eligibility
@@ -305,6 +305,7 @@ public class ProfileService : IProfileService
 
         await _dbContext.SaveChangesAsync(ct);
         UpdateProfileCache(userId, null);
+        _cache.Remove(CacheKeys.ActiveTeams);
 
         _logger.LogWarning(
             "User {UserId} requested account deletion. Scheduled for {DeletionDate}. " +
@@ -346,7 +347,7 @@ public class ProfileService : IProfileService
             .FirstOrDefaultAsync(p => p.UserId == userId, ct);
         if (profile is { IsApproved: true, IsSuspended: false })
         {
-            UpdateProfileCache(userId, BuildCachedProfile(profile, user));
+            UpdateProfileCache(userId, CachedProfile.Create(profile, user));
         }
 
         _logger.LogInformation("User {UserId} cancelled account deletion request", userId);
@@ -501,12 +502,17 @@ public class ProfileService : IProfileService
     public async Task<IReadOnlyList<(Guid ProfileId, Guid UserId, long UpdatedAtTicks)>>
         GetCustomPictureInfoByUserIdsAsync(IEnumerable<Guid> userIds, CancellationToken ct = default)
     {
-        var cached = await GetCachedProfilesAsync(ct);
-        var userIdSet = userIds.ToHashSet();
-        return cached.Values
-            .Where(p => p.HasCustomPicture && userIdSet.Contains(p.UserId))
-            .Select(p => (p.ProfileId, p.UserId, p.UpdatedAtTicks))
-            .ToList();
+        var userIdList = userIds.ToList();
+        if (userIdList.Count == 0)
+            return [];
+
+        return await _dbContext.Profiles
+            .AsNoTracking()
+            .Where(p => userIdList.Contains(p.UserId) && p.ProfilePictureData != null)
+            .Select(p => new { p.Id, p.UserId, p.UpdatedAt })
+            .AsAsyncEnumerable()
+            .Select(p => (p.Id, p.UserId, p.UpdatedAt.ToUnixTimeTicks()))
+            .ToListAsync(ct);
     }
 
     public async Task<IReadOnlyList<(Guid UserId, string DisplayName, string? ProfilePictureUrl, bool HasCustomPicture, Guid ProfileId, int Day, int Month)>>
@@ -678,18 +684,19 @@ public class ProfileService : IProfileService
                 p.UserId, p.DisplayName, p.BurnerName, p.City, p.Bio, p.ContributionInterests,
                 p.ProfilePictureUrl, p.HasCustomPicture, p.ProfileId, p.UpdatedAtTicks,
                 matchField, matchSnippet));
-
-            if (results.Count >= 50) break;
         }
 
-        return results.OrderBy(r => r.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+        return results
+            .OrderBy(r => r.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Take(50)
+            .ToList();
     }
 
     // ==========================================================================
     // Profile Cache
     // ==========================================================================
 
-    private async Task<Dictionary<Guid, CachedProfile>> GetCachedProfilesAsync(CancellationToken ct = default)
+    private async Task<ConcurrentDictionary<Guid, CachedProfile>> GetCachedProfilesAsync(CancellationToken ct = default)
     {
         return await _cache.GetOrCreateAsync(CacheKeys.ApprovedProfiles, async entry =>
         {
@@ -702,41 +709,21 @@ public class ProfileService : IProfileService
                 .Where(p => p.IsApproved && !p.IsSuspended)
                 .ToListAsync(ct);
 
-            return profiles.ToDictionary(
-                p => p.UserId,
-                p => BuildCachedProfile(p, p.User));
-        }) ?? [];
+            return new ConcurrentDictionary<Guid, CachedProfile>(
+                profiles.ToDictionary(
+                    p => p.UserId,
+                    p => CachedProfile.Create(p, p.User)));
+        }) ?? new();
     }
-
-    private static CachedProfile BuildCachedProfile(Profile profile, User user) => new(
-        UserId: user.Id,
-        DisplayName: user.DisplayName,
-        ProfilePictureUrl: user.ProfilePictureUrl,
-        HasCustomPicture: profile.ProfilePictureData != null,
-        ProfileId: profile.Id,
-        UpdatedAtTicks: profile.UpdatedAt.ToUnixTimeTicks(),
-        BurnerName: profile.BurnerName,
-        Bio: profile.Bio,
-        Pronouns: profile.Pronouns,
-        ContributionInterests: profile.ContributionInterests,
-        City: profile.City,
-        CountryCode: profile.CountryCode,
-        Latitude: profile.Latitude,
-        Longitude: profile.Longitude,
-        BirthdayDay: profile.DateOfBirth?.Day,
-        BirthdayMonth: profile.DateOfBirth?.Month,
-        VolunteerHistory: profile.VolunteerHistory
-            .Select(v => new CachedVolunteerEntry(v.EventName, v.Description))
-            .ToList());
 
     public void UpdateProfileCache(Guid userId, CachedProfile? newValue)
     {
-        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? cached) && cached != null)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out ConcurrentDictionary<Guid, CachedProfile>? cached) && cached != null)
         {
             if (newValue != null)
                 cached[userId] = newValue;
             else
-                cached.Remove(userId);
+                cached.TryRemove(userId, out _);
         }
     }
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -178,16 +179,10 @@ public class OnboardingService : IOnboardingService
         _cache.Remove(CacheKeys.NavBadgeCounts);
 
         // Add to profile cache (profile is now approved and not suspended)
-        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? profileCache) && profileCache != null)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out ConcurrentDictionary<Guid, CachedProfile>? profileCache) && profileCache != null)
         {
             await _dbContext.Entry(profile).Collection(p => p.VolunteerHistory).LoadAsync(ct);
-            profileCache[userId] = new CachedProfile(
-                userId, profile.User.DisplayName, profile.User.ProfilePictureUrl,
-                profile.ProfilePictureData != null, profile.Id, profile.UpdatedAt.ToUnixTimeTicks(),
-                profile.BurnerName, profile.Bio, profile.Pronouns, profile.ContributionInterests,
-                profile.City, profile.CountryCode, profile.Latitude, profile.Longitude,
-                profile.DateOfBirth?.Day, profile.DateOfBirth?.Month,
-                profile.VolunteerHistory.Select(v => new CachedVolunteerEntry(v.EventName, v.Description)).ToList());
+            profileCache[userId] = CachedProfile.Create(profile, profile.User);
         }
 
         // Sync Volunteers team membership (adds to team + sends welcome email)
@@ -238,6 +233,12 @@ public class OnboardingService : IOnboardingService
 
         await _dbContext.SaveChangesAsync(ct);
         _cache.Remove(CacheKeys.NavBadgeCounts);
+
+        // Remove from profile cache (no longer approved)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out ConcurrentDictionary<Guid, CachedProfile>? flagCache) && flagCache != null)
+        {
+            flagCache.TryRemove(userId, out _);
+        }
 
         await DeprovisionApprovalGatedSystemTeamsAsync(userId);
 
@@ -325,9 +326,9 @@ public class OnboardingService : IOnboardingService
         _cache.Remove(CacheKeys.NavBadgeCounts);
 
         // Remove from profile cache (no longer approved)
-        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? profileCache) && profileCache != null)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out ConcurrentDictionary<Guid, CachedProfile>? rejectCache) && rejectCache != null)
         {
-            profileCache.Remove(userId);
+            rejectCache.TryRemove(userId, out _);
         }
 
         // FIX: Both Admin and OnboardingReview paths now deprovision
@@ -377,16 +378,10 @@ public class OnboardingService : IOnboardingService
         _cache.Remove(CacheKeys.NavBadgeCounts);
 
         // Add to profile cache (profile is now approved)
-        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? profileCache) && profileCache != null)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out ConcurrentDictionary<Guid, CachedProfile>? approveCache) && approveCache != null)
         {
             await _dbContext.Entry(user.Profile).Collection(p => p.VolunteerHistory).LoadAsync(ct);
-            profileCache[userId] = new CachedProfile(
-                userId, user.DisplayName, user.ProfilePictureUrl,
-                user.Profile.ProfilePictureData != null, user.Profile.Id, user.Profile.UpdatedAt.ToUnixTimeTicks(),
-                user.Profile.BurnerName, user.Profile.Bio, user.Profile.Pronouns, user.Profile.ContributionInterests,
-                user.Profile.City, user.Profile.CountryCode, user.Profile.Latitude, user.Profile.Longitude,
-                user.Profile.DateOfBirth?.Day, user.Profile.DateOfBirth?.Month,
-                user.Profile.VolunteerHistory.Select(v => new CachedVolunteerEntry(v.EventName, v.Description)).ToList());
+            approveCache[userId] = CachedProfile.Create(user.Profile, user);
         }
 
         // Sync Volunteers team membership (adds user if they also have all required consents)
@@ -420,9 +415,9 @@ public class OnboardingService : IOnboardingService
         await _dbContext.SaveChangesAsync(ct);
 
         // Remove from profile cache (suspended)
-        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? suspendCache) && suspendCache != null)
+        if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out ConcurrentDictionary<Guid, CachedProfile>? suspendCache) && suspendCache != null)
         {
-            suspendCache.Remove(userId);
+            suspendCache.TryRemove(userId, out _);
         }
 
         _metrics.RecordMemberSuspended("admin");
@@ -454,16 +449,10 @@ public class OnboardingService : IOnboardingService
         // Re-add to profile cache if approved
         if (user.Profile.IsApproved)
         {
-            if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out Dictionary<Guid, CachedProfile>? profileCache) && profileCache != null)
+            if (_cache.TryGetValue(CacheKeys.ApprovedProfiles, out ConcurrentDictionary<Guid, CachedProfile>? unsuspendCache) && unsuspendCache != null)
             {
                 await _dbContext.Entry(user.Profile).Collection(p => p.VolunteerHistory).LoadAsync(ct);
-                profileCache[userId] = new CachedProfile(
-                    userId, user.DisplayName, user.ProfilePictureUrl,
-                    user.Profile.ProfilePictureData != null, user.Profile.Id, user.Profile.UpdatedAt.ToUnixTimeTicks(),
-                    user.Profile.BurnerName, user.Profile.Bio, user.Profile.Pronouns, user.Profile.ContributionInterests,
-                    user.Profile.City, user.Profile.CountryCode, user.Profile.Latitude, user.Profile.Longitude,
-                    user.Profile.DateOfBirth?.Day, user.Profile.DateOfBirth?.Month,
-                    user.Profile.VolunteerHistory.Select(v => new CachedVolunteerEntry(v.EventName, v.Description)).ToList());
+                unsuspendCache[userId] = CachedProfile.Create(user.Profile, user);
             }
         }
 

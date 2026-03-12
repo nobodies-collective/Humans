@@ -1,5 +1,6 @@
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using NodaTime;
 using MemberApplication = Humans.Domain.Entities.Application;
 
 namespace Humans.Application.Interfaces;
@@ -22,7 +23,29 @@ public record CachedProfile(
     string? ContributionInterests,
     string? City, string? CountryCode, double? Latitude, double? Longitude,
     int? BirthdayDay, int? BirthdayMonth,
-    IReadOnlyList<CachedVolunteerEntry> VolunteerHistory);
+    IReadOnlyList<CachedVolunteerEntry> VolunteerHistory)
+{
+    public static CachedProfile Create(Profile profile, User user) => new(
+        UserId: user.Id,
+        DisplayName: user.DisplayName,
+        ProfilePictureUrl: user.ProfilePictureUrl,
+        HasCustomPicture: profile.ProfilePictureData != null,
+        ProfileId: profile.Id,
+        UpdatedAtTicks: profile.UpdatedAt.ToUnixTimeTicks(),
+        BurnerName: profile.BurnerName,
+        Bio: profile.Bio,
+        Pronouns: profile.Pronouns,
+        ContributionInterests: profile.ContributionInterests,
+        City: profile.City,
+        CountryCode: profile.CountryCode,
+        Latitude: profile.Latitude,
+        Longitude: profile.Longitude,
+        BirthdayDay: profile.DateOfBirth?.Day,
+        BirthdayMonth: profile.DateOfBirth?.Month,
+        VolunteerHistory: profile.VolunteerHistory
+            .Select(v => new CachedVolunteerEntry(v.EventName, v.Description))
+            .ToList());
+}
 
 public record CachedVolunteerEntry(string EventName, string? Description);
 
