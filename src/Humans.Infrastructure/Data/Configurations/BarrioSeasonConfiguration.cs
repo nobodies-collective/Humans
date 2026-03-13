@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Humans.Infrastructure.Data.Configurations;
@@ -35,7 +36,11 @@ public class BarrioSeasonConfiguration : IEntityTypeConfiguration<BarrioSeason>
         builder.Property(s => s.Vibes).HasColumnType("jsonb")
             .HasConversion(
                 v => JsonSerializer.Serialize(v, JsonEnumOptions),
-                v => JsonSerializer.Deserialize<List<BarrioVibe>>(v, JsonEnumOptions) ?? new());
+                v => JsonSerializer.Deserialize<List<BarrioVibe>>(v, JsonEnumOptions) ?? new(),
+                new ValueComparer<List<BarrioVibe>>(
+                    (a, b) => a != null && b != null && a.SequenceEqual(b),
+                    v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item)),
+                    v => v.ToList()));
 
         builder.Property(s => s.AdultPlayspace).HasConversion<string>().HasMaxLength(50);
 
