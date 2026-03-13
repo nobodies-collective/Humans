@@ -40,6 +40,7 @@ public class BarrioAdminController : Controller
             PendingBarrios = pendingSeasons.Select(s => new BarrioCardViewModel
             {
                 Id = s.BarrioId,
+                SeasonId = s.Id,
                 Slug = s.Barrio?.Slug ?? string.Empty,
                 Name = s.Name,
                 BlurbShort = s.BlurbShort,

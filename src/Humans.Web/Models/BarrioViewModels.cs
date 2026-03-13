@@ -13,6 +13,7 @@ public class BarrioIndexViewModel
 public class BarrioCardViewModel
 {
     public Guid Id { get; set; }
+    public Guid? SeasonId { get; set; }
     public string Slug { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string BlurbShort { get; set; } = string.Empty;
