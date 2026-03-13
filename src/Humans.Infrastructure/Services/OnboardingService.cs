@@ -52,9 +52,7 @@ public class OnboardingService : IOnboardingService
     {
         var reviewableProfiles = await _dbContext.Profiles
             .Include(p => p.User)
-            .Where(p => p.RejectedAt == null &&
-                        (p.ConsentCheckStatus == ConsentCheckStatus.Pending ||
-                         p.ConsentCheckStatus == ConsentCheckStatus.Flagged))
+            .Where(p => !p.IsApproved && p.RejectedAt == null)
             .OrderBy(p => p.CreatedAt)
             .ToListAsync(ct);
 
@@ -65,13 +63,12 @@ public class OnboardingService : IOnboardingService
             .Select(a => a.UserId)
             .ToHashSetAsync(ct);
 
-        var grouped = reviewableProfiles.ToLookup(p => p.ConsentCheckStatus);
+        var flagged = reviewableProfiles
+            .Where(p => p.ConsentCheckStatus == ConsentCheckStatus.Flagged)
+            .ToList();
+        var pending = reviewableProfiles.Except(flagged).ToList();
 
-        return (
-            grouped[ConsentCheckStatus.Pending].ToList(),
-            grouped[ConsentCheckStatus.Flagged].ToList(),
-            pendingAppUserIds
-        );
+        return (pending, flagged, pendingAppUserIds);
     }
 
     public async Task<(Profile? Profile, int ConsentCount, int RequiredConsentCount,

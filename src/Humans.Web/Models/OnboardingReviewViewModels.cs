@@ -14,7 +14,7 @@ public class OnboardingReviewItemViewModel
     public string DisplayName { get; set; } = string.Empty;
     public string? ProfilePictureUrl { get; set; }
     public string Email { get; set; } = string.Empty;
-    public ConsentCheckStatus ConsentCheckStatus { get; set; }
+    public ConsentCheckStatus? ConsentCheckStatus { get; set; }
     public MembershipTier MembershipTier { get; set; }
     public DateTime ProfileCreatedAt { get; set; }
     public bool HasPendingApplication { get; set; }

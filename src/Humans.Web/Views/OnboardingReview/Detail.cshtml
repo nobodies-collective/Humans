@@ -59,8 +59,7 @@
         <div class="card mb-4">
             <div class="card-header">@Localizer["OnboardingReview_Actions"]</div>
             <div class="card-body">
-                @if (Model.ConsentCheckStatus == ConsentCheckStatus.Pending ||
-                     Model.ConsentCheckStatus == ConsentCheckStatus.Flagged)
+                @if (Model.ConsentCheckStatus != ConsentCheckStatus.Cleared)
                 {
                     <form asp-action="Clear" asp-route-userId="@Model.UserId" method="post" class="mb-3">
                         @Html.AntiForgeryToken()

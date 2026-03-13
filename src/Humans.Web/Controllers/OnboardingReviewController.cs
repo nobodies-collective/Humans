@@ -353,7 +353,7 @@ public class OnboardingReviewController : Controller
             DisplayName = profile.User.DisplayName,
             ProfilePictureUrl = profile.User.ProfilePictureUrl,
             Email = profile.User.Email ?? string.Empty,
-            ConsentCheckStatus = profile.ConsentCheckStatus ?? ConsentCheckStatus.Pending,
+            ConsentCheckStatus = profile.ConsentCheckStatus,
             MembershipTier = profile.MembershipTier,
             ProfileCreatedAt = profile.CreatedAt.ToDateTimeUtc(),
             HasPendingApplication = pendingAppUserIds.Contains(profile.UserId)

@@ -42,7 +42,14 @@
                         {
                             <span class="badge bg-info me-1">@item.MembershipTier</span>
                         }
-                        <span class="badge bg-warning">@Localizer["OnboardingReview_Pending"]</span>
+                        @if (item.ConsentCheckStatus == ConsentCheckStatus.Pending)
+                        {
+                            <span class="badge bg-warning">@Localizer["OnboardingReview_Pending"]</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">@Localizer["OnboardingReview_ConsentsNotStarted"]</span>
+                        }
                         <br />
                         <small class="text-muted">@item.ProfileCreatedAt.ToString("d MMM yyyy")</small>
                     </div>

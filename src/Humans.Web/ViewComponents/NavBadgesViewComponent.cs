@@ -27,9 +27,7 @@ public class NavBadgesViewComponent : ViewComponent
             entry.AbsoluteExpirationRelativeToNow = CacheDuration;
 
             var reviewCount = await _dbContext.Profiles
-                .CountAsync(p => p.RejectedAt == null &&
-                    (p.ConsentCheckStatus == ConsentCheckStatus.Pending ||
-                     p.ConsentCheckStatus == ConsentCheckStatus.Flagged));
+                .CountAsync(p => !p.IsApproved && p.RejectedAt == null);
 
             var votingCount = await _dbContext.Applications
                 .CountAsync(a => a.Status == ApplicationStatus.Submitted);

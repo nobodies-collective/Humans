@@ -385,24 +385,39 @@ public class OnboardingServiceTests : IDisposable
     // --- GetReviewQueueAsync ---
 
     [Fact]
-    public async Task GetReviewQueueAsync_GroupsByConsentCheckStatus()
+    public async Task GetReviewQueueAsync_SeparatesFlaggedFromPending()
     {
-        var pendingId = Guid.NewGuid();
+        var noConsentId = Guid.NewGuid();
+        var consentPendingId = Guid.NewGuid();
         var flaggedId = Guid.NewGuid();
-        await SeedUserWithProfileAsync(pendingId);
+        await SeedUserWithProfileAsync(noConsentId);
+        await SeedUserWithProfileAsync(consentPendingId);
         await SeedUserWithProfileAsync(flaggedId);
-        var pendingProfile = await _dbContext.Profiles.FirstAsync(p => p.UserId == pendingId);
-        pendingProfile.ConsentCheckStatus = ConsentCheckStatus.Pending;
+        var consentPendingProfile = await _dbContext.Profiles.FirstAsync(p => p.UserId == consentPendingId);
+        consentPendingProfile.ConsentCheckStatus = ConsentCheckStatus.Pending;
         var flaggedProfile = await _dbContext.Profiles.FirstAsync(p => p.UserId == flaggedId);
         flaggedProfile.ConsentCheckStatus = ConsentCheckStatus.Flagged;
         await _dbContext.SaveChangesAsync();
 
         var (pending, flagged, _) = await _service.GetReviewQueueAsync();
 
-        pending.Should().HaveCount(1);
-        pending[0].UserId.Should().Be(pendingId);
+        pending.Should().HaveCount(2);
+        pending.Select(p => p.UserId).Should().Contain(noConsentId);
+        pending.Select(p => p.UserId).Should().Contain(consentPendingId);
         flagged.Should().HaveCount(1);
         flagged[0].UserId.Should().Be(flaggedId);
+    }
+
+    [Fact]
+    public async Task GetReviewQueueAsync_ExcludesApproved()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserWithProfileAsync(userId, isApproved: true);
+
+        var (pending, flagged, _) = await _service.GetReviewQueueAsync();
+
+        pending.Should().BeEmpty();
+        flagged.Should().BeEmpty();
     }
 
     [Fact]
@@ -410,9 +425,6 @@ public class OnboardingServiceTests : IDisposable
     {
         var userId = Guid.NewGuid();
         await SeedUserWithProfileAsync(userId, rejectedAt: _clock.GetCurrentInstant());
-        var profile = await _dbContext.Profiles.FirstAsync(p => p.UserId == userId);
-        profile.ConsentCheckStatus = ConsentCheckStatus.Pending;
-        await _dbContext.SaveChangesAsync();
 
         var (pending, flagged, _) = await _service.GetReviewQueueAsync();
 
@@ -425,9 +437,6 @@ public class OnboardingServiceTests : IDisposable
     {
         var userId = Guid.NewGuid();
         await SeedUserWithProfileAsync(userId);
-        var profile = await _dbContext.Profiles.FirstAsync(p => p.UserId == userId);
-        profile.ConsentCheckStatus = ConsentCheckStatus.Pending;
-        await _dbContext.SaveChangesAsync();
         await SeedApplicationForUserAsync(userId, Guid.NewGuid());
 
         var (_, _, pendingAppUserIds) = await _service.GetReviewQueueAsync();
@@ -451,7 +460,6 @@ public class OnboardingServiceTests : IDisposable
             BurnerName = "Older",
             FirstName = "Older",
             LastName = "User",
-            ConsentCheckStatus = ConsentCheckStatus.Pending,
             CreatedAt = now - Duration.FromDays(10),
             UpdatedAt = now
         });
@@ -463,7 +471,6 @@ public class OnboardingServiceTests : IDisposable
             BurnerName = "Newer",
             FirstName = "Newer",
             LastName = "User",
-            ConsentCheckStatus = ConsentCheckStatus.Pending,
             CreatedAt = now - Duration.FromDays(1),
             UpdatedAt = now
         });
