@@ -143,6 +143,64 @@ public class BarrioController : Controller
         return View(viewModel);
     }
 
+    [AllowAnonymous]
+    [HttpGet("{slug}/Season/{year:int}")]
+    public async Task<IActionResult> SeasonDetails(string slug, int year)
+    {
+        var barrio = await _barrioService.GetBarrioBySlugAsync(slug);
+        if (barrio is null)
+            return NotFound();
+
+        var season = barrio.Seasons.FirstOrDefault(s => s.Year == year);
+        if (season is null)
+            return NotFound();
+
+        var isAuthenticated = User.Identity?.IsAuthenticated == true;
+        var isLead = false;
+        var isPrimaryLead = false;
+        var isCampAdmin = false;
+
+        if (isAuthenticated)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user is not null)
+            {
+                isLead = await _barrioService.IsUserBarrioLeadAsync(user.Id, barrio.Id);
+                isPrimaryLead = await _barrioService.IsUserPrimaryLeadAsync(user.Id, barrio.Id);
+                isCampAdmin = User.IsInRole(RoleNames.CampAdmin) || User.IsInRole(RoleNames.Admin);
+            }
+        }
+
+        var viewModel = new BarrioDetailViewModel
+        {
+            Id = barrio.Id,
+            Slug = barrio.Slug,
+            Name = season.Name,
+            ContactEmail = barrio.ContactEmail,
+            ContactMethod = barrio.ContactMethod,
+            WebOrSocialUrl = barrio.WebOrSocialUrl,
+            IsSwissCamp = barrio.IsSwissCamp,
+            TimesAtNowhere = barrio.TimesAtNowhere,
+            HistoricalNames = barrio.HistoricalNames.Select(h => h.Name).ToList(),
+            ImageUrls = barrio.Images.OrderBy(i => i.SortOrder).Select(i => $"/{i.StoragePath}").ToList(),
+            Leads = barrio.Leads
+                .Where(l => l.IsActive)
+                .Select(l => new BarrioLeadViewModel
+                {
+                    LeadId = l.Id,
+                    UserId = l.UserId,
+                    DisplayName = l.User.DisplayName,
+                    Role = l.Role
+                }).ToList(),
+            CurrentSeason = MapSeasonDetail(season),
+            IsCurrentUserLead = isLead,
+            IsCurrentUserPrimaryLead = isPrimaryLead,
+            IsCurrentUserCampAdmin = isCampAdmin
+        };
+
+        return View(nameof(Details), viewModel);
+    }
+
     // ======================================================================
     // Registration
     // ======================================================================
