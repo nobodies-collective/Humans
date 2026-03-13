@@ -121,5 +121,6 @@ Thumbs.db
 docker-compose.override.yml
 
 .gemini/
+.superpowers/
 gha-creds-*.json
 service-account-key.json
