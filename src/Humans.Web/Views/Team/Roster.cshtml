@@ -79,11 +79,6 @@ else
                                href="#@collapseId" role="button" aria-expanded="false" aria-controls="@collapseId">
                                 <i class="fa-solid fa-chevron-down role-desc-chevron"></i>
                             </a>
-                            <div class="collapse" id="@collapseId">
-                                <div class="role-description small text-muted mt-1">
-                                    @Html.Raw(ConvertMarkdownToHtml(slot.RoleDescription!))
-                                </div>
-                            </div>
                         }
                     </td>
                     <td>@slot.SlotNumber</td>
@@ -99,6 +94,16 @@ else
                         }
                     </td>
                 </tr>
+                @if (isFirstSlotForRole)
+                {
+                    <tr class="collapse" id="@collapseId">
+                        <td colspan="5">
+                            <div class="role-description small text-muted">
+                                @Html.Raw(ConvertMarkdownToHtml(slot.RoleDescription!))
+                            </div>
+                        </td>
+                    </tr>
+                }
             }
         </tbody>
     </table>

@@ -52,11 +52,6 @@
                                                href="#@collapseId" role="button" aria-expanded="false" aria-controls="@collapseId">
                                                 <i class="fa-solid fa-chevron-down role-desc-chevron"></i> Details
                                             </a>
-                                            <div class="collapse" id="@collapseId">
-                                                <div class="role-description small text-muted mt-1">
-                                                    @Html.Raw(ConvertMarkdownToHtml(role.Description))
-                                                </div>
-                                            </div>
                                         }
                                     </td>
                                 }
@@ -71,6 +66,16 @@
                                     {
                                         <span class="text-muted fst-italic">Open</span>
                                     }
+                                </td>
+                            </tr>
+                        }
+                        @if (!string.IsNullOrEmpty(role.Description))
+                        {
+                            <tr class="collapse" id="@collapseId">
+                                <td colspan="4">
+                                    <div class="role-description small text-muted">
+                                        @Html.Raw(ConvertMarkdownToHtml(role.Description))
+                                    </div>
                                 </td>
                             </tr>
                         }
