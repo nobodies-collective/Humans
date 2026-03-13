@@ -1147,5 +1147,6 @@
   <data name="Camp_Singular" xml:space="preserve"><value>Barrio</value></data>
   <data name="Camp_Plural" xml:space="preserve"><value>Barrios</value></data>
   <data name="Camp_AdminTitle" xml:space="preserve"><value>Barrios Admin</value></data>
+  <data name="Camp_SwissCampLabel" xml:space="preserve"><value>¿Este camp se ha llamado alguna vez "Swiss Camp"?</value></data>
 
 </root>
