@@ -12,23 +12,12 @@ namespace Humans.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "barrio_historical_names");
-
-            migrationBuilder.DropTable(
-                name: "barrio_images");
-
-            migrationBuilder.DropTable(
-                name: "barrio_leads");
-
-            migrationBuilder.DropTable(
-                name: "barrio_seasons");
-
-            migrationBuilder.DropTable(
-                name: "barrio_settings");
-
-            migrationBuilder.DropTable(
-                name: "barrios");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS barrio_historical_names");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS barrio_images");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS barrio_leads");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS barrio_seasons");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS barrio_settings");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS barrios");
 
             migrationBuilder.CreateTable(
                 name: "camp_settings",
