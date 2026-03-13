@@ -78,31 +78,6 @@
                                     </button>
                                 </div>
 
-                                <!-- Reject Modal -->
-                                <div class="modal fade" id="rejectModal-@request.Id" tabindex="-1" aria-labelledby="rejectModalLabel-@request.Id" aria-hidden="true">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <form asp-action="RejectRequest" asp-route-slug="@Model.TeamSlug" asp-route-requestId="@request.Id" method="post">
-                                                @Html.AntiForgeryToken()
-                                                <div class="modal-header">
-                                                    <h5 class="modal-title" id="rejectModalLabel-@request.Id">@Localizer["TeamAdmin_RejectRequest"]</h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                </div>
-                                                <div class="modal-body">
-                                                    <p>@string.Format(Localizer["TeamAdmin_RejectingFrom"].Value, request.UserDisplayName)</p>
-                                                    <div class="mb-3">
-                                                        <label for="notes-@request.Id" class="form-label">@Localizer["TeamAdmin_RejectionReason"]</label>
-                                                        <textarea name="Notes" id="notes-@request.Id" class="form-control" rows="3" required></textarea>
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@Localizer["Common_Cancel"]</button>
-                                                    <button type="submit" class="btn btn-danger">@Localizer["TeamAdmin_RejectRequest"]</button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
                             </td>
                         </tr>
                     }
@@ -110,6 +85,34 @@
             </table>
         </div>
     </div>
+
+    @foreach (var request in Model.PendingRequests)
+    {
+        <div class="modal fade" id="rejectModal-@request.Id" tabindex="-1" aria-labelledby="rejectModalLabel-@request.Id" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form asp-action="RejectRequest" asp-route-slug="@Model.TeamSlug" asp-route-requestId="@request.Id" method="post">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="rejectModalLabel-@request.Id">@Localizer["TeamAdmin_RejectRequest"]</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>@string.Format(Localizer["TeamAdmin_RejectingFrom"].Value, request.UserDisplayName)</p>
+                            <div class="mb-3">
+                                <label for="notes-@request.Id" class="form-label">@Localizer["TeamAdmin_RejectionReason"]</label>
+                                <textarea name="Notes" id="notes-@request.Id" class="form-control" rows="3" required></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@Localizer["Common_Cancel"]</button>
+                            <button type="submit" class="btn btn-danger">@Localizer["TeamAdmin_RejectRequest"]</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @if (Model.CanManageRoles)
