@@ -237,7 +237,7 @@
                         </div>
                         @if (lead.Role == BarrioLeadRole.CoLead)
                         {
-                            <form asp-action="RemoveLead" asp-route-slug="@Model.Slug" asp-route-leadId="@lead.UserId" method="post" class="d-inline">
+                            <form asp-action="RemoveLead" asp-route-slug="@Model.Slug" asp-route-leadId="@lead.LeadId" method="post" class="d-inline">
                                 @Html.AntiForgeryToken()
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove lead">
                                     <i class="fa-solid fa-user-minus"></i>

@@ -129,6 +129,7 @@ public class BarrioController : Controller
                 .Where(l => l.IsActive)
                 .Select(l => new BarrioLeadViewModel
                 {
+                    LeadId = l.Id,
                     UserId = l.UserId,
                     DisplayName = l.User.DisplayName,
                     Role = l.Role
@@ -269,6 +270,7 @@ public class BarrioController : Controller
                 model.Leads = barrio.Leads.Where(l => l.IsActive)
                     .Select(l => new BarrioLeadViewModel
                     {
+                        LeadId = l.Id,
                         UserId = l.UserId,
                         DisplayName = l.User.DisplayName,
                         Role = l.Role
@@ -608,6 +610,7 @@ public class BarrioController : Controller
                 .Where(l => l.IsActive)
                 .Select(l => new BarrioLeadViewModel
                 {
+                    LeadId = l.Id,
                     UserId = l.UserId,
                     DisplayName = l.User.DisplayName,
                     Role = l.Role

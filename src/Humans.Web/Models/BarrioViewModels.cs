@@ -81,6 +81,7 @@ public class BarrioSeasonDetailViewModel
 
 public class BarrioLeadViewModel
 {
+    public Guid LeadId { get; set; }
     public Guid UserId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public BarrioLeadRole Role { get; set; }
