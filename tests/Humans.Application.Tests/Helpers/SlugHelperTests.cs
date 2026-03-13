@@ -25,12 +25,12 @@ public class SlugHelperTests
     [InlineData("ADMIN")]
     public void IsReservedSlug_ReservedNames_ReturnsTrue(string slug)
     {
-        SlugHelper.IsReservedBarrioSlug(slug).Should().BeTrue();
+        SlugHelper.IsReservedCampSlug(slug).Should().BeTrue();
     }
 
     [Fact]
     public void IsReservedSlug_NormalName_ReturnsFalse()
     {
-        SlugHelper.IsReservedBarrioSlug("camp-funhouse").Should().BeFalse();
+        SlugHelper.IsReservedCampSlug("camp-funhouse").Should().BeFalse();
     }
 }

@@ -24,9 +24,9 @@ public class MembershipRequiredFilter : IAsyncActionFilter
         "Human",       // Public profile viewing
         "Language",         // Language switching
         "OnboardingReview", // Has its own coordinator/Board role gate
-        "Barrio",           // Public barrios pages ([AllowAnonymous])
-        "BarrioAdmin",      // Has its own Roles = "CampAdmin,Admin" gate
-        "BarrioApi",        // Public API ([AllowAnonymous])
+        "Camp",             // Public camps pages ([AllowAnonymous])
+        "CampAdmin",        // Has its own Roles = "CampAdmin,Admin" gate
+        "CampApi",          // Public API ([AllowAnonymous])
     };
 
     public Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)

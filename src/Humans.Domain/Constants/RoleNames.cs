@@ -34,8 +34,8 @@ public static class RoleNames
     public const string TeamsAdmin = "TeamsAdmin";
 
     /// <summary>
-    /// Camp Administrator — can manage barrios, approve/reject season registrations,
-    /// and configure barrio settings system-wide.
+    /// Camp Administrator — can manage camps, approve/reject season registrations,
+    /// and configure camp settings system-wide.
     /// </summary>
     public const string CampAdmin = "CampAdmin";
 }

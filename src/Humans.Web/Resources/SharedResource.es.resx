@@ -1144,5 +1144,8 @@
   <data name="Search_NoResults" xml:space="preserve"><value>No se encontraron humans con esa búsqueda.</value></data>
   <data name="Search_MatchedIn" xml:space="preserve"><value>Coincidencia en</value></data>
   <data name="Search_MinChars" xml:space="preserve"><value>Escribe al menos 2 caracteres para buscar.</value></data>
+  <data name="Camp_Singular" xml:space="preserve"><value>Barrio</value></data>
+  <data name="Camp_Plural" xml:space="preserve"><value>Barrios</value></data>
+  <data name="Camp_AdminTitle" xml:space="preserve"><value>Barrios Admin</value></data>
 
 </root>

@@ -22,12 +22,12 @@
 | TeamRoleDefinition | Named role slots on a team (name, description, slot count, priorities) |
 | TeamRoleAssignment | Assigns a team member to a specific slot in a role definition |
 | AuditLogEntry | **APPEND-ONLY** system audit trail (user actions, sync ops) |
-| Barrio | Camp/barrio core entity (contact, slug, flags) |
-| BarrioSeason | Per-year season data (name, blurbs, community info, placement) |
-| BarrioLead | Lead assignments with Primary/CoLead roles |
-| BarrioImage | Image metadata (files stored on disk) |
-| BarrioHistoricalName | Name history for tracking renames |
-| BarrioSettings | Singleton settings (public year, open seasons) |
+| Camp | Camp core entity (contact, slug, flags) |
+| CampSeason | Per-year season data (name, blurbs, community info, placement) |
+| CampLead | Lead assignments with Primary/CoLead roles |
+| CampImage | Image metadata (files stored on disk) |
+| CampHistoricalName | Name history for tracking renames |
+| CampSettings | Singleton settings (public year, open seasons) |
 
 ## Relationships
 
@@ -62,13 +62,13 @@ TeamJoinRequest 1──n TeamJoinRequestStateHistory
 AuditLogEntry n──1 User (ActorUser, optional)
 AuditLogEntry n──1 GoogleResource (optional)
 
-Barrio 1──n BarrioSeason
-Barrio 1──n BarrioLead
-Barrio 1──n BarrioImage
-Barrio 1──n BarrioHistoricalName
-Barrio n──1 User (CreatedByUser)
-BarrioLead n──1 User
-BarrioSeason n──1 User (ReviewedByUser, optional)
+Camp 1──n CampSeason
+Camp 1──n CampLead
+Camp 1──n CampImage
+Camp 1──n CampHistoricalName
+Camp n──1 User (CreatedByUser)
+CampLead n──1 User
+CampSeason n──1 User (ReviewedByUser, optional)
 ```
 
 ## Profile Entity
@@ -270,14 +270,14 @@ Colaborador and Asociado memberships have 2-year synchronized terms expiring Dec
 - Renewal: new Application entity (same tier), goes through normal Board voting
 - Reminder: `TermRenewalReminderJob` sends reminders 90 days before expiry
 
-## Barrio Enums
+## Camp Enums
 
 | Enum | Values |
 |------|--------|
-| BarrioSeasonStatus | Pending, Active, Full, Inactive, Withdrawn, Rejected |
-| BarrioLeadRole | Primary, CoLead |
-| BarrioVibe | Adult, ChillOut, ElectronicMusic, Games, Queer, Sober, Lecture, LiveMusic, Wellness, Workshop |
-| BarrioNameSource | Manual, NameChange |
+| CampSeasonStatus | Pending, Active, Full, Inactive, Withdrawn, Rejected |
+| CampLeadRole | Primary, CoLead |
+| CampVibe | Adult, ChillOut, ElectronicMusic, Games, Queer, Sober, Lecture, LiveMusic, Wellness, Workshop |
+| CampNameSource | Manual, NameChange |
 | YesNoMaybe | Yes, No, Maybe |
 | KidsVisitingPolicy | Yes, DaytimeOnly, No |
 | PerformanceSpaceStatus | Yes, No, WorkingOnIt |

@@ -38,7 +38,7 @@
                             <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">@Localizer["Nav_Home"]</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Barrio" asp-action="Index">Barrios</a>
+                            <a class="nav-link" asp-area="" asp-controller="Camp" asp-action="Index">@Localizer["Camp_Plural"]</a>
                         </li>
                         @if (User.Identity?.IsAuthenticated == true)
                         {
@@ -86,7 +86,7 @@
                         @if (User.IsInRole("CampAdmin") || User.IsInRole("Admin"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link" asp-area="" asp-controller="BarrioAdmin" asp-action="Index">Barrios Admin</a>
+                                <a class="nav-link" asp-area="" asp-controller="CampAdmin" asp-action="Index">@Localizer["Camp_AdminTitle"]</a>
                             </li>
                         }
                     </ul>

@@ -4,7 +4,7 @@ namespace Humans.Infrastructure.Helpers;
 
 public static partial class SlugHelper
 {
-    private static readonly HashSet<string> ReservedBarrioSlugs = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> ReservedCampSlugs = new(StringComparer.OrdinalIgnoreCase)
     {
         "register", "admin"
     };
@@ -18,9 +18,9 @@ public static partial class SlugHelper
         return slug;
     }
 
-    public static bool IsReservedBarrioSlug(string slug)
+    public static bool IsReservedCampSlug(string slug)
     {
-        return ReservedBarrioSlugs.Contains(slug);
+        return ReservedCampSlugs.Contains(slug);
     }
 
     [GeneratedRegex(@"[^a-z0-9\-]", RegexOptions.None, matchTimeoutMilliseconds: 1000)]

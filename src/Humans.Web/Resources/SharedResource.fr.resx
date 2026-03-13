@@ -1124,5 +1124,8 @@
   <data name="Search_NoResults" xml:space="preserve"><value>Aucun human trouvé correspondant à votre recherche.</value></data>
   <data name="Search_MatchedIn" xml:space="preserve"><value>Correspondance dans</value></data>
   <data name="Search_MinChars" xml:space="preserve"><value>Saisissez au moins 2 caractères pour rechercher.</value></data>
+  <data name="Camp_Singular" xml:space="preserve"><value>Barrio</value></data>
+  <data name="Camp_Plural" xml:space="preserve"><value>Barrios</value></data>
+  <data name="Camp_AdminTitle" xml:space="preserve"><value>Barrios Admin</value></data>
 
 </root>
