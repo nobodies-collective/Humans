@@ -77,23 +77,23 @@
                             </td>
                             <td>@(barrio.BlurbShort.Length > 100 ? barrio.BlurbShort[..100] + "..." : barrio.BlurbShort)</td>
                             <td>
-                                <input type="text" class="form-control form-control-sm" form="approve-@barrio.Id" name="notes" placeholder="Optional notes" />
+                                <input type="text" class="form-control form-control-sm" form="approve-@barrio.SeasonId" name="notes" placeholder="Optional notes" />
                             </td>
                             <td class="text-end">
-                                <form id="approve-@barrio.Id" asp-controller="BarrioAdmin" asp-action="Approve" asp-route-seasonId="@barrio.Id" method="post" class="d-inline">
+                                <form id="approve-@barrio.SeasonId" asp-controller="BarrioAdmin" asp-action="Approve" asp-route-seasonId="@barrio.SeasonId" method="post" class="d-inline">
                                     @Html.AntiForgeryToken()
                                     <button type="submit" class="btn btn-success btn-sm" title="Approve">
                                         <i class="fa-solid fa-check me-1"></i>Approve
                                     </button>
                                 </form>
-                                <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="collapse" data-bs-target="#reject-@barrio.Id" title="Reject">
+                                <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="collapse" data-bs-target="#reject-@barrio.SeasonId" title="Reject">
                                     <i class="fa-solid fa-xmark me-1"></i>Reject
                                 </button>
                             </td>
                         </tr>
-                        <tr class="collapse" id="reject-@barrio.Id">
+                        <tr class="collapse" id="reject-@barrio.SeasonId">
                             <td colspan="4">
-                                <form asp-controller="BarrioAdmin" asp-action="Reject" asp-route-seasonId="@barrio.Id" method="post" class="d-flex gap-2 p-2">
+                                <form asp-controller="BarrioAdmin" asp-action="Reject" asp-route-seasonId="@barrio.SeasonId" method="post" class="d-flex gap-2 p-2">
                                     @Html.AntiForgeryToken()
                                     <input type="text" name="notes" class="form-control form-control-sm" placeholder="Rejection reason (required)" required />
                                     <button type="submit" class="btn btn-danger btn-sm text-nowrap">Confirm Reject</button>
