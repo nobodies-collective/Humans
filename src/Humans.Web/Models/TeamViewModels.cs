@@ -9,9 +9,6 @@ public class TeamIndexViewModel
     public List<TeamSummaryViewModel> MyTeams { get; set; } = [];
     public List<TeamSummaryViewModel> Teams { get; set; } = [];
     public bool CanCreateTeam { get; set; }
-    public int TotalCount { get; set; }
-    public int PageNumber { get; set; } = 1;
-    public int PageSize { get; set; } = 12;
 }
 
 public class TeamSummaryViewModel

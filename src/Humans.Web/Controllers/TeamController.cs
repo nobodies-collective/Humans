@@ -45,9 +45,8 @@ public class TeamController : Controller
     }
 
     [HttpGet("")]
-    public async Task<IActionResult> Index(int page = 1)
+    public async Task<IActionResult> Index()
     {
-        var pageSize = 12;
         var user = await _userManager.GetUserAsync(User);
         if (user == null)
         {
@@ -83,10 +82,7 @@ public class TeamController : Controller
             .Where(t => !userTeamIds.Contains(t.Id))
             .ToList();
 
-        var totalCount = otherTeams.Count;
         var teams = otherTeams
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
             .Select(ToSummary)
             .ToList();
 
@@ -96,10 +92,7 @@ public class TeamController : Controller
         {
             MyTeams = myTeams,
             Teams = teams,
-            CanCreateTeam = isBoardMember,
-            TotalCount = totalCount,
-            PageNumber = page,
-            PageSize = pageSize
+            CanCreateTeam = isBoardMember
         };
 
         return View(viewModel);
