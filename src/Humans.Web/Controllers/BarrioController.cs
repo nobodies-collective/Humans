@@ -275,7 +275,7 @@ public class BarrioController : Controller
 
     [Authorize]
     [HttpGet("{slug}/Edit")]
-    public async Task<IActionResult> Edit(string slug)
+    public async Task<IActionResult> Edit(string slug, int? year)
     {
         var barrio = await _barrioService.GetBarrioBySlugAsync(slug);
         if (barrio is null) return NotFound();
@@ -288,8 +288,9 @@ public class BarrioController : Controller
         if (!isLead && !isCampAdmin) return Forbid();
 
         var settings = await _barrioService.GetSettingsAsync();
+        var preferredYear = year ?? settings.PublicYear;
         var season = barrio.Seasons
-            .Where(s => s.Year == settings.PublicYear)
+            .Where(s => s.Year == preferredYear)
             .OrderByDescending(s => s.Year)
             .FirstOrDefault()
             ?? barrio.Seasons.OrderByDescending(s => s.Year).FirstOrDefault();
@@ -413,7 +414,7 @@ public class BarrioController : Controller
             TempData["ErrorMessage"] = ex.Message;
         }
 
-        return RedirectToAction(nameof(Edit), new { slug });
+        return RedirectToAction(nameof(Edit), new { slug, year });
     }
 
     // ======================================================================

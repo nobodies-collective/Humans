@@ -1,4 +1,13 @@
 @model Humans.Web.Models.BarrioDetailViewModel
+@functions {
+    static readonly Ganss.Xss.HtmlSanitizer Sanitizer = new();
+    string ConvertMarkdownToHtml(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return string.Empty;
+        var html = Markdig.Markdown.ToHtml(content);
+        return Sanitizer.Sanitize(html);
+    }
+}
 @{
     ViewData["Title"] = Model.Name;
 }
@@ -90,7 +99,7 @@
                     <i class="fa-solid fa-pen-fancy me-1"></i> About
                 </div>
                 <div class="card-body">
-                    @Html.Raw(Markdig.Markdown.ToHtml(season.BlurbLong))
+                    @Html.Raw(ConvertMarkdownToHtml(season.BlurbLong))
                 </div>
             </div>
 

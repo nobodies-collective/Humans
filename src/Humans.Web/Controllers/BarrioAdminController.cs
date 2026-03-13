@@ -36,7 +36,7 @@ public class BarrioAdminController : Controller
             OpenSeasons = settings.OpenSeasons,
             TotalBarrios = allBarrios.Count,
             ActiveBarrios = allBarrios.Count(b => b.Seasons.Any(s =>
-                s.Year == settings.PublicYear && s.Status == BarrioSeasonStatus.Active)),
+                s.Year == settings.PublicYear && (s.Status == BarrioSeasonStatus.Active || s.Status == BarrioSeasonStatus.Full))),
             PendingBarrios = pendingSeasons.Select(s => new BarrioCardViewModel
             {
                 Id = s.BarrioId,
@@ -97,9 +97,9 @@ public class BarrioAdminController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpPost("OpenSeason/{year:int}")]
+    [HttpPost("OpenSeason")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> OpenSeason(int year)
+    public async Task<IActionResult> OpenSeason([FromForm] int year)
     {
         await _barrioService.OpenSeasonAsync(year);
         TempData["SuccessMessage"] = $"Season {year} opened for registration.";
@@ -126,17 +126,24 @@ public class BarrioAdminController : Controller
 
     [HttpPost("SetNameLockDate")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SetNameLockDate(int year, LocalDate lockDate)
+    public async Task<IActionResult> SetNameLockDate(int year, string lockDate)
     {
-        await _barrioService.SetNameLockDateAsync(year, lockDate);
-        TempData["SuccessMessage"] = $"Name lock date for {year} set to {lockDate}.";
+        var parseResult = NodaTime.Text.LocalDatePattern.Iso.Parse(lockDate);
+        if (!parseResult.Success)
+        {
+            TempData["ErrorMessage"] = "Invalid date format.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        await _barrioService.SetNameLockDateAsync(year, parseResult.Value);
+        TempData["SuccessMessage"] = $"Name lock date for {year} set to {parseResult.Value}.";
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpPost("Delete/{barrioId:guid}")]
+    [HttpPost("Delete")]
     [ValidateAntiForgeryToken]
     [Authorize(Roles = RoleNames.Admin)]
-    public async Task<IActionResult> Delete(Guid barrioId)
+    public async Task<IActionResult> Delete([FromForm] Guid barrioId)
     {
         try
         {

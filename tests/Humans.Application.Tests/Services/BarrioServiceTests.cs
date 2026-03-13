@@ -171,6 +171,22 @@ public class BarrioServiceTests : IDisposable
         newSeason.Status.Should().Be(BarrioSeasonStatus.Pending);
     }
 
+    [Fact]
+    public async Task OptInToSeasonAsync_PendingOnly_GoesPending()
+    {
+        await SeedSettingsAsync();
+        var barrio = await CreateTestBarrio();
+        // Don't approve or reject — season stays Pending
+
+        var settings = await _dbContext.BarrioSettings.FirstAsync();
+        settings.OpenSeasons = new List<int> { 2026, 2027 };
+        await _dbContext.SaveChangesAsync();
+
+        var newSeason = await _service.OptInToSeasonAsync(barrio.Id, 2027);
+
+        newSeason.Status.Should().Be(BarrioSeasonStatus.Pending);
+    }
+
     // ==========================================================================
     // AddLeadAsync
     // ==========================================================================

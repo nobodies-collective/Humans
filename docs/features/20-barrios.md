@@ -192,21 +192,22 @@ BarrioSettings
 ```
 
 ### Supporting Entities
-- **BarrioHistoricalName**: Id, BarrioId, Name, RecordedAt
-- **BarrioImage**: Id, BarrioId, StoragePath, FileName, ContentType, FileSize, SortOrder, UploadedAt
+- **BarrioHistoricalName**: Id, BarrioId, Name, Year (int?), Source (BarrioNameSource), CreatedAt
+- **BarrioImage**: Id, BarrioId, FileName, StoragePath, ContentType, SortOrder, UploadedAt
 
 ### Enums
 ```
 BarrioSeasonStatus: Pending(0), Active(1), Full(2), Inactive(3), Rejected(4), Withdrawn(5)
 BarrioLeadRole: Primary(0), CoLead(1)
-BarrioVibe: Chill, Party, Artsy, Community, Adventurous, Spiritual, Educational, Musical, Foodie, EcoConscious
-YesNoMaybe: No(0), Yes(1), Maybe(2)
-SoundZone: Quiet(0), Medium(1), Loud(2)
-SpaceSize: Small(0), Medium(1), Large(2), ExtraLarge(3)
-KidsVisitingPolicy: NoKids(0), VisitorsOnly(1), DaytimeOnly(2), Anytime(3)
-PerformanceSpaceStatus: None(0), Available(1), Planned(2)
-AdultPlayspacePolicy: None(0), Private(1), SemiPublic(2)
-ElectricalGrid: None(0), LowPower(1), Standard(2), HighPower(3)
+BarrioVibe: Adult(0), ChillOut(1), ElectronicMusic(2), Games(3), Queer(4), Sober(5), Lecture(6), LiveMusic(7), Wellness(8), Workshop(9)
+BarrioNameSource: Manual(0), NameChange(1)
+YesNoMaybe: Yes(0), No(1), Maybe(2)
+SoundZone: Blue(0), Green(1), Yellow(2), Orange(3), Red(4), Surprise(5)
+SpaceSize: Sqm150(0), Sqm300(1), Sqm450(2), Sqm600(3), Sqm800(4), Sqm1000(5), Sqm1200(6), Sqm1500(7), Sqm1800(8), Sqm2200(9), Sqm2800(10)
+KidsVisitingPolicy: Yes(0), DaytimeOnly(1), No(2)
+PerformanceSpaceStatus: Yes(0), No(1), WorkingOnIt(2)
+AdultPlayspacePolicy: Yes(0), No(1), NightOnly(2)
+ElectricalGrid: Yellow(0), Red(1), Norg(2), OwnSupply(3), Unknown(4)
 ```
 
 ## Registration Workflow

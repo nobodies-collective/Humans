@@ -75,6 +75,7 @@ public class BarrioService : IBarrioService
 
         _dbContext.Barrios.Add(barrio);
 
+        // TODO: Check settings for a default NameLockDate for new registrations
         var season = CreateSeasonFromData(barrio.Id, year, name, seasonData, now);
         _dbContext.BarrioSeasons.Add(season);
 
@@ -201,9 +202,14 @@ public class BarrioService : IBarrioService
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("No previous season to copy from.");
 
-        // Auto-approve if any prior season was not Rejected (Withdrawn is OK for auto-approve)
-        var hasNonRejectedSeason = await _dbContext.BarrioSeasons
-            .AnyAsync(s => s.BarrioId == barrioId && s.Status != BarrioSeasonStatus.Rejected,
+        // Auto-approve only if a prior season reached an approved status
+        var approvedStatuses = new[]
+        {
+            BarrioSeasonStatus.Active, BarrioSeasonStatus.Full,
+            BarrioSeasonStatus.Inactive, BarrioSeasonStatus.Withdrawn
+        };
+        var hasApprovedSeason = await _dbContext.BarrioSeasons
+            .AnyAsync(s => s.BarrioId == barrioId && approvedStatuses.Contains(s.Status),
                 cancellationToken);
 
         var now = _clock.GetCurrentInstant();
@@ -213,7 +219,7 @@ public class BarrioService : IBarrioService
             BarrioId = barrioId,
             Year = year,
             Name = previousSeason.Name,
-            Status = hasNonRejectedSeason ? BarrioSeasonStatus.Active : BarrioSeasonStatus.Pending,
+            Status = hasApprovedSeason ? BarrioSeasonStatus.Active : BarrioSeasonStatus.Pending,
             BlurbLong = previousSeason.BlurbLong,
             BlurbShort = previousSeason.BlurbShort,
             Languages = previousSeason.Languages,
@@ -239,7 +245,7 @@ public class BarrioService : IBarrioService
 
         await _auditLogService.LogAsync(
             AuditAction.BarrioSeasonCreated, nameof(BarrioSeason), newSeason.Id,
-            $"Opted in to season {year} (auto-approved: {hasNonRejectedSeason})",
+            $"Opted in to season {year} (auto-approved: {hasApprovedSeason})",
             "BarrioService",
             relatedEntityId: barrioId, relatedEntityType: nameof(Barrio));
 
@@ -444,6 +450,13 @@ public class BarrioService : IBarrioService
             "BarrioService");
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var years = await _dbContext.BarrioSeasons
+            .Where(s => s.BarrioId == barrioId)
+            .Select(s => s.Year)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        foreach (var y in years) InvalidateCache(y);
     }
 
     public async Task DeleteBarrioAsync(Guid barrioId, CancellationToken cancellationToken = default)
@@ -486,6 +499,11 @@ public class BarrioService : IBarrioService
     public async Task<BarrioLead> AddLeadAsync(Guid barrioId, Guid userId, BarrioLeadRole role,
         CancellationToken cancellationToken = default)
     {
+        var alreadyLead = await _dbContext.BarrioLeads
+            .AnyAsync(l => l.BarrioId == barrioId && l.UserId == userId && l.LeftAt == null, cancellationToken);
+        if (alreadyLead)
+            throw new InvalidOperationException("This user is already an active lead.");
+
         var activeCount = await _dbContext.BarrioLeads
             .CountAsync(l => l.BarrioId == barrioId && l.LeftAt == null, cancellationToken);
         if (activeCount >= 5)
@@ -598,7 +616,13 @@ public class BarrioService : IBarrioService
         if (length > 10 * 1024 * 1024)
             throw new InvalidOperationException("Image must be under 10MB.");
 
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var ext = contentType switch
+        {
+            "image/jpeg" => ".jpg",
+            "image/png" => ".png",
+            "image/webp" => ".webp",
+            _ => throw new InvalidOperationException("Unsupported content type.")
+        };
         var storedFileName = $"{Guid.NewGuid()}{ext}";
         var relativePath = Path.Combine("uploads", "barrios", barrioId.ToString(), storedFileName);
         var fullPath = Path.Combine("wwwroot", relativePath);

@@ -43,14 +43,7 @@ public class BarrioApiController : ControllerBase
                 b.IsSwissCamp,
                 b.ContactEmail,
                 b.ContactMethod,
-                b.WebOrSocialUrl,
-                Leads = b.Leads
-                    .Where(l => l.IsActive)
-                    .Select(l => new
-                    {
-                        l.User.DisplayName,
-                        Role = l.Role.ToString()
-                    }).ToList()
+                b.WebOrSocialUrl
             };
         }).OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
