@@ -213,15 +213,32 @@ builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
+    {
+        // Exclude profile picture requests — list pages legitimately load ~30 images at once
+        if (context.Request.Path.StartsWithSegments("/Profile/Picture", StringComparison.OrdinalIgnoreCase))
+            return RateLimitPartition.GetNoLimiter(string.Empty);
+
+        return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
                 PermitLimit = 100,
                 Window = TimeSpan.FromMinutes(1)
-            }));
+            });
+    });
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, _) =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("RateLimiting");
+        var identity = context.HttpContext.User.Identity?.Name
+            ?? context.HttpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+        logger.LogWarning("Rate limit exceeded for {Identity}: {Method} {Path}",
+            identity, context.HttpContext.Request.Method, context.HttpContext.Request.Path);
+        return ValueTask.CompletedTask;
+    };
 });
 
 // Forwarded headers (X-Forwarded-For, X-Forwarded-Proto) are enabled via
