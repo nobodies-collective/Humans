@@ -6,6 +6,7 @@ using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Web.Models;
+using Microsoft.Extensions.Localization;
 using NodaTime;
 
 namespace Humans.Web.Controllers;
@@ -17,17 +18,20 @@ public class CampController : Controller
     private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
     private readonly ILogger<CampController> _logger;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public CampController(
         ICampService campService,
         UserManager<User> userManager,
         IClock clock,
-        ILogger<CampController> logger)
+        ILogger<CampController> logger,
+        IStringLocalizer<SharedResource> localizer)
     {
         _campService = campService;
         _userManager = userManager;
         _clock = clock;
         _logger = logger;
+        _localizer = localizer;
     }
 
     // ======================================================================
@@ -261,6 +265,8 @@ public class CampController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Register(CampRegisterViewModel model)
     {
+        ValidatePhoneE164(model.ContactPhone, nameof(model.ContactPhone));
+
         if (!ModelState.IsValid)
             return View(model);
 
@@ -356,6 +362,8 @@ public class CampController : Controller
         var isLead = await _campService.IsUserCampLeadAsync(user.Id, camp.Id);
         var isCampAdmin = User.IsInRole(RoleNames.CampAdmin) || User.IsInRole(RoleNames.Admin);
         if (!isLead && !isCampAdmin) return Forbid();
+
+        ValidatePhoneE164(model.ContactPhone, nameof(model.ContactPhone));
 
         if (!ModelState.IsValid)
         {
@@ -751,5 +759,14 @@ public class CampController : Controller
             ElectricalGrid = season.ElectricalGrid,
             IsNameLocked = season.NameLockDate.HasValue && today >= season.NameLockDate.Value
         };
+    }
+
+    private void ValidatePhoneE164(string? phone, string fieldName)
+    {
+        if (!string.IsNullOrWhiteSpace(phone) && !phone.TrimStart().StartsWith('+'))
+        {
+            ModelState.AddModelError(fieldName,
+                _localizer["Validation_PhoneE164", "Contact Phone"].Value);
+        }
     }
 }

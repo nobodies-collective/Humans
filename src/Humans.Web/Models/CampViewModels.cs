@@ -95,7 +95,6 @@ public class CampRegisterViewModel
 {
     public string Name { get; set; } = string.Empty;
     public string ContactEmail { get; set; } = string.Empty;
-    [Phone]
     public string ContactPhone { get; set; } = string.Empty;
     public string? WebOrSocialUrl { get; set; }
     public string ContactMethod { get; set; } = string.Empty;

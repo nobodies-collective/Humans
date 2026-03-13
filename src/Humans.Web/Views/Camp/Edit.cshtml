@@ -51,7 +51,7 @@
                         </div>
                         <div class="col-md-6">
                             <label asp-for="ContactPhone" class="form-label">Contact Phone</label>
-                            <input asp-for="ContactPhone" class="form-control" type="tel" pattern="[+]?[\d\s\-()]{6,20}" />
+                            <input asp-for="ContactPhone" class="form-control" type="tel" pattern="\+[\d\s\-()]{6,20}" placeholder="+34 612 345 678" />
                         </div>
                         <div class="col-md-6">
                             <label asp-for="ContactMethod" class="form-label">Preferred Contact Method</label>
