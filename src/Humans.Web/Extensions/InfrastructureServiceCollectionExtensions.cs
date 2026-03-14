@@ -53,8 +53,24 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddScoped<IDriveActivityMonitorService, StubDriveActivityMonitorService>();
         }
 
+        var hasSmtpConfig = !string.IsNullOrEmpty(configuration["Email:Host"]);
+
+        if (hasSmtpConfig)
+        {
+            services.AddScoped<IEmailTransport, SmtpEmailTransport>();
+        }
+        else if (environment.IsProduction())
+        {
+            throw new InvalidOperationException(
+                "Email SMTP configuration is required in production. Set Email:Host.");
+        }
+        else
+        {
+            services.AddScoped<IEmailTransport, StubEmailTransport>();
+        }
+
         services.AddScoped<IEmailRenderer, EmailRenderer>();
-        services.AddScoped<IEmailService, SmtpEmailService>();
+        services.AddScoped<IEmailService, OutboxEmailService>();
         services.AddScoped<IMembershipCalculator, MembershipCalculator>();
         services.AddScoped<IRoleAssignmentService, RoleAssignmentService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
@@ -71,6 +87,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<GoogleResourceReconciliationJob>();
         services.AddScoped<DriveActivityMonitorJob>();
         services.AddScoped<ProcessGoogleSyncOutboxJob>();
+        services.AddScoped<ProcessEmailOutboxJob>();
+        services.AddScoped<CleanupEmailOutboxJob>();
 
         return services;
     }

@@ -68,5 +68,15 @@ public static class RecurringJobExtensions
             "send-board-daily-digest",
             job => job.ExecuteAsync(CancellationToken.None),
             "0 2 * * *");
+
+        RecurringJob.AddOrUpdate<ProcessEmailOutboxJob>(
+            "process-email-outbox",
+            job => job.ExecuteAsync(CancellationToken.None),
+            "*/1 * * * *"); // Every minute
+
+        RecurringJob.AddOrUpdate<CleanupEmailOutboxJob>(
+            "cleanup-email-outbox",
+            job => job.ExecuteAsync(CancellationToken.None),
+            "0 3 * * 0"); // Sunday 03:00 UTC
     }
 }
