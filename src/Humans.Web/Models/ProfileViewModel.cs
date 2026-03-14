@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using NodaTime;
+using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 
 namespace Humans.Web.Models;
@@ -298,6 +299,12 @@ public class ProfileViewModel
     /// Teams the user is a member of (excluding Volunteers system team).
     /// </summary>
     public IReadOnlyList<TeamMembershipViewModel> Teams { get; set; } = [];
+
+    /// <summary>
+    /// Campaign grants assigned to this user (Active and Completed campaigns only).
+    /// Only populated when IsOwnProfile is true.
+    /// </summary>
+    public IReadOnlyList<CampaignGrant> CampaignGrants { get; set; } = [];
 }
 
 /// <summary>

@@ -47,6 +47,36 @@
         }
 
         <vc:profile-card user-id="@Model.UserId" view-mode="@(Model.IsOwnProfile ? ProfileCardViewMode.Self : ProfileCardViewMode.Public)" />
+
+        @if (Model.IsOwnProfile && Model.CampaignGrants.Any())
+        {
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">My Codes</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Campaign</th>
+                                <th>Code</th>
+                                <th>Assigned</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var grant in Model.CampaignGrants)
+                            {
+                                <tr>
+                                    <td>@grant.Campaign.Title</td>
+                                    <td><code>@grant.Code.Code</code></td>
+                                    <td>@grant.AssignedAt.ToDateTimeUtc().ToString("yyyy-MM-dd")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
     </div>
 
     @if (Model.IsOwnProfile)

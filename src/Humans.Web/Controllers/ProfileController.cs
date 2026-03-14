@@ -11,9 +11,11 @@ using Humans.Application.DTOs;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Services;
 using Humans.Web.Extensions;
 using Humans.Web.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Humans.Web.Controllers;
 
@@ -30,6 +32,7 @@ public class ProfileController : Controller
     private readonly IConfiguration _configuration;
     private readonly ILogger<ProfileController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly HumansDbContext _dbContext;
 
     private const int MaxProfilePictureUploadBytes = 20 * 1024 * 1024; // 20MB upload limit
     private static readonly HashSet<string> AllowedImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -64,7 +67,8 @@ public class ProfileController : Controller
         IClock clock,
         IConfiguration configuration,
         ILogger<ProfileController> logger,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        HumansDbContext dbContext)
     {
         _userManager = userManager;
         _profileService = profileService;
@@ -76,6 +80,7 @@ public class ProfileController : Controller
         _configuration = configuration;
         _logger = logger;
         _localizer = localizer;
+        _dbContext = dbContext;
     }
 
     public async Task<IActionResult> Index()
@@ -87,6 +92,14 @@ public class ProfileController : Controller
         var (profile, latestApplication, pendingConsentCount) =
             await _profileService.GetProfileIndexDataAsync(user.Id);
 
+        var campaignGrants = await _dbContext.CampaignGrants
+            .Include(g => g.Campaign)
+            .Include(g => g.Code)
+            .Where(g => g.UserId == user.Id
+                && (g.Campaign.Status == CampaignStatus.Active || g.Campaign.Status == CampaignStatus.Completed))
+            .OrderByDescending(g => g.AssignedAt)
+            .ToListAsync();
+
         var viewModel = new ProfileViewModel
         {
             Id = profile?.Id ?? Guid.Empty,
@@ -96,6 +109,7 @@ public class ProfileController : Controller
             IsApproved = profile?.IsApproved ?? false,
             IsOwnProfile = true,
             DisplayName = user.DisplayName,
+            CampaignGrants = campaignGrants,
         };
 
         // Show tier application status (skip Withdrawn — not interesting)
