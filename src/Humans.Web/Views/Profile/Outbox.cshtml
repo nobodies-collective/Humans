@@ -53,7 +53,7 @@
                                 <tr class="collapse" id="@collapseId">
                                     <td colspan="3" class="p-0">
                                         <div class="p-3 bg-light border-top">
-                                            @Html.Raw(msg.HtmlBody)
+                                            <iframe srcdoc="@msg.HtmlBody" sandbox="" style="width:100%;border:none;min-height:300px;" onload="this.style.height=this.contentDocument.body.scrollHeight+'px';"></iframe>
                                         </div>
                                     </td>
                                 </tr>
