@@ -100,4 +100,9 @@ public class User : IdentityUser<Guid>
     /// Whether a deletion request is pending.
     /// </summary>
     public bool IsDeletionPending => DeletionRequestedAt.HasValue;
+
+    /// <summary>
+    /// Whether the user has unsubscribed from campaign emails.
+    /// </summary>
+    public bool UnsubscribedFromCampaigns { get; set; }
 }

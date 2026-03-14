@@ -26,5 +26,5 @@ public class EmailOutboxMessage
 
     // Navigation
     public User? User { get; set; }
-    // CampaignGrant navigation added in Task 12 when CampaignGrant entity is created
+    public CampaignGrant? CampaignGrant { get; set; }
 }
