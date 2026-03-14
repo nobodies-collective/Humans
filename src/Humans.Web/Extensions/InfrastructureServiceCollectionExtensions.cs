@@ -54,7 +54,7 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddScoped<IDriveActivityMonitorService, StubDriveActivityMonitorService>();
         }
 
-        var hasSmtpConfig = !string.IsNullOrEmpty(configuration["Email:Host"]);
+        var hasSmtpConfig = !string.IsNullOrEmpty(configuration["Email:SmtpHost"]);
 
         if (hasSmtpConfig)
         {

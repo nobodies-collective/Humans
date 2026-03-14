@@ -7,6 +7,7 @@ using Humans.Domain.Enums;
 using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Jobs;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -257,6 +258,12 @@ public class OutboxEmailService : IEmailService
         var wrappedHtml = WrapInTemplate(content.HtmlBody);
         var plainText = HtmlToPlainText(content.HtmlBody);
 
+        // Look up user by email to set UserId for profile email history
+        var userId = await _dbContext.UserEmails
+            .Where(ue => ue.Email == recipientEmail && ue.IsVerified)
+            .Select(ue => (Guid?)ue.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var message = new EmailOutboxMessage
         {
             Id = Guid.NewGuid(),
@@ -266,6 +273,7 @@ public class OutboxEmailService : IEmailService
             HtmlBody = wrappedHtml,
             PlainTextBody = plainText,
             TemplateName = templateName,
+            UserId = userId,
             ReplyTo = replyTo,
             Status = EmailOutboxStatus.Queued,
             CreatedAt = _clock.GetCurrentInstant()
