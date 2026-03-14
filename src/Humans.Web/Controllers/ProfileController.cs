@@ -641,6 +641,21 @@ public class ProfileController : Controller
     }
 
     [HttpGet]
+    public async Task<IActionResult> Outbox()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return NotFound();
+
+        var messages = await _dbContext.EmailOutboxMessages
+            .Where(m => m.UserId == user.Id)
+            .OrderByDescending(m => m.CreatedAt)
+            .ToListAsync();
+
+        return View(messages);
+    }
+
+    [HttpGet]
     public async Task<IActionResult> Privacy()
     {
         var user = await _userManager.GetUserAsync(User);
