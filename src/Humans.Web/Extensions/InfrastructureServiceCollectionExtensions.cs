@@ -24,6 +24,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<ITeamService, TeamService>();
         services.AddScoped<ICampService, CampService>();
+        services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<IContactFieldService, ContactFieldService>();
         services.AddScoped<IUserEmailService, UserEmailService>();
         services.AddScoped<VolunteerHistoryService>();
