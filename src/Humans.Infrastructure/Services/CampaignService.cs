@@ -369,11 +369,11 @@ public class CampaignService : ICampaignService
         var encodedCode = WebUtility.HtmlEncode(code);
         var encodedName = WebUtility.HtmlEncode(name);
 
-        var renderedBody = campaign.EmailBodyTemplate
-            .Replace("\r\n", "<br>", StringComparison.Ordinal)
-            .Replace("\n", "<br>", StringComparison.Ordinal)
+        // Substitute placeholders in Markdown source, then render to HTML
+        var markdown = campaign.EmailBodyTemplate
             .Replace("{{Code}}", encodedCode, StringComparison.Ordinal)
             .Replace("{{Name}}", encodedName, StringComparison.Ordinal);
+        var renderedBody = Markdig.Markdown.ToHtml(markdown);
 
         var renderedSubject = campaign.EmailSubject
             .Replace("{{Code}}", code, StringComparison.Ordinal)

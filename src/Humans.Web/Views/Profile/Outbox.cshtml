@@ -1,16 +1,7 @@
 @model IList<Humans.Domain.Entities.EmailOutboxMessage>
+@using Humans.Domain.Enums
 @{
     ViewData["Title"] = "My Emails";
-
-    string TemplateFriendlyName(string templateName) => templateName switch
-    {
-        "welcome" => "Welcome",
-        "campaign_code" => "Campaign Code",
-        "email_verification" => "Email Verification",
-        "deletion_confirmation" => "Deletion Confirmation",
-        "consent_reminder" => "Consent Reminder",
-        _ => templateName
-    };
 }
 
 <div class="row">
@@ -38,14 +29,14 @@
                         <thead>
                             <tr>
                                 <th>Subject</th>
-                                <th>Template</th>
                                 <th>Status</th>
                                 <th>Date</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var msg in Model)
+                            @for (var i = 0; i < Model.Count; i++)
                             {
+                                var msg = Model[i];
                                 var statusClass = msg.Status switch
                                 {
                                     EmailOutboxStatus.Queued => "bg-warning text-dark",
@@ -53,11 +44,18 @@
                                     EmailOutboxStatus.Failed => "bg-danger",
                                     _ => "bg-secondary"
                                 };
-                                <tr>
+                                var collapseId = $"msg-body-{i}";
+                                <tr data-bs-toggle="collapse" data-bs-target="#@collapseId" role="button" style="cursor: pointer;">
                                     <td>@msg.Subject</td>
-                                    <td>@TemplateFriendlyName(msg.TemplateName)</td>
                                     <td><span class="badge @statusClass">@msg.Status</span></td>
                                     <td>@msg.CreatedAt.ToDateTimeUtc().ToString("d MMM yyyy HH:mm")</td>
+                                </tr>
+                                <tr class="collapse" id="@collapseId">
+                                    <td colspan="3" class="p-0">
+                                        <div class="p-3 bg-light border-top">
+                                            @Html.Raw(msg.HtmlBody)
+                                        </div>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
