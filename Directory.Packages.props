@@ -56,6 +56,7 @@
     <PackageVersion Include="Microsoft.Extensions.Localization" Version="10.0.3" />
     <!-- Data Protection -->
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="10.0.3" />
     <!-- Health Checks -->
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.Hangfire" Version="9.0.0" />
