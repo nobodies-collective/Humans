@@ -416,6 +416,7 @@ public class CampaignService : ICampaignService
             HtmlBody = wrappedHtml,
             PlainTextBody = plainText,
             TemplateName = "campaign_code",
+            UserId = user.Id,
             CampaignGrantId = grantId,
             ExtraHeaders = extraHeaders,
             Status = EmailOutboxStatus.Queued,
