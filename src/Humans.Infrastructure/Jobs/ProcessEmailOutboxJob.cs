@@ -1,14 +1,140 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NodaTime;
+using Humans.Application.Interfaces;
+using Humans.Domain.Enums;
+using Humans.Infrastructure.Configuration;
+using Humans.Infrastructure.Data;
+using Humans.Infrastructure.Services;
+
 namespace Humans.Infrastructure.Jobs;
 
 /// <summary>
 /// Processes queued email outbox messages by sending them via the email transport.
-/// Implementation in Task 8.
+/// Runs every 1 minute via Hangfire.
 /// </summary>
 public class ProcessEmailOutboxJob
 {
-    public Task ExecuteAsync(CancellationToken cancellationToken)
+    private readonly HumansDbContext _dbContext;
+    private readonly IEmailTransport _transport;
+    private readonly HumansMetricsService _metrics;
+    private readonly IClock _clock;
+    private readonly EmailSettings _settings;
+    private readonly ILogger<ProcessEmailOutboxJob> _logger;
+
+    public ProcessEmailOutboxJob(
+        HumansDbContext dbContext,
+        IEmailTransport transport,
+        HumansMetricsService metrics,
+        IClock clock,
+        IOptions<EmailSettings> settings,
+        ILogger<ProcessEmailOutboxJob> logger)
     {
-        // Placeholder — full implementation in Task 8
-        throw new NotSupportedException("Full implementation in Task 8.");
+        _dbContext = dbContext;
+        _transport = transport;
+        _metrics = metrics;
+        _clock = clock;
+        _settings = settings.Value;
+        _logger = logger;
+    }
+
+    public async Task ExecuteAsync(CancellationToken cancellationToken = default)
+    {
+        // 1. Check global pause flag
+        var pauseSetting = await _dbContext.SystemSettings
+            .FirstOrDefaultAsync(s => s.Key == "IsEmailSendingPaused", cancellationToken);
+
+        if (pauseSetting is { Value: "true" })
+        {
+            _logger.LogInformation("Email sending is paused, skipping outbox processing");
+            return;
+        }
+
+        var now = _clock.GetCurrentInstant();
+        var staleThreshold = now - Duration.FromMinutes(5);
+
+        // 2. Select batch of messages to process
+        var messages = await _dbContext.EmailOutboxMessages
+            .Where(m => m.SentAt == null
+                && m.RetryCount < _settings.OutboxMaxRetries
+                && (m.NextRetryAt == null || m.NextRetryAt <= now)
+                && (m.PickedUpAt == null || m.PickedUpAt < staleThreshold))
+            .OrderBy(m => m.CreatedAt)
+            .Take(_settings.OutboxBatchSize)
+            .ToListAsync(cancellationToken);
+
+        if (messages.Count == 0)
+        {
+            return;
+        }
+
+        // 3. Mark batch as picked up
+        foreach (var message in messages)
+        {
+            message.PickedUpAt = now;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // 4. Process each message
+        foreach (var message in messages)
+        {
+            try
+            {
+                Dictionary<string, string>? extraHeaders = null;
+                if (!string.IsNullOrEmpty(message.ExtraHeaders))
+                {
+                    extraHeaders = JsonSerializer.Deserialize<Dictionary<string, string>>(message.ExtraHeaders);
+                }
+
+                await _transport.SendAsync(
+                    message.RecipientEmail,
+                    message.RecipientName,
+                    message.Subject,
+                    message.HtmlBody,
+                    message.PlainTextBody,
+                    message.ReplyTo,
+                    extraHeaders,
+                    cancellationToken);
+
+                // Success
+                message.Status = EmailOutboxStatus.Sent;
+                message.SentAt = now;
+                message.PickedUpAt = null;
+                _metrics.RecordEmailSent(message.TemplateName);
+            }
+            catch (Exception ex)
+            {
+                // Failure
+                message.Status = EmailOutboxStatus.Failed;
+                message.RetryCount += 1;
+                message.LastError = ex.Message.Length > 4000
+                    ? ex.Message[..4000]
+                    : ex.Message;
+                message.NextRetryAt = now + Duration.FromMinutes((long)Math.Pow(2, message.RetryCount));
+                message.PickedUpAt = null;
+                _metrics.RecordEmailFailed(message.TemplateName);
+
+                _logger.LogError(
+                    ex,
+                    "Failed sending email outbox message {MessageId} ({TemplateName}) attempt {Attempt}",
+                    message.Id,
+                    message.TemplateName,
+                    message.RetryCount);
+            }
+        }
+
+        // 5. Save all changes
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // 6. Set outbox_pending gauge
+        var pendingCount = await _dbContext.EmailOutboxMessages
+            .CountAsync(m => m.SentAt == null && m.RetryCount < _settings.OutboxMaxRetries, cancellationToken);
+        _metrics.SetEmailOutboxPending(pendingCount);
+
+        // 7. Record successful job run
+        _metrics.RecordJobRun("process_email_outbox", "success");
     }
 }
