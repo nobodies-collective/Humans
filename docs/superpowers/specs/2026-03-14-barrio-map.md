@@ -37,53 +37,54 @@ The system centers on a **placement phase** concept: CampAdmin opens and closes 
 
 #### CampPolygon
 
-One record per camp. Updated in-place when the polygon changes; history is separately tracked in `CampPolygonHistory`.
+One record per camp season. Updated in-place when the polygon changes; history is separately tracked in `CampPolygonHistory`. Each year's festival layout is independent.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | Id | Guid | PK, init |
-| CampId | Guid (FK → Camp) | Unique (1:1 with Camp) |
+| CampSeasonId | Guid (FK → CampSeason) | Unique (1:1 with CampSeason) |
 | GeoJson | string | GeoJSON Feature string. Stored as PostgreSQL `text`. |
 | AreaSqm | double | Pre-calculated area in m². Computed client-side by Turf.js. |
 | LastModifiedByUserId | Guid (FK → User) | Non-nullable. DeleteBehavior.Restrict. |
 | LastModifiedAt | Instant | NodaTime. Updated on every save. |
 
-**Navigation:** `Camp`, `LastModifiedByUser`
+**Navigation:** `CampSeason`, `LastModifiedByUser`
 
 #### CampPolygonHistory
 
-Append-only log of every polygon version. Never updated or deleted. One entry written each time a polygon is saved or restored.
+Append-only log of every polygon version for a camp season. Never updated or deleted. One entry written each time a polygon is saved or restored.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | Id | Guid | PK, init |
-| CampId | Guid (FK → Camp) | init. DeleteBehavior.Restrict. |
+| CampSeasonId | Guid (FK → CampSeason) | init. DeleteBehavior.Restrict. |
 | GeoJson | string | Snapshot of the polygon at this point in time. init. |
 | AreaSqm | double | Area at time of save. init. |
 | ModifiedByUserId | Guid (FK → User) | Who saved. init. DeleteBehavior.Restrict. |
 | ModifiedAt | Instant | NodaTime. init. |
 | Note | string | Human-readable label. Default: `"Saved"`. Restore entries: `"Restored from 2026-03-10 14:32 UTC"`. init. |
 
-**Navigation:** `Camp`, `ModifiedByUser`
+**Navigation:** `CampSeason`, `ModifiedByUser`
 
 #### CampMapSettings
 
-Single-row settings table. Seeded on migration; always has exactly one row with a fixed well-known Guid.
+One row per year. Created on demand when a CampAdmin or city planning team member first interacts with a year's map settings. The service always operates on the row matching `CampSettings.PublicYear`.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| Id | Guid | PK. Seeded: `00000000-0000-0000-0004-000000000001`. |
-| IsPlacementOpen | bool | Whether the placement phase is currently open. Default: `false`. |
+| Id | Guid | PK, init |
+| Year | int | The season year this row applies to. Unique. |
+| IsPlacementOpen | bool | Whether the placement phase is currently open for this year. Default: `false`. |
 | OpenedAt | Instant? | When placement was last opened. Null if never opened. |
 | ClosedAt | Instant? | When placement was last closed. |
-| LimitZoneGeoJson | string? | GeoJSON FeatureCollection defining the visual boundary. Null until uploaded. |
+| LimitZoneGeoJson | string? | GeoJSON FeatureCollection defining the visual boundary for this year. Null until uploaded. |
 | UpdatedAt | Instant | Last write timestamp. |
 
 ### Relationships
 
 ```
-Camp 1──0..1 CampPolygon
-Camp 1──∞    CampPolygonHistory (append-only)
+CampSeason 1──0..1 CampPolygon
+CampSeason 1──∞    CampPolygonHistory (append-only)
 ```
 
 ### Storage
@@ -118,13 +119,13 @@ This is a manually-managed team (not auto-synced) whose members get map-wide edi
 if user.IsInRole(CampAdmin) → always allowed
 if user is member of city planning team → always allowed
 if placement is closed → denied
-if user is active lead of the target camp → allowed
+if user is active lead of the camp that owns the target CampSeason → allowed
 otherwise → denied
 ```
 
-### Per-Camp Ownership Check
+### Per-Season Ownership Check
 
-Non-admin, non-city-planning leads can only save polygons for their own camp. Attempting to save to a different camp's polygon returns `403 Forbidden`.
+Non-admin, non-city-planning leads can only save polygons for their own camp's season. Attempting to save to a different camp's season polygon returns `403 Forbidden`.
 
 ## Workflows
 
@@ -155,7 +156,7 @@ When placement is closed:
 1. User draws or edits a polygon using maplibre-gl-draw
 2. Turf.js calculates area in m² in real time (shown during editing)
 3. User clicks "Save"
-4. Client sends PUT `/api/camp-map/polygons/{campId}` with GeoJSON + area
+4. Client sends PUT `/api/camp-map/polygons/{campSeasonId}` with GeoJSON + area
 5. Server checks edit permission, updates `CampPolygon`, appends to `CampPolygonHistory`
 6. Server broadcasts polygon update via SignalR to all connected clients
 7. All connected users' maps update to show the new polygon
@@ -165,7 +166,7 @@ When placement is closed:
 - Each save creates an immutable `CampPolygonHistory` entry
 - History panel shows: who, when, area, note — sorted newest first
 - "Preview" shows the historical polygon overlaid on the current state (not persisted)
-- "Restore" calls POST `/api/camp-map/polygons/{campId}/restore/{historyId}`, which:
+- "Restore" calls POST `/api/camp-map/polygons/{campSeasonId}/restore/{historyId}`, which:
   1. Calls `SavePolygonAsync` with the historical GeoJSON
   2. Creates a new history entry with note `"Restored from {iso8601} UTC"`
   3. Broadcasts the restored polygon to all connected users
@@ -181,7 +182,7 @@ When placement is closed:
 ### Limit Zone
 
 - CampAdmin or city planning team uploads a GeoJSON file via the admin panel
-- The limit zone is stored in `CampMapSettings.LimitZoneGeoJson`
+- The limit zone is stored in `CampMapSettings.LimitZoneGeoJson` for the current year
 - On the map, the limit zone is rendered as a semi-transparent overlay showing the allowed placement area
 - Polygons placed outside the limit zone are visually highlighted (e.g., red outline) but not server-side rejected
 - CampAdmin or city planning team can delete the limit zone (sets to null)
@@ -199,16 +200,16 @@ When placement is closed:
 
 | Method | Route | Auth | Purpose |
 |--------|-------|------|---------|
-| GET | `/api/camp-map/state` | Authenticated | Current settings + all polygons |
-| GET | `/api/camp-map/polygons/{campId}/history` | Authenticated | Polygon history for one camp |
-| PUT | `/api/camp-map/polygons/{campId}` | Authenticated | Save/update polygon |
-| POST | `/api/camp-map/polygons/{campId}/restore/{historyId}` | Authenticated | Restore a historical version |
+| GET | `/api/camp-map/state` | Authenticated | Current settings + all polygons for the active year |
+| GET | `/api/camp-map/polygons/{campSeasonId}/history` | Authenticated | Polygon history for one camp season |
+| PUT | `/api/camp-map/polygons/{campSeasonId}` | Authenticated | Save/update polygon for a camp season |
+| POST | `/api/camp-map/polygons/{campSeasonId}/restore/{historyId}` | Authenticated | Restore a historical version |
 
 ### Export
 
 | Method | Route | Auth | Purpose |
 |--------|-------|------|---------|
-| GET | `/api/camp-map/export.geojson` | CampAdmin or city planning team | Download all current polygons as a GeoJSON FeatureCollection. Each feature includes camp name, slug, and area in its `properties`. |
+| GET | `/api/camp-map/export.geojson?year={year}` | CampAdmin or city planning team | Download all polygons for a given year as a GeoJSON FeatureCollection. Each feature includes camp name, slug, year, and area in its `properties`. Defaults to the current active year. |
 
 ### Admin Actions (POST, anti-forgery validated)
 
@@ -253,14 +254,14 @@ All loaded from CDN. Added to `About.cshtml` with version and license:
 `ICampMapService` / `CampMapService` in Application/Infrastructure layers:
 
 ```
-GetPolygonsAsync(year)              → all CampPolygon records for camps in the given year
-GetPolygonHistoryAsync(campId)      → CampPolygonHistory ordered by ModifiedAt desc
-SavePolygonAsync(campId, geoJson, areaSqm, userId, note = "Saved")
-RestorePolygonVersionAsync(campId, historyId, restoredByUserId)
-CanUserEditAsync(userId, campId)    → bool  // CampAdmin + city planning always true; leads only when placement open
-IsUserMapAdminAsync(userId)         → bool  // true for CampAdmin or city planning team member
-ExportAsGeoJsonAsync(year)          → string (GeoJSON FeatureCollection with all polygons, camp name/slug/area in properties)
-GetSettingsAsync()                  → CampMapSettings
+GetPolygonsAsync(year)                    → all CampPolygon records for CampSeasons in the given year
+GetPolygonHistoryAsync(campSeasonId)      → CampPolygonHistory ordered by ModifiedAt desc
+SavePolygonAsync(campSeasonId, geoJson, areaSqm, userId, note = "Saved")
+RestorePolygonVersionAsync(campSeasonId, historyId, restoredByUserId)
+CanUserEditAsync(userId, campSeasonId)    → bool  // CampAdmin + city planning always true; leads check camp ownership + placement open
+IsUserMapAdminAsync(userId)               → bool  // true for CampAdmin or city planning team member
+ExportAsGeoJsonAsync(year)                → string (GeoJSON FeatureCollection; properties: campName, slug, year, areaSqm)
+GetSettingsAsync()                        → CampMapSettings  // for the current PublicYear; creates row if missing
 OpenPlacementAsync(userId)
 ClosePlacementAsync(userId)
 UpdateLimitZoneAsync(geoJson, userId)
@@ -275,24 +276,24 @@ DeleteLimitZoneAsync(userId)
 
 - `[Authorize]` — only authenticated users can connect
 - `UpdateCursor(lat, lng)` — client sends cursor position; hub relays to `Others`
-- `PolygonUpdated(campId, geoJson, areaSqm)` — broadcast from `SavePolygonAsync` (via `IHubContext<CampMapHub>`)
+- `PolygonUpdated(campSeasonId, geoJson, areaSqm)` — broadcast from `SavePolygonAsync` (via `IHubContext<CampMapHub>`)
 - `OnDisconnectedAsync` — broadcasts `CursorLeft(connectionId)` to group
 
 ### UI Patterns
 
 **Anti-forgery:** AJAX PUT/POST requests send the `RequestVerificationToken` header (read from the hidden `@Html.AntiForgeryToken()` input in the page). Both `SavePolygon` and `RestorePolygonVersion` are decorated with `[ValidateAntiForgeryToken]`.
 
-**Own camp highlight:** The `Index.cshtml` view receives `USER_CAMP_ID` from the server. The user's own camp polygon is rendered in a distinct color (e.g., `#00bfff`) while other camps use the default color (e.g., `#ff6600`).
+**Own camp highlight:** The `Index.cshtml` view receives `USER_CAMP_SEASON_ID` from the server (the CampSeason.Id for the user's camp in the active year, null if none). The user's own camp polygon is rendered in a distinct color (e.g., `#00bfff`) while other camps use the default color (e.g., `#ff6600`).
 
 **History panel XSS safety:** The history list renders using data attributes + event listeners instead of inline `onclick` handlers with embedded GeoJSON strings.
 
-**Save button disabled state:** The Save button is disabled until the user has drawn a polygon. For CampAdmin and city planning team members (who have `USER_CAMP_ID = null`), a camp selector is shown so they can choose which camp to save to. *(Note: this selector is a follow-up UI concern; the core save/restore logic does not depend on it.)*
+**Save button disabled state:** The Save button is disabled until the user has drawn a polygon. For CampAdmin and city planning team members (who have `USER_CAMP_SEASON_ID = null`), a camp selector is shown so they can choose which camp season to save to. *(Note: this selector is a follow-up UI concern; the core save/restore logic does not depend on it.)*
 
 ### EF Core Configuration
 
-- `CampPolygonConfiguration` — unique index on `CampId`, `DeleteBehavior.Restrict` on both FKs (non-nullable Guids cannot use SetNull)
-- `CampPolygonHistoryConfiguration` — index on `(CampId, ModifiedAt)`, `DeleteBehavior.Restrict` on both FKs
-- `CampMapSettingsConfiguration` — seeds one row with fixed well-known Id `00000000-0000-0000-0004-000000000001`, `IsPlacementOpen = false`
+- `CampPolygonConfiguration` — unique index on `CampSeasonId`, `DeleteBehavior.Restrict` on both FKs (non-nullable Guids cannot use SetNull)
+- `CampPolygonHistoryConfiguration` — index on `(CampSeasonId, ModifiedAt)`, `DeleteBehavior.Restrict` on both FKs
+- `CampMapSettingsConfiguration` — unique index on `Year`. No seeded data; rows are created on demand.
 
 ### DI Registration
 
