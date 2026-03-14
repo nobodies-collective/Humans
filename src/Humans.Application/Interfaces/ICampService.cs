@@ -64,6 +64,7 @@ public interface ICampService
     Task OpenSeasonAsync(int year, CancellationToken cancellationToken = default);
     Task CloseSeasonAsync(int year, CancellationToken cancellationToken = default);
     Task SetNameLockDateAsync(int year, LocalDate lockDate, CancellationToken cancellationToken = default);
+    Task<Dictionary<int, LocalDate?>> GetNameLockDatesAsync(List<int> years, CancellationToken cancellationToken = default);
 
     // Name change (handles historical name logging)
     Task ChangeSeasonNameAsync(Guid seasonId, string newName, CancellationToken cancellationToken = default);

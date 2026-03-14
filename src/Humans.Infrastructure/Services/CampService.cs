@@ -746,6 +746,18 @@ public class CampService : ICampService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<Dictionary<int, LocalDate?>> GetNameLockDatesAsync(List<int> years,
+        CancellationToken cancellationToken = default)
+    {
+        var lockDates = await _dbContext.CampSeasons
+            .Where(s => years.Contains(s.Year))
+            .GroupBy(s => s.Year)
+            .Select(g => new { Year = g.Key, LockDate = g.Max(s => s.NameLockDate) })
+            .ToDictionaryAsync(x => x.Year, x => x.LockDate, cancellationToken);
+
+        return lockDates;
+    }
+
     // ==========================================================================
     // Name change
     // ==========================================================================

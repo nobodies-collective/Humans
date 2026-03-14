@@ -11,6 +11,7 @@ using NodaTime;
 namespace Humans.Web.Controllers;
 
 [Authorize(Roles = $"{RoleNames.CampAdmin},{RoleNames.Admin}")]
+[Route("Barrios/Admin")]
 [Route("Camps/Admin")]
 public class CampAdminController : Controller
 {
@@ -30,6 +31,10 @@ public class CampAdminController : Controller
         var allCamps = await _campService.GetCampsForYearAsync(settings.PublicYear);
         var pendingSeasons = await _campService.GetPendingSeasonsAsync();
 
+        var nameLockDates = settings.OpenSeasons.Count > 0
+            ? await _campService.GetNameLockDatesAsync(settings.OpenSeasons)
+            : new Dictionary<int, NodaTime.LocalDate?>();
+
         var vm = new CampAdminViewModel
         {
             PublicYear = settings.PublicYear,
@@ -37,6 +42,7 @@ public class CampAdminController : Controller
             TotalCamps = allCamps.Count,
             ActiveCamps = allCamps.Count(b => b.Seasons.Any(s =>
                 s.Year == settings.PublicYear && (s.Status == CampSeasonStatus.Active || s.Status == CampSeasonStatus.Full))),
+            NameLockDates = nameLockDates,
             PendingCamps = pendingSeasons.Select(s => new CampCardViewModel
             {
                 Id = s.CampId,

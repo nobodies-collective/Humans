@@ -11,6 +11,7 @@ using NodaTime;
 
 namespace Humans.Web.Controllers;
 
+[Route("Barrios")]
 [Route("Camps")]
 public class CampController : Controller
 {

@@ -163,6 +163,25 @@
                 <i class="fa-solid fa-lock me-2"></i>Name Lock Date
             </div>
             <div class="card-body">
+                @if (Model.NameLockDates.Count > 0)
+                {
+                    <div class="mb-3">
+                        @foreach (var (year, lockDate) in Model.NameLockDates.OrderBy(x => x.Key))
+                        {
+                            <p class="mb-1">
+                                <strong>@year:</strong>
+                                @if (lockDate.HasValue)
+                                {
+                                    @lockDate.Value.ToString("d MMM yyyy", null)
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Not set</span>
+                                }
+                            </p>
+                        }
+                    </div>
+                }
                 <p class="text-muted">After this date, camps can no longer change their name for a season.</p>
                 <form asp-controller="CampAdmin" asp-action="SetNameLockDate" method="post" class="d-flex gap-2">
                     @Html.AntiForgeryToken()

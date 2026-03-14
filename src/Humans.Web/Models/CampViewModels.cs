@@ -147,4 +147,5 @@ public class CampAdminViewModel
     public List<int> OpenSeasons { get; set; } = new();
     public int TotalCamps { get; set; }
     public int ActiveCamps { get; set; }
+    public Dictionary<int, NodaTime.LocalDate?> NameLockDates { get; set; } = new();
 }

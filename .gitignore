@@ -120,6 +120,9 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
+# Uploads (bind-mounted volume)
+uploads/
+
 .gemini/
 .superpowers/
 gha-creds-*.json
