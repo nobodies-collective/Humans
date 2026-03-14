@@ -28,6 +28,11 @@
 | CampImage | Image metadata (files stored on disk) |
 | CampHistoricalName | Name history for tracking renames |
 | CampSettings | Singleton settings (public year, open seasons) |
+| EmailOutboxMessage | Queued/sent/failed transactional email records |
+| Campaign | Bulk code distribution campaign |
+| CampaignCode | Individual code belonging to a campaign |
+| CampaignGrant | Assignment of a code to a user |
+| SystemSetting | Key/value store for runtime configuration (e.g., outbox pause flag) |
 
 ## Relationships
 
@@ -69,7 +74,25 @@ Camp 1──n CampHistoricalName
 Camp n──1 User (CreatedByUser)
 CampLead n──1 User
 CampSeason n──1 User (ReviewedByUser, optional)
+
+Campaign 1──n CampaignCode
+Campaign 1──n CampaignGrant
+Campaign n──1 User (CreatedByUser)
+CampaignCode 1──1 CampaignGrant (once assigned)
+CampaignGrant n──1 User
+CampaignGrant 1──n EmailOutboxMessage
+
+EmailOutboxMessage n──1 User (optional)
+EmailOutboxMessage n──1 CampaignGrant (optional)
 ```
+
+## User Entity
+
+### Campaign-Related Properties
+
+| Property | Type | Default | Purpose |
+|----------|------|---------|---------|
+| UnsubscribedFromCampaigns | bool | false | Set via /Unsubscribe/{token}; excludes user from future campaign sends |
 
 ## Profile Entity
 
@@ -133,6 +156,102 @@ Individual Board member's vote on a tier application. **Transient working data**
 | UpdatedAt | Instant? | When the vote was last updated |
 
 **Constraint:** Unique `(ApplicationId, BoardMemberUserId)` — one vote per Board member per application.
+
+## EmailOutboxMessage Entity
+
+Stores all transactional emails queued for delivery. Processed by `ProcessEmailOutboxJob`; cleaned up by `CleanupEmailOutboxJob`.
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| Id | Guid | Primary key |
+| RecipientEmail | string | Delivery address |
+| RecipientName | string? | Display name |
+| Subject | string | Email subject line |
+| HtmlBody | string | Rendered HTML body |
+| PlainTextBody | string? | Optional plain-text alternative |
+| TemplateName | string | Template identifier used to render this message |
+| UserId | Guid? | FK to User (optional) |
+| CampaignGrantId | Guid? | FK to CampaignGrant (optional) |
+| ReplyTo | string? | Reply-To header value |
+| ExtraHeaders | string? | JSON-encoded additional headers (e.g., List-Unsubscribe) |
+| Status | EmailOutboxStatus | Queued / Sent / Failed |
+| CreatedAt | Instant | When queued |
+| PickedUpAt | Instant? | When first picked up by the job |
+| SentAt | Instant? | When successfully delivered |
+| RetryCount | int | Number of delivery attempts |
+| LastError | string? | Last delivery error message |
+| NextRetryAt | Instant? | Earliest time for next retry attempt |
+
+### EmailOutboxStatus
+
+| Value | Description |
+|-------|-------------|
+| Queued | Awaiting delivery |
+| Sent | Successfully delivered |
+| Failed | Exhausted all retries |
+
+Stored as int.
+
+## Campaign Entity
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| Id | Guid | Primary key |
+| Title | string | Campaign display name |
+| Description | string? | Optional description |
+| EmailSubject | string | Subject line template |
+| EmailBodyTemplate | string | Liquid/Razor body template |
+| Status | CampaignStatus | Draft / Active / Completed |
+| CreatedAt | Instant | When created |
+| CreatedByUserId | Guid | FK to User |
+
+### CampaignStatus
+
+| Value | Description |
+|-------|-------------|
+| Draft | Codes can be imported; sending not yet active |
+| Active | Sending waves is enabled |
+| Completed | Campaign closed |
+
+Stored as int.
+
+## CampaignCode Entity
+
+One row per individual code belonging to a campaign. Codes are imported in bulk; each is assigned to at most one user via a CampaignGrant.
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| Id | Guid | Primary key |
+| CampaignId | Guid | FK to Campaign |
+| Code | string | The code value (unique per campaign) |
+| ImportedAt | Instant | When imported |
+
+## CampaignGrant Entity
+
+Records the assignment of a specific code to a specific user.
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| Id | Guid | Primary key |
+| CampaignId | Guid | FK to Campaign |
+| CampaignCodeId | Guid | FK to CampaignCode (unique — one grant per code) |
+| UserId | Guid | FK to User |
+| AssignedAt | Instant | When assigned |
+| LatestEmailStatus | EmailOutboxStatus? | Status of most recent delivery attempt |
+| LatestEmailAt | Instant? | Timestamp of most recent delivery attempt |
+
+## SystemSetting Entity
+
+Key/value store for runtime configuration flags. Currently used for:
+
+| Key | Purpose |
+|-----|---------|
+| `email_outbox_paused` | When `"true"`, `ProcessEmailOutboxJob` skips processing |
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| Key | string | Primary key |
+| Value | string | Setting value |
 
 ## Enums
 
