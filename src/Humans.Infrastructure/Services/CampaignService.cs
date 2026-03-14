@@ -388,11 +388,10 @@ public class CampaignService : ICampaignService
 
         var unsubscribeUrl = $"{_settings.BaseUrl}/Unsubscribe/{Uri.EscapeDataString(unsubscribeToken)}";
 
-        // Append unsubscribe footer
+        // Append unsubscribe link (lower right, minimal)
         var unsubscribeFooter = $"""
-            <hr style="border: none; border-top: 1px solid #e8d4ab; margin: 24px 0 12px 0;">
-            <p style="font-size: 11px; color: #8b7355; margin: 0;">
-                <a href="{WebUtility.HtmlEncode(unsubscribeUrl)}" style="color: #8b6914;">Unsubscribe from campaign emails</a>
+            <p style="font-size: 11px; text-align: right; margin: 24px 0 0 0;">
+                <a href="{WebUtility.HtmlEncode(unsubscribeUrl)}" style="color: #8b7355;">Unsubscribe</a>
             </p>
             """;
 
