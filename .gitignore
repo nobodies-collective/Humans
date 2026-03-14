@@ -128,3 +128,4 @@ uploads/
 gha-creds-*.json
 service-account-key.json
 .claude/worktrees/
+src/Humans.Web/bin/
