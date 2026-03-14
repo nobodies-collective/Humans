@@ -274,7 +274,7 @@ Colaborador and Asociado memberships have 2-year synchronized terms expiring Dec
 
 | Enum | Values |
 |------|--------|
-| CampSeasonStatus | Pending, Active, Full, Inactive, Withdrawn, Rejected |
+| CampSeasonStatus | Pending, Active, Full, Rejected, Withdrawn |
 | CampLeadRole | Primary, CoLead |
 | CampVibe | Adult, ChillOut, ElectronicMusic, Games, Queer, Sober, Lecture, LiveMusic, Wellness, Workshop |
 | CampNameSource | Manual, NameChange |

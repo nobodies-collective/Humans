@@ -309,29 +309,15 @@
                                 </button>
                             </form>
                         }
-                        @if (Model.IsCurrentUserCampAdmin)
+                        @if (Model.IsCurrentUserCampAdmin && (s.Status == CampSeasonStatus.Withdrawn || s.Status == CampSeasonStatus.Full))
                         {
-                            @if (s.Status == CampSeasonStatus.Active || s.Status == CampSeasonStatus.Full)
-                            {
-                                <form asp-controller="CampAdmin" asp-action="Deactivate" asp-route-seasonId="@s.Id" method="post"
-                                      onsubmit="return confirm('Deactivate this season?');">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="returnSlug" value="@Model.Slug" />
-                                    <button type="submit" class="btn btn-outline-danger w-100">
-                                        <i class="fa-solid fa-ban me-1"></i> Deactivate Season
-                                    </button>
-                                </form>
-                            }
-                            @if (s.Status == CampSeasonStatus.Inactive || s.Status == CampSeasonStatus.Full)
-                            {
-                                <form asp-controller="CampAdmin" asp-action="Reactivate" asp-route-seasonId="@s.Id" method="post">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="returnSlug" value="@Model.Slug" />
-                                    <button type="submit" class="btn btn-outline-success w-100">
-                                        <i class="fa-solid fa-rotate-left me-1"></i> Reactivate Season
-                                    </button>
-                                </form>
-                            }
+                            <form asp-controller="CampAdmin" asp-action="Reactivate" asp-route-seasonId="@s.Id" method="post">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="returnSlug" value="@Model.Slug" />
+                                <button type="submit" class="btn btn-outline-success w-100">
+                                    <i class="fa-solid fa-rotate-left me-1"></i> Reactivate Season
+                                </button>
+                            </form>
                         }
                     }
                 </div>

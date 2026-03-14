@@ -216,7 +216,7 @@ public class CampService : ICampService
         var approvedStatuses = new[]
         {
             CampSeasonStatus.Active, CampSeasonStatus.Full,
-            CampSeasonStatus.Inactive, CampSeasonStatus.Withdrawn
+            CampSeasonStatus.Withdrawn
         };
         var hasApprovedSeason = await _dbContext.CampSeasons
             .AnyAsync(s => s.CampId == campId && approvedStatuses.Contains(s.Status),
@@ -397,7 +397,7 @@ public class CampService : ICampService
     {
         var season = await _dbContext.CampSeasons.FindAsync([seasonId], cancellationToken)
             ?? throw new InvalidOperationException("Season not found.");
-        if (season.Status != CampSeasonStatus.Full && season.Status != CampSeasonStatus.Inactive)
+        if (season.Status != CampSeasonStatus.Full && season.Status != CampSeasonStatus.Withdrawn)
             throw new InvalidOperationException($"Cannot reactivate a season with status {season.Status}.");
 
         var now = _clock.GetCurrentInstant();
@@ -407,27 +407,6 @@ public class CampService : ICampService
         await _auditLogService.LogAsync(
             AuditAction.CampSeasonStatusChanged, nameof(CampSeason), seasonId,
             $"Season {season.Year} reactivated",
-            "CampService",
-            relatedEntityId: season.CampId, relatedEntityType: nameof(Camp));
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        InvalidateCache(season.Year);
-    }
-
-    public async Task DeactivateSeasonAsync(Guid seasonId, CancellationToken cancellationToken = default)
-    {
-        var season = await _dbContext.CampSeasons.FindAsync([seasonId], cancellationToken)
-            ?? throw new InvalidOperationException("Season not found.");
-        if (season.Status != CampSeasonStatus.Active && season.Status != CampSeasonStatus.Full)
-            throw new InvalidOperationException($"Cannot deactivate a season with status {season.Status}.");
-
-        var now = _clock.GetCurrentInstant();
-        season.Status = CampSeasonStatus.Inactive;
-        season.UpdatedAt = now;
-
-        await _auditLogService.LogAsync(
-            AuditAction.CampSeasonStatusChanged, nameof(CampSeason), seasonId,
-            $"Season {season.Year} deactivated",
             "CampService",
             relatedEntityId: season.CampId, relatedEntityType: nameof(Camp));
 

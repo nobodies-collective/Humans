@@ -37,8 +37,6 @@ public interface ICampService
     Task WithdrawSeasonAsync(Guid seasonId, CancellationToken cancellationToken = default);
     Task SetSeasonFullAsync(Guid seasonId, CancellationToken cancellationToken = default);
     Task ReactivateSeasonAsync(Guid seasonId, CancellationToken cancellationToken = default);
-    Task DeactivateSeasonAsync(Guid seasonId, CancellationToken cancellationToken = default);
-
     // Camp updates
     Task UpdateCampAsync(Guid campId, string contactEmail, string contactPhone,
         string? webOrSocialUrl, string contactMethod, bool isSwissCamp, int timesAtNowhere,
