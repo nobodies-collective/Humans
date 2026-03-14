@@ -71,6 +71,43 @@ public class CampaignController : Controller
         return RedirectToAction(nameof(Detail), new { id = campaign.Id });
     }
 
+    [HttpGet("Edit/{id:guid}")]
+    public async Task<IActionResult> Edit(Guid id)
+    {
+        var campaign = await _dbContext.Set<Campaign>().FindAsync(id);
+        if (campaign == null) return NotFound();
+        return View(campaign);
+    }
+
+    [HttpPost("Edit/{id:guid}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(Guid id, string title, string? description, string emailSubject, string emailBodyTemplate)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            ModelState.AddModelError(nameof(title), "Title is required.");
+        if (string.IsNullOrWhiteSpace(emailSubject))
+            ModelState.AddModelError(nameof(emailSubject), "Email subject is required.");
+        if (string.IsNullOrWhiteSpace(emailBodyTemplate))
+            ModelState.AddModelError(nameof(emailBodyTemplate), "Email body template is required.");
+
+        var campaign = await _dbContext.Set<Campaign>().FindAsync(id);
+        if (campaign == null) return NotFound();
+
+        if (!ModelState.IsValid)
+            return View(campaign);
+
+        campaign.Title = title.Trim();
+        campaign.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        campaign.EmailSubject = emailSubject.Trim();
+        campaign.EmailBodyTemplate = emailBodyTemplate.Trim();
+
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation("Campaign {CampaignId} updated by {User}", id, User.Identity?.Name);
+        TempData["SuccessMessage"] = "Campaign updated.";
+        return RedirectToAction(nameof(Detail), new { id });
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Detail(Guid id)
     {
