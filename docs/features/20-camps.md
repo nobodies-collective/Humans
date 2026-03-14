@@ -197,7 +197,7 @@ CampSettings
 
 ### Enums
 ```
-CampSeasonStatus: Pending(0), Active(1), Full(2), Inactive(3), Rejected(4), Withdrawn(5)
+CampSeasonStatus: Pending(0), Active(1), Full(2), Rejected(4), Withdrawn(5)
 CampLeadRole: Primary(0), CoLead(1)
 CampVibe: Adult(0), ChillOut(1), ElectronicMusic(2), Games(3), Queer(4), Sober(5), Lecture(6), LiveMusic(7), Wellness(8), Workshop(9)
 CampNameSource: Manual(0), NameChange(1)
@@ -245,24 +245,39 @@ Authenticated User
 ## Season Approval Workflow
 
 ```
-           ┌─────────┐
-           │ Pending │
-           └────┬────┘
-                │
-   ┌────────────┼────────────┐
-   │            │            │
-┌──▼───┐   ┌───▼───┐   ┌───▼──────┐
-│Approve│   │Reject │   │Withdraw  │
-└──┬───┘   └───┬───┘   └───┬──────┘
-   │           │            │
-┌──▼───┐   ┌───▼────┐  ┌───▼──────┐
-│Active│   │Rejected│  │Withdrawn │
-└──┬───┘   └────────┘  └──────────┘
-   │
-   ├──→ Full (SetSeasonFull)
-   ├──→ Inactive (Deactivate)
-   └──→ Active (Reactivate)
+                ┌─────────┐
+                │ Pending │
+                └────┬────┘
+                     │
+       ┌─────────────┼──────────────┐
+       │             │              │
+  ┌────▼────┐  ┌─────▼─────┐  ┌────▼─────┐
+  │ Active  │  │ Rejected  │  │Withdrawn │
+  └────┬────┘  └───────────┘  └────┬─────┘
+       │                           │
+  ┌────┼─────┐                     │
+  │          │                     │
+┌─▼──┐ ┌────▼─────┐               │
+│Full│ │Withdrawn │               │
+└─┬──┘ └────┬─────┘               │
+  │          │                     │
+  └────┬─────┴─────────────────────┘
+       │
+  Reactivate (CampAdmin only)
+       │
+  ┌────▼────┐
+  │ Active  │
+  └─────────┘
 ```
+
+Transitions:
+- Pending → Active (admin approves)
+- Pending → Rejected (admin rejects)
+- Pending → Withdrawn (lead withdraws)
+- Active → Full (lead marks full)
+- Active → Withdrawn (lead withdraws)
+- Full → Active (CampAdmin reactivates)
+- Withdrawn → Active (CampAdmin reactivates)
 
 ## Authorization
 
