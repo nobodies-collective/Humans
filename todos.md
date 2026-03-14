@@ -7,6 +7,11 @@ Last synced: 2026-03-10T09:00
 
 ## Open Work — Prioritized
 
+### Priority 1: Bugs
+
+#### #115: Fix membership status model — dashboard counts don't match admin page
+Dashboard counts overlap and don't sum to total. "Active" includes humans with pending consents who aren't in the Volunteers team. Need clear state diagram, mutually exclusive counts, and aligned filters.
+
 ### Priority 2: Small-Medium Enhancements
 
 #### #112: Add preferred language distribution chart to board dashboard
