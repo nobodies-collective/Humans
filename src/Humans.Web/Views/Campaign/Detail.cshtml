@@ -1,0 +1,179 @@
+@model Humans.Domain.Entities.Campaign
+@{
+    ViewData["Title"] = Model.Title;
+    var totalCodes = (int)ViewBag.TotalCodes;
+    var availableCodes = (int)ViewBag.AvailableCodes;
+    var sentCount = (int)ViewBag.SentCount;
+    var failedCount = (int)ViewBag.FailedCount;
+    var statusClass = Model.Status switch
+    {
+        CampaignStatus.Draft => "bg-secondary",
+        CampaignStatus.Active => "bg-success",
+        CampaignStatus.Completed => "bg-info",
+        _ => "bg-secondary"
+    };
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>@Model.Title <span class="badge @statusClass fs-6">@Model.Status</span></h1>
+        @if (!string.IsNullOrWhiteSpace(Model.Description))
+        {
+            <p class="text-muted mb-0">@Model.Description</p>
+        }
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">Back to Campaigns</a>
+</div>
+
+<vc:temp-data-alerts />
+
+@* Action buttons *@
+<div class="d-flex flex-wrap gap-2 mb-4">
+    @if (Model.Status == CampaignStatus.Active)
+    {
+        <a asp-action="SendWave" asp-route-id="@Model.Id" class="btn btn-primary">
+            <i class="fa-solid fa-paper-plane me-1"></i>Send Wave
+        </a>
+    }
+
+    @if (Model.Status == CampaignStatus.Draft || Model.Status == CampaignStatus.Active)
+    {
+        <form asp-action="ImportCodes" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" class="d-inline-flex align-items-center gap-2">
+            @Html.AntiForgeryToken()
+            <input type="file" name="file" accept=".csv,.txt" class="form-control form-control-sm" style="max-width: 250px;" required />
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+                <i class="fa-solid fa-file-import me-1"></i>Import Codes
+            </button>
+        </form>
+    }
+
+    @if (Model.Status == CampaignStatus.Draft)
+    {
+        <form asp-action="Activate" asp-route-id="@Model.Id" method="post" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-success btn-sm">
+                <i class="fa-solid fa-check me-1"></i>Activate
+            </button>
+        </form>
+    }
+
+    @if (Model.Status == CampaignStatus.Active)
+    {
+        <form asp-action="Complete" asp-route-id="@Model.Id" method="post" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-info btn-sm">
+                <i class="fa-solid fa-flag-checkered me-1"></i>Complete
+            </button>
+        </form>
+    }
+
+    @if (failedCount > 0)
+    {
+        <form asp-action="RetryAllFailed" asp-route-id="@Model.Id" method="post" class="d-inline">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-warning btn-sm">
+                <i class="fa-solid fa-rotate-right me-1"></i>Retry All Failed
+            </button>
+        </form>
+    }
+</div>
+
+@* Stats cards *@
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="mb-0">@totalCodes</h3>
+                <small class="text-muted">Codes Imported</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="mb-0">@availableCodes</h3>
+                <small class="text-muted">Available</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="mb-0 text-success">@sentCount</h3>
+                <small class="text-muted">Sent</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="mb-0 @(failedCount > 0 ? "text-danger" : "")">@failedCount</h3>
+                <small class="text-muted">Failed</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Grants table *@
+<div class="card">
+    <div class="card-header">Grants</div>
+    <div class="card-body p-0">
+        @if (Model.Grants.Count == 0)
+        {
+            <p class="text-muted text-center py-4 mb-0">No grants yet. Use Send Wave to distribute codes.</p>
+        }
+        else
+        {
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Human</th>
+                        <th>Code</th>
+                        <th>Assigned</th>
+                        <th>Email Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var grant in Model.Grants.OrderByDescending(g => g.AssignedAt))
+                    {
+                        var emailStatusClass = grant.LatestEmailStatus switch
+                        {
+                            EmailOutboxStatus.Queued => "bg-warning",
+                            EmailOutboxStatus.Sent => "bg-success",
+                            EmailOutboxStatus.Failed => "bg-danger",
+                            _ => "bg-secondary"
+                        };
+                        <tr>
+                            <td>@grant.User.DisplayName</td>
+                            <td><code>@grant.Code.Code</code></td>
+                            <td>@grant.AssignedAt.ToString("d MMM yyyy HH:mm", null)</td>
+                            <td>
+                                @if (grant.LatestEmailStatus.HasValue)
+                                {
+                                    <span class="badge @emailStatusClass">@grant.LatestEmailStatus</span>
+                                    @if (grant.LatestEmailAt.HasValue)
+                                    {
+                                        <small class="text-muted ms-1">@grant.LatestEmailAt.Value.ToString("d MMM yyyy HH:mm", null)</small>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <form asp-action="Resend" asp-route-grantId="@grant.Id" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm">
+                                        <i class="fa-solid fa-rotate-right me-1"></i>Resend
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
