@@ -1,4 +1,6 @@
+using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using NodaTime;
 
 namespace Humans.Web.Models;
 
@@ -259,4 +261,13 @@ public class EmailPreviewItem
     public string Recipient { get; set; } = string.Empty;
     public string Subject { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
+}
+
+public class EmailOutboxViewModel
+{
+    public int QueuedCount { get; set; }
+    public int SentLast24HoursCount { get; set; }
+    public int FailedCount { get; set; }
+    public bool IsPaused { get; set; }
+    public List<EmailOutboxMessage> Messages { get; set; } = [];
 }

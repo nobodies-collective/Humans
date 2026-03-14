@@ -13,6 +13,7 @@ using Humans.Infrastructure.Services;
 using Humans.Web.Extensions;
 using Microsoft.Extensions.Options;
 using Humans.Web.Models;
+using NodaTime;
 
 namespace Humans.Web.Controllers;
 
@@ -20,7 +21,7 @@ namespace Humans.Web.Controllers;
 [Route("Admin")]
 public class AdminController : Controller
 {
-    private readonly HumansDbContext _dbContext; // Only used by DbVersion (EF migration introspection)
+    private readonly HumansDbContext _dbContext;
     private readonly UserManager<User> _userManager;
     private readonly ILogger<AdminController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
@@ -324,6 +325,109 @@ public class AdminController : Controller
             appliedCount = applied.Count,
             pendingCount = pending.Count()
         });
+    }
+
+    [HttpGet("EmailOutbox")]
+    public async Task<IActionResult> EmailOutbox([FromServices] IClock clock)
+    {
+        var now = clock.GetCurrentInstant();
+        var cutoff24h = now - Duration.FromHours(24);
+
+        var queuedCount = await _dbContext.EmailOutboxMessages
+            .CountAsync(m => m.Status == EmailOutboxStatus.Queued);
+        var sentLast24H = await _dbContext.EmailOutboxMessages
+            .CountAsync(m => m.Status == EmailOutboxStatus.Sent && m.SentAt > cutoff24h);
+        var failedCount = await _dbContext.EmailOutboxMessages
+            .CountAsync(m => m.Status == EmailOutboxStatus.Failed);
+
+        var pausedSetting = await _dbContext.SystemSettings
+            .FirstOrDefaultAsync(s => s.Key == "IsEmailSendingPaused");
+        var isPaused = string.Equals(pausedSetting?.Value, "true", StringComparison.OrdinalIgnoreCase);
+
+        var messages = await _dbContext.EmailOutboxMessages
+            .OrderByDescending(m => m.CreatedAt)
+            .Take(50)
+            .ToListAsync();
+
+        var viewModel = new EmailOutboxViewModel
+        {
+            QueuedCount = queuedCount,
+            SentLast24HoursCount = sentLast24H,
+            FailedCount = failedCount,
+            IsPaused = isPaused,
+            Messages = messages,
+        };
+
+        return View(viewModel);
+    }
+
+    [HttpPost("EmailOutbox/Pause")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PauseEmailSending()
+    {
+        await SetEmailPausedAsync(true);
+        _logger.LogInformation("Admin {AdminId} paused email sending", User.Identity?.Name);
+        TempData["SuccessMessage"] = "Email sending paused.";
+        return RedirectToAction(nameof(EmailOutbox));
+    }
+
+    [HttpPost("EmailOutbox/Resume")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResumeEmailSending()
+    {
+        await SetEmailPausedAsync(false);
+        _logger.LogInformation("Admin {AdminId} resumed email sending", User.Identity?.Name);
+        TempData["SuccessMessage"] = "Email sending resumed.";
+        return RedirectToAction(nameof(EmailOutbox));
+    }
+
+    [HttpPost("EmailOutbox/Retry/{id:guid}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RetryEmailOutboxMessage(Guid id)
+    {
+        var message = await _dbContext.EmailOutboxMessages.FindAsync(id);
+        if (message == null) return NotFound();
+
+        message.Status = EmailOutboxStatus.Queued;
+        message.RetryCount = 0;
+        message.LastError = null;
+        message.NextRetryAt = null;
+        message.PickedUpAt = null;
+        await _dbContext.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = $"Message to {message.RecipientEmail} queued for retry.";
+        return RedirectToAction(nameof(EmailOutbox));
+    }
+
+    [HttpPost("EmailOutbox/Discard/{id:guid}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DiscardEmailOutboxMessage(Guid id)
+    {
+        var message = await _dbContext.EmailOutboxMessages.FindAsync(id);
+        if (message == null) return NotFound();
+
+        var recipient = message.RecipientEmail;
+        _dbContext.EmailOutboxMessages.Remove(message);
+        await _dbContext.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = $"Message to {recipient} discarded.";
+        return RedirectToAction(nameof(EmailOutbox));
+    }
+
+    private async Task SetEmailPausedAsync(bool paused)
+    {
+        var setting = await _dbContext.SystemSettings
+            .FirstOrDefaultAsync(s => s.Key == "IsEmailSendingPaused");
+        if (setting == null)
+        {
+            setting = new SystemSetting { Key = "IsEmailSendingPaused", Value = paused ? "true" : "false" };
+            _dbContext.SystemSettings.Add(setting);
+        }
+        else
+        {
+            setting.Value = paused ? "true" : "false";
+        }
+        await _dbContext.SaveChangesAsync();
     }
 
 }
