@@ -104,6 +104,18 @@ public class ProcessEmailOutboxJob
                 message.SentAt = now;
                 message.PickedUpAt = null;
                 _metrics.RecordEmailSent(message.TemplateName);
+
+                // Update campaign grant status if applicable
+                if (message.CampaignGrantId.HasValue)
+                {
+                    var grant = await _dbContext.CampaignGrants.FindAsync(
+                        new object[] { message.CampaignGrantId.Value }, cancellationToken);
+                    if (grant != null)
+                    {
+                        grant.LatestEmailStatus = EmailOutboxStatus.Sent;
+                        grant.LatestEmailAt = now;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -116,6 +128,18 @@ public class ProcessEmailOutboxJob
                 message.NextRetryAt = now + Duration.FromMinutes((long)Math.Pow(2, message.RetryCount));
                 message.PickedUpAt = null;
                 _metrics.RecordEmailFailed(message.TemplateName);
+
+                // Update campaign grant status if applicable
+                if (message.CampaignGrantId.HasValue)
+                {
+                    var grant = await _dbContext.CampaignGrants.FindAsync(
+                        new object[] { message.CampaignGrantId.Value }, cancellationToken);
+                    if (grant != null)
+                    {
+                        grant.LatestEmailStatus = EmailOutboxStatus.Failed;
+                        grant.LatestEmailAt = now;
+                    }
+                }
 
                 _logger.LogError(
                     ex,
