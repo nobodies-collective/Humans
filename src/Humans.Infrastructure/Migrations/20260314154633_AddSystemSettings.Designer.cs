@@ -3,6 +3,7 @@ using System;
 using Humans.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NodaTime;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Humans.Infrastructure.Migrations
 {
     [DbContext(typeof(HumansDbContext))]
-    partial class HumansDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260314154633_AddSystemSettings")]
+    partial class AddSystemSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -718,87 +721,6 @@ namespace Humans.Infrastructure.Migrations
                     b.HasIndex("LegalDocumentId");
 
                     b.ToTable("document_versions", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.EmailOutboxMessage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("CampaignGrantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ExtraHeaders")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("HtmlBody")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("LastError")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<Instant?>("NextRetryAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Instant?>("PickedUpAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PlainTextBody")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RecipientEmail")
-                        .IsRequired()
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
-
-                    b.Property<string>("RecipientName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("ReplyTo")
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
-
-                    b.Property<int>("RetryCount")
-                        .HasColumnType("integer");
-
-                    b.Property<Instant?>("SentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Subject")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("TemplateName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CampaignGrantId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("SentAt", "RetryCount", "NextRetryAt", "PickedUpAt");
-
-                    b.ToTable("email_outbox_messages", (string)null);
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.GoogleResource", b =>
@@ -2064,16 +1986,6 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("LegalDocument");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.EmailOutboxMessage", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.GoogleResource", b =>
