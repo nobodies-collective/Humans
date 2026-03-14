@@ -384,7 +384,7 @@ public class CampaignService : ICampaignService
         var unsubscribeToken = timeLimitedProtector.Protect(
             user.Id.ToString(), TimeSpan.FromDays(90));
 
-        var unsubscribeUrl = $"{_settings.BaseUrl}/campaigns/unsubscribe?token={Uri.EscapeDataString(unsubscribeToken)}";
+        var unsubscribeUrl = $"{_settings.BaseUrl}/Unsubscribe/{Uri.EscapeDataString(unsubscribeToken)}";
 
         // Append unsubscribe footer
         var unsubscribeFooter = $"""
