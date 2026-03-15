@@ -182,7 +182,7 @@ public class TicketSyncService : ITicketSyncService
             existing.PaymentStatus = ParsePaymentStatus(dto.PaymentStatus);
             existing.VendorDashboardUrl = dto.VendorDashboardUrl;
             existing.SyncedAt = now;
-            existing.MatchedUserId = emailLookup.GetValueOrDefault(dto.BuyerEmail);
+            existing.MatchedUserId = LookupUserId(emailLookup, dto.BuyerEmail);
             return existing;
         }
 
@@ -200,7 +200,7 @@ public class TicketSyncService : ITicketSyncService
             VendorDashboardUrl = dto.VendorDashboardUrl,
             PurchasedAt = dto.PurchasedAt,
             SyncedAt = now,
-            MatchedUserId = emailLookup.GetValueOrDefault(dto.BuyerEmail),
+            MatchedUserId = LookupUserId(emailLookup, dto.BuyerEmail),
         };
 
         _dbContext.TicketOrders.Add(order);
@@ -216,7 +216,7 @@ public class TicketSyncService : ITicketSyncService
             .FirstOrDefaultAsync(a => a.VendorTicketId == dto.VendorTicketId, ct);
 
         Guid? matchedUserId = dto.AttendeeEmail != null
-            ? emailLookup.GetValueOrDefault(dto.AttendeeEmail)
+            ? LookupUserId(emailLookup, dto.AttendeeEmail)
             : null;
 
         if (existing != null)
@@ -311,6 +311,9 @@ public class TicketSyncService : ITicketSyncService
 
         return codesRedeemed;
     }
+
+    private static Guid? LookupUserId(Dictionary<string, Guid> lookup, string? email) =>
+        email != null && lookup.TryGetValue(email, out var userId) ? userId : null;
 
     private TicketPaymentStatus ParsePaymentStatus(string status)
     {
