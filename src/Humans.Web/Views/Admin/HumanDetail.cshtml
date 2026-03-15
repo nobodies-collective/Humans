@@ -3,7 +3,7 @@
 @using Humans.Domain.Enums
 @{
     ViewData["Title"] = string.Format(Localizer["AdminHumanDetail_Title"].Value, Model.DisplayName);
-    var campaignGrants = ViewBag.CampaignGrants as List<CampaignGrant>;
+    var campaignGrants = (IList<CampaignGrant>?)ViewBag.CampaignGrants;
 }
 
 <nav aria-label="breadcrumb">
