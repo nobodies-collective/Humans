@@ -7,6 +7,7 @@ using NSubstitute;
 using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
+using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Jobs;
 using Humans.Infrastructure.Services;
@@ -36,8 +37,12 @@ public class ProcessGoogleSyncOutboxJobTests : IDisposable
             Substitute.For<IServiceScopeFactory>(),
             Substitute.For<ILogger<HumansMetricsService>>());
         var logger = Substitute.For<ILogger<ProcessGoogleSyncOutboxJob>>();
+        var syncSettingsService = Substitute.For<ISyncSettingsService>();
+        // Default: both services enabled with AddAndRemove
+        syncSettingsService.GetModeAsync(Arg.Any<SyncServiceType>(), Arg.Any<CancellationToken>())
+            .Returns(SyncMode.AddAndRemove);
 
-        _job = new ProcessGoogleSyncOutboxJob(_dbContext, _googleSyncService, _metrics, _clock, logger);
+        _job = new ProcessGoogleSyncOutboxJob(_dbContext, _googleSyncService, syncSettingsService, _metrics, _clock, logger);
     }
 
     public void Dispose()
