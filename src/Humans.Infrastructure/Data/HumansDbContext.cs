@@ -51,6 +51,9 @@ public class HumansDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
     public DbSet<CampaignCode> CampaignCodes { get; set; } = null!;
     public DbSet<CampaignGrant> CampaignGrants { get; set; } = null!;
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<TicketOrder> TicketOrders => Set<TicketOrder>();
+    public DbSet<TicketAttendee> TicketAttendees => Set<TicketAttendee>();
+    public DbSet<TicketSyncState> TicketSyncStates => Set<TicketSyncState>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

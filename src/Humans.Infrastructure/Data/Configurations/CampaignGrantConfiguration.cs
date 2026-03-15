@@ -15,6 +15,8 @@ public class CampaignGrantConfiguration : IEntityTypeConfiguration<CampaignGrant
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        builder.Property(g => g.RedeemedAt);
+
         builder.HasIndex(g => new { g.CampaignId, g.UserId }).IsUnique();
         builder.HasIndex(g => g.CampaignCodeId).IsUnique();
 

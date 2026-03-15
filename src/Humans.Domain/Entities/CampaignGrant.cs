@@ -13,6 +13,9 @@ public class CampaignGrant
     public EmailOutboxStatus? LatestEmailStatus { get; set; }
     public Instant? LatestEmailAt { get; set; }
 
+    /// <summary>When the grant's discount code was redeemed (used in a ticket purchase). Null if unused.</summary>
+    public Instant? RedeemedAt { get; set; }
+
     // Navigation
     public Campaign Campaign { get; set; } = null!;
     public CampaignCode Code { get; set; } = null!;

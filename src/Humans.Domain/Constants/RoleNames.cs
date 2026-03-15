@@ -38,4 +38,10 @@ public static class RoleNames
     /// and configure camp settings system-wide.
     /// </summary>
     public const string CampAdmin = "CampAdmin";
+
+    /// <summary>
+    /// Ticket Administrator — can manage ticket vendor integration, trigger syncs,
+    /// generate discount codes, and export ticket data.
+    /// </summary>
+    public const string TicketAdmin = "TicketAdmin";
 }
