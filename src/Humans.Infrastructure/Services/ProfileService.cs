@@ -551,15 +551,24 @@ public class ProfileService : IProfileService
         switch (statusFilter?.ToLowerInvariant())
         {
             case "active":
-                query = query.Where(u => u.Profile != null && u.Profile.IsApproved && !u.Profile.IsSuspended);
+            case "missingconsents":
+            {
+                // These two buckets both have approved, non-suspended profiles; need partition to distinguish
+                var ids = await query.Select(u => u.Id).ToListAsync(ct);
+                var partition = await _membershipCalculator.PartitionUsersAsync(ids, ct);
+                var matchingIds = statusFilter.Equals("active", StringComparison.OrdinalIgnoreCase)
+                    ? partition.Active
+                    : partition.MissingConsents;
+                query = query.Where(u => matchingIds.Contains(u.Id));
                 break;
+            }
             case "pending":
                 query = query.Where(u => u.Profile != null && !u.Profile.IsApproved && !u.Profile.IsSuspended);
                 break;
             case "suspended":
                 query = query.Where(u => u.Profile != null && u.Profile.IsSuspended);
                 break;
-            case "inactive":
+            case "incomplete":
                 query = query.Where(u => u.Profile == null);
                 break;
             case "deleting":
@@ -567,20 +576,40 @@ public class ProfileService : IProfileService
                 break;
         }
 
-        return await query
-            .Select(u => new Application.DTOs.AdminHumanRow(
+        var rows = await query
+            .Select(u => new
+            {
                 u.Id,
-                u.Email ?? string.Empty,
+                Email = u.Email ?? string.Empty,
                 u.DisplayName,
                 u.ProfilePictureUrl,
-                u.CreatedAt.ToDateTimeUtc(),
-                u.LastLoginAt != null ? u.LastLoginAt.Value.ToDateTimeUtc() : null,
-                u.Profile != null,
-                u.Profile != null && u.Profile.IsApproved,
-                u.Profile != null
-                    ? (u.Profile.IsSuspended ? "Suspended" : (!u.Profile.IsApproved ? "Pending Approval" : "Active"))
-                    : "Inactive"))
+                CreatedAt = u.CreatedAt.ToDateTimeUtc(),
+                LastLoginAt = u.LastLoginAt != null ? u.LastLoginAt.Value.ToDateTimeUtc() : (DateTime?)null,
+                HasProfile = u.Profile != null,
+                IsApproved = u.Profile != null && u.Profile.IsApproved,
+            })
             .ToListAsync(ct);
+
+        var rowIds = rows.Select(r => r.Id).ToList();
+        var statusPartition = await _membershipCalculator.PartitionUsersAsync(rowIds, ct);
+
+        return rows.Select(r => new Application.DTOs.AdminHumanRow(
+            r.Id,
+            r.Email,
+            r.DisplayName,
+            r.ProfilePictureUrl,
+            r.CreatedAt,
+            r.LastLoginAt,
+            r.HasProfile,
+            r.IsApproved,
+            statusPartition.PendingDeletion.Contains(r.Id) ? "Pending Deletion" :
+            statusPartition.Suspended.Contains(r.Id) ? "Suspended" :
+            statusPartition.PendingApproval.Contains(r.Id) ? "Pending Approval" :
+            statusPartition.MissingConsents.Contains(r.Id) ? "Missing Consents" :
+            statusPartition.Active.Contains(r.Id) ? "Active" :
+            statusPartition.IncompleteSignup.Contains(r.Id) ? "Incomplete Signup" :
+            "Unknown"))
+        .ToList();
     }
 
     public async Task<Application.DTOs.AdminHumanDetailData?> GetAdminHumanDetailAsync(Guid userId, CancellationToken ct = default)
