@@ -78,5 +78,13 @@ public static class RecurringJobExtensions
             "cleanup-email-outbox",
             job => job.ExecuteAsync(CancellationToken.None),
             "0 3 * * 0"); // Sunday 03:00 UTC
+
+        // Sync ticket data from vendor at configured interval (default 15 min).
+        // Requires TICKET_VENDOR_API_KEY environment variable and TicketVendor:EventId in appsettings.
+        var ticketSyncInterval = _.Configuration.GetValue("TicketVendor:SyncIntervalMinutes", 15);
+        RecurringJob.AddOrUpdate<TicketSyncJob>(
+            "ticket-vendor-sync",
+            job => job.ExecuteAsync(CancellationToken.None),
+            $"*/{ticketSyncInterval} * * * *");
     }
 }
