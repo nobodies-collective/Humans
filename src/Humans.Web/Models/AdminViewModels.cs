@@ -7,10 +7,13 @@ namespace Humans.Web.Models;
 public class AdminDashboardViewModel
 {
     public int TotalMembers { get; set; }
+    public int IncompleteSignup { get; set; }
+    public int PendingApproval { get; set; }
     public int ActiveMembers { get; set; }
-    public int PendingVolunteers { get; set; }
+    public int MissingConsents { get; set; }
+    public int Suspended { get; set; }
+    public int PendingDeletion { get; set; }
     public int PendingApplications { get; set; }
-    public int PendingConsents { get; set; }
     public List<RecentActivityViewModel> RecentActivity { get; set; } = [];
 
     // Application statistics
