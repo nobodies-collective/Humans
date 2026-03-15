@@ -38,9 +38,13 @@ public class TicketTailorServiceTests
                     buyer_details = new { first_name = "Jane", last_name = "Doe", email = "jane@example.com", name = "Jane Doe" },
                     total = 15000,
                     currency = new { code = "eur", base_multiplier = 100 },
-                    voucher_code = "NOBO25",
                     status = "completed",
-                    created_at = 1716811200L
+                    created_at = 1716811200L,
+                    line_items = new[]
+                    {
+                        new { description = "Wave 1 Tickets", type = "ticket", total = 15000 },
+                        new { description = "NCA Discount (NOBO25)", type = "gift_card", total = -2500 },
+                    }
                 }
             },
             links = new { next = (string?)null }
@@ -155,6 +159,10 @@ public class TicketTailorServiceTests
                 new { quantity_total = 2000, quantity_issued = 86 },
                 new { quantity_total = 500, quantity_issued = 6 },
                 new { quantity_total = 500, quantity_issued = 4 },
+            },
+            ticket_groups = new[]
+            {
+                new { name = "Main tickets", max_quantity = 2000 },
             }
         });
 
@@ -162,9 +170,9 @@ public class TicketTailorServiceTests
         var summary = await service.GetEventSummaryAsync("ev_test");
 
         summary.EventName.Should().Be("Elsewhere 2026");
-        summary.TotalCapacity.Should().Be(3000);
+        summary.TotalCapacity.Should().Be(2000);
         summary.TicketsSold.Should().Be(96);
-        summary.TicketsRemaining.Should().Be(2904);
+        summary.TicketsRemaining.Should().Be(1904);
     }
 }
 

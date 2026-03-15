@@ -87,13 +87,17 @@ public class TicketTailorService : ITicketVendorService
                 var purchasedAt = Instant.FromUnixTimeSeconds(order.CreatedAt);
                 var buyer = order.BuyerDetails;
 
+                // Discount codes are in line_items with type "gift_card",
+                // code embedded in description like "NCA Contributor Discount (DISC25-OPGYT8-004)"
+                var discountCode = ExtractDiscountCode(order.LineItems);
+
                 orders.Add(new VendorOrderDto(
                     VendorOrderId: order.Id,
                     BuyerName: buyer?.Name ?? $"{buyer?.FirstName} {buyer?.LastName}".Trim(),
                     BuyerEmail: buyer?.Email ?? string.Empty,
                     TotalAmount: (order.Total ?? 0) / 100m, // TT stores amounts in cents
                     Currency: order.Currency?.Code?.ToUpperInvariant() ?? "EUR",
-                    DiscountCode: order.VoucherCode,
+                    DiscountCode: discountCode,
                     PaymentStatus: order.Status ?? "completed",
                     VendorDashboardUrl: null, // TT doesn't expose dashboard URLs via API
                     PurchasedAt: purchasedAt,
@@ -159,8 +163,12 @@ public class TicketTailorService : ITicketVendorService
 
         var evt = await response.Content.ReadFromJsonAsync<TtEvent>(JsonOptions, ct);
 
-        // Capacity = sum of quantity_total across all ticket types
-        var totalCapacity = evt?.TicketTypes?.Sum(tt => tt.QuantityTotal ?? 0) ?? 0;
+        // Capacity comes from ticket_groups (waves share the same pool).
+        // Summing ticket_types.quantity_total is wrong — waves are subdivisions, not additive.
+        var totalCapacity = evt?.TicketGroups?.Sum(g => g.MaxQuantity ?? 0) ?? 0;
+        // Fall back to ungrouped ticket types if no groups defined
+        if (totalCapacity == 0)
+            totalCapacity = evt?.TicketTypes?.Sum(tt => tt.QuantityTotal ?? 0) ?? 0;
         var ticketsSold = evt?.TotalIssuedTickets ?? 0;
 
         return new VendorEventSummaryDto(
@@ -226,6 +234,27 @@ public class TicketTailorService : ITicketVendorService
         return results;
     }
 
+    /// <summary>
+    /// Extract discount code from line_items. TT puts discount codes in line items
+    /// with type "gift_card" and the code in parentheses in the description,
+    /// e.g. "NCA Contributor Discount (DISC25-OPGYT8-004)".
+    /// </summary>
+    private static string? ExtractDiscountCode(List<TtLineItem>? lineItems)
+    {
+        var discountItem = lineItems?.FirstOrDefault(li =>
+            string.Equals(li.Type, "gift_card", StringComparison.OrdinalIgnoreCase));
+
+        if (discountItem?.Description == null) return null;
+
+        // Extract code from parentheses: "Some Label (CODE123)" → "CODE123"
+        var openParen = discountItem.Description.LastIndexOf('(');
+        var closeParen = discountItem.Description.LastIndexOf(')');
+        if (openParen >= 0 && closeParen > openParen)
+            return discountItem.Description[(openParen + 1)..closeParen];
+
+        return discountItem.Description;
+    }
+
     // --- TicketTailor API response models ---
     // Must be internal (not private) for System.Text.Json deserialization
 
@@ -242,9 +271,14 @@ public class TicketTailorService : ITicketVendorService
         [property: JsonPropertyName("buyer_details")] TtBuyerDetails? BuyerDetails,
         [property: JsonPropertyName("total")] int? Total,
         [property: JsonPropertyName("currency")] TtCurrency? Currency,
-        [property: JsonPropertyName("voucher_code")] string? VoucherCode,
         [property: JsonPropertyName("status")] string? Status,
-        [property: JsonPropertyName("created_at")] long CreatedAt);
+        [property: JsonPropertyName("created_at")] long CreatedAt,
+        [property: JsonPropertyName("line_items")] List<TtLineItem>? LineItems);
+
+    internal sealed record TtLineItem(
+        [property: JsonPropertyName("description")] string? Description,
+        [property: JsonPropertyName("type")] string? Type,
+        [property: JsonPropertyName("total")] int? Total);
 
     internal sealed record TtBuyerDetails(
         [property: JsonPropertyName("first_name")] string? FirstName,
@@ -272,11 +306,16 @@ public class TicketTailorService : ITicketVendorService
         [property: JsonPropertyName("total_holds")] int? TotalHolds,
         [property: JsonPropertyName("total_issued_tickets")] int? TotalIssuedTickets,
         [property: JsonPropertyName("total_orders")] int? TotalOrders,
-        [property: JsonPropertyName("ticket_types")] List<TtTicketType>? TicketTypes);
+        [property: JsonPropertyName("ticket_types")] List<TtTicketType>? TicketTypes,
+        [property: JsonPropertyName("ticket_groups")] List<TtTicketGroup>? TicketGroups);
 
     internal sealed record TtTicketType(
         [property: JsonPropertyName("quantity_total")] int? QuantityTotal,
         [property: JsonPropertyName("quantity_issued")] int? QuantityIssued);
+
+    internal sealed record TtTicketGroup(
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("max_quantity")] int? MaxQuantity);
 
     internal sealed record TtVoucherCode(
         [property: JsonPropertyName("code")] string? Code,
