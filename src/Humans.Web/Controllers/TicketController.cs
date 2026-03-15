@@ -139,6 +139,7 @@ public class TicketController : Controller
         {
             TicketsSold = ticketsSold,
             TotalCapacity = totalCapacity,
+            BreakEvenTarget = _settings.BreakEvenTarget,
             Revenue = revenue,
             AveragePrice = avgPrice,
             TicketsRemaining = totalCapacity - ticketsSold,

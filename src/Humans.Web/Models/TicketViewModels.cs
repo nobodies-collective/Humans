@@ -10,6 +10,7 @@ public class TicketDashboardViewModel
     public decimal Revenue { get; set; }
     public decimal AveragePrice { get; set; }
     public int TicketsRemaining { get; set; }
+    public int BreakEvenTarget { get; set; }
     public string Currency { get; set; } = "EUR";
 
     // Daily sales chart data

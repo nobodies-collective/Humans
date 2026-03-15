@@ -18,6 +18,7 @@ public class TicketVendorSettings
     public string Provider { get; set; } = "TicketTailor";
     public string EventId { get; set; } = string.Empty;
     public int SyncIntervalMinutes { get; set; } = 15;
+    public int BreakEvenTarget { get; set; }
     /// <summary>API key — populated from TICKET_VENDOR_API_KEY env var at DI registration time.
     /// Not stored in appsettings (sensitive). Accessible in settings for testability.</summary>
     public string ApiKey { get; set; } = string.Empty;
