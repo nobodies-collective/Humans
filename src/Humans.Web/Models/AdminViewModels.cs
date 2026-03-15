@@ -22,6 +22,15 @@ public class AdminDashboardViewModel
     public int RejectedApplications { get; set; }
     public int ColaboradorApplied { get; set; }
     public int AsociadoApplied { get; set; }
+
+    // Language distribution
+    public List<LanguageCountViewModel> LanguageDistribution { get; set; } = [];
+}
+
+public class LanguageCountViewModel
+{
+    public string Language { get; set; } = string.Empty;
+    public int Count { get; set; }
 }
 
 public class RecentActivityViewModel

@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Infrastructure.Data;
 using Humans.Web.Extensions;
 using Humans.Web.Models;
 
@@ -17,6 +19,7 @@ public class BoardController : Controller
     private readonly IOnboardingService _onboardingService;
     private readonly ITeamResourceService _teamResourceService;
     private readonly UserManager<User> _userManager;
+    private readonly HumansDbContext _dbContext;
     private readonly ILogger<BoardController> _logger;
 
     public BoardController(
@@ -24,12 +27,14 @@ public class BoardController : Controller
         IOnboardingService onboardingService,
         ITeamResourceService teamResourceService,
         UserManager<User> userManager,
+        HumansDbContext dbContext,
         ILogger<BoardController> logger)
     {
         _auditLogService = auditLogService;
         _onboardingService = onboardingService;
         _teamResourceService = teamResourceService;
         _userManager = userManager;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -38,6 +43,13 @@ public class BoardController : Controller
     {
         var dashboardData = await _onboardingService.GetAdminDashboardAsync();
         var recentEntries = await _auditLogService.GetRecentAsync(15);
+
+        var languageDistribution = await _dbContext.Users
+            .Where(u => u.Profile != null && u.Profile.IsApproved && !u.Profile.IsSuspended)
+            .GroupBy(u => u.PreferredLanguage)
+            .Select(g => new { Language = g.Key, Count = g.Count() })
+            .OrderByDescending(g => g.Count)
+            .ToListAsync();
 
         var viewModel = new AdminDashboardViewModel
         {
@@ -59,7 +71,10 @@ public class BoardController : Controller
             ApprovedApplications = dashboardData.ApprovedApplications,
             RejectedApplications = dashboardData.RejectedApplications,
             ColaboradorApplied = dashboardData.ColaboradorApplied,
-            AsociadoApplied = dashboardData.AsociadoApplied
+            AsociadoApplied = dashboardData.AsociadoApplied,
+            LanguageDistribution = languageDistribution
+                .Select(l => new LanguageCountViewModel { Language = l.Language, Count = l.Count })
+                .ToList()
         };
 
         return View(viewModel);
