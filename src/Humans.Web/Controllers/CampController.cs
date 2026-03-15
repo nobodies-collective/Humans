@@ -110,6 +110,9 @@ public class CampController : Controller
             }
         }
 
+        var pendingSeasons = await _campService.GetPendingSeasonsAsync();
+        ViewBag.PendingCount = pendingSeasons.Count;
+
         var viewModel = new CampIndexViewModel
         {
             Year = year,
