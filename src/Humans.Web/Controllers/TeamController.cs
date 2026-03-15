@@ -569,18 +569,18 @@ public class TeamController : Controller
     [HttpPost("Sync/Execute/{resourceId}")]
     [Authorize(Roles = "Admin")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SyncExecute(Guid resourceId, [FromQuery] SyncAction action)
+    public async Task<IActionResult> SyncExecute(Guid resourceId)
     {
-        var result = await _googleSyncService.SyncSingleResourceAsync(resourceId, action);
+        var result = await _googleSyncService.SyncSingleResourceAsync(resourceId, SyncAction.Execute);
         return Json(result);
     }
 
     [HttpPost("Sync/ExecuteAll/{resourceType}")]
     [Authorize(Roles = "Admin")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SyncExecuteAll(GoogleResourceType resourceType, [FromQuery] SyncAction action)
+    public async Task<IActionResult> SyncExecuteAll(GoogleResourceType resourceType)
     {
-        var result = await _googleSyncService.SyncResourcesByTypeAsync(resourceType, action);
+        var result = await _googleSyncService.SyncResourcesByTypeAsync(resourceType, SyncAction.Execute);
         return Json(result);
     }
 
