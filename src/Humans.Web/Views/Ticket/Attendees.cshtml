@@ -4,10 +4,8 @@
 }
 
 <div class="container-fluid px-4">
-    <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
-        <h1>Ticket Attendees</h1>
-        <a asp-action="Index" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left"></i> Dashboard</a>
-    </div>
+    <h1 class="mt-4">Ticket Attendees</h1>
+    <partial name="_TicketNav" />
 
     <!-- Search & Filters -->
     <form method="get" class="row g-2 mb-3">

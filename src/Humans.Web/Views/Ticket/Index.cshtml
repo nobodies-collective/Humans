@@ -6,6 +6,8 @@
 <div class="container-fluid px-4">
     <h1 class="mt-4">Tickets</h1>
 
+    <partial name="_TicketNav" />
+
     @if (!Model.IsConfigured)
     {
         <div class="alert alert-warning">
@@ -171,14 +173,10 @@
         </div>
     </div>
 
-    <!-- Quick Links -->
+    <!-- Export Links -->
     <div class="row mb-4">
-        <div class="col-auto"><a asp-action="Orders" class="btn btn-outline-primary"><i class="fa-solid fa-receipt"></i> Orders</a></div>
-        <div class="col-auto"><a asp-action="Attendees" class="btn btn-outline-primary"><i class="fa-solid fa-users"></i> Attendees</a></div>
-        <div class="col-auto"><a asp-action="Codes" class="btn btn-outline-primary"><i class="fa-solid fa-ticket"></i> Codes</a></div>
-        <div class="col-auto"><a asp-action="GateList" class="btn btn-outline-primary"><i class="fa-solid fa-door-open"></i> Gate List</a></div>
-        <div class="col-auto"><a asp-action="ExportAttendees" class="btn btn-outline-secondary"><i class="fa-solid fa-download"></i> Export Attendees</a></div>
-        <div class="col-auto"><a asp-action="ExportOrders" class="btn btn-outline-secondary"><i class="fa-solid fa-download"></i> Export Orders</a></div>
+        <div class="col-auto"><a asp-action="ExportAttendees" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-download"></i> Export Attendees CSV</a></div>
+        <div class="col-auto"><a asp-action="ExportOrders" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-download"></i> Export Orders CSV</a></div>
     </div>
 
     <!-- Sync Status -->
