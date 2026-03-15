@@ -12,14 +12,21 @@ This feature creates a dedicated **Tickets section** in the application that giv
 
 ## Scope
 
+### Scale
+- **2,000–3,000 tickets** across **1,500+ orders** for a single event
+- All table views must support **search, sorting, and server-side pagination**
+- Dashboard summary page focuses on stats, charts, and problems — detail is on separate sub-pages
+
 ### In Scope
 - Vendor-agnostic `ITicketVendorService` interface with TicketTailor as first implementation
 - Hangfire job polling TicketTailor API for orders and issued tickets
 - New `TicketOrder` and `TicketAttendee` entities with auto-matching to humans by email
-- Top-level `/Tickets` dashboard with summary cards, sales table, and operational tabs
+- Top-level `/Tickets` section: summary dashboard + separate detail pages for orders, attendees, code tracking
+- **Daily ticket sales chart** with 7-day rolling average (for projecting total sales)
 - Campaign integration: discount code redemption tracking, API-based code generation
 - `TicketAdmin` role for access control
 - Single active event model (configured in settings)
+- **Comprehensive test coverage** — this feature cannot be properly QA-tested (no real TT data in QA environment), so unit tests with realistic mock data are critical for confidence in production
 
 ### Out of Scope
 - Webhook receiver (future enhancement)
@@ -172,53 +179,103 @@ Swap vendor by changing the DI registration — no other code changes needed.
 
 Top-level nav item **"Tickets"** visible only to `TicketAdmin` and `Admin` roles.
 
-### Dashboard Page (`/Tickets`)
+### Page Structure
+
+The `/Tickets` root page is a **summary dashboard** — stats, charts, and problems at a glance. Detail lives on separate sub-pages to avoid overwhelming the ticketing team with 1,500+ rows of data on the landing page.
+
+| Route | Purpose |
+|-------|---------|
+| `/Tickets` | Summary dashboard — cards, charts, problems |
+| `/Tickets/Orders` | Full order list with search/sort/pagination |
+| `/Tickets/Attendees` | Full attendee list with search/sort/pagination |
+| `/Tickets/Codes` | Code tracking — redemption status tied to campaigns |
+| `/Tickets/GateList` | Gate list for event logistics (stub for June) |
+
+### Summary Dashboard (`/Tickets`)
 
 **Summary Cards** (top row, 4 cards):
-1. **Tickets Sold** — "245 / 500" with progress bar
-2. **Revenue** — "€36,750" formatted with currency
+1. **Tickets Sold** — "1,847 / 3,000" with progress bar
+2. **Revenue** — "€277,050" formatted with currency
 3. **Avg. Price** — "€150"
-4. **Remaining** — "255 tickets left"
+4. **Remaining** — "1,153 tickets left"
 
-**Sales Table** (main content, default tab):
-| Date | Purchaser | Ticket Holder(s) | Ticket Type | Price | Code Used | Human |
-|------|-----------|-------------------|-------------|-------|-----------|-------|
-| 15 Mar 2026 | Jane Doe | Jane Doe | Full Week | €150 | NOBO25 | [Jane D.] ✓ |
-| 14 Mar 2026 | John Smith | John Smith, Mary Smith | Weekend | €200 | — | [John S.] ✓ · — |
+**Daily Sales Chart** (main visual):
+- Bar chart: tickets sold per day over the life of the event sales period
+- Line overlay: 7-day rolling average
+- Useful for projecting total sales and spotting trends (e.g. "we're averaging 15/day, at this rate we'll sell out by July")
+- Built with Chart.js (already available via CDN — check About page for existing dependencies)
 
-- Purchaser column links to TT dashboard (if `VendorDashboardUrl` available)
-- Matched humans link to `/Admin/Humans/{id}` detail page
-- Unmatched attendees show "—" in Human column
-- Sortable by date (default: newest first)
-- Filterable by ticket type (dropdown)
-- Searchable by name/email
+**Problems / Attention Items**:
+- Unmatched orders count — "47 orders from non-humans" (link to filtered Orders view)
+- Failed sync indicator — if last sync errored
+- Low inventory warning — if remaining tickets < threshold (e.g. 10%)
 
-### "Who Hasn't Bought?" Tab
+**Recent Activity** (compact, last 10 orders):
+- Date, Purchaser, Ticket Count, Amount — quick glance, not the full detail table
+- "View all orders →" link to `/Tickets/Orders`
+
+**Sync Status Bar** (bottom):
+- "Last synced: 5 min ago · Next sync in 10 min" with "Sync Now" button
+- Shows error state if last sync failed
+
+### Orders Page (`/Tickets/Orders`)
+
+Full order list with **server-side search, sorting, and pagination** (1,500+ rows).
+
+| Date | Purchaser | Email | Tickets | Amount | Code Used | Matched | |
+|------|-----------|-------|---------|--------|-----------|---------|---|
+| 15 Mar | Jane Doe | jane@... | 1 | €150 | NOBO25 | ✓ [Jane D.] | → |
+| 14 Mar | John Smith | john@... | 2 | €300 | — | ✓ [John S.] | → |
+
+- **Search**: by purchaser name, email, or discount code
+- **Sort**: by date (default: newest first), amount, ticket count
+- **Filter**: by payment status, matched/unmatched, ticket type
+- **Pagination**: 25/50/100 per page
+- Purchaser links to TT dashboard (if `VendorDashboardUrl` available)
+- Matched human links to `/Admin/Humans/{id}`
+- Row click → order detail (expandable or separate page showing individual attendees)
+
+### Attendees Page (`/Tickets/Attendees`)
+
+Full attendee list (2,000–3,000 rows) with **server-side search, sorting, and pagination**.
+
+| Name | Email | Ticket Type | Price | Status | Matched Human | Order |
+|------|-------|-------------|-------|--------|---------------|-------|
+| Jane Doe | jane@... | Full Week | €150 | Valid | [Jane D.] ✓ | #1234 |
+| Mary Smith | — | Weekend | €100 | Valid | — | #1235 |
+
+- **Search**: by attendee name or email
+- **Sort**: by name, ticket type, price, status
+- **Filter**: by ticket type, status (valid/void/checked-in), matched/unmatched
+- **Pagination**: 25/50/100 per page
+
+### "Who Hasn't Bought?" Section
+
+Available as a filtered view within Attendees or as a standalone section on the dashboard.
 
 Lists humans with `MembershipStatus = Active` (i.e. fully onboarded volunteers — profile complete, consents given, consent check cleared) who have no matched `TicketAttendee` record:
 - Filterable by team and membership tier (Volunteer/Colaborador/Asociado)
 - Shows: Name, Email, Teams, Tier
+- Searchable by name/email
 - Useful for outreach ("these 50 Colaboradores haven't bought tickets yet")
 - Note: attendees without email (`AttendeeEmail` is nullable) will never auto-match; this is an accepted limitation documented here
 
-### "Gate List" Tab
-
-Attendee list for event logistics:
-- Name, Ticket Type, Status (valid/void/checked-in)
-- Exportable to CSV
-- Filterable by ticket type
-
-### "Code Tracking" Tab
+### Code Tracking Page (`/Tickets/Codes`)
 
 Ties into campaign system:
 - Summary: X codes sent, Y redeemed, Z unused (with percentage)
 - Per-campaign breakdown with links to Campaign Detail
-- Visual indicator of redemption rate
+- Visual indicator of redemption rate (progress bar per campaign)
+- Searchable by code string
+- Table of individual codes with status (sent/redeemed/unused), grant recipient, redemption date
 
-### Sync Status Bar
+### Gate List Page (`/Tickets/GateList`) — Stub for June
 
-Bottom of page: "Last synced: 5 min ago · Next sync in 10 min" with "Sync Now" button.
-Shows error state if last sync failed.
+Placeholder page with basic attendee list for event logistics:
+- Name, Ticket Type, Status (valid/void/checked-in)
+- Exportable to CSV
+- Filterable by ticket type
+- **Note**: This is a stub/mockup for now. Full gate list functionality (early entry, VIP, etc.) targeted for June implementation.
 
 ## Campaign Integration
 
@@ -278,16 +335,42 @@ Note: Board is intentionally **excluded** from ticket/revenue access. This conta
 - Partial sync: if sync fails mid-way, already-upserted records are kept (idempotent by vendor ID)
 - Missing API key: sync job skips with warning log, dashboard shows "Not configured" state
 - Email matching: case-insensitive ordinal comparison. No fuzzy matching — exact email match only.
-- Rate limiting: TT allows 5000 requests per 30 minutes. With ~500 attendees and cursor pagination, a sync cycle uses ~5-10 requests. No concern.
+- Rate limiting: TT allows 5000 requests per 30 minutes. With 2,000–3,000 attendees across 1,500+ orders and cursor pagination (100 per page), a full sync uses ~50 requests. Incremental syncs (since last sync) will be much smaller. No concern.
 
 ## Testing Strategy
 
-- Unit tests for `TicketSyncService` with in-memory DbContext and mocked `ITicketVendorService`
-- Test auto-matching logic (email match, no match, multiple matches)
-- Test discount code redemption linking to CampaignGrant
-- Test upsert idempotency (re-syncing same data doesn't create duplicates)
-- Controller tests for authorization (TicketAdmin access, non-TicketAdmin denied)
-- No integration tests against live TT API (use mocks)
+**Critical context**: This feature cannot be properly tested in QA — there's no real TicketTailor data in the QA environment, and creating realistic test data in TT would require paid tickets. This means much of this code will be **virgin in production**. Test coverage and realistic mock data are the primary safety net.
+
+### Unit Tests (TicketSyncService)
+- In-memory DbContext with mocked `ITicketVendorService`
+- **Realistic mock data**: generate 1,500+ mock orders with 2,000+ attendees to match production scale
+- Auto-matching logic: exact email match, no match, multiple emails per user, case-insensitive
+- Discount code redemption: code found in single campaign, code in multiple campaigns (ambiguity), code not found
+- Upsert idempotency: re-syncing same data doesn't create duplicates
+- Incremental sync: only fetches orders since last sync timestamp
+- Error handling: API failure mid-sync preserves already-synced data
+
+### Unit Tests (TicketTailorService)
+- HTTP response parsing with recorded/mock API responses
+- Cursor-based pagination assembly (multiple pages → single result list)
+- Error response handling (auth failure, rate limit, server error)
+- Field mapping to vendor-agnostic DTOs
+
+### Unit Tests (Dashboard/Chart Data)
+- Daily sales aggregation from order data
+- 7-day rolling average calculation
+- Summary card computations (total, avg price, remaining)
+- "Who hasn't bought?" query logic with various membership status combinations
+
+### Controller Tests
+- Authorization: TicketAdmin access allowed, non-TicketAdmin denied, Admin fallback works
+- Search/sort/pagination parameter handling
+- Empty state (no data synced yet)
+
+### Mock Data Seeder
+- Development seed data generator that populates realistic ticket data locally
+- Useful for UI development and manual verification
+- Generates orders spread over weeks with varying ticket types, prices, and match rates
 
 ## Documentation Updates Required
 
@@ -304,4 +387,6 @@ When implementing this feature, update:
 - Historical event data and year-over-year comparisons
 - Direct Stripe dashboard links (if TT API exposes Stripe payment IDs)
 - Attendee check-in via the Humans app
-- Revenue forecasting / sales velocity charts
+- Full gate list functionality with early entry, VIP lists, etc. (June target)
+- Sales projection / sell-out date estimation based on rolling average
+- Revenue breakdown by ticket type (pie/bar chart)
