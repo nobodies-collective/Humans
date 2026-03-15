@@ -23,9 +23,15 @@ Show a human's assigned campaign codes on their admin detail page.
 #### #77: Reasons why an Asociado is accepted (or applying)
 Board members voting on Asociado applications should be required to select which bylaw criteria the applicant meets. Optionally, the applicant could also state their reasons when applying.
 
+#### #116: Add per-team Google Drive permission level configuration
+Configurable management and member permission roles per Google Drive resource (currently hardcoded as `writer`). Supports `reader`, `commenter`, `writer`, `fileOrganizer`.
+
 ---
 
 ### Priority 3: Medium Features
+
+#### #117: Add ticket vendor integration — coupon tracking, purchase matching, code generation
+Vendor-agnostic `ITicketVendor` interface (TicketTailor first). Sync discount code redemption, match ticket purchases to humans by email, generate codes via API. Needed for early entry lists and event logistics.
 
 #### #111: Add organizational email account management (@nobodies.team)
 Associate @nobodies.team emails with humans, force as primary for communication + Google services. Admin UI to provision accounts. Profile badge for humans with org accounts.
