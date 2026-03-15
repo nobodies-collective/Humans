@@ -8,6 +8,7 @@ using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Infrastructure.Data;
 using Humans.Web.Extensions;
 using Humans.Web.Models;
 
@@ -25,6 +26,7 @@ public class HumanController : Controller
     private readonly IRoleAssignmentService _roleAssignmentService;
     private readonly IClock _clock;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly HumansDbContext _dbContext;
 
     public HumanController(
         IProfileService profileService,
@@ -34,7 +36,8 @@ public class HumanController : Controller
         IOnboardingService onboardingService,
         IRoleAssignmentService roleAssignmentService,
         IClock clock,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        HumansDbContext dbContext)
     {
         _profileService = profileService;
         _emailService = emailService;
@@ -44,6 +47,7 @@ public class HumanController : Controller
         _roleAssignmentService = roleAssignmentService;
         _clock = clock;
         _localizer = localizer;
+        _dbContext = dbContext;
     }
 
     [HttpGet("{id:guid}")]
@@ -222,6 +226,14 @@ public class HumanController : Controller
         {
             return NotFound();
         }
+
+        var campaignGrants = await _dbContext.CampaignGrants
+            .Include(g => g.Campaign)
+            .Include(g => g.Code)
+            .Where(g => g.UserId == id)
+            .OrderByDescending(g => g.AssignedAt)
+            .ToListAsync();
+        ViewBag.CampaignGrants = campaignGrants;
 
         var now = _clock.GetCurrentInstant();
 
