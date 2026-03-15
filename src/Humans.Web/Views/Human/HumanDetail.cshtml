@@ -8,9 +8,9 @@
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-controller="Board" asp-action="Index">@Localizer["Nav_Admin"]</a></li>
-        <li class="breadcrumb-item"><a asp-action="Humans">@Localizer["AdminHumans_Title"]</a></li>
-        <li class="breadcrumb-item active" aria-current="page">@Model.DisplayName</li>
+        <li class="breadcrumb-item"><a asp-action="Humans">Humans</a></li>
+        <li class="breadcrumb-item"><a asp-action="View" asp-route-id="@Model.UserId">@Model.DisplayName</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Admin</li>
     </ol>
 </nav>
 
@@ -111,9 +111,6 @@
                 </dl>
             </div>
         </div>
-
-        @* Profile card (shared component) *@
-        <vc:profile-card user-id="@Model.UserId" view-mode="@ProfileCardViewMode.Admin" />
 
         @if (!string.IsNullOrEmpty(Model.AdminNotes))
         {
