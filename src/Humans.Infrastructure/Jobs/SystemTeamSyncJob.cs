@@ -94,16 +94,15 @@ public class SystemTeamSyncJob : ISystemTeamSync
         }
 
         // Get all users with profiles that are approved and not suspended
-        var allUserIds = await _dbContext.Profiles
+        var allApprovedIds = await _dbContext.Profiles
             .AsNoTracking()
-            .Where(p => !p.IsSuspended && p.IsApproved)
+            .Where(p => p.IsApproved && !p.IsSuspended)
             .Select(p => p.UserId)
             .ToListAsync(cancellationToken);
 
-        // Filter to those with all required consents for the Volunteers team
-        var eligibleUserIdSet = await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(
-            allUserIds, SystemTeamIds.Volunteers, cancellationToken);
-        var eligibleUserIds = eligibleUserIdSet.ToList();
+        // Use shared partition to determine eligibility (Active = approved + not suspended + all consents signed)
+        var partition = await _membershipCalculator.PartitionUsersAsync(allApprovedIds, cancellationToken);
+        var eligibleUserIds = partition.Active.ToList();
 
         await SyncTeamMembershipAsync(team, eligibleUserIds, cancellationToken);
     }
