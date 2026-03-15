@@ -71,3 +71,13 @@ CampaignCode 1──1 CampaignGrant (once assigned)
 CampaignGrant n──1 User
 CampaignGrant 1──n EmailOutboxMessage
 ```
+
+## Ticket Vendor Integration
+
+CampaignGrant has a `RedeemedAt` (Instant?) field set by the ticket sync job when it discovers a grant's discount code was used in a ticket purchase. This enables:
+- Redemption tracking on the Campaign Detail page ("X of Y codes redeemed")
+- Code tracking on the `/Tickets/Codes` page
+
+Additionally, Draft campaigns support API-based code generation via `ITicketVendorService.GenerateDiscountCodesAsync()` as an alternative to CSV import.
+
+See [24. Ticket Vendor Integration](24-ticket-vendor-integration.md) for details.

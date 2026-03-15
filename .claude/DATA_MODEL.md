@@ -33,6 +33,9 @@
 | CampaignCode | Individual code belonging to a campaign |
 | CampaignGrant | Assignment of a code to a user |
 | SystemSetting | Key/value store for runtime configuration (e.g., outbox pause flag) |
+| TicketOrder | Ticket purchase order synced from vendor (one per purchase) |
+| TicketAttendee | Individual ticket holder (issued ticket, multiple per order) |
+| TicketSyncState | Singleton tracking ticket sync operational state |
 
 ## Relationships
 
@@ -84,6 +87,10 @@ CampaignGrant 1──n EmailOutboxMessage
 
 EmailOutboxMessage n──1 User (optional)
 EmailOutboxMessage n──1 CampaignGrant (optional)
+
+TicketOrder 1──n TicketAttendee
+TicketOrder n──1 User (MatchedUser, optional — auto-matched by email)
+TicketAttendee n──1 User (MatchedUser, optional — auto-matched by email)
 ```
 
 ## User Entity
