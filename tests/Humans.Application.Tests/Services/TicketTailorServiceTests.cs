@@ -1,0 +1,184 @@
+using System.Net;
+using System.Text.Json;
+using AwesomeAssertions;
+using Humans.Infrastructure.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Xunit;
+
+namespace Humans.Application.Tests.Services;
+
+public class TicketTailorServiceTests
+{
+    private static TicketTailorService CreateService(HttpMessageHandler handler)
+    {
+        var client = new HttpClient(handler);
+        var settings = Options.Create(new TicketVendorSettings
+        {
+            EventId = "ev_test",
+            SyncIntervalMinutes = 15,
+            ApiKey = "test_key"
+        });
+
+        return new TicketTailorService(client, settings,
+            NullLogger<TicketTailorService>.Instance);
+    }
+
+    [Fact]
+    public async Task GetOrdersAsync_ParsesOrderResponse()
+    {
+        var handler = new MockHttpHandler();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            data = new[]
+            {
+                new
+                {
+                    id = "ord_001",
+                    buyer_first_name = "Jane",
+                    buyer_last_name = "Doe",
+                    buyer_email = "jane@example.com",
+                    total = 15000,
+                    currency = "eur",
+                    voucher_code = "NOBO25",
+                    status = "completed",
+                    created_at = "1716811200"
+                }
+            },
+            links = new { next = (string?)null }
+        });
+
+        var service = CreateService(handler);
+        var orders = await service.GetOrdersAsync(null, "ev_test");
+
+        orders.Should().HaveCount(1);
+        orders[0].BuyerName.Should().Be("Jane Doe");
+        orders[0].TotalAmount.Should().Be(150m);
+        orders[0].DiscountCode.Should().Be("NOBO25");
+    }
+
+    [Fact]
+    public async Task GetOrdersAsync_HandlesPagination()
+    {
+        var handler = new MockHttpHandler();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            data = new[]
+            {
+                new
+                {
+                    id = "ord_001", buyer_first_name = "A", buyer_last_name = "B",
+                    buyer_email = "a@b.com", total = 100, currency = "eur",
+                    voucher_code = (string?)null, status = "completed", created_at = "1716811200"
+                }
+            },
+            links = new { next = "has_more" }
+        });
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            data = new[]
+            {
+                new
+                {
+                    id = "ord_002", buyer_first_name = "C", buyer_last_name = "D",
+                    buyer_email = "c@d.com", total = 200, currency = "eur",
+                    voucher_code = (string?)null, status = "completed", created_at = "1716811200"
+                }
+            },
+            links = new { next = (string?)null }
+        });
+
+        var service = CreateService(handler);
+        var orders = await service.GetOrdersAsync(null, "ev_test");
+
+        orders.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task GetOrdersAsync_ThrowsOnApiError()
+    {
+        var handler = new MockHttpHandler();
+        handler.EnqueueResponse(HttpStatusCode.Unauthorized, new { error = "Invalid API key" });
+
+        var service = CreateService(handler);
+        var act = () => service.GetOrdersAsync(null, "ev_test");
+
+        await act.Should().ThrowAsync<HttpRequestException>();
+    }
+
+    [Fact]
+    public async Task GetIssuedTicketsAsync_ParsesTicketResponse()
+    {
+        var handler = new MockHttpHandler();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            data = new[]
+            {
+                new
+                {
+                    id = "it_001",
+                    first_name = "Jane",
+                    last_name = "Doe",
+                    email = "jane@example.com",
+                    ticket_type_name = "Full Week",
+                    price = 15000,
+                    status = "valid",
+                    order_id = "ord_001"
+                }
+            },
+            links = new { next = (string?)null }
+        });
+
+        var service = CreateService(handler);
+        var tickets = await service.GetIssuedTicketsAsync(null, "ev_test");
+
+        tickets.Should().HaveCount(1);
+        tickets[0].AttendeeName.Should().Be("Jane Doe");
+        tickets[0].Price.Should().Be(150m);
+        tickets[0].TicketTypeName.Should().Be("Full Week");
+        tickets[0].VendorOrderId.Should().Be("ord_001");
+    }
+
+    [Fact]
+    public async Task GetEventSummaryAsync_ParsesEventResponse()
+    {
+        var handler = new MockHttpHandler();
+        handler.EnqueueResponse(HttpStatusCode.OK, new
+        {
+            name = "Nowhere 2026",
+            total_holds = 3000,
+            total_issued_tickets = 1847
+        });
+
+        var service = CreateService(handler);
+        var summary = await service.GetEventSummaryAsync("ev_test");
+
+        summary.EventName.Should().Be("Nowhere 2026");
+        summary.TotalCapacity.Should().Be(3000);
+        summary.TicketsSold.Should().Be(1847);
+        summary.TicketsRemaining.Should().Be(1153);
+    }
+}
+
+/// <summary>Simple mock handler for testing HTTP responses.</summary>
+public sealed class MockHttpHandler : HttpMessageHandler
+{
+    private readonly Queue<HttpResponseMessage> _responses = new();
+
+    public void EnqueueResponse(HttpStatusCode status, object body)
+    {
+        _responses.Enqueue(new HttpResponseMessage(status)
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(body),
+                System.Text.Encoding.UTF8,
+                "application/json")
+        });
+    }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken ct)
+    {
+        return Task.FromResult(_responses.Dequeue());
+    }
+}
