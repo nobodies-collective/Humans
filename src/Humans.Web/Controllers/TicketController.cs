@@ -429,11 +429,13 @@ public class TicketController : Controller
             .Include(u => u.UserEmails)
             .Include(u => u.TeamMemberships).ThenInclude(tm => tm.Team)
             .Where(u => !matchedUserIds.Contains(u.Id))
+            .AsSplitQuery()
             .ToListAsync();
 
         var volunteersTeamId = await _dbContext.Set<Domain.Entities.Team>()
             .Where(t => t.SystemTeamType == Domain.Enums.SystemTeamType.Volunteers)
             .Select(t => t.Id)
+            .OrderBy(id => id)
             .FirstOrDefaultAsync();
 
         var activeHumans = users
