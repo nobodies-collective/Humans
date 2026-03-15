@@ -28,6 +28,8 @@ using Microsoft.Extensions.Localization;
 using Npgsql;
 using Humans.Infrastructure.Logging;
 using Serilog;
+using Serilog.Events;
+using Humans.Web.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,7 +39,8 @@ var logConfig = new LoggerConfiguration()
     .Enrich.FromLogContext()
     .Enrich.WithProperty("Application", "Humans.Web")
     .Enrich.With<PiiRedactionEnricher>()
-    .WriteTo.Console();
+    .WriteTo.Console()
+    .WriteTo.Sink(InMemoryLogSink.Instance, LogEventLevel.Warning);
 
 if (Debugger.IsAttached)
 {

@@ -99,7 +99,7 @@ public class AdminController : Controller
     [HttpPost("SyncSystemTeams")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SyncSystemTeams(
-        [FromServices] Infrastructure.Jobs.SystemTeamSyncJob systemTeamSyncJob)
+        [FromServices] Humans.Infrastructure.Jobs.SystemTeamSyncJob systemTeamSyncJob)
     {
         try
         {
@@ -113,6 +113,14 @@ public class AdminController : Controller
         }
 
         return RedirectToAction(nameof(Index));
+    }
+
+    [HttpGet("Logs")]
+    public IActionResult Logs(int count = 50)
+    {
+        count = Math.Clamp(count, 1, 200);
+        var events = Web.Infrastructure.InMemoryLogSink.Instance.GetEvents(count);
+        return View(events);
     }
 
     [HttpGet("Configuration")]
