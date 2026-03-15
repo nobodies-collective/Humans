@@ -57,7 +57,9 @@ public class TicketController : Controller
         // Count both Valid and CheckedIn — both are sold tickets
         var ticketsSold = await attendees.CountAsync(a =>
             a.Status == TicketAttendeeStatus.Valid || a.Status == TicketAttendeeStatus.CheckedIn);
-        var revenue = await orders.SumAsync(o => o.TotalAmount);
+        var revenue = await orders
+            .Where(o => o.PaymentStatus == TicketPaymentStatus.Paid)
+            .SumAsync(o => o.TotalAmount);
         var avgPrice = ticketsSold > 0 ? revenue / ticketsSold : 0;
         var unmatchedCount = await orders.CountAsync(o => o.MatchedUserId == null);
 
@@ -159,6 +161,8 @@ public class TicketController : Controller
         string? filterPaymentStatus = null, string? filterTicketType = null,
         bool? filterMatched = null)
     {
+        pageSize = Math.Clamp(pageSize, 1, 250);
+
         var query = _dbContext.TicketOrders
             .Include(o => o.Attendees)
             .Include(o => o.MatchedUser)
@@ -250,6 +254,8 @@ public class TicketController : Controller
         string? filterTicketType = null, string? filterStatus = null,
         bool? filterMatched = null)
     {
+        pageSize = Math.Clamp(pageSize, 1, 250);
+
         var query = _dbContext.TicketAttendees
             .Include(a => a.MatchedUser)
             .Include(a => a.TicketOrder)
@@ -401,11 +407,21 @@ public class TicketController : Controller
         string? search, string? filterTeam = null, string? filterTier = null,
         int page = 1, int pageSize = 25)
     {
-        var matchedUserIds = await _dbContext.TicketAttendees
+        pageSize = Math.Clamp(pageSize, 1, 250);
+
+        var matchedFromAttendees = await _dbContext.TicketAttendees
             .Where(a => a.MatchedUserId != null)
             .Select(a => a.MatchedUserId!.Value)
             .Distinct()
             .ToListAsync();
+
+        var matchedFromOrders = await _dbContext.TicketOrders
+            .Where(o => o.MatchedUserId != null)
+            .Select(o => o.MatchedUserId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        var matchedUserIds = matchedFromAttendees.Union(matchedFromOrders).ToHashSet();
 
         // At ~500 users, loading all and filtering in-memory is fine
         var users = await _dbContext.Users
@@ -505,7 +521,7 @@ public class TicketController : Controller
         csv.AppendLine("Name,Email,Ticket Type,Price,Status,Order ID");
         foreach (var a in attendeeList)
         {
-            csv.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"\"{a.AttendeeName}\",\"{a.AttendeeEmail ?? ""}\",\"{a.TicketTypeName}\",{a.Price},{a.Status},\"{a.TicketOrder.VendorOrderId}\"");
+            csv.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"{CsvEscape(a.AttendeeName)},{CsvEscape(a.AttendeeEmail)},{CsvEscape(a.TicketTypeName)},{a.Price},{a.Status},{CsvEscape(a.TicketOrder.VendorOrderId)}");
         }
 
         return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()),
@@ -525,10 +541,13 @@ public class TicketController : Controller
         csv.AppendLine("Date,Purchaser,Email,Tickets,Amount,Currency,Code,Status");
         foreach (var o in orderList)
         {
-            csv.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"\"{o.PurchasedAt.InUtc().Date}\",\"{o.BuyerName}\",\"{o.BuyerEmail}\",{o.Attendees.Count},{o.TotalAmount},{o.Currency},\"{o.DiscountCode ?? ""}\",{o.PaymentStatus}");
+            csv.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"{CsvEscape(o.PurchasedAt.InUtc().Date.ToString("yyyy-MM-dd", null))},{CsvEscape(o.BuyerName)},{CsvEscape(o.BuyerEmail)},{o.Attendees.Count},{o.TotalAmount},{o.Currency},{CsvEscape(o.DiscountCode)},{o.PaymentStatus}");
         }
 
         return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()),
             "text/csv", "orders-export.csv");
     }
+
+    private static string CsvEscape(string? s) =>
+        $"\"{(s ?? "").Replace("\"", "\"\"")}\"";
 }

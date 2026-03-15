@@ -90,6 +90,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ProcessGoogleSyncOutboxJob>();
         services.AddScoped<ProcessEmailOutboxJob>();
         services.AddScoped<CleanupEmailOutboxJob>();
+        services.AddScoped<TicketSyncJob>();
 
         // Ticket vendor integration
         services.Configure<TicketVendorSettings>(opts =>

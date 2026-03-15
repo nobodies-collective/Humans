@@ -11,7 +11,7 @@ using Humans.Infrastructure.Data;
 
 namespace Humans.Web.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = $"{RoleNames.Admin},{RoleNames.TicketAdmin}")]
 [Route("Admin/Campaigns")]
 public class CampaignController : Controller
 {

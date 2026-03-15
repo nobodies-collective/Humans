@@ -202,7 +202,7 @@
                     <span class="badge bg-danger ms-2">Error</span>
                 }
             </span>
-            @if (!User.IsInRole("Board") || User.IsInRole("Admin") || User.IsInRole("TicketAdmin"))
+            @if (User.IsInRole(Humans.Domain.Constants.RoleNames.Admin) || User.IsInRole(Humans.Domain.Constants.RoleNames.TicketAdmin))
             {
                 <form asp-action="Sync" method="post" class="d-inline">
                     @Html.AntiForgeryToken()

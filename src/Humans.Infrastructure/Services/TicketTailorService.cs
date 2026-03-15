@@ -71,7 +71,7 @@ public class TicketTailorService : ITicketVendorService
         {
             var url = $"{BaseUrl}/orders?event_id={eventId}";
             if (since.HasValue)
-                url += $"&created_at.gte={since.Value.ToUnixTimeSeconds()}";
+                url += $"&updated_at.gte={since.Value.ToUnixTimeSeconds()}";
             if (cursor != null)
                 url += $"&starting_after={cursor}";
 
@@ -118,7 +118,7 @@ public class TicketTailorService : ITicketVendorService
         {
             var url = $"{BaseUrl}/issued_tickets?event_id={eventId}";
             if (since.HasValue)
-                url += $"&created_at.gte={since.Value.ToUnixTimeSeconds()}";
+                url += $"&updated_at.gte={since.Value.ToUnixTimeSeconds()}";
             if (cursor != null)
                 url += $"&starting_after={cursor}";
 

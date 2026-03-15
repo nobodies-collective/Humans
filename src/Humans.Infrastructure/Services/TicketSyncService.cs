@@ -312,14 +312,24 @@ public class TicketSyncService : ITicketSyncService
         return codesRedeemed;
     }
 
-    private static TicketPaymentStatus ParsePaymentStatus(string status) =>
-        status.ToLowerInvariant() switch
+    private TicketPaymentStatus ParsePaymentStatus(string status)
+    {
+        var result = status.ToLowerInvariant() switch
         {
             "completed" or "paid" => TicketPaymentStatus.Paid,
             "pending" => TicketPaymentStatus.Pending,
             "refunded" => TicketPaymentStatus.Refunded,
-            _ => TicketPaymentStatus.Paid
+            _ => TicketPaymentStatus.Pending
         };
+
+        if (result == TicketPaymentStatus.Pending &&
+            !string.Equals(status, "pending", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Unknown payment status '{Status}' from vendor, defaulting to Pending", status);
+        }
+
+        return result;
+    }
 
     private static TicketAttendeeStatus ParseAttendeeStatus(string status) =>
         status.ToLowerInvariant() switch
