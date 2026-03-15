@@ -776,6 +776,7 @@
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Permisos de miembro de la junta</value></data>
   <data name="AdminAddRole_TeamsAdminDesc" xml:space="preserve"><value>Gestionar todos los equipos y membresías</value></data>
   <data name="AdminAddRole_ConsentCoordinatorDesc" xml:space="preserve"><value>Verificaciones de seguridad durante la incorporación</value></data>
+  <data name="AdminAddRole_CampAdminDesc" xml:space="preserve"><value>Gestionar el mapa del campamento y las fases de colocación</value></data>
   <data name="AdminAddRole_VolunteerCoordinatorDesc" xml:space="preserve"><value>Contacto de facilitación de incorporación</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notas (opcional)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Motivo de la asignaci&#xF3;n</value></data>
