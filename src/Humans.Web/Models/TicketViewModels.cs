@@ -70,6 +70,7 @@ public class TicketOrderRow
 {
     public Guid Id { get; set; }
     public Instant PurchasedAt { get; set; }
+    public string VendorOrderId { get; set; } = string.Empty;
     public string BuyerName { get; set; } = string.Empty;
     public string BuyerEmail { get; set; } = string.Empty;
     public int AttendeeCount { get; set; }

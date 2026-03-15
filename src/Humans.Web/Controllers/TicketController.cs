@@ -177,6 +177,7 @@ public class TicketController : Controller
             query = query.Where(o =>
                 o.BuyerName.ToLower().Contains(s) ||
                 o.BuyerEmail.ToLower().Contains(s) ||
+                o.VendorOrderId.ToLower().Contains(s) ||
                 (o.DiscountCode != null && o.DiscountCode.ToLower().Contains(s)));
 #pragma warning restore MA0011
         }
@@ -210,6 +211,7 @@ public class TicketController : Controller
             .Select(o => new TicketOrderRow
             {
                 Id = o.Id,
+                VendorOrderId = o.VendorOrderId,
                 PurchasedAt = o.PurchasedAt,
                 BuyerName = o.BuyerName,
                 BuyerEmail = o.BuyerEmail,
@@ -253,7 +255,7 @@ public class TicketController : Controller
         string? search, string sortBy = "name", bool sortDesc = false,
         int page = 1, int pageSize = 25,
         string? filterTicketType = null, string? filterStatus = null,
-        bool? filterMatched = null)
+        bool? filterMatched = null, string? filterOrderId = null)
     {
         pageSize = Math.Clamp(pageSize, 1, 250);
 
@@ -261,6 +263,9 @@ public class TicketController : Controller
             .Include(a => a.MatchedUser)
             .Include(a => a.TicketOrder)
             .AsQueryable();
+
+        if (!string.IsNullOrEmpty(filterOrderId))
+            query = query.Where(a => a.TicketOrder.VendorOrderId == filterOrderId);
 
         if (!string.IsNullOrWhiteSpace(search))
         {

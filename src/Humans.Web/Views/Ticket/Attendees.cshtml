@@ -91,7 +91,7 @@
                                 <span class="text-muted">&mdash;</span>
                             }
                         </td>
-                        <td><small>@a.VendorOrderId</small></td>
+                        <td><small><a asp-action="Orders" asp-route-search="@a.VendorOrderId"><code>@a.VendorOrderId</code></a></small></td>
                     </tr>
                 }
                 @if (Model.Attendees.Count == 0)
