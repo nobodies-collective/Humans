@@ -16,6 +16,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
         services.Configure<GoogleWorkspaceSettings>(configuration.GetSection(GoogleWorkspaceSettings.SectionName));
         services.Configure<TeamResourceManagementSettings>(configuration.GetSection(TeamResourceManagementSettings.SectionName));
+        services.Configure<CampMapOptions>(configuration.GetSection(CampMapOptions.SectionName));
 
         services.AddScoped<ISyncSettingsService, SyncSettingsService>();
 
@@ -24,6 +25,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<ITeamService, TeamService>();
         services.AddScoped<ICampService, CampService>();
+        services.AddScoped<ICampMapService, CampMapService>();
         services.AddScoped<IContactFieldService, ContactFieldService>();
         services.AddScoped<IUserEmailService, UserEmailService>();
         services.AddScoped<VolunteerHistoryService>();
