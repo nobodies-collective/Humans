@@ -39,6 +39,21 @@ public class ProfileServiceTests : IDisposable
             _dbContext, _onboardingService, _emailService, _auditLogService,
             _membershipCalculator, _clock, _cache,
             NullLogger<ProfileService>.Instance);
+
+        // Default: return all input IDs as Active (sufficient for most tests that don't filter by status)
+        _membershipCalculator
+            .PartitionUsersAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var ids = callInfo.Arg<IEnumerable<Guid>>().ToHashSet();
+                return Task.FromResult(new MembershipPartition(
+                    IncompleteSignup: [],
+                    PendingApproval: [],
+                    Active: ids,
+                    MissingConsents: [],
+                    Suspended: [],
+                    PendingDeletion: []));
+            });
     }
 
     public void Dispose()
@@ -774,6 +789,21 @@ public class ProfileServiceTests : IDisposable
         _dbContext.Profiles.Add(MakeProfile(u1, isApproved: true));
         _dbContext.Profiles.Add(MakeProfile(u2, isApproved: false));
         await _dbContext.SaveChangesAsync();
+
+        // u1 is Active, u2 is PendingApproval — partition must reflect this for filter to work
+        _membershipCalculator
+            .PartitionUsersAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var ids = callInfo.Arg<IEnumerable<Guid>>().ToHashSet();
+                return Task.FromResult(new MembershipPartition(
+                    IncompleteSignup: [],
+                    PendingApproval: ids.Where(id => id == u2).ToHashSet(),
+                    Active: ids.Where(id => id == u1).ToHashSet(),
+                    MissingConsents: [],
+                    Suspended: [],
+                    PendingDeletion: []));
+            });
 
         var result = await _service.GetFilteredHumansAsync(null, "active");
 
