@@ -84,7 +84,12 @@ public class TicketTailorService : ITicketVendorService
 
             foreach (var order in body.Data)
             {
-                var purchasedAt = Instant.FromUnixTimeSeconds(long.Parse(order.CreatedAt, System.Globalization.CultureInfo.InvariantCulture));
+                if (!long.TryParse(order.CreatedAt, System.Globalization.CultureInfo.InvariantCulture, out var epochSeconds))
+                {
+                    _logger.LogWarning("Order {OrderId} has unparseable created_at '{CreatedAt}', skipping", order.Id, order.CreatedAt);
+                    continue;
+                }
+                var purchasedAt = Instant.FromUnixTimeSeconds(epochSeconds);
 
                 orders.Add(new VendorOrderDto(
                     VendorOrderId: order.Id,
