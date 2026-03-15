@@ -180,6 +180,7 @@ builder.Services.AddOpenTelemetry()
         .AddRuntimeInstrumentation()
         .AddHttpClientInstrumentation()
         .AddMeter("Humans.Metrics")
+        .AddMeter("Npgsql")
         .AddPrometheusExporter());
 
 // Register activity source for custom tracing
