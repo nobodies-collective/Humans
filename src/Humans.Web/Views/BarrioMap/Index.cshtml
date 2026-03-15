@@ -1,0 +1,404 @@
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Barrio Map";
+    var nonce = Context.Items["CspNonce"]?.ToString() ?? string.Empty;
+    var isPlacementOpen = (bool)ViewBag.IsPlacementOpen;
+    var isMapAdmin = (bool)ViewBag.IsMapAdmin;
+    var userCampSeasonId = (string)ViewBag.UserCampSeasonId;
+    var seasonsWithout = (List<Humans.Application.Interfaces.CampSeasonSummaryDto>)ViewBag.SeasonsWithoutPolygon;
+    var year = (int)ViewBag.Year;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@@maplibre/maplibre-gl-draw@1.4.0/dist/maplibre-gl-draw.css" />
+    <style nonce="@nonce">
+        #map { height: calc(100vh - 56px); width: 100%; }
+        #map-toolbar {
+            position: absolute; top: 70px; left: 10px; z-index: 10;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        #area-badge {
+            position: absolute; bottom: 30px; left: 10px; z-index: 10;
+            background: rgba(0,0,0,0.7); color: white;
+            padding: 4px 10px; border-radius: 4px; font-size: 13px;
+            display: none;
+        }
+        .remote-cursor {
+            background: rgba(255,165,0,0.85); color: white;
+            padding: 2px 7px; border-radius: 4px; font-size: 12px;
+            white-space: nowrap; pointer-events: none;
+        }
+    </style>
+}
+
+<div style="position:relative;">
+    <div id="map"></div>
+
+    <!-- Toolbar -->
+    <div id="map-toolbar">
+        @if (isPlacementOpen && !string.IsNullOrEmpty(userCampSeasonId))
+        {
+            <button id="add-my-barrio-btn" class="btn btn-primary btn-sm shadow">
+                <i class="fa fa-plus me-1"></i> Add my barrio on the map
+            </button>
+        }
+        @if (isMapAdmin && seasonsWithout.Any())
+        {
+            <div id="add-barrio-container" class="d-flex gap-2 align-items-center">
+                <select id="add-barrio-select" class="form-select form-select-sm shadow" style="width:200px;">
+                    <option value="">Add a barrio…</option>
+                    @foreach (var s in seasonsWithout)
+                    {
+                        <option value="@s.CampSeasonId">@s.CampName</option>
+                    }
+                </select>
+            </div>
+        }
+        <button id="save-btn" class="btn btn-success btn-sm shadow" disabled>
+            <i class="fa fa-save me-1"></i> Save
+        </button>
+        <button id="history-btn" class="btn btn-outline-light btn-sm shadow" disabled>
+            <i class="fa fa-history me-1"></i> History
+        </button>
+        @if (isMapAdmin)
+        {
+            <a href="/BarrioMap/Admin" class="btn btn-outline-light btn-sm shadow">
+                <i class="fa fa-cog me-1"></i> Admin
+            </a>
+        }
+    </div>
+
+    <div id="area-badge"><span id="area-display"></span></div>
+</div>
+
+<!-- History offcanvas -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="history-panel" style="width:360px;">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title">Polygon History</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-2" id="history-list">
+        <p class="text-muted text-center py-4">Loading…</p>
+    </div>
+</div>
+
+<!-- Anti-forgery token for AJAX calls -->
+@Html.AntiForgeryToken()
+
+@section Scripts {
+    <script nonce="@nonce" src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script nonce="@nonce" src="https://unpkg.com/@@maplibre/maplibre-gl-draw@1.4.0/dist/maplibre-gl-draw.js"></script>
+    <script nonce="@nonce" src="https://unpkg.com/@@turf/turf@7.1.0/turf.min.js"></script>
+    <script nonce="@nonce" src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+    <script nonce="@nonce">
+        // --- Server-side constants ---
+        const USER_CAMP_SEASON_ID = '@userCampSeasonId';
+        const IS_PLACEMENT_OPEN = @(isPlacementOpen ? "true" : "false");
+        const IS_MAP_ADMIN = @(isMapAdmin ? "true" : "false");
+
+        const ESRI_TILES = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+        const MAP_CENTER = [-0.13717, 41.69964]; // Nowhere festival site
+        const MAP_ZOOM = 17;
+
+        let map, draw, state, connection;
+        let activeCampSeasonId = null;
+        let remoteCursors = {};
+
+        // --- Initialization ---
+
+        async function init() {
+            map = new maplibregl.Map({
+                container: 'map',
+                style: {
+                    version: 8,
+                    sources: { esri: { type: 'raster', tiles: [ESRI_TILES], tileSize: 256, attribution: '© Esri' } },
+                    layers: [{ id: 'esri-layer', type: 'raster', source: 'esri' }]
+                },
+                center: MAP_CENTER,
+                zoom: MAP_ZOOM
+            });
+
+            draw = new MaplibreGLDraw({ displayControlsDefault: false, controls: { trash: true } });
+            map.addControl(draw);
+            map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+            map.on('draw.create', onDrawChange);
+            map.on('draw.update', onDrawChange);
+            map.on('draw.delete', onDrawDelete);
+
+            await new Promise(resolve => map.on('load', resolve));
+
+            state = await (await fetch('/api/camp-map/state')).json();
+            renderMap();
+            updateAddMyBarrioVisibility();
+            initSignalR();
+        }
+
+        // --- Map rendering ---
+
+        function renderMap() {
+            ['limit-zone-line', 'limit-zone-fill', 'polygons-outline', 'polygons-fill'].forEach(id => {
+                if (map.getLayer(id)) map.removeLayer(id);
+            });
+            ['limit-zone', 'polygons'].forEach(id => {
+                if (map.getSource(id)) map.removeSource(id);
+            });
+
+            if (state.limitZoneGeoJson) {
+                map.addSource('limit-zone', { type: 'geojson', data: JSON.parse(state.limitZoneGeoJson) });
+                map.addLayer({ id: 'limit-zone-fill', type: 'fill', source: 'limit-zone', paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.08 } });
+                map.addLayer({ id: 'limit-zone-line', type: 'line', source: 'limit-zone', paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-dasharray': [4, 2] } });
+            }
+
+            const features = state.polygons.map(p => {
+                const f = JSON.parse(p.geoJson);
+                f.properties = Object.assign(f.properties || {}, {
+                    campSeasonId: p.campSeasonId,
+                    campName: p.campName,
+                    isOwn: p.campSeasonId === USER_CAMP_SEASON_ID
+                });
+                return f;
+            });
+
+            map.addSource('polygons', { type: 'geojson', data: { type: 'FeatureCollection', features } });
+            map.addLayer({
+                id: 'polygons-fill', type: 'fill', source: 'polygons',
+                paint: {
+                    'fill-color': ['case', ['boolean', ['get', 'isOwn'], false], '#00bfff', '#ff6600'],
+                    'fill-opacity': 0.35
+                }
+            });
+            map.addLayer({
+                id: 'polygons-outline', type: 'line', source: 'polygons',
+                paint: {
+                    'line-color': ['case', ['boolean', ['get', 'isOwn'], false], '#00bfff', '#ff6600'],
+                    'line-width': 2
+                }
+            });
+
+            map.on('click', 'polygons-fill', onPolygonClick);
+            map.on('mouseenter', 'polygons-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', 'polygons-fill', () => { map.getCanvas().style.cursor = ''; });
+        }
+
+        function onPolygonClick(e) {
+            const props = e.features[0].properties;
+            const campSeasonId = props.campSeasonId;
+            const isOwn = props.campSeasonId === USER_CAMP_SEASON_ID;
+            const canEdit = IS_MAP_ADMIN || (IS_PLACEMENT_OPEN && isOwn);
+
+            if (!canEdit) {
+                new maplibregl.Popup().setLngLat(e.lngLat)
+                    .setHTML(`<strong>${props.campName || 'Camp'}</strong>`)
+                    .addTo(map);
+                return;
+            }
+
+            activeCampSeasonId = campSeasonId;
+            draw.deleteAll();
+
+            const poly = state.polygons.find(p => p.campSeasonId === campSeasonId);
+            if (poly) {
+                const f = JSON.parse(poly.geoJson);
+                if (!f.id) f.id = 'active-polygon';
+                draw.add(f);
+                draw.changeMode('direct_select', { featureId: f.id });
+            }
+
+            document.getElementById('history-btn').disabled = false;
+            updateSaveButton();
+        }
+
+        // --- Toolbar state ---
+
+        function updateAddMyBarrioVisibility() {
+            const btn = document.getElementById('add-my-barrio-btn');
+            if (!btn) return;
+            const hasPolygon = state.polygons.some(p => p.campSeasonId === USER_CAMP_SEASON_ID);
+            btn.style.display = (IS_PLACEMENT_OPEN && USER_CAMP_SEASON_ID && !hasPolygon) ? '' : 'none';
+        }
+
+        function updateSaveButton() {
+            const features = draw.getAll().features;
+            document.getElementById('save-btn').disabled = !(features.length > 0 && activeCampSeasonId);
+            const areaBadge = document.getElementById('area-badge');
+            if (features.length > 0) {
+                const area = turf.area(features[0]);
+                document.getElementById('area-display').textContent = Math.round(area).toLocaleString() + ' m²';
+                areaBadge.style.display = '';
+            } else {
+                areaBadge.style.display = 'none';
+            }
+        }
+
+        function onDrawChange() { updateSaveButton(); }
+        function onDrawDelete() {
+            activeCampSeasonId = null;
+            document.getElementById('save-btn').disabled = true;
+            document.getElementById('history-btn').disabled = true;
+            document.getElementById('area-badge').style.display = 'none';
+        }
+
+        // --- Button handlers ---
+
+        document.getElementById('add-my-barrio-btn')?.addEventListener('click', () => {
+            activeCampSeasonId = USER_CAMP_SEASON_ID;
+            draw.deleteAll();
+            draw.changeMode('draw_polygon');
+        });
+
+        document.getElementById('add-barrio-select')?.addEventListener('change', e => {
+            const val = e.target.value;
+            if (!val) return;
+            activeCampSeasonId = val;
+            draw.deleteAll();
+            draw.changeMode('draw_polygon');
+            e.target.value = '';
+        });
+
+        document.getElementById('save-btn').addEventListener('click', async () => {
+            if (!activeCampSeasonId) return;
+            const features = draw.getAll().features;
+            if (!features.length) return;
+
+            const feature = features[0];
+            const areaSqm = turf.area(feature);
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+            const resp = await fetch(`/api/camp-map/polygons/${activeCampSeasonId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                body: JSON.stringify({ geoJson: JSON.stringify(feature), areaSqm })
+            });
+
+            if (resp.ok) {
+                draw.deleteAll();
+                activeCampSeasonId = null;
+                document.getElementById('save-btn').disabled = true;
+                document.getElementById('history-btn').disabled = true;
+                document.getElementById('area-badge').style.display = 'none';
+                // SignalR PolygonUpdated will refresh the map layer
+            } else {
+                alert('Failed to save polygon. Please try again.');
+            }
+        });
+
+        document.getElementById('history-btn').addEventListener('click', async () => {
+            if (!activeCampSeasonId) return;
+            const resp = await fetch(`/api/camp-map/polygons/${activeCampSeasonId}/history`);
+            const history = await resp.json();
+
+            const list = document.getElementById('history-list');
+            if (!history.length) {
+                list.innerHTML = '<p class="text-muted text-center py-4">No history yet.</p>';
+            } else {
+                list.innerHTML = history.map(h => `
+                    <div class="border-bottom py-2 px-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-semibold small">${h.modifiedByDisplayName}</div>
+                                <div class="text-muted" style="font-size:12px">${h.modifiedAt} &middot; ${Math.round(h.areaSqm).toLocaleString()} m²</div>
+                                <div class="text-secondary" style="font-size:12px">${h.note}</div>
+                            </div>
+                            <div class="d-flex gap-1 flex-shrink-0">
+                                <button class="btn btn-outline-secondary btn-sm py-0 preview-btn" data-id="${h.id}" data-geojson="${encodeURIComponent(h.geoJson)}">Preview</button>
+                                ${IS_MAP_ADMIN ? `<button class="btn btn-outline-warning btn-sm py-0 restore-btn" data-id="${h.id}">Restore</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                list.querySelectorAll('.preview-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        draw.deleteAll();
+                        draw.add(JSON.parse(decodeURIComponent(btn.dataset.geojson)));
+                    });
+                });
+                list.querySelectorAll('.restore-btn').forEach(btn => {
+                    btn.addEventListener('click', () => restoreVersion(btn.dataset.id));
+                });
+            }
+
+            bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('history-panel')).show();
+        });
+
+        async function restoreVersion(historyId) {
+            if (!activeCampSeasonId) return;
+            if (!confirm('Restore this polygon version? The current version will be saved to history first.')) return;
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            const resp = await fetch(`/api/camp-map/polygons/${activeCampSeasonId}/restore/${historyId}`, {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': token }
+            });
+            if (resp.ok) {
+                bootstrap.Offcanvas.getInstance(document.getElementById('history-panel'))?.hide();
+                draw.deleteAll();
+                activeCampSeasonId = null;
+            } else {
+                alert('Restore failed.');
+            }
+        }
+
+        // --- SignalR ---
+
+        function initSignalR() {
+            connection = new signalR.HubConnectionBuilder()
+                .withUrl('/hubs/camp-map')
+                .withAutomaticReconnect()
+                .build();
+
+            connection.on('PolygonUpdated', (campSeasonId, geoJson, areaSqm) => {
+                const idx = state.polygons.findIndex(p => p.campSeasonId === campSeasonId);
+                if (idx >= 0) {
+                    state.polygons[idx].geoJson = geoJson;
+                    state.polygons[idx].areaSqm = areaSqm;
+                } else {
+                    state.polygons.push({ campSeasonId, geoJson, areaSqm, campName: '', campSlug: '' });
+                }
+                // Refresh the GeoJSON source
+                const src = map.getSource('polygons');
+                if (src) {
+                    const features = state.polygons.map(p => {
+                        const f = JSON.parse(p.geoJson);
+                        f.properties = Object.assign(f.properties || {}, {
+                            campSeasonId: p.campSeasonId,
+                            campName: p.campName,
+                            isOwn: p.campSeasonId === USER_CAMP_SEASON_ID
+                        });
+                        return f;
+                    });
+                    src.setData({ type: 'FeatureCollection', features });
+                }
+                updateAddMyBarrioVisibility();
+            });
+
+            connection.on('CursorMoved', (connectionId, userName, lat, lng) => {
+                if (!remoteCursors[connectionId]) {
+                    const el = document.createElement('div');
+                    el.className = 'remote-cursor';
+                    el.textContent = userName;
+                    remoteCursors[connectionId] = new maplibregl.Marker({ element: el })
+                        .setLngLat([lng, lat]).addTo(map);
+                } else {
+                    remoteCursors[connectionId].setLngLat([lng, lat]);
+                }
+            });
+
+            connection.on('CursorLeft', connectionId => {
+                remoteCursors[connectionId]?.remove();
+                delete remoteCursors[connectionId];
+            });
+
+            connection.start().catch(console.error);
+
+            map.on('mousemove', e => {
+                if (connection.state === signalR.HubConnectionState.Connected) {
+                    connection.invoke('UpdateCursor', e.lngLat.lat, e.lngLat.lng).catch(() => {});
+                }
+            });
+        }
+
+        init();
+    </script>
+}
