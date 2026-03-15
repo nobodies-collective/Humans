@@ -43,11 +43,11 @@ public static class StatusBadgeExtensions
         return status switch
         {
             "Active" => "bg-success",
-            "Pending" => "bg-info",
-            "Pending Approval" => "bg-warning",
-            "Inactive" => "bg-warning text-dark",
-            "Incomplete" => "bg-secondary",
+            "Pending Approval" => "bg-warning text-dark",
+            "Missing Consents" => "bg-info text-dark",
+            "Incomplete Signup" => "bg-secondary",
             "Suspended" => "bg-danger",
+            "Pending Deletion" => "bg-dark",
             _ => "bg-secondary"
         };
     }
