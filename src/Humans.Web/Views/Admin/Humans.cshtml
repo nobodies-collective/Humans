@@ -44,15 +44,19 @@
             </a>
             <a asp-action="Humans" asp-route-filter="pending" asp-route-search="@Model.SearchTerm" asp-route-sort="@Model.SortBy" asp-route-dir="@Model.SortDir"
                class="btn @(Model.StatusFilter == "pending" ? "btn-primary" : "btn-outline-primary")">
-                @Localizer["AdminHumans_Pending"]
+                @Localizer["AdminHumans_PendingApproval"]
+            </a>
+            <a asp-action="Humans" asp-route-filter="missingconsents" asp-route-search="@Model.SearchTerm" asp-route-sort="@Model.SortBy" asp-route-dir="@Model.SortDir"
+               class="btn @(Model.StatusFilter == "missingconsents" ? "btn-primary" : "btn-outline-primary")">
+                @Localizer["AdminHumans_MissingConsents"]
+            </a>
+            <a asp-action="Humans" asp-route-filter="incomplete" asp-route-search="@Model.SearchTerm" asp-route-sort="@Model.SortBy" asp-route-dir="@Model.SortDir"
+               class="btn @(Model.StatusFilter == "incomplete" ? "btn-primary" : "btn-outline-primary")">
+                @Localizer["AdminHumans_IncompleteSignup"]
             </a>
             <a asp-action="Humans" asp-route-filter="suspended" asp-route-search="@Model.SearchTerm" asp-route-sort="@Model.SortBy" asp-route-dir="@Model.SortDir"
                class="btn @(Model.StatusFilter == "suspended" ? "btn-primary" : "btn-outline-primary")">
                 @Localizer["AdminHumans_Suspended"]
-            </a>
-            <a asp-action="Humans" asp-route-filter="inactive" asp-route-search="@Model.SearchTerm" asp-route-sort="@Model.SortBy" asp-route-dir="@Model.SortDir"
-               class="btn @(Model.StatusFilter == "inactive" ? "btn-primary" : "btn-outline-primary")">
-                @Localizer["AdminHumans_Inactive"]
             </a>
             <a asp-action="Humans" asp-route-filter="deleting" asp-route-search="@Model.SearchTerm" asp-route-sort="@Model.SortBy" asp-route-dir="@Model.SortDir"
                class="btn @(Model.StatusFilter == "deleting" ? "btn-danger" : "btn-outline-danger")">

@@ -551,9 +551,10 @@
   <data name="AdminHumans_Title" xml:space="preserve"><value>Humans</value></data>
   <data name="AdminHumans_AllStatuses" xml:space="preserve"><value>Tous</value></data>
   <data name="AdminHumans_Active" xml:space="preserve"><value>Actifs</value></data>
-  <data name="AdminHumans_Pending" xml:space="preserve"><value>En attente</value></data>
+  <data name="AdminHumans_PendingApproval" xml:space="preserve"><value>En attente d&#x27;approbation</value></data>
+  <data name="AdminHumans_MissingConsents" xml:space="preserve"><value>Consentements manquants</value></data>
+  <data name="AdminHumans_IncompleteSignup" xml:space="preserve"><value>Inscription incompl&#xE8;te</value></data>
   <data name="AdminHumans_Suspended" xml:space="preserve"><value>Suspendus</value></data>
-  <data name="AdminHumans_Inactive" xml:space="preserve"><value>Inactifs</value></data>
   <data name="AdminHumans_Deleting" xml:space="preserve"><value>Suppression en attente</value></data>
   <data name="AdminHumanDetail_Title" xml:space="preserve"><value>Membre : {0}</value><comment>{0} = display name</comment></data>
   <data name="AdminApplications_Title" xml:space="preserve"><value>Candidatures asociado</value></data>
