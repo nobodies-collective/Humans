@@ -235,12 +235,9 @@ public class HumanController : Controller
             .ToListAsync();
         ViewBag.CampaignGrants = campaignGrants;
 
-        var outboxMessages = await _dbContext.EmailOutboxMessages
-            .Where(m => m.UserId == id)
-            .OrderByDescending(m => m.CreatedAt)
-            .Take(20)
-            .ToListAsync();
-        ViewBag.OutboxMessages = outboxMessages;
+        var outboxCount = await _dbContext.EmailOutboxMessages
+            .CountAsync(m => m.UserId == id);
+        ViewBag.OutboxCount = outboxCount;
 
         var now = _clock.GetCurrentInstant();
 
@@ -295,6 +292,19 @@ public class HumanController : Controller
         };
 
         return View(viewModel);
+    }
+
+    [Authorize(Roles = "Board,Admin")]
+    [HttpGet("{id:guid}/Outbox")]
+    public async Task<IActionResult> Outbox(Guid id)
+    {
+        var messages = await _dbContext.EmailOutboxMessages
+            .Where(m => m.UserId == id)
+            .OrderByDescending(m => m.CreatedAt)
+            .ToListAsync();
+
+        ViewBag.HumanId = id;
+        return View("~/Views/Profile/Outbox.cshtml", messages);
     }
 
     [Authorize(Roles = "Board,Admin")]
