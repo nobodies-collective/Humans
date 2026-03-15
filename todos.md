@@ -1,7 +1,7 @@
 # Release TODOs
 
 Audit date: 2026-02-05
-Last synced: 2026-03-14T22:00
+Last synced: 2026-03-15T20:30
 
 ---
 
@@ -9,16 +9,9 @@ Last synced: 2026-03-14T22:00
 
 ### Priority 1: Bugs
 
-#### #115: Fix membership status model — dashboard counts don't match admin page
-Dashboard counts overlap and don't sum to total. "Active" includes humans with pending consents who aren't in the Volunteers team. Need clear state diagram, mutually exclusive counts, and aligned filters.
+*(none open)*
 
 ### Priority 2: Small-Medium Enhancements
-
-#### #112: Add preferred language distribution chart to board dashboard
-Pie/donut chart on the board dashboard showing the count/percentage of humans by PreferredLanguage.
-
-#### #113: Show campaign grants on admin human detail page
-Show a human's assigned campaign codes on their admin detail page.
 
 #### #77: Reasons why an Asociado is accepted (or applying)
 Board members voting on Asociado applications should be required to select which bylaw criteria the applicant meets. Optionally, the applicant could also state their reasons when applying.
@@ -30,8 +23,11 @@ Configurable management and member permission roles per Google Drive resource (c
 
 ### Priority 3: Medium Features
 
-#### #117: Add ticket vendor integration — coupon tracking, purchase matching, code generation
-Vendor-agnostic `ITicketVendor` interface (TicketTailor first). Sync discount code redemption, match ticket purchases to humans by email, generate codes via API. Needed for early entry lists and event logistics.
+#### #126: Add Stripe fee tracking to ticket vendor integration
+Use TT order `txn_id` (Stripe PaymentIntent ID) to look up `balance_transaction.fee` per order. Show total fees and fees % on dashboard. Needs Stripe API key.
+
+#### #127: Add incomplete signup lifecycle — reminders and auto-deletion
+Reminder emails at 7/30/55 inactive days for incomplete signups. Auto-deletion at 60 days (90 with retention). Login resets counter. Profile completion stops lifecycle.
 
 #### #111: Add organizational email account management (@nobodies.team)
 Associate @nobodies.team emails with humans, force as primary for communication + Google services. Admin UI to provision accounts. Profile badge for humans with org accounts.
@@ -139,6 +135,18 @@ Two OpenTelemetry packages pinned to beta versions. Check for stable releases or
 ---
 
 ## Completed
+
+### #115: Fix membership status model DONE
+Dashboard rewritten with shared membership status partition. Counts now match admin page. Committed `d3617e0`.
+
+### #112: Add preferred language distribution chart DONE
+Pie/donut chart on board dashboard showing human count by PreferredLanguage. Committed `1f76224`.
+
+### #117: Add ticket vendor integration DONE
+TicketTailor API client, sync service with email matching, Hangfire job, TicketOrder/TicketAttendee/TicketSyncState entities, /Tickets section with dashboard (Chart.js daily sales), orders/attendees/codes/gate list pages, campaign code redemption tracking, admin logs viewer, break-even target. 13 unit tests. Multi-model code review. PRs #119-#125, #128.
+
+### #113: Show campaign grants on admin human detail page DONE
+Campaign grants (title, code, assigned date, redeemed date) displayed on admin detail page via ViewBag. Implemented as part of ticket vendor integration.
 
 ### #93: Merge pending requests into Manage Members page DONE
 Consolidated `/Teams/{slug}/Requests` into `/Teams/{slug}/Members`. Pending requests shown at top with approve/reject, members below. Removed standalone Requests page and view. Updated all navigation links. Committed `88c1065`.
