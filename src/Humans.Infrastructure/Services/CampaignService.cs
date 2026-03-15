@@ -76,6 +76,7 @@ public class CampaignService : ICampaignService
         return await _dbContext.Campaigns
             .Include(c => c.Codes)
             .Include(c => c.Grants)
+            .AsSplitQuery()
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(ct);
     }
