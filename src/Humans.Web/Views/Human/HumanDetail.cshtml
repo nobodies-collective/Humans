@@ -1,6 +1,9 @@
 @model Humans.Web.Models.AdminHumanDetailViewModel
+@using Humans.Domain.Entities
+@using Humans.Domain.Enums
 @{
     ViewData["Title"] = string.Format(Localizer["AdminHumanDetail_Title"].Value, Model.DisplayName);
+    var campaignGrants = (IList<CampaignGrant>?)ViewBag.CampaignGrants;
 }
 
 <nav aria-label="breadcrumb">
@@ -232,6 +235,48 @@
                 </div>
             }
         </div>
+
+        @if (campaignGrants != null && campaignGrants.Any())
+        {
+            <div class="card mb-4">
+                <div class="card-header"><h6 class="mb-0">Campaign Codes</h6></div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Campaign</th>
+                                <th>Code</th>
+                                <th>Assigned</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var grant in campaignGrants)
+                            {
+                                var badgeClass = grant.LatestEmailStatus switch
+                                {
+                                    EmailOutboxStatus.Sent => "bg-success",
+                                    EmailOutboxStatus.Failed => "bg-danger",
+                                    EmailOutboxStatus.Queued => "bg-warning",
+                                    _ => "bg-secondary"
+                                };
+                                <tr>
+                                    <td>@grant.Campaign.Title</td>
+                                    <td><code>@grant.Code.Code</code></td>
+                                    <td>@grant.AssignedAt.ToString("d MMM yyyy", null)</td>
+                                    <td>
+                                        @if (grant.LatestEmailStatus.HasValue)
+                                        {
+                                            <span class="badge @badgeClass">@grant.LatestEmailStatus</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
     </div>
 
     <div class="col-md-4">
