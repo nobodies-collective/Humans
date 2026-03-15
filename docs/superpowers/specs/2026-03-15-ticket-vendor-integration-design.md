@@ -123,7 +123,7 @@ All stored as strings with `HasConversion<string>()`, consistent with other doma
 
 ### New Role
 
-Add `TicketAdmin` to `RoleNames` constants. This role grants access to the `/Tickets` section. `Admin` and `Board` roles also have access as fallback.
+Add `TicketAdmin` to `RoleNames` constants. This role grants full read/write access to the `/Tickets` section including sync, exports, and code generation. Board has read-only access; Admin has full access as always.
 
 ## Architecture
 
@@ -177,7 +177,7 @@ Swap vendor by changing the DI registration — no other code changes needed.
 
 ### Navigation
 
-Top-level nav item **"Tickets"** visible only to `TicketAdmin` and `Admin` roles.
+Top-level nav item **"Tickets"** visible to `TicketAdmin`, `Admin`, and `Board` roles.
 
 ### Page Structure
 
@@ -319,15 +319,20 @@ Follows existing pattern for SMTP credentials and Google service account keys.
 
 ## Authorization
 
-| Route | Roles |
-|-------|-------|
-| `/Tickets` (all tabs) | TicketAdmin, Admin |
-| `/Tickets/Sync` (POST) | TicketAdmin, Admin |
-| Generate codes (Campaign) | TicketAdmin, Admin |
+Board gets **read-only** access to the Tickets section for oversight. Write operations (sync, code generation) and data exports are restricted to TicketAdmin and Admin for safety.
+
+| Route/Action | TicketAdmin | Admin | Board |
+|-------------|:-----------:|:-----:|:-----:|
+| `/Tickets` dashboard (view) | ✓ | ✓ | ✓ |
+| `/Tickets/Orders` (view) | ✓ | ✓ | ✓ |
+| `/Tickets/Attendees` (view) | ✓ | ✓ | ✓ |
+| `/Tickets/Codes` (view) | ✓ | ✓ | ✓ |
+| `/Tickets/GateList` (view) | ✓ | ✓ | ✓ |
+| `/Tickets/Sync` (POST — trigger sync) | ✓ | ✓ | — |
+| CSV exports | ✓ | ✓ | — |
+| Generate codes (Campaign) | ✓ | ✓ | — |
 
 TicketAdmin is a new role added to `RoleNames`, assignable via the existing role management UI.
-
-Note: Board is intentionally **excluded** from ticket/revenue access. This contains financial data (prices, revenue totals, buyer PII) that should be restricted to the ticketing team and admins. Board members who need access can be granted the TicketAdmin role explicitly.
 
 ## Error Handling
 
