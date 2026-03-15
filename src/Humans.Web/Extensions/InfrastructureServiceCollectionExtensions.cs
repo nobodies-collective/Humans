@@ -91,6 +91,16 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ProcessEmailOutboxJob>();
         services.AddScoped<CleanupEmailOutboxJob>();
 
+        // Ticket vendor integration
+        services.Configure<TicketVendorSettings>(opts =>
+        {
+            configuration.GetSection(TicketVendorSettings.SectionName).Bind(opts);
+            // Populate API key from environment variable (not in appsettings — sensitive)
+            opts.ApiKey = Environment.GetEnvironmentVariable("TICKET_VENDOR_API_KEY") ?? string.Empty;
+        });
+        services.AddHttpClient<ITicketVendorService, TicketTailorService>();
+        services.AddScoped<ITicketSyncService, TicketSyncService>();
+
         return services;
     }
 }
