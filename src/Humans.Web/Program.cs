@@ -23,6 +23,7 @@ using Humans.Infrastructure.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Extensions;
 using Humans.Web.Health;
+using Humans.Web.Hubs;
 using Humans.Web.Middleware;
 using Microsoft.Extensions.Localization;
 using Npgsql;
@@ -257,6 +258,7 @@ builder.Services.AddControllersWithViews(options =>
     .AddViewLocalization(LanguageViewLocationExpanderFormat.Suffix)
     .AddDataAnnotationsLocalization();
 builder.Services.AddRazorPages();
+builder.Services.AddSignalR();
 
 var supportedCultures = new[] { "en", "es", "de", "it", "fr" };
 builder.Services.Configure<RequestLocalizationOptions>(options =>
@@ -422,6 +424,7 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.MapRazorPages();
+app.MapHub<CampMapHub>("/hubs/camp-map");
 
 // Run database migrations on startup (must happen before Hangfire job registration
 // because Hangfire needs its tables to exist for distributed lock acquisition)
