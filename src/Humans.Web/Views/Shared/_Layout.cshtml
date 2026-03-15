@@ -83,7 +83,7 @@
                                 <a class="nav-link" asp-area="" asp-controller="Admin" asp-action="Index">@Localizer["Nav_Admin"]</a>
                             </li>
                         }
-                        @if (User.IsInRole("TicketAdmin") || User.IsInRole("Admin") || User.IsInRole("Board"))
+                        @if (User.IsInRole(Humans.Domain.Constants.RoleNames.TicketAdmin) || User.IsInRole(Humans.Domain.Constants.RoleNames.Admin) || User.IsInRole(Humans.Domain.Constants.RoleNames.Board))
                         {
                             <li class="nav-item">
                                 <a class="nav-link" asp-area="" asp-controller="Ticket" asp-action="Index">Tickets</a>

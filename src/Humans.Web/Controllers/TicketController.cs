@@ -45,6 +45,19 @@ public class TicketController : Controller
         var isConfigured = _settings.IsConfigured;
         var syncState = await _dbContext.TicketSyncStates.FindAsync(1);
 
+        // Reset stuck Running state — if Running for > 30 min, treat as stale (crash recovery)
+        if (syncState is { SyncStatus: TicketSyncStatus.Running, StatusChangedAt: not null })
+        {
+            var elapsed = SystemClock.Instance.GetCurrentInstant() - syncState.StatusChangedAt.Value;
+            if (elapsed > Duration.FromMinutes(30))
+            {
+                syncState.SyncStatus = TicketSyncStatus.Error;
+                syncState.LastError = "Sync state was stuck in Running for >30 minutes (likely crash). Auto-reset.";
+                syncState.StatusChangedAt = SystemClock.Instance.GetCurrentInstant();
+                await _dbContext.SaveChangesAsync();
+            }
+        }
+
         if (!isConfigured)
         {
             return View(new TicketDashboardViewModel { IsConfigured = false });

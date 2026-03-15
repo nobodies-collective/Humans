@@ -480,11 +480,11 @@ public class HumanController : Controller
         if (!result.Success)
         {
             TempData["ErrorMessage"] = string.Format(_localizer["Admin_RoleAlreadyActive"].Value, model.RoleName);
-            return RedirectToAction("HumanDetail", new { id });
+            return RedirectToAction(nameof(HumanDetail), new { id });
         }
 
         TempData["SuccessMessage"] = string.Format(_localizer["Admin_RoleAssigned"].Value, model.RoleName);
-        return RedirectToAction("HumanDetail", new { id });
+        return RedirectToAction(nameof(HumanDetail), new { id });
     }
 
     [Authorize(Roles = "Board,Admin")]
@@ -517,11 +517,11 @@ public class HumanController : Controller
         if (!result.Success)
         {
             TempData["ErrorMessage"] = _localizer["Admin_RoleNotActive"].Value;
-            return RedirectToAction("HumanDetail", new { id = roleAssignment.UserId });
+            return RedirectToAction(nameof(HumanDetail), new { id = roleAssignment.UserId });
         }
 
         TempData["SuccessMessage"] = string.Format(_localizer["Admin_RoleEnded"].Value, roleAssignment.RoleName, roleAssignment.User.DisplayName);
-        return RedirectToAction("HumanDetail", new { id = roleAssignment.UserId });
+        return RedirectToAction(nameof(HumanDetail), new { id = roleAssignment.UserId });
     }
 
     /// <summary>
