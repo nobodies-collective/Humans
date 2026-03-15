@@ -68,6 +68,7 @@ public class CampaignService : ICampaignService
             .Include(c => c.Codes)
             .Include(c => c.Grants).ThenInclude(g => g.User)
             .Include(c => c.Grants).ThenInclude(g => g.Code)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.Id == id, ct);
     }
 
