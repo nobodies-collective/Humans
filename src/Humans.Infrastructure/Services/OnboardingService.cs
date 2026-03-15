@@ -488,11 +488,27 @@ public class OnboardingService : IOnboardingService
 
     public async Task<Application.DTOs.AdminDashboardData> GetAdminDashboardAsync(CancellationToken ct = default)
     {
-        var allUserIds = await _dbContext.Users.Select(u => u.Id).ToListAsync(ct);
-        var partition = await _membershipCalculator.PartitionUsersAsync(allUserIds, ct);
+        var totalMembers = await _dbContext.Users.CountAsync(ct);
+
+        // Partition counts
+        var incompleteSignup = await _dbContext.Users.CountAsync(u => u.Profile == null, ct);
+        var pendingApproval = await _dbContext.Profiles
+            .CountAsync(p => !p.IsApproved && !p.IsSuspended, ct);
+        var activeMembers = await _dbContext.Profiles
+            .CountAsync(p => p.IsApproved && !p.IsSuspended, ct);
+        var suspended = await _dbContext.Profiles.CountAsync(p => p.IsSuspended, ct);
+        var pendingDeletion = await _dbContext.Users.CountAsync(u => u.DeletionRequestedAt != null, ct);
 
         var pendingApplications = await _dbContext.Applications
             .CountAsync(a => a.Status == ApplicationStatus.Submitted, ct);
+
+        // Calculate users with missing required consents (approved, non-suspended users only)
+        var approvedUserIds = await _dbContext.Profiles
+            .Where(p => p.IsApproved && !p.IsSuspended)
+            .Select(p => p.UserId)
+            .ToListAsync(ct);
+        var usersWithAllVolunteerConsents = await _membershipCalculator.GetUsersWithAllRequiredConsentsAsync(approvedUserIds);
+        var missingConsents = approvedUserIds.Count(id => !usersWithAllVolunteerConsents.Contains(id));
 
         // Application statistics (non-withdrawn)
         var appStats = await _dbContext.Applications
@@ -510,19 +526,10 @@ public class OnboardingService : IOnboardingService
             .FirstOrDefaultAsync(ct);
 
         return new Application.DTOs.AdminDashboardData(
-            TotalMembers: allUserIds.Count,
-            IncompleteSignup: partition.IncompleteSignup.Count,
-            PendingApproval: partition.PendingApproval.Count,
-            ActiveMembers: partition.Active.Count,
-            MissingConsents: partition.MissingConsents.Count,
-            Suspended: partition.Suspended.Count,
-            PendingDeletion: partition.PendingDeletion.Count,
-            PendingApplications: pendingApplications,
-            TotalApplications: appStats?.Total ?? 0,
-            ApprovedApplications: appStats?.Approved ?? 0,
-            RejectedApplications: appStats?.Rejected ?? 0,
-            ColaboradorApplied: appStats?.Colaborador ?? 0,
-            AsociadoApplied: appStats?.Asociado ?? 0);
+            totalMembers, incompleteSignup, pendingApproval, activeMembers, missingConsents,
+            suspended, pendingDeletion, pendingApplications,
+            appStats?.Total ?? 0, appStats?.Approved ?? 0, appStats?.Rejected ?? 0,
+            appStats?.Colaborador ?? 0, appStats?.Asociado ?? 0);
     }
 
     public async Task<OnboardingResult> PurgeHumanAsync(Guid userId, CancellationToken ct = default)

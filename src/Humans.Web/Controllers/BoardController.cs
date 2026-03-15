@@ -42,10 +42,13 @@ public class BoardController : Controller
         var viewModel = new AdminDashboardViewModel
         {
             TotalMembers = dashboardData.TotalMembers,
+            IncompleteSignup = dashboardData.IncompleteSignup,
+            PendingApproval = dashboardData.PendingApproval,
             ActiveMembers = dashboardData.ActiveMembers,
-            PendingVolunteers = dashboardData.PendingApproval,
+            MissingConsents = dashboardData.MissingConsents,
+            Suspended = dashboardData.Suspended,
+            PendingDeletion = dashboardData.PendingDeletion,
             PendingApplications = dashboardData.PendingApplications,
-            PendingConsents = dashboardData.MissingConsents,
             RecentActivity = recentEntries.Select(e => new RecentActivityViewModel
             {
                 Description = e.Description,
