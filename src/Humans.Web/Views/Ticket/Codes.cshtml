@@ -93,6 +93,8 @@
                     <th>Campaign</th>
                     <th>Status</th>
                     <th>Redeemed At</th>
+                    <th>Redeemed By</th>
+                    <th>Order</th>
                 </tr>
             </thead>
             <tbody>
@@ -125,11 +127,32 @@
                                 <span class="text-muted">&mdash;</span>
                             }
                         </td>
+                        <td>
+                            @if (code.RedeemedByName != null)
+                            {
+                                <text>@code.RedeemedByName</text>
+                                <br /><small class="text-muted">@code.RedeemedByEmail</small>
+                            }
+                            else
+                            {
+                                <span class="text-muted">&mdash;</span>
+                            }
+                        </td>
+                        <td>
+                            @if (code.RedeemedOrderVendorId != null)
+                            {
+                                <small><code>@code.RedeemedOrderVendorId</code></small>
+                            }
+                            else
+                            {
+                                <span class="text-muted">&mdash;</span>
+                            }
+                        </td>
                     </tr>
                 }
                 @if (Model.Codes.Count == 0)
                 {
-                    <tr><td colspan="5" class="text-muted text-center">No codes found</td></tr>
+                    <tr><td colspan="7" class="text-muted text-center">No codes found</td></tr>
                 }
             </tbody>
         </table>

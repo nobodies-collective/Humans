@@ -130,6 +130,9 @@ public class CodeDetailRow
     public string CampaignTitle { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public Instant? RedeemedAt { get; set; }
+    public string? RedeemedByName { get; set; }
+    public string? RedeemedByEmail { get; set; }
+    public string? RedeemedOrderVendorId { get; set; }
 }
 
 public class CampaignCodeSummary
@@ -151,6 +154,7 @@ public class WhoHasntBoughtViewModel
     public string? Search { get; set; }
     public string? FilterTeam { get; set; }
     public string? FilterTier { get; set; }
+    public string? FilterTicketStatus { get; set; } // "bought", "not_bought", or null (all)
     public List<string> AvailableTeams { get; set; } = [];
 
     public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
@@ -159,6 +163,7 @@ public class WhoHasntBoughtViewModel
 public class WhoHasntBoughtRow
 {
     public Guid UserId { get; set; }
+    public bool HasTicket { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Teams { get; set; } = string.Empty;

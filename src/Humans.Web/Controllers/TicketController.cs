@@ -369,14 +369,32 @@ public class TicketController : Controller
                 g.User.DisplayName.Contains(s, StringComparison.OrdinalIgnoreCase));
         }
 
-        var codeRows = allGrants.Select(g => new CodeDetailRow
+        // Load orders with discount codes to show who redeemed and on which order
+        var ordersWithCodes = await _dbContext.TicketOrders
+            .Where(o => o.DiscountCode != null)
+            .Select(o => new { o.DiscountCode, o.BuyerName, o.BuyerEmail, o.VendorOrderId })
+            .ToListAsync();
+
+        var orderByCode = ordersWithCodes
+            .GroupBy(o => o.DiscountCode!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        var codeRows = allGrants.Select(g =>
         {
-            Code = g.Code?.Code ?? "\u2014",
-            RecipientName = g.User.DisplayName,
-            RecipientUserId = g.UserId,
-            CampaignTitle = campaigns.First(c => c.Id == g.CampaignId).Title,
-            Status = g.RedeemedAt != null ? "Redeemed" : (g.LatestEmailStatus?.ToString() ?? "Pending"),
-            RedeemedAt = g.RedeemedAt,
+            var code = g.Code?.Code;
+            orderByCode.TryGetValue(code ?? "", out var matchedOrder);
+            return new CodeDetailRow
+            {
+                Code = code ?? "\u2014",
+                RecipientName = g.User.DisplayName,
+                RecipientUserId = g.UserId,
+                CampaignTitle = campaigns.First(c => c.Id == g.CampaignId).Title,
+                Status = g.RedeemedAt != null ? "Redeemed" : (g.LatestEmailStatus?.ToString() ?? "Pending"),
+                RedeemedAt = g.RedeemedAt,
+                RedeemedByName = matchedOrder?.BuyerName,
+                RedeemedByEmail = matchedOrder?.BuyerEmail,
+                RedeemedOrderVendorId = matchedOrder?.VendorOrderId,
+            };
         }).ToList();
 
         var totalSent = campaignSummaries.Sum(c => c.TotalGrants);
@@ -405,6 +423,7 @@ public class TicketController : Controller
     [HttpGet("WhoHasntBought")]
     public async Task<IActionResult> WhoHasntBought(
         string? search, string? filterTeam = null, string? filterTier = null,
+        string? filterTicketStatus = null,
         int page = 1, int pageSize = 25)
     {
         pageSize = Math.Clamp(pageSize, 1, 250);
@@ -423,12 +442,11 @@ public class TicketController : Controller
 
         var matchedUserIds = matchedFromAttendees.Union(matchedFromOrders).ToHashSet();
 
-        // At ~500 users, loading all and filtering in-memory is fine
+        // Load ALL active humans (not just unmatched) so we can toggle between views
         var users = await _dbContext.Users
             .Include(u => u.Profile)
             .Include(u => u.UserEmails)
             .Include(u => u.TeamMemberships).ThenInclude(tm => tm.Team)
-            .Where(u => !matchedUserIds.Contains(u.Id))
             .AsSplitQuery()
             .ToListAsync();
 
@@ -442,6 +460,13 @@ public class TicketController : Controller
             .Where(u => u.Profile != null &&
                 u.TeamMemberships.Any(tm => tm.TeamId == volunteersTeamId))
             .ToList();
+
+        // Ticket status filter
+        if (string.Equals(filterTicketStatus, "bought", StringComparison.OrdinalIgnoreCase))
+            activeHumans = activeHumans.Where(u => matchedUserIds.Contains(u.Id)).ToList();
+        else if (string.Equals(filterTicketStatus, "not_bought", StringComparison.OrdinalIgnoreCase))
+            activeHumans = activeHumans.Where(u => !matchedUserIds.Contains(u.Id)).ToList();
+        // null/empty = show all
 
         if (!string.IsNullOrEmpty(filterTeam))
         {
@@ -473,6 +498,7 @@ public class TicketController : Controller
             .Select(u => new WhoHasntBoughtRow
             {
                 UserId = u.Id,
+                HasTicket = matchedUserIds.Contains(u.Id),
                 Name = u.DisplayName,
                 Email = u.UserEmails.FirstOrDefault(e => e.IsNotificationTarget)?.Email ?? string.Empty,
                 Teams = string.Join(", ", u.TeamMemberships.Select(tm => tm.Team.Name)),
@@ -494,6 +520,7 @@ public class TicketController : Controller
             Search = search,
             FilterTeam = filterTeam,
             FilterTier = filterTier,
+            FilterTicketStatus = filterTicketStatus,
             AvailableTeams = teams,
         };
 
