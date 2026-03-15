@@ -57,7 +57,8 @@ public class CampMapService : ICampMapService
                 h.ModifiedByUser.UserName ?? h.ModifiedByUserId.ToString(),
                 h.ModifiedAt.ToString("g", null),
                 h.AreaSqm,
-                h.Note))
+                h.Note,
+                h.GeoJson))
             .ToListAsync(cancellationToken);
     }
 

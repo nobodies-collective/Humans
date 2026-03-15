@@ -52,6 +52,7 @@ public record PolygonHistoryEntryDto(
     string ModifiedByDisplayName,
     string ModifiedAt,
     double AreaSqm,
-    string Note);
+    string Note,
+    string GeoJson);
 
 public record SavePolygonRequest(string GeoJson, double AreaSqm);
