@@ -218,7 +218,7 @@ public class HumanController : Controller
     }
 
     [Authorize(Roles = "Board,Admin")]
-    [HttpGet("Admin/{id:guid}")]
+    [HttpGet("{id:guid}/Admin")]
     public async Task<IActionResult> HumanDetail(Guid id)
     {
         var data = await _profileService.GetAdminHumanDetailAsync(id);
@@ -291,7 +291,7 @@ public class HumanController : Controller
     }
 
     [Authorize(Roles = "Board,Admin")]
-    [HttpPost("Admin/{id:guid}/Suspend")]
+    [HttpPost("{id:guid}/Admin/Suspend")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SuspendHuman(Guid id, string? notes)
     {
@@ -308,7 +308,7 @@ public class HumanController : Controller
     }
 
     [Authorize(Roles = "Board,Admin")]
-    [HttpPost("Admin/{id:guid}/Unsuspend")]
+    [HttpPost("{id:guid}/Admin/Unsuspend")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UnsuspendHuman(Guid id)
     {
@@ -325,7 +325,7 @@ public class HumanController : Controller
     }
 
     [Authorize(Roles = "Board,Admin")]
-    [HttpPost("Admin/{id:guid}/Approve")]
+    [HttpPost("{id:guid}/Admin/Approve")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ApproveVolunteer(Guid id)
     {
@@ -342,7 +342,7 @@ public class HumanController : Controller
     }
 
     [Authorize(Roles = "Board,Admin")]
-    [HttpPost("Admin/{id:guid}/Reject")]
+    [HttpPost("{id:guid}/Admin/Reject")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RejectSignup(Guid id, string? reason)
     {
@@ -365,7 +365,7 @@ public class HumanController : Controller
     }
 
     [Authorize(Roles = "Board,Admin")]
-    [HttpGet("Admin/{id:guid}/GoogleSyncAudit")]
+    [HttpGet("{id:guid}/Admin/GoogleSyncAudit")]
     public async Task<IActionResult> HumanGoogleSyncAudit(Guid id)
     {
         var user = await _userManager.FindByIdAsync(id.ToString());
@@ -402,7 +402,7 @@ public class HumanController : Controller
     }
 
     [Authorize(Roles = "Board,Admin")]
-    [HttpGet("Admin/{id:guid}/Roles/Add")]
+    [HttpGet("{id:guid}/Admin/Roles/Add")]
     public async Task<IActionResult> AddRole(Guid id)
     {
         var user = await _userManager.FindByIdAsync(id.ToString());
@@ -424,7 +424,7 @@ public class HumanController : Controller
     }
 
     [Authorize(Roles = "Board,Admin")]
-    [HttpPost("Admin/{id:guid}/Roles/Add")]
+    [HttpPost("{id:guid}/Admin/Roles/Add")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddRole(Guid id, CreateRoleAssignmentViewModel model)
     {
@@ -471,7 +471,7 @@ public class HumanController : Controller
     }
 
     [Authorize(Roles = "Board,Admin")]
-    [HttpPost("Admin/{id:guid}/Roles/{roleId:guid}/End")]
+    [HttpPost("{id:guid}/Admin/Roles/{roleId:guid}/End")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EndRole(Guid id, Guid roleId, string? notes)
     {

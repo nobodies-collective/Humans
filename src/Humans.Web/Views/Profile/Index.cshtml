@@ -5,7 +5,15 @@
 
 <div class="row align-items-start">
     <div class="@(Model.IsOwnProfile ? "col-md-8" : "col-md-12")">
-        <h1>@(Model.IsOwnProfile ? Localizer["Profile_Title"] : Model.DisplayName)</h1>
+        <div class="d-flex justify-content-between align-items-center">
+            <h1>@(Model.IsOwnProfile ? Localizer["Profile_Title"] : Model.DisplayName)</h1>
+            @if (User.IsInRole("Board") || User.IsInRole("Admin"))
+            {
+                <a asp-controller="Human" asp-action="HumanDetail" asp-route-id="@Model.UserId" class="btn btn-sm btn-outline-secondary">
+                    <i class="fa-solid fa-user-shield"></i> Admin
+                </a>
+            }
+        </div>
 
         @if (Model.IsOwnProfile)
         {
