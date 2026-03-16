@@ -74,7 +74,7 @@
                             }
                         </div>
                     </div>
-                    @if (!Model.IsChildTeam)
+                    @if (!Model.IsChildTeam || role.IsManagement)
                     {
                         var hasAssignments = role.Slots.Any(s => s.IsFilled);
                         <div class="mb-3 form-check">
