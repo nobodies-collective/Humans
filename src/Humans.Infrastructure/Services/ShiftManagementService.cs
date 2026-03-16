@@ -261,6 +261,7 @@ public class ShiftManagementService : IShiftManagementService
     {
         return await _dbContext.Rotas
             .Include(r => r.Shifts)
+                .ThenInclude(s => s.ShiftSignups)
             .Where(r => r.TeamId == teamId && r.EventSettingsId == eventSettingsId)
             .OrderBy(r => r.Name)
             .ToListAsync();
