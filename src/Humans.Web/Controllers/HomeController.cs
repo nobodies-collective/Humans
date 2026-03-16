@@ -145,17 +145,13 @@ public class HomeController : Controller
                 var pendingCount = userSignups.Count(s => s.Status == SignupStatus.Pending);
 
                 var urgentShifts = await _shiftMgmt.GetUrgentShiftsAsync(activeEvent.Id, limit: 3);
-                var urgentItems = urgentShifts.Select(u =>
+                var urgentItems = urgentShifts.Select(u => new UrgentShiftItem
                 {
-                    var es = u.Shift.Rota.EventSettings;
-                    return new UrgentShiftItem
-                    {
-                        Shift = u.Shift,
-                        DepartmentName = u.DepartmentName,
-                        AbsoluteStart = u.Shift.GetAbsoluteStart(es),
-                        RemainingSlots = u.RemainingSlots,
-                        UrgencyScore = u.UrgencyScore
-                    };
+                    Shift = u.Shift,
+                    DepartmentName = u.DepartmentName,
+                    AbsoluteStart = u.Shift.GetAbsoluteStart(activeEvent),
+                    RemainingSlots = u.RemainingSlots,
+                    UrgencyScore = u.UrgencyScore
                 }).ToList();
 
                 var shiftCards = new ShiftCardsViewModel

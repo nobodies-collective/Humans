@@ -373,6 +373,7 @@ public class ShiftManagementService : IShiftManagementService
         var query = _dbContext.Shifts
             .AsNoTracking()
             .Include(s => s.Rota).ThenInclude(r => r.Team)
+            .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Include(s => s.ShiftSignups)
             .Where(s => s.Rota.EventSettingsId == eventSettingsId && s.IsActive && s.Rota.IsActive);
 
