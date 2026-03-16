@@ -104,7 +104,7 @@ public class ShiftManagementService : IShiftManagementService
             .AsNoTracking()
             .AnyAsync(ra =>
                 ra.UserId == userId &&
-                string.Equals(ra.RoleName, roleName) &&
+                ra.RoleName == roleName &&
                 ra.ValidFrom <= now &&
                 (ra.ValidTo == null || ra.ValidTo > now));
     }
@@ -233,6 +233,17 @@ public class ShiftManagementService : IShiftManagementService
 
         if (hasConfirmedSignups)
             throw new InvalidOperationException("Cannot delete rota with confirmed signups.");
+
+        // Cancel pending signups and remove all signups before deleting
+        // (ShiftSignup→Shift FK is Restrict, so cascade won't handle them)
+        foreach (var shift in rota.Shifts)
+        {
+            foreach (var signup in shift.ShiftSignups.Where(d => d.Status == SignupStatus.Pending).ToList())
+            {
+                signup.Cancel(_clock, "Rota deleted");
+            }
+            _dbContext.ShiftSignups.RemoveRange(shift.ShiftSignups);
+        }
 
         _dbContext.Rotas.Remove(rota);
         await _dbContext.SaveChangesAsync();

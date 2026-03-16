@@ -126,6 +126,7 @@ public class ShiftAdminController : Controller
 
         var rota = await _shiftMgmt.GetRotaByIdAsync(rotaId);
         if (rota == null) return NotFound();
+        if (rota.TeamId != team.Id) return NotFound();
 
         rota.Name = model.Name;
         rota.Description = model.Description;
@@ -151,6 +152,11 @@ public class ShiftAdminController : Controller
             TempData["ErrorMessage"] = "Please fix the errors below.";
             return RedirectToAction(nameof(Index), new { slug });
         }
+
+        // Verify rota belongs to this department
+        var rota = await _shiftMgmt.GetRotaByIdAsync(model.RotaId);
+        if (rota == null) return NotFound();
+        if (rota.TeamId != team.Id) return NotFound();
 
         if (!TimeOnly.TryParse(model.StartTime, System.Globalization.CultureInfo.InvariantCulture, out var parsedTime))
         {
@@ -196,6 +202,7 @@ public class ShiftAdminController : Controller
 
         var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
         if (shift == null) return NotFound();
+        if (shift.Rota.TeamId != team.Id) return NotFound();
 
         if (!TimeOnly.TryParse(model.StartTime, System.Globalization.CultureInfo.InvariantCulture, out var parsedTime))
         {
@@ -226,6 +233,10 @@ public class ShiftAdminController : Controller
         if (team == null || userId == null) return NotFound();
         if (!await _shiftMgmt.CanManageShiftsAsync(userId.Value, team.Id)) return Forbid();
 
+        var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
+        if (shift == null) return NotFound();
+        if (shift.Rota.TeamId != team.Id) return NotFound();
+
         await _shiftMgmt.DeactivateShiftAsync(shiftId);
         TempData["SuccessMessage"] = "Shift deactivated.";
         return RedirectToAction(nameof(Index), new { slug });
@@ -238,6 +249,10 @@ public class ShiftAdminController : Controller
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
         if (!await _shiftMgmt.CanApproveSignupsAsync(userId.Value, team.Id)) return Forbid();
+
+        var signup = await _signupService.GetByIdAsync(signupId);
+        if (signup == null) return NotFound();
+        if (signup.Shift.Rota.TeamId != team.Id) return NotFound();
 
         var result = await _signupService.ApproveAsync(signupId, userId.Value);
         TempData[result.Success ? "SuccessMessage" : "ErrorMessage"] =
@@ -254,6 +269,10 @@ public class ShiftAdminController : Controller
         if (team == null || userId == null) return NotFound();
         if (!await _shiftMgmt.CanApproveSignupsAsync(userId.Value, team.Id)) return Forbid();
 
+        var signup = await _signupService.GetByIdAsync(signupId);
+        if (signup == null) return NotFound();
+        if (signup.Shift.Rota.TeamId != team.Id) return NotFound();
+
         var result = await _signupService.RefuseAsync(signupId, userId.Value, reason);
         TempData[result.Success ? "SuccessMessage" : "ErrorMessage"] =
             result.Success ? "Signup refused." : result.Error;
@@ -268,6 +287,10 @@ public class ShiftAdminController : Controller
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
         if (!await _shiftMgmt.CanApproveSignupsAsync(userId.Value, team.Id)) return Forbid();
+
+        var signupCheck = await _signupService.GetByIdAsync(signupId);
+        if (signupCheck == null) return NotFound();
+        if (signupCheck.Shift.Rota.TeamId != team.Id) return NotFound();
 
         var result = await _signupService.MarkNoShowAsync(signupId, userId.Value);
         TempData[result.Success ? "SuccessMessage" : "ErrorMessage"] =

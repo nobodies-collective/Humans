@@ -52,9 +52,6 @@ public class ShiftsController : Controller
         if (!es.IsShiftBrowsingOpen && !isPrivileged && !hasSignups)
             return View("BrowsingClosed");
 
-        // Build the browse view from urgency service data
-        var urgentShifts = await _shiftMgmt.GetUrgentShiftsAsync(es.Id, departmentId: departmentId);
-
         var userSignupShiftIds = userSignups
             .Where(s => s.Status is SignupStatus.Confirmed or SignupStatus.Pending)
             .Select(s => s.ShiftId)
@@ -63,6 +60,53 @@ public class ShiftsController : Controller
             .Where(s => s.Status is SignupStatus.Confirmed or SignupStatus.Pending)
             .ToDictionary(s => s.ShiftId, s => s.Status);
 
+        // Build the browse view by querying all active shifts for the event
+        var urgentShifts = await _shiftMgmt.GetUrgentShiftsAsync(es.Id, departmentId: departmentId);
+
+        // Group by department → rota → shift
+        var departments = urgentShifts
+            .GroupBy(u => u.Shift.Rota.TeamId)
+            .Select(deptGroup =>
+            {
+                var firstShift = deptGroup.First().Shift;
+                return new DepartmentShiftGroup
+                {
+                    TeamId = firstShift.Rota.TeamId,
+                    TeamName = firstShift.Rota.Team.Name,
+                    TeamSlug = firstShift.Rota.Team.Slug,
+                    Rotas = deptGroup
+                        .GroupBy(u => u.Shift.RotaId)
+                        .Select(rotaGroup =>
+                        {
+                            var rota = rotaGroup.First().Shift.Rota;
+                            return new RotaShiftGroup
+                            {
+                                Rota = rota,
+                                Shifts = rotaGroup
+                                    .Select(u =>
+                                    {
+                                        var (start, end, period) = _shiftMgmt.ResolveShiftTimes(u.Shift, es);
+                                        return new ShiftDisplayItem
+                                        {
+                                            Shift = u.Shift,
+                                            AbsoluteStart = start,
+                                            AbsoluteEnd = end,
+                                            Period = period,
+                                            ConfirmedCount = u.ConfirmedCount,
+                                            RemainingSlots = u.RemainingSlots
+                                        };
+                                    })
+                                    .OrderBy(s => s.AbsoluteStart)
+                                    .ToList()
+                            };
+                        })
+                        .OrderBy(r => r.Rota.Name, StringComparer.Ordinal)
+                        .ToList()
+                };
+            })
+            .OrderBy(d => d.TeamName, StringComparer.Ordinal)
+            .ToList();
+
         var model = new ShiftBrowseViewModel
         {
             EventSettings = es,
@@ -70,7 +114,8 @@ public class ShiftsController : Controller
             FilterDate = date,
             ShowFullShifts = showFull,
             UserSignupShiftIds = userSignupShiftIds,
-            UserSignupStatuses = userSignupStatuses
+            UserSignupStatuses = userSignupStatuses,
+            Departments = departments
         };
 
         return View(model);
@@ -161,13 +206,8 @@ public class ShiftsController : Controller
         model.Pending = model.Pending.OrderBy(s => s.AbsoluteStart).ToList();
         model.Past = model.Past.OrderByDescending(s => s.AbsoluteStart).ToList();
 
-        // iCal URL
-        if (user.ICalToken == null)
-        {
-            user.ICalToken = Guid.NewGuid();
-            await _userManager.UpdateAsync(user);
-        }
-        model.ICalUrl = Url.Action("ICalFeed", "Shifts", new { token = user.ICalToken }, Request.Scheme);
+        // iCal feed deferred to a later slice
+        model.ICalUrl = null;
 
         return View(model);
     }
@@ -229,6 +269,12 @@ public class ShiftsController : Controller
 
         if (!ModelState.IsValid)
             return View(model);
+
+        if (DateTimeZoneProviders.Tzdb.GetZoneOrNull(model.TimeZoneId) == null)
+        {
+            ModelState.AddModelError(nameof(model.TimeZoneId), "Invalid IANA timezone ID.");
+            return View(model);
+        }
 
         var parsedDate = LocalDatePattern.Iso.Parse(model.GateOpeningDate);
         if (!parsedDate.Success)

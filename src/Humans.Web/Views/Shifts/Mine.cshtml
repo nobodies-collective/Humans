@@ -118,20 +118,23 @@
             <div class="alert alert-info">No shift signups yet. <a asp-action="Index">Browse available shifts</a>.</div>
         }
 
-        <div class="card mb-4">
-            <div class="card-header"><h5 class="mb-0">iCal Feed</h5></div>
-            <div class="card-body">
-                <p class="text-muted">Subscribe to your shifts in your calendar app:</p>
-                <div class="input-group mb-2">
-                    <input type="text" class="form-control" id="icalUrl" value="@Model.ICalUrl" readonly />
-                    <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('icalUrl').value)">Copy</button>
+        @if (Model.ICalUrl != null)
+        {
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">iCal Feed</h5></div>
+                <div class="card-body">
+                    <p class="text-muted">Subscribe to your shifts in your calendar app:</p>
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control" id="icalUrl" value="@Model.ICalUrl" readonly />
+                        <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('icalUrl').value)">Copy</button>
+                    </div>
+                    <form asp-action="RegenerateIcal" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-outline-warning"
+                                onclick="return confirm('This will invalidate the current URL. Continue?')">Regenerate URL</button>
+                    </form>
                 </div>
-                <form asp-action="RegenerateIcal" method="post" class="d-inline">
-                    @Html.AntiForgeryToken()
-                    <button type="submit" class="btn btn-sm btn-outline-warning"
-                            onclick="return confirm('This will invalidate the current URL. Continue?')">Regenerate URL</button>
-                </form>
             </div>
-        </div>
+        }
     }
 </div>

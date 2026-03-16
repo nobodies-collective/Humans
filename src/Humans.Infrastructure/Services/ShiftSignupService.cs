@@ -35,6 +35,13 @@ public class ShiftSignupService : IShiftSignupService
 
     public async Task<SignupResult> SignUpAsync(Guid userId, Guid shiftId, Guid? actorUserId = null)
     {
+        // Prevent duplicate signups for the same shift
+        var existingSignup = await _dbContext.ShiftSignups
+            .AnyAsync(s => s.UserId == userId && s.ShiftId == shiftId &&
+                           (s.Status == SignupStatus.Pending || s.Status == SignupStatus.Confirmed));
+        if (existingSignup)
+            return SignupResult.Fail("Already signed up for this shift.");
+
         var shift = await _dbContext.Shifts
             .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Include(s => s.Rota).ThenInclude(r => r.Team)
@@ -191,6 +198,13 @@ public class ShiftSignupService : IShiftSignupService
 
     public async Task<SignupResult> VoluntellAsync(Guid userId, Guid shiftId, Guid enrollerUserId)
     {
+        // Prevent duplicate signups for the same shift
+        var existingSignup = await _dbContext.ShiftSignups
+            .AnyAsync(s => s.UserId == userId && s.ShiftId == shiftId &&
+                           (s.Status == SignupStatus.Pending || s.Status == SignupStatus.Confirmed));
+        if (existingSignup)
+            return SignupResult.Fail("Already signed up for this shift.");
+
         var shift = await _dbContext.Shifts
             .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Include(s => s.ShiftSignups)
@@ -268,6 +282,13 @@ public class ShiftSignupService : IShiftSignupService
             query = query.Where(d => d.Shift.Rota.EventSettingsId == eventSettingsId.Value);
 
         return await query.OrderBy(d => d.Shift.DayOffset).ThenBy(d => d.Shift.StartTime).ToListAsync();
+    }
+
+    public async Task<ShiftSignup?> GetByIdAsync(Guid signupId)
+    {
+        return await _dbContext.ShiftSignups
+            .Include(d => d.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.Team)
+            .FirstOrDefaultAsync(d => d.Id == signupId);
     }
 
     public async Task<IReadOnlyList<ShiftSignup>> GetByShiftAsync(Guid shiftId)
