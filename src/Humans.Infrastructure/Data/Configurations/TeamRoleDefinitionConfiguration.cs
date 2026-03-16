@@ -59,6 +59,6 @@ public class TeamRoleDefinitionConfiguration : IEntityTypeConfiguration<TeamRole
 
         builder.Property(d => d.IsManagement)
             .IsRequired()
-            .HasDefaultValue(false);
+            .HasDefaultValueSql("false");
     }
 }
