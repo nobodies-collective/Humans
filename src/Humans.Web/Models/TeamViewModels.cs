@@ -429,7 +429,9 @@ public class AdminTeamViewModel
     public int MemberCount { get; set; }
     public int PendingRequestCount { get; set; }
     public bool HasMailGroup { get; set; }
+    public string? GoogleGroupEmail { get; set; }
     public int DriveResourceCount { get; set; }
+    public int RoleSlotCount { get; set; }
     public DateTime CreatedAt { get; set; }
     public bool IsChildTeam { get; set; }
 }

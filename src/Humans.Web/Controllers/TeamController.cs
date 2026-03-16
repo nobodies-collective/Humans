@@ -625,7 +625,9 @@ public class TeamController : Controller
             MemberCount = t.Members.Count,
             PendingRequestCount = t.JoinRequests.Count,
             HasMailGroup = t.GoogleResources.Any(r => r.ResourceType == GoogleResourceType.Group && r.IsActive),
+            GoogleGroupEmail = t.GoogleGroupEmail,
             DriveResourceCount = t.GoogleResources.Count(r => r.ResourceType != GoogleResourceType.Group && r.IsActive),
+            RoleSlotCount = t.RoleDefinitions.Sum(r => r.SlotCount),
             CreatedAt = t.CreatedAt.ToDateTimeUtc(),
             IsChildTeam = isChild
         };

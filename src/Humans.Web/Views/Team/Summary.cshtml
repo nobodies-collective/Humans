@@ -23,6 +23,7 @@
                     <th>@Localizer["AdminTeams_Members"]</th>
                     <th>@Localizer["AdminTeams_Pending"]</th>
                     <th>@Localizer["AdminTeams_MailGroup"]</th>
+                    <th>Slots</th>
                     <th>@Localizer["AdminTeams_DriveResources"]</th>
                     <th>@Localizer["Common_Status"]</th>
                     <th>@Localizer["AdminTeams_Created"]</th>
@@ -71,15 +72,16 @@
                             }
                         </td>
                         <td>
-                            @if (team.HasMailGroup)
+                            @if (team.GoogleGroupEmail != null)
                             {
-                                <i class="fa-solid fa-check text-success"></i>
+                                <small>@team.GoogleGroupEmail</small>
                             }
                             else
                             {
                                 <span class="text-muted">—</span>
                             }
                         </td>
+                        <td>@team.RoleSlotCount</td>
                         <td>
                             @if (team.DriveResourceCount > 0)
                             {
