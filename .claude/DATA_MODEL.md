@@ -19,7 +19,7 @@
 | TeamJoinRequest | Requests to join a team |
 | TeamJoinRequestStateHistory | Audit trail of TeamJoinRequest state transitions |
 | GoogleResource | Shared Drive folder + Group provisioning |
-| TeamRoleDefinition | Named role slots on a team (name, description, slot count, priorities) |
+| TeamRoleDefinition | Named role slots on a team (name, description, slot count, priorities, IsManagement flag) |
 | TeamRoleAssignment | Assigns a team member to a specific slot in a role definition |
 | AuditLogEntry | **APPEND-ONLY** system audit trail (user actions, sync ops) |
 | Camp | Camp core entity (contact, slug, flags) |
@@ -55,6 +55,7 @@ Team 1──n TeamMember
 Team 1──n TeamJoinRequest
 Team 1──n GoogleResource
 Team 1──n TeamRoleDefinition
+Team 1──n Team (ParentTeam → ChildTeams, self-referencing)
 TeamRoleDefinition 1──n TeamRoleAssignment
 TeamMember 1──n TeamRoleAssignment
 
@@ -314,7 +315,7 @@ Stored as string via `HasConversion<string>()`.
 |-------|-----|-------------|
 | None | 0 | User-created team |
 | Volunteers | 1 | All active volunteers |
-| Leads | 2 | All team leads |
+| Coordinators | 2 | All team coordinators |
 | Board | 3 | Board members |
 | Asociados | 4 | Approved Asociados with active terms |
 | Colaboradors | 5 | Approved Colaboradors with active terms |
@@ -346,7 +347,7 @@ Includes onboarding redesign actions:
 | Constant | Value | Purpose |
 |----------|-------|---------|
 | Volunteers | `00000000-0000-0000-0001-000000000001` | All active volunteers |
-| Leads | `00000000-0000-0000-0001-000000000002` | All team leads |
+| Coordinators | `00000000-0000-0000-0001-000000000002` | All team coordinators |
 | Board | `00000000-0000-0000-0001-000000000003` | Board members |
 | Asociados | `00000000-0000-0000-0001-000000000004` | Approved Asociados |
 | Colaboradors | `00000000-0000-0000-0001-000000000005` | Approved Colaboradors |
@@ -374,7 +375,7 @@ Lower values are more restrictive. A viewer with access level X can see fields w
 | Value | Level | Who Can See |
 |-------|-------|-------------|
 | BoardOnly | 0 | Board members only |
-| LeadsAndBoard | 1 | Team leads and board |
+| CoordinatorsAndBoard | 1 | Team coordinators and board |
 | MyTeams | 2 | Members who share a team with the owner |
 | AllActiveProfiles | 3 | All active members |
 
@@ -383,7 +384,7 @@ Lower values are more restrictive. A viewer with access level X can see fields w
 Viewer access is determined by:
 1. **Self** → BoardOnly (sees everything)
 2. **Board member** → BoardOnly (sees everything)
-3. **Any lead** → LeadsAndBoard
+3. **Any coordinator** → CoordinatorsAndBoard
 4. **Shares team with owner** → MyTeams
 5. **Active member** → AllActiveProfiles only
 
