@@ -46,6 +46,13 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
         builder.Property(t => t.UpdatedAt)
             .IsRequired();
 
+        builder.Property(t => t.ParentTeamId);
+
+        builder.HasOne(t => t.ParentTeam)
+            .WithMany(t => t.ChildTeams)
+            .HasForeignKey(t => t.ParentTeamId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasMany(t => t.Members)
             .WithOne(tm => tm.Team)
             .HasForeignKey(tm => tm.TeamId)
@@ -88,19 +95,21 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 RequiresApproval = false,
                 SystemTeamType = SystemTeamType.Volunteers,
                 GoogleGroupPrefix = (string?)null,
+                ParentTeamId = (Guid?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             },
             new
             {
                 Id = Guid.Parse("00000000-0000-0000-0001-000000000002"),
-                Name = "Leads",
-                Description = "All team leads",
-                Slug = "leads",
+                Name = "Coordinators",
+                Description = "All team coordinators",
+                Slug = "coordinators",
                 IsActive = true,
                 RequiresApproval = false,
-                SystemTeamType = SystemTeamType.Leads,
+                SystemTeamType = SystemTeamType.Coordinators,
                 GoogleGroupPrefix = (string?)null,
+                ParentTeamId = (Guid?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             },
@@ -114,6 +123,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 RequiresApproval = false,
                 SystemTeamType = SystemTeamType.Board,
                 GoogleGroupPrefix = (string?)null,
+                ParentTeamId = (Guid?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             },
@@ -127,6 +137,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 RequiresApproval = false,
                 SystemTeamType = SystemTeamType.Asociados,
                 GoogleGroupPrefix = (string?)null,
+                ParentTeamId = (Guid?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             },
@@ -140,6 +151,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 RequiresApproval = false,
                 SystemTeamType = SystemTeamType.Colaboradors,
                 GoogleGroupPrefix = (string?)null,
+                ParentTeamId = (Guid?)null,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp
             });

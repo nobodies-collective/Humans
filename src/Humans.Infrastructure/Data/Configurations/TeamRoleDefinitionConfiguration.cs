@@ -57,6 +57,8 @@ public class TeamRoleDefinitionConfiguration : IEntityTypeConfiguration<TeamRole
             .HasForeignKey(d => d.TeamId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.Ignore(d => d.IsLeadRole);
+        builder.Property(d => d.IsManagement)
+            .IsRequired()
+            .HasDefaultValue(false);
     }
 }
