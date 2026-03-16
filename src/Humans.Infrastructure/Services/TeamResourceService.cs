@@ -410,8 +410,8 @@ public partial class TeamResourceService : ITeamResourceService
             return true;
         }
 
-        // Leads can manage if the setting allows it
-        if (_resourceSettings.AllowLeadsToManageResources)
+        // Coordinators can manage if the setting allows it
+        if (_resourceSettings.AllowCoordinatorsToManageResources)
         {
             return await _teamService.IsUserCoordinatorOfTeamAsync(teamId, userId, ct);
         }

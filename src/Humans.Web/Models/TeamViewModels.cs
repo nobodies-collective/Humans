@@ -156,6 +156,13 @@ public class CreateTeamViewModel
     public string? GoogleGroupPrefix { get; set; }
 
     public bool RequiresApproval { get; set; } = true;
+
+    public Guid? ParentTeamId { get; set; }
+
+    /// <summary>
+    /// Available parent teams for the dropdown.
+    /// </summary>
+    public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> EligibleParents { get; set; } = [];
 }
 
 public class EditTeamViewModel
@@ -179,6 +186,13 @@ public class EditTeamViewModel
     public bool RequiresApproval { get; set; }
     public bool IsActive { get; set; }
     public bool IsSystemTeam { get; set; }
+
+    public Guid? ParentTeamId { get; set; }
+
+    /// <summary>
+    /// Available parent teams for the dropdown.
+    /// </summary>
+    public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> EligibleParents { get; set; } = [];
 }
 
 public class TeamMembersViewModel

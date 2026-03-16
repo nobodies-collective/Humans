@@ -323,7 +323,7 @@ public class MembershipCalculator : IMembershipCalculator
         // Include Coordinators if user is Coordinator of any user-created team
         if (!teamIds.Contains(SystemTeamIds.Coordinators))
         {
-            var isLeadAnywhere = await _dbContext.TeamMembers
+            var isCoordinatorAnywhere = await _dbContext.TeamMembers
                 .AnyAsync(tm =>
                     tm.UserId == userId &&
                     tm.LeftAt == null &&
@@ -331,7 +331,7 @@ public class MembershipCalculator : IMembershipCalculator
                     tm.Team.SystemTeamType == SystemTeamType.None,
                     cancellationToken);
 
-            if (isLeadAnywhere)
+            if (isCoordinatorAnywhere)
             {
                 teamIds.Add(SystemTeamIds.Coordinators);
             }

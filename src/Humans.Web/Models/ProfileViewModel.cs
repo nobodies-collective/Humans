@@ -379,7 +379,7 @@ public class ContactFieldViewModel
     {
         ContactFieldVisibility.BoardOnly => "Visible to board members only",
         ContactFieldVisibility.CoordinatorsAndBoard => "Visible to coordinators and board",
-        ContactFieldVisibility.MyTeams => "Visible to your teammates, leads, and board",
+        ContactFieldVisibility.MyTeams => "Visible to your teammates, coordinators, and board",
         ContactFieldVisibility.AllActiveProfiles => "Visible to all active members",
         _ => "Visibility unknown"
     };

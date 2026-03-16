@@ -63,6 +63,17 @@
                         }
                     </div>
 
+                    @if (!Model.IsSystemTeam)
+                    {
+                        <div class="mb-3">
+                            <label asp-for="ParentTeamId" class="form-label">Department (optional)</label>
+                            <select asp-for="ParentTeamId" asp-items="Model.EligibleParents" class="form-select">
+                                <option value="">None (standalone team)</option>
+                            </select>
+                            <div class="form-text">Place this team under an existing team as a sub-team.</div>
+                        </div>
+                    }
+
                     <div class="mb-3 form-check">
                         <input asp-for="RequiresApproval" type="checkbox" class="form-check-input" disabled="@Model.IsSystemTeam" />
                         <label asp-for="RequiresApproval" class="form-check-label">@Localizer["AdminTeams_RequireApproval"]</label>
