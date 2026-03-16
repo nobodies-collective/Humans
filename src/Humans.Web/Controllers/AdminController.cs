@@ -457,12 +457,7 @@ public class AdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ClearHangfireLocks()
     {
-        var connectionString = _dbContext.Database.GetConnectionString();
-        await using var conn = new Npgsql.NpgsqlConnection(connectionString);
-        await conn.OpenAsync();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM hangfire.lock";
-        var deleted = await cmd.ExecuteNonQueryAsync();
+        var deleted = await _dbContext.Database.ExecuteSqlRawAsync("DELETE FROM hangfire.lock");
 
         _logger.LogWarning("Admin cleared {Count} stale Hangfire locks", deleted);
         TempData["SuccessMessage"] = $"Cleared {deleted} Hangfire lock(s). Restart the app to re-register recurring jobs.";
