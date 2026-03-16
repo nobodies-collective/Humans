@@ -235,6 +235,9 @@ public partial class TeamService : ITeamService
                 throw new InvalidOperationException("Cannot nest more than one level — the parent team already has a parent");
         }
 
+        // If team is becoming a sub-team, clear IsManagement and demote coordinators
+        var becomingChild = parentTeamId.HasValue && !team.ParentTeamId.HasValue;
+
         team.Name = name;
         team.Description = description;
         team.RequiresApproval = requiresApproval;
@@ -242,6 +245,32 @@ public partial class TeamService : ITeamService
         team.ParentTeamId = parentTeamId;
         team.GoogleGroupPrefix = googleGroupPrefix;
         team.UpdatedAt = _clock.GetCurrentInstant();
+
+        if (becomingChild)
+        {
+            var managementRoles = await _dbContext.Set<TeamRoleDefinition>()
+                .Where(d => d.TeamId == teamId && d.IsManagement)
+                .ToListAsync(cancellationToken);
+            foreach (var role in managementRoles)
+            {
+                role.IsManagement = false;
+                role.UpdatedAt = team.UpdatedAt;
+            }
+
+            var coordinators = await _dbContext.TeamMembers
+                .Where(m => m.TeamId == teamId && m.LeftAt == null && m.Role == TeamMemberRole.Coordinator)
+                .ToListAsync(cancellationToken);
+            foreach (var member in coordinators)
+            {
+                member.Role = TeamMemberRole.Member;
+            }
+
+            if (managementRoles.Count > 0 || coordinators.Count > 0)
+            {
+                _logger.LogInformation("Team {TeamId} became a sub-team: cleared {RoleCount} management roles, demoted {MemberCount} coordinators",
+                    teamId, managementRoles.Count, coordinators.Count);
+            }
+        }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
