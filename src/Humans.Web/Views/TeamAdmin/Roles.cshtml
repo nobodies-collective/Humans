@@ -78,10 +78,16 @@
                     {
                         var hasAssignments = role.Slots.Any(s => s.IsFilled);
                         <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="isManagement-@role.Id"
-                                   name="IsManagement" value="true"
-                                   @(role.IsManagement ? "checked" : "")
-                                   @(role.IsManagement && hasAssignments ? "disabled" : "") />
+                            @if (role.IsManagement && hasAssignments)
+                            {
+                                <input type="hidden" name="IsManagement" value="true" />
+                                <input type="checkbox" class="form-check-input" id="isManagement-@role.Id" checked disabled />
+                            }
+                            else
+                            {
+                                <input type="checkbox" class="form-check-input" id="isManagement-@role.Id"
+                                       name="IsManagement" value="true" @(role.IsManagement ? "checked" : "") />
+                            }
                             <label class="form-check-label" for="isManagement-@role.Id">Coordinator role</label>
                             @if (role.IsManagement && hasAssignments)
                             {
