@@ -63,30 +63,43 @@ public class TeamController : Controller
 
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
 
-        TeamSummaryViewModel ToSummary(Team t) => new()
+        // Build parent lookup for sub-team display
+        var teamById = allTeams.ToDictionary(t => t.Id);
+
+        TeamSummaryViewModel ToSummary(Team t)
         {
-            Id = t.Id,
-            Name = t.Name,
-            Description = t.Description,
-            Slug = t.Slug,
-            MemberCount = t.Members.Count(m => m.LeftAt == null),
-            IsSystemTeam = t.IsSystemTeam,
-            RequiresApproval = t.RequiresApproval,
-            IsCurrentUserMember = userTeamIds.Contains(t.Id),
-            IsCurrentUserCoordinator = userCoordinatorTeamIds.Contains(t.Id)
-        };
+            Team? parent = t.ParentTeamId.HasValue && teamById.TryGetValue(t.ParentTeamId.Value, out var p) ? p : null;
+            return new()
+            {
+                Id = t.Id,
+                Name = t.Name,
+                Description = t.Description,
+                Slug = t.Slug,
+                MemberCount = t.Members.Count(m => m.LeftAt == null),
+                IsSystemTeam = t.IsSystemTeam,
+                RequiresApproval = t.RequiresApproval,
+                IsCurrentUserMember = userTeamIds.Contains(t.Id),
+                IsCurrentUserCoordinator = userCoordinatorTeamIds.Contains(t.Id),
+                ParentTeamName = parent?.Name,
+                ParentTeamSlug = parent?.Slug
+            };
+        }
 
-        var myTeams = allTeams
+        var allSummaries = allTeams.Select(ToSummary).ToList();
+
+        var myTeams = allSummaries
             .Where(t => userTeamIds.Contains(t.Id))
-            .Select(ToSummary)
+            .OrderBy(t => t.SortKey, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var otherTeams = allTeams
-            .Where(t => !userTeamIds.Contains(t.Id))
+        var departments = allSummaries
+            .Where(t => !userTeamIds.Contains(t.Id) && !t.IsSystemTeam)
+            .OrderBy(t => t.SortKey, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var teams = otherTeams
-            .Select(ToSummary)
+        var systemTeams = allSummaries
+            .Where(t => !userTeamIds.Contains(t.Id) && t.IsSystemTeam)
+            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         ViewBag.CanViewSync = User.IsInRole("TeamsAdmin") || User.IsInRole("Board") || User.IsInRole("Admin");
@@ -94,7 +107,8 @@ public class TeamController : Controller
         var viewModel = new TeamIndexViewModel
         {
             MyTeams = myTeams,
-            Teams = teams,
+            Departments = departments,
+            SystemTeams = systemTeams,
             CanCreateTeam = isBoardMember
         };
 
@@ -595,10 +609,9 @@ public class TeamController : Controller
 
     [HttpGet("Summary")]
     [Authorize(Roles = "Board,Admin,TeamsAdmin")]
-    public async Task<IActionResult> Summary(int page = 1)
+    public async Task<IActionResult> Summary()
     {
-        var pageSize = 50;
-        var (teams, totalCount) = await _teamService.GetAllTeamsForAdminAsync(page, pageSize);
+        var (teams, totalCount) = await _teamService.GetAllTeamsForAdminAsync(1, 500);
 
         AdminTeamViewModel ToViewModel(Team t, bool isChild) => new()
         {
@@ -639,10 +652,7 @@ public class TeamController : Controller
 
         var viewModel = new AdminTeamListViewModel
         {
-            Teams = ordered,
-            TotalCount = totalCount,
-            PageNumber = page,
-            PageSize = pageSize
+            Teams = ordered
         };
 
         return View(viewModel);

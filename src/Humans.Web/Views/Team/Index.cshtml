@@ -12,7 +12,7 @@
         <a asp-action="Map" class="btn btn-outline-secondary">@Localizer["Map_Title"]</a>
         @if (ViewBag.CanViewSync == true)
         {
-            <a asp-action="Summary" class="btn btn-outline-secondary">@Localizer["AdminTeams_Title"]</a>
+            <a asp-action="Summary" class="btn btn-outline-secondary">Summary</a>
             <a asp-action="Sync" class="btn btn-outline-info">Sync Status</a>
         }
         @if (Model.CanCreateTeam)
@@ -41,20 +41,24 @@ else
     </div>
 }
 
-<h4 class="mb-3">@Localizer["Teams_OtherTeamsSection"]</h4>
-
-@if (Model.Teams.Any())
+@if (Model.Departments.Any())
 {
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-        @foreach (var team in Model.Teams)
+    <h4 class="mb-3">Departments</h4>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
+        @foreach (var team in Model.Departments)
         {
             @await Html.PartialAsync("_TeamCard", team)
         }
     </div>
 }
-else
+
+@if (Model.SystemTeams.Any())
 {
-    <div class="alert alert-info">
-        @Localizer["Teams_NoOtherTeams"]
+    <h4 class="mb-3">System Teams</h4>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        @foreach (var team in Model.SystemTeams)
+        {
+            @await Html.PartialAsync("_TeamCard", team)
+        }
     </div>
 }

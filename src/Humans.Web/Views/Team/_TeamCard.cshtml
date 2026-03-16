@@ -3,6 +3,14 @@
 <div class="col">
     <div class="card h-100">
         <div class="card-body">
+            @if (Model.ParentTeamName != null)
+            {
+                <div class="mb-1">
+                    <a asp-action="Details" asp-route-slug="@Model.ParentTeamSlug" class="text-muted small text-decoration-none">
+                        @Model.ParentTeamName
+                    </a>
+                </div>
+            }
             <div class="d-flex justify-content-between align-items-start mb-2">
                 <h5 class="card-title mb-0">
                     <a asp-action="Details" asp-route-slug="@Model.Slug" class="text-decoration-none">

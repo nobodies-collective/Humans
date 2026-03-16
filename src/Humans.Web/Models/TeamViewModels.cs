@@ -7,7 +7,8 @@ namespace Humans.Web.Models;
 public class TeamIndexViewModel
 {
     public List<TeamSummaryViewModel> MyTeams { get; set; } = [];
-    public List<TeamSummaryViewModel> Teams { get; set; } = [];
+    public List<TeamSummaryViewModel> Departments { get; set; } = [];
+    public List<TeamSummaryViewModel> SystemTeams { get; set; } = [];
     public bool CanCreateTeam { get; set; }
 }
 
@@ -22,6 +23,13 @@ public class TeamSummaryViewModel
     public bool RequiresApproval { get; set; }
     public bool IsCurrentUserMember { get; set; }
     public bool IsCurrentUserCoordinator { get; set; }
+    public string? ParentTeamName { get; set; }
+    public string? ParentTeamSlug { get; set; }
+
+    /// <summary>
+    /// Sort key that groups sub-teams under their parent: "ParentName - ChildName" or just "Name".
+    /// </summary>
+    public string SortKey => ParentTeamName != null ? $"{ParentTeamName} - {Name}" : Name;
 }
 
 public class TeamDetailViewModel
