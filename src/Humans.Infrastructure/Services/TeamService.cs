@@ -93,27 +93,6 @@ public partial class TeamService : ITeamService
 
             _dbContext.Teams.Add(team);
 
-            // Auto-create Coordinator role definition for top-level (non-child) teams only.
-            // Sub-teams (child teams) don't get a management role by default.
-            TeamRoleDefinition? coordinatorRole = null;
-            if (!parentTeamId.HasValue)
-            {
-                coordinatorRole = new TeamRoleDefinition
-                {
-                    Id = Guid.NewGuid(),
-                    TeamId = team.Id,
-                    Name = "Coordinator",
-                    Description = "Team coordination role",
-                    SlotCount = 1,
-                    IsManagement = true,
-                    Priorities = [SlotPriority.Critical],
-                    SortOrder = 0,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                };
-                _dbContext.Set<TeamRoleDefinition>().Add(coordinatorRole);
-            }
-
             try
             {
                 await _dbContext.SaveChangesAsync(cancellationToken);
@@ -132,8 +111,6 @@ public partial class TeamService : ITeamService
                 // Slug collision — detach and retry with next suffix
                 _logger.LogDebug(ex, "Slug collision for '{Slug}', retrying (attempt {Attempt})", slug, attempt + 1);
                 _dbContext.Entry(team).State = EntityState.Detached;
-                if (coordinatorRole != null)
-                    _dbContext.Entry(coordinatorRole).State = EntityState.Detached;
             }
         }
 
