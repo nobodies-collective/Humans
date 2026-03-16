@@ -104,7 +104,19 @@ public class EnumStringStabilityTests
         },
         {
             typeof(SyncAction),
-            new[] { "Preview", "AddOnly", "AddAndRemove" }
+            new[] { "Preview", "Execute" }
+        },
+        {
+            typeof(TicketSyncStatus),
+            new[] { "Idle", "Running", "Error" }
+        },
+        {
+            typeof(TicketPaymentStatus),
+            new[] { "Paid", "Pending", "Refunded" }
+        },
+        {
+            typeof(TicketAttendeeStatus),
+            new[] { "Valid", "Void", "CheckedIn" }
         }
     };
 }
