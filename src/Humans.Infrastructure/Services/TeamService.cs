@@ -161,6 +161,7 @@ public partial class TeamService : ITeamService
             .Where(t => t.IsActive)
             .OrderBy(t => t.Name)
             .Include(t => t.Members.Where(m => m.LeftAt == null))
+            .Include(t => t.ChildTeams)
             .ToListAsync(cancellationToken);
     }
 

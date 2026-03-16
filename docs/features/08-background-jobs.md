@@ -166,10 +166,10 @@ Both call `SyncVolunteersMembershipForUserAsync(userId)`, which evaluates a sing
    - Add: New eligible users
    - Remove: Users who lost eligibility
 
-2. SyncLeadsTeamAsync()
-   - Eligible: Users who are Lead of any user-created team + Leads-team consents
-   - Add: New leads
-   - Remove: Users who are no longer lead anywhere
+2. SyncCoordinatorsTeamAsync()
+   - Eligible: Users who are Coordinator of any user-created team + Coordinators-team consents
+   - Add: New coordinators
+   - Remove: Users who are no longer coordinator anywhere
 
 3. SyncBoardTeamAsync()
    - Eligible: Users with active "Board" RoleAssignment + Board-team consents
@@ -185,7 +185,7 @@ Both call `SyncVolunteersMembershipForUserAsync(userId)`, which evaluates a sing
 | Team | Eligibility Criteria |
 |------|---------------------|
 | Volunteers | IsApproved AND !IsSuspended AND HasAllRequiredConsentsForTeam(Volunteers) |
-| Leads | TeamMember.Role = Lead (non-system teams) AND HasAllRequiredConsentsForTeam(Leads) |
+| Coordinators | TeamMember.Role = Coordinator (non-system teams) AND HasAllRequiredConsentsForTeam(Coordinators) |
 | Board | RoleAssignment.RoleName = "Board" AND active AND HasAllRequiredConsentsForTeam(Board) |
 
 **Single-User Sync**: `SyncVolunteersMembershipForUserAsync(userId)` evaluates one user against the Volunteers team criteria and adds or removes them without affecting other members. This is the mechanism that makes volunteer onboarding feel immediate rather than waiting for a scheduled job.

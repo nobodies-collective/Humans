@@ -8,7 +8,7 @@ public record CachedTeam(
     Guid Id, string Name, string? Description, string Slug,
     bool IsSystemTeam, SystemTeamType SystemTeamType, bool RequiresApproval,
     Instant CreatedAt, List<CachedTeamMember> Members,
-    Guid? ParentTeamId = null, List<Guid>? ChildTeamIds = null);
+    Guid? ParentTeamId = null);
 
 public record CachedTeamMember(
     Guid TeamMemberId, Guid UserId, string DisplayName,

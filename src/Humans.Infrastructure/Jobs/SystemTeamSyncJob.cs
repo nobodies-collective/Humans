@@ -305,7 +305,7 @@ public class SystemTeamSyncJob : ISystemTeamSync
         }
 
         // Check if user is currently Coordinator of any user-created team
-        var isLeadAnywhere = await _dbContext.TeamMembers
+        var isCoordinatorAnywhere = await _dbContext.TeamMembers
             .AsNoTracking()
             .AnyAsync(tm =>
                 tm.UserId == userId &&
@@ -314,7 +314,7 @@ public class SystemTeamSyncJob : ISystemTeamSync
                 tm.Team.SystemTeamType == SystemTeamType.None,
                 cancellationToken);
 
-        var isEligible = isLeadAnywhere
+        var isEligible = isCoordinatorAnywhere
             && await _membershipCalculator.HasAllRequiredConsentsForTeamAsync(userId, SystemTeamIds.Coordinators, cancellationToken);
 
         var eligibleUserIds = isEligible ? [userId] : new List<Guid>();

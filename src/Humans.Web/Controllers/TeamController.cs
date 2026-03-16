@@ -623,11 +623,31 @@ public class TeamController : Controller
         return View(viewModel);
     }
 
+    [HttpGet("departments")]
+    public async Task<IActionResult> Departments(CancellationToken cancellationToken)
+    {
+        var teams = await _teamService.GetAllTeamsAsync(cancellationToken);
+        var activeTeams = teams.Where(t => t.IsActive && !t.IsSystemTeam).ToList();
+        var departments = activeTeams.Where(t => t.ChildTeams.Any(c => c.IsActive)).ToList();
+        var standalone = activeTeams.Where(t => t.ParentTeamId == null && !t.ChildTeams.Any(c => c.IsActive)).ToList();
+
+        var model = new DepartmentsViewModel
+        {
+            Departments = departments,
+            StandaloneTeams = standalone
+        };
+        return View(model);
+    }
+
     [HttpGet("Create")]
     [Authorize(Roles = "Board,Admin")]
-    public IActionResult CreateTeam()
+    public async Task<IActionResult> CreateTeam(CancellationToken cancellationToken)
     {
-        return View(new CreateTeamViewModel());
+        var model = new CreateTeamViewModel
+        {
+            EligibleParents = await GetEligibleParentTeamsAsync(excludeTeamId: null, cancellationToken)
+        };
+        return View(model);
     }
 
     [HttpPost("Create")]
@@ -642,7 +662,7 @@ public class TeamController : Controller
 
         try
         {
-            var team = await _teamService.CreateTeamAsync(model.Name, model.Description, model.RequiresApproval, parentTeamId: null, model.GoogleGroupPrefix);
+            var team = await _teamService.CreateTeamAsync(model.Name, model.Description, model.RequiresApproval, model.ParentTeamId, model.GoogleGroupPrefix);
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} created team {TeamId} ({TeamName})", currentUser?.Id, team.Id, team.Name);
 
@@ -655,7 +675,7 @@ public class TeamController : Controller
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to create Google Group for new team {TeamId}, clearing prefix", team.Id);
-                    await _teamService.UpdateTeamAsync(team.Id, team.Name, team.Description, team.RequiresApproval, team.IsActive, parentTeamId: null, googleGroupPrefix: null);
+                    await _teamService.UpdateTeamAsync(team.Id, team.Name, team.Description, team.RequiresApproval, team.IsActive, team.ParentTeamId, googleGroupPrefix: null);
                     TempData["SuccessMessage"] = string.Format(_localizer["Admin_TeamCreated"].Value, team.Name);
                     TempData["ErrorMessage"] = $"Team created but Google Group setup failed: {ex.Message}. The group prefix has been cleared.";
                     return RedirectToAction(nameof(Summary));
@@ -680,9 +700,9 @@ public class TeamController : Controller
 
     [HttpGet("{id:guid}/Edit")]
     [Authorize(Roles = "Board,Admin,TeamsAdmin")]
-    public async Task<IActionResult> EditTeam(Guid id)
+    public async Task<IActionResult> EditTeam(Guid id, CancellationToken cancellationToken)
     {
-        var team = await _teamService.GetTeamByIdAsync(id);
+        var team = await _teamService.GetTeamByIdAsync(id, cancellationToken);
         if (team == null)
         {
             return NotFound();
@@ -697,7 +717,9 @@ public class TeamController : Controller
             GoogleGroupEmail = team.GoogleGroupEmail,
             RequiresApproval = team.RequiresApproval,
             IsActive = team.IsActive,
-            IsSystemTeam = team.IsSystemTeam
+            IsSystemTeam = team.IsSystemTeam,
+            ParentTeamId = team.ParentTeamId,
+            EligibleParents = await GetEligibleParentTeamsAsync(excludeTeamId: id, cancellationToken)
         };
 
         return View(viewModel);
@@ -720,7 +742,7 @@ public class TeamController : Controller
 
         try
         {
-            await _teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive, parentTeamId: null, model.GoogleGroupPrefix);
+            await _teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive, model.ParentTeamId, model.GoogleGroupPrefix);
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} updated team {TeamId}", currentUser?.Id, id);
 
@@ -771,6 +793,19 @@ public class TeamController : Controller
         }
 
         return RedirectToAction(nameof(Summary));
+    }
+
+    private async Task<List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>> GetEligibleParentTeamsAsync(
+        Guid? excludeTeamId, CancellationToken cancellationToken)
+    {
+        var allTeams = await _teamService.GetAllTeamsAsync(cancellationToken);
+        return allTeams
+            .Where(t => t.IsActive && !t.IsSystemTeam
+                && t.ParentTeamId == null  // Can't nest >1 level
+                && t.Id != excludeTeamId)  // Can't be own parent
+            .OrderBy(t => t.Name, StringComparer.Ordinal)
+            .Select(t => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem(t.Name, t.Id.ToString()))
+            .ToList();
     }
 
 }

@@ -106,16 +106,15 @@ namespace Humans.Infrastructure.Migrations
                 name: "ParentTeamId",
                 table: "teams");
 
+            // Rename Coordinator role definitions back to Lead (must happen before IsManagement column is dropped)
+            migrationBuilder.Sql(@"
+                UPDATE team_role_definitions
+                SET ""Name"" = 'Lead'
+                WHERE ""Name"" = 'Coordinator' AND ""IsManagement"" = true");
+
             migrationBuilder.DropColumn(
                 name: "IsManagement",
                 table: "team_role_definitions");
-
-            migrationBuilder.UpdateData(
-                table: "teams",
-                keyColumn: "Id",
-                keyValue: new Guid("00000000-0000-0000-0001-000000000002"),
-                columns: new[] { "Description", "Name", "Slug", "SystemTeamType" },
-                values: new object[] { "All team leads", "Leads", "leads", "Leads" });
 
             // Reverse string-stored enum renames
             migrationBuilder.Sql("UPDATE team_members SET \"Role\" = 'Lead' WHERE \"Role\" = 'Coordinator'");
@@ -123,11 +122,12 @@ namespace Humans.Infrastructure.Migrations
             migrationBuilder.Sql("UPDATE contact_fields SET \"Visibility\" = 'LeadsAndBoard' WHERE \"Visibility\" = 'CoordinatorsAndBoard'");
             migrationBuilder.Sql("UPDATE user_emails SET \"Visibility\" = 'LeadsAndBoard' WHERE \"Visibility\" = 'CoordinatorsAndBoard'");
 
-            // Rename Coordinator role definitions back to Lead
-            migrationBuilder.Sql(@"
-                UPDATE team_role_definitions
-                SET ""Name"" = 'Lead'
-                WHERE ""Name"" = 'Coordinator' AND ""IsManagement"" = true");
+            migrationBuilder.UpdateData(
+                table: "teams",
+                keyColumn: "Id",
+                keyValue: new Guid("00000000-0000-0000-0001-000000000002"),
+                columns: new[] { "Description", "Name", "Slug", "SystemTeamType" },
+                values: new object[] { "All team leads", "Leads", "leads", "Leads" });
         }
     }
 }
