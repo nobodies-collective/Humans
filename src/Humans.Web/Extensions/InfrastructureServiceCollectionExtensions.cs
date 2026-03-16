@@ -99,6 +99,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IShiftService, ShiftService>();
         services.AddScoped<IDutySignupService, DutySignupService>();
         services.AddScoped<IShiftUrgencyService, ShiftUrgencyService>();
+        services.AddScoped<IVolunteerEventProfileService, VolunteerEventProfileService>();
         services.AddScoped<SignupGarbageCollectionJob>();
 
         // Ticket vendor integration

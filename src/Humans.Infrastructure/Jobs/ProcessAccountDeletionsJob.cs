@@ -237,7 +237,11 @@ public class ProcessAccountDeletionsJob
         // Clear iCal token
         user.ICalToken = null;
 
-        // Note: VolunteerEventProfile cleanup will be added when that entity exists.
+        // Delete volunteer event profiles
+        var eventProfiles = await _dbContext.Set<VolunteerEventProfile>()
+            .Where(p => p.UserId == user.Id)
+            .ToListAsync(cancellationToken);
+        _dbContext.Set<VolunteerEventProfile>().RemoveRange(eventProfiles);
 
         // Note: We keep consent records and applications for GDPR audit trail
         // These are already anonymized via the user record anonymization
