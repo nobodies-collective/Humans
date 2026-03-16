@@ -110,4 +110,10 @@ public class Team
     /// Whether this is a system-managed team.
     /// </summary>
     public bool IsSystemTeam => SystemTeamType != SystemTeamType.None;
+
+    /// <summary>
+    /// Display name including parent prefix for sub-teams (e.g. "Comms - Logo").
+    /// Requires ParentTeam navigation to be loaded.
+    /// </summary>
+    public string DisplayName => ParentTeam != null ? $"{ParentTeam.Name} - {Name}" : Name;
 }

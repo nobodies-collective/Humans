@@ -106,7 +106,7 @@ public class ProfileCardViewComponent : ViewComponent
             .Select(tm => new TeamMembershipViewModel
             {
                 TeamId = tm.TeamId,
-                TeamName = tm.Team.Name,
+                TeamName = tm.Team.DisplayName,
                 TeamSlug = tm.Team.Slug,
                 IsCoordinator = tm.Role == TeamMemberRole.Coordinator,
                 IsSystemTeam = tm.Team.IsSystemTeam

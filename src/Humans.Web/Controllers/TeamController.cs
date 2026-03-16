@@ -165,7 +165,7 @@ public class TeamController : Controller
         var viewModel = new TeamDetailViewModel
         {
             Id = team.Id,
-            Name = team.Name,
+            Name = team.DisplayName,
             Description = team.Description,
             Slug = team.Slug,
             IsActive = team.IsActive,
@@ -404,7 +404,7 @@ public class TeamController : Controller
         var membershipVMs = memberships.Select(m => new MyTeamMembershipViewModel
         {
             TeamId = m.TeamId,
-            TeamName = m.Team.Name,
+            TeamName = m.Team.DisplayName,
             TeamSlug = m.Team.Slug,
             IsSystemTeam = m.Team.IsSystemTeam,
             Role = m.Role.ToString(),

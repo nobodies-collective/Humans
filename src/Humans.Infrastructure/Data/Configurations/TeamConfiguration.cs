@@ -82,6 +82,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
         // Ignore computed properties
         builder.Ignore(t => t.IsSystemTeam);
         builder.Ignore(t => t.GoogleGroupEmail);
+        builder.Ignore(t => t.DisplayName);
 
         // Seed system teams
         builder.HasData(

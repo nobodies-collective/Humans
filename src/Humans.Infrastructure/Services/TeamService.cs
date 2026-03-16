@@ -191,6 +191,7 @@ public partial class TeamService : ITeamService
             .AsNoTracking()
             .Where(tm => tm.UserId == userId && tm.LeftAt == null)
             .Include(tm => tm.Team)
+                .ThenInclude(t => t.ParentTeam)
             .OrderBy(tm => tm.Team.Name)
             .ToListAsync(cancellationToken);
     }
@@ -237,6 +238,19 @@ public partial class TeamService : ITeamService
 
         // If team is becoming a sub-team, clear IsManagement and demote coordinators
         var becomingChild = parentTeamId.HasValue && !team.ParentTeamId.HasValue;
+
+        // Regenerate slug if name changed
+        if (!string.Equals(team.Name, name, StringComparison.Ordinal))
+        {
+            var newSlug = GenerateSlug(name);
+            // Check slug isn't taken by another team
+            var slugTaken = await _dbContext.Teams.AnyAsync(
+                t => t.Id != teamId && t.Slug == newSlug, cancellationToken);
+            if (!slugTaken)
+            {
+                team.Slug = newSlug;
+            }
+        }
 
         team.Name = name;
         team.Description = description;
