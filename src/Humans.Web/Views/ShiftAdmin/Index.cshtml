@@ -103,11 +103,37 @@
                                         @{
                                             var shiftDate = Model.EventSettings.GateOpeningDate.PlusDays(shift.DayOffset);
                                             var shiftDateLabel = shiftDate.DayOfWeek.ToString()[..3] + " " + shiftDate.ToString("MMM d", null);
+                                            var phase = shift.GetShiftPeriod(Model.EventSettings);
+                                            var phaseBadge = phase switch
+                                            {
+                                                ShiftPeriod.Build => "bg-info",
+                                                ShiftPeriod.Event => "bg-success",
+                                                ShiftPeriod.Strike => "bg-secondary",
+                                                _ => "bg-secondary"
+                                            };
+                                            var phaseLabel = phase switch
+                                            {
+                                                ShiftPeriod.Build => "Build",
+                                                ShiftPeriod.Event => "Burn",
+                                                ShiftPeriod.Strike => "Strike",
+                                                _ => ""
+                                            };
                                         }
-                                        <td>@shiftDateLabel</td>
+                                        <td><span class="badge @phaseBadge me-1">@phaseLabel</span>@shiftDateLabel</td>
                                         <td>@shift.StartTime</td>
                                         <td>@(shift.Duration.TotalHours)h</td>
-                                        <td>@shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed) / @shift.MaxVolunteers</td>
+                                        @{
+                                            var confirmed = shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
+                                            var understaffed = confirmed < shift.MinVolunteers;
+                                        }
+                                        <td>
+                                            <span class="@(understaffed ? "text-danger fw-bold" : "")">@confirmed</span>
+                                            / @shift.MaxVolunteers
+                                            @if (shift.MinVolunteers > 0)
+                                            {
+                                                <small class="text-muted">(min @shift.MinVolunteers)</small>
+                                            }
+                                        </td>
                                         <td>
                                             @if (Model.CanManageShifts && shift.IsActive)
                                             {
@@ -161,12 +187,12 @@
                                     <input type="number" name="DurationHours" class="form-control form-control-sm" value="4" step="0.5" min="0.5" />
                                 </div>
                                 <div class="col-md-1">
-                                    <label class="form-label form-label-sm">Min</label>
-                                    <input type="number" name="MinVolunteers" class="form-control form-control-sm" value="1" min="0" />
+                                    <label class="form-label form-label-sm">Need</label>
+                                    <input type="number" name="MinVolunteers" class="form-control form-control-sm" value="2" min="0" title="Minimum humans needed" />
                                 </div>
                                 <div class="col-md-1">
-                                    <label class="form-label form-label-sm">Max</label>
-                                    <input type="number" name="MaxVolunteers" class="form-control form-control-sm" value="5" min="1" />
+                                    <label class="form-label form-label-sm">Cap</label>
+                                    <input type="number" name="MaxVolunteers" class="form-control form-control-sm" value="5" min="1" title="Maximum humans allowed" />
                                 </div>
                                 <div class="col-md-2">
                                     <button type="submit" class="btn btn-sm btn-primary">Add</button>
