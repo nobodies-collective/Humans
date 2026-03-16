@@ -69,4 +69,8 @@ public class Rota
     /// </summary>
     public Team Team { get; set; } = null!;
 
+    /// <summary>
+    /// Navigation property to shifts within this rota.
+    /// </summary>
+    public ICollection<Shift> Shifts { get; } = new List<Shift>();
 }
