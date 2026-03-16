@@ -74,7 +74,7 @@
                         <td>
                             @if (team.GoogleGroupEmail != null)
                             {
-                                <small>@team.GoogleGroupEmail</small>
+                                <small>@(team.GoogleGroupEmail.Split('@')[0])@@</small>
                             }
                             else
                             {
