@@ -88,7 +88,7 @@
                                     <th>Date</th>
                                     <th>Start</th>
                                     <th>Hours</th>
-                                    <th>Slots</th>
+                                    <th>Filled</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -128,11 +128,7 @@
                                         }
                                         <td>
                                             <span class="@(understaffed ? "text-danger fw-bold" : "")">@confirmed</span>
-                                            / @shift.MaxVolunteers
-                                            @if (shift.MinVolunteers > 0)
-                                            {
-                                                <small class="text-muted">(min @shift.MinVolunteers)</small>
-                                            }
+                                            <small class="text-muted">/ @shift.MinVolunteers–@shift.MaxVolunteers</small>
                                         </td>
                                         <td>
                                             @if (Model.CanManageShifts && shift.IsActive)
