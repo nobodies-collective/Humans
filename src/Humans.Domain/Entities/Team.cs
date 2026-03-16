@@ -34,7 +34,7 @@ public class Team
     public bool IsActive { get; set; } = true;
 
     /// <summary>
-    /// Whether joining this team requires approval from a lead or board member.
+    /// Whether joining this team requires approval from a coordinator or board member.
     /// </summary>
     public bool RequiresApproval { get; set; } = true;
 
@@ -64,6 +64,22 @@ public class Team
     /// When the team was last updated.
     /// </summary>
     public Instant UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Optional parent team ID for one-level hierarchy (departments).
+    /// A team with a parent cannot itself be a parent.
+    /// </summary>
+    public Guid? ParentTeamId { get; set; }
+
+    /// <summary>
+    /// Navigation property to the parent team (department).
+    /// </summary>
+    public Team? ParentTeam { get; set; }
+
+    /// <summary>
+    /// Navigation property to child teams (sub-teams of this department).
+    /// </summary>
+    public ICollection<Team> ChildTeams { get; } = new List<Team>();
 
     /// <summary>
     /// Navigation property to team members.

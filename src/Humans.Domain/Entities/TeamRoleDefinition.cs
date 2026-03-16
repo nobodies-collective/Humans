@@ -59,9 +59,11 @@ public class TeamRoleDefinition
     public Instant UpdatedAt { get; set; }
 
     /// <summary>
-    /// Whether this role is the team lead role.
+    /// Whether this role is the team's management/coordination role.
+    /// At most one role per team can have this set to true.
+    /// Assigning a member to this role automatically sets their TeamMemberRole to Coordinator.
     /// </summary>
-    public bool IsLeadRole => string.Equals(Name, "Lead", StringComparison.OrdinalIgnoreCase);
+    public bool IsManagement { get; set; }
 
     /// <summary>
     /// Navigation property to role slot assignments.
