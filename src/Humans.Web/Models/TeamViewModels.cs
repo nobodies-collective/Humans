@@ -361,6 +361,7 @@ public class EditRoleDefinitionModel
     public int SlotCount { get; set; }
     public List<string> Priorities { get; set; } = [];
     public int SortOrder { get; set; }
+    public bool IsManagement { get; set; }
 }
 
 public class AssignRoleModel

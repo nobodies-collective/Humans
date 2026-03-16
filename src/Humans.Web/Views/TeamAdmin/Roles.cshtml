@@ -81,25 +81,31 @@
                             }
                         </div>
                     </div>
+                    @if (!Model.IsChildTeam)
+                    {
+                        var hasAssignments = role.Slots.Any(s => s.IsFilled);
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="isManagement-@role.Id"
+                                   name="IsManagement" value="true"
+                                   @(role.IsManagement ? "checked" : "")
+                                   @(role.IsManagement && hasAssignments ? "disabled" : "") />
+                            <label class="form-check-label" for="isManagement-@role.Id">Coordinator role</label>
+                            @if (role.IsManagement && hasAssignments)
+                            {
+                                <div class="form-text text-warning">Unassign all members before unchecking.</div>
+                            }
+                            else
+                            {
+                                <div class="form-text">Members assigned to this role automatically become Coordinators.</div>
+                            }
+                        </div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Description</label>
                         <small class="text-muted ms-2">Markdown: **bold**, *italic*, - bullets, ## headings</small>
                         <textarea class="form-control" name="Description" rows="3">@role.Description</textarea>
                     </div>
                 </form>
-                @if (!Model.IsChildTeam)
-                {
-                    <form asp-controller="TeamAdmin" asp-action="ToggleManagement" asp-route-slug="@Model.Slug" asp-route-roleId="@role.Id" method="post"
-                          onsubmit="return confirm('@(role.IsManagement ? "Remove coordinator flag? Members assigned to this role will no longer automatically become Coordinators." : "Mark as coordinator role? Members assigned to this role will automatically become Coordinators.")')">
-                        @Html.AntiForgeryToken()
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="isManagement-@role.Id"
-                                   onchange="this.form.submit()" @(role.IsManagement ? "checked" : "") />
-                            <label class="form-check-label" for="isManagement-@role.Id">Coordinator role</label>
-                            <div class="form-text">Members assigned to this role automatically become Coordinators.</div>
-                        </div>
-                    </form>
-                }
 
                 <table class="table table-sm mb-0">
                     <thead>
