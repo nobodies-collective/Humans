@@ -223,6 +223,22 @@ public class ProcessAccountDeletionsJob
             role.ValidTo = now;
         }
 
+        // Cancel active duty signups
+        var activeSignups = await _dbContext.DutySignups
+            .Where(d => d.UserId == user.Id &&
+                        (d.Status == SignupStatus.Confirmed || d.Status == SignupStatus.Pending))
+            .ToListAsync(cancellationToken);
+
+        foreach (var signup in activeSignups)
+        {
+            signup.Cancel(_clock, "Account deletion");
+        }
+
+        // Clear iCal token
+        user.ICalToken = null;
+
+        // Note: VolunteerEventProfile cleanup will be added when that entity exists.
+
         // Note: We keep consent records and applications for GDPR audit trail
         // These are already anonymized via the user record anonymization
     }

@@ -77,6 +77,13 @@ public static class RecurringJobExtensions
             job => job.ExecuteAsync(CancellationToken.None),
             "0 3 * * 0"); // Sunday 03:00 UTC
 
+        // Cancel signups on deactivated shifts after 7-day grace period.
+        // Runs daily at 04:00 UTC.
+        RecurringJob.AddOrUpdate<SignupGarbageCollectionJob>(
+            "signup-garbage-collection",
+            job => job.ExecuteAsync(CancellationToken.None),
+            "0 4 * * *");
+
         // Sync ticket data from vendor at configured interval (default 15 min).
         // Requires TICKET_VENDOR_API_KEY environment variable and TicketVendor:EventId in appsettings.
         var ticketSyncInterval = _.Configuration.GetValue("TicketVendor:SyncIntervalMinutes", 15);
