@@ -117,12 +117,12 @@ public class SendBoardDailyDigestJob
             var usersWithAllConsents = await _membershipCalculator.GetUsersWithAllRequiredConsentsAsync(allUserIds, cancellationToken);
 
             var leadUserIds = await _dbContext.TeamMembers
-                .Where(tm => tm.LeftAt == null && tm.Role == TeamMemberRole.Lead && tm.Team.SystemTeamType == SystemTeamType.None)
+                .Where(tm => tm.LeftAt == null && tm.Role == TeamMemberRole.Coordinator && tm.Team.SystemTeamType == SystemTeamType.None)
                 .Select(tm => tm.UserId)
                 .Distinct()
                 .ToListAsync(cancellationToken);
             var leadsWithAllConsents = leadUserIds.Count > 0
-                ? await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(leadUserIds, SystemTeamIds.Leads, cancellationToken)
+                ? await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(leadUserIds, SystemTeamIds.Coordinators, cancellationToken)
                 : (IReadOnlySet<Guid>)new HashSet<Guid>();
 
             var pendingConsentsCount = allUserIds.Count(id =>

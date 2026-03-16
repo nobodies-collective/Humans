@@ -62,7 +62,7 @@ public class SystemTeamSyncJob : ISystemTeamSync
             // which is not thread-safe. Parallelizing with Task.WhenAll would require
             // IServiceScopeFactory to create separate DbContext instances per task.
             await SyncVolunteersTeamAsync(cancellationToken);
-            await SyncLeadsTeamAsync(cancellationToken);
+            await SyncCoordinatorsTeamAsync(cancellationToken);
             await SyncBoardTeamAsync(cancellationToken);
             await SyncAsociadosTeamAsync(cancellationToken);
             await SyncColaboradorsTeamAsync(cancellationToken);
@@ -108,34 +108,34 @@ public class SystemTeamSyncJob : ISystemTeamSync
     }
 
     /// <summary>
-    /// Syncs the Leads team membership based on Lead roles.
-    /// Members: All users who are Lead of any team.
+    /// Syncs the Coordinators team membership based on Coordinator roles.
+    /// Members: All users who are Coordinator of any team.
     /// </summary>
-    public async Task SyncLeadsTeamAsync(CancellationToken cancellationToken = default)
+    public async Task SyncCoordinatorsTeamAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Syncing Leads team");
+        _logger.LogDebug("Syncing Coordinators team");
 
-        var team = await GetSystemTeamAsync(SystemTeamType.Leads, cancellationToken);
+        var team = await GetSystemTeamAsync(SystemTeamType.Coordinators, cancellationToken);
         if (team == null)
         {
-            _logger.LogWarning("Leads system team not found");
+            _logger.LogWarning("Coordinators system team not found");
             return;
         }
 
-        // Get all current leads (excluding the Leads system team itself)
+        // Get all current coordinators (excluding the Coordinators system team itself)
         var leadUserIds = await _dbContext.TeamMembers
             .AsNoTracking()
             .Where(tm =>
                 tm.LeftAt == null &&
-                tm.Role == TeamMemberRole.Lead &&
+                tm.Role == TeamMemberRole.Coordinator &&
                 tm.Team.SystemTeamType == SystemTeamType.None) // Only from user-created teams
             .Select(tm => tm.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        // Additionally filter by Leads-team-required consents
+        // Additionally filter by Coordinators-team-required consents
         var eligibleSet = await _membershipCalculator.GetUsersWithAllRequiredConsentsForTeamAsync(
-            leadUserIds, SystemTeamIds.Leads, cancellationToken);
+            leadUserIds, SystemTeamIds.Coordinators, cancellationToken);
 
         await SyncTeamMembershipAsync(team, eligibleSet.ToList(), cancellationToken);
     }
@@ -292,30 +292,30 @@ public class SystemTeamSyncJob : ISystemTeamSync
     }
 
     /// <summary>
-    /// Syncs Leads team membership for a single user. Call this after changing
-    /// a team member's role to/from Lead.
+    /// Syncs Coordinators team membership for a single user. Call this after changing
+    /// a team member's role to/from Coordinator.
     /// </summary>
-    public async Task SyncLeadsMembershipForUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    public async Task SyncCoordinatorsMembershipForUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var team = await GetSystemTeamAsync(SystemTeamType.Leads, cancellationToken);
+        var team = await GetSystemTeamAsync(SystemTeamType.Coordinators, cancellationToken);
         if (team == null)
         {
-            _logger.LogWarning("Leads system team not found");
+            _logger.LogWarning("Coordinators system team not found");
             return;
         }
 
-        // Check if user is currently Lead of any user-created team
+        // Check if user is currently Coordinator of any user-created team
         var isLeadAnywhere = await _dbContext.TeamMembers
             .AsNoTracking()
             .AnyAsync(tm =>
                 tm.UserId == userId &&
                 tm.LeftAt == null &&
-                tm.Role == TeamMemberRole.Lead &&
+                tm.Role == TeamMemberRole.Coordinator &&
                 tm.Team.SystemTeamType == SystemTeamType.None,
                 cancellationToken);
 
         var isEligible = isLeadAnywhere
-            && await _membershipCalculator.HasAllRequiredConsentsForTeamAsync(userId, SystemTeamIds.Leads, cancellationToken);
+            && await _membershipCalculator.HasAllRequiredConsentsForTeamAsync(userId, SystemTeamIds.Coordinators, cancellationToken);
 
         var eligibleUserIds = isEligible ? [userId] : new List<Guid>();
         await SyncTeamMembershipAsync(team, eligibleUserIds, cancellationToken, singleUserSync: userId);

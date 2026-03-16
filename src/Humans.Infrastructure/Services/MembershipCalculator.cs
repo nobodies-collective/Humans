@@ -320,20 +320,20 @@ public class MembershipCalculator : IMembershipCalculator
             teamIds.Add(SystemTeamIds.Volunteers);
         }
 
-        // Include Leads if user is Lead of any user-created team
-        if (!teamIds.Contains(SystemTeamIds.Leads))
+        // Include Coordinators if user is Coordinator of any user-created team
+        if (!teamIds.Contains(SystemTeamIds.Coordinators))
         {
             var isLeadAnywhere = await _dbContext.TeamMembers
                 .AnyAsync(tm =>
                     tm.UserId == userId &&
                     tm.LeftAt == null &&
-                    tm.Role == TeamMemberRole.Lead &&
+                    tm.Role == TeamMemberRole.Coordinator &&
                     tm.Team.SystemTeamType == SystemTeamType.None,
                     cancellationToken);
 
             if (isLeadAnywhere)
             {
-                teamIds.Add(SystemTeamIds.Leads);
+                teamIds.Add(SystemTeamIds.Coordinators);
             }
         }
 

@@ -19,7 +19,7 @@ public class ContactFieldService : IContactFieldService
 
     // Request-scoped cache for viewer permissions to avoid N+1 queries during listing
     private bool? _cachedIsBoardMember;
-    private bool? _cachedIsAnyLead;
+    private bool? _cachedIsAnyCoordinator;
     private HashSet<Guid>? _cachedViewerTeamIds;
 
     public ContactFieldService(
@@ -148,8 +148,8 @@ public class ContactFieldService : IContactFieldService
     private static List<ContactFieldVisibility> GetAllowedVisibilities(ContactFieldVisibility accessLevel) =>
         accessLevel switch
         {
-            ContactFieldVisibility.BoardOnly => [ContactFieldVisibility.BoardOnly, ContactFieldVisibility.LeadsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
-            ContactFieldVisibility.LeadsAndBoard => [ContactFieldVisibility.LeadsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
+            ContactFieldVisibility.BoardOnly => [ContactFieldVisibility.BoardOnly, ContactFieldVisibility.CoordinatorsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
+            ContactFieldVisibility.CoordinatorsAndBoard => [ContactFieldVisibility.CoordinatorsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
             ContactFieldVisibility.MyTeams => [ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
             _ => [ContactFieldVisibility.AllActiveProfiles]
         };
@@ -176,16 +176,16 @@ public class ContactFieldService : IContactFieldService
         if (_cachedViewerTeamIds == null)
         {
             var viewerTeams = await _teamService.GetUserTeamsAsync(viewerUserId, cancellationToken);
-            _cachedIsAnyLead = viewerTeams.Any(tm => tm.Role == TeamMemberRole.Lead);
+            _cachedIsAnyCoordinator = viewerTeams.Any(tm => tm.Role == TeamMemberRole.Coordinator);
             _cachedViewerTeamIds = viewerTeams
                 .Where(tm => tm.Team.SystemTeamType != SystemTeamType.Volunteers)
                 .Select(tm => tm.TeamId)
                 .ToHashSet();
         }
 
-        if (_cachedIsAnyLead!.Value)
+        if (_cachedIsAnyCoordinator!.Value)
         {
-            return ContactFieldVisibility.LeadsAndBoard;
+            return ContactFieldVisibility.CoordinatorsAndBoard;
         }
 
         // Check if viewer shares any team with owner (excluding Volunteers since everyone is in it)

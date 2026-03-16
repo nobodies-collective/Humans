@@ -190,7 +190,7 @@ public class StubTeamResourceService : ITeamResourceService
 
         if (_resourceSettings.AllowLeadsToManageResources)
         {
-            return await _teamService.IsUserLeadOfTeamAsync(teamId, userId, ct);
+            return await _teamService.IsUserCoordinatorOfTeamAsync(teamId, userId, ct);
         }
 
         return false;

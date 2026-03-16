@@ -151,7 +151,7 @@ public class ConsentService : IConsentService
 
         // Sync system team memberships (adds user if eligible + all consents done)
         await _syncJob.SyncVolunteersMembershipForUserAsync(userId);
-        await _syncJob.SyncLeadsMembershipForUserAsync(userId);
+        await _syncJob.SyncCoordinatorsMembershipForUserAsync(userId);
 
         return new ConsentSubmitResult(true, DocumentName: version.LegalDocument.Name);
     }
