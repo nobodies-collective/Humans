@@ -188,6 +188,8 @@ public class TeamController : Controller
                     JoinedAt = m.JoinedAt.ToDateTimeUtc(),
                     IsCoordinator = m.Role == TeamMemberRole.Coordinator
                 }).ToList(),
+            ParentTeam = team.ParentTeam,
+            ChildTeams = team.ChildTeams.Where(c => c.IsActive).OrderBy(c => c.Name, StringComparer.Ordinal).ToList(),
             IsCurrentUserMember = isMember,
             IsCurrentUserCoordinator = isCoordinator,
             CanCurrentUserJoin = !isMember && !team.IsSystemTeam && pendingRequest == null,

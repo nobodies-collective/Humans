@@ -93,21 +93,26 @@ public partial class TeamService : ITeamService
 
             _dbContext.Teams.Add(team);
 
-            // Auto-create Coordinator role definition for non-system teams
-            var coordinatorRole = new TeamRoleDefinition
+            // Auto-create Coordinator role definition for top-level (non-child) teams only.
+            // Sub-teams (child teams) don't get a management role by default.
+            TeamRoleDefinition? coordinatorRole = null;
+            if (!parentTeamId.HasValue)
             {
-                Id = Guid.NewGuid(),
-                TeamId = team.Id,
-                Name = "Coordinator",
-                Description = "Team coordination role",
-                SlotCount = 1,
-                IsManagement = true,
-                Priorities = [SlotPriority.Critical],
-                SortOrder = 0,
-                CreatedAt = now,
-                UpdatedAt = now
-            };
-            _dbContext.Set<TeamRoleDefinition>().Add(coordinatorRole);
+                coordinatorRole = new TeamRoleDefinition
+                {
+                    Id = Guid.NewGuid(),
+                    TeamId = team.Id,
+                    Name = "Coordinator",
+                    Description = "Team coordination role",
+                    SlotCount = 1,
+                    IsManagement = true,
+                    Priorities = [SlotPriority.Critical],
+                    SortOrder = 0,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                _dbContext.Set<TeamRoleDefinition>().Add(coordinatorRole);
+            }
 
             try
             {
@@ -127,7 +132,8 @@ public partial class TeamService : ITeamService
                 // Slug collision — detach and retry with next suffix
                 _logger.LogDebug(ex, "Slug collision for '{Slug}', retrying (attempt {Attempt})", slug, attempt + 1);
                 _dbContext.Entry(team).State = EntityState.Detached;
-                _dbContext.Entry(coordinatorRole).State = EntityState.Detached;
+                if (coordinatorRole != null)
+                    _dbContext.Entry(coordinatorRole).State = EntityState.Detached;
             }
         }
 
@@ -140,6 +146,8 @@ public partial class TeamService : ITeamService
             .AsNoTracking()
             .Include(t => t.Members.Where(m => m.LeftAt == null))
                 .ThenInclude(m => m.User)
+            .Include(t => t.ParentTeam)
+            .Include(t => t.ChildTeams)
             .FirstOrDefaultAsync(t => t.Slug == slug, cancellationToken);
     }
 

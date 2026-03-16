@@ -705,6 +705,50 @@ public class TeamAdminController : Controller
         return RedirectToAction(nameof(Roles), new { slug });
     }
 
+    [HttpPost("Roles/{roleId}/ToggleManagement")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ToggleManagement(string slug, Guid roleId)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var team = await _teamService.GetTeamBySlugAsync(slug);
+        if (team == null)
+        {
+            return NotFound();
+        }
+
+        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
+        if (!canManage)
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var roles = await _teamService.GetRoleDefinitionsAsync(team.Id);
+            var role = roles.FirstOrDefault(r => r.Id == roleId);
+            if (role == null)
+            {
+                return NotFound();
+            }
+
+            await _teamService.SetRoleIsManagementAsync(roleId, !role.IsManagement, user.Id);
+            TempData["SuccessMessage"] = role.IsManagement
+                ? $"'{role.Name}' is no longer the management role."
+                : $"'{role.Name}' is now the management role. Members assigned to it will become Coordinators.";
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Roles), new { slug });
+    }
+
     [HttpPost("Roles/{roleId}/Assign")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AssignRole(string slug, Guid roleId, AssignRoleModel model)
