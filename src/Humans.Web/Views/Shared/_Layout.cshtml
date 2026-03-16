@@ -43,6 +43,9 @@
                         @if (User.Identity?.IsAuthenticated == true)
                         {
                             var isActiveMember = User.HasClaim("ActiveMember", "true") || User.IsInRole("Admin") || User.IsInRole("Board") || User.IsInRole("TeamsAdmin");
+                            <li class="nav-item">
+                                <a class="nav-link" asp-area="" asp-controller="BarrioMap" asp-action="Index">@Localizer["Nav_Map"]</a>
+                            </li>
                             if (isActiveMember)
                             {
                                 <li class="nav-item">
