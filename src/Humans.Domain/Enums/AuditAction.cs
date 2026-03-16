@@ -51,4 +51,10 @@ public enum AuditAction
     CampPrimaryLeadTransferred,
     CampImageUploaded,
     CampImageDeleted,
+    DutySignupConfirmed,
+    DutySignupRefused,
+    DutySignupVoluntold,
+    DutySignupBailed,
+    DutySignupNoShow,
+    DutySignupCancelled,
 }
