@@ -109,6 +109,33 @@ else if (Model.PendingConsents > 0)
             </div>
         </div>
 
+        @{
+            var shiftCards = ViewData["ShiftCards"] as Humans.Web.Models.ShiftCardsViewModel;
+            if (shiftCards?.UrgentShifts?.Count > 0)
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Shifts Need Help</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0">
+                            @foreach (var item in shiftCards.UrgentShifts)
+                            {
+                                <li class="mb-2">
+                                    <strong>@(item?.Shift?.Title ?? "Unknown")</strong>
+                                    <span class="badge bg-danger">@(item?.RemainingSlots ?? 0) slots</span>
+                                    <br /><small class="text-muted">@(item?.DepartmentName ?? "")</small>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                    <div class="card-footer">
+                        <a asp-controller="Shifts" asp-action="Index" class="btn btn-sm btn-outline-success">Browse Shifts</a>
+                    </div>
+                </div>
+            }
+        }
+
         @if (Model.IsVolunteerMember)
         {
             @if (Model.MembershipTier != MembershipTier.Volunteer)
