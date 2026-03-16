@@ -1,8 +1,46 @@
 @model Humans.Web.Models.ShiftBrowseViewModel
 @using Humans.Domain.Enums
+@using NodaTime
 
 @{
     ViewData["Title"] = "Shifts";
+    var es = Model.EventSettings;
+    var tz = DateTimeZoneProviders.Tzdb[es.TimeZoneId];
+}
+
+@functions {
+    string FormatDate(EventSettings es, int dayOffset)
+    {
+        var date = es.GateOpeningDate.PlusDays(dayOffset);
+        return date.DayOfWeek.ToString()[..3] + " " + date.ToString("MMM d", null);
+    }
+
+    string FormatTime(Instant instant, DateTimeZone tz)
+    {
+        return instant.InZone(tz).ToString("HH:mm", null);
+    }
+
+    string GetPhase(Shift shift, EventSettings es)
+    {
+        return shift.GetShiftPeriod(es) switch
+        {
+            ShiftPeriod.Build => "Build",
+            ShiftPeriod.Event => "Burn",
+            ShiftPeriod.Strike => "Strike",
+            _ => ""
+        };
+    }
+
+    string GetPhaseBadge(Shift shift, EventSettings es)
+    {
+        return shift.GetShiftPeriod(es) switch
+        {
+            ShiftPeriod.Build => "bg-info",
+            ShiftPeriod.Event => "bg-success",
+            ShiftPeriod.Strike => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
 }
 
 <div class="container py-4">
@@ -43,38 +81,45 @@
                                 <thead>
                                     <tr>
                                         <th>Shift</th>
-                                        <th>Date/Time</th>
+                                        <th>Phase</th>
+                                        <th>Date</th>
+                                        <th>Time</th>
                                         <th>Duration</th>
-                                        <th>Slots</th>
+                                        <th>Filled</th>
                                         <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach (var item in rotaGroup.Shifts)
                                     {
+                                        var shift = item.Shift;
                                         var isFull = item.RemainingSlots <= 0;
+                                        var understaffed = item.ConfirmedCount < shift.MinVolunteers;
                                         <tr class="@(isFull ? "table-secondary" : "")">
-                                            <td>@item.Shift.Title</td>
-                                            <td>@item.AbsoluteStart</td>
-                                            <td>@item.Shift.Duration.TotalHours h</td>
+                                            <td>@shift.Title</td>
+                                            <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
+                                            <td>@FormatDate(es, shift.DayOffset)</td>
+                                            <td>@FormatTime(item.AbsoluteStart, tz)</td>
+                                            <td>@(shift.Duration.TotalHours)h</td>
                                             <td>
-                                                @item.ConfirmedCount / @item.Shift.MaxVolunteers
-                                                @if (item.ConfirmedCount < item.Shift.MinVolunteers)
+                                                <span class="@(understaffed ? "text-danger fw-bold" : "")">@item.ConfirmedCount</span>
+                                                <small class="text-muted">/ @shift.MinVolunteers–@shift.MaxVolunteers</small>
+                                                @if (understaffed)
                                                 {
                                                     <span class="badge bg-warning text-dark">Needs help</span>
                                                 }
                                             </td>
                                             <td>
-                                                @if (Model.UserSignupShiftIds.Contains(item.Shift.Id))
+                                                @if (Model.UserSignupShiftIds.Contains(shift.Id))
                                                 {
-                                                    var status = Model.UserSignupStatuses.GetValueOrDefault(item.Shift.Id);
+                                                    var status = Model.UserSignupStatuses.GetValueOrDefault(shift.Id);
                                                     <span class="badge bg-info">@status</span>
                                                 }
                                                 else
                                                 {
                                                     <form asp-action="SignUp" method="post" class="d-inline">
                                                         @Html.AntiForgeryToken()
-                                                        <input type="hidden" name="shiftId" value="@item.Shift.Id" />
+                                                        <input type="hidden" name="shiftId" value="@shift.Id" />
                                                         <button type="submit" class="btn btn-sm btn-success">Sign Up</button>
                                                     </form>
                                                 }

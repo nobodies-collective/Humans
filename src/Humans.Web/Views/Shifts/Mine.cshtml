@@ -1,7 +1,48 @@
 @model Humans.Web.Models.MyShiftsViewModel
+@using Humans.Domain.Enums
+@using NodaTime
 
 @{
     ViewData["Title"] = "My Shifts";
+    var tz = Model.EventSettings != null ? DateTimeZoneProviders.Tzdb[Model.EventSettings.TimeZoneId] : null;
+}
+
+@functions {
+    string FormatDate(EventSettings es, int dayOffset)
+    {
+        var date = es.GateOpeningDate.PlusDays(dayOffset);
+        return date.DayOfWeek.ToString()[..3] + " " + date.ToString("MMM d", null);
+    }
+
+    string FormatTime(Instant instant, DateTimeZone tz)
+    {
+        var zoned = instant.InZone(tz);
+        return zoned.ToString("HH:mm", null);
+    }
+
+    string GetPhase(Shift shift, EventSettings es)
+    {
+        var period = shift.GetShiftPeriod(es);
+        return period switch
+        {
+            ShiftPeriod.Build => "Build",
+            ShiftPeriod.Event => "Burn",
+            ShiftPeriod.Strike => "Strike",
+            _ => ""
+        };
+    }
+
+    string GetPhaseBadge(Shift shift, EventSettings es)
+    {
+        var period = shift.GetShiftPeriod(es);
+        return period switch
+        {
+            ShiftPeriod.Build => "bg-info",
+            ShiftPeriod.Event => "bg-success",
+            ShiftPeriod.Strike => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
 }
 
 <div class="container py-4">
@@ -18,6 +59,8 @@
     }
     else
     {
+        var es = Model.EventSettings;
+
         @if (Model.Upcoming.Count > 0)
         {
             <div class="card mb-4">
@@ -26,15 +69,19 @@
                     <div class="table-responsive">
                         <table class="table table-sm">
                             <thead>
-                                <tr><th>Shift</th><th>Department</th><th>Date/Time</th><th></th></tr>
+                                <tr><th>Department</th><th>Shift</th><th>Phase</th><th>Date</th><th>Time</th><th>Duration</th><th></th></tr>
                             </thead>
                             <tbody>
                                 @foreach (var item in Model.Upcoming)
                                 {
+                                    var shift = item.Signup.Shift;
                                     <tr>
-                                        <td>@item.Signup.Shift.Title</td>
                                         <td>@item.DepartmentName</td>
-                                        <td>@item.AbsoluteStart</td>
+                                        <td>@shift.Title</td>
+                                        <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
+                                        <td>@FormatDate(es, shift.DayOffset)</td>
+                                        <td>@FormatTime(item.AbsoluteStart, tz!)</td>
+                                        <td>@(shift.Duration.TotalHours)h</td>
                                         <td>
                                             <form asp-action="Bail" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
@@ -60,16 +107,19 @@
                     <div class="table-responsive">
                         <table class="table table-sm">
                             <thead>
-                                <tr><th>Shift</th><th>Department</th><th>Date/Time</th><th>Submitted</th><th></th></tr>
+                                <tr><th>Department</th><th>Shift</th><th>Phase</th><th>Date</th><th>Time</th><th>Duration</th><th></th></tr>
                             </thead>
                             <tbody>
                                 @foreach (var item in Model.Pending)
                                 {
+                                    var shift = item.Signup.Shift;
                                     <tr>
-                                        <td>@item.Signup.Shift.Title</td>
                                         <td>@item.DepartmentName</td>
-                                        <td>@item.AbsoluteStart</td>
-                                        <td>@item.Signup.CreatedAt</td>
+                                        <td>@shift.Title</td>
+                                        <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
+                                        <td>@FormatDate(es, shift.DayOffset)</td>
+                                        <td>@FormatTime(item.AbsoluteStart, tz!)</td>
+                                        <td>@(shift.Duration.TotalHours)h</td>
                                         <td>
                                             <form asp-action="Bail" method="post" class="d-inline">
                                                 @Html.AntiForgeryToken()
@@ -94,15 +144,19 @@
                     <div class="table-responsive">
                         <table class="table table-sm">
                             <thead>
-                                <tr><th>Shift</th><th>Department</th><th>Date/Time</th><th>Status</th></tr>
+                                <tr><th>Department</th><th>Shift</th><th>Phase</th><th>Date</th><th>Time</th><th>Duration</th><th>Status</th></tr>
                             </thead>
                             <tbody>
                                 @foreach (var item in Model.Past)
                                 {
+                                    var shift = item.Signup.Shift;
                                     <tr>
-                                        <td>@item.Signup.Shift.Title</td>
                                         <td>@item.DepartmentName</td>
-                                        <td>@item.AbsoluteStart</td>
+                                        <td>@shift.Title</td>
+                                        <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
+                                        <td>@FormatDate(es, shift.DayOffset)</td>
+                                        <td>@FormatTime(item.AbsoluteStart, tz!)</td>
+                                        <td>@(shift.Duration.TotalHours)h</td>
                                         <td><span class="badge bg-secondary">@item.Signup.Status</span></td>
                                     </tr>
                                 }
