@@ -57,6 +57,11 @@
 
     <vc:temp-data-alerts />
 
+    @if (!Model.EventSettings.IsShiftBrowsingOpen)
+    {
+        <div class="alert alert-danger">Shifts aren't open yet. Only coordinators and admins can see this page.</div>
+    }
+
     @if (Model.Departments.Count == 0)
     {
         <div class="alert alert-info">No shifts available yet.</div>
