@@ -342,11 +342,7 @@ app.Services.GetRequiredService<HumansMetricsService>();
 // Forwarded headers must be first (for reverse proxy)
 app.UseForwardedHeaders();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
-else
+if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
