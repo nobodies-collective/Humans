@@ -85,9 +85,9 @@
                             <thead>
                                 <tr>
                                     <th>Title</th>
-                                    <th>Day</th>
+                                    <th>Date</th>
                                     <th>Start</th>
-                                    <th>Duration</th>
+                                    <th>Hours</th>
                                     <th>Slots</th>
                                     <th></th>
                                 </tr>
@@ -100,7 +100,11 @@
                                             @shift.Title
                                             @if (shift.AdminOnly) { <span class="badge bg-dark">Admin Only</span> }
                                         </td>
-                                        <td>Day @shift.DayOffset</td>
+                                        @{
+                                            var shiftDate = Model.EventSettings.GateOpeningDate.PlusDays(shift.DayOffset);
+                                            var shiftDateLabel = shiftDate.DayOfWeek.ToString()[..3] + " " + shiftDate.ToString("MMM d", null);
+                                        }
+                                        <td>@shiftDateLabel</td>
                                         <td>@shift.StartTime</td>
                                         <td>@(shift.Duration.TotalHours)h</td>
                                         <td>@shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed) / @shift.MaxVolunteers</td>
@@ -132,24 +136,37 @@
                         <form asp-action="CreateShift" asp-route-slug="@Model.Department.Slug" method="post">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="RotaId" value="@rota.Id" />
-                            <div class="row g-2">
+                            <div class="row g-2 align-items-end">
                                 <div class="col-md-3">
-                                    <input type="text" name="Title" class="form-control form-control-sm" placeholder="Title" required />
+                                    <label class="form-label form-label-sm">Title</label>
+                                    <input type="text" name="Title" class="form-control form-control-sm" required />
                                 </div>
                                 <div class="col-md-2">
-                                    <input type="number" name="DayOffset" class="form-control form-control-sm" placeholder="Day offset" value="0" />
+                                    <label class="form-label form-label-sm">Date</label>
+                                    <select name="DayOffset" class="form-select form-select-sm">
+                                        @for (var d = Model.EventSettings.BuildStartOffset; d <= Model.EventSettings.StrikeEndOffset; d++)
+                                        {
+                                            var date = Model.EventSettings.GateOpeningDate.PlusDays(d);
+                                            var label = date.DayOfWeek.ToString()[..3] + " " + date.ToString("MMM d", null);
+                                            <option value="@d" selected="@(d == 0)">@label</option>
+                                        }
+                                    </select>
                                 </div>
                                 <div class="col-md-2">
+                                    <label class="form-label form-label-sm">Start time</label>
                                     <input type="time" name="StartTime" class="form-control form-control-sm" value="08:00" />
                                 </div>
                                 <div class="col-md-1">
-                                    <input type="number" name="DurationHours" class="form-control form-control-sm" placeholder="Hours" value="4" step="0.5" />
+                                    <label class="form-label form-label-sm">Hours</label>
+                                    <input type="number" name="DurationHours" class="form-control form-control-sm" value="4" step="0.5" min="0.5" />
                                 </div>
                                 <div class="col-md-1">
-                                    <input type="number" name="MinVolunteers" class="form-control form-control-sm" placeholder="Min" value="1" />
+                                    <label class="form-label form-label-sm">Min</label>
+                                    <input type="number" name="MinVolunteers" class="form-control form-control-sm" value="1" min="0" />
                                 </div>
                                 <div class="col-md-1">
-                                    <input type="number" name="MaxVolunteers" class="form-control form-control-sm" placeholder="Max" value="5" />
+                                    <label class="form-label form-label-sm">Max</label>
+                                    <input type="number" name="MaxVolunteers" class="form-control form-control-sm" value="5" min="1" />
                                 </div>
                                 <div class="col-md-2">
                                     <button type="submit" class="btn btn-sm btn-primary">Add</button>
