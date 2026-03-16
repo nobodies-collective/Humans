@@ -117,6 +117,45 @@ public class HomeController : Controller
             LastLogin = user.LastLoginAt?.ToDateTimeUtc()
         };
 
+        // Shift cards — fully guarded, failures must never crash the homepage
+        try
+        {
+            var activeEvent = await _shiftMgmt.GetActiveAsync();
+            if (activeEvent != null && activeEvent.IsShiftBrowsingOpen)
+            {
+                var urgentShifts = await _shiftMgmt.GetUrgentShiftsAsync(activeEvent.Id, limit: 3);
+
+                var urgentItems = new List<UrgentShiftItem>();
+                foreach (var u in urgentShifts)
+                {
+                    try
+                    {
+                        urgentItems.Add(new UrgentShiftItem
+                        {
+                            Shift = u.Shift,
+                            DepartmentName = u.DepartmentName ?? "Unknown",
+                            AbsoluteStart = u.Shift.GetAbsoluteStart(activeEvent),
+                            RemainingSlots = u.RemainingSlots,
+                            UrgencyScore = u.UrgencyScore
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to build urgent shift item for shift {ShiftId}", u.Shift?.Id);
+                    }
+                }
+
+                ViewData["ShiftCards"] = new ShiftCardsViewModel
+                {
+                    UrgentShifts = urgentItems
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load shift cards for dashboard");
+        }
+
         return View("Dashboard", viewModel);
     }
 
