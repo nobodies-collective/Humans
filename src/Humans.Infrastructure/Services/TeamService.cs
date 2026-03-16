@@ -53,7 +53,7 @@ public partial class TeamService : ITeamService
         var now = _clock.GetCurrentInstant();
 
         // Block reserved slugs (static routes in TeamController)
-        string[] reservedSlugs = ["roster", "birthdays", "map", "my", "sync", "summary", "create", "search", "departments"];
+        string[] reservedSlugs = ["roster", "birthdays", "map", "my", "sync", "summary", "create", "search"];
         if (Array.Exists(reservedSlugs, s => string.Equals(baseSlug, s, StringComparison.Ordinal)))
             throw new InvalidOperationException($"The team name '{name}' conflicts with a reserved route");
 

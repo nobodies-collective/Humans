@@ -445,9 +445,3 @@ public class TeamResourceLinkViewModel
     public string? Url { get; set; }
     public string IconClass { get; set; } = string.Empty;
 }
-
-public class DepartmentsViewModel
-{
-    public required List<Team> Departments { get; init; }
-    public required List<Team> StandaloneTeams { get; init; }
-}

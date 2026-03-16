@@ -660,23 +660,7 @@ public class TeamController : Controller
         return View(viewModel);
     }
 
-    [HttpGet("departments")]
-    public async Task<IActionResult> Departments(CancellationToken cancellationToken)
-    {
-        var teams = await _teamService.GetAllTeamsAsync(cancellationToken);
-        var activeTeams = teams.Where(t => t.IsActive && !t.IsSystemTeam).ToList();
-        var departments = activeTeams.Where(t => t.ChildTeams.Any(c => c.IsActive)).ToList();
-        var standalone = activeTeams.Where(t => t.ParentTeamId == null && !t.ChildTeams.Any(c => c.IsActive)).ToList();
-
-        var model = new DepartmentsViewModel
-        {
-            Departments = departments,
-            StandaloneTeams = standalone
-        };
-        return View(model);
-    }
-
-    [HttpGet("Create")]
+[HttpGet("Create")]
     [Authorize(Roles = "Board,Admin")]
     public async Task<IActionResult> CreateTeam(CancellationToken cancellationToken)
     {
