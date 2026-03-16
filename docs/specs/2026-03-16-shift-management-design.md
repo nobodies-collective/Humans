@@ -1,6 +1,6 @@
 # Shift Management for Humans — Design Specification
 
-**Elsewhere 2026 | v1.1 | March 16, 2026**
+**Elsewhere 2026 | v1.2 | March 16, 2026**
 
 ---
 
@@ -100,7 +100,7 @@ Build volunteer shift management natively into Humans, replacing VIM (FIST). The
 **Computed properties (not stored):**
 - `EndTime` — computed from StartTime + Duration (handles overnight naturally)
 - `IsEarlyEntry` — `DayOffset < 0`
-- `AbsoluteStart` — resolved from EventSettings: `GateOpeningDate.PlusDays(DayOffset).At(StartTime).InZoneStrictly(tz).ToInstant()`
+- `AbsoluteStart` — resolved from EventSettings: `GateOpeningDate.PlusDays(DayOffset).At(StartTime).InZoneLeniently(tz).ToInstant()` (lenient to handle DST transitions — picks earlier mapping for ambiguous times, instant after gap for skipped times)
 - `AbsoluteEnd` — `AbsoluteStart + Duration`
 - `ShiftPeriod` — computed from DayOffset: `< 0` = Build, `0..EventEndOffset` = Event, `> EventEndOffset` = Strike
 
@@ -128,7 +128,7 @@ Build volunteer shift management natively into Humans, replacing VIM (FIST). The
 
 **`Cancelled` status:** System-only — produced by the GC job (deactivated shifts) and hard-delete cascade (Pending signups). Leads/admins who want to remove a volunteer use Bail (which records the actor in `ReviewedByUserId`). `Cancelled` signups may have null `ReviewedByUserId`.
 
-**GDPR account deletion:** When a user's account is deleted via `ProcessAccountDeletionsJob`, active signups (Confirmed/Pending) are set to `Cancelled`. Historical signups (Bailed, NoShow, Refused, Cancelled) are anonymized (`UserId` set to null, display name replaced with "Deleted Human" in any denormalized fields). This preserves aggregate reporting while complying with GDPR. The `ICalToken` and volunteer event profile data are also deleted.
+**GDPR account deletion:** When a user's account is deleted via `ProcessAccountDeletionsJob`, active signups (Confirmed/Pending) are set to `Cancelled`. Historical signups (Bailed, NoShow, Refused, Cancelled) retain their `UserId` FK — the FK points to the now-anonymized User record (the existing deletion job already anonymizes the User entity to "Deleted Human"). This preserves aggregate reporting and FK integrity while complying with GDPR. The `ICalToken` and volunteer event profile data are also deleted.
 
 ### 2.5 Enums
 
@@ -193,7 +193,7 @@ All shift scheduling is relative to `EventSettings.GateOpeningDate` (day 0). Shi
 ```csharp
 var tz = DateTimeZoneProviders.Tzdb[eventSettings.TimeZoneId];
 var date = eventSettings.GateOpeningDate.PlusDays(shift.DayOffset);
-var startInstant = date.At(shift.StartTime).InZoneStrictly(tz).ToInstant();
+var startInstant = date.At(shift.StartTime).InZoneLeniently(tz).ToInstant();
 var endInstant = startInstant.Plus(shift.Duration);
 ```
 
@@ -224,6 +224,7 @@ Users see resolved dates/times in the event timezone (e.g., "Tuesday July 7, 10:
 Public policy:    volunteer signs up → Confirmed (instant)
 RequireApproval:  volunteer signs up → Pending → Confirmed (approved) | Refused
 Voluntell:        lead/NoInfoAdmin assigns → Confirmed (Enrolled=true)
+Any Pending:      volunteer withdraws → Bailed (self-retraction)
 Any Confirmed:    volunteer or lead bails → Bailed
 Any Confirmed:    lead marks after shift → NoShow
 Deactivated duty: GC job after 7 days → Cancelled
@@ -232,14 +233,17 @@ Deactivated duty: GC job after 7 days → Cancelled
 ### 4.2 Invariants (app-side, not transactional)
 
 **On signup creation:**
-1. **Overlap check** — warn/block if the volunteer has a Confirmed signup with overlapping absolute times. Show the conflicting shift's title, team, date/time.
+1. **Overlap check** — block if the volunteer has a Confirmed signup with overlapping absolute times. Show the conflicting shift's title, team, date/time.
 2. **Capacity warning** — if `Confirmed` count >= `MaxVolunteers`, show warning. Not a hard block.
 3. **EE cap warning** — if the shift is build-period and adding this volunteer would exceed the daily EE capacity for that day offset, show warning.
 4. **AdminOnly protection** — only Dept Coordinators, NoInfoAdmin, Admin can sign up for AdminOnly shifts.
-5. **System open check** — regular volunteers can only sign up when `IsShiftBrowsingOpen = true`. Dept Coordinators/NoInfoAdmin/Admin bypass.
+5. **System open check** — regular volunteers can only sign up when `IsShiftBrowsingOpen = true`. Dept Coordinators/NoInfoAdmin/Admin bypass this for their own scope (Dept Coordinators: own department only).
 
-**On bail:**
-6. **EE freeze** — after `EarlyEntryClose`, only Dept Coordinators, NoInfoAdmin, Admin can bail build-period signups.
+**On approval (Pending → Confirmed):**
+7. **Revalidation** — all confirmation-time invariants (overlap, capacity, EE cap, EE freeze) are rechecked when a lead approves a Pending signup. If the volunteer now has a conflicting Confirmed shift or the capacity situation has changed, the approver sees a warning.
+
+**After EarlyEntryClose:**
+6. **EE freeze** — after `EarlyEntryClose`, only Dept Coordinators, NoInfoAdmin, Admin can bail OR create new build-period (`DayOffset < 0`) signups. Regular volunteers are blocked from both. This protects the gate list from changes after the cutoff.
 
 ### 4.3 Who Can Do What
 
@@ -309,7 +313,7 @@ Both shift-based EE and barrios (camp) EE count toward the same daily site limit
 
 ### 5.4 EE Freeze
 
-After `EventSettings.EarlyEntryClose`, regular volunteers cannot bail their build-period signups. Dept Coordinators, NoInfoAdmin, Admin still can. Protects the gate list from last-minute changes.
+After `EventSettings.EarlyEntryClose`, regular volunteers cannot bail OR create new build-period (`DayOffset < 0`) signups. Dept Coordinators, NoInfoAdmin, Admin still can do both. Protects the gate list from changes after the cutoff.
 
 ### 5.5 EE Gaming Detection (Placeholder)
 
@@ -362,7 +366,7 @@ Eventually, EE passes become a concrete credential (code/ticket add-on) for gate
 ### 6.3 Navigation
 
 New nav item **"Shifts"** (or final name TBD) in the top navbar:
-- Visible to all volunteers when `IsShiftBrowsingOpen = true`
+- Visible to all volunteers when `IsShiftBrowsingOpen = true` OR the user has any Confirmed/Pending signups (so they can always reach `/Shifts/Mine` and their existing shifts)
 - Always visible to Dept Coordinators, NoInfoAdmin, Admin
 
 ### 6.4 NoInfo Dashboard (`/Shifts/Dashboard`)
@@ -623,6 +627,7 @@ Built as vertical slices, each independently deployable and useful.
 - Create/edit rotas and shifts, approve/refuse signups, fill rate display
 - "Shifts" summary card on `/Teams/{slug}` for departments
 - Audit logging for all signup state transitions
+- Extend `ProcessAccountDeletionsJob` to handle DutySignup cleanup, ICalToken deletion, and volunteer event profile data deletion
 
 ### Slice 2 — Volunteer Experience
 - Homepage "My Shifts" and "Shifts Need Help" cards
