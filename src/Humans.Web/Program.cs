@@ -262,6 +262,7 @@ builder.Services.AddLocalization();
 builder.Services.AddControllersWithViews(options =>
     {
         options.Filters.Add<MembershipRequiredFilter>();
+        options.Filters.Add<Humans.Web.Filters.GlobalExceptionFilter>();
     })
     .AddViewLocalization(LanguageViewLocationExpanderFormat.Suffix)
     .AddDataAnnotationsLocalization();
@@ -342,7 +343,27 @@ app.Services.GetRequiredService<HumansMetricsService>();
 // Forwarded headers must be first (for reverse proxy)
 app.UseForwardedHeaders();
 
-if (!app.Environment.IsDevelopment())
+// Global catch-all logger — logs every unhandled exception regardless of what
+// downstream middleware does. Must be first after forwarded headers.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next(context);
+    }
+    catch (Exception ex)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Unhandled exception on {Method} {Path}", context.Request.Method, context.Request.Path);
+        throw;
+    }
+});
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
@@ -450,7 +471,19 @@ if (!app.Environment.IsEnvironment("Testing"))
     app.UseHumansRecurringJobs();
 }
 
-await app.RunAsync();
+try
+{
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 
 static async Task WriteDetailedHealthResponse(HttpContext context, HealthReport report)
 {
