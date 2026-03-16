@@ -1,0 +1,137 @@
+@model Humans.Web.Models.MyShiftsViewModel
+
+@{
+    ViewData["Title"] = "My Shifts";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>My Shifts</h2>
+        <a asp-action="Index" class="btn btn-outline-primary">Browse Shifts</a>
+    </div>
+
+    <vc:temp-data-alerts />
+
+    @if (Model.EventSettings == null)
+    {
+        <div class="alert alert-info">No active event configured.</div>
+    }
+    else
+    {
+        @if (Model.Upcoming.Count > 0)
+        {
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Upcoming Shifts</h5></div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>Shift</th><th>Department</th><th>Date/Time</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Model.Upcoming)
+                                {
+                                    <tr>
+                                        <td>@item.Signup.Shift.Title</td>
+                                        <td>@item.DepartmentName</td>
+                                        <td>@item.AbsoluteStart</td>
+                                        <td>
+                                            <form asp-action="Bail" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="signupId" value="@item.Signup.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                        onclick="return confirm('Are you sure you want to bail?')">Bail</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (Model.Pending.Count > 0)
+        {
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Pending Approval</h5></div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>Shift</th><th>Department</th><th>Date/Time</th><th>Submitted</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Model.Pending)
+                                {
+                                    <tr>
+                                        <td>@item.Signup.Shift.Title</td>
+                                        <td>@item.DepartmentName</td>
+                                        <td>@item.AbsoluteStart</td>
+                                        <td>@item.Signup.CreatedAt</td>
+                                        <td>
+                                            <form asp-action="Bail" method="post" class="d-inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="signupId" value="@item.Signup.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Withdraw</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (Model.Past.Count > 0)
+        {
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Past</h5></div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th>Shift</th><th>Department</th><th>Date/Time</th><th>Status</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Model.Past)
+                                {
+                                    <tr>
+                                        <td>@item.Signup.Shift.Title</td>
+                                        <td>@item.DepartmentName</td>
+                                        <td>@item.AbsoluteStart</td>
+                                        <td><span class="badge bg-secondary">@item.Signup.Status</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (Model.Upcoming.Count == 0 && Model.Pending.Count == 0 && Model.Past.Count == 0)
+        {
+            <div class="alert alert-info">No shift signups yet. <a asp-action="Index">Browse available shifts</a>.</div>
+        }
+
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0">iCal Feed</h5></div>
+            <div class="card-body">
+                <p class="text-muted">Subscribe to your shifts in your calendar app:</p>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" id="icalUrl" value="@Model.ICalUrl" readonly />
+                    <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('icalUrl').value)">Copy</button>
+                </div>
+                <form asp-action="RegenerateIcal" method="post" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-sm btn-outline-warning"
+                            onclick="return confirm('This will invalidate the current URL. Continue?')">Regenerate URL</button>
+                </form>
+            </div>
+        </div>
+    }
+</div>

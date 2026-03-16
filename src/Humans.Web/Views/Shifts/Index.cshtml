@@ -1,0 +1,92 @@
+@model Humans.Web.Models.ShiftBrowseViewModel
+@using Humans.Domain.Enums
+
+@{
+    ViewData["Title"] = "Shifts";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Browse Shifts</h2>
+        <a asp-action="Mine" class="btn btn-outline-primary">My Shifts</a>
+    </div>
+
+    <vc:temp-data-alerts />
+
+    @if (Model.Departments.Count == 0)
+    {
+        <div class="alert alert-info">No shifts available yet.</div>
+    }
+    else
+    {
+        @foreach (var dept in Model.Departments)
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">@dept.TeamName</h5>
+                </div>
+                <div class="card-body">
+                    @foreach (var rotaGroup in dept.Rotas)
+                    {
+                        <h6 class="mt-3">@rotaGroup.Rota.Name
+                            @if (rotaGroup.Rota.Priority == DutyPriority.Essential)
+                            {
+                                <span class="badge bg-danger ms-1">Essential</span>
+                            }
+                            else if (rotaGroup.Rota.Priority == DutyPriority.Important)
+                            {
+                                <span class="badge bg-warning text-dark ms-1">Important</span>
+                            }
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Shift</th>
+                                        <th>Date/Time</th>
+                                        <th>Duration</th>
+                                        <th>Slots</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in rotaGroup.Shifts)
+                                    {
+                                        var isFull = item.RemainingSlots <= 0;
+                                        <tr class="@(isFull ? "table-secondary" : "")">
+                                            <td>@item.Shift.Title</td>
+                                            <td>@item.AbsoluteStart</td>
+                                            <td>@item.Shift.Duration.TotalHours h</td>
+                                            <td>
+                                                @item.ConfirmedCount / @item.Shift.MaxVolunteers
+                                                @if (item.ConfirmedCount < item.Shift.MinVolunteers)
+                                                {
+                                                    <span class="badge bg-warning text-dark">Needs help</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (Model.UserSignupShiftIds.Contains(item.Shift.Id))
+                                                {
+                                                    var status = Model.UserSignupStatuses.GetValueOrDefault(item.Shift.Id);
+                                                    <span class="badge bg-info">@status</span>
+                                                }
+                                                else
+                                                {
+                                                    <form asp-action="SignUp" method="post" class="d-inline">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="shiftId" value="@item.Shift.Id" />
+                                                        <button type="submit" class="btn btn-sm btn-success">Sign Up</button>
+                                                    </form>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>

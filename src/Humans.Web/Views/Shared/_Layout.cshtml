@@ -52,6 +52,18 @@
                             <li class="nav-item">
                                 <a class="nav-link" asp-area="" asp-controller="Consent" asp-action="Index">@Localizer["Nav_Consents"]</a>
                             </li>
+                            @if (User.IsInRole(Humans.Domain.Constants.RoleNames.Admin) || User.IsInRole(Humans.Domain.Constants.RoleNames.NoInfoAdmin))
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="" asp-controller="Shifts" asp-action="Index">Shifts</a>
+                                </li>
+                            }
+                            else if (isActiveMember)
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link" asp-area="" asp-controller="Shifts" asp-action="Index">Shifts</a>
+                                </li>
+                            }
                             if (isActiveMember)
                             {
                                 <li class="nav-item">
