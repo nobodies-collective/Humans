@@ -660,7 +660,7 @@ public class TeamController : Controller
         return View(viewModel);
     }
 
-[HttpGet("Create")]
+    [HttpGet("Create")]
     [Authorize(Roles = "Board,Admin")]
     public async Task<IActionResult> CreateTeam(CancellationToken cancellationToken)
     {
