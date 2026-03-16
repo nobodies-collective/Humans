@@ -168,17 +168,31 @@ TeamJoinRequestStatus:
 
 ## Team Hierarchy (Departments)
 
-Teams can optionally have a parent team, forming a single-level hierarchy for organizational grouping. A parent team with child teams functions as a "department."
+Teams are either **departments** (top-level, no parent) or **sub-teams** (have a parent). A department may have child sub-teams.
 
-### Rules
-- Only user-created teams can have a parent (system teams cannot)
-- Parent must be a user-created team (system teams cannot be parents)
-- Only single-level nesting (a child team cannot also be a parent)
-- The `ParentTeamId` is set during team creation or editing
+### Terminology
+- **Department**: Any user-created team that is NOT a sub-team. May or may not have children.
+- **Sub-team**: A team with a `ParentTeamId` set. Always belongs to a department.
 
-### Department View
-- `/Teams/Departments` — shows teams grouped by department
-- Teams without a parent appear as standalone teams
+### Hierarchy Rules
+- Only user-created teams can participate in hierarchy (system teams cannot be parents or children)
+- Only single-level nesting (a sub-team cannot also be a parent)
+- `ParentTeamId` is set during team creation or editing
+- When a team becomes a sub-team, all `IsManagement` flags on its roles are cleared and any Coordinator members are demoted to Member
+
+### Coordinator (IsManagement) Rules
+- Only departments can have an `IsManagement` role. Sub-teams cannot.
+- At most one role per department can have `IsManagement = true`
+- Assigning a member to an `IsManagement` role sets their `TeamMember.Role = Coordinator`
+- Unassigning from an `IsManagement` role demotes to Member (if no other management assignments remain)
+- `IsManagement` cannot be toggled while members are assigned to the role
+- `IsManagement` roles can be renamed and deleted (if no assignments)
+- No roles are auto-created on team creation — admins add roles manually
+
+### Display
+- Sub-team names display as "Department - SubTeam" on profile pills, team details, and MyTeams
+- `/Teams` page groups cards into: My Teams, Departments, System Teams
+- `/Teams/Summary` shows hierarchy with sub-teams indented below their parent
 
 ## System Teams
 
@@ -408,7 +422,7 @@ Real implementation will manage Google Drive folder permissions.
 | `/Teams/{slug}` | Team details |
 | `/Teams/{slug}/Join` | Join form |
 | `/Teams/My` | User's teams |
-| `/Teams/Departments` | Teams grouped by department |
+| `/Teams/Birthdays` | Birthday calendar |
 | `/Teams/Sync` | Sync status (TeamsAdmin, Board, Admin) |
 | `/Teams/{slug}/Admin/Members` | Manage members (includes pending requests) |
 | `/Teams/Summary` | Team summary with resource columns (Board, Admin, TeamsAdmin) |
@@ -423,7 +437,7 @@ Teams can define named role slots that members fill. Each role has a configurabl
 
 - **Role Definition**: A named role on a team (e.g., "Social Media", "Designer") with a slot count and priority per slot
 - **Role Assignment**: Links a team member to a specific slot in a role definition
-- **IsManagement flag**: One role per team can be marked `IsManagement = true`. Assigning a member to this role sets their `TeamMember.Role = Coordinator`. The auto-created "Coordinator" role definition has this flag set by default.
+- **IsManagement flag**: One role per department can be marked `IsManagement = true`. Assigning a member to this role sets their `TeamMember.Role = Coordinator`. Sub-teams cannot have IsManagement roles.
 - **Auto-add**: Assigning a non-member to a role automatically adds them to the team
 - **Roster Summary**: Cross-team view showing all slots with priority/status filtering
 
