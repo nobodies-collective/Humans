@@ -24,7 +24,7 @@ public class TeamRoleDefinition
     public Team Team { get; set; } = null!;
 
     /// <summary>
-    /// Name of the role (e.g. "Lead", "Secretary").
+    /// Name of the role (e.g. "Coordinator", "Secretary").
     /// </summary>
     public string Name { get; set; } = string.Empty;
 
