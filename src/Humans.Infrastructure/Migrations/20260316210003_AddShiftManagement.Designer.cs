@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Humans.Infrastructure.Migrations
 {
     [DbContext(typeof(HumansDbContext))]
-    [Migration("20260316204408_AddShiftManagement")]
+    [Migration("20260316210003_AddShiftManagement")]
     partial class AddShiftManagement
     {
         /// <inheritdoc />
