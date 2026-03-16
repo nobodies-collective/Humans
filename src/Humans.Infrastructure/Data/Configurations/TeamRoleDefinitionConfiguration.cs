@@ -58,7 +58,6 @@ public class TeamRoleDefinitionConfiguration : IEntityTypeConfiguration<TeamRole
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(d => d.IsManagement)
-            .IsRequired()
-            .HasDefaultValueSql("false");
+            .IsRequired();
     }
 }
