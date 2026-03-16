@@ -232,5 +232,20 @@
                 </div>
             </div>
         }
+
+        @if (Model.ChildTeams.Any())
+        {
+            <div class="card mb-4">
+                <div class="card-header">Sub-teams</div>
+                <div class="list-group list-group-flush">
+                    @foreach (var child in Model.ChildTeams)
+                    {
+                        <a asp-action="Details" asp-route-slug="@child.Slug" class="list-group-item list-group-item-action">
+                            @child.Name
+                        </a>
+                    }
+                </div>
+            </div>
+        }
     </div>
 </div>
