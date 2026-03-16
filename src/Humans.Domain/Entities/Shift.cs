@@ -80,6 +80,11 @@ public class Shift
     public Rota Rota { get; set; } = null!;
 
     /// <summary>
+    /// Navigation property to signups for this shift.
+    /// </summary>
+    public ICollection<DutySignup> DutySignups { get; } = new List<DutySignup>();
+
+    /// <summary>
     /// Resolves the absolute start instant using event settings timezone and gate opening date.
     /// Uses InZoneLeniently for DST safety.
     /// </summary>
