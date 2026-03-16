@@ -356,11 +356,6 @@ app.UseStatusCodePagesWithReExecute("/Home/Error/{0}");
 
 app.UseHttpsRedirection();
 
-// Buffer HTML responses so view rendering exceptions are caught before
-// compressed bytes go to the client. Without this, mid-render exceptions
-// produce ERR_CONTENT_DECODING_FAILED instead of a proper error page.
-app.UseMiddleware<Humans.Web.Middleware.ResponseBufferingMiddleware>();
-
 app.UseResponseCompression();
 
 app.UseStaticFiles();
