@@ -1,95 +1,83 @@
 using Hangfire;
 using Humans.Infrastructure.Jobs;
+using Microsoft.Extensions.Logging;
 
 namespace Humans.Web.Extensions;
 
 public static class RecurringJobExtensions
 {
-    public static void UseHumansRecurringJobs(this WebApplication _)
+    public static void UseHumansRecurringJobs(this WebApplication app)
     {
-        // Google sync jobs — controlled by SyncServiceSettings (Admin/SyncSettings).
-        // Set service mode to "None" to disable without redeploying.
-        RecurringJob.AddOrUpdate<SystemTeamSyncJob>(
-            "system-team-sync",
-            job => job.ExecuteAsync(CancellationToken.None),
-            Cron.Hourly);
+        var logger = app.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger(typeof(RecurringJobExtensions));
 
-        RecurringJob.AddOrUpdate<GoogleResourceReconciliationJob>(
-            "google-resource-reconciliation",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "0 3 * * *"); // Daily at 03:00 UTC
+        var ticketSyncInterval = app.Configuration.GetValue("TicketVendor:SyncIntervalMinutes", 15);
 
-        RecurringJob.AddOrUpdate<ProcessAccountDeletionsJob>(
-            "process-account-deletions",
-            job => job.ExecuteAsync(CancellationToken.None),
-            Cron.Daily);
+        var jobs = new (string Id, Action Register)[]
+        {
+            // Google sync jobs — controlled by SyncServiceSettings (Admin/SyncSettings).
+            // Set service mode to "None" to disable without redeploying.
+            ("system-team-sync", () => RecurringJob.AddOrUpdate<SystemTeamSyncJob>(
+                "system-team-sync", job => job.ExecuteAsync(CancellationToken.None), Cron.Hourly)),
 
-        RecurringJob.AddOrUpdate<SyncLegalDocumentsJob>(
-            "legal-document-sync",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "0 4 * * *");
+            ("google-resource-reconciliation", () => RecurringJob.AddOrUpdate<GoogleResourceReconciliationJob>(
+                "google-resource-reconciliation", job => job.ExecuteAsync(CancellationToken.None), "0 3 * * *")),
 
-        RecurringJob.AddOrUpdate<SuspendNonCompliantMembersJob>(
-            "suspend-non-compliant-members",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "30 4 * * *");
+            ("process-account-deletions", () => RecurringJob.AddOrUpdate<ProcessAccountDeletionsJob>(
+                "process-account-deletions", job => job.ExecuteAsync(CancellationToken.None), Cron.Daily)),
 
-        // Send re-consent reminders before suspension job runs.
-        // Runs daily at 04:00, 30 minutes before SuspendNonCompliantMembersJob.
-        // Timing controlled by Email:ConsentReminderDaysBeforeSuspension and
-        // Email:ConsentReminderCooldownDays in appsettings.
-        RecurringJob.AddOrUpdate<SendReConsentReminderJob>(
-            "send-reconsent-reminders",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "0 4 * * *");
+            ("legal-document-sync", () => RecurringJob.AddOrUpdate<SyncLegalDocumentsJob>(
+                "legal-document-sync", job => job.ExecuteAsync(CancellationToken.None), "0 4 * * *")),
 
-        RecurringJob.AddOrUpdate<ProcessGoogleSyncOutboxJob>(
-            "process-google-sync-outbox",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "*/10 * * * *");
+            ("suspend-non-compliant-members", () => RecurringJob.AddOrUpdate<SuspendNonCompliantMembersJob>(
+                "suspend-non-compliant-members", job => job.ExecuteAsync(CancellationToken.None), "30 4 * * *")),
 
-        RecurringJob.AddOrUpdate<DriveActivityMonitorJob>(
-            "drive-activity-monitor",
-            job => job.ExecuteAsync(CancellationToken.None),
-            Cron.Hourly);
+            // Send re-consent reminders before suspension job runs.
+            // Runs daily at 04:00, 30 minutes before SuspendNonCompliantMembersJob.
+            ("send-reconsent-reminders", () => RecurringJob.AddOrUpdate<SendReConsentReminderJob>(
+                "send-reconsent-reminders", job => job.ExecuteAsync(CancellationToken.None), "0 4 * * *")),
 
-        // Send term renewal reminders to Colaboradors/Asociados whose terms expire within 90 days.
-        // Runs weekly on Mondays at 05:00.
-        RecurringJob.AddOrUpdate<TermRenewalReminderJob>(
-            "term-renewal-reminder",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "0 5 * * 1");
+            ("process-google-sync-outbox", () => RecurringJob.AddOrUpdate<ProcessGoogleSyncOutboxJob>(
+                "process-google-sync-outbox", job => job.ExecuteAsync(CancellationToken.None), "*/10 * * * *")),
 
-        // Send Board daily digest of new approvals from the previous UTC day.
-        // Runs daily at 02:00 UTC.
-        RecurringJob.AddOrUpdate<SendBoardDailyDigestJob>(
-            "send-board-daily-digest",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "0 2 * * *");
+            ("drive-activity-monitor", () => RecurringJob.AddOrUpdate<DriveActivityMonitorJob>(
+                "drive-activity-monitor", job => job.ExecuteAsync(CancellationToken.None), Cron.Hourly)),
 
-        RecurringJob.AddOrUpdate<ProcessEmailOutboxJob>(
-            "process-email-outbox",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "*/1 * * * *"); // Every minute
+            // Send term renewal reminders to Colaboradors/Asociados whose terms expire within 90 days.
+            ("term-renewal-reminder", () => RecurringJob.AddOrUpdate<TermRenewalReminderJob>(
+                "term-renewal-reminder", job => job.ExecuteAsync(CancellationToken.None), "0 5 * * 1")),
 
-        RecurringJob.AddOrUpdate<CleanupEmailOutboxJob>(
-            "cleanup-email-outbox",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "0 3 * * 0"); // Sunday 03:00 UTC
+            // Send Board daily digest of new approvals from the previous UTC day.
+            ("send-board-daily-digest", () => RecurringJob.AddOrUpdate<SendBoardDailyDigestJob>(
+                "send-board-daily-digest", job => job.ExecuteAsync(CancellationToken.None), "0 2 * * *")),
 
-        // Cancel signups on deactivated shifts after 7-day grace period.
-        // Runs daily at 04:00 UTC.
-        RecurringJob.AddOrUpdate<SignupGarbageCollectionJob>(
-            "signup-garbage-collection",
-            job => job.ExecuteAsync(CancellationToken.None),
-            "0 4 * * *");
+            ("process-email-outbox", () => RecurringJob.AddOrUpdate<ProcessEmailOutboxJob>(
+                "process-email-outbox", job => job.ExecuteAsync(CancellationToken.None), "*/1 * * * *")),
 
-        // Sync ticket data from vendor at configured interval (default 15 min).
-        // Requires TICKET_VENDOR_API_KEY environment variable and TicketVendor:EventId in appsettings.
-        var ticketSyncInterval = _.Configuration.GetValue("TicketVendor:SyncIntervalMinutes", 15);
-        RecurringJob.AddOrUpdate<TicketSyncJob>(
-            "ticket-vendor-sync",
-            job => job.ExecuteAsync(CancellationToken.None),
-            $"*/{ticketSyncInterval} * * * *");
+            ("cleanup-email-outbox", () => RecurringJob.AddOrUpdate<CleanupEmailOutboxJob>(
+                "cleanup-email-outbox", job => job.ExecuteAsync(CancellationToken.None), "0 3 * * 0")),
+
+            // Cancel signups on deactivated shifts after 7-day grace period.
+            ("signup-garbage-collection", () => RecurringJob.AddOrUpdate<SignupGarbageCollectionJob>(
+                "signup-garbage-collection", job => job.ExecuteAsync(CancellationToken.None), "0 4 * * *")),
+
+            // Sync ticket data from vendor at configured interval (default 15 min).
+            ("ticket-vendor-sync", () => RecurringJob.AddOrUpdate<TicketSyncJob>(
+                "ticket-vendor-sync", job => job.ExecuteAsync(CancellationToken.None), $"*/{ticketSyncInterval} * * * *")),
+        };
+
+        foreach (var (id, register) in jobs)
+        {
+            try
+            {
+                register();
+            }
+            catch (Exception ex)
+            {
+                // Don't let a stale distributed lock prevent the app from starting.
+                // Existing job registrations in the DB will continue running.
+                logger.LogWarning(ex, "Failed to register recurring job '{JobId}' — will retry on next restart", id);
+            }
+        }
     }
 }
