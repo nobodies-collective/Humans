@@ -145,9 +145,46 @@ public class HomeController : Controller
                     }
                 }
 
+                var nextShifts = new List<MySignupItem>();
+                var pendingCount = 0;
+                try
+                {
+                    var now = _clock.GetCurrentInstant();
+                    var userSignups = await _shiftSignup.GetByUserAsync(user.Id, activeEvent.Id);
+                    pendingCount = userSignups.Count(s => s.Status == SignupStatus.Pending);
+
+                    foreach (var s in userSignups.Where(s => s.Status == SignupStatus.Confirmed))
+                    {
+                        try
+                        {
+                            var item = new MySignupItem
+                            {
+                                Signup = s,
+                                DepartmentName = s.Shift?.Rota?.Team?.Name ?? "Unknown",
+                                AbsoluteStart = s.Shift!.GetAbsoluteStart(activeEvent),
+                                AbsoluteEnd = s.Shift!.GetAbsoluteEnd(activeEvent)
+                            };
+                            if (item.AbsoluteEnd > now)
+                                nextShifts.Add(item);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to build shift item for signup {SignupId}", s.Id);
+                        }
+                    }
+
+                    nextShifts = nextShifts.OrderBy(i => i.AbsoluteStart).Take(3).ToList();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to load user signups for dashboard");
+                }
+
                 ViewData["ShiftCards"] = new ShiftCardsViewModel
                 {
-                    UrgentShifts = urgentItems
+                    UrgentShifts = urgentItems,
+                    NextShifts = nextShifts,
+                    PendingCount = pendingCount
                 };
             }
         }
