@@ -315,7 +315,7 @@ public class TeamMembershipViewModel
     public Guid TeamId { get; set; }
     public string TeamName { get; set; } = string.Empty;
     public string TeamSlug { get; set; } = string.Empty;
-    public bool IsLead { get; set; }
+    public bool IsCoordinator { get; set; }
     public bool IsSystemTeam { get; set; }
 }
 
@@ -366,7 +366,7 @@ public class ContactFieldViewModel
     public string VisibilityIconClass => Visibility switch
     {
         ContactFieldVisibility.BoardOnly => "fa-solid fa-lock",
-        ContactFieldVisibility.LeadsAndBoard => "fa-solid fa-user-shield",
+        ContactFieldVisibility.CoordinatorsAndBoard => "fa-solid fa-user-shield",
         ContactFieldVisibility.MyTeams => "fa-solid fa-users",
         ContactFieldVisibility.AllActiveProfiles => "fa-solid fa-globe",
         _ => "fa-solid fa-eye"
@@ -378,7 +378,7 @@ public class ContactFieldViewModel
     public string VisibilityTooltip => Visibility switch
     {
         ContactFieldVisibility.BoardOnly => "Visible to board members only",
-        ContactFieldVisibility.LeadsAndBoard => "Visible to team leads and board",
+        ContactFieldVisibility.CoordinatorsAndBoard => "Visible to coordinators and board",
         ContactFieldVisibility.MyTeams => "Visible to your teammates, leads, and board",
         ContactFieldVisibility.AllActiveProfiles => "Visible to all active members",
         _ => "Visibility unknown"

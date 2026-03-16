@@ -27,9 +27,9 @@
                     {
                         @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Member)
                     }
-                    @if (Model.IsCurrentUserLead)
+                    @if (Model.IsCurrentUserCoordinator)
                     {
-                        @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Lead)
+                        @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Coordinator)
                     }
                 </div>
             </div>
@@ -74,14 +74,14 @@
             <div class="card-body">
                 @if (Model.Members.Any())
                 {
-                    var leads = Model.Members.Where(m => m.IsLead).ToList();
-                    var regularMembers = Model.Members.Where(m => !m.IsLead).ToList();
+                    var coordinators = Model.Members.Where(m => m.IsCoordinator).ToList();
+                    var regularMembers = Model.Members.Where(m => !m.IsCoordinator).ToList();
 
-                    @if (leads.Any())
+                    @if (coordinators.Any())
                     {
-                        <h6 class="text-muted mb-3">@Localizer["TeamDetail_TeamLeads"]</h6>
+                        <h6 class="text-muted mb-3">@Localizer["TeamDetail_TeamCoordinators"]</h6>
                         <div class="row g-3 mb-4">
-                            @foreach (var member in leads)
+                            @foreach (var member in coordinators)
                             {
                                 <div class="col-6 col-sm-4 col-md-3">
                                     <a asp-controller="Human" asp-action="View" asp-route-id="@member.UserId" class="text-center text-decoration-none d-block">
@@ -91,7 +91,7 @@
                                                         css-class="mb-2 mx-auto border border-primary border-3"
                                                         bg-color="bg-primary" />
                                         <div class="fw-semibold small">@member.DisplayName</div>
-                                        @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Lead)
+                                        @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Coordinator)
                                     </a>
                                 </div>
                             }
@@ -100,7 +100,7 @@
 
                     @if (regularMembers.Any())
                     {
-                        @if (leads.Any())
+                        @if (coordinators.Any())
                         {
                             <h6 class="text-muted mb-3">@Localizer["Teams_Member"]</h6>
                         }

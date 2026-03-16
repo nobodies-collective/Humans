@@ -167,40 +167,18 @@
                                 </div>
                             </td>
                             <td>
-                                @await Html.PartialAsync("_RoleBadge", member.IsLead ? TeamMemberRole.Lead : TeamMemberRole.Member)
+                                @await Html.PartialAsync("_RoleBadge", member.IsCoordinator ? TeamMemberRole.Coordinator : TeamMemberRole.Member)
                             </td>
                             <td>@member.JoinedAt.ToString("MMM d, yyyy")</td>
                             @if (Model.CanManageRoles)
                             {
                                 <td>
-                                    <div class="d-flex gap-1" role="group">
-                                        @if (member.IsLead)
-                                        {
-                                            <form asp-action="SetRole" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
-                                                @Html.AntiForgeryToken()
-                                                <input type="hidden" name="Role" value="@TeamMemberRole.Member" />
-                                                <button type="submit" class="btn btn-sm btn-outline-secondary" data-confirm="@Localizer["TeamAdmin_DemoteConfirm"].Value">
-                                                    @Localizer["TeamAdmin_DemoteToMember"]
-                                                </button>
-                                            </form>
-                                        }
-                                        else
-                                        {
-                                            <form asp-action="SetRole" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
-                                                @Html.AntiForgeryToken()
-                                                <input type="hidden" name="Role" value="@TeamMemberRole.Lead" />
-                                                <button type="submit" class="btn btn-sm btn-outline-primary" data-confirm="@Localizer["TeamAdmin_PromoteConfirm"].Value">
-                                                    @Localizer["TeamAdmin_PromoteToLead"]
-                                                </button>
-                                            </form>
-                                        }
-                                        <form asp-action="RemoveMember" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
-                                            @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="@Localizer["TeamAdmin_RemoveConfirm"].Value">
-                                                @Localizer["TeamAdmin_Remove"]
-                                            </button>
-                                        </form>
-                                    </div>
+                                    <form asp-action="RemoveMember" asp-route-slug="@Model.TeamSlug" asp-route-userId="@member.UserId" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="@Localizer["TeamAdmin_RemoveConfirm"].Value">
+                                            @Localizer["TeamAdmin_Remove"]
+                                        </button>
+                                    </form>
                                 </td>
                             }
                         </tr>

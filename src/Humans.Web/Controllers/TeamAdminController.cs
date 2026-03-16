@@ -166,7 +166,7 @@ public class TeamAdminController : Controller
                 CustomProfilePictureUrl = customPictureByUserId.GetValueOrDefault(m.UserId),
                 Role = m.Role.ToString(),
                 JoinedAt = m.JoinedAt.ToDateTimeUtc(),
-                IsLead = m.Role == TeamMemberRole.Lead
+                IsCoordinator = m.Role == TeamMemberRole.Coordinator
             }).ToList();
 
         var pendingRequests = await _teamService.GetPendingRequestsForTeamAsync(team.Id);
@@ -202,45 +202,6 @@ public class TeamAdminController : Controller
         return View(viewModel);
     }
 
-    [HttpPost("Members/{userId}/SetRole")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SetRole(string slug, Guid userId, SetMemberRoleModel model)
-    {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
-        {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await _teamService.SetMemberRoleAsync(team.Id, userId, model.Role, user.Id);
-
-            // Sync Leads system team membership (handles both promotion and demotion)
-            await _systemTeamSyncJob.SyncLeadsMembershipForUserAsync(userId);
-
-            TempData["SuccessMessage"] = string.Format(_localizer["TeamAdmin_RoleUpdated"].Value, model.Role);
-        }
-        catch (InvalidOperationException ex)
-        {
-            TempData["ErrorMessage"] = ex.Message;
-        }
-
-        return RedirectToAction(nameof(Members), new { slug });
-    }
-
     [HttpPost("Members/{userId}/Remove")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RemoveMember(string slug, Guid userId)
@@ -265,7 +226,11 @@ public class TeamAdminController : Controller
 
         try
         {
-            await _teamService.RemoveMemberAsync(team.Id, userId, user.Id);
+            var wasCoordinator = await _teamService.RemoveMemberAsync(team.Id, userId, user.Id);
+            if (wasCoordinator)
+            {
+                await _systemTeamSyncJob.SyncCoordinatorsMembershipForUserAsync(userId);
+            }
             TempData["SuccessMessage"] = _localizer["TeamAdmin_MemberRemoved"].Value;
         }
         catch (InvalidOperationException ex)
@@ -614,7 +579,7 @@ public class TeamAdminController : Controller
                 CustomProfilePictureUrl = customPictureByUserId.GetValueOrDefault(m.UserId),
                 Role = m.Role.ToString(),
                 JoinedAt = m.JoinedAt.ToDateTimeUtc(),
-                IsLead = m.Role == TeamMemberRole.Lead
+                IsCoordinator = m.Role == TeamMemberRole.Coordinator
             }).ToList()
         };
 
@@ -765,7 +730,7 @@ public class TeamAdminController : Controller
         try
         {
             await _teamService.AssignToRoleAsync(roleId, model.UserId, user.Id);
-            await _systemTeamSyncJob.SyncLeadsMembershipForUserAsync(model.UserId);
+            await _systemTeamSyncJob.SyncCoordinatorsMembershipForUserAsync(model.UserId);
             TempData["SuccessMessage"] = "Member assigned to role.";
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
@@ -809,7 +774,7 @@ public class TeamAdminController : Controller
 
             if (userId.HasValue)
             {
-                await _systemTeamSyncJob.SyncLeadsMembershipForUserAsync(userId.Value);
+                await _systemTeamSyncJob.SyncCoordinatorsMembershipForUserAsync(userId.Value);
             }
 
             TempData["SuccessMessage"] = "Member unassigned from role.";

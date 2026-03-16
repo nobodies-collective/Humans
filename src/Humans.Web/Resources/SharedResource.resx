@@ -195,7 +195,7 @@
   <data name="Profile_NotificationTarget" xml:space="preserve"><value>System notifications are sent to this address</value></data>
   <data name="Profile_NotificationTargetShort" xml:space="preserve"><value>Notifications</value></data>
   <data name="Profile_Teams" xml:space="preserve"><value>Teams</value></data>
-  <data name="Profile_Lead" xml:space="preserve"><value>Team Lead</value></data>
+  <data name="Profile_Coordinator" xml:space="preserve"><value>Coordinator</value></data>
   <data name="Profile_MembershipTier" xml:space="preserve"><value>Membership Tier</value></data>
   <data name="Profile_Motivation" xml:space="preserve"><value>Motivation</value></data>
   <data name="Profile_AdditionalInfo" xml:space="preserve"><value>Additional Information (optional)</value></data>
@@ -790,10 +790,6 @@
   <data name="TeamAdmin_ManageResources" xml:space="preserve"><value>Manage Resources</value></data>
   <data name="TeamAdmin_SystemTeam" xml:space="preserve"><value>System Team</value></data>
   <data name="TeamAdmin_SystemTeamRolesInfo" xml:space="preserve"><value>This is a system-managed team. Member roles cannot be changed manually.</value></data>
-  <data name="TeamAdmin_DemoteConfirm" xml:space="preserve"><value>Demote this user to Member?</value></data>
-  <data name="TeamAdmin_DemoteToMember" xml:space="preserve"><value>Demote to Member</value></data>
-  <data name="TeamAdmin_PromoteConfirm" xml:space="preserve"><value>Promote this user to Lead?</value></data>
-  <data name="TeamAdmin_PromoteToLead" xml:space="preserve"><value>Promote to Lead</value></data>
   <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>Remove this member from the team?</value></data>
   <data name="TeamAdmin_Remove" xml:space="preserve"><value>Remove</value></data>
   <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>No members in this team yet.</value></data>
@@ -844,7 +840,7 @@
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Only month and day are stored — we don't collect birth year.</value></data>
   <data name="Profile_Month" xml:space="preserve"><value>Month</value></data>
   <data name="Profile_Day" xml:space="preserve"><value>Day</value></data>
-  <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>Team Leads</value></data>
+  <data name="TeamDetail_TeamCoordinators" xml:space="preserve"><value>Coordinators</value></data>
 
   <!-- Emergency Contact -->
   <data name="Profile_EmergencyContact" xml:space="preserve"><value>Emergency Contact</value></data>

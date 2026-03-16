@@ -24,7 +24,7 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">@role.Name</h5>
-                @if (!role.IsLeadRole)
+                @if (!role.IsManagement)
                 {
                     <form asp-controller="TeamAdmin" asp-action="DeleteRole" asp-route-slug="@Model.Slug" asp-route-roleId="@role.Id" method="post"
                           class="d-inline" onsubmit="return confirm('Are you sure you want to delete this role? All assignments will be removed.')">
@@ -39,7 +39,7 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-3">
                             <label class="form-label">Name</label>
-                            @if (role.IsLeadRole)
+                            @if (role.IsManagement)
                             {
                                 <input type="text" class="form-control" name="Name" value="@role.Name" readonly />
                             }

@@ -193,7 +193,7 @@
   <data name="Profile_NoContactInfo" xml:space="preserve"><value>Noch keine Kontaktdaten hinzugefügt.</value></data>
   <data name="Profile_AddSome" xml:space="preserve"><value>Einige hinzufügen</value></data>
   <data name="Profile_Teams" xml:space="preserve"><value>Teams</value></data>
-  <data name="Profile_Lead" xml:space="preserve"><value>Teamleiter</value></data>
+  <data name="Profile_Coordinator" xml:space="preserve"><value>Coordinator</value></data>
   <data name="Profile_MembershipTier" xml:space="preserve"><value>Mitgliedschaftsstufe</value></data>
   <data name="Profile_Motivation" xml:space="preserve"><value>Motivation</value></data>
   <data name="Profile_AdditionalInfo" xml:space="preserve"><value>Zus&#xE4;tzliche Informationen (optional)</value></data>
@@ -796,10 +796,6 @@
   <data name="TeamAdmin_ManageResources" xml:space="preserve"><value>Ressourcen verwalten</value></data>
   <data name="TeamAdmin_SystemTeam" xml:space="preserve"><value>System-Team</value></data>
   <data name="TeamAdmin_SystemTeamRolesInfo" xml:space="preserve"><value>Dies ist ein systemverwaltetes Team. Mitgliedsrollen können nicht manuell geändert werden.</value></data>
-  <data name="TeamAdmin_DemoteConfirm" xml:space="preserve"><value>Diesen Benutzer zum Mitglied herabstufen?</value></data>
-  <data name="TeamAdmin_DemoteToMember" xml:space="preserve"><value>Zum Mitglied herabstufen</value></data>
-  <data name="TeamAdmin_PromoteConfirm" xml:space="preserve"><value>Diesen Benutzer zum Lead befördern?</value></data>
-  <data name="TeamAdmin_PromoteToLead" xml:space="preserve"><value>Zum Lead befördern</value></data>
   <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>Dieses Mitglied aus dem Team entfernen?</value></data>
   <data name="TeamAdmin_Remove" xml:space="preserve"><value>Entfernen</value></data>
   <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>Noch keine Mitglieder in diesem Team.</value></data>
@@ -846,7 +842,7 @@
   <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Laden Sie ein JPEG-, PNG-, WebP- oder HEIC-Bild hoch (max. 20MB). Gro&#xDF;e Bilder werden automatisch verkleinert. Dies ersetzt Ihren Google-Avatar.</value></data>
   <data name="ProfileEdit_RemovePicture" xml:space="preserve"><value>Benutzerdefiniertes Bild entfernen (zum Google-Avatar zur&#xFC;ckkehren)</value></data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Nur f&#xFC;r Sie und den Vorstand sichtbar. Wird f&#xFC;r den Geburtstagskalender verwendet.</value></data>
-  <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>Teamleiter</value></data>
+  <data name="TeamDetail_TeamCoordinators" xml:space="preserve"><value>Coordinators</value></data>
 
   <!-- Emergency Contact -->
   <data name="Profile_EmergencyContact" xml:space="preserve"><value>Notfallkontakt</value></data>

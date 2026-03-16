@@ -21,7 +21,7 @@ public class TeamSummaryViewModel
     public bool IsSystemTeam { get; set; }
     public bool RequiresApproval { get; set; }
     public bool IsCurrentUserMember { get; set; }
-    public bool IsCurrentUserLead { get; set; }
+    public bool IsCurrentUserCoordinator { get; set; }
 }
 
 public class TeamDetailViewModel
@@ -36,13 +36,16 @@ public class TeamDetailViewModel
     public string? SystemTeamType { get; set; }
     public DateTime CreatedAt { get; set; }
 
+    public Team? ParentTeam { get; init; }
+    public IReadOnlyList<Team> ChildTeams { get; init; } = [];
+
     public List<TeamMemberViewModel> Members { get; set; } = [];
     public List<TeamResourceLinkViewModel> Resources { get; set; } = [];
     public List<TeamRoleDefinitionViewModel> RoleDefinitions { get; set; } = [];
 
     // Current user context
     public bool IsCurrentUserMember { get; set; }
-    public bool IsCurrentUserLead { get; set; }
+    public bool IsCurrentUserCoordinator { get; set; }
     public bool CanCurrentUserJoin { get; set; }
     public bool CanCurrentUserLeave { get; set; }
     public bool CanCurrentUserManage { get; set; }
@@ -61,7 +64,7 @@ public class TeamMemberViewModel
     public string? CustomProfilePictureUrl { get; set; }
     public string Role { get; set; } = string.Empty;
     public DateTime JoinedAt { get; set; }
-    public bool IsLead { get; set; }
+    public bool IsCoordinator { get; set; }
 
     /// <summary>
     /// The effective profile picture URL (custom upload takes priority over Google avatar).
@@ -84,7 +87,7 @@ public class MyTeamMembershipViewModel
     public string TeamSlug { get; set; } = string.Empty;
     public bool IsSystemTeam { get; set; }
     public string Role { get; set; } = string.Empty;
-    public bool IsLead { get; set; }
+    public bool IsCoordinator { get; set; }
     public DateTime JoinedAt { get; set; }
     public bool CanLeave { get; set; }
     public int PendingRequestCount { get; set; }
@@ -192,13 +195,6 @@ public class TeamMembersViewModel
     public int PageSize { get; set; } = 20;
 }
 
-public class SetMemberRoleModel
-{
-    public Guid TeamId { get; set; }
-    public Guid UserId { get; set; }
-    public TeamMemberRole Role { get; set; }
-}
-
 public class BirthdayCalendarViewModel
 {
     public List<BirthdayEntryViewModel> Birthdays { get; set; } = [];
@@ -252,7 +248,7 @@ public class TeamRoleDefinitionViewModel
     public int SlotCount { get; set; }
     public List<TeamRoleSlotViewModel> Slots { get; set; } = [];
     public int SortOrder { get; set; }
-    public bool IsLeadRole { get; set; }
+    public bool IsManagement { get; set; }
 
     /// <summary>
     /// IDs of members already assigned to this role (for filtering dropdowns).
@@ -297,7 +293,7 @@ public class TeamRoleDefinitionViewModel
             SlotCount = d.SlotCount,
             Slots = slots,
             SortOrder = d.SortOrder,
-            IsLeadRole = d.IsLeadRole,
+            IsManagement = d.IsManagement,
             AssignedUserIds = assignedUserIds
         };
     }
@@ -421,4 +417,10 @@ public class TeamResourceLinkViewModel
     public string Name { get; set; } = string.Empty;
     public string? Url { get; set; }
     public string IconClass { get; set; } = string.Empty;
+}
+
+public class DepartmentsViewModel
+{
+    public required List<Team> Departments { get; init; }
+    public required List<Team> StandaloneTeams { get; init; }
 }

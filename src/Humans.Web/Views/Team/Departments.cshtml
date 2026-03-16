@@ -1,0 +1,48 @@
+@model Humans.Web.Models.DepartmentsViewModel
+@{ ViewData["Title"] = "Departments"; }
+
+<h1>Departments</h1>
+
+@foreach (var dept in Model.Departments.OrderBy(d => d.Name))
+{
+    <div class="card mb-3">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <a asp-controller="Team" asp-action="Details" asp-route-slug="@dept.Slug">@dept.Name</a>
+            </h5>
+            @if (!string.IsNullOrEmpty(dept.Description))
+            {
+                <small class="text-muted">@dept.Description</small>
+            }
+        </div>
+        <ul class="list-group list-group-flush">
+            @foreach (var child in dept.ChildTeams.Where(c => c.IsActive).OrderBy(c => c.Name))
+            {
+                <li class="list-group-item">
+                    <a asp-controller="Team" asp-action="Details" asp-route-slug="@child.Slug">@child.Name</a>
+                    @if (!string.IsNullOrEmpty(child.Description))
+                    {
+                        <small class="text-muted d-block">@child.Description</small>
+                    }
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+@if (Model.StandaloneTeams.Any())
+{
+    <h4 class="mt-4">Other Teams</h4>
+    <div class="list-group">
+        @foreach (var team in Model.StandaloneTeams.OrderBy(t => t.Name))
+        {
+            <a asp-controller="Team" asp-action="Details" asp-route-slug="@team.Slug" class="list-group-item list-group-item-action">
+                <strong>@team.Name</strong>
+                @if (!string.IsNullOrEmpty(team.Description))
+                {
+                    <small class="text-muted d-block">@team.Description</small>
+                }
+            </a>
+        }
+    </div>
+}

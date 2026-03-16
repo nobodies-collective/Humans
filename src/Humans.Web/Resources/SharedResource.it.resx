@@ -193,7 +193,7 @@
   <data name="Profile_NoContactInfo" xml:space="preserve"><value>Nessuna informazione di contatto aggiunta.</value></data>
   <data name="Profile_AddSome" xml:space="preserve"><value>Aggiungi</value></data>
   <data name="Profile_Teams" xml:space="preserve"><value>Team</value></data>
-  <data name="Profile_Lead" xml:space="preserve"><value>Responsabile del team</value></data>
+  <data name="Profile_Coordinator" xml:space="preserve"><value>Coordinator</value></data>
   <data name="Profile_MembershipTier" xml:space="preserve"><value>Livello di adesione</value></data>
   <data name="Profile_Motivation" xml:space="preserve"><value>Motivazione</value></data>
   <data name="Profile_AdditionalInfo" xml:space="preserve"><value>Informazioni aggiuntive (facoltativo)</value></data>
@@ -796,10 +796,6 @@
   <data name="TeamAdmin_ManageResources" xml:space="preserve"><value>Gestisci risorse</value></data>
   <data name="TeamAdmin_SystemTeam" xml:space="preserve"><value>Team di sistema</value></data>
   <data name="TeamAdmin_SystemTeamRolesInfo" xml:space="preserve"><value>Questo è un team gestito dal sistema. I ruoli dei membri non possono essere modificati manualmente.</value></data>
-  <data name="TeamAdmin_DemoteConfirm" xml:space="preserve"><value>Declassare questo utente a Membro?</value></data>
-  <data name="TeamAdmin_DemoteToMember" xml:space="preserve"><value>Declassa a Membro</value></data>
-  <data name="TeamAdmin_PromoteConfirm" xml:space="preserve"><value>Promuovere questo utente a Lead?</value></data>
-  <data name="TeamAdmin_PromoteToLead" xml:space="preserve"><value>Promuovi a Lead</value></data>
   <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>Rimuovere questo membro dal team?</value></data>
   <data name="TeamAdmin_Remove" xml:space="preserve"><value>Rimuovi</value></data>
   <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>Nessun membro in questo team ancora.</value></data>
@@ -846,7 +842,7 @@
   <data name="ProfileEdit_PictureHelp" xml:space="preserve"><value>Carica un'immagine JPEG, PNG, WebP o HEIC (max 20MB). Le immagini grandi vengono ridimensionate automaticamente. Questo sostituisce il tuo avatar di Google.</value></data>
   <data name="ProfileEdit_RemovePicture" xml:space="preserve"><value>Rimuovi foto personalizzata (torna all'avatar di Google)</value></data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Visibile solo a te e al consiglio. Utilizzato per il calendario dei compleanni.</value></data>
-  <data name="TeamDetail_TeamLeads" xml:space="preserve"><value>Responsabili del team</value></data>
+  <data name="TeamDetail_TeamCoordinators" xml:space="preserve"><value>Coordinators</value></data>
 
   <!-- Emergency Contact -->
   <data name="Profile_EmergencyContact" xml:space="preserve"><value>Contatto di emergenza</value></data>

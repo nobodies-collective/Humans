@@ -24,9 +24,9 @@
                 <small class="text-muted">
                     @string.Format(Localizer["Teams_MemberCount"].Value, Model.MemberCount)
                 </small>
-                @if (Model.IsCurrentUserLead)
+                @if (Model.IsCurrentUserCoordinator)
                 {
-                    @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Lead)
+                    @await Html.PartialAsync("_RoleBadge", TeamMemberRole.Coordinator)
                 }
                 else if (Model.IsCurrentUserMember)
                 {
@@ -42,7 +42,7 @@
             <a asp-action="Details" asp-route-slug="@Model.Slug" class="btn btn-sm btn-outline-primary">
                 @Localizer["Teams_ViewDetails"]
             </a>
-            @if (Model.IsCurrentUserLead)
+            @if (Model.IsCurrentUserCoordinator)
             {
                 <a asp-controller="TeamAdmin" asp-action="Members" asp-route-slug="@Model.Slug" class="btn btn-sm btn-outline-secondary">
                     @Localizer["Teams_Manage"]

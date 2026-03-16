@@ -108,7 +108,7 @@ public class ProfileCardViewComponent : ViewComponent
                 TeamId = tm.TeamId,
                 TeamName = tm.Team.Name,
                 TeamSlug = tm.Team.Slug,
-                IsLead = tm.Role == TeamMemberRole.Lead,
+                IsCoordinator = tm.Role == TeamMemberRole.Coordinator,
                 IsSystemTeam = tm.Team.IsSystemTeam
             })
             .ToList();

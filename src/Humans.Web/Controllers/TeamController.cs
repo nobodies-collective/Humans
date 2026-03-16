@@ -20,6 +20,7 @@ public class TeamController : Controller
     private readonly IProfileService _profileService;
     private readonly ITeamResourceService _teamResourceService;
     private readonly IGoogleSyncService _googleSyncService;
+    private readonly ISystemTeamSync _systemTeamSync;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IConfiguration _configuration;
     private readonly ILogger<TeamController> _logger;
@@ -30,6 +31,7 @@ public class TeamController : Controller
         IProfileService profileService,
         ITeamResourceService teamResourceService,
         IGoogleSyncService googleSyncService,
+        ISystemTeamSync systemTeamSync,
         IStringLocalizer<SharedResource> localizer,
         IConfiguration configuration,
         ILogger<TeamController> logger)
@@ -39,6 +41,7 @@ public class TeamController : Controller
         _profileService = profileService;
         _teamResourceService = teamResourceService;
         _googleSyncService = googleSyncService;
+        _systemTeamSync = systemTeamSync;
         _localizer = localizer;
         _configuration = configuration;
         _logger = logger;
@@ -56,7 +59,7 @@ public class TeamController : Controller
         var allTeams = await _teamService.GetAllTeamsAsync();
         var userTeams = await _teamService.GetUserTeamsAsync(user.Id);
         var userTeamIds = userTeams.Select(ut => ut.TeamId).ToHashSet();
-        var userLeadTeamIds = userTeams.Where(ut => ut.Role == TeamMemberRole.Lead).Select(ut => ut.TeamId).ToHashSet();
+        var userCoordinatorTeamIds = userTeams.Where(ut => ut.Role == TeamMemberRole.Coordinator).Select(ut => ut.TeamId).ToHashSet();
 
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
 
@@ -70,7 +73,7 @@ public class TeamController : Controller
             IsSystemTeam = t.IsSystemTeam,
             RequiresApproval = t.RequiresApproval,
             IsCurrentUserMember = userTeamIds.Contains(t.Id),
-            IsCurrentUserLead = userLeadTeamIds.Contains(t.Id)
+            IsCurrentUserCoordinator = userCoordinatorTeamIds.Contains(t.Id)
         };
 
         var myTeams = allTeams
@@ -114,12 +117,12 @@ public class TeamController : Controller
         }
 
         var isMember = await _teamService.IsUserMemberOfTeamAsync(team.Id, user.Id);
-        var isLead = await _teamService.IsUserLeadOfTeamAsync(team.Id, user.Id);
+        var isCoordinator = await _teamService.IsUserCoordinatorOfTeamAsync(team.Id, user.Id);
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
         var isAdmin = await _teamService.IsUserAdminAsync(user.Id);
         var pendingRequest = await _teamService.GetUserPendingRequestAsync(team.Id, user.Id);
         var isTeamsAdmin = User.IsInRole("TeamsAdmin");
-        var canManage = isLead || isBoardMember || isAdmin || isTeamsAdmin;
+        var canManage = isCoordinator || isBoardMember || isAdmin || isTeamsAdmin;
 
         var pendingRequestCount = 0;
         if (canManage)
@@ -183,10 +186,10 @@ public class TeamController : Controller
                     CustomProfilePictureUrl = customPictureByUserId.GetValueOrDefault(m.UserId),
                     Role = m.Role.ToString(),
                     JoinedAt = m.JoinedAt.ToDateTimeUtc(),
-                    IsLead = m.Role == TeamMemberRole.Lead
+                    IsCoordinator = m.Role == TeamMemberRole.Coordinator
                 }).ToList(),
             IsCurrentUserMember = isMember,
-            IsCurrentUserLead = isLead,
+            IsCurrentUserCoordinator = isCoordinator,
             CanCurrentUserJoin = !isMember && !team.IsSystemTeam && pendingRequest == null,
             CanCurrentUserLeave = isMember && !team.IsSystemTeam,
             CanCurrentUserManage = canManage,
@@ -373,7 +376,7 @@ public class TeamController : Controller
 
         // Get team IDs where user can manage and team is not a system team
         var manageableTeamIds = memberships
-            .Where(m => (m.Role == TeamMemberRole.Lead || isBoardMember) && !m.Team.IsSystemTeam)
+            .Where(m => (m.Role == TeamMemberRole.Coordinator || isBoardMember) && !m.Team.IsSystemTeam)
             .Select(m => m.TeamId)
             .ToList();
 
@@ -389,7 +392,7 @@ public class TeamController : Controller
             TeamSlug = m.Team.Slug,
             IsSystemTeam = m.Team.IsSystemTeam,
             Role = m.Role.ToString(),
-            IsLead = m.Role == TeamMemberRole.Lead,
+            IsCoordinator = m.Role == TeamMemberRole.Coordinator,
             JoinedAt = m.JoinedAt.ToDateTimeUtc(),
             CanLeave = !m.Team.IsSystemTeam,
             PendingRequestCount = pendingCounts.GetValueOrDefault(m.TeamId, 0)
@@ -513,7 +516,11 @@ public class TeamController : Controller
 
         try
         {
-            await _teamService.LeaveTeamAsync(team.Id, user.Id);
+            var wasCoordinator = await _teamService.LeaveTeamAsync(team.Id, user.Id);
+            if (wasCoordinator)
+            {
+                await _systemTeamSync.SyncCoordinatorsMembershipForUserAsync(user.Id);
+            }
             TempData["SuccessMessage"] = _localizer["Team_Left"].Value;
             return RedirectToAction(nameof(Index));
         }
@@ -635,7 +642,7 @@ public class TeamController : Controller
 
         try
         {
-            var team = await _teamService.CreateTeamAsync(model.Name, model.Description, model.RequiresApproval, model.GoogleGroupPrefix);
+            var team = await _teamService.CreateTeamAsync(model.Name, model.Description, model.RequiresApproval, parentTeamId: null, model.GoogleGroupPrefix);
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} created team {TeamId} ({TeamName})", currentUser?.Id, team.Id, team.Name);
 
@@ -648,7 +655,7 @@ public class TeamController : Controller
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to create Google Group for new team {TeamId}, clearing prefix", team.Id);
-                    await _teamService.UpdateTeamAsync(team.Id, team.Name, team.Description, team.RequiresApproval, team.IsActive, null);
+                    await _teamService.UpdateTeamAsync(team.Id, team.Name, team.Description, team.RequiresApproval, team.IsActive, parentTeamId: null, googleGroupPrefix: null);
                     TempData["SuccessMessage"] = string.Format(_localizer["Admin_TeamCreated"].Value, team.Name);
                     TempData["ErrorMessage"] = $"Team created but Google Group setup failed: {ex.Message}. The group prefix has been cleared.";
                     return RedirectToAction(nameof(Summary));
@@ -713,7 +720,7 @@ public class TeamController : Controller
 
         try
         {
-            await _teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive, model.GoogleGroupPrefix);
+            await _teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive, parentTeamId: null, model.GoogleGroupPrefix);
             var currentUser = await _userManager.GetUserAsync(User);
             _logger.LogInformation("Admin {AdminId} updated team {TeamId}", currentUser?.Id, id);
 
