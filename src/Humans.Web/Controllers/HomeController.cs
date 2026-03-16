@@ -117,53 +117,6 @@ public class HomeController : Controller
             LastLogin = user.LastLoginAt?.ToDateTimeUtc()
         };
 
-        // Build shift cards if there's an active event.
-        // Wrapped in try-catch: shift card failures must never crash the homepage.
-        try
-        {
-            var activeEvent = await _shiftMgmt.GetActiveAsync();
-            if (activeEvent != null && (activeEvent.IsShiftBrowsingOpen ||
-                (await _shiftSignup.GetByUserAsync(user.Id, activeEvent.Id)).Count > 0))
-            {
-                var now = _clock.GetCurrentInstant();
-                var userSignups = await _shiftSignup.GetByUserAsync(user.Id, activeEvent.Id);
-
-                var nextShifts = userSignups
-                    .Where(s => s.Status == SignupStatus.Confirmed)
-                    .Select(s => new MySignupItem
-                    {
-                        Signup = s,
-                        DepartmentName = s.Shift.Rota?.Team?.Name ?? "Unknown",
-                        AbsoluteStart = s.Shift.GetAbsoluteStart(activeEvent),
-                        AbsoluteEnd = s.Shift.GetAbsoluteEnd(activeEvent)
-                    })
-                    .Where(i => i.AbsoluteEnd > now)
-                    .OrderBy(i => i.AbsoluteStart)
-                    .Take(3)
-                    .ToList();
-
-                var urgentShifts = await _shiftMgmt.GetUrgentShiftsAsync(activeEvent.Id, limit: 3);
-
-                ViewData["ShiftCards"] = new ShiftCardsViewModel
-                {
-                    NextShifts = nextShifts,
-                    PendingCount = userSignups.Count(s => s.Status == SignupStatus.Pending),
-                    UrgentShifts = urgentShifts.Select(u => new UrgentShiftItem
-                    {
-                        Shift = u.Shift,
-                        DepartmentName = u.DepartmentName,
-                        AbsoluteStart = u.Shift.GetAbsoluteStart(activeEvent),
-                        RemainingSlots = u.RemainingSlots,
-                        UrgencyScore = u.UrgencyScore
-                    }).ToList()
-                };
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load shift cards for dashboard");
-        }
-
         return View("Dashboard", viewModel);
     }
 
