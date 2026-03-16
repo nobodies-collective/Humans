@@ -24,7 +24,13 @@ public class EmailOutboxMessage
     public string? LastError { get; set; }
     public Instant? NextRetryAt { get; set; }
 
+    /// <summary>
+    /// FK to DutySignup for notification deduplication.
+    /// </summary>
+    public Guid? DutySignupId { get; set; }
+
     // Navigation
     public User? User { get; set; }
     public CampaignGrant? CampaignGrant { get; set; }
+    public DutySignup? DutySignup { get; set; }
 }

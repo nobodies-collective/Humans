@@ -105,4 +105,9 @@ public class User : IdentityUser<Guid>
     /// Whether the user has unsubscribed from campaign emails.
     /// </summary>
     public bool UnsubscribedFromCampaigns { get; set; }
+
+    /// <summary>
+    /// Token for personal iCal feed URL. Regeneratable.
+    /// </summary>
+    public Guid? ICalToken { get; set; }
 }

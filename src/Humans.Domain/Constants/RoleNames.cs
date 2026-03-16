@@ -44,4 +44,10 @@ public static class RoleNames
     /// generate discount codes, and export ticket data.
     /// </summary>
     public const string TicketAdmin = "TicketAdmin";
+
+    /// <summary>
+    /// NoInfo Administrator — can approve/voluntell shift signups but NOT create/edit shifts.
+    /// Has access to volunteer event profile medical data.
+    /// </summary>
+    public const string NoInfoAdmin = "NoInfoAdmin";
 }
