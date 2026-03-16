@@ -61,7 +61,7 @@ The "Promote to Lead" / "Demote from Lead" UI actions are **removed** — promot
 
 ### Out of Scope
 
-`CampLead` / `CampLeadRole` — separate domain, not renamed.
+`CampLead` / `CampLeadRole` — separate domain, not renamed. This includes camp view model properties like `CampDetailViewModel.IsCurrentUserLead` which reference CampLead, not team coordination.
 
 ## 2. IsManagement Flag on TeamRoleDefinition
 
@@ -80,7 +80,7 @@ Replaces the computed `IsLeadRole` property (which checked `Name == "Lead"`) and
 
 - New teams auto-create a management role named "Coordinator" with `IsManagement = true`, `SlotCount = 1`
 - Teams can **rename** their management role to anything (Chair, Director, etc.) — the name is no longer significant
-- Teams can **reassign** which role is the management role (clear `IsManagement` on old, set on new)
+- Teams can **reassign** which role is the management role (clear `IsManagement` on old, set on new) — but `IsManagement` cannot be toggled on a role that currently has assigned members. Unassign all members first, then change the flag. This avoids complex batch-update logic for `TeamMemberRole` sync.
 - Management role can be deleted if no one is assigned; a new one can be designated
 - A team can legitimately have zero management roles — this just means no members get `TeamMemberRole.Coordinator` from that team, and the team contributes no one to the System Coordinators team
 - The old restrictions (cannot rename/delete/manually create "Lead" role) are all removed
@@ -89,6 +89,7 @@ Replaces the computed `IsLeadRole` property (which checked `Name == "Lead"`) and
 
 - Assigning a member to a role slot where `IsManagement = true` → sets their `TeamMemberRole` to `Coordinator`
 - Unassigning a member from a management role slot → reverts their `TeamMemberRole` to `Member`
+- Leaving or being removed from a team → also triggers coordinator sync for that user (clears `Coordinator` status if they have no other management roles elsewhere)
 - This replaces the old explicit "Promote to Lead" / "Demote from Lead" actions
 
 ### System Coordinators Team Sync
@@ -118,7 +119,7 @@ Replaces the computed `IsLeadRole` property (which checked `Name == "Lead"`) and
 - Cannot set self as parent
 - Soft-delete (`DeleteTeamAsync`): must also check for active children and reject if any exist — orphaned children under an inactive parent are not allowed
 
-### UI — New Departments Page (`Team/Departments`)
+### UI — New Departments Page (`Teams/Departments`)
 
 A new public-facing page showing teams in a vertical tree layout (similar visual density to `/Teams/Summary`):
 
@@ -148,7 +149,7 @@ Unchanged — remains a flat card grid of all teams with no hierarchy awareness.
 
 - Optional "Parent team" dropdown
 - Only shows eligible parents: user-created teams with no parent of their own
-- Board/Admin permissions (same as current)
+- Board/Admin/TeamsAdmin permissions (same as current edit permissions)
 
 ### UI — MyTeams
 
@@ -166,7 +167,10 @@ Single EF Core migration covering all schema changes:
 6. UPDATE existing "Lead" role definitions: set `is_management = true`, rename to "Coordinator"
 7. Add `parent_team_id` nullable FK column to `teams`
 8. Add FK constraint with RESTRICT delete behavior
-9. Update `EnumStringStabilityTests` to expect the new enum names
+
+### Code Changes (non-migration)
+
+- Update `EnumStringStabilityTests` to expect the new enum names
 
 ## Acceptance Criteria
 
