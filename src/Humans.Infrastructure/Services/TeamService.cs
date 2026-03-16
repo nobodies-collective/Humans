@@ -45,6 +45,7 @@ public partial class TeamService : ITeamService
         string name,
         string? description,
         bool requiresApproval,
+        Guid? parentTeamId = null,
         string? googleGroupPrefix = null,
         CancellationToken cancellationToken = default)
     {
@@ -52,9 +53,23 @@ public partial class TeamService : ITeamService
         var now = _clock.GetCurrentInstant();
 
         // Block reserved slugs (static routes in TeamController)
-        string[] reservedSlugs = ["roster", "birthdays", "map", "my", "sync", "summary", "create", "search"];
+        string[] reservedSlugs = ["roster", "birthdays", "map", "my", "sync", "summary", "create", "search", "departments"];
         if (Array.Exists(reservedSlugs, s => string.Equals(baseSlug, s, StringComparison.Ordinal)))
             throw new InvalidOperationException($"The team name '{name}' conflicts with a reserved route");
+
+        if (parentTeamId.HasValue)
+        {
+            var parent = await _dbContext.Teams
+                .Include(t => t.ChildTeams)
+                .FirstOrDefaultAsync(t => t.Id == parentTeamId.Value, cancellationToken)
+                ?? throw new InvalidOperationException($"Parent team {parentTeamId.Value} not found");
+
+            if (parent.IsSystemTeam)
+                throw new InvalidOperationException("System teams cannot be parents");
+
+            if (parent.ParentTeamId.HasValue)
+                throw new InvalidOperationException("Cannot nest more than one level — the parent team already has a parent");
+        }
 
         // Retry with incrementing suffix on unique constraint violation
         for (var attempt = 0; attempt < 10; attempt++)
@@ -69,6 +84,7 @@ public partial class TeamService : ITeamService
                 Slug = slug,
                 IsActive = true,
                 RequiresApproval = requiresApproval,
+                ParentTeamId = parentTeamId,
                 GoogleGroupPrefix = googleGroupPrefix,
                 SystemTeamType = SystemTeamType.None,
                 CreatedAt = now,
@@ -77,20 +93,21 @@ public partial class TeamService : ITeamService
 
             _dbContext.Teams.Add(team);
 
-            // Auto-create Lead role definition for non-system teams
-            var leadRole = new TeamRoleDefinition
+            // Auto-create Coordinator role definition for non-system teams
+            var coordinatorRole = new TeamRoleDefinition
             {
                 Id = Guid.NewGuid(),
                 TeamId = team.Id,
-                Name = "Lead",
-                Description = "Team leadership role",
+                Name = "Coordinator",
+                Description = "Team coordination role",
                 SlotCount = 1,
+                IsManagement = true,
                 Priorities = [SlotPriority.Critical],
                 SortOrder = 0,
                 CreatedAt = now,
                 UpdatedAt = now
             };
-            _dbContext.Set<TeamRoleDefinition>().Add(leadRole);
+            _dbContext.Set<TeamRoleDefinition>().Add(coordinatorRole);
 
             try
             {
@@ -99,7 +116,8 @@ public partial class TeamService : ITeamService
                 if (_cache.TryGetValue(CacheKeys.ActiveTeams, out ConcurrentDictionary<Guid, CachedTeam>? cached) && cached != null)
                 {
                     cached[team.Id] = new CachedTeam(team.Id, team.Name, team.Description, team.Slug,
-                        team.IsSystemTeam, team.SystemTeamType, team.RequiresApproval, team.CreatedAt, []);
+                        team.IsSystemTeam, team.SystemTeamType, team.RequiresApproval, team.CreatedAt, [],
+                        ParentTeamId: parentTeamId);
                 }
                 _logger.LogInformation("Created team {TeamName} with slug {Slug}", name, slug);
                 return team;
@@ -109,7 +127,7 @@ public partial class TeamService : ITeamService
                 // Slug collision — detach and retry with next suffix
                 _logger.LogDebug(ex, "Slug collision for '{Slug}', retrying (attempt {Attempt})", slug, attempt + 1);
                 _dbContext.Entry(team).State = EntityState.Detached;
-                _dbContext.Entry(leadRole).State = EntityState.Detached;
+                _dbContext.Entry(coordinatorRole).State = EntityState.Detached;
             }
         }
 
@@ -174,6 +192,7 @@ public partial class TeamService : ITeamService
         string? description,
         bool requiresApproval,
         bool isActive,
+        Guid? parentTeamId = null,
         string? googleGroupPrefix = null,
         CancellationToken cancellationToken = default)
     {
@@ -185,10 +204,33 @@ public partial class TeamService : ITeamService
             throw new InvalidOperationException("Cannot modify system team settings");
         }
 
+        if (parentTeamId.HasValue)
+        {
+            if (parentTeamId.Value == teamId)
+                throw new InvalidOperationException("A team cannot be its own parent");
+
+            if (team.IsSystemTeam)
+                throw new InvalidOperationException("System teams cannot have parents");
+
+            var hasChildren = await _dbContext.Teams.AnyAsync(t => t.ParentTeamId == teamId && t.IsActive, cancellationToken);
+            if (hasChildren)
+                throw new InvalidOperationException("This team has sub-teams and cannot become a child of another team");
+
+            var parent = await _dbContext.Teams.FindAsync(new object[] { parentTeamId.Value }, cancellationToken)
+                ?? throw new InvalidOperationException($"Parent team {parentTeamId.Value} not found");
+
+            if (parent.IsSystemTeam)
+                throw new InvalidOperationException("System teams cannot be parents");
+
+            if (parent.ParentTeamId.HasValue)
+                throw new InvalidOperationException("Cannot nest more than one level — the parent team already has a parent");
+        }
+
         team.Name = name;
         team.Description = description;
         team.RequiresApproval = requiresApproval;
         team.IsActive = isActive;
+        team.ParentTeamId = parentTeamId;
         team.GoogleGroupPrefix = googleGroupPrefix;
         team.UpdatedAt = _clock.GetCurrentInstant();
 
@@ -203,7 +245,7 @@ public partial class TeamService : ITeamService
             }
             else if (cached.TryGetValue(teamId, out var existing))
             {
-                cached[teamId] = existing with { Name = name, Description = description, RequiresApproval = requiresApproval };
+                cached[teamId] = existing with { Name = name, Description = description, RequiresApproval = requiresApproval, ParentTeamId = parentTeamId };
             }
             else
             {
@@ -225,6 +267,12 @@ public partial class TeamService : ITeamService
         if (team.IsSystemTeam)
         {
             throw new InvalidOperationException("Cannot delete system team");
+        }
+
+        var hasActiveChildren = await _dbContext.Teams.AnyAsync(t => t.ParentTeamId == teamId && t.IsActive, cancellationToken);
+        if (hasActiveChildren)
+        {
+            throw new InvalidOperationException("Cannot deactivate a team that has active sub-teams. Remove or reassign sub-teams first.");
         }
 
         team.IsActive = false;
@@ -377,7 +425,7 @@ public partial class TeamService : ITeamService
         return member;
     }
 
-    public async Task LeaveTeamAsync(
+    public async Task<bool> LeaveTeamAsync(
         Guid teamId,
         Guid userId,
         CancellationToken cancellationToken = default)
@@ -397,6 +445,8 @@ public partial class TeamService : ITeamService
         {
             throw new InvalidOperationException("User is not a member of this team");
         }
+
+        var wasCoordinator = member.Role == TeamMemberRole.Coordinator;
 
         // Clean up role assignments before departure
         var roleAssignments = await _dbContext.Set<TeamRoleAssignment>()
@@ -425,6 +475,8 @@ public partial class TeamService : ITeamService
         RemoveMemberFromTeamCache(teamId, userId);
 
         _logger.LogInformation("User {UserId} left team {TeamId}", userId, teamId);
+
+        return wasCoordinator;
     }
 
     public async Task WithdrawJoinRequestAsync(
@@ -559,10 +611,10 @@ public partial class TeamService : ITeamService
         var isBoardMember = await IsUserBoardMemberAsync(approverUserId, cancellationToken);
         var isTeamsAdmin = !isBoardMember && await IsUserTeamsAdminAsync(approverUserId, cancellationToken);
 
-        // Get teams where user is lead
+        // Get teams where user is coordinator
         var leadTeamIds = await _dbContext.TeamMembers
             .AsNoTracking()
-            .Where(tm => tm.UserId == approverUserId && tm.LeftAt == null && tm.Role == TeamMemberRole.Lead)
+            .Where(tm => tm.UserId == approverUserId && tm.LeftAt == null && tm.Role == TeamMemberRole.Coordinator)
             .Select(tm => tm.TeamId)
             .ToListAsync(cancellationToken);
 
@@ -638,8 +690,8 @@ public partial class TeamService : ITeamService
             return true;
         }
 
-        // Leads can approve their own team
-        return await IsUserLeadOfTeamAsync(teamId, userId, cancellationToken);
+        // Coordinators can approve their own team
+        return await IsUserCoordinatorOfTeamAsync(teamId, userId, cancellationToken);
     }
 
     public async Task<bool> IsUserMemberOfTeamAsync(
@@ -651,14 +703,14 @@ public partial class TeamService : ITeamService
         return cached.TryGetValue(teamId, out var team) && team.Members.Any(m => m.UserId == userId);
     }
 
-    public async Task<bool> IsUserLeadOfTeamAsync(
+    public async Task<bool> IsUserCoordinatorOfTeamAsync(
         Guid teamId,
         Guid userId,
         CancellationToken cancellationToken = default)
     {
         var cached = await GetCachedTeamsAsync(cancellationToken);
         return cached.TryGetValue(teamId, out var team) &&
-               team.Members.Any(m => m.UserId == userId && m.Role == TeamMemberRole.Lead);
+               team.Members.Any(m => m.UserId == userId && m.Role == TeamMemberRole.Coordinator);
     }
 
     public async Task<bool> IsUserAdminAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -697,83 +749,7 @@ public partial class TeamService : ITeamService
                 cancellationToken);
     }
 
-    public async Task SetMemberRoleAsync(
-        Guid teamId,
-        Guid userId,
-        TeamMemberRole role,
-        Guid actorUserId,
-        CancellationToken cancellationToken = default)
-    {
-        var team = await _dbContext.Teams.FindAsync(new object[] { teamId }, cancellationToken)
-            ?? throw new InvalidOperationException($"Team {teamId} not found");
-
-        if (team.IsSystemTeam)
-        {
-            throw new InvalidOperationException("Cannot change roles in system team");
-        }
-
-        // Verify actor has permission (board member or lead)
-        var canApprove = await CanUserApproveRequestsForTeamAsync(teamId, actorUserId, cancellationToken);
-        if (!canApprove)
-        {
-            throw new InvalidOperationException("User does not have permission to change roles in this team");
-        }
-
-        var member = await _dbContext.TeamMembers
-            .FirstOrDefaultAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.LeftAt == null, cancellationToken)
-            ?? throw new InvalidOperationException("User is not a member of this team");
-
-        member.Role = role;
-
-        // Sync Lead role slot assignments with TeamMember.Role
-        var leadDef = await _dbContext.Set<TeamRoleDefinition>()
-            .Include(d => d.Assignments)
-            .FirstOrDefaultAsync(d => d.TeamId == teamId && d.Name == "Lead", cancellationToken);
-
-        if (leadDef != null)
-        {
-            var existingAssignment = leadDef.Assignments.FirstOrDefault(a => a.TeamMemberId == member.Id);
-
-            if (role == TeamMemberRole.Lead && existingAssignment == null)
-            {
-                // Promoting to Lead — create slot assignment if a slot is available
-                if (leadDef.Assignments.Count < leadDef.SlotCount)
-                {
-                    var usedSlots = leadDef.Assignments.Select(a => a.SlotIndex).ToHashSet();
-                    var nextSlot = Enumerable.Range(0, leadDef.SlotCount).First(i => !usedSlots.Contains(i));
-                    _dbContext.Set<TeamRoleAssignment>().Add(new TeamRoleAssignment
-                    {
-                        Id = Guid.NewGuid(),
-                        TeamRoleDefinitionId = leadDef.Id,
-                        TeamMemberId = member.Id,
-                        SlotIndex = nextSlot,
-                        AssignedAt = _clock.GetCurrentInstant(),
-                        AssignedByUserId = actorUserId
-                    });
-                }
-            }
-            else if (role == TeamMemberRole.Member && existingAssignment != null)
-            {
-                // Demoting from Lead — remove slot assignment
-                _dbContext.Set<TeamRoleAssignment>().Remove(existingAssignment);
-            }
-        }
-
-        var roleActor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
-        await _auditLogService.LogAsync(
-            AuditAction.TeamMemberRoleChanged, nameof(Team), teamId,
-            $"Member role changed to {role} in {team.Name}",
-            actorUserId, roleActor?.DisplayName ?? actorUserId.ToString(),
-            relatedEntityId: userId, relatedEntityType: nameof(User));
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        UpdateMemberRoleInTeamCache(teamId, userId, role);
-
-        _logger.LogInformation("Actor {ActorId} set user {UserId} role to {Role} in team {TeamId}",
-            actorUserId, userId, role, teamId);
-    }
-
-    public async Task RemoveMemberAsync(
+    public async Task<bool> RemoveMemberAsync(
         Guid teamId,
         Guid userId,
         Guid actorUserId,
@@ -797,6 +773,8 @@ public partial class TeamService : ITeamService
         var member = await _dbContext.TeamMembers
             .FirstOrDefaultAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.LeftAt == null, cancellationToken)
             ?? throw new InvalidOperationException("User is not a member of this team");
+
+        var wasCoordinator = member.Role == TeamMemberRole.Coordinator;
 
         // Clean up role assignments before departure
         var roleAssignments = await _dbContext.Set<TeamRoleAssignment>()
@@ -825,6 +803,8 @@ public partial class TeamService : ITeamService
         RemoveMemberFromTeamCache(teamId, userId);
 
         _logger.LogInformation("Actor {ActorId} removed user {UserId} from team {TeamId}", actorUserId, userId, teamId);
+
+        return wasCoordinator;
     }
 
     public async Task<TeamMember> AddMemberToTeamAsync(
@@ -955,11 +935,6 @@ public partial class TeamService : ITeamService
             throw new InvalidOperationException($"Priorities count ({priorities.Count}) must match slot count ({slotCount})");
         }
 
-        if (string.Equals(name, "Lead", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("The 'Lead' role name is reserved and cannot be created manually");
-        }
-
         ValidateRoleName(name);
 
         // Check name uniqueness within the team (case-insensitive, backed by lower() index)
@@ -1038,20 +1013,6 @@ public partial class TeamService : ITeamService
             throw new InvalidOperationException($"Priorities count ({priorities.Count}) must match slot count ({slotCount})");
         }
 
-        // Cannot rename to/from "Lead"
-        if (!string.Equals(definition.Name, name, StringComparison.OrdinalIgnoreCase))
-        {
-            if (definition.IsLeadRole)
-            {
-                throw new InvalidOperationException("Cannot rename the Lead role");
-            }
-
-            if (string.Equals(name, "Lead", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException("Cannot rename a role to 'Lead' — this name is reserved");
-            }
-        }
-
         // Cannot reduce slot count below filled count
         if (slotCount < definition.Assignments.Count)
         {
@@ -1107,9 +1068,9 @@ public partial class TeamService : ITeamService
             .FirstOrDefaultAsync(d => d.Id == roleDefinitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
 
-        if (definition.IsLeadRole)
+        if (definition.IsManagement && definition.Assignments.Count > 0)
         {
-            throw new InvalidOperationException("Cannot delete the Lead role definition");
+            throw new InvalidOperationException("Cannot delete the management role while members are assigned to it. Unassign all members first.");
         }
 
         // Verify actor permission
@@ -1132,6 +1093,54 @@ public partial class TeamService : ITeamService
 
         _logger.LogInformation("Deleted role definition {RoleDefinitionId} '{RoleName}' from team {TeamId}",
             roleDefinitionId, definition.Name, definition.TeamId);
+    }
+
+    public async Task SetRoleIsManagementAsync(
+        Guid roleDefinitionId, bool isManagement, Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var definition = await _dbContext.Set<TeamRoleDefinition>()
+            .Include(d => d.Team)
+            .Include(d => d.Assignments)
+            .FirstOrDefaultAsync(d => d.Id == roleDefinitionId, cancellationToken)
+            ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
+
+        // Verify actor permission
+        var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
+        if (!canManage)
+        {
+            throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
+        }
+
+        if (definition.Assignments.Count > 0)
+        {
+            throw new InvalidOperationException("Cannot change IsManagement while members are assigned to the role");
+        }
+
+        if (isManagement)
+        {
+            // Check no other role in the same team already has IsManagement = true
+            var existingManagement = await _dbContext.Set<TeamRoleDefinition>()
+                .AnyAsync(d => d.TeamId == definition.TeamId && d.Id != roleDefinitionId && d.IsManagement, cancellationToken);
+            if (existingManagement)
+            {
+                throw new InvalidOperationException("Another role in this team is already marked as the management role");
+            }
+        }
+
+        definition.IsManagement = isManagement;
+        definition.UpdatedAt = _clock.GetCurrentInstant();
+
+        var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
+        await _auditLogService.LogAsync(
+            AuditAction.TeamRoleDefinitionUpdated, nameof(TeamRoleDefinition), definition.Id,
+            $"IsManagement set to {isManagement} on role '{definition.Name}' in {definition.Team.Name}",
+            actorUserId, actor?.DisplayName ?? actorUserId.ToString(),
+            relatedEntityId: definition.TeamId, relatedEntityType: nameof(Team));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Set IsManagement={IsManagement} on role definition {RoleDefinitionId}", isManagement, roleDefinitionId);
     }
 
     public async Task<IReadOnlyList<TeamRoleDefinition>> GetRoleDefinitionsAsync(
@@ -1249,11 +1258,11 @@ public partial class TeamService : ITeamService
 
         _dbContext.Set<TeamRoleAssignment>().Add(assignment);
 
-        // If this is a Lead role, set TeamMember.Role = Lead
-        // (Leads system team sync is handled by the controller via ISystemTeamSync)
-        if (definition.IsLeadRole && teamMember.Role != TeamMemberRole.Lead)
+        // If this is a management role, set TeamMember.Role = Coordinator
+        // (Coordinators system team sync is handled by the controller via ISystemTeamSync)
+        if (definition.IsManagement && teamMember.Role != TeamMemberRole.Coordinator)
         {
-            teamMember.Role = TeamMemberRole.Lead;
+            teamMember.Role = TeamMemberRole.Coordinator;
         }
 
         var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);
@@ -1321,16 +1330,16 @@ public partial class TeamService : ITeamService
 
         _dbContext.Set<TeamRoleAssignment>().Remove(assignment);
 
-        // If this is a Lead role, check if member has remaining Lead assignments
-        if (definition.IsLeadRole)
+        // If this is a management role, check if member has remaining management assignments
+        if (definition.IsManagement)
         {
             var member = assignment.TeamMember;
-            var hasOtherLeadAssignments = await _dbContext.Set<TeamRoleAssignment>()
+            var hasOtherManagementAssignments = await _dbContext.Set<TeamRoleAssignment>()
                 .AnyAsync(a => a.TeamMemberId == teamMemberId
                     && a.Id != assignment.Id
-                    && a.TeamRoleDefinition.Name == "Lead", cancellationToken);
+                    && a.TeamRoleDefinition.IsManagement, cancellationToken);
 
-            if (!hasOtherLeadAssignments && member.Role == TeamMemberRole.Lead)
+            if (!hasOtherManagementAssignments && member.Role == TeamMemberRole.Coordinator)
             {
                 member.Role = TeamMemberRole.Member;
             }
@@ -1338,8 +1347,8 @@ public partial class TeamService : ITeamService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        // Update cache if role changed (Lead → Member demotion)
-        if (definition.IsLeadRole)
+        // Update cache if role changed (Coordinator → Member demotion)
+        if (definition.IsManagement)
         {
             UpdateMemberRoleInTeamCache(definition.TeamId, assignment.TeamMember.UserId, assignment.TeamMember.Role);
         }
@@ -1521,7 +1530,8 @@ public partial class TeamService : ITeamService
                 ProfilePictureUrl: m.User.ProfilePictureUrl,
                 Role: m.Role,
                 JoinedAt: m.JoinedAt))
-            .ToList());
+            .ToList(),
+        ParentTeamId: team.ParentTeamId);
 
     private void AddMemberToTeamCache(Guid teamId, CachedTeamMember member)
     {
