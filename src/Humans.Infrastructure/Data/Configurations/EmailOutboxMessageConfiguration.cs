@@ -41,9 +41,9 @@ public class EmailOutboxMessageConfiguration : IEntityTypeConfiguration<EmailOut
             .HasForeignKey(e => e.CampaignGrantId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasOne(e => e.DutySignup)
+        builder.HasOne(e => e.ShiftSignup)
             .WithMany()
-            .HasForeignKey(e => e.DutySignupId)
+            .HasForeignKey(e => e.ShiftSignupId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

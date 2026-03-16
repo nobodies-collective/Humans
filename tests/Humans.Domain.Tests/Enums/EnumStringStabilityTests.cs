@@ -84,8 +84,8 @@ public class EnumStringStabilityTests
                 "CampSeasonWithdrawn", "CampSeasonStatusChanged", "CampNameChanged",
                 "CampLeadAdded", "CampLeadRemoved", "CampPrimaryLeadTransferred",
                 "CampImageUploaded", "CampImageDeleted",
-                "DutySignupConfirmed", "DutySignupRefused", "DutySignupVoluntold",
-                "DutySignupBailed", "DutySignupNoShow", "DutySignupCancelled"
+                "ShiftSignupConfirmed", "ShiftSignupRefused", "ShiftSignupVoluntold",
+                "ShiftSignupBailed", "ShiftSignupNoShow", "ShiftSignupCancelled"
             }
         },
         {
@@ -129,7 +129,7 @@ public class EnumStringStabilityTests
             new[] { "Valid", "Void", "CheckedIn" }
         },
         {
-            typeof(DutyPriority),
+            typeof(ShiftPriority),
             new[] { "Normal", "Important", "Essential" }
         },
         {

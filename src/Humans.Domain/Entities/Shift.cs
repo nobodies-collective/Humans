@@ -82,7 +82,7 @@ public class Shift
     /// <summary>
     /// Navigation property to signups for this shift.
     /// </summary>
-    public ICollection<DutySignup> DutySignups { get; } = new List<DutySignup>();
+    public ICollection<ShiftSignup> ShiftSignups { get; } = new List<ShiftSignup>();
 
     /// <summary>
     /// Resolves the absolute start instant using event settings timezone and gate opening date.

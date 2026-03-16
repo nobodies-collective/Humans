@@ -25,12 +25,12 @@ public class EmailOutboxMessage
     public Instant? NextRetryAt { get; set; }
 
     /// <summary>
-    /// FK to DutySignup for notification deduplication.
+    /// FK to ShiftSignup for notification deduplication.
     /// </summary>
-    public Guid? DutySignupId { get; set; }
+    public Guid? ShiftSignupId { get; set; }
 
     // Navigation
     public User? User { get; set; }
     public CampaignGrant? CampaignGrant { get; set; }
-    public DutySignup? DutySignup { get; set; }
+    public ShiftSignup? ShiftSignup { get; set; }
 }

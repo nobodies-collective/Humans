@@ -7,7 +7,7 @@ namespace Humans.Domain.Entities;
 /// Links a user to a shift with a state machine tracking signup lifecycle.
 /// State transitions: Pending → Confirmed/Refused/Bailed, Confirmed → Bailed/NoShow/Cancelled.
 /// </summary>
-public class DutySignup
+public class ShiftSignup
 {
     /// <summary>
     /// Unique identifier.

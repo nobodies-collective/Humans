@@ -29,11 +29,11 @@
                     @foreach (var rotaGroup in dept.Rotas)
                     {
                         <h6 class="mt-3">@rotaGroup.Rota.Name
-                            @if (rotaGroup.Rota.Priority == DutyPriority.Essential)
+                            @if (rotaGroup.Rota.Priority == ShiftPriority.Essential)
                             {
                                 <span class="badge bg-danger ms-1">Essential</span>
                             }
-                            else if (rotaGroup.Rota.Priority == DutyPriority.Important)
+                            else if (rotaGroup.Rota.Priority == ShiftPriority.Important)
                             {
                                 <span class="badge bg-warning text-dark ms-1">Important</span>
                             }

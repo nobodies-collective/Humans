@@ -1,0 +1,157 @@
+using Humans.Domain.Entities;
+using Humans.Domain.Enums;
+using NodaTime;
+
+namespace Humans.Application.Interfaces;
+
+/// <summary>
+/// Consolidated service for shift management: authorization, event settings,
+/// rotas, shifts, and urgency scoring.
+/// </summary>
+public interface IShiftManagementService
+{
+    // === Authorization ===
+
+    /// <summary>
+    /// Whether the user is a department coordinator for the given team
+    /// (has a management role on a parent team).
+    /// </summary>
+    Task<bool> IsDeptCoordinatorAsync(Guid userId, Guid departmentTeamId);
+
+    /// <summary>
+    /// Whether the user can create/edit shifts and rotas for the department.
+    /// True for dept coordinators and Admin (NOT NoInfoAdmin).
+    /// </summary>
+    Task<bool> CanManageShiftsAsync(Guid userId, Guid departmentTeamId);
+
+    /// <summary>
+    /// Whether the user can approve/refuse signups and voluntell for the department.
+    /// True for dept coordinators, Admin, AND NoInfoAdmin.
+    /// </summary>
+    Task<bool> CanApproveSignupsAsync(Guid userId, Guid departmentTeamId);
+
+    /// <summary>
+    /// Gets all department team IDs where the user is a coordinator.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetCoordinatorDepartmentIdsAsync(Guid userId);
+
+    // === EventSettings ===
+
+    /// <summary>
+    /// Gets the single active EventSettings, or null if none.
+    /// </summary>
+    Task<EventSettings?> GetActiveAsync();
+
+    /// <summary>
+    /// Gets an EventSettings by primary key.
+    /// </summary>
+    Task<EventSettings?> GetByIdAsync(Guid id);
+
+    /// <summary>
+    /// Creates a new EventSettings. Validates only one IsActive=true.
+    /// </summary>
+    Task CreateAsync(EventSettings entity);
+
+    /// <summary>
+    /// Updates an existing EventSettings.
+    /// </summary>
+    Task UpdateAsync(EventSettings entity);
+
+    /// <summary>
+    /// Gets the available (non-barrios) EE slots for a given day offset.
+    /// </summary>
+    int GetAvailableEeSlots(EventSettings settings, int dayOffset);
+
+    // === Rota ===
+
+    /// <summary>
+    /// Creates a new rota. Validates team is a department and event is active.
+    /// </summary>
+    Task CreateRotaAsync(Rota rota);
+
+    /// <summary>
+    /// Updates an existing rota.
+    /// </summary>
+    Task UpdateRotaAsync(Rota rota);
+
+    /// <summary>
+    /// Deactivates a rota (sets IsActive=false).
+    /// </summary>
+    Task DeactivateRotaAsync(Guid rotaId);
+
+    /// <summary>
+    /// Deletes a rota. Throws if child shifts have confirmed signups.
+    /// </summary>
+    Task DeleteRotaAsync(Guid rotaId);
+
+    /// <summary>
+    /// Gets a rota by primary key with shifts included.
+    /// </summary>
+    Task<Rota?> GetRotaByIdAsync(Guid rotaId);
+
+    /// <summary>
+    /// Gets all rotas for a department in an event.
+    /// </summary>
+    Task<IReadOnlyList<Rota>> GetRotasByDepartmentAsync(Guid teamId, Guid eventSettingsId);
+
+    // === Shift ===
+
+    /// <summary>
+    /// Creates a new shift. Validates DayOffset range and volunteer counts.
+    /// </summary>
+    Task CreateShiftAsync(Shift shift);
+
+    /// <summary>
+    /// Updates an existing shift.
+    /// </summary>
+    Task UpdateShiftAsync(Shift shift);
+
+    /// <summary>
+    /// Deactivates a shift (sets IsActive=false).
+    /// </summary>
+    Task DeactivateShiftAsync(Guid shiftId);
+
+    /// <summary>
+    /// Deletes a shift. Throws if confirmed signups exist; cancels pending signups.
+    /// </summary>
+    Task DeleteShiftAsync(Guid shiftId);
+
+    /// <summary>
+    /// Gets a shift by primary key.
+    /// </summary>
+    Task<Shift?> GetShiftByIdAsync(Guid shiftId);
+
+    /// <summary>
+    /// Gets all shifts for a rota.
+    /// </summary>
+    Task<IReadOnlyList<Shift>> GetShiftsByRotaAsync(Guid rotaId);
+
+    /// <summary>
+    /// Resolves absolute times and period for a shift.
+    /// </summary>
+    (Instant Start, Instant End, ShiftPeriod Period) ResolveShiftTimes(Shift shift, EventSettings eventSettings);
+
+    // === Urgency ===
+
+    /// <summary>
+    /// Gets shifts ranked by urgency score, with optional filtering.
+    /// </summary>
+    Task<IReadOnlyList<UrgentShift>> GetUrgentShiftsAsync(
+        Guid eventSettingsId, int? limit = null,
+        Guid? departmentId = null, LocalDate? date = null);
+
+    /// <summary>
+    /// Calculates the urgency score for a single shift.
+    /// </summary>
+    double CalculateScore(Shift shift, int confirmedCount);
+}
+
+/// <summary>
+/// A shift with its computed urgency score and fill status.
+/// </summary>
+public record UrgentShift(
+    Shift Shift,
+    double UrgencyScore,
+    int ConfirmedCount,
+    int RemainingSlots,
+    string DepartmentName);

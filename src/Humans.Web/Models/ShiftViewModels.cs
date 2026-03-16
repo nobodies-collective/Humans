@@ -45,7 +45,7 @@ public class CreateRotaModel
     [MaxLength(2000)]
     public string? Description { get; set; }
 
-    public DutyPriority Priority { get; set; }
+    public ShiftPriority Priority { get; set; }
     public SignupPolicy Policy { get; set; }
 }
 
@@ -135,7 +135,7 @@ public class MyShiftsViewModel
 
 public class MySignupItem
 {
-    public DutySignup Signup { get; set; } = null!;
+    public ShiftSignup Signup { get; set; } = null!;
     public string DepartmentName { get; set; } = string.Empty;
     public Instant AbsoluteStart { get; set; }
     public Instant AbsoluteEnd { get; set; }
@@ -148,7 +148,7 @@ public class ShiftAdminViewModel
     public Team Department { get; set; } = null!;
     public EventSettings EventSettings { get; set; } = null!;
     public List<Rota> Rotas { get; set; } = [];
-    public List<DutySignup> PendingSignups { get; set; } = [];
+    public List<ShiftSignup> PendingSignups { get; set; } = [];
     public int TotalSlots { get; set; }
     public int ConfirmedCount { get; set; }
     public bool CanManageShifts { get; set; }

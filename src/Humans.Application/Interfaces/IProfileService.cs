@@ -89,6 +89,21 @@ public interface IProfileService
     /// Pass null to remove the entry (e.g., on suspension/deletion).
     /// </summary>
     void UpdateProfileCache(Guid userId, CachedProfile? newValue);
+
+    /// <summary>
+    /// Gets or creates a volunteer event profile for the user in the given event.
+    /// </summary>
+    Task<VolunteerEventProfile> GetOrCreateEventProfileAsync(Guid userId, Guid eventSettingsId);
+
+    /// <summary>
+    /// Updates a volunteer event profile.
+    /// </summary>
+    Task UpdateEventProfileAsync(VolunteerEventProfile profile);
+
+    /// <summary>
+    /// Gets a user's volunteer event profile. Medical data included only when includeMedical=true.
+    /// </summary>
+    Task<VolunteerEventProfile?> GetEventProfileAsync(Guid userId, Guid eventSettingsId, bool includeMedical);
 }
 
 public record UserSearchResult(Guid UserId, string DisplayName, string Email);

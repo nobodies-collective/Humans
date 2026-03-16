@@ -9,28 +9,25 @@ using NodaTime;
 namespace Humans.Infrastructure.Services;
 
 /// <summary>
-/// Manages the duty signup state machine with invariant enforcement.
+/// Manages the shift signup state machine with invariant enforcement.
 /// </summary>
-public class DutySignupService : IDutySignupService
+public class ShiftSignupService : IShiftSignupService
 {
     private readonly HumansDbContext _dbContext;
-    private readonly IEventSettingsService _eventSettingsService;
-    private readonly IShiftAuthorizationService _authService;
+    private readonly IShiftManagementService _shiftMgmt;
     private readonly IAuditLogService _auditLogService;
     private readonly IClock _clock;
-    private readonly ILogger<DutySignupService> _logger;
+    private readonly ILogger<ShiftSignupService> _logger;
 
-    public DutySignupService(
+    public ShiftSignupService(
         HumansDbContext dbContext,
-        IEventSettingsService eventSettingsService,
-        IShiftAuthorizationService authService,
+        IShiftManagementService shiftMgmt,
         IAuditLogService auditLogService,
         IClock clock,
-        ILogger<DutySignupService> logger)
+        ILogger<ShiftSignupService> logger)
     {
         _dbContext = dbContext;
-        _eventSettingsService = eventSettingsService;
-        _authService = authService;
+        _shiftMgmt = shiftMgmt;
         _auditLogService = auditLogService;
         _clock = clock;
         _logger = logger;
@@ -41,7 +38,7 @@ public class DutySignupService : IDutySignupService
         var shift = await _dbContext.Shifts
             .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Include(s => s.Rota).ThenInclude(r => r.Team)
-            .Include(s => s.DutySignups)
+            .Include(s => s.ShiftSignups)
             .FirstOrDefaultAsync(s => s.Id == shiftId);
 
         if (shift == null) return SignupResult.Fail("Shift not found.");
@@ -71,7 +68,7 @@ public class DutySignupService : IDutySignupService
 
         // Capacity warning
         string? warning = null;
-        var confirmedCount = shift.DutySignups.Count(d => d.Status == SignupStatus.Confirmed);
+        var confirmedCount = shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
         if (confirmedCount >= shift.MaxVolunteers)
             warning = "This shift is at capacity.";
 
@@ -84,10 +81,10 @@ public class DutySignupService : IDutySignupService
         }
 
         // Determine initial status
-        var isDeptCoord = await _authService.IsDeptCoordinatorAsync(userId, shift.Rota.TeamId);
+        var isDeptCoord = await _shiftMgmt.IsDeptCoordinatorAsync(userId, shift.Rota.TeamId);
         var autoConfirm = shift.Rota.Policy == SignupPolicy.Public || isDeptCoord;
 
-        var signup = new DutySignup
+        var signup = new ShiftSignup
         {
             Id = Guid.NewGuid(),
             UserId = userId,
@@ -103,12 +100,12 @@ public class DutySignupService : IDutySignupService
             signup.ReviewedAt = now;
         }
 
-        _dbContext.DutySignups.Add(signup);
+        _dbContext.ShiftSignups.Add(signup);
 
         if (autoConfirm)
         {
             await _auditLogService.LogAsync(
-                AuditAction.DutySignupConfirmed, nameof(DutySignup), signup.Id,
+                AuditAction.ShiftSignupConfirmed, nameof(ShiftSignup), signup.Id,
                 $"Auto-confirmed signup for shift '{shift.Title}'",
                 userId, "Self");
         }
@@ -134,14 +131,14 @@ public class DutySignupService : IDutySignupService
         if (overlapWarning != null)
             warning = $"Warning: {overlapWarning}";
 
-        var confirmedCount = signup.Shift.DutySignups.Count(d => d.Status == SignupStatus.Confirmed);
+        var confirmedCount = signup.Shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
         if (confirmedCount >= signup.Shift.MaxVolunteers)
             warning = warning == null ? "Warning: shift is at capacity." : $"{warning} Shift is at capacity.";
 
         signup.Confirm(reviewerUserId, _clock);
 
         await _auditLogService.LogAsync(
-            AuditAction.DutySignupConfirmed, nameof(DutySignup), signup.Id,
+            AuditAction.ShiftSignupConfirmed, nameof(ShiftSignup), signup.Id,
             $"Approved signup for shift '{signup.Shift.Title}'",
             reviewerUserId, "Reviewer");
 
@@ -158,7 +155,7 @@ public class DutySignupService : IDutySignupService
         signup.Refuse(reviewerUserId, _clock, reason);
 
         await _auditLogService.LogAsync(
-            AuditAction.DutySignupRefused, nameof(DutySignup), signup.Id,
+            AuditAction.ShiftSignupRefused, nameof(ShiftSignup), signup.Id,
             $"Refused signup for shift '{signup.Shift.Title}'" + (reason != null ? $": {reason}" : ""),
             reviewerUserId, "Reviewer");
 
@@ -183,7 +180,7 @@ public class DutySignupService : IDutySignupService
         signup.Bail(actorUserId, _clock, reason);
 
         await _auditLogService.LogAsync(
-            AuditAction.DutySignupBailed, nameof(DutySignup), signup.Id,
+            AuditAction.ShiftSignupBailed, nameof(ShiftSignup), signup.Id,
             $"Bailed from shift '{signup.Shift.Title}'" + (reason != null ? $": {reason}" : ""),
             actorUserId, "Actor");
 
@@ -196,7 +193,7 @@ public class DutySignupService : IDutySignupService
     {
         var shift = await _dbContext.Shifts
             .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
-            .Include(s => s.DutySignups)
+            .Include(s => s.ShiftSignups)
             .FirstOrDefaultAsync(s => s.Id == shiftId);
 
         if (shift == null) return SignupResult.Fail("Shift not found.");
@@ -209,7 +206,7 @@ public class DutySignupService : IDutySignupService
         if (overlapWarning != null)
             return SignupResult.Fail(overlapWarning);
 
-        var signup = new DutySignup
+        var signup = new ShiftSignup
         {
             Id = Guid.NewGuid(),
             UserId = userId,
@@ -223,10 +220,10 @@ public class DutySignupService : IDutySignupService
             UpdatedAt = now
         };
 
-        _dbContext.DutySignups.Add(signup);
+        _dbContext.ShiftSignups.Add(signup);
 
         await _auditLogService.LogAsync(
-            AuditAction.DutySignupVoluntold, nameof(DutySignup), signup.Id,
+            AuditAction.ShiftSignupVoluntold, nameof(ShiftSignup), signup.Id,
             $"Voluntold for shift '{shift.Title}'",
             enrollerUserId, "Enroller",
             userId, nameof(User));
@@ -251,7 +248,7 @@ public class DutySignupService : IDutySignupService
         signup.MarkNoShow(reviewerUserId, _clock);
 
         await _auditLogService.LogAsync(
-            AuditAction.DutySignupNoShow, nameof(DutySignup), signup.Id,
+            AuditAction.ShiftSignupNoShow, nameof(ShiftSignup), signup.Id,
             $"Marked no-show for shift '{signup.Shift.Title}'",
             reviewerUserId, "Reviewer");
 
@@ -260,9 +257,9 @@ public class DutySignupService : IDutySignupService
         return SignupResult.Ok(signup);
     }
 
-    public async Task<IReadOnlyList<DutySignup>> GetByUserAsync(Guid userId, Guid? eventSettingsId = null)
+    public async Task<IReadOnlyList<ShiftSignup>> GetByUserAsync(Guid userId, Guid? eventSettingsId = null)
     {
-        var query = _dbContext.DutySignups
+        var query = _dbContext.ShiftSignups
             .Include(d => d.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.Team)
             .Include(d => d.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Where(d => d.UserId == userId);
@@ -273,21 +270,21 @@ public class DutySignupService : IDutySignupService
         return await query.OrderBy(d => d.Shift.DayOffset).ThenBy(d => d.Shift.StartTime).ToListAsync();
     }
 
-    public async Task<IReadOnlyList<DutySignup>> GetByShiftAsync(Guid shiftId)
+    public async Task<IReadOnlyList<ShiftSignup>> GetByShiftAsync(Guid shiftId)
     {
-        return await _dbContext.DutySignups
+        return await _dbContext.ShiftSignups
             .Include(d => d.User)
             .Where(d => d.ShiftId == shiftId)
             .OrderBy(d => d.CreatedAt)
             .ToListAsync();
     }
 
-    private async Task<DutySignup?> LoadSignupWithShiftAsync(Guid signupId)
+    private async Task<ShiftSignup?> LoadSignupWithShiftAsync(Guid signupId)
     {
-        return await _dbContext.DutySignups
+        return await _dbContext.ShiftSignups
             .Include(d => d.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Include(d => d.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.Team)
-            .Include(d => d.Shift).ThenInclude(s => s.DutySignups)
+            .Include(d => d.Shift).ThenInclude(s => s.ShiftSignups)
             .FirstOrDefaultAsync(d => d.Id == signupId);
     }
 
@@ -296,7 +293,7 @@ public class DutySignupService : IDutySignupService
         var targetStart = targetShift.GetAbsoluteStart(es);
         var targetEnd = targetShift.GetAbsoluteEnd(es);
 
-        var userSignups = await _dbContext.DutySignups
+        var userSignups = await _dbContext.ShiftSignups
             .Include(d => d.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Where(d => d.UserId == userId &&
                         d.ShiftId != targetShift.Id &&
@@ -320,11 +317,11 @@ public class DutySignupService : IDutySignupService
 
     private async Task<string?> CheckEeCapAsync(EventSettings es, int dayOffset)
     {
-        var availableSlots = _eventSettingsService.GetAvailableEeSlots(es, dayOffset);
+        var availableSlots = _shiftMgmt.GetAvailableEeSlots(es, dayOffset);
         if (availableSlots <= 0)
             return "Early entry capacity reached for this day.";
 
-        var currentEeCount = await _dbContext.DutySignups
+        var currentEeCount = await _dbContext.ShiftSignups
             .Where(d => d.Status == SignupStatus.Confirmed &&
                         d.Shift.Rota.EventSettingsId == es.Id &&
                         d.Shift.DayOffset < 0)
@@ -340,6 +337,6 @@ public class DutySignupService : IDutySignupService
 
     private async Task<bool> IsPrivilegedAsync(Guid userId, Guid departmentTeamId)
     {
-        return await _authService.CanApproveSignupsAsync(userId, departmentTeamId);
+        return await _shiftMgmt.CanApproveSignupsAsync(userId, departmentTeamId);
     }
 }

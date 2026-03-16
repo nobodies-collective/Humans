@@ -103,7 +103,7 @@
                                         <td>Day @shift.DayOffset</td>
                                         <td>@shift.StartTime</td>
                                         <td>@shift.Duration.TotalHours h</td>
-                                        <td>@shift.DutySignups.Count(d => d.Status == SignupStatus.Confirmed) / @shift.MaxVolunteers</td>
+                                        <td>@shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed) / @shift.MaxVolunteers</td>
                                         <td>
                                             @if (Model.CanManageShifts && shift.IsActive)
                                             {

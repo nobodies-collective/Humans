@@ -7,12 +7,12 @@ using Xunit;
 
 namespace Humans.Domain.Tests.Entities;
 
-public class DutySignupTests
+public class ShiftSignupTests
 {
     private static readonly Instant Now = Instant.FromUtc(2026, 7, 6, 12, 0);
     private static readonly FakeClock Clock = new(Now);
 
-    private static DutySignup CreatePendingSignup() => new()
+    private static ShiftSignup CreatePendingSignup() => new()
     {
         Id = Guid.NewGuid(),
         UserId = Guid.NewGuid(),
@@ -22,7 +22,7 @@ public class DutySignupTests
         UpdatedAt = Now
     };
 
-    private static DutySignup CreateConfirmedSignup() => new()
+    private static ShiftSignup CreateConfirmedSignup() => new()
     {
         Id = Guid.NewGuid(),
         UserId = Guid.NewGuid(),

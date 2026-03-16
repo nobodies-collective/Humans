@@ -3,9 +3,9 @@ using Humans.Domain.Entities;
 namespace Humans.Application.Interfaces;
 
 /// <summary>
-/// Manages the duty signup state machine with invariant enforcement.
+/// Manages the shift signup state machine with invariant enforcement.
 /// </summary>
-public interface IDutySignupService
+public interface IShiftSignupService
 {
     /// <summary>
     /// Creates a signup for a user on a shift. Auto-confirms for Public policy.
@@ -40,12 +40,12 @@ public interface IDutySignupService
     /// <summary>
     /// Gets all signups for a user, optionally filtered by event.
     /// </summary>
-    Task<IReadOnlyList<DutySignup>> GetByUserAsync(Guid userId, Guid? eventSettingsId = null);
+    Task<IReadOnlyList<ShiftSignup>> GetByUserAsync(Guid userId, Guid? eventSettingsId = null);
 
     /// <summary>
     /// Gets all signups for a shift.
     /// </summary>
-    Task<IReadOnlyList<DutySignup>> GetByShiftAsync(Guid shiftId);
+    Task<IReadOnlyList<ShiftSignup>> GetByShiftAsync(Guid shiftId);
 }
 
 /// <summary>
@@ -56,9 +56,9 @@ public record SignupResult
     public bool Success { get; init; }
     public string? Warning { get; init; }
     public string? Error { get; init; }
-    public DutySignup? Signup { get; init; }
+    public ShiftSignup? Signup { get; init; }
 
-    public static SignupResult Ok(DutySignup signup, string? warning = null) =>
+    public static SignupResult Ok(ShiftSignup signup, string? warning = null) =>
         new() { Success = true, Signup = signup, Warning = warning };
 
     public static SignupResult Fail(string error) =>

@@ -224,7 +224,7 @@ public class ProcessAccountDeletionsJob
         }
 
         // Cancel active duty signups
-        var activeSignups = await _dbContext.DutySignups
+        var activeSignups = await _dbContext.ShiftSignups
             .Where(d => d.UserId == user.Id &&
                         (d.Status == SignupStatus.Confirmed || d.Status == SignupStatus.Pending))
             .ToListAsync(cancellationToken);

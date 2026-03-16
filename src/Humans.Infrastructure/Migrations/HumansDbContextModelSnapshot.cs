@@ -835,60 +835,6 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("document_versions", (string)null);
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.DutySignup", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("Enrolled")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("EnrolledByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ReviewedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ShiftId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("StatusReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Instant>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EnrolledByUserId");
-
-                    b.HasIndex("ReviewedByUserId");
-
-                    b.HasIndex("ShiftId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("ShiftId", "Status");
-
-                    b.ToTable("duty_signups", (string)null);
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.EmailOutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -900,9 +846,6 @@ namespace Humans.Infrastructure.Migrations
 
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("DutySignupId")
-                        .HasColumnType("uuid");
 
                     b.Property<string>("ExtraHeaders")
                         .HasMaxLength(4000)
@@ -944,6 +887,9 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<Instant?>("SentAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ShiftSignupId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -966,7 +912,7 @@ namespace Humans.Infrastructure.Migrations
 
                     b.HasIndex("CampaignGrantId");
 
-                    b.HasIndex("DutySignupId");
+                    b.HasIndex("ShiftSignupId");
 
                     b.HasIndex("UserId");
 
@@ -1481,6 +1427,60 @@ namespace Humans.Infrastructure.Migrations
                     b.HasIndex("RotaId");
 
                     b.ToTable("shifts", (string)null);
+                });
+
+            modelBuilder.Entity("Humans.Domain.Entities.ShiftSignup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Enrolled")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("EnrolledByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("StatusReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Instant>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnrolledByUserId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ShiftId", "Status");
+
+                    b.ToTable("shift_signups", (string)null);
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.SyncServiceSettings", b =>
@@ -2700,39 +2700,6 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("LegalDocument");
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.DutySignup", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.User", "EnrolledByUser")
-                        .WithMany()
-                        .HasForeignKey("EnrolledByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Humans.Domain.Entities.User", "ReviewedByUser")
-                        .WithMany()
-                        .HasForeignKey("ReviewedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Humans.Domain.Entities.Shift", "Shift")
-                        .WithMany("DutySignups")
-                        .HasForeignKey("ShiftId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Humans.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("EnrolledByUser");
-
-                    b.Navigation("ReviewedByUser");
-
-                    b.Navigation("Shift");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.EmailOutboxMessage", b =>
                 {
                     b.HasOne("Humans.Domain.Entities.CampaignGrant", "CampaignGrant")
@@ -2740,9 +2707,9 @@ namespace Humans.Infrastructure.Migrations
                         .HasForeignKey("CampaignGrantId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Humans.Domain.Entities.DutySignup", "DutySignup")
+                    b.HasOne("Humans.Domain.Entities.ShiftSignup", "ShiftSignup")
                         .WithMany()
-                        .HasForeignKey("DutySignupId")
+                        .HasForeignKey("ShiftSignupId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Humans.Domain.Entities.User", "User")
@@ -2752,7 +2719,7 @@ namespace Humans.Infrastructure.Migrations
 
                     b.Navigation("CampaignGrant");
 
-                    b.Navigation("DutySignup");
+                    b.Navigation("ShiftSignup");
 
                     b.Navigation("User");
                 });
@@ -2852,6 +2819,39 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Rota");
+                });
+
+            modelBuilder.Entity("Humans.Domain.Entities.ShiftSignup", b =>
+                {
+                    b.HasOne("Humans.Domain.Entities.User", "EnrolledByUser")
+                        .WithMany()
+                        .HasForeignKey("EnrolledByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Humans.Domain.Entities.User", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Humans.Domain.Entities.Shift", "Shift")
+                        .WithMany("ShiftSignups")
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Humans.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("EnrolledByUser");
+
+                    b.Navigation("ReviewedByUser");
+
+                    b.Navigation("Shift");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.SyncServiceSettings", b =>
@@ -3160,7 +3160,7 @@ namespace Humans.Infrastructure.Migrations
 
             modelBuilder.Entity("Humans.Domain.Entities.Shift", b =>
                 {
-                    b.Navigation("DutySignups");
+                    b.Navigation("ShiftSignups");
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.Team", b =>

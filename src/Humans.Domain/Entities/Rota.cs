@@ -37,7 +37,7 @@ public class Rota
     /// <summary>
     /// Priority level affecting urgency scoring.
     /// </summary>
-    public DutyPriority Priority { get; set; }
+    public ShiftPriority Priority { get; set; }
 
     /// <summary>
     /// Whether signups are auto-confirmed or require coordinator approval.

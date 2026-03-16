@@ -93,13 +93,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<TicketSyncJob>();
 
         // Shift management services
-        services.AddScoped<IShiftAuthorizationService, ShiftAuthorizationService>();
-        services.AddScoped<IEventSettingsService, EventSettingsService>();
-        services.AddScoped<IRotaService, RotaService>();
-        services.AddScoped<IShiftService, ShiftService>();
-        services.AddScoped<IDutySignupService, DutySignupService>();
-        services.AddScoped<IShiftUrgencyService, ShiftUrgencyService>();
-        services.AddScoped<IVolunteerEventProfileService, VolunteerEventProfileService>();
+        services.AddScoped<IShiftManagementService, ShiftManagementService>();
+        services.AddScoped<IShiftSignupService, ShiftSignupService>();
         services.AddScoped<SignupGarbageCollectionJob>();
 
         // Ticket vendor integration

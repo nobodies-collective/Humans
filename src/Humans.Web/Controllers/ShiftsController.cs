@@ -16,25 +16,19 @@ namespace Humans.Web.Controllers;
 [Route("Shifts")]
 public class ShiftsController : Controller
 {
-    private readonly IEventSettingsService _eventSettingsService;
-    private readonly IDutySignupService _dutySignupService;
-    private readonly IShiftUrgencyService _urgencyService;
-    private readonly IShiftAuthorizationService _authService;
+    private readonly IShiftManagementService _shiftMgmt;
+    private readonly IShiftSignupService _signupService;
     private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
 
     public ShiftsController(
-        IEventSettingsService eventSettingsService,
-        IDutySignupService dutySignupService,
-        IShiftUrgencyService urgencyService,
-        IShiftAuthorizationService authService,
+        IShiftManagementService shiftMgmt,
+        IShiftSignupService signupService,
         UserManager<User> userManager,
         IClock clock)
     {
-        _eventSettingsService = eventSettingsService;
-        _dutySignupService = dutySignupService;
-        _urgencyService = urgencyService;
-        _authService = authService;
+        _shiftMgmt = shiftMgmt;
+        _signupService = signupService;
         _userManager = userManager;
         _clock = clock;
     }
@@ -45,21 +39,21 @@ public class ShiftsController : Controller
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return Challenge();
 
-        var es = await _eventSettingsService.GetActiveAsync();
+        var es = await _shiftMgmt.GetActiveAsync();
         if (es == null) return View("NoActiveEvent");
 
         var isPrivileged = User.IsInRole(RoleNames.Admin) ||
                            User.IsInRole(RoleNames.NoInfoAdmin) ||
-                           (await _authService.GetCoordinatorDepartmentIdsAsync(user.Id)).Count > 0;
+                           (await _shiftMgmt.GetCoordinatorDepartmentIdsAsync(user.Id)).Count > 0;
 
-        var userSignups = await _dutySignupService.GetByUserAsync(user.Id, es.Id);
+        var userSignups = await _signupService.GetByUserAsync(user.Id, es.Id);
         var hasSignups = userSignups.Count > 0;
 
         if (!es.IsShiftBrowsingOpen && !isPrivileged && !hasSignups)
             return View("BrowsingClosed");
 
         // Build the browse view from urgency service data
-        var urgentShifts = await _urgencyService.GetUrgentShiftsAsync(es.Id, departmentId: departmentId);
+        var urgentShifts = await _shiftMgmt.GetUrgentShiftsAsync(es.Id, departmentId: departmentId);
 
         var userSignupShiftIds = userSignups
             .Where(s => s.Status is SignupStatus.Confirmed or SignupStatus.Pending)
@@ -89,7 +83,7 @@ public class ShiftsController : Controller
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return Challenge();
 
-        var result = await _dutySignupService.SignUpAsync(user.Id, shiftId);
+        var result = await _signupService.SignUpAsync(user.Id, shiftId);
 
         if (!result.Success)
         {
@@ -111,7 +105,7 @@ public class ShiftsController : Controller
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return Challenge();
 
-        var result = await _dutySignupService.BailAsync(signupId, user.Id, reason);
+        var result = await _signupService.BailAsync(signupId, user.Id, reason);
 
         if (!result.Success)
         {
@@ -129,10 +123,10 @@ public class ShiftsController : Controller
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return Challenge();
 
-        var es = await _eventSettingsService.GetActiveAsync();
+        var es = await _shiftMgmt.GetActiveAsync();
 
         var signups = es != null
-            ? await _dutySignupService.GetByUserAsync(user.Id, es.Id)
+            ? await _signupService.GetByUserAsync(user.Id, es.Id)
             : [];
 
         var now = _clock.GetCurrentInstant();
@@ -198,7 +192,7 @@ public class ShiftsController : Controller
         if (!User.IsInRole(RoleNames.Admin))
             return Forbid();
 
-        var es = await _eventSettingsService.GetActiveAsync();
+        var es = await _shiftMgmt.GetActiveAsync();
         var model = new EventSettingsViewModel();
 
         if (es != null)
@@ -261,7 +255,7 @@ public class ShiftsController : Controller
 
         if (model.Id.HasValue)
         {
-            var existing = await _eventSettingsService.GetByIdAsync(model.Id.Value);
+            var existing = await _shiftMgmt.GetByIdAsync(model.Id.Value);
             if (existing == null) return NotFound();
 
             existing.EventName = model.EventName;
@@ -278,7 +272,7 @@ public class ShiftsController : Controller
             existing.ReminderLeadTimeHours = model.ReminderLeadTimeHours;
             existing.IsActive = model.IsActive;
 
-            await _eventSettingsService.UpdateAsync(existing);
+            await _shiftMgmt.UpdateAsync(existing);
         }
         else
         {
@@ -301,7 +295,7 @@ public class ShiftsController : Controller
                 CreatedAt = _clock.GetCurrentInstant()
             };
 
-            await _eventSettingsService.CreateAsync(entity);
+            await _shiftMgmt.CreateAsync(entity);
         }
 
         TempData["SuccessMessage"] = "Event settings saved.";

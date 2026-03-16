@@ -44,7 +44,7 @@ public class SignupGarbageCollectionJob
 
         try
         {
-            var staleSignups = await _dbContext.DutySignups
+            var staleSignups = await _dbContext.ShiftSignups
                 .Include(d => d.Shift)
                 .Where(d =>
                     (d.Status == SignupStatus.Confirmed || d.Status == SignupStatus.Pending) &&
@@ -64,8 +64,8 @@ public class SignupGarbageCollectionJob
                 signup.Cancel(_clock, "Shift deactivated (auto-cleanup)");
 
                 await _auditLogService.LogAsync(
-                    AuditAction.DutySignupCancelled,
-                    nameof(Domain.Entities.DutySignup), signup.Id,
+                    AuditAction.ShiftSignupCancelled,
+                    nameof(Domain.Entities.ShiftSignup), signup.Id,
                     $"Auto-cancelled: shift '{signup.Shift.Title}' was deactivated",
                     nameof(SignupGarbageCollectionJob));
             }

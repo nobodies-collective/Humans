@@ -772,6 +772,54 @@ public class ProfileService : IProfileService
         return (null, null);
     }
 
+    // ==========================================================================
+    // Volunteer Event Profiles
+    // ==========================================================================
+
+    public async Task<VolunteerEventProfile> GetOrCreateEventProfileAsync(Guid userId, Guid eventSettingsId)
+    {
+        var existing = await _dbContext.VolunteerEventProfiles
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.EventSettingsId == eventSettingsId);
+
+        if (existing != null)
+            return existing;
+
+        var now = _clock.GetCurrentInstant();
+        var profile = new VolunteerEventProfile
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            EventSettingsId = eventSettingsId,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        _dbContext.VolunteerEventProfiles.Add(profile);
+        await _dbContext.SaveChangesAsync();
+        return profile;
+    }
+
+    public async Task UpdateEventProfileAsync(VolunteerEventProfile profile)
+    {
+        profile.UpdatedAt = _clock.GetCurrentInstant();
+        _dbContext.VolunteerEventProfiles.Update(profile);
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task<VolunteerEventProfile?> GetEventProfileAsync(Guid userId, Guid eventSettingsId, bool includeMedical)
+    {
+        var profile = await _dbContext.VolunteerEventProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.EventSettingsId == eventSettingsId);
+
+        if (profile != null && !includeMedical)
+        {
+            profile.MedicalConditions = null;
+        }
+
+        return profile;
+    }
+
     private static string GetSnippet(string text, string query, int contextChars = 60)
     {
         var index = text.IndexOf(query, StringComparison.OrdinalIgnoreCase);

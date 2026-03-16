@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Humans.Infrastructure.Data.Configurations;
 
-public class DutySignupConfiguration : IEntityTypeConfiguration<DutySignup>
+public class ShiftSignupConfiguration : IEntityTypeConfiguration<ShiftSignup>
 {
-    public void Configure(EntityTypeBuilder<DutySignup> builder)
+    public void Configure(EntityTypeBuilder<ShiftSignup> builder)
     {
-        builder.ToTable("duty_signups");
+        builder.ToTable("shift_signups");
         builder.HasKey(d => d.Id);
 
         builder.Property(d => d.Status)
@@ -28,7 +28,7 @@ public class DutySignupConfiguration : IEntityTypeConfiguration<DutySignup>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(d => d.Shift)
-            .WithMany(s => s.DutySignups)
+            .WithMany(s => s.ShiftSignups)
             .HasForeignKey(d => d.ShiftId)
             .OnDelete(DeleteBehavior.Restrict);
 

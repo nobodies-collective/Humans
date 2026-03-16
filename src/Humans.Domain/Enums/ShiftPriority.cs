@@ -4,7 +4,7 @@ namespace Humans.Domain.Enums;
 /// Priority level for shift rotas, affecting urgency scoring.
 /// Stored as string in DB.
 /// </summary>
-public enum DutyPriority
+public enum ShiftPriority
 {
     /// <summary>Standard priority.</summary>
     Normal = 0,
