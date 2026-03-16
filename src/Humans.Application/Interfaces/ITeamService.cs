@@ -251,7 +251,7 @@ public interface ITeamService
     /// </summary>
     Task<TeamRoleDefinition> UpdateRoleDefinitionAsync(
         Guid roleDefinitionId, string name, string? description, int slotCount,
-        List<SlotPriority> priorities, int sortOrder, Guid actorUserId,
+        List<SlotPriority> priorities, int sortOrder, bool isManagement, Guid actorUserId,
         CancellationToken cancellationToken = default);
 
     /// <summary>

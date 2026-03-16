@@ -657,15 +657,9 @@ public class TeamAdminController : Controller
                 .Select(p => Enum.Parse<SlotPriority>(p, ignoreCase: true))
                 .ToList();
 
-            var definition = await _teamService.UpdateRoleDefinitionAsync(
+            await _teamService.UpdateRoleDefinitionAsync(
                 roleId, model.Name, model.Description, model.SlotCount,
-                priorities, model.SortOrder, user.Id);
-
-            // Handle IsManagement toggle if it changed
-            if (definition.IsManagement != model.IsManagement && !team.ParentTeamId.HasValue)
-            {
-                await _teamService.SetRoleIsManagementAsync(roleId, model.IsManagement, user.Id);
-            }
+                priorities, model.SortOrder, model.IsManagement, user.Id);
 
             TempData["SuccessMessage"] = $"Role '{model.Name}' updated.";
         }

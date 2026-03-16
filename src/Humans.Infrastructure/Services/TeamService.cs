@@ -996,7 +996,7 @@ public partial class TeamService : ITeamService
 
     public async Task<TeamRoleDefinition> UpdateRoleDefinitionAsync(
         Guid roleDefinitionId, string name, string? description, int slotCount,
-        List<SlotPriority> priorities, int sortOrder, Guid actorUserId,
+        List<SlotPriority> priorities, int sortOrder, bool isManagement, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
         var definition = await _dbContext.Set<TeamRoleDefinition>()
@@ -1051,6 +1051,7 @@ public partial class TeamService : ITeamService
         definition.SlotCount = slotCount;
         definition.Priorities = priorities;
         definition.SortOrder = sortOrder;
+        definition.IsManagement = isManagement;
         definition.UpdatedAt = _clock.GetCurrentInstant();
 
         var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);

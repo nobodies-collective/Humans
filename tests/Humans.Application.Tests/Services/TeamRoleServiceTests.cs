@@ -130,7 +130,7 @@ public class TeamRoleServiceTests : IDisposable
 
         var act = () => _service.UpdateRoleDefinitionAsync(
             role.Id, "Designer", null, 1,
-            [SlotPriority.Critical], 1, admin.Id);
+            [SlotPriority.Critical], 1, false, admin.Id);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*Cannot reduce slot count*");
