@@ -36,6 +36,7 @@
                         <label asp-for="Name" class="form-label">@Localizer["AdminTeams_TeamName"]</label>
                         <input asp-for="Name" class="form-control" disabled="@Model.IsSystemTeam" />
                         <span asp-validation-for="Name" class="text-danger"></span>
+                        <div class="form-text">Slug: <code>@Model.Slug</code> — updates automatically when name changes.</div>
                     </div>
 
                     <div class="mb-3">
