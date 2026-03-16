@@ -134,14 +134,13 @@ public class CampMapService : ICampMapService
 
     public async Task<bool> IsUserMapAdminAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var campAdminRoleId = await _dbContext.Roles
-            .Where(r => r.Name == RoleNames.CampAdmin)
-            .Select(r => r.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (campAdminRoleId != Guid.Empty
-            && await _dbContext.UserRoles.AnyAsync(
-                ur => ur.UserId == userId && ur.RoleId == campAdminRoleId, cancellationToken))
+        var now = _clock.GetCurrentInstant();
+        if (await _dbContext.RoleAssignments.AnyAsync(ra =>
+                ra.UserId == userId &&
+                (ra.RoleName == RoleNames.Admin || ra.RoleName == RoleNames.CampAdmin) &&
+                ra.ValidFrom <= now &&
+                (ra.ValidTo == null || ra.ValidTo > now),
+                cancellationToken))
             return true;
 
         var team = await _dbContext.Teams
