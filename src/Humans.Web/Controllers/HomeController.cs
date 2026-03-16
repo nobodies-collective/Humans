@@ -14,6 +14,8 @@ public class HomeController : Controller
     private readonly IMembershipCalculator _membershipCalculator;
     private readonly IProfileService _profileService;
     private readonly IApplicationDecisionService _applicationDecisionService;
+    private readonly IShiftManagementService _shiftMgmt;
+    private readonly IShiftSignupService _shiftSignup;
     private readonly IConfiguration _configuration;
     private readonly IClock _clock;
 
@@ -22,6 +24,8 @@ public class HomeController : Controller
         IMembershipCalculator membershipCalculator,
         IProfileService profileService,
         IApplicationDecisionService applicationDecisionService,
+        IShiftManagementService shiftMgmt,
+        IShiftSignupService shiftSignup,
         IConfiguration configuration,
         IClock clock)
     {
@@ -29,6 +33,8 @@ public class HomeController : Controller
         _membershipCalculator = membershipCalculator;
         _profileService = profileService;
         _applicationDecisionService = applicationDecisionService;
+        _shiftMgmt = shiftMgmt;
+        _shiftSignup = shiftSignup;
         _configuration = configuration;
         _clock = clock;
     }
@@ -107,6 +113,61 @@ public class HomeController : Controller
             MemberSince = user.CreatedAt.ToDateTimeUtc(),
             LastLogin = user.LastLoginAt?.ToDateTimeUtc()
         };
+
+        // Build shift cards if there's an active event
+        var activeEvent = await _shiftMgmt.GetActiveAsync();
+        if (activeEvent != null)
+        {
+            var userSignups = await _shiftSignup.GetByUserAsync(user.Id, activeEvent.Id);
+            var hasSignups = userSignups.Count > 0;
+
+            if (activeEvent.IsShiftBrowsingOpen || hasSignups)
+            {
+                var now = _clock.GetCurrentInstant();
+                var nextShifts = userSignups
+                    .Where(s => s.Status == SignupStatus.Confirmed)
+                    .Select(s =>
+                    {
+                        var es = s.Shift.Rota.EventSettings;
+                        return new MySignupItem
+                        {
+                            Signup = s,
+                            DepartmentName = s.Shift.Rota.Team.Name,
+                            AbsoluteStart = s.Shift.GetAbsoluteStart(es),
+                            AbsoluteEnd = s.Shift.GetAbsoluteEnd(es)
+                        };
+                    })
+                    .Where(i => i.AbsoluteEnd > now)
+                    .OrderBy(i => i.AbsoluteStart)
+                    .Take(3)
+                    .ToList();
+
+                var pendingCount = userSignups.Count(s => s.Status == SignupStatus.Pending);
+
+                var urgentShifts = await _shiftMgmt.GetUrgentShiftsAsync(activeEvent.Id, limit: 3);
+                var urgentItems = urgentShifts.Select(u =>
+                {
+                    var es = u.Shift.Rota.EventSettings;
+                    return new UrgentShiftItem
+                    {
+                        Shift = u.Shift,
+                        DepartmentName = u.DepartmentName,
+                        AbsoluteStart = u.Shift.GetAbsoluteStart(es),
+                        RemainingSlots = u.RemainingSlots,
+                        UrgencyScore = u.UrgencyScore
+                    };
+                }).ToList();
+
+                var shiftCards = new ShiftCardsViewModel
+                {
+                    NextShifts = nextShifts,
+                    PendingCount = pendingCount,
+                    UrgentShifts = urgentItems
+                };
+
+                ViewData["ShiftCards"] = shiftCards;
+            }
+        }
 
         return View("Dashboard", viewModel);
     }

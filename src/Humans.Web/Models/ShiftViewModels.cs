@@ -172,3 +172,26 @@ public class UrgentShiftItem
     public int RemainingSlots { get; set; }
     public double UrgencyScore { get; set; }
 }
+
+// === Event Profile ===
+
+public class EventProfileViewModel
+{
+    public Guid EventSettingsId { get; set; }
+    public string EventName { get; set; } = string.Empty;
+
+    public string? Skills { get; set; }
+    public string? Languages { get; set; }
+
+    [Display(Name = "Dietary Preference")]
+    public string? DietaryPreference { get; set; }
+
+    public string? Allergies { get; set; }
+
+    [DataType(DataType.MultilineText)]
+    [Display(Name = "Medical Conditions")]
+    public string? MedicalConditions { get; set; }
+
+    [Display(Name = "Suppress schedule change emails")]
+    public bool SuppressScheduleChangeEmails { get; set; }
+}

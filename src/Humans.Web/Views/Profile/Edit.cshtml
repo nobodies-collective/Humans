@@ -426,6 +426,66 @@
                 <button type="submit" class="btn btn-primary">@Localizer["Common_Save"]</button>
             </div>
         </form>
+
+        @{
+            var eventProfile = ViewData["EventProfile"] as Humans.Web.Models.EventProfileViewModel;
+        }
+        @if (eventProfile != null)
+        {
+            <div class="card mb-4 mt-4">
+                <div class="card-body">
+                    <h3>@eventProfile.EventName &mdash; Event Profile</h3>
+                    <p class="text-muted">Skills, dietary preferences, and other event-specific information.</p>
+
+                    <form asp-action="SaveEventProfile" method="post">
+                        <input type="hidden" name="EventSettingsId" value="@eventProfile.EventSettingsId" />
+
+                        <div class="mb-3">
+                            <label for="ep_skills" class="form-label">Skills</label>
+                            <input type="text" id="ep_skills" name="Skills" class="form-control" value="@eventProfile.Skills" placeholder="e.g. Carpentry, Electrical, First Aid" />
+                            <div class="form-text">Comma-separated list of skills you can contribute.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="ep_languages" class="form-label">Languages</label>
+                            <input type="text" id="ep_languages" name="Languages" class="form-control" value="@eventProfile.Languages" placeholder="e.g. English, Spanish, German" />
+                            <div class="form-text">Comma-separated list of languages you speak.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="ep_dietary" class="form-label">Dietary Preference</label>
+                            <select id="ep_dietary" name="DietaryPreference" class="form-select">
+                                <option value="">-- Select --</option>
+                                <option value="Omnivore" selected="@(string.Equals(eventProfile.DietaryPreference, "Omnivore", StringComparison.Ordinal))">Omnivore</option>
+                                <option value="Vegetarian" selected="@(string.Equals(eventProfile.DietaryPreference, "Vegetarian", StringComparison.Ordinal))">Vegetarian</option>
+                                <option value="Vegan" selected="@(string.Equals(eventProfile.DietaryPreference, "Vegan", StringComparison.Ordinal))">Vegan</option>
+                                <option value="Other" selected="@(string.Equals(eventProfile.DietaryPreference, "Other", StringComparison.Ordinal))">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="ep_allergies" class="form-label">Allergies</label>
+                            <input type="text" id="ep_allergies" name="Allergies" class="form-control" value="@eventProfile.Allergies" placeholder="e.g. Nuts, Shellfish, Gluten" />
+                            <div class="form-text">Comma-separated list of food allergies.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="ep_medical" class="form-label">Medical Conditions</label>
+                            <textarea id="ep_medical" name="MedicalConditions" class="form-control" rows="3" placeholder="Any conditions shift coordinators should know about">@eventProfile.MedicalConditions</textarea>
+                            <div class="form-text text-warning">Visible only to you, NoInfo Admins, and system Admins.</div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input type="checkbox" id="ep_suppress" name="SuppressScheduleChangeEmails" value="true" class="form-check-input"
+                                   @(eventProfile.SuppressScheduleChangeEmails ? "checked" : "") />
+                            <label for="ep_suppress" class="form-check-label">Suppress schedule change emails</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Save Event Profile</button>
+                    </form>
+                </div>
+            </div>
+        }
     </div>
 </div>
 

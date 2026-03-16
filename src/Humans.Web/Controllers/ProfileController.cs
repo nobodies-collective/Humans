@@ -28,6 +28,7 @@ public class ProfileController : Controller
     private readonly VolunteerHistoryService _volunteerHistoryService;
     private readonly IEmailService _emailService;
     private readonly IUserEmailService _userEmailService;
+    private readonly IShiftManagementService _shiftMgmt;
     private readonly IClock _clock;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ProfileController> _logger;
@@ -64,6 +65,7 @@ public class ProfileController : Controller
         VolunteerHistoryService volunteerHistoryService,
         IEmailService emailService,
         IUserEmailService userEmailService,
+        IShiftManagementService shiftMgmt,
         IClock clock,
         IConfiguration configuration,
         ILogger<ProfileController> logger,
@@ -76,6 +78,7 @@ public class ProfileController : Controller
         _volunteerHistoryService = volunteerHistoryService;
         _emailService = emailService;
         _userEmailService = userEmailService;
+        _shiftMgmt = shiftMgmt;
         _clock = clock;
         _configuration = configuration;
         _logger = logger;
@@ -207,6 +210,7 @@ public class ProfileController : Controller
         };
 
         ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
+        await PopulateEventProfileViewDataAsync(user.Id);
         return View(viewModel);
     }
 
@@ -716,6 +720,60 @@ public class ProfileController : Controller
 
         TempData["SuccessMessage"] = _localizer["Profile_DeletionCancelled"].Value;
         return RedirectToAction(nameof(Privacy));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveEventProfile(EventProfileViewModel model)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return NotFound();
+
+        var eventProfile = await _profileService.GetOrCreateEventProfileAsync(user.Id, model.EventSettingsId);
+
+        eventProfile.Skills = SplitList(model.Skills);
+        eventProfile.Languages = SplitList(model.Languages);
+        eventProfile.DietaryPreference = model.DietaryPreference;
+        eventProfile.Allergies = SplitList(model.Allergies);
+        eventProfile.MedicalConditions = model.MedicalConditions;
+        eventProfile.SuppressScheduleChangeEmails = model.SuppressScheduleChangeEmails;
+
+        await _profileService.UpdateEventProfileAsync(eventProfile);
+
+        TempData["SuccessMessage"] = _localizer["Profile_Updated"].Value;
+        return RedirectToAction(nameof(Edit));
+    }
+
+    private async Task PopulateEventProfileViewDataAsync(Guid userId)
+    {
+        var activeEvent = await _shiftMgmt.GetActiveAsync();
+        if (activeEvent == null || !activeEvent.IsShiftBrowsingOpen)
+            return;
+
+        var eventProfile = await _profileService.GetEventProfileAsync(userId, activeEvent.Id, includeMedical: true);
+
+        ViewData["EventProfile"] = new EventProfileViewModel
+        {
+            EventSettingsId = activeEvent.Id,
+            EventName = activeEvent.EventName,
+            Skills = eventProfile != null ? string.Join(", ", eventProfile.Skills) : null,
+            Languages = eventProfile != null ? string.Join(", ", eventProfile.Languages) : null,
+            DietaryPreference = eventProfile?.DietaryPreference,
+            Allergies = eventProfile != null ? string.Join(", ", eventProfile.Allergies) : null,
+            MedicalConditions = eventProfile?.MedicalConditions,
+            SuppressScheduleChangeEmails = eventProfile?.SuppressScheduleChangeEmails ?? false
+        };
+    }
+
+    private static List<string> SplitList(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return [];
+
+        return input.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(s => s.Length > 0)
+            .ToList();
     }
 
     [HttpGet]
