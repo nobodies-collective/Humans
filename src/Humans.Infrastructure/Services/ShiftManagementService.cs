@@ -260,6 +260,7 @@ public class ShiftManagementService : IShiftManagementService
     public async Task<IReadOnlyList<Rota>> GetRotasByDepartmentAsync(Guid teamId, Guid eventSettingsId)
     {
         return await _dbContext.Rotas
+            .Include(r => r.EventSettings)
             .Include(r => r.Shifts)
                 .ThenInclude(s => s.ShiftSignups)
             .Where(r => r.TeamId == teamId && r.EventSettingsId == eventSettingsId)
