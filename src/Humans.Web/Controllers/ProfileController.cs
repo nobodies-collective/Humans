@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
-using NodaTime;
 using Humans.Application;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces;
@@ -28,8 +27,6 @@ public class ProfileController : Controller
     private readonly VolunteerHistoryService _volunteerHistoryService;
     private readonly IEmailService _emailService;
     private readonly IUserEmailService _userEmailService;
-    private readonly IShiftManagementService _shiftMgmt;
-    private readonly IClock _clock;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ProfileController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
@@ -65,8 +62,6 @@ public class ProfileController : Controller
         VolunteerHistoryService volunteerHistoryService,
         IEmailService emailService,
         IUserEmailService userEmailService,
-        IShiftManagementService shiftMgmt,
-        IClock clock,
         IConfiguration configuration,
         ILogger<ProfileController> logger,
         IStringLocalizer<SharedResource> localizer,
@@ -78,8 +73,6 @@ public class ProfileController : Controller
         _volunteerHistoryService = volunteerHistoryService;
         _emailService = emailService;
         _userEmailService = userEmailService;
-        _shiftMgmt = shiftMgmt;
-        _clock = clock;
         _configuration = configuration;
         _logger = logger;
         _localizer = localizer;
@@ -210,7 +203,6 @@ public class ProfileController : Controller
         };
 
         ViewData["GoogleMapsApiKey"] = _configuration["GoogleMaps:ApiKey"];
-        await PopulateEventProfileViewDataAsync(user.Id);
         return View(viewModel);
     }
 
@@ -722,58 +714,120 @@ public class ProfileController : Controller
         return RedirectToAction(nameof(Privacy));
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveEventProfile(EventProfileViewModel model)
+    [HttpGet("ShiftInfo")]
+    public async Task<IActionResult> ShiftInfo()
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
-            return NotFound();
-
-        var eventProfile = await _profileService.GetOrCreateEventProfileAsync(user.Id, model.EventSettingsId);
-
-        eventProfile.Skills = SplitList(model.Skills);
-        eventProfile.Languages = SplitList(model.Languages);
-        eventProfile.DietaryPreference = model.DietaryPreference;
-        eventProfile.Allergies = SplitList(model.Allergies);
-        eventProfile.MedicalConditions = model.MedicalConditions;
-        eventProfile.SuppressScheduleChangeEmails = model.SuppressScheduleChangeEmails;
-
-        await _profileService.UpdateEventProfileAsync(eventProfile);
-
-        TempData["SuccessMessage"] = _localizer["Profile_Updated"].Value;
-        return RedirectToAction(nameof(Edit));
-    }
-
-    private async Task PopulateEventProfileViewDataAsync(Guid userId)
-    {
-        var activeEvent = await _shiftMgmt.GetActiveAsync();
-        if (activeEvent == null || !activeEvent.IsShiftBrowsingOpen)
-            return;
-
-        var eventProfile = await _profileService.GetEventProfileAsync(userId, activeEvent.Id, includeMedical: true);
-
-        ViewData["EventProfile"] = new EventProfileViewModel
+        try
         {
-            EventSettingsId = activeEvent.Id,
-            EventName = activeEvent.EventName,
-            Skills = eventProfile != null ? string.Join(", ", eventProfile.Skills) : null,
-            Languages = eventProfile != null ? string.Join(", ", eventProfile.Languages) : null,
-            DietaryPreference = eventProfile?.DietaryPreference,
-            Allergies = eventProfile != null ? string.Join(", ", eventProfile.Allergies) : null,
-            MedicalConditions = eventProfile?.MedicalConditions,
-            SuppressScheduleChangeEmails = eventProfile?.SuppressScheduleChangeEmails ?? false
-        };
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return NotFound();
+
+            var profile = await _profileService.GetShiftProfileAsync(user.Id, includeMedical: true);
+
+            var viewModel = new ShiftInfoViewModel
+            {
+                SelectedSkills = profile?.Skills ?? [],
+                SelectedQuirks = profile?.Quirks ?? [],
+                SelectedAllergies = profile?.Allergies ?? [],
+                SelectedIntolerances = profile?.Intolerances ?? [],
+                SelectedLanguages = profile?.Languages ?? [],
+                DietaryPreference = profile?.DietaryPreference,
+                MedicalConditions = profile?.MedicalConditions
+            };
+
+            return View(viewModel);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load shift info for user");
+            TempData["ErrorMessage"] = "Failed to load shift info.";
+            return RedirectToAction(nameof(Index));
+        }
     }
 
-    private static List<string> SplitList(string? input)
+    [HttpPost("ShiftInfo")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ShiftInfo(ShiftInfoViewModel model)
     {
-        if (string.IsNullOrWhiteSpace(input))
-            return [];
+        try
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return NotFound();
 
-        return input.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(s => s.Length > 0)
-            .ToList();
+            var shiftProfile = await _profileService.GetOrCreateShiftProfileAsync(user.Id);
+
+            shiftProfile.Skills = model.SelectedSkills ?? [];
+            shiftProfile.Quirks = model.SelectedQuirks ?? [];
+            shiftProfile.Allergies = model.SelectedAllergies ?? [];
+            shiftProfile.Intolerances = model.SelectedIntolerances ?? [];
+            shiftProfile.Languages = model.SelectedLanguages ?? [];
+            shiftProfile.DietaryPreference = model.DietaryPreference;
+            shiftProfile.MedicalConditions = model.MedicalConditions;
+
+            await _profileService.UpdateShiftProfileAsync(shiftProfile);
+
+            TempData["SuccessMessage"] = _localizer["Profile_Updated"].Value;
+            return RedirectToAction(nameof(ShiftInfo));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save shift info for user");
+            TempData["ErrorMessage"] = "Failed to save shift info.";
+            return View(model);
+        }
+    }
+
+    [HttpGet("Notifications")]
+    public async Task<IActionResult> Notifications()
+    {
+        try
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return NotFound();
+
+            var viewModel = new NotificationSettingsViewModel
+            {
+                SuppressScheduleChangeEmails = user.SuppressScheduleChangeEmails,
+                UnsubscribedFromCampaigns = user.UnsubscribedFromCampaigns
+            };
+
+            return View(viewModel);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load notification settings");
+            TempData["ErrorMessage"] = "Failed to load notification settings.";
+            return RedirectToAction(nameof(Index));
+        }
+    }
+
+    [HttpPost("Notifications")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Notifications(NotificationSettingsViewModel model)
+    {
+        try
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return NotFound();
+
+            user.SuppressScheduleChangeEmails = model.SuppressScheduleChangeEmails;
+            user.UnsubscribedFromCampaigns = model.UnsubscribedFromCampaigns;
+
+            await _userManager.UpdateAsync(user);
+
+            TempData["SuccessMessage"] = _localizer["Profile_Updated"].Value;
+            return RedirectToAction(nameof(Notifications));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save notification settings");
+            TempData["ErrorMessage"] = "Failed to save notification settings.";
+            return View(model);
+        }
     }
 
     [HttpGet]

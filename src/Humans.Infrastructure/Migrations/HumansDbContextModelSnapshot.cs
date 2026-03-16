@@ -2151,6 +2151,9 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
+                    b.Property<bool>("SuppressScheduleChangeEmails")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
@@ -2242,9 +2245,6 @@ namespace Humans.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<Guid>("EventSettingsId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Intolerances")
                         .IsRequired()
                         .HasColumnType("jsonb");
@@ -2265,9 +2265,6 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.Property<bool>("SuppressScheduleChangeEmails")
-                        .HasColumnType("boolean");
-
                     b.Property<Instant>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2276,9 +2273,7 @@ namespace Humans.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EventSettingsId");
-
-                    b.HasIndex("UserId", "EventSettingsId")
+                    b.HasIndex("UserId")
                         .IsUnique();
 
                     b.ToTable("volunteer_event_profiles", (string)null);
@@ -3017,19 +3012,11 @@ namespace Humans.Infrastructure.Migrations
 
             modelBuilder.Entity("Humans.Domain.Entities.VolunteerEventProfile", b =>
                 {
-                    b.HasOne("Humans.Domain.Entities.EventSettings", "EventSettings")
-                        .WithMany()
-                        .HasForeignKey("EventSettingsId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Humans.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("EventSettings");
 
                     b.Navigation("User");
                 });

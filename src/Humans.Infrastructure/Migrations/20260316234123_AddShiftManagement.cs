@@ -18,6 +18,13 @@ namespace Humans.Infrastructure.Migrations
                 type: "uuid",
                 nullable: true);
 
+            migrationBuilder.AddColumn<bool>(
+                name: "SuppressScheduleChangeEmails",
+                table: "users",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
+
             migrationBuilder.AddColumn<Guid>(
                 name: "ShiftSignupId",
                 table: "email_outbox_messages",
@@ -51,6 +58,33 @@ namespace Humans.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "volunteer_event_profiles",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Skills = table.Column<string>(type: "jsonb", nullable: false),
+                    Quirks = table.Column<string>(type: "jsonb", nullable: false),
+                    Languages = table.Column<string>(type: "jsonb", nullable: false),
+                    DietaryPreference = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    Allergies = table.Column<string>(type: "jsonb", nullable: false),
+                    Intolerances = table.Column<string>(type: "jsonb", nullable: false),
+                    MedicalConditions = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: true),
+                    CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_volunteer_event_profiles", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_volunteer_event_profiles_users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "rotas",
                 columns: table => new
                 {
@@ -80,41 +114,6 @@ namespace Humans.Infrastructure.Migrations
                         principalTable: "teams",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "volunteer_event_profiles",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    EventSettingsId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Skills = table.Column<string>(type: "jsonb", nullable: false),
-                    Quirks = table.Column<string>(type: "jsonb", nullable: false),
-                    Languages = table.Column<string>(type: "jsonb", nullable: false),
-                    DietaryPreference = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                    Allergies = table.Column<string>(type: "jsonb", nullable: false),
-                    Intolerances = table.Column<string>(type: "jsonb", nullable: false),
-                    MedicalConditions = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: true),
-                    SuppressScheduleChangeEmails = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false),
-                    UpdatedAt = table.Column<Instant>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_volunteer_event_profiles", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_volunteer_event_profiles_event_settings_EventSettingsId",
-                        column: x => x.EventSettingsId,
-                        principalTable: "event_settings",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_volunteer_event_profiles_users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -242,14 +241,9 @@ namespace Humans.Infrastructure.Migrations
                 column: "RotaId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_volunteer_event_profiles_EventSettingsId",
+                name: "IX_volunteer_event_profiles_UserId",
                 table: "volunteer_event_profiles",
-                column: "EventSettingsId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_volunteer_event_profiles_UserId_EventSettingsId",
-                table: "volunteer_event_profiles",
-                columns: new[] { "UserId", "EventSettingsId" },
+                column: "UserId",
                 unique: true);
 
             migrationBuilder.AddForeignKey(
@@ -289,6 +283,10 @@ namespace Humans.Infrastructure.Migrations
 
             migrationBuilder.DropColumn(
                 name: "ICalToken",
+                table: "users");
+
+            migrationBuilder.DropColumn(
+                name: "SuppressScheduleChangeEmails",
                 table: "users");
 
             migrationBuilder.DropColumn(

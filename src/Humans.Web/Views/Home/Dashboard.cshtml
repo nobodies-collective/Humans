@@ -109,6 +109,14 @@ else if (Model.PendingConsents > 0)
             </div>
         </div>
 
+        @if (ViewData["NeedsShiftInfo"] is true)
+        {
+            <div class="alert alert-info" role="alert">
+                <strong>Shift Info Needed</strong> &mdash; Please fill out your shift info so coordinators know your skills, dietary needs, and preferences.
+                <a asp-controller="Profile" asp-action="ShiftInfo" class="alert-link ms-1">Fill out Shift Info</a>
+            </div>
+        }
+
         @{
             var shiftCards = ViewData["ShiftCards"] as Humans.Web.Models.ShiftCardsViewModel;
             if (shiftCards?.NextShifts?.Count > 0)

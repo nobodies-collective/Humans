@@ -13,7 +13,7 @@ public class VolunteerEventProfileConfiguration : IEntityTypeConfiguration<Volun
         builder.ToTable("volunteer_event_profiles");
         builder.HasKey(v => v.Id);
 
-        builder.HasIndex(v => new { v.UserId, v.EventSettingsId }).IsUnique();
+        builder.HasIndex(v => v.UserId).IsUnique();
 
         var listComparer = new ValueComparer<List<string>>(
             (a, b) => a != null && b != null && a.SequenceEqual(b),
@@ -33,11 +33,6 @@ public class VolunteerEventProfileConfiguration : IEntityTypeConfiguration<Volun
             .WithMany()
             .HasForeignKey(v => v.UserId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(v => v.EventSettings)
-            .WithMany()
-            .HasForeignKey(v => v.EventSettingsId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureJsonbList(

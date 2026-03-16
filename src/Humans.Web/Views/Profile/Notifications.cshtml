@@ -1,0 +1,47 @@
+@model Humans.Web.Models.NotificationSettingsViewModel
+@{
+    ViewData["Title"] = "Notification Settings";
+}
+
+<div class="row">
+    <div class="col-12" style="max-width: 900px;">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Profile</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Notifications</li>
+            </ol>
+        </nav>
+
+        <h1>Notification Settings</h1>
+        <p class="text-muted">Control which emails you receive.</p>
+
+        <vc:temp-data-alerts />
+
+        <form asp-action="Notifications" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="form-check mb-3">
+                        <input type="checkbox" id="SuppressScheduleChangeEmails" name="SuppressScheduleChangeEmails" value="true" class="form-check-input"
+                               @(Model.SuppressScheduleChangeEmails ? "checked" : "") />
+                        <label for="SuppressScheduleChangeEmails" class="form-check-label">Suppress schedule change emails</label>
+                        <div class="form-text">Disable notifications when your shift schedule is updated.</div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input type="checkbox" id="UnsubscribedFromCampaigns" name="UnsubscribedFromCampaigns" value="true" class="form-check-input"
+                               @(Model.UnsubscribedFromCampaigns ? "checked" : "") />
+                        <label for="UnsubscribedFromCampaigns" class="form-check-label">Unsubscribe from campaign emails</label>
+                        <div class="form-text">Stop receiving promotional and campaign emails.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <a asp-action="Index" class="btn btn-outline-secondary">Back to Profile</a>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>

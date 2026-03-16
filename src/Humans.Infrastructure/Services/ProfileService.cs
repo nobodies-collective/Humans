@@ -776,10 +776,10 @@ public class ProfileService : IProfileService
     // Volunteer Event Profiles
     // ==========================================================================
 
-    public async Task<VolunteerEventProfile> GetOrCreateEventProfileAsync(Guid userId, Guid eventSettingsId)
+    public async Task<VolunteerEventProfile> GetOrCreateShiftProfileAsync(Guid userId)
     {
         var existing = await _dbContext.VolunteerEventProfiles
-            .FirstOrDefaultAsync(p => p.UserId == userId && p.EventSettingsId == eventSettingsId);
+            .FirstOrDefaultAsync(p => p.UserId == userId);
 
         if (existing != null)
             return existing;
@@ -789,7 +789,6 @@ public class ProfileService : IProfileService
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            EventSettingsId = eventSettingsId,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -799,18 +798,18 @@ public class ProfileService : IProfileService
         return profile;
     }
 
-    public async Task UpdateEventProfileAsync(VolunteerEventProfile profile)
+    public async Task UpdateShiftProfileAsync(VolunteerEventProfile profile)
     {
         profile.UpdatedAt = _clock.GetCurrentInstant();
         _dbContext.VolunteerEventProfiles.Update(profile);
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task<VolunteerEventProfile?> GetEventProfileAsync(Guid userId, Guid eventSettingsId, bool includeMedical)
+    public async Task<VolunteerEventProfile?> GetShiftProfileAsync(Guid userId, bool includeMedical)
     {
         var profile = await _dbContext.VolunteerEventProfiles
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.UserId == userId && p.EventSettingsId == eventSettingsId);
+            .FirstOrDefaultAsync(p => p.UserId == userId);
 
         if (profile != null && !includeMedical)
         {

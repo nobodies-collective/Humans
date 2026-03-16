@@ -91,19 +91,19 @@ public interface IProfileService
     void UpdateProfileCache(Guid userId, CachedProfile? newValue);
 
     /// <summary>
-    /// Gets or creates a volunteer event profile for the user in the given event.
+    /// Gets or creates the user's shift profile (1:1 with User).
     /// </summary>
-    Task<VolunteerEventProfile> GetOrCreateEventProfileAsync(Guid userId, Guid eventSettingsId);
+    Task<VolunteerEventProfile> GetOrCreateShiftProfileAsync(Guid userId);
 
     /// <summary>
-    /// Updates a volunteer event profile.
+    /// Updates a volunteer shift profile.
     /// </summary>
-    Task UpdateEventProfileAsync(VolunteerEventProfile profile);
+    Task UpdateShiftProfileAsync(VolunteerEventProfile profile);
 
     /// <summary>
-    /// Gets a user's volunteer event profile. Medical data included only when includeMedical=true.
+    /// Gets a user's shift profile. Medical data included only when includeMedical=true.
     /// </summary>
-    Task<VolunteerEventProfile?> GetEventProfileAsync(Guid userId, Guid eventSettingsId, bool includeMedical);
+    Task<VolunteerEventProfile?> GetShiftProfileAsync(Guid userId, bool includeMedical);
 }
 
 public record UserSearchResult(Guid UserId, string DisplayName, string Email);

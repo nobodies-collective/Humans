@@ -173,25 +173,37 @@ public class UrgentShiftItem
     public double UrgencyScore { get; set; }
 }
 
-// === Event Profile ===
+// === Shift Info (user-scoped profile) ===
 
-public class EventProfileViewModel
+public class ShiftInfoViewModel
 {
-    public Guid EventSettingsId { get; set; }
-    public string EventName { get; set; } = string.Empty;
-
-    public string? Skills { get; set; }
-    public string? Languages { get; set; }
-
-    [Display(Name = "Dietary Preference")]
+    public List<string> SelectedSkills { get; set; } = [];
+    public List<string> SelectedQuirks { get; set; } = [];
+    public List<string> SelectedAllergies { get; set; } = [];
+    public List<string> SelectedIntolerances { get; set; } = [];
+    public List<string> SelectedLanguages { get; set; } = [];
     public string? DietaryPreference { get; set; }
-
-    public string? Allergies { get; set; }
 
     [DataType(DataType.MultilineText)]
     [Display(Name = "Medical Conditions")]
     public string? MedicalConditions { get; set; }
 
+    // Defined options from spec
+    public static readonly string[] SkillOptions = ["Bartending", "First Aid", "Driving", "Sound", "Electrical", "Construction", "Cooking", "Art", "DJ", "Other"];
+    public static readonly string[] QuirkOptions = ["Sober Shift", "Work In Shade", "Night Owl", "Early Bird", "Quiet Work", "Physical Work OK", "No Heights"];
+    public static readonly string[] AllergyOptions = ["Celiac", "Shellfish", "Nuts", "Tree Nuts", "Soy", "Egg"];
+    public static readonly string[] IntoleranceOptions = ["Gluten", "Peppers", "Shellfish", "Nuts", "Egg", "Lactose", "Other"];
+    public static readonly string[] DietaryOptions = ["Omnivore", "Vegetarian", "Vegan", "Pescatarian"];
+    public static readonly string[] LanguageOptions = ["English", "Spanish", "German", "French", "Italian", "Portuguese", "Other"];
+}
+
+// === Notification Settings ===
+
+public class NotificationSettingsViewModel
+{
     [Display(Name = "Suppress schedule change emails")]
     public bool SuppressScheduleChangeEmails { get; set; }
+
+    [Display(Name = "Unsubscribe from campaign emails")]
+    public bool UnsubscribedFromCampaigns { get; set; }
 }

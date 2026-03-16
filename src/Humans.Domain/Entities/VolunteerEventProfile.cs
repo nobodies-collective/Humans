@@ -3,8 +3,8 @@ using NodaTime;
 namespace Humans.Domain.Entities;
 
 /// <summary>
-/// Per-event volunteer profile with skills, dietary info, and medical data.
-/// One-to-one with User scoped to an EventSettings.
+/// User-scoped volunteer shift profile with skills, dietary info, and medical data.
+/// One-to-one with User.
 /// </summary>
 public class VolunteerEventProfile
 {
@@ -14,14 +14,9 @@ public class VolunteerEventProfile
     public Guid Id { get; init; }
 
     /// <summary>
-    /// FK to the volunteer.
+    /// FK to the volunteer (1:1).
     /// </summary>
     public Guid UserId { get; init; }
-
-    /// <summary>
-    /// FK to the event configuration.
-    /// </summary>
-    public Guid EventSettingsId { get; init; }
 
     /// <summary>
     /// Volunteer's self-reported skills.
@@ -39,7 +34,7 @@ public class VolunteerEventProfile
     public List<string> Languages { get; set; } = [];
 
     /// <summary>
-    /// Dietary preference (e.g., "Vegan", "Vegetarian", "Omnivore").
+    /// Dietary preference (e.g., "Vegan", "Vegetarian", "Omnivore", "Pescatarian").
     /// </summary>
     public string? DietaryPreference { get; set; }
 
@@ -59,11 +54,6 @@ public class VolunteerEventProfile
     public string? MedicalConditions { get; set; }
 
     /// <summary>
-    /// Whether to suppress email notifications for schedule changes.
-    /// </summary>
-    public bool SuppressScheduleChangeEmails { get; set; }
-
-    /// <summary>
     /// When this profile was created.
     /// </summary>
     public Instant CreatedAt { get; init; }
@@ -75,5 +65,4 @@ public class VolunteerEventProfile
 
     // Navigation
     public User User { get; set; } = null!;
-    public EventSettings EventSettings { get; set; } = null!;
 }

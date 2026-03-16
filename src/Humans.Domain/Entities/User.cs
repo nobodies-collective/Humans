@@ -110,4 +110,9 @@ public class User : IdentityUser<Guid>
     /// Token for personal iCal feed URL. Regeneratable.
     /// </summary>
     public Guid? ICalToken { get; set; }
+
+    /// <summary>
+    /// Whether to suppress email notifications for schedule changes.
+    /// </summary>
+    public bool SuppressScheduleChangeEmails { get; set; }
 }

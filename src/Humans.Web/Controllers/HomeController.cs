@@ -186,6 +186,23 @@ public class HomeController : Controller
                     NextShifts = nextShifts,
                     PendingCount = pendingCount
                 };
+
+                // Check if user has signups but hasn't filled out shift info
+                if (nextShifts.Count > 0 || pendingCount > 0)
+                {
+                    try
+                    {
+                        var shiftProfile = await _profileService.GetShiftProfileAsync(user.Id, includeMedical: false);
+                        if (shiftProfile == null || IsShiftProfileEmpty(shiftProfile))
+                        {
+                            ViewData["NeedsShiftInfo"] = true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to check shift profile for dashboard todo");
+                    }
+                }
             }
         }
         catch (Exception ex)
@@ -194,6 +211,17 @@ public class HomeController : Controller
         }
 
         return View("Dashboard", viewModel);
+    }
+
+    private static bool IsShiftProfileEmpty(Domain.Entities.VolunteerEventProfile profile)
+    {
+        return profile.Skills.Count == 0
+            && profile.Quirks.Count == 0
+            && profile.Languages.Count == 0
+            && profile.Allergies.Count == 0
+            && profile.Intolerances.Count == 0
+            && string.IsNullOrEmpty(profile.DietaryPreference)
+            && string.IsNullOrEmpty(profile.MedicalConditions);
     }
 
     public IActionResult Privacy()
