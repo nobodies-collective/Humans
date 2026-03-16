@@ -736,6 +736,7 @@ public class TeamController : Controller
             Description = team.Description,
             GoogleGroupPrefix = team.GoogleGroupPrefix,
             GoogleGroupEmail = team.GoogleGroupEmail,
+            Slug = team.Slug,
             RequiresApproval = team.RequiresApproval,
             IsActive = team.IsActive,
             IsSystemTeam = team.IsSystemTeam,

@@ -188,8 +188,9 @@ public class EditTeamViewModel
     [RegularExpression(@"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", ErrorMessage = "Only lowercase letters, numbers, and hyphens allowed")]
     public string? GoogleGroupPrefix { get; set; }
 
-    // Display-only — computed from prefix
+    // Display-only
     public string? GoogleGroupEmail { get; set; }
+    public string Slug { get; set; } = string.Empty;
 
     public bool RequiresApproval { get; set; }
     public bool IsActive { get; set; }
