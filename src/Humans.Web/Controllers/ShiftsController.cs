@@ -179,13 +179,12 @@ public class ShiftsController : Controller
 
         foreach (var signup in signups)
         {
-            var shiftEs = signup.Shift.Rota.EventSettings;
             var item = new MySignupItem
             {
                 Signup = signup,
                 DepartmentName = signup.Shift.Rota.Team.Name,
-                AbsoluteStart = signup.Shift.GetAbsoluteStart(shiftEs),
-                AbsoluteEnd = signup.Shift.GetAbsoluteEnd(shiftEs)
+                AbsoluteStart = signup.Shift.GetAbsoluteStart(es!),
+                AbsoluteEnd = signup.Shift.GetAbsoluteEnd(es!)
             };
 
             switch (signup.Status)

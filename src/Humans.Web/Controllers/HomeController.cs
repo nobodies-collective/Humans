@@ -126,16 +126,12 @@ public class HomeController : Controller
                 var now = _clock.GetCurrentInstant();
                 var nextShifts = userSignups
                     .Where(s => s.Status == SignupStatus.Confirmed)
-                    .Select(s =>
+                    .Select(s => new MySignupItem
                     {
-                        var es = s.Shift.Rota.EventSettings;
-                        return new MySignupItem
-                        {
-                            Signup = s,
-                            DepartmentName = s.Shift.Rota.Team.Name,
-                            AbsoluteStart = s.Shift.GetAbsoluteStart(es),
-                            AbsoluteEnd = s.Shift.GetAbsoluteEnd(es)
-                        };
+                        Signup = s,
+                        DepartmentName = s.Shift.Rota.Team.Name,
+                        AbsoluteStart = s.Shift.GetAbsoluteStart(activeEvent),
+                        AbsoluteEnd = s.Shift.GetAbsoluteEnd(activeEvent)
                     })
                     .Where(i => i.AbsoluteEnd > now)
                     .OrderBy(i => i.AbsoluteStart)
