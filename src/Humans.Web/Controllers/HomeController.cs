@@ -18,6 +18,7 @@ public class HomeController : Controller
     private readonly IShiftSignupService _shiftSignup;
     private readonly IConfiguration _configuration;
     private readonly IClock _clock;
+    private readonly ILogger<HomeController> _logger;
 
     public HomeController(
         UserManager<User> userManager,
@@ -27,7 +28,8 @@ public class HomeController : Controller
         IShiftManagementService shiftMgmt,
         IShiftSignupService shiftSignup,
         IConfiguration configuration,
-        IClock clock)
+        IClock clock,
+        ILogger<HomeController> logger)
     {
         _userManager = userManager;
         _membershipCalculator = membershipCalculator;
@@ -37,6 +39,7 @@ public class HomeController : Controller
         _shiftSignup = shiftSignup;
         _configuration = configuration;
         _clock = clock;
+        _logger = logger;
     }
 
     public async Task<IActionResult> Index()
@@ -114,22 +117,23 @@ public class HomeController : Controller
             LastLogin = user.LastLoginAt?.ToDateTimeUtc()
         };
 
-        // Build shift cards if there's an active event
-        var activeEvent = await _shiftMgmt.GetActiveAsync();
-        if (activeEvent != null)
+        // Build shift cards if there's an active event.
+        // Wrapped in try-catch: shift card failures must never crash the homepage.
+        try
         {
-            var userSignups = await _shiftSignup.GetByUserAsync(user.Id, activeEvent.Id);
-            var hasSignups = userSignups.Count > 0;
-
-            if (activeEvent.IsShiftBrowsingOpen || hasSignups)
+            var activeEvent = await _shiftMgmt.GetActiveAsync();
+            if (activeEvent != null && (activeEvent.IsShiftBrowsingOpen ||
+                (await _shiftSignup.GetByUserAsync(user.Id, activeEvent.Id)).Count > 0))
             {
                 var now = _clock.GetCurrentInstant();
+                var userSignups = await _shiftSignup.GetByUserAsync(user.Id, activeEvent.Id);
+
                 var nextShifts = userSignups
                     .Where(s => s.Status == SignupStatus.Confirmed)
                     .Select(s => new MySignupItem
                     {
                         Signup = s,
-                        DepartmentName = s.Shift.Rota.Team.Name,
+                        DepartmentName = s.Shift.Rota?.Team?.Name ?? "Unknown",
                         AbsoluteStart = s.Shift.GetAbsoluteStart(activeEvent),
                         AbsoluteEnd = s.Shift.GetAbsoluteEnd(activeEvent)
                     })
@@ -138,27 +142,26 @@ public class HomeController : Controller
                     .Take(3)
                     .ToList();
 
-                var pendingCount = userSignups.Count(s => s.Status == SignupStatus.Pending);
-
                 var urgentShifts = await _shiftMgmt.GetUrgentShiftsAsync(activeEvent.Id, limit: 3);
-                var urgentItems = urgentShifts.Select(u => new UrgentShiftItem
-                {
-                    Shift = u.Shift,
-                    DepartmentName = u.DepartmentName,
-                    AbsoluteStart = u.Shift.GetAbsoluteStart(activeEvent),
-                    RemainingSlots = u.RemainingSlots,
-                    UrgencyScore = u.UrgencyScore
-                }).ToList();
 
-                var shiftCards = new ShiftCardsViewModel
+                ViewData["ShiftCards"] = new ShiftCardsViewModel
                 {
                     NextShifts = nextShifts,
-                    PendingCount = pendingCount,
-                    UrgentShifts = urgentItems
+                    PendingCount = userSignups.Count(s => s.Status == SignupStatus.Pending),
+                    UrgentShifts = urgentShifts.Select(u => new UrgentShiftItem
+                    {
+                        Shift = u.Shift,
+                        DepartmentName = u.DepartmentName,
+                        AbsoluteStart = u.Shift.GetAbsoluteStart(activeEvent),
+                        RemainingSlots = u.RemainingSlots,
+                        UrgencyScore = u.UrgencyScore
+                    }).ToList()
                 };
-
-                ViewData["ShiftCards"] = shiftCards;
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load shift cards for dashboard");
         }
 
         return View("Dashboard", viewModel);
