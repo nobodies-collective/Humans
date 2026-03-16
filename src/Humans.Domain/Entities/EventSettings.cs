@@ -91,6 +91,11 @@ public class EventSettings
     public Instant UpdatedAt { get; set; }
 
     /// <summary>
+    /// Navigation property to rotas associated with this event.
+    /// </summary>
+    public ICollection<Rota> Rotas { get; } = new List<Rota>();
+
+    /// <summary>
     /// Gets the cumulative EE capacity for a given day offset using step function lookup.
     /// Returns the capacity for the largest key ≤ dayOffset, or 0 if no key qualifies.
     /// </summary>
