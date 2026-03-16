@@ -342,7 +342,11 @@ app.Services.GetRequiredService<HumansMetricsService>();
 // Forwarded headers must be first (for reverse proxy)
 app.UseForwardedHeaders();
 
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
@@ -352,7 +356,8 @@ app.UseStatusCodePagesWithReExecute("/Home/Error/{0}");
 
 app.UseHttpsRedirection();
 
-// Response compression
+// Response compression — must be after exception handlers so errors
+// get caught and rendered as error pages before compression starts.
 app.UseResponseCompression();
 
 app.UseStaticFiles();
