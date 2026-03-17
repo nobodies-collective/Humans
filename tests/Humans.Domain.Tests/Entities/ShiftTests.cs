@@ -12,17 +12,17 @@ public class ShiftTests
         int eventEndOffset = 6,
         string timeZoneId = "Europe/Madrid",
         int year = 2026, int month = 7, int day = 6) => new()
-    {
-        Id = Guid.NewGuid(),
-        EventName = "Test Event",
-        TimeZoneId = timeZoneId,
-        GateOpeningDate = new LocalDate(year, month, day),
-        BuildStartOffset = -14,
-        EventEndOffset = eventEndOffset,
-        StrikeEndOffset = eventEndOffset + 3,
-        CreatedAt = Instant.MinValue,
-        UpdatedAt = Instant.MinValue
-    };
+        {
+            Id = Guid.NewGuid(),
+            EventName = "Test Event",
+            TimeZoneId = timeZoneId,
+            GateOpeningDate = new LocalDate(year, month, day),
+            BuildStartOffset = -14,
+            EventEndOffset = eventEndOffset,
+            StrikeEndOffset = eventEndOffset + 3,
+            CreatedAt = Instant.MinValue,
+            UpdatedAt = Instant.MinValue
+        };
 
     private static Shift CreateShift(int dayOffset = 0, int hour = 10, int minute = 0, long durationSeconds = 4 * 3600) => new()
     {
