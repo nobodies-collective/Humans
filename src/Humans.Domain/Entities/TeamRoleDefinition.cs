@@ -59,6 +59,12 @@ public class TeamRoleDefinition
     public Instant UpdatedAt { get; set; }
 
     /// <summary>
+    /// Period tag indicating when this role is active.
+    /// Used for roster page filtering.
+    /// </summary>
+    public RolePeriod Period { get; set; } = RolePeriod.YearRound;
+
+    /// <summary>
     /// Whether this role is the team's management/coordination role.
     /// At most one role per team can have this set to true.
     /// Assigning a member to this role automatically sets their TeamMemberRole to Coordinator.
