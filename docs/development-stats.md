@@ -5,7 +5,7 @@ Historical codebase metrics for Nobodies Humans, tracked per day from the initia
 **Excludes:** EF Core migration files (auto-generated, distorts line counts).
 **Test code** is separated from app code in its own columns.
 
-*Last generated: 2026-03-17*
+*Last generated: 2026-03-17* — To regenerate: `cd <repo-root> && bash docs/scripts/generate-stats.sh`
 
 ## Codebase Growth
 
