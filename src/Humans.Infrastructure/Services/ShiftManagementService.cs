@@ -390,7 +390,9 @@ public class ShiftManagementService : IShiftManagementService
 
         var shifts = await query.ToListAsync();
 
+        var now = _clock.GetCurrentInstant();
         var urgentShifts = shifts
+            .Where(s => s.GetAbsoluteEnd(es) > now)
             .Select(s =>
             {
                 var confirmedCount = s.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
@@ -510,10 +512,7 @@ public class ShiftManagementService : IShiftManagementService
             var totalSlots = overlapping.Sum(s => s.MaxVolunteers);
             var confirmedCount = overlapping
                 .SelectMany(s => s.ShiftSignups)
-                .Where(su => su.Status == SignupStatus.Confirmed)
-                .Select(su => su.UserId)
-                .Distinct()
-                .Count();
+                .Count(su => su.Status == SignupStatus.Confirmed);
 
             results.Add(new DailyStaffingData(dayOffset, dateLabel, confirmedCount, totalSlots, period));
         }

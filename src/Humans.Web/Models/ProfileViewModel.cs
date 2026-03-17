@@ -305,6 +305,11 @@ public class ProfileViewModel
     /// Only populated when IsOwnProfile is true.
     /// </summary>
     public IReadOnlyList<CampaignGrant> CampaignGrants { get; set; } = [];
+
+    /// <summary>
+    /// No-show history for coordinators/admins viewing other profiles.
+    /// </summary>
+    public List<NoShowHistoryItem>? NoShowHistory { get; set; }
 }
 
 /// <summary>

@@ -21,7 +21,7 @@
     }
 
     window['render_@(Model.ChartId)'] = function() {
-        var data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Data));
+        var data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Data, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
         var labels = data.map(function(d) { return d.dateLabel; });
         var confirmed = data.map(function(d) { return d.confirmedCount; });
         var remaining = data.map(function(d) { return Math.max(0, d.totalSlots - d.confirmedCount); });

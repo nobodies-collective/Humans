@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NodaTime;
 using NodaTime.Text;
 
@@ -20,17 +21,20 @@ public class ShiftDashboardController : Controller
     private readonly IShiftSignupService _signupService;
     private readonly IProfileService _profileService;
     private readonly UserManager<User> _userManager;
+    private readonly ILogger<ShiftDashboardController> _logger;
 
     public ShiftDashboardController(
         IShiftManagementService shiftMgmt,
         IShiftSignupService signupService,
         IProfileService profileService,
-        UserManager<User> userManager)
+        UserManager<User> userManager,
+        ILogger<ShiftDashboardController> logger)
     {
         _shiftMgmt = shiftMgmt;
         _signupService = signupService;
         _profileService = profileService;
         _userManager = userManager;
+        _logger = logger;
     }
 
     [HttpGet("")]
@@ -43,7 +47,7 @@ public class ShiftDashboardController : Controller
         if (es == null)
         {
             TempData["ErrorMessage"] = "No active event settings configured.";
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction(nameof(HomeController.Index), "Home");
         }
 
         LocalDate? filterDate = null;
@@ -55,7 +59,7 @@ public class ShiftDashboardController : Controller
         }
 
         var shifts = await _shiftMgmt.GetUrgentShiftsAsync(es.Id, limit: null, departmentId, filterDate);
-        var staffingData = await _shiftMgmt.GetStaffingDataAsync(es.Id);
+        var staffingData = await _shiftMgmt.GetStaffingDataAsync(es.Id, departmentId);
 
         var deptTuples = await _shiftMgmt.GetDepartmentsWithRotasAsync(es.Id);
         var departments = deptTuples.Select(d => new DepartmentOption
@@ -86,14 +90,22 @@ public class ShiftDashboardController : Controller
         if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
             return Json(Array.Empty<VolunteerSearchResult>());
 
-        var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
-        if (shift == null) return NotFound();
+        try
+        {
+            var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
+            if (shift == null) return NotFound();
 
-        var es = shift.Rota.EventSettings ?? await _shiftMgmt.GetActiveAsync();
-        if (es == null) return NotFound();
+            var es = shift.Rota.EventSettings ?? await _shiftMgmt.GetActiveAsync();
+            if (es == null) return NotFound();
 
-        var results = await BuildVolunteerSearchResultsAsync(shift, query, es);
-        return Json(results);
+            var results = await BuildVolunteerSearchResultsAsync(shift, query, es);
+            return Json(results);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Volunteer search failed for shift {ShiftId}, query '{Query}'", shiftId, query);
+            return StatusCode(500, new { error = "Search failed." });
+        }
     }
 
     [HttpPost("Voluntell")]

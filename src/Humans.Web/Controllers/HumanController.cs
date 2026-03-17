@@ -106,8 +106,6 @@ public class HumanController : Controller
             }
         }
 
-        ViewBag.NoShowHistory = noShowHistory;
-
         // The ProfileCard ViewComponent handles all data fetching and permission checks.
         var viewModel = new ProfileViewModel
         {
@@ -116,6 +114,7 @@ public class HumanController : Controller
             DisplayName = profile.User.DisplayName,
             IsOwnProfile = isOwnProfile,
             IsApproved = profile.IsApproved,
+            NoShowHistory = noShowHistory,
         };
 
         return View("~/Views/Profile/Index.cshtml", viewModel);

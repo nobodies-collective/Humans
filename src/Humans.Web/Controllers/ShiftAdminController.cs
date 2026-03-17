@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NodaTime;
 
 namespace Humans.Web.Controllers;
@@ -21,6 +22,7 @@ public class ShiftAdminController : Controller
     private readonly IProfileService _profileService;
     private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
+    private readonly ILogger<ShiftAdminController> _logger;
 
     public ShiftAdminController(
         ITeamService teamService,
@@ -28,7 +30,8 @@ public class ShiftAdminController : Controller
         IShiftSignupService signupService,
         IProfileService profileService,
         UserManager<User> userManager,
-        IClock clock)
+        IClock clock,
+        ILogger<ShiftAdminController> logger)
     {
         _teamService = teamService;
         _shiftMgmt = shiftMgmt;
@@ -36,6 +39,7 @@ public class ShiftAdminController : Controller
         _profileService = profileService;
         _userManager = userManager;
         _clock = clock;
+        _logger = logger;
     }
 
     [HttpGet("")]
@@ -348,52 +352,60 @@ public class ShiftAdminController : Controller
         if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
             return Json(Array.Empty<VolunteerSearchResult>());
 
-        var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
-        if (shift == null) return NotFound();
-        if (shift.Rota.TeamId != team.Id) return NotFound();
-
-        var es = shift.Rota.EventSettings ?? await _shiftMgmt.GetActiveAsync();
-        if (es == null) return NotFound();
-
-        var shiftStart = shift.GetAbsoluteStart(es);
-        var shiftEnd = shift.GetAbsoluteEnd(es);
-
-        var users = await _userManager.Users
-            .Where(u => EF.Functions.ILike(u.DisplayName, "%" + query + "%"))
-            .Take(10)
-            .ToListAsync();
-
-        var canViewMedical = User.IsInRole(RoleNames.NoInfoAdmin) || User.IsInRole(RoleNames.Admin);
-
-        var results = new List<VolunteerSearchResult>();
-        foreach (var user in users)
+        try
         {
-            var profile = await _profileService.GetShiftProfileAsync(user.Id, includeMedical: canViewMedical);
-            var userSignups = await _signupService.GetByUserAsync(user.Id, es.Id);
-            var confirmed = userSignups.Where(s => s.Status == SignupStatus.Confirmed).ToList();
+            var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
+            if (shift == null) return NotFound();
+            if (shift.Rota.TeamId != team.Id) return NotFound();
 
-            var hasOverlap = confirmed.Any(s =>
-            {
-                var sStart = s.Shift.GetAbsoluteStart(es);
-                var sEnd = s.Shift.GetAbsoluteEnd(es);
-                return shiftStart < sEnd && shiftEnd > sStart;
-            });
+            var es = shift.Rota.EventSettings ?? await _shiftMgmt.GetActiveAsync();
+            if (es == null) return NotFound();
 
-            results.Add(new VolunteerSearchResult
+            var shiftStart = shift.GetAbsoluteStart(es);
+            var shiftEnd = shift.GetAbsoluteEnd(es);
+
+            var users = await _userManager.Users
+                .Where(u => EF.Functions.ILike(u.DisplayName, "%" + query + "%"))
+                .Take(10)
+                .ToListAsync();
+
+            var canViewMedical = User.IsInRole(RoleNames.NoInfoAdmin) || User.IsInRole(RoleNames.Admin);
+
+            var results = new List<VolunteerSearchResult>();
+            foreach (var user in users)
             {
-                UserId = user.Id,
-                DisplayName = user.DisplayName,
-                Skills = profile?.Skills ?? [],
-                Quirks = profile?.Quirks ?? [],
-                Languages = profile?.Languages ?? [],
-                DietaryPreference = profile?.DietaryPreference,
-                BookedShiftCount = confirmed.Count,
-                HasOverlap = hasOverlap,
-                MedicalConditions = profile?.MedicalConditions
-            });
+                var profile = await _profileService.GetShiftProfileAsync(user.Id, includeMedical: canViewMedical);
+                var userSignups = await _signupService.GetByUserAsync(user.Id, es.Id);
+                var confirmed = userSignups.Where(s => s.Status == SignupStatus.Confirmed).ToList();
+
+                var hasOverlap = confirmed.Any(s =>
+                {
+                    var sStart = s.Shift.GetAbsoluteStart(es);
+                    var sEnd = s.Shift.GetAbsoluteEnd(es);
+                    return shiftStart < sEnd && shiftEnd > sStart;
+                });
+
+                results.Add(new VolunteerSearchResult
+                {
+                    UserId = user.Id,
+                    DisplayName = user.DisplayName,
+                    Skills = profile?.Skills ?? [],
+                    Quirks = profile?.Quirks ?? [],
+                    Languages = profile?.Languages ?? [],
+                    DietaryPreference = profile?.DietaryPreference,
+                    BookedShiftCount = confirmed.Count,
+                    HasOverlap = hasOverlap,
+                    MedicalConditions = profile?.MedicalConditions
+                });
+            }
+
+            return Json(results);
         }
-
-        return Json(results);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Volunteer search failed for shift {ShiftId}, query '{Query}'", shiftId, query);
+            return StatusCode(500, new { error = "Search failed." });
+        }
     }
 
     [HttpPost("Voluntell")]

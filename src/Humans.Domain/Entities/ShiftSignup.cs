@@ -95,10 +95,11 @@ public class ShiftSignup
     {
         if (Status is not SignupStatus.Pending)
             throw new InvalidOperationException($"Cannot confirm signup in {Status} state");
+        var now = clock.GetCurrentInstant();
         Status = SignupStatus.Confirmed;
         ReviewedByUserId = reviewerUserId;
-        ReviewedAt = clock.GetCurrentInstant();
-        UpdatedAt = clock.GetCurrentInstant();
+        ReviewedAt = now;
+        UpdatedAt = now;
     }
 
     /// <summary>
@@ -108,11 +109,12 @@ public class ShiftSignup
     {
         if (Status is not SignupStatus.Pending)
             throw new InvalidOperationException($"Cannot refuse signup in {Status} state");
+        var now = clock.GetCurrentInstant();
         Status = SignupStatus.Refused;
         ReviewedByUserId = reviewerUserId;
-        ReviewedAt = clock.GetCurrentInstant();
+        ReviewedAt = now;
         StatusReason = reason;
-        UpdatedAt = clock.GetCurrentInstant();
+        UpdatedAt = now;
     }
 
     /// <summary>
@@ -122,11 +124,12 @@ public class ShiftSignup
     {
         if (Status is not (SignupStatus.Confirmed or SignupStatus.Pending))
             throw new InvalidOperationException($"Cannot bail signup in {Status} state");
+        var now = clock.GetCurrentInstant();
         Status = SignupStatus.Bailed;
         ReviewedByUserId = actorUserId;
-        ReviewedAt = clock.GetCurrentInstant();
+        ReviewedAt = now;
         StatusReason = reason;
-        UpdatedAt = clock.GetCurrentInstant();
+        UpdatedAt = now;
     }
 
     /// <summary>
@@ -136,10 +139,11 @@ public class ShiftSignup
     {
         if (Status is not SignupStatus.Confirmed)
             throw new InvalidOperationException($"Cannot mark no-show for signup in {Status} state");
+        var now = clock.GetCurrentInstant();
         Status = SignupStatus.NoShow;
         ReviewedByUserId = reviewerUserId;
-        ReviewedAt = clock.GetCurrentInstant();
-        UpdatedAt = clock.GetCurrentInstant();
+        ReviewedAt = now;
+        UpdatedAt = now;
     }
 
     /// <summary>
