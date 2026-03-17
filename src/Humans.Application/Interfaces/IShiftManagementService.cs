@@ -151,6 +151,26 @@ public interface IShiftManagementService
     /// Calculates the urgency score for a single shift.
     /// </summary>
     double CalculateScore(Shift shift, int confirmedCount);
+
+    // === Staffing & Summary ===
+
+    /// <summary>
+    /// Gets per-day staffing data for build/strike periods.
+    /// </summary>
+    Task<IReadOnlyList<DailyStaffingData>> GetStaffingDataAsync(
+        Guid eventSettingsId, Guid? departmentId = null);
+
+    /// <summary>
+    /// Gets shifts summary for a department. Returns null if no rotas.
+    /// </summary>
+    Task<ShiftsSummaryData?> GetShiftsSummaryAsync(
+        Guid eventSettingsId, Guid departmentTeamId);
+
+    /// <summary>
+    /// Gets all parent teams that have active rotas in the given event.
+    /// </summary>
+    Task<IReadOnlyList<(Guid TeamId, string TeamName)>> GetDepartmentsWithRotasAsync(
+        Guid eventSettingsId);
 }
 
 /// <summary>
@@ -162,3 +182,22 @@ public record UrgentShift(
     int ConfirmedCount,
     int RemainingSlots,
     string DepartmentName);
+
+/// <summary>
+/// Per-day staffing data for build/strike visualization.
+/// </summary>
+public record DailyStaffingData(
+    int DayOffset,
+    string DateLabel,
+    int ConfirmedCount,
+    int TotalSlots,
+    string Period);
+
+/// <summary>
+/// Aggregated shift summary for a department.
+/// </summary>
+public record ShiftsSummaryData(
+    int TotalSlots,
+    int ConfirmedCount,
+    int PendingCount,
+    int UniqueVolunteerCount);

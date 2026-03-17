@@ -51,6 +51,11 @@ public interface IShiftSignupService
     /// Gets all signups for a shift.
     /// </summary>
     Task<IReadOnlyList<ShiftSignup>> GetByShiftAsync(Guid shiftId);
+
+    /// <summary>
+    /// Gets all no-show signups for a user, with shift/team context and reviewer info.
+    /// </summary>
+    Task<IReadOnlyList<ShiftSignup>> GetNoShowHistoryAsync(Guid userId);
 }
 
 /// <summary>

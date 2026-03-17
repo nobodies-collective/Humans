@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;
@@ -160,6 +161,9 @@ public class ShiftAdminViewModel
     public int ConfirmedCount { get; set; }
     public bool CanManageShifts { get; set; }
     public bool CanApproveSignups { get; set; }
+    public Dictionary<Guid, VolunteerEventProfile> VolunteerProfiles { get; set; } = new();
+    public bool CanViewMedical { get; set; }
+    public List<DailyStaffingData> StaffingData { get; set; } = [];
 }
 
 // === Homepage ===
@@ -213,4 +217,51 @@ public class NotificationSettingsViewModel
 
     [Display(Name = "Unsubscribe from campaign emails")]
     public bool UnsubscribedFromCampaigns { get; set; }
+}
+
+// === Dashboard ===
+
+public class ShiftDashboardViewModel
+{
+    public List<UrgentShift> Shifts { get; set; } = [];
+    public List<DepartmentOption> Departments { get; set; } = [];
+    public Guid? SelectedDepartmentId { get; set; }
+    public string? SelectedDate { get; set; }
+    public EventSettings EventSettings { get; set; } = null!;
+    public List<DailyStaffingData> StaffingData { get; set; } = [];
+}
+
+public class VolunteerSearchResult
+{
+    public Guid UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public List<string> Skills { get; set; } = [];
+    public List<string> Quirks { get; set; } = [];
+    public List<string> Languages { get; set; } = [];
+    public string? DietaryPreference { get; set; }
+    public int BookedShiftCount { get; set; }
+    public bool HasOverlap { get; set; }
+}
+
+// === Shifts Summary Card ===
+
+public class ShiftsSummaryCardViewModel
+{
+    public int TotalSlots { get; set; }
+    public int ConfirmedCount { get; set; }
+    public int PendingCount { get; set; }
+    public int UniqueVolunteerCount { get; set; }
+    public string ShiftsUrl { get; set; } = "";
+    public bool CanManageShifts { get; set; }
+}
+
+// === No-Show History ===
+
+public class NoShowHistoryItem
+{
+    public string ShiftTitle { get; set; } = string.Empty;
+    public string DepartmentName { get; set; } = string.Empty;
+    public string ShiftDateLabel { get; set; } = string.Empty;
+    public string? MarkedByName { get; set; }
+    public string? MarkedAtLabel { get; set; }
 }
