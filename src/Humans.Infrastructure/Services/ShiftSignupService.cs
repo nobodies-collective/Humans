@@ -291,6 +291,148 @@ public class ShiftSignupService : IShiftSignupService
         return SignupResult.Ok(signup);
     }
 
+    public async Task<SignupResult> SignUpRangeAsync(Guid userId, Guid rotaId, int startDayOffset, int endDayOffset, Guid? actorUserId = null)
+    {
+        var rota = await _dbContext.Rotas
+            .Include(r => r.EventSettings)
+            .Include(r => r.Shifts)
+            .FirstOrDefaultAsync(r => r.Id == rotaId);
+
+        if (rota == null) return SignupResult.Fail("Rota not found.");
+
+        var es = rota.EventSettings;
+        var now = _clock.GetCurrentInstant();
+        var isPrivileged = await IsPrivilegedAsync(userId, rota.TeamId);
+
+        // System open check
+        if (!es.IsShiftBrowsingOpen && !isPrivileged)
+            return SignupResult.Fail("Shift browsing is not currently open.");
+
+        // EE freeze check for build rotas
+        if (rota.Period == RotaPeriod.Build && es.EarlyEntryClose.HasValue && now >= es.EarlyEntryClose.Value && !isPrivileged)
+            return SignupResult.Fail("Early entry signups are closed.");
+
+        // Find all-day shifts in the range
+        var shiftsInRange = rota.Shifts
+            .Where(s => s.IsAllDay && s.DayOffset >= startDayOffset && s.DayOffset <= endDayOffset)
+            .OrderBy(s => s.DayOffset)
+            .ToList();
+
+        if (shiftsInRange.Count == 0)
+            return SignupResult.Fail("No shifts found in the specified date range.");
+
+        // Check overlap for each day
+        var existingSignups = await _dbContext.ShiftSignups
+            .Include(s => s.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
+            .Where(s => s.UserId == userId && s.Status == SignupStatus.Confirmed)
+            .ToListAsync();
+
+        var conflictingDays = new List<int>();
+        foreach (var shift in shiftsInRange)
+        {
+            var shiftStart = shift.GetAbsoluteStart(es);
+            var shiftEnd = shift.GetAbsoluteEnd(es);
+
+            foreach (var existing in existingSignups)
+            {
+                var existingEs = existing.Shift.Rota.EventSettings;
+                var existingStart = existing.Shift.GetAbsoluteStart(existingEs);
+                var existingEnd = existing.Shift.GetAbsoluteEnd(existingEs);
+
+                if (shiftStart < existingEnd && shiftEnd > existingStart)
+                {
+                    conflictingDays.Add(shift.DayOffset);
+                    break;
+                }
+            }
+        }
+
+        if (conflictingDays.Count > 0)
+        {
+            var dayList = string.Join(", ", conflictingDays);
+            return SignupResult.Fail($"Time conflict on day(s): {dayList}.");
+        }
+
+        // Create signups
+        var blockId = Guid.NewGuid();
+        var autoConfirm = rota.Policy == SignupPolicy.Public ||
+                          await _shiftMgmt.CanApproveSignupsAsync(userId, rota.TeamId);
+        ShiftSignup? lastSignup = null;
+
+        foreach (var shift in shiftsInRange)
+        {
+            var signup = new ShiftSignup
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                ShiftId = shift.Id,
+                SignupBlockId = blockId,
+                Status = autoConfirm ? SignupStatus.Confirmed : SignupStatus.Pending,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            if (autoConfirm)
+            {
+                signup.ReviewedByUserId = actorUserId ?? userId;
+                signup.ReviewedAt = now;
+            }
+
+            _dbContext.ShiftSignups.Add(signup);
+            lastSignup = signup;
+
+            if (autoConfirm)
+            {
+                await _auditLogService.LogAsync(
+                    AuditAction.ShiftSignupConfirmed,
+                    nameof(ShiftSignup), signup.Id,
+                    $"Range signup for '{rota.Name}' day {shift.DayOffset} (block {blockId})",
+                    userId, "Self");
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return SignupResult.Ok(lastSignup!);
+    }
+
+    public async Task BailRangeAsync(Guid signupBlockId, Guid actorUserId, string? reason = null)
+    {
+        var signups = await _dbContext.ShiftSignups
+            .Include(s => s.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
+            .Include(s => s.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.Team)
+            .Where(s => s.SignupBlockId == signupBlockId)
+            .ToListAsync();
+
+        if (signups.Count == 0) return;
+
+        var firstSignup = signups[0];
+        var es = firstSignup.Shift.Rota.EventSettings;
+        var now = _clock.GetCurrentInstant();
+        var isOwner = firstSignup.UserId == actorUserId;
+        var isPrivileged = await IsPrivilegedAsync(actorUserId, firstSignup.Shift.Rota.TeamId);
+
+        if (!isOwner && !isPrivileged)
+            throw new InvalidOperationException("Not authorized to bail this signup block.");
+
+        // EE freeze check — if any shift is build-period and past EarlyEntryClose
+        if (signups.Any(s => s.Shift.IsEarlyEntry) && es.EarlyEntryClose.HasValue && now >= es.EarlyEntryClose.Value && !isPrivileged)
+            throw new InvalidOperationException("Cannot bail from build shifts after early entry close.");
+
+        foreach (var signup in signups)
+        {
+            signup.Bail(actorUserId, _clock, reason);
+
+            await _auditLogService.LogAsync(
+                AuditAction.ShiftSignupBailed, nameof(ShiftSignup), signup.Id,
+                $"Range bail from '{signup.Shift.Rota.Name}' day {signup.Shift.DayOffset} (block {signupBlockId})" +
+                (reason != null ? $": {reason}" : ""),
+                actorUserId, "Actor");
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
     public async Task<IReadOnlyList<ShiftSignup>> GetByUserAsync(Guid userId, Guid? eventSettingsId = null)
     {
         var query = _dbContext.ShiftSignups

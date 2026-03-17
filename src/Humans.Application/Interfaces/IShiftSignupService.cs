@@ -38,6 +38,17 @@ public interface IShiftSignupService
     Task<SignupResult> MarkNoShowAsync(Guid signupId, Guid reviewerUserId);
 
     /// <summary>
+    /// Creates signups for a date range of all-day shifts (build/strike).
+    /// All signups share a SignupBlockId for grouped bail.
+    /// </summary>
+    Task<SignupResult> SignUpRangeAsync(Guid userId, Guid rotaId, int startDayOffset, int endDayOffset, Guid? actorUserId = null);
+
+    /// <summary>
+    /// Bails all signups sharing a SignupBlockId.
+    /// </summary>
+    Task BailRangeAsync(Guid signupBlockId, Guid actorUserId, string? reason = null);
+
+    /// <summary>
     /// Gets all signups for a user, optionally filtered by event.
     /// </summary>
     Task<IReadOnlyList<ShiftSignup>> GetByUserAsync(Guid userId, Guid? eventSettingsId = null);
