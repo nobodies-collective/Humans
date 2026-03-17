@@ -321,12 +321,13 @@ public class ShiftManagementService : IShiftManagementService
         if (hasConfirmed)
             throw new InvalidOperationException("Cannot delete shift with confirmed signups.");
 
-        // Cancel pending signups
+        // Cancel pending signups, then remove all signups (confirmed already blocked above)
         foreach (var signup in shift.ShiftSignups.Where(d => d.Status == SignupStatus.Pending))
         {
             signup.Cancel(_clock, "Shift deleted");
         }
 
+        _dbContext.ShiftSignups.RemoveRange(shift.ShiftSignups);
         _dbContext.Shifts.Remove(shift);
         await _dbContext.SaveChangesAsync();
     }
@@ -404,6 +405,46 @@ public class ShiftManagementService : IShiftManagementService
             return urgentShifts.Take(limit.Value).ToList();
 
         return urgentShifts;
+    }
+
+    public async Task<IReadOnlyList<UrgentShift>> GetBrowseShiftsAsync(
+        Guid eventSettingsId, Guid? departmentId = null, LocalDate? date = null,
+        bool includeAdminOnly = false)
+    {
+        var es = await _dbContext.EventSettings.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == eventSettingsId);
+        if (es == null) return [];
+
+        var query = _dbContext.Shifts
+            .Include(s => s.Rota).ThenInclude(r => r.Team)
+            .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
+            .Include(s => s.ShiftSignups)
+            .Where(s => s.Rota.EventSettingsId == eventSettingsId && s.IsActive && s.Rota.IsActive);
+
+        if (!includeAdminOnly)
+            query = query.Where(s => !s.AdminOnly);
+
+        if (departmentId.HasValue)
+            query = query.Where(s => s.Rota.TeamId == departmentId.Value);
+
+        if (date.HasValue)
+        {
+            var dayOffset = Period.Between(es.GateOpeningDate, date.Value).Days;
+            query = query.Where(s => s.DayOffset == dayOffset);
+        }
+
+        var shifts = await query.ToListAsync();
+
+        return shifts
+            .Select(s =>
+            {
+                var confirmedCount = s.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
+                var score = CalculateScore(s, confirmedCount);
+                var remaining = Math.Max(0, s.MaxVolunteers - confirmedCount);
+                return new UrgentShift(s, score, confirmedCount, remaining, s.Rota.Team.Name);
+            })
+            .OrderByDescending(u => u.UrgencyScore)
+            .ToList();
     }
 
     public double CalculateScore(Shift shift, int confirmedCount)

@@ -87,9 +87,9 @@ public class ShiftSignupService : IShiftSignupService
                 warning = warning == null ? eeWarning : $"{warning} {eeWarning}";
         }
 
-        // Determine initial status
-        var isDeptCoord = await _shiftMgmt.IsDeptCoordinatorAsync(userId, shift.Rota.TeamId);
-        var autoConfirm = shift.Rota.Policy == SignupPolicy.Public || isDeptCoord;
+        // Determine initial status — Admin, NoInfoAdmin, and Dept Coordinators auto-confirm
+        var canApprove = await _shiftMgmt.CanApproveSignupsAsync(userId, shift.Rota.TeamId);
+        var autoConfirm = shift.Rota.Policy == SignupPolicy.Public || canApprove;
 
         var signup = new ShiftSignup
         {
@@ -142,6 +142,23 @@ public class ShiftSignupService : IShiftSignupService
         if (confirmedCount >= signup.Shift.MaxVolunteers)
             warning = warning == null ? "Warning: shift is at capacity." : $"{warning} Shift is at capacity.";
 
+        // EE cap revalidation for build shifts
+        if (signup.Shift.IsEarlyEntry)
+        {
+            var eeWarning = await CheckEeCapAsync(es, signup.Shift.DayOffset);
+            if (eeWarning != null)
+                warning = warning == null ? $"Warning: {eeWarning}" : $"{warning} {eeWarning}";
+        }
+
+        // EE freeze check — block approval of build shifts after early entry close
+        var now = _clock.GetCurrentInstant();
+        if (signup.Shift.IsEarlyEntry && es.EarlyEntryClose.HasValue && now >= es.EarlyEntryClose.Value)
+        {
+            var isPrivileged = await IsPrivilegedAsync(reviewerUserId, signup.Shift.Rota.TeamId);
+            if (!isPrivileged)
+                return SignupResult.Fail("Cannot approve build shift signups after early entry close.");
+        }
+
         signup.Confirm(reviewerUserId, _clock);
 
         await _auditLogService.LogAsync(
@@ -178,7 +195,12 @@ public class ShiftSignupService : IShiftSignupService
 
         var es = signup.Shift.Rota.EventSettings;
         var now = _clock.GetCurrentInstant();
+        var isOwner = signup.UserId == actorUserId;
         var isPrivileged = await IsPrivilegedAsync(actorUserId, signup.Shift.Rota.TeamId);
+
+        // Authorization: must be signup owner or privileged (dept coordinator/NoInfoAdmin/Admin)
+        if (!isOwner && !isPrivileged)
+            return SignupResult.Fail("Not authorized to bail this signup.");
 
         // EE freeze check for build shifts
         if (signup.Shift.IsEarlyEntry && es.EarlyEntryClose.HasValue && now >= es.EarlyEntryClose.Value && !isPrivileged)
@@ -316,9 +338,10 @@ public class ShiftSignupService : IShiftSignupService
 
         var userSignups = await _dbContext.ShiftSignups
             .Include(d => d.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
+            .Include(d => d.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.Team)
             .Where(d => d.UserId == userId &&
                         d.ShiftId != targetShift.Id &&
-                        (d.Status == SignupStatus.Confirmed || d.Status == SignupStatus.Pending))
+                        d.Status == SignupStatus.Confirmed)
             .ToListAsync();
 
         foreach (var existing in userSignups)
@@ -329,7 +352,10 @@ public class ShiftSignupService : IShiftSignupService
 
             if (targetStart < existingEnd && targetEnd > existingStart)
             {
-                return $"Time conflict with '{existing.Shift.Title}' ({existing.Status}).";
+                var tz = DateTimeZoneProviders.Tzdb[existingEs.TimeZoneId];
+                var dateStr = existingStart.InZone(tz).ToString("ddd MMM d HH:mm", null);
+                var teamName = existing.Shift.Rota.Team?.Name ?? "Unknown";
+                return $"Time conflict with '{existing.Shift.Title}' ({teamName}, {dateStr}).";
             }
         }
 

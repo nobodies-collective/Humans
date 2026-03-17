@@ -50,6 +50,7 @@
                                         </form>
                                         <form asp-action="RefuseSignup" asp-route-slug="@Model.Department.Slug" asp-route-signupId="@signup.Id" method="post" class="d-inline">
                                             @Html.AntiForgeryToken()
+                                            <input type="text" name="reason" placeholder="Reason (optional)" class="form-control form-control-sm d-inline-block" style="width: 150px; vertical-align: middle;" />
                                             <button type="submit" class="btn btn-sm btn-danger">Refuse</button>
                                         </form>
                                     </td>
@@ -76,7 +77,59 @@
                         <span class="badge bg-danger ms-1">Inactive</span>
                     }
                 </div>
+                @if (Model.CanManageShifts)
+                {
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-rota-@rota.Id.ToString("N")">Edit</button>
+                        @if (rota.IsActive)
+                        {
+                            <form asp-action="DeactivateRota" asp-route-slug="@Model.Department.Slug" asp-route-rotaId="@rota.Id" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">Deactivate</button>
+                            </form>
+                        }
+                    </div>
+                }
             </div>
+            @if (Model.CanManageShifts)
+            {
+                <div class="collapse" id="edit-rota-@rota.Id.ToString("N")">
+                    <div class="card-body border-bottom">
+                        <form asp-action="EditRota" asp-route-slug="@Model.Department.Slug" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="RotaId" value="@rota.Id" />
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-3">
+                                    <label class="form-label">Name</label>
+                                    <input type="text" name="Name" value="@rota.Name" class="form-control" required />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Priority</label>
+                                    <select name="Priority" class="form-select">
+                                        <option value="Normal" selected="@(rota.Priority == ShiftPriority.Normal)">Normal</option>
+                                        <option value="Important" selected="@(rota.Priority == ShiftPriority.Important)">Important</option>
+                                        <option value="Essential" selected="@(rota.Priority == ShiftPriority.Essential)">Essential</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Policy</label>
+                                    <select name="Policy" class="form-select">
+                                        <option value="Public" selected="@(rota.Policy == SignupPolicy.Public)">Public</option>
+                                        <option value="RequireApproval" selected="@(rota.Policy == SignupPolicy.RequireApproval)">Require Approval</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Description</label>
+                                    <input type="text" name="Description" value="@rota.Description" class="form-control" />
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" class="btn btn-primary">Save</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            }
             <div class="card-body">
                 @if (rota.Shifts.Count > 0)
                 {
@@ -133,6 +186,7 @@
                                         <td>
                                             @if (Model.CanManageShifts && shift.IsActive)
                                             {
+                                                <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-shift-@shift.Id.ToString("N")">Edit</button>
                                                 <form asp-action="DeactivateShift" asp-route-slug="@Model.Department.Slug" asp-route-shiftId="@shift.Id" method="post" class="d-inline">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-sm btn-outline-secondary">Deactivate</button>
@@ -140,6 +194,59 @@
                                             }
                                         </td>
                                     </tr>
+                                    @if (Model.CanManageShifts && shift.IsActive)
+                                    {
+                                        <tr class="collapse" id="edit-shift-@shift.Id.ToString("N")">
+                                            <td colspan="6">
+                                                <form asp-action="EditShift" asp-route-slug="@Model.Department.Slug" method="post">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="ShiftId" value="@shift.Id" />
+                                                    <div class="row g-2 align-items-end">
+                                                        <div class="col-md-3">
+                                                            <label class="form-label form-label-sm">Title</label>
+                                                            <input type="text" name="Title" value="@shift.Title" class="form-control form-control-sm" required />
+                                                        </div>
+                                                        <div class="col-md-2">
+                                                            <label class="form-label form-label-sm">Date</label>
+                                                            <select name="DayOffset" class="form-select form-select-sm">
+                                                                @for (var d = Model.EventSettings.BuildStartOffset; d <= Model.EventSettings.StrikeEndOffset; d++)
+                                                                {
+                                                                    var editDate = Model.EventSettings.GateOpeningDate.PlusDays(d);
+                                                                    var editLabel = editDate.DayOfWeek.ToString()[..3] + " " + editDate.ToString("MMM d", null);
+                                                                    <option value="@d" selected="@(d == shift.DayOffset)">@editLabel</option>
+                                                                }
+                                                            </select>
+                                                        </div>
+                                                        <div class="col-md-1">
+                                                            <label class="form-label form-label-sm">Start</label>
+                                                            <input type="time" name="StartTime" value="@shift.StartTime" class="form-control form-control-sm" />
+                                                        </div>
+                                                        <div class="col-md-1">
+                                                            <label class="form-label form-label-sm">Hours</label>
+                                                            <input type="number" name="DurationHours" value="@shift.Duration.TotalHours" class="form-control form-control-sm" step="0.5" min="0.5" />
+                                                        </div>
+                                                        <div class="col-md-1">
+                                                            <label class="form-label form-label-sm">Need</label>
+                                                            <input type="number" name="MinVolunteers" value="@shift.MinVolunteers" class="form-control form-control-sm" min="0" />
+                                                        </div>
+                                                        <div class="col-md-1">
+                                                            <label class="form-label form-label-sm">Cap</label>
+                                                            <input type="number" name="MaxVolunteers" value="@shift.MaxVolunteers" class="form-control form-control-sm" min="1" />
+                                                        </div>
+                                                        <div class="col-md-1">
+                                                            <div class="form-check">
+                                                                <input type="checkbox" name="AdminOnly" value="true" class="form-check-input" checked="@shift.AdminOnly" />
+                                                                <label class="form-check-label form-label-sm">Admin</label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-2">
+                                                            <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                                        </div>
+                                                    </div>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
                                 }
                             </tbody>
                         </table>

@@ -91,11 +91,18 @@ public class ShiftBrowseViewModel
 {
     public EventSettings EventSettings { get; set; } = null!;
     public List<DepartmentShiftGroup> Departments { get; set; } = [];
+    public List<DepartmentOption> AllDepartments { get; set; } = [];
     public Guid? FilterDepartmentId { get; set; }
     public string? FilterDate { get; set; }
     public bool ShowFullShifts { get; set; }
     public HashSet<Guid> UserSignupShiftIds { get; set; } = [];
     public Dictionary<Guid, SignupStatus> UserSignupStatuses { get; set; } = new();
+}
+
+public class DepartmentOption
+{
+    public Guid TeamId { get; set; }
+    public string Name { get; set; } = string.Empty;
 }
 
 public class DepartmentShiftGroup

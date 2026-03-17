@@ -45,5 +45,9 @@ public class EmailOutboxMessageConfiguration : IEntityTypeConfiguration<EmailOut
             .WithMany()
             .HasForeignKey(e => e.ShiftSignupId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Dedup: one email of each template type per signup
+        builder.HasIndex(e => new { e.ShiftSignupId, e.TemplateName })
+            .HasFilter("\"ShiftSignupId\" IS NOT NULL");
     }
 }

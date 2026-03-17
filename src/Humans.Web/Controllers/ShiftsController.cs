@@ -60,8 +60,14 @@ public class ShiftsController : Controller
             .Where(s => s.Status is SignupStatus.Confirmed or SignupStatus.Pending)
             .ToDictionary(s => s.ShiftId, s => s.Status);
 
-        // Build the browse view by querying all active shifts for the event
-        var urgentShifts = await _shiftMgmt.GetUrgentShiftsAsync(es.Id, departmentId: departmentId);
+        // Parse date filter
+        LocalDate? filterDate = null;
+        if (!string.IsNullOrEmpty(date) && LocalDatePattern.Iso.Parse(date) is { Success: true } parseResult)
+            filterDate = parseResult.Value;
+
+        // Build the browse view — show all active shifts, hide AdminOnly from regular volunteers
+        var urgentShifts = await _shiftMgmt.GetBrowseShiftsAsync(
+            es.Id, departmentId: departmentId, date: filterDate, includeAdminOnly: isPrivileged);
 
         // Group by department → rota → shift
         var departments = urgentShifts
@@ -107,6 +113,24 @@ public class ShiftsController : Controller
             .OrderBy(d => d.TeamName, StringComparer.Ordinal)
             .ToList();
 
+        // Get department list for filter dropdown — if already unfiltered, reuse data
+        List<DepartmentOption> allDepartments;
+        if (!departmentId.HasValue)
+        {
+            allDepartments = departments
+                .Select(d => new DepartmentOption { TeamId = d.TeamId, Name = d.TeamName })
+                .ToList();
+        }
+        else
+        {
+            var allShifts = await _shiftMgmt.GetBrowseShiftsAsync(es.Id, includeAdminOnly: isPrivileged);
+            allDepartments = allShifts
+                .Select(u => new DepartmentOption { TeamId = u.Shift!.Rota.TeamId, Name = u.DepartmentName ?? "Unknown" })
+                .DistinctBy(d => d.TeamId)
+                .OrderBy(d => d.Name, StringComparer.Ordinal)
+                .ToList();
+        }
+
         var model = new ShiftBrowseViewModel
         {
             EventSettings = es,
@@ -115,7 +139,8 @@ public class ShiftsController : Controller
             ShowFullShifts = showFull,
             UserSignupShiftIds = userSignupShiftIds,
             UserSignupStatuses = userSignupStatuses,
-            Departments = departments
+            Departments = departments,
+            AllDepartments = allDepartments
         };
 
         return View(model);
@@ -205,8 +230,13 @@ public class ShiftsController : Controller
         model.Pending = model.Pending.OrderBy(s => s.AbsoluteStart).ToList();
         model.Past = model.Past.OrderByDescending(s => s.AbsoluteStart).ToList();
 
-        // iCal feed deferred to a later slice
-        model.ICalUrl = null;
+        // Generate iCal token on first access
+        if (user.ICalToken == null)
+        {
+            user.ICalToken = Guid.NewGuid();
+            await _userManager.UpdateAsync(user);
+        }
+        model.ICalUrl = $"{Request.Scheme}://{Request.Host}/ICal/{user.ICalToken}.ics";
 
         return View(model);
     }

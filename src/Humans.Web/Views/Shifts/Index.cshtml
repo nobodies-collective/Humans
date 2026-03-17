@@ -57,6 +57,29 @@
 
     <vc:temp-data-alerts />
 
+    <form method="get" class="row g-2 mb-4 align-items-end">
+        <div class="col-auto">
+            <label class="form-label mb-1">Department</label>
+            <select name="departmentId" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">All Departments</option>
+                @foreach (var dept in Model.AllDepartments)
+                {
+                    <option value="@dept.TeamId" selected="@(Model.FilterDepartmentId == dept.TeamId)">@dept.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-auto">
+            <label class="form-label mb-1">Date</label>
+            <input type="date" name="date" class="form-control form-control-sm" value="@Model.FilterDate" onchange="this.form.submit()" />
+        </div>
+        @if (Model.FilterDepartmentId.HasValue || !string.IsNullOrEmpty(Model.FilterDate))
+        {
+            <div class="col-auto">
+                <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Clear Filters</a>
+            </div>
+        }
+    </form>
+
     @if (!Model.EventSettings.IsShiftBrowsingOpen)
     {
         <div class="alert alert-danger">Shifts aren't open yet. Only coordinators and admins can see this page.</div>

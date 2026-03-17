@@ -232,6 +232,10 @@ public class ProcessAccountDeletionsJob
         foreach (var signup in activeSignups)
         {
             signup.Cancel(_clock, "Account deletion");
+            await _auditLogService.LogAsync(
+                AuditAction.ShiftSignupCancelled, nameof(ShiftSignup), signup.Id,
+                $"Cancelled signup (account deletion) for shift {signup.ShiftId}",
+                nameof(ProcessAccountDeletionsJob));
         }
 
         // Clear iCal token

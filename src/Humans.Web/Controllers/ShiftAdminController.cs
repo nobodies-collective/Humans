@@ -225,6 +225,19 @@ public class ShiftAdminController : Controller
         return RedirectToAction(nameof(Index), new { slug });
     }
 
+    [HttpPost("Rotas/{rotaId}/Deactivate")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeactivateRota(string slug, Guid rotaId)
+    {
+        var (team, userId) = await ResolveTeamAndUserAsync(slug);
+        if (team == null || userId == null) return NotFound();
+        if (!await _shiftMgmt.CanManageShiftsAsync(userId.Value, team.Id)) return Forbid();
+
+        await _shiftMgmt.DeactivateRotaAsync(rotaId);
+        TempData["SuccessMessage"] = "Rota deactivated.";
+        return RedirectToAction(nameof(Index), new { slug });
+    }
+
     [HttpPost("Shifts/{shiftId}/Deactivate")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeactivateShift(string slug, Guid shiftId)

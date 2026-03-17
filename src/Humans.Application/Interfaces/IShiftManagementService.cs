@@ -141,6 +141,13 @@ public interface IShiftManagementService
         Guid? departmentId = null, LocalDate? date = null);
 
     /// <summary>
+    /// Gets all active shifts for browse page, with optional filtering. Includes full shifts.
+    /// </summary>
+    Task<IReadOnlyList<UrgentShift>> GetBrowseShiftsAsync(
+        Guid eventSettingsId, Guid? departmentId = null, LocalDate? date = null,
+        bool includeAdminOnly = false);
+
+    /// <summary>
     /// Calculates the urgency score for a single shift.
     /// </summary>
     double CalculateScore(Shift shift, int confirmedCount);
