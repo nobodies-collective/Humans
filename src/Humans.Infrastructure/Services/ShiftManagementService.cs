@@ -310,6 +310,43 @@ public class ShiftManagementService : IShiftManagementService
         await _dbContext.SaveChangesAsync();
     }
 
+    public async Task GenerateEventShiftsAsync(Guid rotaId, int startDayOffset, int endDayOffset,
+        List<(LocalTime StartTime, double DurationHours)> timeSlots, int minVolunteers = 2, int maxVolunteers = 5)
+    {
+        var rota = await _dbContext.Rotas
+            .Include(r => r.EventSettings)
+            .FirstOrDefaultAsync(r => r.Id == rotaId);
+
+        if (rota == null) throw new InvalidOperationException("Rota not found");
+        if (rota.Period != RotaPeriod.Event)
+            throw new InvalidOperationException("Event shift generation is only for Event-period rotas");
+
+        var now = _clock.GetCurrentInstant();
+
+        for (var day = startDayOffset; day <= endDayOffset; day++)
+        {
+            foreach (var (startTime, durationHours) in timeSlots)
+            {
+                var shift = new Shift
+                {
+                    Id = Guid.NewGuid(),
+                    RotaId = rotaId,
+                    IsAllDay = false,
+                    DayOffset = day,
+                    StartTime = startTime,
+                    Duration = Duration.FromHours(durationHours),
+                    MinVolunteers = minVolunteers,
+                    MaxVolunteers = maxVolunteers,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                _dbContext.Shifts.Add(shift);
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
     // ============================================================
     // Shift
     // ============================================================

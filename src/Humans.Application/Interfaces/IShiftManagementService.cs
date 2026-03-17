@@ -97,6 +97,13 @@ public interface IShiftManagementService
     /// </summary>
     Task CreateBuildStrikeShiftsAsync(Guid rotaId, Dictionary<int, (int Min, int Max)> dailyStaffing);
 
+    /// <summary>
+    /// Generates shifts for an Event rota as Cartesian product of days × time slots.
+    /// Throws if the rota has Period != Event.
+    /// </summary>
+    Task GenerateEventShiftsAsync(Guid rotaId, int startDayOffset, int endDayOffset,
+        List<(LocalTime StartTime, double DurationHours)> timeSlots, int minVolunteers = 2, int maxVolunteers = 5);
+
     // === Shift ===
 
     /// <summary>
