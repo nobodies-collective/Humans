@@ -347,9 +347,9 @@ public class ShiftSignupServiceTests : IDisposable
         // Act: try to sign up for days -3 to -1
         var result = await _service.SignUpRangeAsync(userId, rota.Id, -3, -1);
 
-        // Assert: fails with overlap error
+        // Assert: fails — duplicate signup check catches this before overlap check
         result.Success.Should().BeFalse();
-        result.Error.Should().Contain("-2");
+        result.Error.Should().Contain("Already signed up");
     }
 
     // ============================================================

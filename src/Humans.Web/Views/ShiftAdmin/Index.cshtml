@@ -192,7 +192,7 @@
                                             @{
                                                 var shiftLabel = shift.IsAllDay
                                                     ? "All day"
-                                                    : $"{shift.StartTime}–{shift.StartTime.PlusHours((int)shift.Duration.TotalHours)}";
+                                                    : $"{shift.StartTime}–{shift.StartTime.PlusMinutes((int)shift.Duration.TotalMinutes)}";
                                             }
                                             @shiftLabel
                                             @if (shift.AdminOnly) { <span class="badge bg-dark">Admin Only</span> }
@@ -331,10 +331,21 @@
                                                             </div>
                                                             @if (signup.Status == SignupStatus.Confirmed)
                                                             {
-                                                                <form asp-action="MarkNoShow" asp-route-slug="@Model.Department.Slug" asp-route-signupId="@signup.Id" method="post" class="d-inline">
-                                                                    @Html.AntiForgeryToken()
-                                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Mark No-Show</button>
-                                                                </form>
+                                                                <div class="d-flex gap-1">
+                                                                    <form asp-action="MarkNoShow" asp-route-slug="@Model.Department.Slug" asp-route-signupId="@signup.Id" method="post" class="d-inline">
+                                                                        @Html.AntiForgeryToken()
+                                                                        <button type="submit" class="btn btn-sm btn-outline-danger">Mark No-Show</button>
+                                                                    </form>
+                                                                    @if (signup.SignupBlockId != null)
+                                                                    {
+                                                                        <form asp-action="BailRange" asp-route-slug="@Model.Department.Slug" method="post" class="d-inline">
+                                                                            @Html.AntiForgeryToken()
+                                                                            <input type="hidden" name="signupBlockId" value="@signup.SignupBlockId" />
+                                                                            <button type="submit" class="btn btn-sm btn-outline-warning"
+                                                                                    onclick="return confirm('Bail entire range for this human?')">Bail Range</button>
+                                                                        </form>
+                                                                    }
+                                                                </div>
                                                             }
                                                         </div>
                                                     }
@@ -413,7 +424,7 @@
                 }
 
                 @* Generate Shifts for Event-period rotas *@
-                @if (Model.CanManageShifts && rota.Period == RotaPeriod.Event)
+                @if (Model.CanManageShifts && rota.Period == RotaPeriod.Event && rota.Shifts.Count == 0)
                 {
                     var genCollapseId = "gen-shifts-" + rota.Id.ToString("N");
                     <div class="mt-3 border-top pt-3">
@@ -626,6 +637,14 @@
     function escapeHtml(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
     // Dynamic time slot rows for Generate Shifts
+    function reindexSlots(container) {
+        container.querySelectorAll('.slot-row').forEach(function(row, i) {
+            row.querySelectorAll('input[name]').forEach(function(input) {
+                input.name = input.name.replace(/TimeSlots\[\d+\]/, 'TimeSlots[' + i + ']');
+            });
+        });
+    }
+
     document.querySelectorAll('.add-slot-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var rotaId = this.dataset.rotaId;
@@ -636,8 +655,12 @@
             row.className = 'slot-row row g-2 align-items-end mb-1';
             row.innerHTML = '<div class="col-auto"><input type="time" name="TimeSlots[' + idx + '].StartTime" class="form-control form-control-sm" value="08:00" /></div>'
                 + '<div class="col-auto"><input type="number" name="TimeSlots[' + idx + '].DurationHours" class="form-control form-control-sm" value="4" step="0.5" min="0.5" style="width:80px" /><small class="text-muted">hours</small></div>'
-                + '<div class="col-auto"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest(\'.slot-row\').remove()">Remove</button></div>';
+                + '<div class="col-auto"><button type="button" class="btn btn-sm btn-outline-danger remove-slot-btn">Remove</button></div>';
             container.appendChild(row);
+            row.querySelector('.remove-slot-btn').addEventListener('click', function() {
+                this.closest('.slot-row').remove();
+                reindexSlots(container);
+            });
         });
     });
 })();

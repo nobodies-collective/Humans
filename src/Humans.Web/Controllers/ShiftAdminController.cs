@@ -231,7 +231,7 @@ public class ShiftAdminController : Controller
         {
             await _shiftMgmt.GenerateEventShiftsAsync(rotaId, model.StartDayOffset, model.EndDayOffset,
                 timeSlots, model.MinVolunteers, model.MaxVolunteers);
-            var shiftCount = (model.EndDayOffset - model.StartDayOffset + 1) * model.TimeSlots.Count;
+            var shiftCount = Math.Max(0, model.EndDayOffset - model.StartDayOffset + 1) * model.TimeSlots.Count;
             TempData["SuccessMessage"] = $"Generated {shiftCount} shifts for '{rota.Name}'.";
         }
         catch (InvalidOperationException ex)

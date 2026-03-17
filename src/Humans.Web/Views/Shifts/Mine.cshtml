@@ -75,7 +75,6 @@
                         var individualItems = Model.Upcoming
                             .Where(i => i.Signup.SignupBlockId == null)
                             .ToList();
-                        var shownBlockIds = new HashSet<Guid>();
                     }
 
                     @if (rangeBlocks.Count > 0)

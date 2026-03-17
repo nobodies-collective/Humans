@@ -321,10 +321,23 @@ public class ShiftSignupService : IShiftSignupService
         if (shiftsInRange.Count == 0)
             return SignupResult.Fail("No shifts found in the specified date range.");
 
-        // Check overlap for each day
+        // AdminOnly check (Fix #2)
+        if (!isPrivileged && shiftsInRange.Any(s => s.AdminOnly))
+            return SignupResult.Fail("One or more shifts in this range are restricted to coordinators and admins.");
+
+        // Duplicate signup check — reject if user already has Pending/Confirmed on any shift in range (Fix #1)
+        var shiftIdsInRange = shiftsInRange.Select(s => s.Id).ToHashSet();
+        var hasDuplicate = await _dbContext.ShiftSignups
+            .AnyAsync(s => s.UserId == userId && shiftIdsInRange.Contains(s.ShiftId) &&
+                           (s.Status == SignupStatus.Pending || s.Status == SignupStatus.Confirmed));
+        if (hasDuplicate)
+            return SignupResult.Fail("Already signed up for one or more shifts in this range.");
+
+        // Check overlap for each day (include Pending signups too)
         var existingSignups = await _dbContext.ShiftSignups
             .Include(s => s.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
-            .Where(s => s.UserId == userId && s.Status == SignupStatus.Confirmed)
+            .Where(s => s.UserId == userId &&
+                        (s.Status == SignupStatus.Confirmed || s.Status == SignupStatus.Pending))
             .ToListAsync();
 
         var conflictingDays = new List<int>();
@@ -351,6 +364,28 @@ public class ShiftSignupService : IShiftSignupService
         {
             var dayList = string.Join(", ", conflictingDays);
             return SignupResult.Fail($"Time conflict on day(s): {dayList}.");
+        }
+
+        // Capacity check — warn if any shift is at/over capacity (Fix #4)
+        string? warning = null;
+        var signupCounts = await _dbContext.ShiftSignups
+            .Where(s => shiftIdsInRange.Contains(s.ShiftId) && s.Status == SignupStatus.Confirmed)
+            .GroupBy(s => s.ShiftId)
+            .Select(g => new { ShiftId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.ShiftId, g => g.Count);
+        var fullDays = shiftsInRange
+            .Where(s => signupCounts.GetValueOrDefault(s.Id) >= s.MaxVolunteers)
+            .Select(s => s.DayOffset)
+            .ToList();
+        if (fullDays.Count > 0)
+            warning = $"Day(s) {string.Join(", ", fullDays)} are at capacity.";
+
+        // EE cap check for build shifts
+        if (rota.Period == RotaPeriod.Build)
+        {
+            var eeWarning = await CheckEeCapAsync(es, shiftsInRange[0].DayOffset);
+            if (eeWarning != null)
+                warning = warning == null ? eeWarning : $"{warning} {eeWarning}";
         }
 
         // Create signups
@@ -393,7 +428,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _dbContext.SaveChangesAsync();
 
-        return SignupResult.Ok(lastSignup!);
+        return SignupResult.Ok(lastSignup!, warning);
     }
 
     public async Task BailRangeAsync(Guid signupBlockId, Guid actorUserId, string? reason = null)
@@ -401,7 +436,8 @@ public class ShiftSignupService : IShiftSignupService
         var signups = await _dbContext.ShiftSignups
             .Include(s => s.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Include(s => s.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.Team)
-            .Where(s => s.SignupBlockId == signupBlockId)
+            .Where(s => s.SignupBlockId == signupBlockId &&
+                        (s.Status == SignupStatus.Confirmed || s.Status == SignupStatus.Pending))
             .ToListAsync();
 
         if (signups.Count == 0) return;

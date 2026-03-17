@@ -213,7 +213,7 @@
                                             var isFull = item.RemainingSlots <= 0;
                                             var understaffed = item.ConfirmedCount < shift.MinVolunteers;
                                             <tr class="@(isFull ? "table-secondary" : "")">
-                                                <td>@(shift.IsAllDay ? "All day" : $"{shift.StartTime}–{shift.StartTime.PlusHours((int)shift.Duration.TotalHours)}")</td>
+                                                <td>@(shift.IsAllDay ? "All day" : $"{shift.StartTime}–{shift.StartTime.PlusMinutes((int)shift.Duration.TotalMinutes)}")</td>
                                                 <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
                                                 <td>@FormatDate(es, shift.DayOffset)</td>
                                                 <td>@FormatTime(item.AbsoluteStart, tz)</td>
