@@ -107,7 +107,7 @@ public class ShiftSignupServiceTests : IDisposable
     {
         var (es, rota, shift1) = SeedShiftScenario(SignupPolicy.Public);
         // Create a second shift at overlapping time (same day, same start)
-        var shift2 = SeedShift(rota, dayOffset: 1, startHour: 10, durationHours: 4, title: "Overlap Shift");
+        var shift2 = SeedShift(rota, dayOffset: 1, startHour: 10, durationHours: 4);
         var userId = Guid.NewGuid();
         SeedSignup(userId, shift1.Id, SignupStatus.Confirmed);
         await _dbContext.SaveChangesAsync();
@@ -117,20 +117,6 @@ public class ShiftSignupServiceTests : IDisposable
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("Time conflict");
-    }
-
-    [Fact]
-    public async Task SignUp_InactiveShift_ReturnsError()
-    {
-        var (es, rota, shift) = SeedShiftScenario(SignupPolicy.Public);
-        shift.IsActive = false;
-        var userId = Guid.NewGuid();
-        await _dbContext.SaveChangesAsync();
-
-        var result = await _service.SignUpAsync(userId, shift.Id);
-
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("not active");
     }
 
     [Fact]
@@ -185,7 +171,7 @@ public class ShiftSignupServiceTests : IDisposable
     public async Task Approve_RevalidatesOverlap_ReturnsWarning()
     {
         var (es, rota, shift1) = SeedShiftScenario(SignupPolicy.RequireApproval);
-        var shift2 = SeedShift(rota, dayOffset: 1, startHour: 10, durationHours: 4, title: "Conflict Shift");
+        var shift2 = SeedShift(rota, dayOffset: 1, startHour: 10, durationHours: 4);
         var userId = Guid.NewGuid();
         // User has confirmed signup for shift1
         SeedSignup(userId, shift1.Id, SignupStatus.Confirmed);
@@ -357,7 +343,7 @@ public class ShiftSignupServiceTests : IDisposable
             Name = "Test Rota",
             Priority = priority,
             Policy = policy,
-            IsActive = true,
+            Period = RotaPeriod.Event,
             CreatedAt = TestNow,
             UpdatedAt = TestNow
         };
@@ -371,19 +357,17 @@ public class ShiftSignupServiceTests : IDisposable
         return (es, rota, shift);
     }
 
-    private Shift SeedShift(Rota rota, int dayOffset, int startHour, double durationHours, string title = "Test Shift")
+    private Shift SeedShift(Rota rota, int dayOffset, int startHour, double durationHours)
     {
         var shift = new Shift
         {
             Id = Guid.NewGuid(),
             RotaId = rota.Id,
-            Title = title,
             DayOffset = dayOffset,
             StartTime = new LocalTime(startHour, 0),
             Duration = Duration.FromHours(durationHours),
             MinVolunteers = 2,
             MaxVolunteers = 5,
-            IsActive = true,
             CreatedAt = TestNow,
             UpdatedAt = TestNow
         };

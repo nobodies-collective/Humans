@@ -139,6 +139,14 @@ public class EnumStringStabilityTests
         {
             typeof(SignupStatus),
             new[] { "Pending", "Confirmed", "Refused", "Bailed", "Cancelled", "NoShow" }
+        },
+        {
+            typeof(RotaPeriod),
+            new[] { "Build", "Event", "Strike" }
+        },
+        {
+            typeof(RolePeriod),
+            new[] { "YearRound", "Build", "Event", "Strike" }
         }
     };
 }
