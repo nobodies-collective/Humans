@@ -58,7 +58,7 @@
                                         }
                                         @await Html.PartialAsync("_VolunteerProfileBadges", (pendingProfile, Model.CanViewMedical))
                                     </td>
-                                    <td>@signup.Shift.Title</td>
+                                    <td>@signup.Shift.Rota.Name</td>
                                     <td>@signup.CreatedAt</td>
                                     <td>
                                         <form asp-action="ApproveSignup" asp-route-slug="@Model.Department.Slug" asp-route-signupId="@signup.Id" method="post" class="d-inline">
@@ -89,22 +89,19 @@
                     <h5 class="mb-0 d-inline">@rota.Name</h5>
                     <span class="badge bg-secondary ms-2">@rota.Priority</span>
                     <span class="badge bg-info ms-1">@rota.Policy</span>
-                    @if (!rota.IsActive)
-                    {
-                        <span class="badge bg-danger ms-1">Inactive</span>
-                    }
+                    <span class="badge bg-secondary ms-1">@rota.Period</span>
                 </div>
                 @if (Model.CanManageShifts)
                 {
                     <div>
                         <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-rota-@rota.Id.ToString("N")">Edit</button>
-                        @if (rota.IsActive)
-                        {
-                            <form asp-action="DeactivateRota" asp-route-slug="@Model.Department.Slug" asp-route-rotaId="@rota.Id" method="post" class="d-inline">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="btn btn-sm btn-outline-secondary">Deactivate</button>
-                            </form>
-                        }
+                        <form asp-action="DeleteRota" asp-route-slug="@Model.Department.Slug" asp-route-rotaId="@rota.Id" method="post" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    onclick="if(confirm('Delete this rota and all its shifts?')) this.closest('form').submit()">
+                                Delete
+                            </button>
+                        </form>
                     </div>
                 }
             </div>
@@ -153,7 +150,7 @@
                         <table class="table table-sm">
                             <thead>
                                 <tr>
-                                    <th>Title</th>
+                                    <th>Shift</th>
                                     <th>Date</th>
                                     <th>Start</th>
                                     <th>Hours</th>
@@ -172,9 +169,14 @@
                                         .OrderBy(su => su.Status)
                                         .ThenBy(su => su.User?.DisplayName, StringComparer.OrdinalIgnoreCase)
                                         .ToList();
-                                    <tr class="@(!shift.IsActive ? "table-secondary" : "")">
+                                    <tr>
                                         <td>
-                                            @shift.Title
+                                            @{
+                                                var shiftLabel = shift.IsAllDay
+                                                    ? "All day"
+                                                    : $"{shift.StartTime}–{shift.StartTime.PlusHours((int)shift.Duration.TotalHours)}";
+                                            }
+                                            @shiftLabel
                                             @if (shift.AdminOnly) { <span class="badge bg-dark">Admin Only</span> }
                                         </td>
                                         @{
@@ -208,15 +210,18 @@
                                             <small class="text-muted">/ @shift.MinVolunteers–@shift.MaxVolunteers</small>
                                         </td>
                                         <td>
-                                            @if (Model.CanManageShifts && shift.IsActive)
+                                            @if (Model.CanManageShifts)
                                             {
                                                 <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-shift-@shift.Id.ToString("N")">Edit</button>
-                                                <form asp-action="DeactivateShift" asp-route-slug="@Model.Department.Slug" asp-route-shiftId="@shift.Id" method="post" class="d-inline">
+                                                <form asp-action="DeleteShift" asp-route-slug="@Model.Department.Slug" asp-route-shiftId="@shift.Id" method="post" class="d-inline">
                                                     @Html.AntiForgeryToken()
-                                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Deactivate</button>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                                            onclick="if(confirm('Delete this shift?')) this.closest('form').submit()">
+                                                        Delete
+                                                    </button>
                                                 </form>
                                             }
-                                            @if (Model.CanApproveSignups && shift.IsActive && !isPast)
+                                            @if (Model.CanApproveSignups && !isPast)
                                             {
                                                 var voluntellBtnId = "dept-voluntell-" + shift.Id.ToString("N");
                                                 <button class="btn btn-sm btn-outline-success ms-1" type="button"
@@ -226,17 +231,13 @@
                                             }
                                         </td>
                                     </tr>
-                                    @if (Model.CanManageShifts && shift.IsActive)
+                                    @if (Model.CanManageShifts)
                                     {
                                         <tr class="collapse" id="edit-shift-@shift.Id.ToString("N")">
                                             <td colspan="6">
                                                 <form asp-action="EditShift" asp-route-slug="@Model.Department.Slug" asp-route-shiftId="@shift.Id" method="post">
                                                     @Html.AntiForgeryToken()
                                                     <div class="row g-2 align-items-end">
-                                                        <div class="col-md-3">
-                                                            <label class="form-label form-label-sm">Title</label>
-                                                            <input type="text" name="Title" value="@shift.Title" class="form-control form-control-sm" required />
-                                                        </div>
                                                         <div class="col-md-2">
                                                             <label class="form-label form-label-sm">Date</label>
                                                             <select name="DayOffset" class="form-select form-select-sm">
@@ -323,7 +324,7 @@
                                             </td>
                                         </tr>
                                     }
-                                    @if (Model.CanApproveSignups && shift.IsActive && !isPast)
+                                    @if (Model.CanApproveSignups && !isPast)
                                     {
                                         var voluntellCollapseId = "dept-voluntell-" + shift.Id.ToString("N");
                                         <tr class="collapse" id="@voluntellCollapseId">
@@ -350,7 +351,7 @@
                 }
 
                 @* Create Shift *@
-                @if (Model.CanManageShifts && rota.IsActive)
+                @if (Model.CanManageShifts)
                 {
                     <div class="mt-3 border-top pt-3">
                         <h6>Add Shift</h6>
@@ -358,10 +359,6 @@
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="RotaId" value="@rota.Id" />
                             <div class="row g-2 align-items-end">
-                                <div class="col-md-3">
-                                    <label class="form-label form-label-sm">Title</label>
-                                    <input type="text" name="Title" class="form-control form-control-sm" required />
-                                </div>
                                 <div class="col-md-2">
                                     <label class="form-label form-label-sm">Date</label>
                                     <select name="DayOffset" class="form-select form-select-sm">
@@ -428,9 +425,23 @@
                                 <option value="RequireApproval">Require Approval</option>
                             </select>
                         </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Period</label>
+                            <select name="Period" class="form-select">
+                                <option value="Build">Build</option>
+                                <option value="Event" selected>Event</option>
+                                <option value="Strike">Strike</option>
+                            </select>
+                        </div>
                         <div class="col-md-3">
                             <label class="form-label">Description</label>
                             <input type="text" name="Description" class="form-control" />
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-2 align-items-end">
+                        <div class="col-md-6">
+                            <label class="form-label">Practical Info</label>
+                            <textarea name="PracticalInfo" class="form-control" rows="2" placeholder="Meeting point, instructions..."></textarea>
                         </div>
                         <div class="col-md-2">
                             <button type="submit" class="btn btn-primary">Create</button>
