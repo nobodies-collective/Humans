@@ -12,6 +12,9 @@ Last synced: 2026-03-17T17:00
 #### #136: Add camp application self-service: cancel, change lead, undo skip season
 User-reported UX dead-ends: no way to cancel a pending camp application, can't change primary lead, "Skip this season" has no undo, and "Add co-lead" button crashes. Labels: bug, enhancement.
 
+#### #139: Fix googlemail.com/gmail.com mismatch in Google sync drift detection
+Google normalizes `@googlemail.com` to `@gmail.com` in group memberships, causing false drift positives and potential add/remove loops. Normalize on storage preferred. Label: bug.
+
 #### #134: Standardize role authorization to prevent Identity/RoleAssignments mismatch
 Two role-checking systems (ASP.NET Identity claims vs RoleAssignments table) can disagree. Need a single source of truth. Label: bug.
 
@@ -25,6 +28,9 @@ Camp/barrio pages should link lead names to their profiles. Auto-create a "Camp 
 
 #### #127: Add incomplete signup lifecycle — reminders and auto-deletion
 Send reminders to humans who signed up but never completed profile/consent, auto-delete after configurable period. Label: enhancement.
+
+#### #138: Add Catalan (ca) translation
+New `SharedResource.ca.resx` with all ~805 keys, register `"ca"` culture in `Program.cs`, language selector, and Catalan email templates.
 
 #### #97: Add communication preference management with magic-link unsubscribe
 Let humans manage email notification preferences with magic-link unsubscribe support. Label: enhancement.
