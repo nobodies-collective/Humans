@@ -108,6 +108,8 @@ In `src/Humans.Domain/Entities/Shift.cs`:
 - Remove the `IsActive` property (line 65)
 - Add `IsAllDay` property:
 
+Also in `src/Humans.Domain/Entities/ShiftSignup.cs`, update the `Cancel()` method's XML doc comment from "shift deactivated, account deletion" to "shift/rota deleted, account deletion".
+
 ```csharp
 public bool IsAllDay { get; set; }
 ```
@@ -442,7 +444,16 @@ Ensure `DeleteRotaAsync` and `DeleteShiftAsync` have confirmed-signup guards:
 - If any child shift (for rota) or the shift itself has Confirmed signups, throw with message
 - If only Pending signups exist, cancel them before deletion
 
-Check existing implementation and update if needed.
+Update the error messages to use "humans" terminology per CLAUDE.md and include the count:
+```csharp
+var confirmedCount = rota.Shifts.SelectMany(s => s.ShiftSignups)
+    .Count(d => d.Status == SignupStatus.Confirmed);
+if (confirmedCount > 0)
+    throw new InvalidOperationException(
+        $"Cannot delete — {confirmedCount} humans have confirmed signups. Bail or reassign them first.");
+```
+
+Apply the same pattern to `DeleteShiftAsync`.
 
 - [ ] **Step 5: Build to check progress**
 
@@ -596,9 +607,12 @@ Search for `.IsActive` in the file. Remove:
 - `.Where(s => s.IsActive)` filter at line 69 in Index action
 - Any other `IsActive` references
 
-- [ ] **Step 4: Replace all Title references**
+- [ ] **Step 4: Replace all `.Title` references (including `model.Title`)**
 
-Search for `.Title` in the controller. Replace all `shift.Title` with `shift.Rota.Name`.
+Search for `.Title` in the controller. Replace ALL matches — both `shift.Title` AND `model.Title`:
+- `shift.Title` → `shift.Rota.Name`
+- `model.Title` in TempData messages (lines 215, 254) → remove the title from the message (e.g., `"Shift created."` instead of `$"Shift '{model.Title}' created."`)
+
 Ensure rota is eagerly loaded in any queries used.
 
 - [ ] **Step 5: Update CreateRota action**
@@ -656,23 +670,28 @@ Remove the Deactivate forms for both rotas (lines 101-107) and shifts. Replace w
 
 Wire to `DeleteRota`/`DeleteShift` actions instead of `DeactivateRota`/`DeactivateShift`.
 
-- [ ] **Step 2: Replace shift.Title with shift.Rota.Name**
+- [ ] **Step 2: Replace ALL shift.Title and signup.Shift.Title references**
 
-Line 177 and similar: replace `@shift.Title` with display logic:
+Search for `.Title` in the entire view file. Replace every match:
+- Line 61: `@signup.Shift.Title` in the pending approvals table → `@signup.Shift.Rota.Name`
+- Line 156: `<th>Title</th>` table header → `<th>Shift</th>`
+- Line 177: `@shift.Title` in shift table row → time/date display:
 
 ```csharp
 @{
     var shiftLabel = shift.IsAllDay
         ? shiftDateLabel
-        : $"{shift.StartTime}–{shift.StartTime.PlusHoursAndMinutes((int)shift.Duration.TotalHours, 0)}";
+        : $"{shift.StartTime}–{shift.StartTime.PlusHours((long)shift.Duration.TotalHours)}";
 }
+@shiftLabel
 ```
 
 The rota name is already displayed in the card header, so the shift row just needs the time/date.
 
-- [ ] **Step 3: Remove Title from edit shift form**
+- [ ] **Step 3: Remove Title from BOTH edit AND create shift forms**
 
-Remove the Title input field from the inline edit form (around line 238).
+- Remove the Title input field AND its label from the inline **edit** shift form (around line 238 — remove the entire `<div class="col-md-3">` containing the Title input)
+- Remove the Title input field AND its label from the **create** shift form (around line 362 — remove the entire `<div class="col-md-3">` containing the Title input)
 
 - [ ] **Step 4: Remove IsActive references**
 
@@ -733,13 +752,21 @@ git commit -m "refactor: update ShiftAdmin view for v2 (delete, no title, period
 
 Run: `grep -rn "\.Title" src/Humans.Web/Views/ --include="*.cshtml" | grep -i shift`
 
-Fix every match. Key locations:
+Fix every match. Use the display format from design spec section 4.2:
+- **Event-time shifts:** `"{Rota.Name} — {StartTime}–{EndTime}"`
+- **All-day shifts:** `"{Rota.Name} — {Date}"`
 
-- `Shifts/Index.cshtml:137` — replace `shift.Title` with `shift.Rota.Name`
-- `Shifts/Mine.cshtml:80,118,155` — replace `shift.Title` with `shift.Rota.Name`
-- `Shared/_ShiftCards.cshtml` — replace `item.Signup.Shift.Title` and `item.Shift.Title` with `.Rota.Name`
-- `Home/_ShiftCards.cshtml:17,39` — replace `item?.Signup?.Shift?.Title` and `item?.Shift?.Title` with `.Rota.Name`
-- `ShiftDashboard/Index.cshtml:104,131` — replace `shift.Title` with `shift.Rota.Name`
+In **nested** views where the rota name is already shown as a section header (e.g., `Shifts/Index.cshtml` groups shifts under rota headings), show only the time/date portion to avoid redundancy.
+
+In **flat** views (Mine, ShiftCards, Dashboard) where shifts are listed without rota headers, show the full format.
+
+Key locations:
+
+- `Shifts/Index.cshtml:137` — nested under rota header, replace `shift.Title` with time/date only (e.g., `@shift.StartTime–@shift.StartTime.PlusHours((long)shift.Duration.TotalHours)` or date for all-day)
+- `Shifts/Mine.cshtml:80,118,155` — flat list, replace `shift.Title` with full label: `@(shift.IsAllDay ? $"{shift.Rota.Name} — {dateLabel}" : $"{shift.Rota.Name} — {shift.StartTime}–...")`
+- `Shared/_ShiftCards.cshtml` — flat list, replace with full label (same pattern, use IsAllDay-aware format)
+- `Home/_ShiftCards.cshtml:17,39` — flat list, replace with full label (same pattern)
+- `ShiftDashboard/Index.cshtml:104,131` — flat list, replace with full label
 - `Profile/Index.cshtml:80` — replace `item.ShiftTitle` with `item.ShiftLabel`
 
 Ensure all controller/service queries that feed these views include `.Include(s => s.Rota)`.
@@ -795,7 +822,7 @@ git commit -m "refactor: remove Title/IsActive references from all controllers"
 ### Task 16: Create EF migration
 
 **Files:**
-- Create: `src/Humans.Infrastructure/Data/Migrations/YYYYMMDD_ShiftV2Schema.cs` (auto-generated)
+- Create: `src/Humans.Infrastructure/Migrations/YYYYMMDD_ShiftV2Schema.cs` (auto-generated — note: Migrations/ is directly under Infrastructure/, not under Data/)
 
 - [ ] **Step 1: Generate migration**
 
@@ -872,11 +899,14 @@ Remove/update any test that sets `Title` on a Shift. Update shift construction i
 
 - [ ] **Step 2: Fix ShiftSignupServiceTests**
 
-Update any shift/rota construction in test setup that sets `Title` or `IsActive`. Ensure rotas have `Period = RotaPeriod.Event` set.
+- **Delete** the `SignUp_InactiveShift_ReturnsError` test entirely (it tests deactivation behavior being removed). Delete any similar `InactiveRota` test if one exists.
+- Update the `SeedShift` helper method signature: remove the `string title = "Test Shift"` parameter and the `Title = title` assignment inside the method body.
+- Remove `IsActive = true` from all shift/rota construction in `SeedShift`, `SeedShiftScenario`, and test setup methods.
+- Ensure rotas have `Period = RotaPeriod.Event` set in test construction.
 
-- [ ] **Step 3: Fix ShiftUrgencyTests**
+- [ ] **Step 3: Verify ShiftUrgencyTests**
 
-Update any references to `shift.Title` in assertions.
+Confirm no `Title` or `IsActive` references exist in `ShiftUrgencyTests.cs` (none expected — the `MakeShift` helper does not set these). If any are found, remove them.
 
 - [ ] **Step 4: Add new enums to EnumStringStabilityTests**
 
@@ -1235,15 +1265,15 @@ else
 
 Note: All-day overlap blocking is intentional — a volunteer cannot be on two all-day rotas on the same day since all-day shifts span 00:00–24:00 and the overlap check compares absolute time ranges.
 
-- [ ] **Step 5: Build and manually test**
+- [ ] **Step 6: Build and manually test**
 
 Run: `dotnet build Humans.slnx && dotnet test Humans.slnx`
 Expected: Build succeeded, all tests pass
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/Humans.Web/Controllers/ShiftsController.cs src/Humans.Web/Views/Shifts/
+git add src/Humans.Web/Controllers/ShiftsController.cs src/Humans.Web/Controllers/ShiftAdminController.cs src/Humans.Web/Views/Shifts/
 git commit -m "feat: add build/strike date-range signup and bail UI"
 ```
 
