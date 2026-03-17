@@ -1,42 +1,24 @@
 # Release TODOs
 
 Audit date: 2026-02-05
-Last synced: 2026-03-15T20:30
+Last synced: 2026-03-10T09:00
 
 ---
 
 ## Open Work — Prioritized
-
-### Priority 1: Bugs
-
-*(none open)*
 
 ### Priority 2: Small-Medium Enhancements
 
 #### #77: Reasons why an Asociado is accepted (or applying)
 Board members voting on Asociado applications should be required to select which bylaw criteria the applicant meets. Optionally, the applicant could also state their reasons when applying.
 
-#### #116: Add per-team Google Drive permission level configuration
-Configurable management and member permission roles per Google Drive resource (currently hardcoded as `writer`). Supports `reader`, `commenter`, `writer`, `fileOrganizer`.
 
 ---
 
 ### Priority 3: Medium Features
 
-#### #126: Add Stripe fee tracking to ticket vendor integration
-Use TT order `txn_id` (Stripe PaymentIntent ID) to look up `balance_transaction.fee` per order. Show total fees and fees % on dashboard. Needs Stripe API key.
-
-#### #127: Add incomplete signup lifecycle — reminders and auto-deletion
-Reminder emails at 7/30/55 inactive days for incomplete signups. Auto-deletion at 60 days (90 with retention). Login resets counter. Profile completion stops lifecycle.
-
 #### #111: Add organizational email account management (@nobodies.team)
-Associate @nobodies.team emails with humans, force as primary for communication + Google services. Admin UI to provision accounts. Profile badge for humans with org accounts.
-
-#### #97: Add communication preference management with magic-link unsubscribe
-User-facing preference page for email categories. Magic-link unsubscribe for unauthenticated opt-out. Foundation for future marketing emails.
-
-#### #110: Add inbound bounce email parsing for delivery failure tracking
-Parse bounce/NDR emails from noreply inbox, update outbox status from Sent to Bounced. GitHub issue #110.
+Three parts: (1) Associate @nobodies.team emails with humans and force as primary for communication + Google services, (2) Admin UI to provision @nobodies.team accounts via Google Workspace, (3) Subtle badge on profiles for humans with @nobodies.team accounts.
 
 ### Blocked — Waiting on External Input
 
@@ -51,6 +33,10 @@ Dedicated page for app-specific operational disclosures (delegated coordinator r
 
 ### Priority 5: UI/Navigation Improvements
 
+#### #110: Add inbound bounce email parsing for delivery failure tracking
+Parse bounce/NDR emails from `noreply@nobodies.team` inbox and update outbox message status from Sent to Bounced. Depends on email outbox system being implemented first.
+
+
 #### #14: Drive Activity Monitor: resolve people/ IDs to email addresses
 Drive Activity API returns `people/` IDs instead of email addresses. Need to resolve these via the People API for meaningful audit display.
 
@@ -64,11 +50,8 @@ Discord bot integration to automatically assign/remove Discord server roles base
 #### #86: Voting system — bylaw-compliant member voting with notifications and multilingual support
 Formal member voting system: Yes/No votes with configurable voting periods (default 1 week), automated reminder schedule (open, 3 days, 1 day), multilingual support (5 languages), quorum enforcement, eligibility checks (Asociados only for binding votes). Open questions around anonymity requirements, proxy voting, and bylaw specifics. Optional non-binding community polls alongside binding votes.
 
-#### #83 / #98 / #99 / #100: Alternative auth + SSO
-Currently only Google OAuth. #98: magic-link email auth, #99: local username/password, #83: other OAuth providers. #100: SSO/JWT token issuance for nobodies.team services. Related features — implement together.
-
-#### #102: Codebase audit — tech debt, test gaps, cleanup opportunities
-Systematic audit of code quality, test coverage gaps, and cleanup opportunities.
+#### #83: Add other OAuth options, additional to Google
+Currently only Google OAuth login. Add email/password option (and potentially other OAuth providers) for users without Google accounts.
 
 ---
 
@@ -135,18 +118,6 @@ Two OpenTelemetry packages pinned to beta versions. Check for stable releases or
 ---
 
 ## Completed
-
-### #115: Fix membership status model DONE
-Dashboard rewritten with shared membership status partition. Counts now match admin page. Committed `d3617e0`.
-
-### #112: Add preferred language distribution chart DONE
-Pie/donut chart on board dashboard showing human count by PreferredLanguage. Committed `1f76224`.
-
-### #117: Add ticket vendor integration DONE
-TicketTailor API client, sync service with email matching, Hangfire job, TicketOrder/TicketAttendee/TicketSyncState entities, /Tickets section with dashboard (Chart.js daily sales), orders/attendees/codes/gate list pages, campaign code redemption tracking, admin logs viewer, break-even target. 13 unit tests. Multi-model code review. PRs #119-#125, #128.
-
-### #113: Show campaign grants on admin human detail page DONE
-Campaign grants (title, code, assigned date, redeemed date) displayed on admin detail page via ViewBag. Implemented as part of ticket vendor integration.
 
 ### #93: Merge pending requests into Manage Members page DONE
 Consolidated `/Teams/{slug}/Requests` into `/Teams/{slug}/Members`. Pending requests shown at top with approve/reject, members below. Removed standalone Requests page and view. Updated all navigation links. Committed `88c1065`.
