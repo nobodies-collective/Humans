@@ -55,6 +55,12 @@ public class ShiftSignup
     public string? StatusReason { get; set; }
 
     /// <summary>
+    /// Shared Guid linking all signups created by a single range signup action.
+    /// Null for individual event-time signups. Used by BailRangeAsync.
+    /// </summary>
+    public Guid? SignupBlockId { get; set; }
+
+    /// <summary>
     /// When the signup was created.
     /// </summary>
     public Instant CreatedAt { get; init; }
