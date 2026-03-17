@@ -386,40 +386,65 @@
                         ? (Start: Model.EventSettings.BuildStartOffset, End: -1)
                         : (Start: Model.EventSettings.EventEndOffset + 1, End: Model.EventSettings.StrikeEndOffset);
 
-                    <div class="mt-3 border-top pt-3">
+                    <div class="mt-3 border-top pt-3 staffing-grid-container" data-rota-id="@rota.Id">
                         <h6>Configure Staffing</h6>
-                        <p class="text-muted small">Set min/max humans for each day, then generate all-day shifts.</p>
-                        <form asp-action="ConfigureStaffing" asp-route-slug="@Model.Department.Slug" asp-route-rotaId="@rota.Id" method="post">
-                            @Html.AntiForgeryToken()
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr><th>Day</th><th>Date</th><th>Need</th><th>Cap</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        @{ var dayIndex = 0; }
-                                        @for (var d = periodRange.Start; d <= periodRange.End; d++)
-                                        {
-                                            var date = Model.EventSettings.GateOpeningDate.PlusDays(d);
-                                            var dateLabel = date.DayOfWeek.ToString()[..3] + " " + date.ToString("MMM d", null);
-                                            <tr>
-                                                <td>Day @(d >= 0 ? "+" : "")@d</td>
-                                                <td>@dateLabel</td>
-                                                <td>
-                                                    <input type="hidden" name="Days[@dayIndex].DayOffset" value="@d" />
-                                                    <input type="number" name="Days[@dayIndex].MinVolunteers" value="2" class="form-control form-control-sm" style="width:80px" min="0" />
-                                                </td>
-                                                <td>
-                                                    <input type="number" name="Days[@dayIndex].MaxVolunteers" value="5" class="form-control form-control-sm" style="width:80px" min="1" />
-                                                </td>
-                                            </tr>
-                                            dayIndex++;
-                                        }
-                                    </tbody>
-                                </table>
+                        <p class="text-muted small">Pick your date range, then set min/max humans per day.</p>
+
+                        @* Step 1: Date range picker *@
+                        <div class="staffing-step1 row g-2 align-items-end mb-3">
+                            <div class="col-auto">
+                                <label class="form-label form-label-sm">Start</label>
+                                <select class="form-select form-select-sm staffing-start">
+                                    @for (var d = periodRange.Start; d <= periodRange.End; d++)
+                                    {
+                                        var date = Model.EventSettings.GateOpeningDate.PlusDays(d);
+                                        var dateLabel = date.DayOfWeek.ToString()[..3] + " " + date.ToString("MMM d", null);
+                                        <option value="@d">@dateLabel</option>
+                                    }
+                                </select>
                             </div>
-                            <button type="submit" class="btn btn-primary">Generate Shifts</button>
-                        </form>
+                            <div class="col-auto">
+                                <label class="form-label form-label-sm">End</label>
+                                <select class="form-select form-select-sm staffing-end">
+                                    @for (var d = periodRange.Start; d <= periodRange.End; d++)
+                                    {
+                                        var date = Model.EventSettings.GateOpeningDate.PlusDays(d);
+                                        var dateLabel = date.DayOfWeek.ToString()[..3] + " " + date.ToString("MMM d", null);
+                                        <option value="@d" selected="@(d == periodRange.End)">@dateLabel</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-sm btn-outline-primary staffing-show-btn">Show Days</button>
+                            </div>
+                        </div>
+
+                        @* Step 2: Day grid (hidden until Show Days clicked) *@
+                        <div class="staffing-step2" style="display:none">
+                            <form asp-action="ConfigureStaffing" asp-route-slug="@Model.Department.Slug" asp-route-rotaId="@rota.Id" method="post">
+                                @Html.AntiForgeryToken()
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr><th>Date</th><th>Need</th><th>Cap</th></tr>
+                                        </thead>
+                                        <tbody class="staffing-tbody"></tbody>
+                                    </table>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Generate Shifts</button>
+                            </form>
+                        </div>
+
+                        @* Day data for JS — all days in the period with labels *@
+                        <script type="application/json" class="staffing-days-data">
+                            [@for (var d = periodRange.Start; d <= periodRange.End; d++)
+                            {
+                                var date = Model.EventSettings.GateOpeningDate.PlusDays(d);
+                                var dateLabel = date.DayOfWeek.ToString()[..3] + " " + date.ToString("MMM d", null);
+                                if (d > periodRange.Start) { @Html.Raw(",") }
+                                @Html.Raw($"{{\"offset\":{d},\"label\":\"{dateLabel}\"}}")
+                            }]
+                        </script>
                     </div>
                 }
 
@@ -635,6 +660,56 @@
     });
 
     function escapeHtml(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // Staffing grid: two-step date range → day grid with cascade-fill
+    document.querySelectorAll('.staffing-grid-container').forEach(function(container) {
+        var showBtn = container.querySelector('.staffing-show-btn');
+        var startSelect = container.querySelector('.staffing-start');
+        var endSelect = container.querySelector('.staffing-end');
+        var step1 = container.querySelector('.staffing-step1');
+        var step2 = container.querySelector('.staffing-step2');
+        var tbody = container.querySelector('.staffing-tbody');
+        var allDays = JSON.parse(container.querySelector('.staffing-days-data').textContent);
+
+        showBtn.addEventListener('click', function() {
+            var startOffset = parseInt(startSelect.value);
+            var endOffset = parseInt(endSelect.value);
+            if (startOffset > endOffset) { alert('Start must be before end.'); return; }
+
+            var days = allDays.filter(function(d) { return d.offset >= startOffset && d.offset <= endOffset; });
+            tbody.innerHTML = '';
+            days.forEach(function(day, i) {
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + escapeHtml(day.label) + '</td>'
+                    + '<td><input type="hidden" name="Days[' + i + '].DayOffset" value="' + day.offset + '" />'
+                    + '<input type="number" name="Days[' + i + '].MinVolunteers" value="2" class="form-control form-control-sm staffing-min" style="width:80px" min="0" data-idx="' + i + '" /></td>'
+                    + '<td><input type="number" name="Days[' + i + '].MaxVolunteers" value="5" class="form-control form-control-sm staffing-max" style="width:80px" min="1" data-idx="' + i + '" /></td>';
+                tbody.appendChild(tr);
+            });
+
+            // Cascade-fill: changing a row fills all subsequent rows that haven't been manually edited
+            var manuallyEdited = {};
+            tbody.querySelectorAll('.staffing-min, .staffing-max').forEach(function(input) {
+                input.addEventListener('input', function() {
+                    var idx = parseInt(this.dataset.idx);
+                    var isMin = this.classList.contains('staffing-min');
+                    var val = this.value;
+                    manuallyEdited[idx + '-' + (isMin ? 'min' : 'max')] = true;
+
+                    // Fill down to subsequent rows not manually edited
+                    var rows = tbody.querySelectorAll(isMin ? '.staffing-min' : '.staffing-max');
+                    for (var j = idx + 1; j < rows.length; j++) {
+                        var key = j + '-' + (isMin ? 'min' : 'max');
+                        if (!manuallyEdited[key]) {
+                            rows[j].value = val;
+                        }
+                    }
+                });
+            });
+
+            step2.style.display = '';
+        });
+    });
 
     // Dynamic time slot rows for Generate Shifts
     function reindexSlots(container) {
