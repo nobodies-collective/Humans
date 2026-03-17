@@ -156,7 +156,8 @@ public class ShiftsController : Controller
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return Challenge();
 
-        var result = await _signupService.SignUpAsync(user.Id, shiftId);
+        var privileged = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.NoInfoAdmin);
+        var result = await _signupService.SignUpAsync(user.Id, shiftId, isPrivileged: privileged);
 
         if (!result.Success)
         {
@@ -178,7 +179,8 @@ public class ShiftsController : Controller
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return Challenge();
 
-        var result = await _signupService.SignUpRangeAsync(user.Id, rotaId, startDayOffset, endDayOffset);
+        var privileged = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.NoInfoAdmin);
+        var result = await _signupService.SignUpRangeAsync(user.Id, rotaId, startDayOffset, endDayOffset, isPrivileged: privileged);
 
         if (!result.Success)
         {

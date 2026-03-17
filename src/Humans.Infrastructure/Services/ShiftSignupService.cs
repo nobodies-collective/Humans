@@ -33,7 +33,7 @@ public class ShiftSignupService : IShiftSignupService
         _logger = logger;
     }
 
-    public async Task<SignupResult> SignUpAsync(Guid userId, Guid shiftId, Guid? actorUserId = null)
+    public async Task<SignupResult> SignUpAsync(Guid userId, Guid shiftId, Guid? actorUserId = null, bool isPrivileged = false)
     {
         // Prevent duplicate signups for the same shift
         var existingSignup = await _dbContext.ShiftSignups
@@ -52,7 +52,7 @@ public class ShiftSignupService : IShiftSignupService
 
         var es = shift.Rota.EventSettings;
         var now = _clock.GetCurrentInstant();
-        var isPrivileged = await IsPrivilegedAsync(userId, shift.Rota.TeamId);
+        isPrivileged = isPrivileged || await IsPrivilegedAsync(userId, shift.Rota.TeamId);
 
         // System open check
         if (!es.IsShiftBrowsingOpen && !isPrivileged)
@@ -291,7 +291,7 @@ public class ShiftSignupService : IShiftSignupService
         return SignupResult.Ok(signup);
     }
 
-    public async Task<SignupResult> SignUpRangeAsync(Guid userId, Guid rotaId, int startDayOffset, int endDayOffset, Guid? actorUserId = null)
+    public async Task<SignupResult> SignUpRangeAsync(Guid userId, Guid rotaId, int startDayOffset, int endDayOffset, Guid? actorUserId = null, bool isPrivileged = false)
     {
         var rota = await _dbContext.Rotas
             .Include(r => r.EventSettings)
@@ -302,7 +302,7 @@ public class ShiftSignupService : IShiftSignupService
 
         var es = rota.EventSettings;
         var now = _clock.GetCurrentInstant();
-        var isPrivileged = await IsPrivilegedAsync(userId, rota.TeamId);
+        isPrivileged = isPrivileged || await IsPrivilegedAsync(userId, rota.TeamId);
 
         // System open check
         if (!es.IsShiftBrowsingOpen && !isPrivileged)
