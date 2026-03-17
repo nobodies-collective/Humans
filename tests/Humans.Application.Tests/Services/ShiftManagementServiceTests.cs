@@ -124,6 +124,58 @@ public class ShiftManagementServiceTests : IDisposable
     }
 
     // ============================================================
+    // GenerateEventShiftsAsync
+    // ============================================================
+
+    [Fact]
+    public async Task GenerateEventShifts_CreatesCartesianProduct()
+    {
+        // Arrange: event rota, days 0-2, slots [(08:00, 4h), (14:00, 4h)]
+        var (es, rota) = SeedRotaScenario(RotaPeriod.Event);
+        await _dbContext.SaveChangesAsync();
+
+        var timeSlots = new List<(LocalTime StartTime, double DurationHours)>
+        {
+            (new LocalTime(8, 0), 4),
+            (new LocalTime(14, 0), 4)
+        };
+
+        // Act
+        await _service.GenerateEventShiftsAsync(rota.Id, 0, 2, timeSlots);
+
+        // Assert: 6 shifts (3 days × 2 slots), none IsAllDay
+        var shifts = await _dbContext.Shifts.Where(s => s.RotaId == rota.Id).ToListAsync();
+        shifts.Should().HaveCount(6);
+        shifts.Should().AllSatisfy(s => s.IsAllDay.Should().BeFalse());
+
+        // Verify correct day offsets
+        shifts.Select(s => s.DayOffset).Distinct().Should().BeEquivalentTo(new[] { 0, 1, 2 });
+
+        // Verify correct start times
+        var startTimes = shifts.Select(s => s.StartTime).Distinct().ToList();
+        startTimes.Should().HaveCount(2);
+        startTimes.Should().Contain(new LocalTime(8, 0));
+        startTimes.Should().Contain(new LocalTime(14, 0));
+    }
+
+    [Fact]
+    public async Task GenerateEventShifts_RejectsBuildPeriodRota()
+    {
+        // Arrange: rota with Period=Build
+        var (es, rota) = SeedRotaScenario(RotaPeriod.Build);
+        await _dbContext.SaveChangesAsync();
+
+        var timeSlots = new List<(LocalTime StartTime, double DurationHours)>
+        {
+            (new LocalTime(8, 0), 4)
+        };
+
+        // Act + Assert: throws InvalidOperationException
+        var act = () => _service.GenerateEventShiftsAsync(rota.Id, 0, 2, timeSlots);
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    // ============================================================
     // Helpers
     // ============================================================
 
