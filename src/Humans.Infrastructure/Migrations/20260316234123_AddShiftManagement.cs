@@ -12,18 +12,11 @@ namespace Humans.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<Guid>(
-                name: "ICalToken",
-                table: "users",
-                type: "uuid",
-                nullable: true);
-
-            migrationBuilder.AddColumn<bool>(
-                name: "SuppressScheduleChangeEmails",
-                table: "users",
-                type: "boolean",
-                nullable: false,
-                defaultValue: false);
+            // ICalToken and SuppressScheduleChangeEmails may already exist from prior work
+            migrationBuilder.Sql("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS "ICalToken" uuid;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS "SuppressScheduleChangeEmails" boolean NOT NULL DEFAULT false;
+                """);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "ShiftSignupId",
@@ -281,13 +274,10 @@ namespace Humans.Infrastructure.Migrations
                 name: "IX_email_outbox_messages_ShiftSignupId",
                 table: "email_outbox_messages");
 
-            migrationBuilder.DropColumn(
-                name: "ICalToken",
-                table: "users");
-
-            migrationBuilder.DropColumn(
-                name: "SuppressScheduleChangeEmails",
-                table: "users");
+            migrationBuilder.Sql("""
+                ALTER TABLE users DROP COLUMN IF EXISTS "ICalToken";
+                ALTER TABLE users DROP COLUMN IF EXISTS "SuppressScheduleChangeEmails";
+                """);
 
             migrationBuilder.DropColumn(
                 name: "ShiftSignupId",
