@@ -48,8 +48,8 @@ public class ShiftAdminController : Controller
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
 
-        var canManage = await _shiftMgmt.CanManageShiftsAsync(userId.Value, team.Id);
-        var canApprove = await _shiftMgmt.CanApproveSignupsAsync(userId.Value, team.Id);
+        var canManage = await CanManageAsync(userId.Value, team.Id);
+        var canApprove = await CanApproveAsync(userId.Value, team.Id);
         if (!canManage && !canApprove) return Forbid();
 
         var es = await _shiftMgmt.GetActiveAsync();
@@ -118,7 +118,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanManageShiftsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
         var es = await _shiftMgmt.GetActiveAsync();
         if (es == null) return BadRequest("No active event.");
@@ -152,7 +152,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanManageShiftsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
         var rota = await _shiftMgmt.GetRotaByIdAsync(rotaId);
         if (rota == null) return NotFound();
@@ -175,7 +175,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanManageShiftsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
         if (!ModelState.IsValid)
         {
@@ -228,7 +228,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanManageShiftsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
         var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
         if (shift == null) return NotFound();
@@ -261,7 +261,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanManageShiftsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
         await _shiftMgmt.DeactivateRotaAsync(rotaId);
         TempData["SuccessMessage"] = "Rota deactivated.";
@@ -274,7 +274,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanManageShiftsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
         var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
         if (shift == null) return NotFound();
@@ -291,7 +291,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanApproveSignupsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanApproveAsync(userId.Value, team.Id)) return Forbid();
 
         var signup = await _signupService.GetByIdAsync(signupId);
         if (signup == null) return NotFound();
@@ -310,7 +310,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanApproveSignupsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanApproveAsync(userId.Value, team.Id)) return Forbid();
 
         var signup = await _signupService.GetByIdAsync(signupId);
         if (signup == null) return NotFound();
@@ -329,7 +329,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanApproveSignupsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanApproveAsync(userId.Value, team.Id)) return Forbid();
 
         var signupCheck = await _signupService.GetByIdAsync(signupId);
         if (signupCheck == null) return NotFound();
@@ -347,7 +347,7 @@ public class ShiftAdminController : Controller
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
-        if (!await _shiftMgmt.CanApproveSignupsAsync(userId.Value, team.Id)) return Forbid();
+        if (!await CanApproveAsync(userId.Value, team.Id)) return Forbid();
 
         if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
             return Json(Array.Empty<VolunteerSearchResult>());
@@ -414,7 +414,7 @@ public class ShiftAdminController : Controller
     {
         var (team, currentUserId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || currentUserId == null) return NotFound();
-        if (!await _shiftMgmt.CanApproveSignupsAsync(currentUserId.Value, team.Id)) return Forbid();
+        if (!await CanApproveAsync(currentUserId.Value, team.Id)) return Forbid();
 
         var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
         if (shift == null) return NotFound();
@@ -425,6 +425,19 @@ public class ShiftAdminController : Controller
             result.Success ? "Volunteer assigned to shift." : result.Error;
 
         return RedirectToAction(nameof(Index), new { slug });
+    }
+
+    private async Task<bool> CanManageAsync(Guid userId, Guid teamId)
+    {
+        return User.IsInRole(RoleNames.Admin) ||
+               await _shiftMgmt.CanManageShiftsAsync(userId, teamId);
+    }
+
+    private async Task<bool> CanApproveAsync(Guid userId, Guid teamId)
+    {
+        return User.IsInRole(RoleNames.Admin) ||
+               User.IsInRole(RoleNames.NoInfoAdmin) ||
+               await _shiftMgmt.CanApproveSignupsAsync(userId, teamId);
     }
 
     private async Task<(Team? Team, Guid? UserId)> ResolveTeamAndUserAsync(string slug)
