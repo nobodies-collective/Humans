@@ -95,7 +95,7 @@ public class HumanController : Controller
                         var zoned = shiftStart.InZone(signupTz);
                         return new NoShowHistoryItem
                         {
-                            ShiftTitle = s.Shift.Title,
+                            ShiftLabel = s.Shift.Rota.Name,
                             DepartmentName = s.Shift.Rota.Team?.Name ?? "",
                             ShiftDateLabel = zoned.ToString("ddd MMM d HH:mm", null),
                             MarkedByName = s.ReviewedByUser?.DisplayName,
