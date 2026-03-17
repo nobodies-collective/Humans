@@ -12,6 +12,10 @@
 
 ---
 
+**Important: Chunk 1 build order.** Tasks 2–7 modify entities and configurations, which breaks the build until Tasks 8–15 fix all referencing code. The build will be red throughout Chunk 1 until Task 15 completes. Do NOT expect intermediate builds to pass between Tasks 2 and 15 — commit entity/config changes as you go, but only verify the full build after Task 15. The migration (Task 16) should only be generated after the build is green.
+
+**Note: iCal feed.** The iCal feed controller (`/ICal/{token}.ics`) does not exist yet in the codebase — only the token field on User and the URL display on `/Shifts/Mine`. The design spec references updating the iCal event title format, but this applies when the iCal controller is implemented (Slice 4 from v1). No iCal changes are needed in this plan.
+
 ## Chunk 1: Schema Foundation (Slice A)
 
 ### Task 1: Create new enums
@@ -270,20 +274,21 @@ git commit -m "feat: add Period to TeamRoleDefinition"
 - Modify: `src/Humans.Infrastructure/Data/Configurations/ShiftConfiguration.cs`
 - Modify: `src/Humans.Infrastructure/Data/Configurations/RotaConfiguration.cs`
 - Modify: `src/Humans.Infrastructure/Data/Configurations/ShiftSignupConfiguration.cs`
+- Modify: `src/Humans.Infrastructure/Data/Configurations/TeamRoleDefinitionConfiguration.cs`
 - Create: `src/Humans.Infrastructure/Data/Configurations/GeneralAvailabilityConfiguration.cs`
 - Modify: `src/Humans.Infrastructure/Data/HumansDbContext.cs` (add DbSet)
 
 - [ ] **Step 1: Update ShiftConfiguration**
 
 In `src/Humans.Infrastructure/Data/Configurations/ShiftConfiguration.cs`:
-- Remove `.Property(e => e.Title)` configuration and any `.HasMaxLength()` on Title
-- Remove `.Property(e => e.IsActive)` configuration
+- Remove any explicit `.Property(e => e.Title)` configuration if present (may be configured by convention only — if so, skip)
+- Note: `IsActive` was configured by convention, not explicitly — removing the entity property is sufficient
 - Add: `builder.Property(e => e.IsAllDay).HasDefaultValue(false);`
 
 - [ ] **Step 2: Update RotaConfiguration**
 
 In `src/Humans.Infrastructure/Data/Configurations/RotaConfiguration.cs`:
-- Remove `.Property(e => e.IsActive)` configuration
+- Note: `IsActive` was configured by convention — removing the entity property is sufficient
 - Add:
 
 ```csharp
@@ -296,13 +301,24 @@ builder.Property(e => e.PracticalInfo)
     .HasMaxLength(2000);
 ```
 
-- [ ] **Step 3: Update ShiftSignupConfiguration**
+- [ ] **Step 3: Update TeamRoleDefinitionConfiguration**
+
+In `src/Humans.Infrastructure/Data/Configurations/TeamRoleDefinitionConfiguration.cs`, add:
+
+```csharp
+builder.Property(d => d.Period)
+    .HasConversion<string>()
+    .HasMaxLength(50)
+    .HasDefaultValue(RolePeriod.YearRound);
+```
+
+- [ ] **Step 4: Update ShiftSignupConfiguration**
 
 In `src/Humans.Infrastructure/Data/Configurations/ShiftSignupConfiguration.cs`:
 - Add: `builder.Property(e => e.SignupBlockId);`
 - Add index: `builder.HasIndex(e => e.SignupBlockId);`
 
-- [ ] **Step 4: Create GeneralAvailabilityConfiguration**
+- [ ] **Step 5: Create GeneralAvailabilityConfiguration**
 
 ```csharp
 using Humans.Domain.Entities;
@@ -342,7 +358,7 @@ public class GeneralAvailabilityConfiguration : IEntityTypeConfiguration<General
 }
 ```
 
-- [ ] **Step 5: Add DbSet to HumansDbContext**
+- [ ] **Step 6: Add DbSet to HumansDbContext**
 
 In `src/Humans.Infrastructure/Data/HumansDbContext.cs`, add:
 
@@ -350,12 +366,12 @@ In `src/Humans.Infrastructure/Data/HumansDbContext.cs`, add:
 public DbSet<GeneralAvailability> GeneralAvailability => Set<GeneralAvailability>();
 ```
 
-- [ ] **Step 6: Build to verify**
+- [ ] **Step 7: Build to verify**
 
 Run: `dotnet build src/Humans.Infrastructure/Humans.Infrastructure.csproj`
 Expected: Build errors — services still reference Title/IsActive. That's OK for now.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/Humans.Infrastructure/Data/Configurations/ src/Humans.Infrastructure/Data/HumansDbContext.cs
@@ -442,28 +458,38 @@ git commit -m "refactor: remove deactivation and IsActive filters from shift ser
 
 ---
 
-### Task 10: Update ShiftSignupService — remove Title references
+### Task 10: Update ShiftSignupService — remove Title and IsActive references
 
 **Files:**
-- Modify: `src/Humans.Infrastructure/Services/ShiftSignupService.cs:116,263`
+- Modify: `src/Humans.Infrastructure/Services/ShiftSignupService.cs`
 
-- [ ] **Step 1: Replace Title references with Rota.Name**
+- [ ] **Step 1: Remove IsActive guard checks**
 
-In `src/Humans.Infrastructure/Services/ShiftSignupService.cs`:
-- Line 116: Change `shift.Title` to `shift.Rota.Name` in audit log message
-- Line 263: Change `shift.Title` to `shift.Rota.Name` in voluntold audit log message
-- Ensure `shift.Rota` is included in any queries that produce these messages (check `.Include(s => s.Rota)`)
+In `src/Humans.Infrastructure/Services/ShiftSignupService.cs`, remove the IsActive validation in `SignUpAsync()` (lines 52-53):
+```csharp
+// DELETE these two lines:
+if (!shift.IsActive) return SignupResult.Fail("Shift is not active.");
+if (!shift.Rota.IsActive) return SignupResult.Fail("Rota is not active.");
+```
 
-- [ ] **Step 2: Build to verify**
+Since deactivation is removed, all shifts in the DB are active by definition.
+
+- [ ] **Step 2: Replace ALL Title references with Rota.Name**
+
+In `src/Humans.Infrastructure/Services/ShiftSignupService.cs`, replace ALL occurrences of `shift.Title` and `signup.Shift.Title` with `shift.Rota.Name` / `signup.Shift.Rota.Name`. There are approximately 7 occurrences throughout the file (lines 116, 166, 183, 213, 263, 288, 370). Do a full search for `.Title` in the file and replace every one.
+
+Ensure `shift.Rota` is eagerly loaded in all queries that access it (check for `.Include(s => s.Rota)` or `.Include(s => s.Shift.Rota)`).
+
+- [ ] **Step 3: Build to verify**
 
 Run: `dotnet build src/Humans.Infrastructure/Humans.Infrastructure.csproj`
 Expected: Build succeeded (or fewer errors)
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/Humans.Infrastructure/Services/ShiftSignupService.cs
-git commit -m "refactor: replace shift.Title with shift.Rota.Name in audit messages"
+git commit -m "refactor: remove IsActive guards, replace shift.Title with Rota.Name in ShiftSignupService"
 ```
 
 ---
@@ -503,7 +529,7 @@ git commit -m "refactor: remove SignupGarbageCollectionJob (deactivation removed
 
 ---
 
-### Task 12: Update ShiftAdminController — remove deactivation, fix Title
+### Task 12: Update ShiftAdminController — remove deactivation, add delete, fix Title/IsActive
 
 **Files:**
 - Modify: `src/Humans.Web/Controllers/ShiftAdminController.cs`
@@ -512,42 +538,98 @@ git commit -m "refactor: remove SignupGarbageCollectionJob (deactivation removed
 
 Delete the `DeactivateRota` and `DeactivateShift` action methods.
 
-- [ ] **Step 2: Replace Title references**
+- [ ] **Step 2: Add DeleteRota and DeleteShift actions**
 
-Any references to `shift.Title` in the controller → `shift.Rota.Name`.
+Create new POST actions to replace deactivation:
+
+```csharp
+[HttpPost("Rotas/{rotaId}/Delete")]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> DeleteRota(string slug, Guid rotaId)
+{
+    var (team, userId) = await ResolveTeamAndUserAsync(slug);
+    if (team == null || userId == null) return NotFound();
+    if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
+
+    try
+    {
+        await _shiftMgmt.DeleteRotaAsync(rotaId);
+        TempData["SuccessMessage"] = "Rota deleted.";
+    }
+    catch (InvalidOperationException ex)
+    {
+        TempData["ErrorMessage"] = ex.Message;
+    }
+    return RedirectToAction(nameof(Index), new { slug });
+}
+
+[HttpPost("Shifts/{shiftId}/Delete")]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> DeleteShift(string slug, Guid shiftId)
+{
+    var (team, userId) = await ResolveTeamAndUserAsync(slug);
+    if (team == null || userId == null) return NotFound();
+    if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
+
+    try
+    {
+        await _shiftMgmt.DeleteShiftAsync(shiftId);
+        TempData["SuccessMessage"] = "Shift deleted.";
+    }
+    catch (InvalidOperationException ex)
+    {
+        TempData["ErrorMessage"] = ex.Message;
+    }
+    return RedirectToAction(nameof(Index), new { slug });
+}
+```
+
+- [ ] **Step 3: Remove all IsActive references in the controller**
+
+Search for `.IsActive` in the file. Remove:
+- `rota.IsActive = model.IsActive;` in EditRota
+- `shift.IsActive = model.IsActive;` in EditShift
+- `.Where(s => s.IsActive)` filter at line 69 in Index action
+- Any other `IsActive` references
+
+- [ ] **Step 4: Replace all Title references**
+
+Search for `.Title` in the controller. Replace all `shift.Title` with `shift.Rota.Name`.
 Ensure rota is eagerly loaded in any queries used.
 
-- [ ] **Step 3: Update CreateRota action**
+- [ ] **Step 5: Update CreateRota action**
 
-Add `Period` binding from the form:
+Add `Period` and `PracticalInfo` binding from the form:
 
 ```csharp
 rota.Period = model.Period;
 rota.PracticalInfo = model.PracticalInfo;
 ```
 
-- [ ] **Step 4: Update EditRota action**
+Add validation: if `Period == Build` and `eventSettings.BuildStartOffset >= 0`, return error "Cannot create a build rota — no build period is configured." Similarly for Strike when `EventEndOffset >= StrikeEndOffset`.
+
+- [ ] **Step 6: Update EditRota action**
 
 Add `Period` and `PracticalInfo` binding. Remove `IsActive` binding.
 
-- [ ] **Step 5: Update CreateShift action**
+- [ ] **Step 7: Update CreateShift action**
 
-Remove `Title` from shift creation. Remove `IsActive` references.
+Remove `Title` from shift creation.
 
-- [ ] **Step 6: Update EditShift action**
+- [ ] **Step 8: Update EditShift action**
 
-Remove `Title` binding. Remove `IsActive` binding.
+Remove `Title` binding.
 
-- [ ] **Step 7: Build to verify**
+- [ ] **Step 9: Build to verify**
 
 Run: `dotnet build src/Humans.Web/Humans.Web.csproj`
 Expected: Errors only in views now
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add src/Humans.Web/Controllers/ShiftAdminController.cs
-git commit -m "refactor: update ShiftAdminController for v2 schema changes"
+git commit -m "refactor: update ShiftAdminController — delete replaces deactivate, remove Title/IsActive"
 ```
 
 ---
@@ -610,10 +692,12 @@ In the Create Rota form section, add a Period dropdown:
 
 - [ ] **Step 6: Add PracticalInfo to Create Rota form**
 
+Use `<textarea>` not `<input>` — PracticalInfo is up to 2000 chars of multi-line text (meeting points, instructions):
+
 ```html
 <div class="col-md-3">
     <label class="form-label">Practical Info</label>
-    <input type="text" name="PracticalInfo" class="form-control" placeholder="Meeting point, instructions..." />
+    <textarea name="PracticalInfo" class="form-control" rows="3" placeholder="Meeting point, instructions..."></textarea>
 </div>
 ```
 
@@ -631,58 +715,64 @@ git commit -m "refactor: update ShiftAdmin view for v2 (delete, no title, period
 
 ---
 
-### Task 14: Update Shifts browse and Mine views
+### Task 14: Update ALL views — replace shift.Title, remove IsActive references
 
 **Files:**
-- Modify: `src/Humans.Web/Views/Shifts/Index.cshtml:137`
-- Modify: `src/Humans.Web/Views/Shifts/Mine.cshtml:80,118,155`
+- Modify: `src/Humans.Web/Views/Shifts/Index.cshtml`
+- Modify: `src/Humans.Web/Views/Shifts/Mine.cshtml`
 - Modify: `src/Humans.Web/Views/Shared/_ShiftCards.cshtml`
+- Modify: `src/Humans.Web/Views/Home/_ShiftCards.cshtml`
+- Modify: `src/Humans.Web/Views/ShiftDashboard/Index.cshtml`
+- Modify: `src/Humans.Web/Views/Profile/Index.cshtml` (NoShowHistoryItem.ShiftTitle → ShiftLabel)
 
-- [ ] **Step 1: Update Index.cshtml (browse page)**
+- [ ] **Step 1: Full grep for .Title in all view files**
 
-Replace `shift.Title` (line 137) with rota name + time display:
+Run: `grep -rn "\.Title" src/Humans.Web/Views/ --include="*.cshtml" | grep -i shift`
 
-```csharp
-@shift.Rota.Name
-```
+Fix every match. Key locations:
 
-The time is already shown separately in the table.
+- `Shifts/Index.cshtml:137` — replace `shift.Title` with `shift.Rota.Name`
+- `Shifts/Mine.cshtml:80,118,155` — replace `shift.Title` with `shift.Rota.Name`
+- `Shared/_ShiftCards.cshtml` — replace `item.Signup.Shift.Title` and `item.Shift.Title` with `.Rota.Name`
+- `Home/_ShiftCards.cshtml:17,39` — replace `item?.Signup?.Shift?.Title` and `item?.Shift?.Title` with `.Rota.Name`
+- `ShiftDashboard/Index.cshtml:104,131` — replace `shift.Title` with `shift.Rota.Name`
+- `Profile/Index.cshtml:80` — replace `item.ShiftTitle` with `item.ShiftLabel`
 
-- [ ] **Step 2: Update Mine.cshtml**
+Ensure all controller/service queries that feed these views include `.Include(s => s.Rota)`.
 
-Replace `shift.Title` at lines 80, 118, 155 with `shift.Rota.Name`.
+- [ ] **Step 2: Remove IsActive references in views**
 
-- [ ] **Step 3: Update _ShiftCards.cshtml**
+Search for `IsActive` in all `.cshtml` files and remove class conditionals like `@(!shift.IsActive ? "table-secondary" : "")`.
 
-Replace `@item.Signup.Shift.Title` with `@item.Signup.Shift.Rota.Name`.
-Ensure the Rota navigation is eagerly loaded in the query that populates this.
-
-- [ ] **Step 4: Update ShiftDashboard view if it references Title**
-
-Check `src/Humans.Web/Views/ShiftDashboard/Index.cshtml` for `shift.Title` references and replace.
-
-- [ ] **Step 5: Build the full solution**
+- [ ] **Step 3: Build the full solution**
 
 Run: `dotnet build Humans.slnx`
 Expected: Build succeeded, 0 errors
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/Humans.Web/Views/
-git commit -m "refactor: replace shift.Title with rota name in all views"
+git commit -m "refactor: replace shift.Title with rota name in all views, remove IsActive refs"
 ```
 
 ---
 
-### Task 15: Update ShiftsController for Title removal
+### Task 15: Update remaining controllers for Title/IsActive removal
 
 **Files:**
 - Modify: `src/Humans.Web/Controllers/ShiftsController.cs`
+- Modify: `src/Humans.Web/Controllers/HumanController.cs`
+- Modify: `src/Humans.Web/Controllers/HomeController.cs` (if it assembles shift card data)
 
-- [ ] **Step 1: Remove Title references**
+- [ ] **Step 1: Full grep for .Title and .IsActive in all controllers**
 
-Search for `.Title` in the controller. Update any places that set or read `shift.Title`. Ensure all shift queries include `.Include(s => s.Rota)` so `shift.Rota.Name` is available.
+Run: `grep -rn "\.Title\|\.IsActive" src/Humans.Web/Controllers/ --include="*.cs" | grep -i shift`
+
+Fix every match. Key locations:
+- `ShiftsController.cs` — replace all `shift.Title` with `shift.Rota.Name`
+- `HumanController.cs:98` — replace `ShiftTitle = s.Shift.Title` with `ShiftLabel = s.Shift.Rota.Name`
+- Ensure all queries include `.Include(s => s.Rota)` so `shift.Rota.Name` is available
 
 - [ ] **Step 2: Build and verify**
 
@@ -692,8 +782,8 @@ Expected: Build succeeded
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/Humans.Web/Controllers/ShiftsController.cs
-git commit -m "refactor: remove Title references from ShiftsController"
+git add src/Humans.Web/Controllers/
+git commit -m "refactor: remove Title/IsActive references from all controllers"
 ```
 
 ---
@@ -722,21 +812,29 @@ Verify it includes:
 
 - [ ] **Step 3: Add pre-migration cleanup SQL**
 
-In the migration `Up()` method, BEFORE the column drops, add SQL to clean up deactivated records:
+In the migration `Up()` method, BEFORE the column drops, add SQL to clean up deactivated records.
+
+**Important:** Do NOT delete shifts/rotas that have ANY signup history (including Bailed/NoShow) — these records are used for no-show history display. Only delete truly empty inactive records. For anything with signups, just force `is_active = true` so the data is preserved.
 
 ```csharp
-// Clean up deactivated shifts with no confirmed signups
 migrationBuilder.Sql(@"
-    DELETE FROM shift_signups WHERE shift_id IN (
-        SELECT id FROM shifts WHERE is_active = false
-        AND id NOT IN (SELECT shift_id FROM shift_signups WHERE status = 'Confirmed')
-    );
+    -- Cancel pending signups on inactive shifts (before re-activating them)
+    UPDATE shift_signups SET status = 'Cancelled', updated_at = now()
+    WHERE status = 'Pending'
+    AND shift_id IN (SELECT id FROM shifts WHERE is_active = false);
+
+    -- Delete inactive shifts with zero signups (completely empty)
     DELETE FROM shifts WHERE is_active = false
-        AND id NOT IN (SELECT shift_id FROM shift_signups WHERE status = 'Confirmed');
+        AND id NOT IN (SELECT DISTINCT shift_id FROM shift_signups);
+
+    -- Force remaining inactive shifts to active (they have historical signups to preserve)
     UPDATE shifts SET is_active = true WHERE is_active = false;
 
+    -- Delete inactive rotas with no remaining child shifts
     DELETE FROM rotas WHERE is_active = false
-        AND id NOT IN (SELECT rota_id FROM shifts);
+        AND id NOT IN (SELECT DISTINCT rota_id FROM shifts);
+
+    -- Force remaining inactive rotas to active
     UPDATE rotas SET is_active = true WHERE is_active = false;
 ");
 ```
@@ -760,10 +858,13 @@ git commit -m "feat: add ShiftV2Schema migration"
 - Modify: `tests/Humans.Domain.Tests/Entities/ShiftTests.cs`
 - Modify: `tests/Humans.Application.Tests/Services/ShiftSignupServiceTests.cs`
 - Modify: `tests/Humans.Application.Tests/Services/ShiftUrgencyTests.cs`
+- Modify: `tests/Humans.Domain.Tests/Enums/EnumStringStabilityTests.cs`
+
+Note: `tests/Humans.Application.Tests/Services/ShiftManagementServiceTests.cs` does NOT exist yet — it will be created in Task 18.
 
 - [ ] **Step 1: Fix ShiftTests**
 
-Remove/update any test that sets `Title` on a Shift. Update shift construction in all tests to omit Title.
+Remove/update any test that sets `Title` on a Shift. Update shift construction in all tests to omit Title. Remove any tests that check `IsActive`.
 
 - [ ] **Step 2: Fix ShiftSignupServiceTests**
 
@@ -773,12 +874,24 @@ Update any shift/rota construction in test setup that sets `Title` or `IsActive`
 
 Update any references to `shift.Title` in assertions.
 
-- [ ] **Step 4: Run all tests**
+- [ ] **Step 4: Add new enums to EnumStringStabilityTests**
+
+In `tests/Humans.Domain.Tests/Enums/EnumStringStabilityTests.cs`, add entries for the new string-stored enums in `StringStoredEnumData`:
+- `RotaPeriod`: `["Build", "Event", "Strike"]`
+- `RolePeriod`: `["YearRound", "Build", "Event", "Strike"]`
+
+This guards against accidental renames that would break database values.
+
+- [ ] **Step 5: Add test for delete-with-confirmed-signups guard**
+
+Add to `ShiftSignupServiceTests` or create a new test verifying that `DeleteRotaAsync` throws `InvalidOperationException` when a child shift has confirmed signups.
+
+- [ ] **Step 6: Run all tests**
 
 Run: `dotnet test Humans.slnx`
 Expected: All tests pass
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add tests/
@@ -859,6 +972,15 @@ public async Task CreateBuildStrikeShiftsAsync(Guid rotaId, Dictionary<int, (int
 
     var eventSettings = await GetActiveAsync();
     if (eventSettings == null) throw new InvalidOperationException("No active event");
+
+    // Validate day offsets are within the correct period range
+    foreach (var dayOffset in dailyStaffing.Keys)
+    {
+        if (rota.Period == RotaPeriod.Build && (dayOffset < eventSettings.BuildStartOffset || dayOffset >= 0))
+            throw new InvalidOperationException($"Day offset {dayOffset} is outside the build period ({eventSettings.BuildStartOffset} to -1)");
+        if (rota.Period == RotaPeriod.Strike && (dayOffset <= eventSettings.EventEndOffset || dayOffset > eventSettings.StrikeEndOffset))
+            throw new InvalidOperationException($"Day offset {dayOffset} is outside the strike period ({eventSettings.EventEndOffset + 1} to {eventSettings.StrikeEndOffset})");
+    }
 
     var clock = _clock.GetCurrentInstant();
 
@@ -1073,9 +1195,41 @@ Calls `_signupService.SignUpRangeAsync(userId, rotaId, startDayOffset, endDayOff
 public async Task<IActionResult> BailRange(Guid signupBlockId)
 ```
 
-- [ ] **Step 4: Update Mine view for range display and bail**
+- [ ] **Step 4: Add BailRange POST action to ShiftAdminController**
+
+Coordinators also need to bail entire build/strike ranges for volunteers:
+
+```csharp
+[HttpPost("BailRange")]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> BailRange(string slug, Guid signupBlockId, string? reason)
+```
+
+- [ ] **Step 5: Update Mine view for range display and bail**
 
 Group signups by `SignupBlockId` when non-null. Display as "Rota Name — Date to Date" with a single Bail button per block.
+
+The view needs to distinguish range bail from individual bail:
+```html
+@if (signup.SignupBlockId != null)
+{
+    <form asp-action="BailRange" method="post">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="signupBlockId" value="@signup.SignupBlockId" />
+        <button type="submit" class="btn btn-sm btn-outline-warning">Bail</button>
+    </form>
+}
+else
+{
+    <form asp-action="Bail" method="post">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="signupId" value="@signup.Id" />
+        <button type="submit" class="btn btn-sm btn-outline-warning">Bail</button>
+    </form>
+}
+```
+
+Note: All-day overlap blocking is intentional — a volunteer cannot be on two all-day rotas on the same day since all-day shifts span 00:00–24:00 and the overlap check compares absolute time ranges.
 
 - [ ] **Step 5: Build and manually test**
 
@@ -1245,7 +1399,7 @@ public interface IGeneralAvailabilityService
 
 - [ ] **Step 3: Implement service**
 
-Standard CRUD against `GeneralAvailability` entity. `GetAvailableForDayAsync` filters where `AvailableDayOffsets` contains the given day offset using PostgreSQL jsonb containment.
+Standard CRUD against `GeneralAvailability` entity. For `GetAvailableForDayAsync`: EF Core's LINQ translation of `List<int>.Contains(int)` on jsonb columns may not generate the expected SQL. At ~500 users, the simplest approach is to load all `GeneralAvailability` records for the event and filter in memory: `.Where(ga => ga.AvailableDayOffsets.Contains(dayOffset))`. If this evaluates client-side, it's fine at this scale. Alternatively, use `EF.Functions.JsonContains()` if available in the Npgsql provider version.
 
 - [ ] **Step 4: Register in DI**
 
@@ -1300,26 +1454,36 @@ git commit -m "feat: add general availability UI and pool indicator in voluntell
 ### Task 29: Role Period tags
 
 **Files:**
-- Modify: `src/Humans.Web/Views/Teams/Roster.cshtml` (or equivalent roster view)
-- Modify: team admin controller for role creation/editing
+- Modify: `src/Humans.Web/Models/TeamViewModels.cs` (add Period to `CreateRoleDefinitionModel` and `EditRoleDefinitionModel`)
+- Modify: `src/Humans.Web/Controllers/TeamAdminController.cs` (bind Period in `CreateRole` and `EditRole` actions)
+- Modify: `src/Humans.Web/Views/TeamAdmin/Roles.cshtml` (add Period dropdown to role create/edit forms)
+- Modify: `src/Humans.Web/Views/Team/Roster.cshtml` (add period filter dropdown)
 
-- [ ] **Step 1: Add Period dropdown to role creation/edit forms**
+- [ ] **Step 1: Update view models**
 
-In the team admin view where roles are created/edited, add a Period dropdown: YearRound (default), Build, Event, Strike.
+In `src/Humans.Web/Models/TeamViewModels.cs`, add `RolePeriod Period { get; set; } = RolePeriod.YearRound;` to both `CreateRoleDefinitionModel` and `EditRoleDefinitionModel`.
 
-- [ ] **Step 2: Add Period filter to roster page**
+- [ ] **Step 2: Update TeamAdminController**
 
-On the roster view (`/Teams/{slug}/Roster` or equivalent), add a dropdown filter that filters displayed roles by period.
+In `src/Humans.Web/Controllers/TeamAdminController.cs`, bind `model.Period` in both `CreateRole` and `EditRole` actions.
 
-- [ ] **Step 3: Build and test**
+- [ ] **Step 3: Add Period dropdown to role forms**
+
+In `src/Humans.Web/Views/TeamAdmin/Roles.cshtml`, add a Period dropdown (YearRound selected by default) to the create and edit forms.
+
+- [ ] **Step 4: Add Period filter to roster page**
+
+In `src/Humans.Web/Views/Team/Roster.cshtml`, add a dropdown filter: "All Periods" / "Year-round" / "Build" / "Event" / "Strike". Filter the role list client-side or via query parameter.
+
+- [ ] **Step 5: Build and test**
 
 Run: `dotnet build Humans.slnx && dotnet test Humans.slnx`
 Expected: All pass
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/Humans.Web/Views/Teams/ src/Humans.Web/Controllers/
+git add src/Humans.Web/Models/TeamViewModels.cs src/Humans.Web/Controllers/TeamAdminController.cs src/Humans.Web/Views/TeamAdmin/ src/Humans.Web/Views/Team/
 git commit -m "feat: add role period tags and roster filter"
 ```
 
