@@ -90,6 +90,10 @@
                     <span class="badge bg-secondary ms-2">@rota.Priority</span>
                     <span class="badge bg-info ms-1">@rota.Policy</span>
                     <span class="badge bg-secondary ms-1">@rota.Period</span>
+                    @if (!string.IsNullOrEmpty(rota.PracticalInfo))
+                    {
+                        <div class="text-muted small mt-1">@rota.PracticalInfo</div>
+                    }
                 </div>
                 @if (Model.CanManageShifts)
                 {
@@ -134,6 +138,20 @@
                                 <div class="col-md-3">
                                     <label class="form-label">Description</label>
                                     <input type="text" name="Description" value="@rota.Description" class="form-control" />
+                                </div>
+                            </div>
+                            <div class="row g-2 mt-2 align-items-end">
+                                <div class="col-md-2">
+                                    <label class="form-label">Period</label>
+                                    <select name="Period" class="form-select">
+                                        <option value="Build" selected="@(rota.Period == RotaPeriod.Build)">Build</option>
+                                        <option value="Event" selected="@(rota.Period == RotaPeriod.Event)">Event</option>
+                                        <option value="Strike" selected="@(rota.Period == RotaPeriod.Strike)">Strike</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Practical Info</label>
+                                    <textarea name="PracticalInfo" class="form-control" rows="2" placeholder="Meeting point, instructions...">@rota.PracticalInfo</textarea>
                                 </div>
                                 <div class="col-md-2">
                                     <button type="submit" class="btn btn-primary">Save</button>
