@@ -77,7 +77,7 @@
                                     var shift = item.Signup.Shift;
                                     <tr>
                                         <td>@item.DepartmentName</td>
-                                        <td>@shift.Title</td>
+                                        <td>@shift.Rota.Name</td>
                                         <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
                                         <td>@FormatDate(es, shift.DayOffset)</td>
                                         <td>@FormatTime(item.AbsoluteStart, tz!)</td>
@@ -115,7 +115,7 @@
                                     var shift = item.Signup.Shift;
                                     <tr>
                                         <td>@item.DepartmentName</td>
-                                        <td>@shift.Title</td>
+                                        <td>@shift.Rota.Name</td>
                                         <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
                                         <td>@FormatDate(es, shift.DayOffset)</td>
                                         <td>@FormatTime(item.AbsoluteStart, tz!)</td>
@@ -152,7 +152,7 @@
                                     var shift = item.Signup.Shift;
                                     <tr>
                                         <td>@item.DepartmentName</td>
-                                        <td>@shift.Title</td>
+                                        <td>@shift.Rota.Name</td>
                                         <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
                                         <td>@FormatDate(es, shift.DayOffset)</td>
                                         <td>@FormatTime(item.AbsoluteStart, tz!)</td>
