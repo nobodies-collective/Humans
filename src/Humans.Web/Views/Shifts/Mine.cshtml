@@ -96,7 +96,7 @@
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="signupBlockId" value="@block.Key" />
                                     <button type="submit" class="btn btn-sm btn-outline-danger"
-                                            data-confirm="Bail from all @block.Count() days?" class="confirm-btn">Bail</button>
+                                            data-confirm="Bail from all @block.Count() days?">Bail</button>
                                 </form>
                             </div>
                         }
@@ -125,7 +125,7 @@
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="signupId" value="@item.Signup.Id" />
                                                     <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                            data-confirm="Are you sure you want to bail?" class="confirm-btn">Bail</button>
+                                                            data-confirm="Are you sure you want to bail?">Bail</button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -251,7 +251,7 @@
                     <form asp-action="RegenerateIcal" method="post" class="d-inline">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-sm btn-outline-warning"
-                                data-confirm="This will invalidate the current URL. Continue?" class="confirm-btn">Regenerate URL</button>
+                                data-confirm="This will invalidate the current URL. Continue?">Regenerate URL</button>
                     </form>
                 </div>
             </div>
@@ -261,14 +261,6 @@
 
 <script>
 (function() {
-    document.querySelectorAll('.confirm-btn').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            if (!confirm(this.dataset.confirm)) {
-                e.preventDefault();
-            }
-        });
-    });
-
     var copyBtn = document.getElementById('copyIcalBtn');
     if (copyBtn) {
         copyBtn.addEventListener('click', function() {

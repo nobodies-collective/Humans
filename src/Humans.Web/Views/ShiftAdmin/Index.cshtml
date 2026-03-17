@@ -101,7 +101,7 @@
                         <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-rota-@rota.Id.ToString("N")">Edit</button>
                         <form asp-action="DeleteRota" asp-route-slug="@Model.Department.Slug" asp-route-rotaId="@rota.Id" method="post" class="d-inline">
                             @Html.AntiForgeryToken()
-                            <button type="submit" class="btn btn-sm btn-outline-danger confirm-btn"
+                            <button type="submit" class="btn btn-sm btn-outline-danger"
                                     data-confirm="Delete this rota and all its shifts?">
                                 Delete
                             </button>
@@ -233,7 +233,7 @@
                                                 <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-shift-@shift.Id.ToString("N")">Edit</button>
                                                 <form asp-action="DeleteShift" asp-route-slug="@Model.Department.Slug" asp-route-shiftId="@shift.Id" method="post" class="d-inline">
                                                     @Html.AntiForgeryToken()
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger confirm-btn"
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger"
                                                             data-confirm="Delete this shift?">
                                                         Delete
                                                     </button>
@@ -341,7 +341,7 @@
                                                                         <form asp-action="BailRange" asp-route-slug="@Model.Department.Slug" method="post" class="d-inline">
                                                                             @Html.AntiForgeryToken()
                                                                             <input type="hidden" name="signupBlockId" value="@signup.SignupBlockId" />
-                                                                            <button type="submit" class="btn btn-sm btn-outline-warning confirm-btn"
+                                                                            <button type="submit" class="btn btn-sm btn-outline-warning"
                                                                                     data-confirm="Bail entire range for this human?">Bail Range</button>
                                                                         </form>
                                                                     }
@@ -635,15 +635,6 @@
     });
 
     function escapeHtml(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
-
-    // CSP-safe confirm dialogs — replaces inline onclick handlers
-    document.querySelectorAll('.confirm-btn').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            if (!confirm(this.dataset.confirm)) {
-                e.preventDefault();
-            }
-        });
-    });
 
     // Dynamic time slot rows for Generate Shifts
     function reindexSlots(container) {
