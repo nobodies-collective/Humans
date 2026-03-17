@@ -75,11 +75,6 @@ public interface IShiftManagementService
     Task UpdateRotaAsync(Rota rota);
 
     /// <summary>
-    /// Deactivates a rota (sets IsActive=false).
-    /// </summary>
-    Task DeactivateRotaAsync(Guid rotaId);
-
-    /// <summary>
     /// Deletes a rota. Throws if child shifts have confirmed signups.
     /// </summary>
     Task DeleteRotaAsync(Guid rotaId);
@@ -105,11 +100,6 @@ public interface IShiftManagementService
     /// Updates an existing shift.
     /// </summary>
     Task UpdateShiftAsync(Shift shift);
-
-    /// <summary>
-    /// Deactivates a shift (sets IsActive=false).
-    /// </summary>
-    Task DeactivateShiftAsync(Guid shiftId);
 
     /// <summary>
     /// Deletes a shift. Throws if confirmed signups exist; cancels pending signups.
