@@ -12,28 +12,6 @@ namespace Humans.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Pre-migration cleanup: handle inactive records before dropping is_active columns
-            migrationBuilder.Sql(@"
-                -- Cancel pending signups on inactive shifts (before re-activating them)
-                UPDATE shift_signups SET status = 'Cancelled', updated_at = now()
-                WHERE status = 'Pending'
-                AND shift_id IN (SELECT id FROM shifts WHERE is_active = false);
-
-                -- Delete inactive shifts with zero signups (completely empty)
-                DELETE FROM shifts WHERE is_active = false
-                    AND id NOT IN (SELECT DISTINCT shift_id FROM shift_signups);
-
-                -- Force remaining inactive shifts to active (they have historical signups to preserve)
-                UPDATE shifts SET is_active = true WHERE is_active = false;
-
-                -- Delete inactive rotas with no remaining child shifts
-                DELETE FROM rotas WHERE is_active = false
-                    AND id NOT IN (SELECT DISTINCT rota_id FROM shifts);
-
-                -- Force remaining inactive rotas to active
-                UPDATE rotas SET is_active = true WHERE is_active = false;
-            ");
-
             migrationBuilder.DropColumn(
                 name: "IsActive",
                 table: "shifts");
