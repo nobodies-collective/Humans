@@ -49,8 +49,6 @@ public class ShiftSignupService : IShiftSignupService
             .FirstOrDefaultAsync(s => s.Id == shiftId);
 
         if (shift == null) return SignupResult.Fail("Shift not found.");
-        if (!shift.IsActive) return SignupResult.Fail("Shift is not active.");
-        if (!shift.Rota.IsActive) return SignupResult.Fail("Rota is not active.");
 
         var es = shift.Rota.EventSettings;
         var now = _clock.GetCurrentInstant();
@@ -113,7 +111,7 @@ public class ShiftSignupService : IShiftSignupService
         {
             await _auditLogService.LogAsync(
                 AuditAction.ShiftSignupConfirmed, nameof(ShiftSignup), signup.Id,
-                $"Auto-confirmed signup for shift '{shift.Title}'",
+                $"Auto-confirmed signup for shift '{shift.Rota.Name}'",
                 userId, "Self");
         }
 
@@ -163,7 +161,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupConfirmed, nameof(ShiftSignup), signup.Id,
-            $"Approved signup for shift '{signup.Shift.Title}'",
+            $"Approved signup for shift '{signup.Shift.Rota.Name}'",
             reviewerUserId, "Reviewer");
 
         await _dbContext.SaveChangesAsync();
@@ -180,7 +178,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupRefused, nameof(ShiftSignup), signup.Id,
-            $"Refused signup for shift '{signup.Shift.Title}'" + (reason != null ? $": {reason}" : ""),
+            $"Refused signup for shift '{signup.Shift.Rota.Name}'" + (reason != null ? $": {reason}" : ""),
             reviewerUserId, "Reviewer");
 
         await _dbContext.SaveChangesAsync();
@@ -210,7 +208,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupBailed, nameof(ShiftSignup), signup.Id,
-            $"Bailed from shift '{signup.Shift.Title}'" + (reason != null ? $": {reason}" : ""),
+            $"Bailed from shift '{signup.Shift.Rota.Name}'" + (reason != null ? $": {reason}" : ""),
             actorUserId, "Actor");
 
         await _dbContext.SaveChangesAsync();
@@ -260,7 +258,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupVoluntold, nameof(ShiftSignup), signup.Id,
-            $"Voluntold for shift '{shift.Title}'",
+            $"Voluntold for shift '{shift.Rota.Name}'",
             enrollerUserId, "Enroller",
             userId, nameof(User));
 
@@ -285,7 +283,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupNoShow, nameof(ShiftSignup), signup.Id,
-            $"Marked no-show for shift '{signup.Shift.Title}'",
+            $"Marked no-show for shift '{signup.Shift.Rota.Name}'",
             reviewerUserId, "Reviewer");
 
         await _dbContext.SaveChangesAsync();
@@ -367,7 +365,7 @@ public class ShiftSignupService : IShiftSignupService
                 var tz = DateTimeZoneProviders.Tzdb[existingEs.TimeZoneId];
                 var dateStr = existingStart.InZone(tz).ToString("ddd MMM d HH:mm", null);
                 var teamName = existing.Shift.Rota.Team?.Name ?? "Unknown";
-                return $"Time conflict with '{existing.Shift.Title}' ({teamName}, {dateStr}).";
+                return $"Time conflict with '{existing.Shift.Rota.Name}' ({teamName}, {dateStr}).";
             }
         }
 
