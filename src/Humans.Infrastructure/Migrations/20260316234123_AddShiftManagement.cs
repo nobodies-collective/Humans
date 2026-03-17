@@ -18,11 +18,9 @@ namespace Humans.Infrastructure.Migrations
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS "SuppressScheduleChangeEmails" boolean NOT NULL DEFAULT false;
                 """);
 
-            migrationBuilder.AddColumn<Guid>(
-                name: "ShiftSignupId",
-                table: "email_outbox_messages",
-                type: "uuid",
-                nullable: true);
+            migrationBuilder.Sql("""
+                ALTER TABLE email_outbox_messages ADD COLUMN IF NOT EXISTS "ShiftSignupId" uuid;
+                """);
 
             migrationBuilder.CreateTable(
                 name: "event_settings",
@@ -279,9 +277,9 @@ namespace Humans.Infrastructure.Migrations
                 ALTER TABLE users DROP COLUMN IF EXISTS "SuppressScheduleChangeEmails";
                 """);
 
-            migrationBuilder.DropColumn(
-                name: "ShiftSignupId",
-                table: "email_outbox_messages");
+            migrationBuilder.Sql("""
+                ALTER TABLE email_outbox_messages DROP COLUMN IF EXISTS "ShiftSignupId";
+                """);
         }
     }
 }
