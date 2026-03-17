@@ -20,11 +20,6 @@ public class Shift
     public Guid RotaId { get; set; }
 
     /// <summary>
-    /// Display name for the shift (e.g., "Morning Gate", "Bar Close").
-    /// </summary>
-    public string Title { get; set; } = string.Empty;
-
-    /// <summary>
     /// Optional description of shift duties.
     /// </summary>
     public string? Description { get; set; }
@@ -60,9 +55,10 @@ public class Shift
     public bool AdminOnly { get; set; }
 
     /// <summary>
-    /// Whether this shift is currently active and accepting signups.
+    /// Whether this is an all-day shift (build/strike). All-day shifts store
+    /// StartTime=00:00, Duration=24h but UI ignores these values.
     /// </summary>
-    public bool IsActive { get; set; } = true;
+    public bool IsAllDay { get; set; }
 
     /// <summary>
     /// When this shift was created.

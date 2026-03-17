@@ -147,7 +147,7 @@ public class ShiftSignup
     }
 
     /// <summary>
-    /// Cancel a signup (system-only — shift deactivated, account deletion).
+    /// Cancel a signup (system-only — shift/rota deleted, account deletion).
     /// </summary>
     public void Cancel(IClock clock, string? reason)
     {

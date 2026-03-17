@@ -28,7 +28,6 @@ public class ShiftTests
     {
         Id = Guid.NewGuid(),
         RotaId = Guid.NewGuid(),
-        Title = "Test Shift",
         DayOffset = dayOffset,
         StartTime = new LocalTime(hour, minute),
         Duration = Duration.FromSeconds(durationSeconds),
@@ -144,5 +143,24 @@ public class ShiftTests
         var es = CreateEventSettings(eventEndOffset: 6);
         var shift = CreateShift(dayOffset: 7);
         shift.GetShiftPeriod(es).Should().Be(ShiftPeriod.Strike);
+    }
+
+    [Fact]
+    public void IsAllDay_DefaultsFalse()
+    {
+        var shift = new Shift();
+        shift.IsAllDay.Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsAllDay_WhenTrue_DurationIgnoredForDisplay()
+    {
+        var shift = new Shift
+        {
+            IsAllDay = true,
+            StartTime = new LocalTime(0, 0),
+            Duration = Duration.FromHours(24)
+        };
+        shift.IsAllDay.Should().BeTrue();
     }
 }
