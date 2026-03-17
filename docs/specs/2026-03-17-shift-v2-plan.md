@@ -281,7 +281,7 @@ git commit -m "feat: add Period to TeamRoleDefinition"
 - [ ] **Step 1: Update ShiftConfiguration**
 
 In `src/Humans.Infrastructure/Data/Configurations/ShiftConfiguration.cs`:
-- Remove any explicit `.Property(e => e.Title)` configuration if present (may be configured by convention only — if so, skip)
+- Remove `builder.Property(s => s.Title).HasMaxLength(256).IsRequired();` (line 15 — this IS explicitly configured, not convention)
 - Note: `IsActive` was configured by convention, not explicitly — removing the entity property is sufficient
 - Add: `builder.Property(e => e.IsAllDay).HasDefaultValue(false);`
 
@@ -511,19 +511,23 @@ RecurringJob.AddOrUpdate<SignupGarbageCollectionJob>(
     "0 4 * * *");
 ```
 
-- [ ] **Step 2: Delete the job file**
+- [ ] **Step 2: Remove DI registration**
+
+In `src/Humans.Web/Extensions/InfrastructureServiceCollectionExtensions.cs`, remove `services.AddScoped<SignupGarbageCollectionJob>();` (around line 98).
+
+- [ ] **Step 3: Delete the job file**
 
 Delete `src/Humans.Infrastructure/Jobs/SignupGarbageCollectionJob.cs`
 
-- [ ] **Step 3: Build to verify**
+- [ ] **Step 4: Build to verify**
 
 Run: `dotnet build Humans.slnx`
 Expected: Errors only in views/controllers now
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add -u src/Humans.Infrastructure/Jobs/SignupGarbageCollectionJob.cs src/Humans.Web/Extensions/RecurringJobExtensions.cs
+git add -u src/Humans.Infrastructure/Jobs/SignupGarbageCollectionJob.cs src/Humans.Web/Extensions/RecurringJobExtensions.cs src/Humans.Web/Extensions/InfrastructureServiceCollectionExtensions.cs
 git commit -m "refactor: remove SignupGarbageCollectionJob (deactivation removed)"
 ```
 
@@ -1403,7 +1407,8 @@ Standard CRUD against `GeneralAvailability` entity. For `GetAvailableForDayAsync
 
 - [ ] **Step 4: Register in DI**
 
-Add to `Program.cs`: `builder.Services.AddScoped<IGeneralAvailabilityService, GeneralAvailabilityService>();`
+Add to `src/Humans.Web/Extensions/InfrastructureServiceCollectionExtensions.cs` (where all infrastructure services are registered, NOT in Program.cs):
+`services.AddScoped<IGeneralAvailabilityService, GeneralAvailabilityService>();`
 
 - [ ] **Step 5: Run tests**
 
@@ -1413,7 +1418,7 @@ Expected: All pass
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/Humans.Application/Interfaces/IGeneralAvailabilityService.cs src/Humans.Infrastructure/Services/GeneralAvailabilityService.cs tests/ src/Humans.Web/Program.cs
+git add src/Humans.Application/Interfaces/IGeneralAvailabilityService.cs src/Humans.Infrastructure/Services/GeneralAvailabilityService.cs tests/ src/Humans.Web/Extensions/InfrastructureServiceCollectionExtensions.cs
 git commit -m "feat: add GeneralAvailabilityService for volunteer pool"
 ```
 
@@ -1454,36 +1459,48 @@ git commit -m "feat: add general availability UI and pool indicator in voluntell
 ### Task 29: Role Period tags
 
 **Files:**
-- Modify: `src/Humans.Web/Models/TeamViewModels.cs` (add Period to `CreateRoleDefinitionModel` and `EditRoleDefinitionModel`)
+- Modify: `src/Humans.Application/Interfaces/ITeamService.cs` (add Period parameter to CreateRoleDefinitionAsync / UpdateRoleDefinitionAsync)
+- Modify: `src/Humans.Infrastructure/Services/TeamService.cs` (accept and persist Period)
+- Modify: `src/Humans.Web/Models/TeamViewModels.cs` (add Period to `CreateRoleDefinitionModel`, `EditRoleDefinitionModel`, and `TeamRoleDefinitionViewModel`)
 - Modify: `src/Humans.Web/Controllers/TeamAdminController.cs` (bind Period in `CreateRole` and `EditRole` actions)
 - Modify: `src/Humans.Web/Views/TeamAdmin/Roles.cshtml` (add Period dropdown to role create/edit forms)
 - Modify: `src/Humans.Web/Views/Team/Roster.cshtml` (add period filter dropdown)
 
-- [ ] **Step 1: Update view models**
+- [ ] **Step 1: Update ITeamService interface**
 
-In `src/Humans.Web/Models/TeamViewModels.cs`, add `RolePeriod Period { get; set; } = RolePeriod.YearRound;` to both `CreateRoleDefinitionModel` and `EditRoleDefinitionModel`.
+Add `RolePeriod period` parameter to `CreateRoleDefinitionAsync` and `UpdateRoleDefinitionAsync` in `src/Humans.Application/Interfaces/ITeamService.cs`.
 
-- [ ] **Step 2: Update TeamAdminController**
+- [ ] **Step 2: Update TeamService implementation**
 
-In `src/Humans.Web/Controllers/TeamAdminController.cs`, bind `model.Period` in both `CreateRole` and `EditRole` actions.
+In `src/Humans.Infrastructure/Services/TeamService.cs`, accept and persist `period` in both `CreateRoleDefinitionAsync` and `UpdateRoleDefinitionAsync`.
 
-- [ ] **Step 3: Add Period dropdown to role forms**
+- [ ] **Step 3: Update view models**
+
+In `src/Humans.Web/Models/TeamViewModels.cs`:
+- Add `RolePeriod Period { get; set; } = RolePeriod.YearRound;` to both `CreateRoleDefinitionModel` and `EditRoleDefinitionModel`
+- Add `RolePeriod Period { get; set; }` to `TeamRoleDefinitionViewModel` and map it in `FromEntity()`
+
+- [ ] **Step 4: Update TeamAdminController**
+
+In `src/Humans.Web/Controllers/TeamAdminController.cs`, pass `model.Period` to the service in both `CreateRole` and `EditRole` actions.
+
+- [ ] **Step 5: Add Period dropdown to role forms**
 
 In `src/Humans.Web/Views/TeamAdmin/Roles.cshtml`, add a Period dropdown (YearRound selected by default) to the create and edit forms.
 
-- [ ] **Step 4: Add Period filter to roster page**
+- [ ] **Step 6: Add Period filter to roster page**
 
 In `src/Humans.Web/Views/Team/Roster.cshtml`, add a dropdown filter: "All Periods" / "Year-round" / "Build" / "Event" / "Strike". Filter the role list client-side or via query parameter.
 
-- [ ] **Step 5: Build and test**
+- [ ] **Step 7: Build and test**
 
 Run: `dotnet build Humans.slnx && dotnet test Humans.slnx`
 Expected: All pass
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/Humans.Web/Models/TeamViewModels.cs src/Humans.Web/Controllers/TeamAdminController.cs src/Humans.Web/Views/TeamAdmin/ src/Humans.Web/Views/Team/
+git add src/Humans.Application/Interfaces/ITeamService.cs src/Humans.Infrastructure/Services/TeamService.cs src/Humans.Web/Models/TeamViewModels.cs src/Humans.Web/Controllers/TeamAdminController.cs src/Humans.Web/Views/TeamAdmin/ src/Humans.Web/Views/Team/
 git commit -m "feat: add role period tags and roster filter"
 ```
 
