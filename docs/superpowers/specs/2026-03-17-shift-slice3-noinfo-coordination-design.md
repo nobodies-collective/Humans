@@ -12,7 +12,7 @@ Slice 3 builds operational coordination features on top of Slices 1 (core entiti
 ## Deliverables
 
 1. `/Shifts/Dashboard` — urgency-ranked unfilled shifts with filters
-2. Voluntell — inline search on dashboard, assign volunteers to shifts
+2. Voluntell — inline search on dashboard (NoInfoAdmin/Admin) AND on `/Teams/{slug}/Shifts` (Dept Coordinators for own dept)
 3. No-show marking UI — on `/Teams/{slug}/Shifts` for past shifts + no-show history on volunteer profiles
 4. Build/strike staffing visualization — Chart.js on dashboard and department shifts page
 5. Volunteer event profile badges — in signup lists for coordinators
@@ -114,6 +114,25 @@ For past shifts (where `AbsoluteEnd < SystemClock.Instance.GetCurrentInstant()`)
 - Already-marked NoShow signups show with a "No-Show" badge (no button)
 - Bailed signups shown as muted with "Bailed" badge
 
+### Not in Scope
+
+Parent spec §6.5 mentions an "export department rota CSV" action on `/Teams/{slug}/Shifts`. This is intentionally deferred to Slice 4 (Exports & Stats). The dept shifts page in Slice 3 does not include export functionality.
+
+### Dept Coordinator Voluntell
+
+The parent spec (§4.3) grants voluntell to Dept Coordinators for their own department. Since the dashboard is restricted to NoInfoAdmin/Admin, coordinators need a separate voluntell route on their department shifts page.
+
+**New actions on `ShiftAdminController`:**
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `GET` | `/Teams/{slug}/Shifts/SearchVolunteers?shiftId={id}&query={name}` | AJAX — volunteer search for dept-scoped voluntell |
+| `POST` | `/Teams/{slug}/Shifts/Voluntell` | Assign volunteer to shift (own dept only) |
+
+Authorization: `CanApproveSignups` (Dept Coordinators for own dept, NoInfoAdmin, Admin).
+
+These actions mirror the dashboard's `SearchVolunteers` and `Voluntell` actions but are scoped to the department. The view adds a "Voluntell" button on each active shift row (alongside the existing Edit/Deactivate buttons), expanding an inline search panel identical to the dashboard's.
+
 ### Authorization
 
 Only shown when `CanApproveSignups` is true (Dept Coordinators for own dept, NoInfoAdmin, Admin).
@@ -128,13 +147,13 @@ The existing `GetRotasByDepartmentAsync` already includes `Shifts` and their `Sh
 
 Per parent spec §4.7: "No-show history is visible on a volunteer's profile (to all Dept Coordinators, NoInfoAdmin, Admin — cross-department visibility)."
 
-**Where:** Extend the existing profile view (the page that shows a user's details to coordinators/admins).
+**Where:** `HumanController.View` action (`/Human/{id}`) and `Views/Human/View.cshtml`. This is the profile page visible to other users (not the self-profile at `/Profile`). The no-show section is rendered outside the existing `ProfileCard` ViewComponent, as a standalone section below the profile card.
 
-**Data:** Query `ShiftSignups` where `UserId = profileUserId` and `Status = NoShow`, include `Shift.Rota.Team` for department/shift context.
+**Data:** Query `ShiftSignups` where `UserId = profileUserId` and `Status = NoShow`, include `Shift.Rota.Team` for department/shift context and `ReviewedByUser` for "marked by" display.
 
-**Display:** A "No-Show History" section showing a table: shift title, department, date, marked by whom, date marked. Only visible to Dept Coordinators (any department, not just own), NoInfoAdmin, Admin. Hidden from the profile owner and regular volunteers.
+**Display:** A "No-Show History" section showing a table: shift title, department, date, marked by whom, date marked. Only rendered when the viewer is a Dept Coordinator (any department, cross-department visibility), NoInfoAdmin, or Admin. Hidden from the profile owner and regular volunteers. The section is omitted entirely (not shown as empty) for unauthorized viewers.
 
-**Service method:** Add `GetNoShowHistoryAsync(Guid userId)` to `ShiftSignupService` returning `IReadOnlyList<ShiftSignup>` filtered to NoShow status with includes.
+**Service method:** Add `GetNoShowHistoryAsync(Guid userId)` to `ShiftSignupService` returning `IReadOnlyList<ShiftSignup>` filtered to `NoShow` status, with `.Include(s => s.Shift.Rota.Team).Include(s => s.ReviewedByUser)`.
 
 ---
 
@@ -162,6 +181,7 @@ Add to `ShiftAdminViewModel`:
 ```csharp
 public Dictionary<Guid, VolunteerEventProfile> VolunteerProfiles { get; set; } = new();
 public bool CanViewMedical { get; set; } // true for NoInfoAdmin/Admin
+public List<DailyStaffingData> StaffingData { get; set; } = []; // for dept-scoped staffing chart
 ```
 
 ### Partial View
@@ -169,6 +189,9 @@ public bool CanViewMedical { get; set; } // true for NoInfoAdmin/Admin
 Create `_VolunteerProfileBadges.cshtml` partial accepting `(VolunteerEventProfile? profile, bool showMedical)`. Reused in:
 - Pending approvals table rows
 - Past-shift signup expansion rows
+- Dept coordinator voluntell panel (on `/Teams/{slug}/Shifts`)
+
+**Note:** The dashboard voluntell panel (`/Shifts/Dashboard`) renders badges client-side from the JSON response of the `SearchVolunteers` AJAX endpoint. This means badge rendering is implemented twice: server-side Razor partial for the admin/dept pages, and client-side JS for the dashboard voluntell search results. The JS rendering is simple badge HTML mirroring the partial's output — keep both in sync.
 
 ---
 
@@ -194,8 +217,10 @@ public record DailyStaffingData(
 ```
 
 **Query:** For each day offset in `[BuildStartOffset..-1]` and `[EventEndOffset+1..StrikeEndOffset]`:
-- Count unique `UserId` from `ShiftSignups` where `Status = Confirmed` and the shift's `DayOffset` matches
-- Sum `MaxVolunteers` from active shifts with that `DayOffset`
+- Resolve each day to a date range: `dayStart = GateOpeningDate.PlusDays(offset)` at 00:00, `dayEnd = dayStart + 1 day`
+- Find all active shifts whose resolved `[AbsoluteStart, AbsoluteEnd)` interval overlaps `[dayStart, dayEnd)` — this correctly counts overnight shifts on both days (e.g., a shift starting at 22:00 day -5 ending at 06:00 day -4 counts on both day -5 and day -4)
+- `ConfirmedCount`: count unique `UserId` from `ShiftSignups` where `Status = Confirmed` on those overlapping shifts
+- `TotalSlots`: sum `MaxVolunteers` from those overlapping active shifts
 - Optional `departmentId` filter via `Rota.TeamId`
 
 ### Chart Rendering
@@ -280,7 +305,8 @@ public class ShiftsSummaryCardViewModel
 | Feature | Volunteer | Dept Coordinator | NoInfoAdmin | Admin |
 |---------|-----------|-----------------|-------------|-------|
 | View dashboard | -- | -- | Yes | Yes |
-| Voluntell | -- | -- | Yes | Yes |
+| Voluntell (dashboard) | -- | -- | Yes | Yes |
+| Voluntell (dept page) | -- | Own dept | Yes | Yes |
 | Mark no-show | -- | Own dept | Yes | Yes |
 | View profile badges | -- | Own dept (no medical) | Yes (with medical) | Yes (with medical) |
 | View staffing chart (global) | -- | -- | Yes | Yes |
@@ -303,14 +329,17 @@ public class ShiftsSummaryCardViewModel
 
 | File | Changes |
 |------|---------|
-| `Models/ShiftViewModels.cs` | Add `ShiftDashboardViewModel`, `DailyStaffingData`, `ShiftsSummaryCardViewModel`, `ShiftsSummaryData`; extend `ShiftAdminViewModel` with profile dict + `CanViewMedical` |
-| `Services/ShiftManagementService.cs` | Add `GetStaffingDataAsync`, `GetShiftsSummaryAsync`; update `GetRotasByDepartmentAsync` to include signup users |
-| `Services/ShiftSignupService.cs` | Add `GetNoShowHistoryAsync` |
-| `Controllers/ShiftAdminController.cs` | Pass profile data and `CanViewMedical` to view |
-| `Views/ShiftAdmin/Index.cshtml` | Add past-shift signup expansion with no-show buttons + profile badges |
+| `Models/ShiftViewModels.cs` | Add `ShiftDashboardViewModel`, `DailyStaffingData`, `ShiftsSummaryCardViewModel`, `ShiftsSummaryData`; extend `ShiftAdminViewModel` with profile dict + `CanViewMedical` + `StaffingData` |
+| `Interfaces/IShiftManagementService.cs` | Add `GetStaffingDataAsync`, `GetShiftsSummaryAsync` to interface |
+| `Interfaces/IShiftSignupService.cs` | Add `GetNoShowHistoryAsync` to interface |
+| `Services/ShiftManagementService.cs` | Implement `GetStaffingDataAsync`, `GetShiftsSummaryAsync`; update `GetRotasByDepartmentAsync` to include signup users |
+| `Services/ShiftSignupService.cs` | Implement `GetNoShowHistoryAsync` |
+| `Controllers/ShiftAdminController.cs` | Add `SearchVolunteers` + `Voluntell` actions; pass profile data, `CanViewMedical`, and `StaffingData` to view |
+| `Views/ShiftAdmin/Index.cshtml` | Add past-shift signup expansion with no-show buttons + profile badges + voluntell inline panel + staffing chart |
 | `Controllers/TeamController.cs` | Load shifts summary data for departments |
 | `Views/Team/Details.cshtml` | Render shifts summary card partial |
-| Profile view (controller + view) | Add no-show history section for coordinators/admins |
+| `Controllers/HumanController.cs` | Load no-show history for profile view when viewer is coordinator/admin |
+| `Views/Human/View.cshtml` | Render no-show history section below profile card |
 
 ## No Database Migrations
 
