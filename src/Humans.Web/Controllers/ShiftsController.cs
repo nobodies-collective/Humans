@@ -168,6 +168,48 @@ public class ShiftsController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpPost("SignUpRange")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SignUpRange(Guid rotaId, int startDayOffset, int endDayOffset)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return Challenge();
+
+        var result = await _signupService.SignUpRangeAsync(user.Id, rotaId, startDayOffset, endDayOffset);
+
+        if (!result.Success)
+        {
+            TempData["ErrorMessage"] = result.Error;
+            return RedirectToAction(nameof(Index));
+        }
+
+        TempData["SuccessMessage"] = result.Warning != null
+            ? $"Signed up for date range. Note: {result.Warning}"
+            : "Signed up for date range!";
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("BailRange")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BailRange(Guid signupBlockId)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return Challenge();
+
+        try
+        {
+            await _signupService.BailRangeAsync(signupBlockId, user.Id);
+            TempData["SuccessMessage"] = "Successfully bailed from shift range.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Mine));
+    }
+
     [HttpPost("Bail")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Bail(Guid signupId, string? reason)

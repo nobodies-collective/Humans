@@ -324,6 +324,27 @@ public class ShiftAdminController : Controller
         return RedirectToAction(nameof(Index), new { slug });
     }
 
+    [HttpPost("BailRange")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BailRange(string slug, Guid signupBlockId, string? reason)
+    {
+        var (team, userId) = await ResolveTeamAndUserAsync(slug);
+        if (team == null || userId == null) return NotFound();
+        if (!await CanApproveAsync(userId.Value, team.Id)) return Forbid();
+
+        try
+        {
+            await _signupService.BailRangeAsync(signupBlockId, userId.Value, reason);
+            TempData["SuccessMessage"] = "Range bail completed.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index), new { slug });
+    }
+
     [HttpPost("Signups/{signupId}/Approve")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ApproveSignup(string slug, Guid signupId)
