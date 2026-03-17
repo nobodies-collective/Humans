@@ -152,6 +152,20 @@ This project uses **Font Awesome 6** (loaded via CDN in `_Layout.cshtml`). Boots
 <i class="fa-solid fa-gear"></i>
 ```
 
+## Critical: Never Edit EF Core Migration Files
+
+Migration files (`Migrations/*.cs`) are **generated** by `dotnet ef migrations add`. Never manually edit, rename, or rewrite them.
+
+**What goes wrong:** If a migration has already been applied to a database and you rename the file or edit its contents, EF Core loses track of it. The database has the old migration ID in `__EFMigrationsHistory`, but the codebase now has a different filename/ID. EF treats the renamed file as a brand new migration and tries to re-create everything that already exists, causing `already exists` errors on every table, column, and index.
+
+**Rule:** When schema changes are needed after a migration has been committed:
+1. Run `dotnet ef migrations add <NewMigrationName>` — this generates a new migration containing only the diff
+2. Never rename migration files (the timestamp in the filename IS the migration ID)
+3. Never edit the `Up`/`Down` methods of an existing migration
+4. Never manually write SQL in migration files as a "fix" for migration errors
+
+**If a migration fails because objects already exist**, the database is out of sync with migration history. Fix the root cause (usually a missing `__EFMigrationsHistory` entry or a previously deleted migration), don't patch the migration with `IF NOT EXISTS`.
+
 ## Localization (i18n)
 
 **Admin pages do not require localization.** Existing localized strings in admin views can stay, but do not add new `@Localizer[...]` calls or resource keys for admin-side views (`/Admin/*`, `/TeamAdmin/*`) until further notice. Only public/user-facing views require localization.
