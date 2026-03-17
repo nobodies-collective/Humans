@@ -143,6 +143,7 @@ dotnet run --project src/Humans.Web
 | Topic | File |
 |-------|------|
 | **Coding rules** | **`.claude/CODING_RULES.md`** |
+| **Code review rules** | **`.claude/CODE_REVIEW_RULES.md`** |
 | Data model | `.claude/DATA_MODEL.md` |
 | Analyzers/ReSharper | `.claude/CODE_ANALYSIS.md` |
 | Maintenance log | `.claude/MAINTENANCE_LOG.md` |
