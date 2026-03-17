@@ -112,9 +112,8 @@
             {
                 <div class="collapse" id="edit-rota-@rota.Id.ToString("N")">
                     <div class="card-body border-bottom">
-                        <form asp-action="EditRota" asp-route-slug="@Model.Department.Slug" method="post">
+                        <form asp-action="EditRota" asp-route-slug="@Model.Department.Slug" asp-route-rotaId="@rota.Id" method="post">
                             @Html.AntiForgeryToken()
-                            <input type="hidden" name="RotaId" value="@rota.Id" />
                             <div class="row g-2 align-items-end">
                                 <div class="col-md-3">
                                     <label class="form-label">Name</label>
@@ -231,9 +230,8 @@
                                     {
                                         <tr class="collapse" id="edit-shift-@shift.Id.ToString("N")">
                                             <td colspan="6">
-                                                <form asp-action="EditShift" asp-route-slug="@Model.Department.Slug" method="post">
+                                                <form asp-action="EditShift" asp-route-slug="@Model.Department.Slug" asp-route-shiftId="@shift.Id" method="post">
                                                     @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="ShiftId" value="@shift.Id" />
                                                     <div class="row g-2 align-items-end">
                                                         <div class="col-md-3">
                                                             <label class="form-label form-label-sm">Title</label>

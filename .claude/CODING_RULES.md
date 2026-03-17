@@ -166,6 +166,48 @@ Migration files (`Migrations/*.cs`) are **generated** by `dotnet ef migrations a
 
 **If a migration fails because objects already exist**, the database is out of sync with migration history. Fix the root cause (usually a missing `__EFMigrationsHistory` entry or a previously deleted migration), don't patch the migration with `IF NOT EXISTS`.
 
+## View Components vs Partial Views
+
+ASP.NET Core offers two reusable view mechanisms. Use the right one:
+
+**Use a View Component** (`ViewComponents/FooViewComponent.cs` + `Views/Shared/Components/Foo/Default.cshtml`) when:
+- The component **fetches its own data** via injected services — the parent controller shouldn't need to know about the component's data needs
+- The component has **interactive behavior** with its own JavaScript (autocomplete, search, Chart.js)
+- The component is used across **multiple unrelated pages** that would each need to duplicate data-loading logic
+
+**Use a Partial View** (`Views/Shared/_Foo.cshtml`) when:
+- The component is **pure presentation** — it renders a model the parent already has in hand
+- No service injection or data fetching needed
+- Examples: badge rendering, status labels, simple card layouts
+
+**The rule:** If a parent controller has to fetch data *specifically* to pass to a partial, that partial should be a View Component.
+
+**Existing View Components:** `ProfileCardViewComponent`, `NavBadgesViewComponent`, `UserAvatarViewComponent`, `TempDataAlertsViewComponent`.
+
+**Example — wrong:**
+```csharp
+// Controller fetches shift data just to pass through to a partial
+var shifts = await _shiftService.GetUpcomingForUser(userId);
+var urgent = await _urgencyService.GetTopUrgent(5);
+ViewData["ShiftCards"] = new ShiftCardsViewModel { NextShifts = shifts, UrgentShifts = urgent };
+// Then in the view: @await Html.PartialAsync("_ShiftCards", ViewData["ShiftCards"])
+```
+
+**Example — right:**
+```csharp
+// View Component fetches its own data — controller doesn't know about shifts
+// In the view: @await Component.InvokeAsync("ShiftCards")
+public class ShiftCardsViewComponent : ViewComponent
+{
+    public async Task<IViewComponentResult> InvokeAsync()
+    {
+        var userId = /* resolve from UserClaimsPrincipal */;
+        var shifts = await _shiftService.GetUpcomingForUser(userId);
+        return View(new ShiftCardsViewModel { ... });
+    }
+}
+```
+
 ## Localization (i18n)
 
 **Admin pages do not require localization.** Existing localized strings in admin views can stay, but do not add new `@Localizer[...]` calls or resource keys for admin-side views (`/Admin/*`, `/TeamAdmin/*`) until further notice. Only public/user-facing views require localization.
