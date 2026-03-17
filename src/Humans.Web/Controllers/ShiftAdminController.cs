@@ -66,7 +66,7 @@ public class ShiftAdminController : Controller
 
         foreach (var rota in rotas)
         {
-            foreach (var shift in rota.Shifts.Where(s => s.IsActive))
+            foreach (var shift in rota.Shifts)
             {
                 totalSlots += shift.MaxVolunteers;
                 var shiftSignups = await _signupService.GetByShiftAsync(shift.Id);
@@ -138,6 +138,8 @@ public class ShiftAdminController : Controller
             Description = model.Description,
             Priority = model.Priority,
             Policy = model.Policy,
+            Period = model.Period,
+            PracticalInfo = model.PracticalInfo,
             CreatedAt = _clock.GetCurrentInstant()
         };
 
@@ -162,7 +164,8 @@ public class ShiftAdminController : Controller
         rota.Description = model.Description;
         rota.Priority = model.Priority;
         rota.Policy = model.Policy;
-        rota.IsActive = model.IsActive;
+        rota.Period = model.Period;
+        rota.PracticalInfo = model.PracticalInfo;
 
         await _shiftMgmt.UpdateRotaAsync(rota);
         TempData["SuccessMessage"] = $"Rota '{model.Name}' updated.";
@@ -198,7 +201,6 @@ public class ShiftAdminController : Controller
         {
             Id = Guid.NewGuid(),
             RotaId = model.RotaId,
-            Title = model.Title,
             Description = model.Description,
             DayOffset = model.DayOffset,
             StartTime = new LocalTime(parsedTime.Hour, parsedTime.Minute),
@@ -212,7 +214,7 @@ public class ShiftAdminController : Controller
         try
         {
             await _shiftMgmt.CreateShiftAsync(shift);
-            TempData["SuccessMessage"] = $"Shift '{model.Title}' created.";
+            TempData["SuccessMessage"] = "Shift created.";
         }
         catch (InvalidOperationException ex)
         {
@@ -240,7 +242,6 @@ public class ShiftAdminController : Controller
             return RedirectToAction(nameof(Index), new { slug });
         }
 
-        shift.Title = model.Title;
         shift.Description = model.Description;
         shift.DayOffset = model.DayOffset;
         shift.StartTime = new LocalTime(parsedTime.Hour, parsedTime.Minute);
@@ -248,40 +249,49 @@ public class ShiftAdminController : Controller
         shift.MinVolunteers = model.MinVolunteers;
         shift.MaxVolunteers = model.MaxVolunteers;
         shift.AdminOnly = model.AdminOnly;
-        shift.IsActive = model.IsActive;
 
         await _shiftMgmt.UpdateShiftAsync(shift);
-        TempData["SuccessMessage"] = $"Shift '{model.Title}' updated.";
+        TempData["SuccessMessage"] = "Shift updated.";
         return RedirectToAction(nameof(Index), new { slug });
     }
 
-    [HttpPost("Rotas/{rotaId}/Deactivate")]
+    [HttpPost("Rotas/{rotaId}/Delete")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeactivateRota(string slug, Guid rotaId)
+    public async Task<IActionResult> DeleteRota(string slug, Guid rotaId)
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
         if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
-        await _shiftMgmt.DeactivateRotaAsync(rotaId);
-        TempData["SuccessMessage"] = "Rota deactivated.";
+        try
+        {
+            await _shiftMgmt.DeleteRotaAsync(rotaId);
+            TempData["SuccessMessage"] = "Rota deleted.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
         return RedirectToAction(nameof(Index), new { slug });
     }
 
-    [HttpPost("Shifts/{shiftId}/Deactivate")]
+    [HttpPost("Shifts/{shiftId}/Delete")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeactivateShift(string slug, Guid shiftId)
+    public async Task<IActionResult> DeleteShift(string slug, Guid shiftId)
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
         if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
-        var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
-        if (shift == null) return NotFound();
-        if (shift.Rota.TeamId != team.Id) return NotFound();
-
-        await _shiftMgmt.DeactivateShiftAsync(shiftId);
-        TempData["SuccessMessage"] = "Shift deactivated.";
+        try
+        {
+            await _shiftMgmt.DeleteShiftAsync(shiftId);
+            TempData["SuccessMessage"] = "Shift deleted.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
         return RedirectToAction(nameof(Index), new { slug });
     }
 
