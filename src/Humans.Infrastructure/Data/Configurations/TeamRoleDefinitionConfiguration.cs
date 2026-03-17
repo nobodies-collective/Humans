@@ -59,8 +59,7 @@ public class TeamRoleDefinitionConfiguration : IEntityTypeConfiguration<TeamRole
 
         builder.Property(d => d.Period)
             .HasConversion<string>()
-            .HasMaxLength(50)
-            .HasDefaultValue(RolePeriod.YearRound);
+            .HasMaxLength(50);
 
         builder.Property(d => d.IsManagement)
             .IsRequired();

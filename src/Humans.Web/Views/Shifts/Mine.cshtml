@@ -96,7 +96,7 @@
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="signupBlockId" value="@block.Key" />
                                     <button type="submit" class="btn btn-sm btn-outline-danger"
-                                            onclick="return confirm('Bail from all @block.Count() days?')">Bail</button>
+                                            data-confirm="Bail from all @block.Count() days?" class="confirm-btn">Bail</button>
                                 </form>
                             </div>
                         }
@@ -125,7 +125,7 @@
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="signupId" value="@item.Signup.Id" />
                                                     <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                            onclick="return confirm('Are you sure you want to bail?')">Bail</button>
+                                                            data-confirm="Are you sure you want to bail?" class="confirm-btn">Bail</button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -246,15 +246,34 @@
                     <p class="text-muted">Subscribe to your shifts in your calendar app:</p>
                     <div class="input-group mb-2">
                         <input type="text" class="form-control" id="icalUrl" value="@Model.ICalUrl" readonly />
-                        <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('icalUrl').value)">Copy</button>
+                        <button class="btn btn-outline-secondary" type="button" id="copyIcalBtn">Copy</button>
                     </div>
                     <form asp-action="RegenerateIcal" method="post" class="d-inline">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-sm btn-outline-warning"
-                                onclick="return confirm('This will invalidate the current URL. Continue?')">Regenerate URL</button>
+                                data-confirm="This will invalidate the current URL. Continue?" class="confirm-btn">Regenerate URL</button>
                     </form>
                 </div>
             </div>
         }
     }
 </div>
+
+<script>
+(function() {
+    document.querySelectorAll('.confirm-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            if (!confirm(this.dataset.confirm)) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    var copyBtn = document.getElementById('copyIcalBtn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(document.getElementById('icalUrl').value);
+        });
+    }
+})();
+</script>

@@ -28,6 +28,10 @@ Hard rules for code review. Every item here is a **reject** — if any of these 
 
 - **Every POST form must include `@Html.AntiForgeryToken()`.** Every POST action must have `[ValidateAntiForgeryToken]`. No exceptions.
 
+## Content Security Policy
+
+- **No inline event handlers.** Never use `onclick`, `onsubmit`, `onchange` etc. in HTML attributes — CSP blocks them. Use `data-*` attributes and attach event listeners in a nonce'd `<script>` block. Pattern: `data-confirm="message"` + `.addEventListener('click', ...)` in the page's script section.
+
 ## Dead Code
 
 - **No unused variables, unreachable code, or orphan imports** in committed code. If a reviewer spots `var x = ...; // never read`, it's a reject.

@@ -19,8 +19,7 @@ public class RotaConfiguration : IEntityTypeConfiguration<Rota>
 
         builder.Property(e => e.Period)
             .HasConversion<string>()
-            .HasMaxLength(50)
-            .HasDefaultValue(RotaPeriod.Event);
+            .HasMaxLength(50);
 
         builder.Property(e => e.PracticalInfo)
             .HasMaxLength(2000);
