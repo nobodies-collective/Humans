@@ -21,6 +21,7 @@ public class TeamController : Controller
     private readonly ITeamResourceService _teamResourceService;
     private readonly IGoogleSyncService _googleSyncService;
     private readonly ISystemTeamSync _systemTeamSync;
+    private readonly IShiftManagementService _shiftMgmt;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly IConfiguration _configuration;
     private readonly ILogger<TeamController> _logger;
@@ -32,6 +33,7 @@ public class TeamController : Controller
         ITeamResourceService teamResourceService,
         IGoogleSyncService googleSyncService,
         ISystemTeamSync systemTeamSync,
+        IShiftManagementService shiftMgmt,
         IStringLocalizer<SharedResource> localizer,
         IConfiguration configuration,
         ILogger<TeamController> logger)
@@ -42,6 +44,7 @@ public class TeamController : Controller
         _teamResourceService = teamResourceService;
         _googleSyncService = googleSyncService;
         _systemTeamSync = systemTeamSync;
+        _shiftMgmt = shiftMgmt;
         _localizer = localizer;
         _configuration = configuration;
         _logger = logger;
@@ -162,6 +165,30 @@ public class TeamController : Controller
         // Load role definitions for roster section
         var roleDefinitions = await _teamService.GetRoleDefinitionsAsync(team.Id);
 
+        // Load shifts summary for departments (parent teams that aren't system teams)
+        ShiftsSummaryCardViewModel? shiftsSummary = null;
+        if (team.ParentTeamId == null && team.SystemTeamType == SystemTeamType.None)
+        {
+            var es = await _shiftMgmt.GetActiveAsync();
+            if (es != null)
+            {
+                var summaryData = await _shiftMgmt.GetShiftsSummaryAsync(es.Id, team.Id);
+                if (summaryData != null)
+                {
+                    var canManageShifts = await _shiftMgmt.CanManageShiftsAsync(user.Id, team.Id);
+                    shiftsSummary = new ShiftsSummaryCardViewModel
+                    {
+                        TotalSlots = summaryData.TotalSlots,
+                        ConfirmedCount = summaryData.ConfirmedCount,
+                        PendingCount = summaryData.PendingCount,
+                        UniqueVolunteerCount = summaryData.UniqueVolunteerCount,
+                        ShiftsUrl = Url.Action("Index", "ShiftAdmin", new { slug })!,
+                        CanManageShifts = canManageShifts
+                    };
+                }
+            }
+        }
+
         var viewModel = new TeamDetailViewModel
         {
             Id = team.Id,
@@ -211,7 +238,8 @@ public class TeamController : Controller
             CanCurrentUserManage = canManage,
             CanCurrentUserEditTeam = isBoardMember || isAdmin || isTeamsAdmin,
             CurrentUserPendingRequestId = pendingRequest?.Id,
-            PendingRequestCount = pendingRequestCount
+            PendingRequestCount = pendingRequestCount,
+            ShiftsSummary = shiftsSummary
         };
 
         return View(viewModel);

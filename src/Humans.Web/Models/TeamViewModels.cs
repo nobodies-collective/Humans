@@ -60,6 +60,7 @@ public class TeamDetailViewModel
     public bool CanCurrentUserEditTeam { get; set; }
     public Guid? CurrentUserPendingRequestId { get; set; }
     public int PendingRequestCount { get; set; }
+    public ShiftsSummaryCardViewModel? ShiftsSummary { get; set; }
 }
 
 public class TeamMemberViewModel

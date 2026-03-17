@@ -24,6 +24,8 @@ public class HumanController : Controller
     private readonly IAuditLogService _auditLogService;
     private readonly IOnboardingService _onboardingService;
     private readonly IRoleAssignmentService _roleAssignmentService;
+    private readonly IShiftSignupService _shiftSignupService;
+    private readonly IShiftManagementService _shiftMgmt;
     private readonly IClock _clock;
     private readonly IStringLocalizer<SharedResource> _localizer;
     private readonly HumansDbContext _dbContext;
@@ -35,6 +37,8 @@ public class HumanController : Controller
         IAuditLogService auditLogService,
         IOnboardingService onboardingService,
         IRoleAssignmentService roleAssignmentService,
+        IShiftSignupService shiftSignupService,
+        IShiftManagementService shiftMgmt,
         IClock clock,
         IStringLocalizer<SharedResource> localizer,
         HumansDbContext dbContext)
@@ -45,6 +49,8 @@ public class HumanController : Controller
         _auditLogService = auditLogService;
         _onboardingService = onboardingService;
         _roleAssignmentService = roleAssignmentService;
+        _shiftSignupService = shiftSignupService;
+        _shiftMgmt = shiftMgmt;
         _clock = clock;
         _localizer = localizer;
         _dbContext = dbContext;
@@ -67,6 +73,40 @@ public class HumanController : Controller
         }
 
         var isOwnProfile = viewer.Id == id;
+
+        // Load no-show history for coordinators/NoInfoAdmin/Admin viewing other profiles
+        List<NoShowHistoryItem>? noShowHistory = null;
+        if (!isOwnProfile)
+        {
+            var viewerIsCoordinator = (await _shiftMgmt.GetCoordinatorDepartmentIdsAsync(viewer.Id)).Count > 0;
+            var viewerIsNoInfoAdmin = User.IsInRole(RoleNames.NoInfoAdmin);
+            var viewerIsAdmin = User.IsInRole(RoleNames.Admin);
+
+            if (viewerIsCoordinator || viewerIsNoInfoAdmin || viewerIsAdmin)
+            {
+                var noShows = await _shiftSignupService.GetNoShowHistoryAsync(id);
+                if (noShows.Count > 0)
+                {
+                    var es = noShows[0].Shift.Rota.EventSettings;
+                    var tz = DateTimeZoneProviders.Tzdb[es.TimeZoneId];
+                    noShowHistory = noShows.Select(s =>
+                    {
+                        var shiftStart = s.Shift.GetAbsoluteStart(es);
+                        var zoned = shiftStart.InZone(tz);
+                        return new NoShowHistoryItem
+                        {
+                            ShiftTitle = s.Shift.Title,
+                            DepartmentName = s.Shift.Rota.Team?.Name ?? "",
+                            ShiftDateLabel = zoned.ToString("ddd MMM d HH:mm", null),
+                            MarkedByName = s.ReviewedByUser?.DisplayName,
+                            MarkedAtLabel = s.ReviewedAt?.InZone(tz).ToString("MMM d HH:mm", null)
+                        };
+                    }).ToList();
+                }
+            }
+        }
+
+        ViewBag.NoShowHistory = noShowHistory;
 
         // The ProfileCard ViewComponent handles all data fetching and permission checks.
         var viewModel = new ProfileViewModel

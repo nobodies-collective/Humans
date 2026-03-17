@@ -56,6 +56,43 @@
 
         <vc:profile-card user-id="@Model.UserId" view-mode="@(Model.IsOwnProfile ? ProfileCardViewMode.Self : ProfileCardViewMode.Public)" />
 
+        @{
+            var noShowHistory = ViewBag.NoShowHistory as List<Humans.Web.Models.NoShowHistoryItem>;
+        }
+        @if (noShowHistory != null && noShowHistory.Count > 0)
+        {
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fa-solid fa-user-xmark me-1"></i> No-Show History (@noShowHistory.Count)</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Shift</th>
+                                <th>Department</th>
+                                <th>Date</th>
+                                <th>Marked By</th>
+                                <th>Marked At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in noShowHistory)
+                            {
+                                <tr>
+                                    <td>@item.ShiftTitle</td>
+                                    <td>@item.DepartmentName</td>
+                                    <td>@item.ShiftDateLabel</td>
+                                    <td>@item.MarkedByName</td>
+                                    <td>@item.MarkedAtLabel</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
         @if (Model.IsOwnProfile && Model.CampaignGrants.Any())
         {
             <div class="card mb-3">
