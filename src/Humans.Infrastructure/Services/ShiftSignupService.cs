@@ -322,6 +322,18 @@ public class ShiftSignupService : IShiftSignupService
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<ShiftSignup>> GetNoShowHistoryAsync(Guid userId)
+    {
+        return await _dbContext.ShiftSignups
+            .AsNoTracking()
+            .Include(s => s.Shift).ThenInclude(sh => sh.Rota).ThenInclude(r => r.Team)
+            .Include(s => s.Shift).ThenInclude(sh => sh.Rota).ThenInclude(r => r.EventSettings)
+            .Include(s => s.ReviewedByUser)
+            .Where(s => s.UserId == userId && s.Status == SignupStatus.NoShow)
+            .OrderByDescending(s => s.ReviewedAt)
+            .ToListAsync();
+    }
+
     private async Task<ShiftSignup?> LoadSignupWithShiftAsync(Guid signupId)
     {
         return await _dbContext.ShiftSignups

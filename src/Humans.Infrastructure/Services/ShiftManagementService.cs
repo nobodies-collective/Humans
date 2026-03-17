@@ -263,6 +263,7 @@ public class ShiftManagementService : IShiftManagementService
             .Include(r => r.EventSettings)
             .Include(r => r.Shifts)
                 .ThenInclude(s => s.ShiftSignups)
+                    .ThenInclude(su => su.User)
             .Where(r => r.TeamId == teamId && r.EventSettingsId == eventSettingsId)
             .OrderBy(r => r.Name)
             .ToListAsync();
@@ -457,5 +458,107 @@ public class ShiftManagementService : IShiftManagementService
         var understaffedMultiplier = confirmedCount < shift.MinVolunteers ? 2 : 1;
 
         return remainingSlots * priorityWeight * durationHours * understaffedMultiplier;
+    }
+
+    // ============================================================
+    // Staffing & Summary
+    // ============================================================
+
+    public async Task<IReadOnlyList<DailyStaffingData>> GetStaffingDataAsync(
+        Guid eventSettingsId, Guid? departmentId = null)
+    {
+        var es = await _dbContext.EventSettings.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == eventSettingsId);
+        if (es == null) return [];
+
+        var tz = DateTimeZoneProviders.Tzdb[es.TimeZoneId];
+
+        // Build period: [BuildStartOffset..-1] and Strike period: [EventEndOffset+1..StrikeEndOffset]
+        var dayOffsets = new List<int>();
+        for (var d = es.BuildStartOffset; d < 0; d++) dayOffsets.Add(d);
+        for (var d = es.EventEndOffset + 1; d <= es.StrikeEndOffset; d++) dayOffsets.Add(d);
+
+        if (dayOffsets.Count == 0) return [];
+
+        var query = _dbContext.Shifts
+            .AsNoTracking()
+            .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
+            .Include(s => s.ShiftSignups)
+            .Where(s => s.Rota.EventSettingsId == eventSettingsId && s.IsActive && s.Rota.IsActive);
+
+        if (departmentId.HasValue)
+            query = query.Where(s => s.Rota.TeamId == departmentId.Value);
+
+        var shifts = await query.ToListAsync();
+        var results = new List<DailyStaffingData>();
+
+        foreach (var dayOffset in dayOffsets)
+        {
+            var dayDate = es.GateOpeningDate.PlusDays(dayOffset);
+            var dayStart = dayDate.AtStartOfDayInZone(tz).ToInstant();
+            var dayEnd = dayDate.PlusDays(1).AtStartOfDayInZone(tz).ToInstant();
+            var period = dayOffset < 0 ? "Build" : "Strike";
+            var dateLabel = dayDate.DayOfWeek.ToString()[..3] + " " + dayDate.ToString("MMM d", null);
+
+            var overlapping = shifts.Where(s =>
+            {
+                var start = s.GetAbsoluteStart(es);
+                var end = s.GetAbsoluteEnd(es);
+                return start < dayEnd && end > dayStart;
+            }).ToList();
+
+            var totalSlots = overlapping.Sum(s => s.MaxVolunteers);
+            var confirmedCount = overlapping
+                .SelectMany(s => s.ShiftSignups)
+                .Where(su => su.Status == SignupStatus.Confirmed)
+                .Select(su => su.UserId)
+                .Distinct()
+                .Count();
+
+            results.Add(new DailyStaffingData(dayOffset, dateLabel, confirmedCount, totalSlots, period));
+        }
+
+        return results;
+    }
+
+    public async Task<ShiftsSummaryData?> GetShiftsSummaryAsync(
+        Guid eventSettingsId, Guid departmentTeamId)
+    {
+        var rotas = await _dbContext.Rotas
+            .AsNoTracking()
+            .Include(r => r.Shifts).ThenInclude(s => s.ShiftSignups)
+            .Where(r => r.EventSettingsId == eventSettingsId && r.TeamId == departmentTeamId)
+            .ToListAsync();
+
+        if (rotas.Count == 0) return null;
+
+        var activeShifts = rotas.SelectMany(r => r.Shifts).Where(s => s.IsActive).ToList();
+        if (activeShifts.Count == 0) return null;
+
+        var allSignups = activeShifts.SelectMany(s => s.ShiftSignups).ToList();
+
+        return new ShiftsSummaryData(
+            TotalSlots: activeShifts.Sum(s => s.MaxVolunteers),
+            ConfirmedCount: allSignups.Count(s => s.Status == SignupStatus.Confirmed),
+            PendingCount: allSignups.Count(s => s.Status == SignupStatus.Pending),
+            UniqueVolunteerCount: allSignups
+                .Where(s => s.Status == SignupStatus.Confirmed)
+                .Select(s => s.UserId)
+                .Distinct()
+                .Count());
+    }
+
+    public async Task<IReadOnlyList<(Guid TeamId, string TeamName)>> GetDepartmentsWithRotasAsync(
+        Guid eventSettingsId)
+    {
+        var teams = await _dbContext.Rotas
+            .AsNoTracking()
+            .Where(r => r.EventSettingsId == eventSettingsId && r.IsActive)
+            .Select(r => new { r.Team.Id, r.Team.Name })
+            .Distinct()
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+
+        return teams.Select(x => (x.Id, x.Name)).ToList();
     }
 }
