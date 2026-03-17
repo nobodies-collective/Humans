@@ -154,17 +154,20 @@ This project uses **Font Awesome 6** (loaded via CDN in `_Layout.cshtml`). Boots
 
 ## Critical: Never Edit EF Core Migration Files
 
-Migration files (`Migrations/*.cs`) are **generated** by `dotnet ef migrations add`. Never manually edit, rename, or rewrite them.
+Migration files (`Migrations/*.cs`) are **generated** by `dotnet ef migrations add`. Never manually edit, rename, or rewrite them. This includes adding `migrationBuilder.Sql()` calls for data cleanup, pre-migration fixups, or any other hand-written code.
 
-**What goes wrong:** If a migration has already been applied to a database and you rename the file or edit its contents, EF Core loses track of it. The database has the old migration ID in `__EFMigrationsHistory`, but the codebase now has a different filename/ID. EF treats the renamed file as a brand new migration and tries to re-create everything that already exists, causing `already exists` errors on every table, column, and index.
+**What goes wrong:** Hand-edited migrations break the Designer/snapshot consistency, cause integration test failures, and create migrations that can't be cleanly removed or regenerated. Even "harmless" SQL additions corrupt the migration because the Designer file no longer matches the actual Up/Down content.
 
-**Rule:** When schema changes are needed after a migration has been committed:
-1. Run `dotnet ef migrations add <NewMigrationName>` — this generates a new migration containing only the diff
-2. Never rename migration files (the timestamp in the filename IS the migration ID)
+**Rule — zero tolerance, no exceptions:**
+1. Run `dotnet ef migrations add <Name>` — commit exactly what it generates
+2. Never add `migrationBuilder.Sql()` calls to generated migrations
 3. Never edit the `Up`/`Down` methods of an existing migration
-4. Never manually write SQL in migration files as a "fix" for migration errors
+4. Never rename migration files (the timestamp IS the migration ID)
+5. Never manually write SQL in migration files for any reason
 
-**If a migration fails because objects already exist**, the database is out of sync with migration history. Fix the root cause (usually a missing `__EFMigrationsHistory` entry or a previously deleted migration), don't patch the migration with `IF NOT EXISTS`.
+**Data cleanup before schema changes:** If data needs to be cleaned up before a column drop (e.g., nulling out references, deleting orphans), do it as a separate operational step — a SQL script run manually before deploying, or an application startup task. Never embed it in the migration.
+
+**If a migration fails because objects already exist**, the database is out of sync with migration history. Fix the root cause (usually a missing `__EFMigrationsHistory` entry or a previously deleted migration), don't patch the migration.
 
 ## View Components vs Partial Views
 
