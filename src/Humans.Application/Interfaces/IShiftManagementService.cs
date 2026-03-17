@@ -89,6 +89,14 @@ public interface IShiftManagementService
     /// </summary>
     Task<IReadOnlyList<Rota>> GetRotasByDepartmentAsync(Guid teamId, Guid eventSettingsId);
 
+    // === Bulk Shift Creation ===
+
+    /// <summary>
+    /// Creates one all-day shift per day for a Build or Strike rota.
+    /// Throws if the rota has Period=Event.
+    /// </summary>
+    Task CreateBuildStrikeShiftsAsync(Guid rotaId, Dictionary<int, (int Min, int Max)> dailyStaffing);
+
     // === Shift ===
 
     /// <summary>

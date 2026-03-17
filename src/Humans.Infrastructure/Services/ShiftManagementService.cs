@@ -264,6 +264,53 @@ public class ShiftManagementService : IShiftManagementService
     }
 
     // ============================================================
+    // Bulk Shift Creation
+    // ============================================================
+
+    public async Task CreateBuildStrikeShiftsAsync(Guid rotaId, Dictionary<int, (int Min, int Max)> dailyStaffing)
+    {
+        var rota = await _dbContext.Rotas
+            .Include(r => r.EventSettings)
+            .FirstOrDefaultAsync(r => r.Id == rotaId);
+
+        if (rota == null) throw new InvalidOperationException("Rota not found");
+        if (rota.Period == RotaPeriod.Event)
+            throw new InvalidOperationException("Build/strike shift generation is only for Build or Strike rotas");
+
+        var es = rota.EventSettings;
+
+        foreach (var dayOffset in dailyStaffing.Keys)
+        {
+            if (rota.Period == RotaPeriod.Build && (dayOffset < es.BuildStartOffset || dayOffset >= 0))
+                throw new InvalidOperationException($"Day offset {dayOffset} is outside the build period ({es.BuildStartOffset} to -1)");
+            if (rota.Period == RotaPeriod.Strike && (dayOffset <= es.EventEndOffset || dayOffset > es.StrikeEndOffset))
+                throw new InvalidOperationException($"Day offset {dayOffset} is outside the strike period ({es.EventEndOffset + 1} to {es.StrikeEndOffset})");
+        }
+
+        var now = _clock.GetCurrentInstant();
+
+        foreach (var (dayOffset, staffing) in dailyStaffing.OrderBy(d => d.Key))
+        {
+            var shift = new Shift
+            {
+                Id = Guid.NewGuid(),
+                RotaId = rotaId,
+                IsAllDay = true,
+                DayOffset = dayOffset,
+                StartTime = new LocalTime(0, 0),
+                Duration = Duration.FromHours(24),
+                MinVolunteers = staffing.Min,
+                MaxVolunteers = staffing.Max,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            _dbContext.Shifts.Add(shift);
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    // ============================================================
     // Shift
     // ============================================================
 
