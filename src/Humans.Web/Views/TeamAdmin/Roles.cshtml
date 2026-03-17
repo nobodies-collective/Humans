@@ -50,6 +50,15 @@
                             <label class="form-label">Sort</label>
                             <input type="number" class="form-control" name="SortOrder" value="@role.SortOrder" />
                         </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Period</label>
+                            <select name="Period" class="form-select">
+                                <option value="YearRound" selected="@(role.Period == RolePeriod.YearRound)">Year-round</option>
+                                <option value="Build" selected="@(role.Period == RolePeriod.Build)">Build</option>
+                                <option value="Event" selected="@(role.Period == RolePeriod.Event)">Event</option>
+                                <option value="Strike" selected="@(role.Period == RolePeriod.Strike)">Strike</option>
+                            </select>
+                        </div>
                         <div class="col-md-1 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary">Save</button>
                         </div>
@@ -189,6 +198,15 @@ else
                 <div class="col-md-1">
                     <label class="form-label">Sort</label>
                     <input type="number" class="form-control" name="SortOrder" value="0" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Period</label>
+                    <select name="Period" class="form-select">
+                        <option value="YearRound" selected>Year-round</option>
+                        <option value="Build">Build</option>
+                        <option value="Event">Event</option>
+                        <option value="Strike">Strike</option>
+                    </select>
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
                     <button type="submit" class="btn btn-success">Add</button>

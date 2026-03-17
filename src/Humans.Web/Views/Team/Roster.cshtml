@@ -25,11 +25,11 @@
             Priority: @(Model.PriorityFilter ?? "All")
         </button>
         <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="@Url.Action("Roster", new { status = Model.StatusFilter })">All</a></li>
-            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "Critical", status = Model.StatusFilter })">Critical</a></li>
-            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "Important", status = Model.StatusFilter })">Important</a></li>
-            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "NiceToHave", status = Model.StatusFilter })">Nice to Have</a></li>
-            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "None", status = Model.StatusFilter })">None</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { status = Model.StatusFilter, period = Model.PeriodFilter })">All</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "Critical", status = Model.StatusFilter, period = Model.PeriodFilter })">Critical</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "Important", status = Model.StatusFilter, period = Model.PeriodFilter })">Important</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "NiceToHave", status = Model.StatusFilter, period = Model.PeriodFilter })">Nice to Have</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = "None", status = Model.StatusFilter, period = Model.PeriodFilter })">None</a></li>
         </ul>
     </div>
     <div class="dropdown">
@@ -37,9 +37,21 @@
             Status: @(Model.StatusFilter ?? "All")
         </button>
         <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter })">All</a></li>
-            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = "Open" })">Open</a></li>
-            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = "Filled" })">Filled</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, period = Model.PeriodFilter })">All</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = "Open", period = Model.PeriodFilter })">Open</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = "Filled", period = Model.PeriodFilter })">Filled</a></li>
+        </ul>
+    </div>
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            Period: @(Model.PeriodFilter ?? "All")
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = Model.StatusFilter })">All</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = Model.StatusFilter, period = "YearRound" })">Year-round</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = Model.StatusFilter, period = "Build" })">Build</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = Model.StatusFilter, period = "Event" })">Event</a></li>
+            <li><a class="dropdown-item" href="@Url.Action("Roster", new { priority = Model.PriorityFilter, status = Model.StatusFilter, period = "Strike" })">Strike</a></li>
         </ul>
     </div>
 </div>

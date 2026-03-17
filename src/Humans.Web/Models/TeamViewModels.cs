@@ -273,6 +273,7 @@ public class TeamRoleDefinitionViewModel
     public List<TeamRoleSlotViewModel> Slots { get; set; } = [];
     public int SortOrder { get; set; }
     public bool IsManagement { get; set; }
+    public RolePeriod Period { get; set; }
 
     /// <summary>
     /// IDs of members already assigned to this role (for filtering dropdowns).
@@ -318,6 +319,7 @@ public class TeamRoleDefinitionViewModel
             Slots = slots,
             SortOrder = d.SortOrder,
             IsManagement = d.IsManagement,
+            Period = d.Period,
             AssignedUserIds = assignedUserIds
         };
     }
@@ -354,6 +356,7 @@ public class CreateRoleDefinitionModel
     public int SlotCount { get; set; } = 1;
     public List<string> Priorities { get; set; } = ["None"];
     public int SortOrder { get; set; }
+    public RolePeriod Period { get; set; } = RolePeriod.YearRound;
 }
 
 public class EditRoleDefinitionModel
@@ -364,6 +367,7 @@ public class EditRoleDefinitionModel
     public List<string> Priorities { get; set; } = [];
     public int SortOrder { get; set; }
     public bool IsManagement { get; set; }
+    public RolePeriod Period { get; set; } = RolePeriod.YearRound;
 }
 
 public class AssignRoleModel
@@ -376,6 +380,7 @@ public class RosterSummaryViewModel
     public List<RosterSlotViewModel> Slots { get; set; } = [];
     public string? PriorityFilter { get; set; }
     public string? StatusFilter { get; set; }
+    public string? PeriodFilter { get; set; }
 }
 
 public class RosterSlotViewModel
@@ -388,6 +393,7 @@ public class RosterSlotViewModel
     public int SlotNumber { get; set; }
     public string Priority { get; set; } = string.Empty;
     public string PriorityBadgeClass { get; set; } = string.Empty;
+    public string Period { get; set; } = "YearRound";
     public bool IsFilled { get; set; }
     public string? AssignedUserName { get; set; }
 }
