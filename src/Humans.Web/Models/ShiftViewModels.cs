@@ -170,6 +170,7 @@ public class MyShiftsViewModel
     public List<MySignupItem> Pending { get; set; } = [];
     public List<MySignupItem> Past { get; set; } = [];
     public string? ICalUrl { get; set; }
+    public List<int> AvailableDayOffsets { get; set; } = [];
 }
 
 public class MySignupItem
@@ -273,6 +274,7 @@ public class VolunteerSearchResult
     public string? DietaryPreference { get; set; }
     public int BookedShiftCount { get; set; }
     public bool HasOverlap { get; set; }
+    public bool IsInPool { get; set; }
     public string? MedicalConditions { get; set; }
 }
 

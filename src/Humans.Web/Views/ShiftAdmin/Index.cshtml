@@ -584,6 +584,7 @@
                             html += '<div class="d-flex justify-content-between align-items-center border-bottom py-2">';
                             html += '<div><strong>' + escapeHtml(v.displayName) + '</strong>';
                             html += ' <small class="text-muted">(' + v.bookedShiftCount + ' shifts)</small>';
+                            if (v.isInPool) html += ' <span class="badge bg-success">Pool</span>';
                             if (v.hasOverlap) html += ' <span class="badge bg-warning text-dark">Overlap</span>';
                             html += '<div class="mt-1">';
                             (v.skills || []).forEach(function(s) { html += '<span class="badge bg-info me-1">' + escapeHtml(s) + '</span>'; });

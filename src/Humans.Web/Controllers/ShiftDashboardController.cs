@@ -19,6 +19,7 @@ public class ShiftDashboardController : Controller
 {
     private readonly IShiftManagementService _shiftMgmt;
     private readonly IShiftSignupService _signupService;
+    private readonly IGeneralAvailabilityService _availabilityService;
     private readonly IProfileService _profileService;
     private readonly UserManager<User> _userManager;
     private readonly ILogger<ShiftDashboardController> _logger;
@@ -26,12 +27,14 @@ public class ShiftDashboardController : Controller
     public ShiftDashboardController(
         IShiftManagementService shiftMgmt,
         IShiftSignupService signupService,
+        IGeneralAvailabilityService availabilityService,
         IProfileService profileService,
         UserManager<User> userManager,
         ILogger<ShiftDashboardController> logger)
     {
         _shiftMgmt = shiftMgmt;
         _signupService = signupService;
+        _availabilityService = availabilityService;
         _profileService = profileService;
         _userManager = userManager;
         _logger = logger;
@@ -138,6 +141,9 @@ public class ShiftDashboardController : Controller
 
         var canViewMedical = User.IsInRole(RoleNames.NoInfoAdmin) || User.IsInRole(RoleNames.Admin);
 
+        var poolVolunteers = await _availabilityService.GetAvailableForDayAsync(es.Id, shift.DayOffset);
+        var poolUserIds = poolVolunteers.Select(p => p.UserId).ToHashSet();
+
         var results = new List<VolunteerSearchResult>();
         foreach (var user in users)
         {
@@ -162,6 +168,7 @@ public class ShiftDashboardController : Controller
                 DietaryPreference = profile?.DietaryPreference,
                 BookedShiftCount = confirmedSignups.Count,
                 HasOverlap = hasOverlap,
+                IsInPool = poolUserIds.Contains(user.Id),
                 MedicalConditions = profile?.MedicalConditions
             });
         }

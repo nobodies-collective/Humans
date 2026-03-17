@@ -19,6 +19,7 @@ public class ShiftAdminController : Controller
     private readonly ITeamService _teamService;
     private readonly IShiftManagementService _shiftMgmt;
     private readonly IShiftSignupService _signupService;
+    private readonly IGeneralAvailabilityService _availabilityService;
     private readonly IProfileService _profileService;
     private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
@@ -28,6 +29,7 @@ public class ShiftAdminController : Controller
         ITeamService teamService,
         IShiftManagementService shiftMgmt,
         IShiftSignupService signupService,
+        IGeneralAvailabilityService availabilityService,
         IProfileService profileService,
         UserManager<User> userManager,
         IClock clock,
@@ -36,6 +38,7 @@ public class ShiftAdminController : Controller
         _teamService = teamService;
         _shiftMgmt = shiftMgmt;
         _signupService = signupService;
+        _availabilityService = availabilityService;
         _profileService = profileService;
         _userManager = userManager;
         _clock = clock;
@@ -469,6 +472,10 @@ public class ShiftAdminController : Controller
 
             var canViewMedical = User.IsInRole(RoleNames.NoInfoAdmin) || User.IsInRole(RoleNames.Admin);
 
+            // Load pool data for this shift's day
+            var poolVolunteers = await _availabilityService.GetAvailableForDayAsync(es.Id, shift.DayOffset);
+            var poolUserIds = poolVolunteers.Select(p => p.UserId).ToHashSet();
+
             var results = new List<VolunteerSearchResult>();
             foreach (var user in users)
             {
@@ -493,6 +500,7 @@ public class ShiftAdminController : Controller
                     DietaryPreference = profile?.DietaryPreference,
                     BookedShiftCount = confirmed.Count,
                     HasOverlap = hasOverlap,
+                    IsInPool = poolUserIds.Contains(user.Id),
                     MedicalConditions = profile?.MedicalConditions
                 });
             }

@@ -18,17 +18,20 @@ public class ShiftsController : Controller
 {
     private readonly IShiftManagementService _shiftMgmt;
     private readonly IShiftSignupService _signupService;
+    private readonly IGeneralAvailabilityService _availabilityService;
     private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
 
     public ShiftsController(
         IShiftManagementService shiftMgmt,
         IShiftSignupService signupService,
+        IGeneralAvailabilityService availabilityService,
         UserManager<User> userManager,
         IClock clock)
     {
         _shiftMgmt = shiftMgmt;
         _signupService = signupService;
+        _availabilityService = availabilityService;
         _userManager = userManager;
         _clock = clock;
     }
@@ -272,6 +275,14 @@ public class ShiftsController : Controller
         model.Pending = model.Pending.OrderBy(s => s.AbsoluteStart).ToList();
         model.Past = model.Past.OrderByDescending(s => s.AbsoluteStart).ToList();
 
+        // Load general availability
+        if (es != null)
+        {
+            var availability = await _availabilityService.GetByUserAsync(user.Id, es.Id);
+            if (availability != null)
+                model.AvailableDayOffsets = availability.AvailableDayOffsets;
+        }
+
         // Generate iCal token on first access
         if (user.ICalToken == null)
         {
@@ -281,6 +292,21 @@ public class ShiftsController : Controller
         model.ICalUrl = $"{Request.Scheme}://{Request.Host}/ICal/{user.ICalToken}.ics";
 
         return View(model);
+    }
+
+    [HttpPost("Mine/Availability")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveAvailability(List<int>? dayOffsets)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return Challenge();
+
+        var es = await _shiftMgmt.GetActiveAsync();
+        if (es == null) return BadRequest("No active event.");
+
+        await _availabilityService.SetAvailabilityAsync(user.Id, es.Id, dayOffsets ?? []);
+        TempData["SuccessMessage"] = "Availability updated.";
+        return RedirectToAction(nameof(Mine));
     }
 
     [HttpPost("Mine/RegenerateIcal")]
