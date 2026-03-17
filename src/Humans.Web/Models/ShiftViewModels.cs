@@ -48,12 +48,15 @@ public class CreateRotaModel
 
     public ShiftPriority Priority { get; set; }
     public SignupPolicy Policy { get; set; }
+    public RotaPeriod Period { get; set; } = RotaPeriod.Event;
+
+    [MaxLength(2000)]
+    public string? PracticalInfo { get; set; }
 }
 
 public class EditRotaModel : CreateRotaModel
 {
     public Guid RotaId { get; set; }
-    public bool IsActive { get; set; } = true;
 }
 
 // === Shift ===
@@ -61,9 +64,6 @@ public class EditRotaModel : CreateRotaModel
 public class CreateShiftModel
 {
     public Guid RotaId { get; set; }
-
-    [Required, MaxLength(256)]
-    public string Title { get; set; } = string.Empty;
 
     [MaxLength(2000)]
     public string? Description { get; set; }
@@ -83,7 +83,6 @@ public class CreateShiftModel
 public class EditShiftModel : CreateShiftModel
 {
     public Guid ShiftId { get; set; }
-    public bool IsActive { get; set; } = true;
 }
 
 // === Browse ===
@@ -261,7 +260,7 @@ public class ShiftsSummaryCardViewModel
 
 public class NoShowHistoryItem
 {
-    public string ShiftTitle { get; set; } = string.Empty;
+    public string ShiftLabel { get; set; } = string.Empty;
     public string DepartmentName { get; set; } = string.Empty;
     public string ShiftDateLabel { get; set; } = string.Empty;
     public string? MarkedByName { get; set; }
