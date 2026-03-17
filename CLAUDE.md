@@ -14,6 +14,7 @@ Manage the full membership lifecycle for Nobodies Collective: volunteer applicat
 - JSON serialization requirements
 - String comparison rules
 - **NodaTime for all dates/times** (`Instant`, `LocalDate`, etc.)
+- **Every new page MUST have a nav link.** If you add a controller action that returns a view, add a link to it from the nav menu or a contextual link from a related page. No orphan pages.
 
 ## Architecture
 

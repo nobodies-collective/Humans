@@ -8,7 +8,9 @@
 }
 
 @{
-    var antiForgeryHtml = Html.AntiForgeryToken().ToString();
+    var antiForgeryWriter = new System.IO.StringWriter();
+    Html.AntiForgeryToken().WriteTo(antiForgeryWriter, System.Text.Encodings.Web.HtmlEncoder.Default);
+    var antiForgeryHtml = antiForgeryWriter.ToString();
 }
 
 <div class="container py-4">

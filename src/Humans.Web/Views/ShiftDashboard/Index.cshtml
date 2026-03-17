@@ -5,7 +5,9 @@
 
 @{
     ViewData["Title"] = "Shift Dashboard";
-    var antiForgeryHtml = Html.AntiForgeryToken().ToString();
+    var antiForgeryWriter = new System.IO.StringWriter();
+    Html.AntiForgeryToken().WriteTo(antiForgeryWriter, System.Text.Encodings.Web.HtmlEncoder.Default);
+    var antiForgeryHtml = antiForgeryWriter.ToString();
     var searchUrl = Url.Action(nameof(ShiftDashboardController.SearchVolunteers), "ShiftDashboard");
     var voluntellUrl = Url.Action(nameof(ShiftDashboardController.Voluntell), "ShiftDashboard");
 }
