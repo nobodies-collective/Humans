@@ -1,0 +1,60 @@
+@using Humans.Application.Interfaces
+@model (List<DailyStaffingData> Data, string ChartId)
+
+@if (Model.Data.Count > 0)
+{
+    <div class="card mb-4">
+        <div class="card-header"><h6 class="mb-0">Build / Strike Staffing</h6></div>
+        <div class="card-body">
+            <canvas id="@Model.ChartId" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+    if (typeof Chart === 'undefined') {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+        s.onload = function() { window['render_@(Model.ChartId)'](); };
+        document.head.appendChild(s);
+    } else {
+        document.addEventListener('DOMContentLoaded', function() { window['render_@(Model.ChartId)'](); });
+    }
+
+    window['render_@(Model.ChartId)'] = function() {
+        var data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Data));
+        var labels = data.map(function(d) { return d.dateLabel; });
+        var confirmed = data.map(function(d) { return d.confirmedCount; });
+        var remaining = data.map(function(d) { return Math.max(0, d.totalSlots - d.confirmedCount); });
+
+        var confirmedColors = data.map(function(d) {
+            if (d.totalSlots === 0) return '#198754';
+            var pct = d.confirmedCount / d.totalSlots;
+            if (pct >= 0.8) return '#198754';
+            if (pct >= 0.5) return '#ffc107';
+            return '#dc3545';
+        });
+
+        new Chart(document.getElementById('@Model.ChartId'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Confirmed', data: confirmed, backgroundColor: confirmedColors },
+                    { label: 'Remaining', data: remaining, backgroundColor: '#e9ecef' }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            afterTitle: function(items) { return data[items[0].dataIndex].period; }
+                        }
+                    }
+                }
+            }
+        });
+    };
+    </script>
+}
