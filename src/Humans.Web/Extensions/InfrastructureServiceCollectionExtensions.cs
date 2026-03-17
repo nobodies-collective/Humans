@@ -95,7 +95,6 @@ public static class InfrastructureServiceCollectionExtensions
         // Shift management services
         services.AddScoped<IShiftManagementService, ShiftManagementService>();
         services.AddScoped<IShiftSignupService, ShiftSignupService>();
-        services.AddScoped<SignupGarbageCollectionJob>();
 
         // Ticket vendor integration
         services.Configure<TicketVendorSettings>(opts =>
