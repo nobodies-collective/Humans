@@ -18,6 +18,9 @@ public class ShiftSignupConfiguration : IEntityTypeConfiguration<ShiftSignup>
 
         builder.Property(d => d.StatusReason).HasMaxLength(1000);
 
+        builder.Property(e => e.SignupBlockId);
+        builder.HasIndex(e => e.SignupBlockId);
+
         builder.HasIndex(d => d.UserId);
         builder.HasIndex(d => d.ShiftId);
         builder.HasIndex(d => new { d.ShiftId, d.Status });

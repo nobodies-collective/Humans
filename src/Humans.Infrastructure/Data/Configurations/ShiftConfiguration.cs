@@ -12,8 +12,8 @@ public class ShiftConfiguration : IEntityTypeConfiguration<Shift>
         builder.ToTable("shifts");
         builder.HasKey(s => s.Id);
 
-        builder.Property(s => s.Title).HasMaxLength(256).IsRequired();
         builder.Property(s => s.Description).HasMaxLength(2000);
+        builder.Property(e => e.IsAllDay).HasDefaultValue(false);
 
         builder.Property(s => s.Duration)
             .HasConversion(

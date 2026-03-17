@@ -1,4 +1,5 @@
 using Humans.Domain.Entities;
+using Humans.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,6 +16,14 @@ public class RotaConfiguration : IEntityTypeConfiguration<Rota>
         builder.Property(r => r.Description).HasMaxLength(2000);
         builder.Property(r => r.Priority).HasConversion<string>().HasMaxLength(50).IsRequired();
         builder.Property(r => r.Policy).HasConversion<string>().HasMaxLength(50).IsRequired();
+
+        builder.Property(e => e.Period)
+            .HasConversion<string>()
+            .HasMaxLength(50)
+            .HasDefaultValue(RotaPeriod.Event);
+
+        builder.Property(e => e.PracticalInfo)
+            .HasMaxLength(2000);
 
         builder.HasIndex(r => new { r.EventSettingsId, r.TeamId });
 
