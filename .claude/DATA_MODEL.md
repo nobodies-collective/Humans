@@ -19,7 +19,7 @@
 | TeamJoinRequest | Requests to join a team |
 | TeamJoinRequestStateHistory | Audit trail of TeamJoinRequest state transitions |
 | GoogleResource | Shared Drive folder + Group provisioning |
-| TeamRoleDefinition | Named role slots on a team (name, description, slot count, priorities, IsManagement flag) |
+| TeamRoleDefinition | Named role slots on a team (name, description, slot count, priorities, IsManagement flag, Period) |
 | TeamRoleAssignment | Assigns a team member to a specific slot in a role definition |
 | AuditLogEntry | **APPEND-ONLY** system audit trail (user actions, sync ops) |
 | Camp | Camp core entity (contact, slug, flags) |
@@ -37,9 +37,10 @@
 | TicketAttendee | Individual ticket holder (issued ticket, multiple per order) |
 | TicketSyncState | Singleton tracking ticket sync operational state |
 | EventSettings | Singleton event config — dates, timezone, EE capacity, caps |
-| Rota | Shift container — belongs to department + event |
-| Shift | Single work slot — DayOffset + StartTime + Duration |
-| ShiftSignup | Links User to Shift with state machine (Pending/Confirmed/Refused/Bailed/Cancelled/NoShow) |
+| Rota | Shift container — belongs to department + event, with Period (Build/Event/Strike) and optional PracticalInfo |
+| Shift | Single work slot — DayOffset + StartTime + Duration + IsAllDay flag |
+| ShiftSignup | Links User to Shift with state machine (Pending/Confirmed/Refused/Bailed/Cancelled/NoShow), optional SignupBlockId for range signups |
+| GeneralAvailability | Per-user per-event day availability (AvailableDayOffsets stored as jsonb) |
 | VolunteerEventProfile | Per-event volunteer profile with skills, dietary, medical data |
 
 ## Relationships
@@ -106,6 +107,8 @@ ShiftSignup n──1 User (volunteer)
 ShiftSignup n──1 User (EnrolledByUser, optional)
 ShiftSignup n──1 User (ReviewedByUser, optional)
 EmailOutboxMessage n──1 ShiftSignup (optional)
+GeneralAvailability n──1 User
+GeneralAvailability n──1 EventSettings
 VolunteerEventProfile n──1 User
 VolunteerEventProfile n──1 EventSettings
 ```
@@ -346,6 +349,31 @@ Includes onboarding redesign actions:
 - `TierApplicationRejected` — Board rejected a tier application
 - `TierDowngraded` — Admin downgraded a member's tier
 - `MembershipsRevokedOnDeletionRequest` — GDPR deletion revoked memberships
+
+### RotaPeriod
+
+Explicit period set on a Rota by the coordinator. Drives creation UX (all-day vs time-slotted) and signup UX (date-range vs individual). Distinct from computed `ShiftPeriod`.
+
+| Value | Int | Description |
+|-------|-----|-------------|
+| Build | 0 | Build period — all-day shifts, date-range signup |
+| Event | 1 | Event period — time-slotted shifts, individual signup |
+| Strike | 2 | Strike period — all-day shifts, date-range signup |
+
+Stored as string via `HasConversion<string>()`.
+
+### RolePeriod
+
+Period tag on a TeamRoleDefinition indicating when the role is active. Used for roster page filtering.
+
+| Value | Int | Description |
+|-------|-----|-------------|
+| YearRound | 0 | Active year-round |
+| Build | 1 | Active during build period |
+| Event | 2 | Active during event period |
+| Strike | 3 | Active during strike period |
+
+Stored as string via `HasConversion<string>()`.
 
 ## Constants
 
