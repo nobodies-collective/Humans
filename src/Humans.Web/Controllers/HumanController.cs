@@ -87,19 +87,19 @@ public class HumanController : Controller
                 var noShows = await _shiftSignupService.GetNoShowHistoryAsync(id);
                 if (noShows.Count > 0)
                 {
-                    var es = noShows[0].Shift.Rota.EventSettings;
-                    var tz = DateTimeZoneProviders.Tzdb[es.TimeZoneId];
                     noShowHistory = noShows.Select(s =>
                     {
-                        var shiftStart = s.Shift.GetAbsoluteStart(es);
-                        var zoned = shiftStart.InZone(tz);
+                        var signupEs = s.Shift.Rota.EventSettings;
+                        var signupTz = DateTimeZoneProviders.Tzdb[signupEs.TimeZoneId];
+                        var shiftStart = s.Shift.GetAbsoluteStart(signupEs);
+                        var zoned = shiftStart.InZone(signupTz);
                         return new NoShowHistoryItem
                         {
                             ShiftTitle = s.Shift.Title,
                             DepartmentName = s.Shift.Rota.Team?.Name ?? "",
                             ShiftDateLabel = zoned.ToString("ddd MMM d HH:mm", null),
                             MarkedByName = s.ReviewedByUser?.DisplayName,
-                            MarkedAtLabel = s.ReviewedAt?.InZone(tz).ToString("MMM d HH:mm", null)
+                            MarkedAtLabel = s.ReviewedAt?.InZone(signupTz).ToString("MMM d HH:mm", null)
                         };
                     }).ToList();
                 }

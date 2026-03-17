@@ -2,7 +2,6 @@
 @using Humans.Application.Interfaces
 @using Humans.Domain.Entities
 @using Humans.Domain.Enums
-@using NodaTime
 
 @{
     ViewData["Title"] = $"Shifts - {Model.Department.Name}";
@@ -165,7 +164,7 @@
                                 @foreach (var shift in rota.Shifts.OrderBy(s => s.DayOffset).ThenBy(s => s.StartTime))
                                 {
                                     var shiftEnd = shift.GetAbsoluteEnd(Model.EventSettings);
-                                    var now = SystemClock.Instance.GetCurrentInstant();
+                                    var now = Model.Now;
                                     var isPast = now > shiftEnd;
                                     var shiftSignups = shift.ShiftSignups
                                         .Where(su => su.Status == SignupStatus.Confirmed || su.Status == SignupStatus.NoShow || su.Status == SignupStatus.Bailed)

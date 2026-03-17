@@ -101,7 +101,8 @@ public class ShiftAdminController : Controller
             CanApproveSignups = canApprove,
             VolunteerProfiles = profileDict,
             CanViewMedical = canViewMedical,
-            StaffingData = staffingData.ToList()
+            StaffingData = staffingData.ToList(),
+            Now = _clock.GetCurrentInstant()
         };
 
         return View(model);
@@ -358,14 +359,16 @@ public class ShiftAdminController : Controller
         var shiftEnd = shift.GetAbsoluteEnd(es);
 
         var users = await _userManager.Users
-            .Where(u => u.DisplayName.Contains(query))
+            .Where(u => EF.Functions.ILike(u.DisplayName, "%" + query + "%"))
             .Take(10)
             .ToListAsync();
+
+        var canViewMedical = User.IsInRole(RoleNames.NoInfoAdmin) || User.IsInRole(RoleNames.Admin);
 
         var results = new List<VolunteerSearchResult>();
         foreach (var user in users)
         {
-            var profile = await _profileService.GetShiftProfileAsync(user.Id, includeMedical: false);
+            var profile = await _profileService.GetShiftProfileAsync(user.Id, includeMedical: canViewMedical);
             var userSignups = await _signupService.GetByUserAsync(user.Id, es.Id);
             var confirmed = userSignups.Where(s => s.Status == SignupStatus.Confirmed).ToList();
 
@@ -385,7 +388,8 @@ public class ShiftAdminController : Controller
                 Languages = profile?.Languages ?? [],
                 DietaryPreference = profile?.DietaryPreference,
                 BookedShiftCount = confirmed.Count,
-                HasOverlap = hasOverlap
+                HasOverlap = hasOverlap,
+                MedicalConditions = profile?.MedicalConditions
             });
         }
 

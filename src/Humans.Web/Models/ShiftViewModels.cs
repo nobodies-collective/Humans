@@ -164,6 +164,7 @@ public class ShiftAdminViewModel
     public Dictionary<Guid, VolunteerEventProfile> VolunteerProfiles { get; set; } = new();
     public bool CanViewMedical { get; set; }
     public List<DailyStaffingData> StaffingData { get; set; } = [];
+    public Instant Now { get; set; }
 }
 
 // === Homepage ===
@@ -241,6 +242,7 @@ public class VolunteerSearchResult
     public string? DietaryPreference { get; set; }
     public int BookedShiftCount { get; set; }
     public bool HasOverlap { get; set; }
+    public string? MedicalConditions { get; set; }
 }
 
 // === Shifts Summary Card ===

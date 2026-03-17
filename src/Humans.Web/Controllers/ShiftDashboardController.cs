@@ -120,14 +120,16 @@ public class ShiftDashboardController : Controller
         var shiftEnd = shift.GetAbsoluteEnd(es);
 
         var users = await _userManager.Users
-            .Where(u => u.DisplayName.Contains(query))
+            .Where(u => EF.Functions.ILike(u.DisplayName, "%" + query + "%"))
             .Take(10)
             .ToListAsync();
+
+        var canViewMedical = User.IsInRole(RoleNames.NoInfoAdmin) || User.IsInRole(RoleNames.Admin);
 
         var results = new List<VolunteerSearchResult>();
         foreach (var user in users)
         {
-            var profile = await _profileService.GetShiftProfileAsync(user.Id, includeMedical: false);
+            var profile = await _profileService.GetShiftProfileAsync(user.Id, includeMedical: canViewMedical);
             var userSignups = await _signupService.GetByUserAsync(user.Id, es.Id);
             var confirmedSignups = userSignups.Where(s => s.Status == SignupStatus.Confirmed).ToList();
 
@@ -147,7 +149,8 @@ public class ShiftDashboardController : Controller
                 Languages = profile?.Languages ?? [],
                 DietaryPreference = profile?.DietaryPreference,
                 BookedShiftCount = confirmedSignups.Count,
-                HasOverlap = hasOverlap
+                HasOverlap = hasOverlap,
+                MedicalConditions = profile?.MedicalConditions
             });
         }
 
