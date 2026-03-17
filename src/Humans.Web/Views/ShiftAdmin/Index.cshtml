@@ -1,8 +1,15 @@
 @model Humans.Web.Models.ShiftAdminViewModel
+@using Humans.Application.Interfaces
+@using Humans.Domain.Entities
 @using Humans.Domain.Enums
+@using NodaTime
 
 @{
     ViewData["Title"] = $"Shifts - {Model.Department.Name}";
+}
+
+@{
+    var antiForgeryHtml = Html.AntiForgeryToken().ToString();
 }
 
 <div class="container py-4">
@@ -23,6 +30,9 @@
 
     <vc:temp-data-alerts />
 
+    @* Build/Strike Staffing Chart *@
+    @await Html.PartialAsync("_StaffingChart", (Model.StaffingData, "deptStaffingChart"))
+
     @* Pending Approvals *@
     @if (Model.PendingSignups.Count > 0 && Model.CanApproveSignups)
     {
@@ -34,13 +44,19 @@
                 <div class="table-responsive">
                     <table class="table table-sm">
                         <thead>
-                            <tr><th>Human</th><th>Shift</th><th>Submitted</th><th></th></tr>
+                            <tr><th>Human</th><th>Profile</th><th>Shift</th><th>Submitted</th><th></th></tr>
                         </thead>
                         <tbody>
                             @foreach (var signup in Model.PendingSignups)
                             {
                                 <tr>
                                     <td>@signup.User?.DisplayName</td>
+                                    <td>
+                                        @{
+                                            var pendingProfile = Model.VolunteerProfiles.GetValueOrDefault(signup.UserId);
+                                        }
+                                        @await Html.PartialAsync("_VolunteerProfileBadges", (pendingProfile, Model.CanViewMedical))
+                                    </td>
                                     <td>@signup.Shift.Title</td>
                                     <td>@signup.CreatedAt</td>
                                     <td>
@@ -148,6 +164,14 @@
                             <tbody>
                                 @foreach (var shift in rota.Shifts.OrderBy(s => s.DayOffset).ThenBy(s => s.StartTime))
                                 {
+                                    var shiftEnd = shift.GetAbsoluteEnd(Model.EventSettings);
+                                    var now = SystemClock.Instance.GetCurrentInstant();
+                                    var isPast = now > shiftEnd;
+                                    var shiftSignups = shift.ShiftSignups
+                                        .Where(su => su.Status == SignupStatus.Confirmed || su.Status == SignupStatus.NoShow || su.Status == SignupStatus.Bailed)
+                                        .OrderBy(su => su.Status)
+                                        .ThenBy(su => su.User?.DisplayName, StringComparer.OrdinalIgnoreCase)
+                                        .ToList();
                                     <tr class="@(!shift.IsActive ? "table-secondary" : "")">
                                         <td>
                                             @shift.Title
@@ -191,6 +215,14 @@
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-sm btn-outline-secondary">Deactivate</button>
                                                 </form>
+                                            }
+                                            @if (Model.CanApproveSignups && shift.IsActive && !isPast)
+                                            {
+                                                var voluntellBtnId = "dept-voluntell-" + shift.Id.ToString("N");
+                                                <button class="btn btn-sm btn-outline-success ms-1" type="button"
+                                                        data-bs-toggle="collapse" data-bs-target="#@voluntellBtnId">
+                                                    Voluntell
+                                                </button>
                                             }
                                         </td>
                                     </tr>
@@ -244,6 +276,67 @@
                                                         </div>
                                                     </div>
                                                 </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                    @if (isPast && shiftSignups.Count > 0 && Model.CanApproveSignups)
+                                    {
+                                        var signupsCollapseId = "signups-" + shift.Id.ToString("N");
+                                        <tr>
+                                            <td colspan="6">
+                                                <button class="btn btn-sm btn-outline-info" type="button"
+                                                        data-bs-toggle="collapse" data-bs-target="#@signupsCollapseId">
+                                                    Signups (@shiftSignups.Count)
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr class="collapse" id="@signupsCollapseId">
+                                            <td colspan="6">
+                                                <div class="p-2">
+                                                    @foreach (var signup in shiftSignups)
+                                                    {
+                                                        <div class="d-flex justify-content-between align-items-center border-bottom py-1">
+                                                            <div>
+                                                                <span>@signup.User?.DisplayName</span>
+                                                                @{
+                                                                    var signupProfile = Model.VolunteerProfiles.GetValueOrDefault(signup.UserId);
+                                                                }
+                                                                @await Html.PartialAsync("_VolunteerProfileBadges", (signupProfile, Model.CanViewMedical))
+                                                                @if (signup.Status == SignupStatus.NoShow)
+                                                                {
+                                                                    <span class="badge bg-danger ms-1">No-Show</span>
+                                                                }
+                                                                else if (signup.Status == SignupStatus.Bailed)
+                                                                {
+                                                                    <span class="badge bg-secondary ms-1 text-muted">Bailed</span>
+                                                                }
+                                                            </div>
+                                                            @if (signup.Status == SignupStatus.Confirmed)
+                                                            {
+                                                                <form asp-action="MarkNoShow" asp-route-slug="@Model.Department.Slug" asp-route-signupId="@signup.Id" method="post" class="d-inline">
+                                                                    @Html.AntiForgeryToken()
+                                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Mark No-Show</button>
+                                                                </form>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                    @if (Model.CanApproveSignups && shift.IsActive && !isPast)
+                                    {
+                                        var voluntellCollapseId = "dept-voluntell-" + shift.Id.ToString("N");
+                                        <tr class="collapse" id="@voluntellCollapseId">
+                                            <td colspan="6">
+                                                <div class="p-3 bg-light">
+                                                    <div class="input-group mb-2" style="max-width: 400px;">
+                                                        <input type="text" class="form-control dept-voluntell-search"
+                                                               data-shift-id="@shift.Id"
+                                                               placeholder="Search by name (min 2 chars)..." />
+                                                    </div>
+                                                    <div class="dept-voluntell-results" data-shift-id="@shift.Id"></div>
+                                                </div>
                                             </td>
                                         </tr>
                                     }
@@ -349,3 +442,52 @@
         </div>
     }
 </div>
+
+<script>
+(function() {
+    var debounceTimers = {};
+    var slug = '@Model.Department.Slug';
+    var tokenHtml = '@Html.Raw(antiForgeryHtml?.Replace("'", "\\'"))';
+
+    document.querySelectorAll('.dept-voluntell-search').forEach(function(input) {
+        input.addEventListener('input', function() {
+            var shiftId = this.dataset.shiftId;
+            var query = this.value.trim();
+            var resultsDiv = document.querySelector('.dept-voluntell-results[data-shift-id="' + shiftId + '"]');
+
+            clearTimeout(debounceTimers[shiftId]);
+            if (query.length < 2) { resultsDiv.innerHTML = ''; return; }
+
+            debounceTimers[shiftId] = setTimeout(function() {
+                fetch('/Teams/' + slug + '/Shifts/SearchVolunteers?shiftId=' + encodeURIComponent(shiftId) + '&query=' + encodeURIComponent(query))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.length === 0) { resultsDiv.innerHTML = '<p class="text-muted mb-0">No results.</p>'; return; }
+                        var html = '';
+                        data.forEach(function(v) {
+                            html += '<div class="d-flex justify-content-between align-items-center border-bottom py-2">';
+                            html += '<div><strong>' + escapeHtml(v.displayName) + '</strong>';
+                            html += ' <small class="text-muted">(' + v.bookedShiftCount + ' shifts)</small>';
+                            if (v.hasOverlap) html += ' <span class="badge bg-warning text-dark">Overlap</span>';
+                            html += '<div class="mt-1">';
+                            (v.skills || []).forEach(function(s) { html += '<span class="badge bg-info me-1">' + escapeHtml(s) + '</span>'; });
+                            (v.quirks || []).forEach(function(s) { html += '<span class="badge bg-secondary me-1">' + escapeHtml(s) + '</span>'; });
+                            if (v.dietaryPreference) html += '<span class="badge bg-success me-1">' + escapeHtml(v.dietaryPreference) + '</span>';
+                            (v.languages || []).forEach(function(s) { html += '<span class="badge bg-primary me-1">' + escapeHtml(s) + '</span>'; });
+                            html += '</div></div>';
+                            html += '<form method="post" action="/Teams/' + slug + '/Shifts/Voluntell">';
+                            html += tokenHtml;
+                            html += '<input type="hidden" name="shiftId" value="' + shiftId + '" />';
+                            html += '<input type="hidden" name="userId" value="' + v.userId + '" />';
+                            html += '<button type="submit" class="btn btn-sm btn-primary">Assign</button>';
+                            html += '</form></div>';
+                        });
+                        resultsDiv.innerHTML = html;
+                    });
+            }, 300);
+        });
+    });
+
+    function escapeHtml(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+})();
+</script>

@@ -6,6 +6,7 @@ using Humans.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using NodaTime;
 
 namespace Humans.Web.Controllers;
@@ -17,6 +18,7 @@ public class ShiftAdminController : Controller
     private readonly ITeamService _teamService;
     private readonly IShiftManagementService _shiftMgmt;
     private readonly IShiftSignupService _signupService;
+    private readonly IProfileService _profileService;
     private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
 
@@ -24,12 +26,14 @@ public class ShiftAdminController : Controller
         ITeamService teamService,
         IShiftManagementService shiftMgmt,
         IShiftSignupService signupService,
+        IProfileService profileService,
         UserManager<User> userManager,
         IClock clock)
     {
         _teamService = teamService;
         _shiftMgmt = shiftMgmt;
         _signupService = signupService;
+        _profileService = profileService;
         _userManager = userManager;
         _clock = clock;
     }
@@ -67,6 +71,24 @@ public class ShiftAdminController : Controller
             }
         }
 
+        // Batch-load volunteer event profiles for signup display
+        var allUserIds = rotas.SelectMany(r => r.Shifts)
+            .SelectMany(s => s.ShiftSignups)
+            .Select(su => su.UserId)
+            .Distinct()
+            .ToList();
+
+        var canViewMedical = User.IsInRole(RoleNames.NoInfoAdmin) || User.IsInRole(RoleNames.Admin);
+        var profileDict = new Dictionary<Guid, VolunteerEventProfile>();
+        foreach (var uid in allUserIds)
+        {
+            var profile = await _profileService.GetShiftProfileAsync(uid, includeMedical: canViewMedical);
+            if (profile != null)
+                profileDict[uid] = profile;
+        }
+
+        var staffingData = await _shiftMgmt.GetStaffingDataAsync(es.Id, team.Id);
+
         var model = new ShiftAdminViewModel
         {
             Department = team,
@@ -76,7 +98,10 @@ public class ShiftAdminController : Controller
             TotalSlots = totalSlots,
             ConfirmedCount = confirmedCount,
             CanManageShifts = canManage,
-            CanApproveSignups = canApprove
+            CanApproveSignups = canApprove,
+            VolunteerProfiles = profileDict,
+            CanViewMedical = canViewMedical,
+            StaffingData = staffingData.ToList()
         };
 
         return View(model);
@@ -308,6 +333,80 @@ public class ShiftAdminController : Controller
         var result = await _signupService.MarkNoShowAsync(signupId, userId.Value);
         TempData[result.Success ? "SuccessMessage" : "ErrorMessage"] =
             result.Success ? "Marked as no-show." : result.Error;
+
+        return RedirectToAction(nameof(Index), new { slug });
+    }
+
+    [HttpGet("SearchVolunteers")]
+    public async Task<IActionResult> SearchVolunteers(string slug, Guid shiftId, string? query)
+    {
+        var (team, userId) = await ResolveTeamAndUserAsync(slug);
+        if (team == null || userId == null) return NotFound();
+        if (!await _shiftMgmt.CanApproveSignupsAsync(userId.Value, team.Id)) return Forbid();
+
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+            return Json(Array.Empty<VolunteerSearchResult>());
+
+        var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
+        if (shift == null) return NotFound();
+        if (shift.Rota.TeamId != team.Id) return NotFound();
+
+        var es = shift.Rota.EventSettings ?? await _shiftMgmt.GetActiveAsync();
+        if (es == null) return NotFound();
+
+        var shiftStart = shift.GetAbsoluteStart(es);
+        var shiftEnd = shift.GetAbsoluteEnd(es);
+
+        var users = await _userManager.Users
+            .Where(u => u.DisplayName.Contains(query))
+            .Take(10)
+            .ToListAsync();
+
+        var results = new List<VolunteerSearchResult>();
+        foreach (var user in users)
+        {
+            var profile = await _profileService.GetShiftProfileAsync(user.Id, includeMedical: false);
+            var userSignups = await _signupService.GetByUserAsync(user.Id, es.Id);
+            var confirmed = userSignups.Where(s => s.Status == SignupStatus.Confirmed).ToList();
+
+            var hasOverlap = confirmed.Any(s =>
+            {
+                var sStart = s.Shift.GetAbsoluteStart(es);
+                var sEnd = s.Shift.GetAbsoluteEnd(es);
+                return shiftStart < sEnd && shiftEnd > sStart;
+            });
+
+            results.Add(new VolunteerSearchResult
+            {
+                UserId = user.Id,
+                DisplayName = user.DisplayName,
+                Skills = profile?.Skills ?? [],
+                Quirks = profile?.Quirks ?? [],
+                Languages = profile?.Languages ?? [],
+                DietaryPreference = profile?.DietaryPreference,
+                BookedShiftCount = confirmed.Count,
+                HasOverlap = hasOverlap
+            });
+        }
+
+        return Json(results);
+    }
+
+    [HttpPost("Voluntell")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Voluntell(string slug, Guid shiftId, Guid userId)
+    {
+        var (team, currentUserId) = await ResolveTeamAndUserAsync(slug);
+        if (team == null || currentUserId == null) return NotFound();
+        if (!await _shiftMgmt.CanApproveSignupsAsync(currentUserId.Value, team.Id)) return Forbid();
+
+        var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
+        if (shift == null) return NotFound();
+        if (shift.Rota.TeamId != team.Id) return NotFound();
+
+        var result = await _signupService.VoluntellAsync(userId, shiftId, currentUserId.Value);
+        TempData[result.Success ? "SuccessMessage" : "ErrorMessage"] =
+            result.Success ? "Volunteer assigned to shift." : result.Error;
 
         return RedirectToAction(nameof(Index), new { slug });
     }
