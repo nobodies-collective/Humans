@@ -109,7 +109,7 @@ public class TeamController : Controller
             MyTeams = myTeams,
             Departments = departments,
             SystemTeams = systemTeams,
-            CanCreateTeam = isBoardMember
+            CanCreateTeam = isBoardMember || User.IsInRole("TeamsAdmin") || User.IsInRole("Admin")
         };
 
         return View(viewModel);
@@ -661,7 +661,7 @@ public class TeamController : Controller
     }
 
     [HttpGet("Create")]
-    [Authorize(Roles = "Board,Admin")]
+    [Authorize(Roles = "Board,Admin,TeamsAdmin")]
     public async Task<IActionResult> CreateTeam(CancellationToken cancellationToken)
     {
         var model = new CreateTeamViewModel
@@ -672,7 +672,7 @@ public class TeamController : Controller
     }
 
     [HttpPost("Create")]
-    [Authorize(Roles = "Board,Admin")]
+    [Authorize(Roles = "Board,Admin,TeamsAdmin")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateTeam(CreateTeamViewModel model)
     {
