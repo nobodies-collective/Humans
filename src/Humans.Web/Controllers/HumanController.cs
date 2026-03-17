@@ -472,8 +472,8 @@ public class HumanController : Controller
             UserId = id,
             UserDisplayName = user.DisplayName,
             AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
-                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.NoInfoAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.NoInfoAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
         };
 
         return View(viewModel);
@@ -496,8 +496,8 @@ public class HumanController : Controller
             model.UserId = id;
             model.UserDisplayName = user.DisplayName;
             model.AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
-                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator];
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.NoInfoAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.NoInfoAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator];
             return View(model);
         }
 

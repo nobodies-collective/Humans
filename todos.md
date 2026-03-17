@@ -1,17 +1,33 @@
 # Release TODOs
 
 Audit date: 2026-02-05
-Last synced: 2026-03-10T09:00
+Last synced: 2026-03-17T17:00
 
 ---
 
 ## Open Work — Prioritized
+
+### Priority 1: Bugs / User-Reported Issues
+
+#### #136: Add camp application self-service: cancel, change lead, undo skip season
+User-reported UX dead-ends: no way to cancel a pending camp application, can't change primary lead, "Skip this season" has no undo, and "Add co-lead" button crashes. Labels: bug, enhancement.
+
+#### #134: Standardize role authorization to prevent Identity/RoleAssignments mismatch
+Two role-checking systems (ASP.NET Identity claims vs RoleAssignments table) can disagree. Need a single source of truth. Label: bug.
 
 ### Priority 2: Small-Medium Enhancements
 
 #### #77: Reasons why an Asociado is accepted (or applying)
 Board members voting on Asociado applications should be required to select which bylaw criteria the applicant meets. Optionally, the applicant could also state their reasons when applying.
 
+#### #133: Add clickable lead profiles on barrio pages and auto-create Camp Leads system team
+Camp/barrio pages should link lead names to their profiles. Auto-create a "Camp Leads" system team for the season. Label: enhancement.
+
+#### #127: Add incomplete signup lifecycle — reminders and auto-deletion
+Send reminders to humans who signed up but never completed profile/consent, auto-delete after configurable period. Label: enhancement.
+
+#### #97: Add communication preference management with magic-link unsubscribe
+Let humans manage email notification preferences with magic-link unsubscribe support. Label: enhancement.
 
 ---
 
@@ -19,6 +35,12 @@ Board members voting on Asociado applications should be required to select which
 
 #### #111: Add organizational email account management (@nobodies.team)
 Three parts: (1) Associate @nobodies.team emails with humans and force as primary for communication + Google services, (2) Admin UI to provision @nobodies.team accounts via Google Workspace, (3) Subtle badge on profiles for humans with @nobodies.team accounts.
+
+#### #126: Add Stripe fee tracking to ticket vendor integration
+Track Stripe processing fees on ticket purchases for financial reporting. Label: enhancement.
+
+#### #116: Add per-team Google Drive permission level configuration
+Configure Drive permission levels (viewer/commenter/editor) per team instead of global default. Label: enhancement.
 
 ### Blocked — Waiting on External Input
 
@@ -29,6 +51,9 @@ Dedicated page for app-specific operational disclosures (delegated coordinator r
 ---
 
 ### Priority 4: Architecture / Refactoring
+
+#### #102: Codebase audit: tech debt, test gaps, and cleanup opportunities
+Comprehensive audit of codebase quality. Label: enhancement.
 
 
 ### Priority 5: UI/Navigation Improvements
@@ -52,6 +77,15 @@ Formal member voting system: Yes/No votes with configurable voting periods (defa
 
 #### #83: Add other OAuth options, additional to Google
 Currently only Google OAuth login. Add email/password option (and potentially other OAuth providers) for users without Google accounts.
+
+#### #99: Add local username/password authentication
+Standard email/password auth for users without Google. Overlaps #83.
+
+#### #98: Add magic-link email authentication for non-Google users
+Passwordless magic-link login via email for non-Google users.
+
+#### #100: Add SSO/JWT token issuance for nobodies.team services
+Issue JWT tokens for authenticated humans to use across nobodies.team services.
 
 ---
 
@@ -118,6 +152,24 @@ Two OpenTelemetry packages pinned to beta versions. Check for stable releases or
 ---
 
 ## Completed
+
+### #135: Add shift management system (Slices 1-3) DONE
+Shift management for camps/events: shift definitions, volunteer signup, coordinator management. Committed `23b0ec1`.
+
+### #130: Add team hierarchy (departments) and rename Leads to Coordinators DONE
+Teams can now be sub-teams of departments. Leads renamed to Coordinators. IsManagement flag on roles. Multiple follow-up fixes for slugs, checkbox state, demotion logic. Committed across 15+ commits, closed 2026-03-16.
+
+### #117: Add ticket vendor integration — coupon tracking, purchase matching, code generation DONE
+Ticket vendor integration for coupon tracking and purchase matching. Closed 2026-03-15.
+
+### #115: Fix membership status model — dashboard counts don't match admin page DONE
+Fixed membership status model discrepancies between dashboard and admin counts. Closed 2026-03-15.
+
+### #113: Show campaign grants on admin human detail page DONE
+Campaign grant information visible on admin human detail page. Closed 2026-03-15.
+
+### #112: Add preferred language distribution chart to board dashboard DONE
+Language distribution chart on board dashboard. Closed 2026-03-15.
 
 ### #93: Merge pending requests into Manage Members page DONE
 Consolidated `/Teams/{slug}/Requests` into `/Teams/{slug}/Members`. Pending requests shown at top with approve/reject, members below. Removed standalone Requests page and view. Updated all navigation links. Committed `88c1065`.

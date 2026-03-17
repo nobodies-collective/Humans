@@ -778,7 +778,8 @@
   <data name="AdminAddRole_BoardDesc" xml:space="preserve"><value>Permisos de miembro de la junta</value></data>
   <data name="AdminAddRole_TeamsAdminDesc" xml:space="preserve"><value>Gestionar todos los equipos y membresías</value></data>
   <data name="AdminAddRole_ConsentCoordinatorDesc" xml:space="preserve"><value>Verificaciones de seguridad durante la incorporación</value></data>
-  <data name="AdminAddRole_VolunteerCoordinatorDesc" xml:space="preserve"><value>Contacto de facilitación de incorporación</value></data>
+  <data name="AdminAddRole_VolunteerCoordinatorDesc" xml:space="preserve"><value>Facilitación de incorporación, gestión de turnos global</value></data>
+  <data name="AdminAddRole_NoInfoAdminDesc" xml:space="preserve"><value>Aprobar inscripciones en turnos, ver datos médicos de voluntarios</value></data>
   <data name="AdminAddRole_NotesLabel" xml:space="preserve"><value>Notas (opcional)</value></data>
   <data name="AdminAddRole_NotesPlaceholder" xml:space="preserve"><value>Motivo de la asignaci&#xF3;n</value></data>
 

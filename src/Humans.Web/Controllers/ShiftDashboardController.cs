@@ -40,7 +40,7 @@ public class ShiftDashboardController : Controller
     [HttpGet("")]
     public async Task<IActionResult> Index(Guid? departmentId, string? date)
     {
-        if (!User.IsInRole(RoleNames.NoInfoAdmin) && !User.IsInRole(RoleNames.Admin))
+        if (!User.IsInRole(RoleNames.NoInfoAdmin) && !User.IsInRole(RoleNames.Admin) && !User.IsInRole(RoleNames.VolunteerCoordinator))
             return Forbid();
 
         var es = await _shiftMgmt.GetActiveAsync();
@@ -84,7 +84,7 @@ public class ShiftDashboardController : Controller
     [HttpGet("SearchVolunteers")]
     public async Task<IActionResult> SearchVolunteers(Guid shiftId, string? query)
     {
-        if (!User.IsInRole(RoleNames.NoInfoAdmin) && !User.IsInRole(RoleNames.Admin))
+        if (!User.IsInRole(RoleNames.NoInfoAdmin) && !User.IsInRole(RoleNames.Admin) && !User.IsInRole(RoleNames.VolunteerCoordinator))
             return Forbid();
 
         if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
@@ -112,7 +112,7 @@ public class ShiftDashboardController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Voluntell(Guid shiftId, Guid userId)
     {
-        if (!User.IsInRole(RoleNames.NoInfoAdmin) && !User.IsInRole(RoleNames.Admin))
+        if (!User.IsInRole(RoleNames.NoInfoAdmin) && !User.IsInRole(RoleNames.Admin) && !User.IsInRole(RoleNames.VolunteerCoordinator))
             return Forbid();
 
         var currentUser = await _userManager.GetUserAsync(User);

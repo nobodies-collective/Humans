@@ -54,8 +54,9 @@ public class ShiftManagementService : IShiftManagementService
 
     public async Task<bool> CanManageShiftsAsync(Guid userId, Guid departmentTeamId)
     {
-        // Admin can manage all shifts; NoInfoAdmin CANNOT
-        if (await HasActiveRoleAsync(userId, RoleNames.Admin))
+        // Admin and VolunteerCoordinator can manage all shifts system-wide; NoInfoAdmin CANNOT
+        if (await HasActiveRoleAsync(userId, RoleNames.Admin) ||
+            await HasActiveRoleAsync(userId, RoleNames.VolunteerCoordinator))
             return true;
 
         return await IsDeptCoordinatorAsync(userId, departmentTeamId);
@@ -63,9 +64,10 @@ public class ShiftManagementService : IShiftManagementService
 
     public async Task<bool> CanApproveSignupsAsync(Guid userId, Guid departmentTeamId)
     {
-        // Admin and NoInfoAdmin can approve signups
+        // Admin, NoInfoAdmin, and VolunteerCoordinator can approve signups system-wide
         if (await HasActiveRoleAsync(userId, RoleNames.Admin) ||
-            await HasActiveRoleAsync(userId, RoleNames.NoInfoAdmin))
+            await HasActiveRoleAsync(userId, RoleNames.NoInfoAdmin) ||
+            await HasActiveRoleAsync(userId, RoleNames.VolunteerCoordinator))
             return true;
 
         return await IsDeptCoordinatorAsync(userId, departmentTeamId);
