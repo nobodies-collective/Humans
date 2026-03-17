@@ -172,6 +172,35 @@ public class ShiftAdminController : Controller
         return RedirectToAction(nameof(Index), new { slug });
     }
 
+    [HttpPost("Rotas/{rotaId}/ConfigureStaffing")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ConfigureStaffing(string slug, Guid rotaId, StaffingGridModel model)
+    {
+        var (team, userId) = await ResolveTeamAndUserAsync(slug);
+        if (team == null || userId == null) return NotFound();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
+
+        var rota = await _shiftMgmt.GetRotaByIdAsync(rotaId);
+        if (rota == null) return NotFound();
+        if (rota.TeamId != team.Id) return NotFound();
+
+        var dailyStaffing = model.Days.ToDictionary(
+            d => d.DayOffset,
+            d => (d.MinVolunteers, d.MaxVolunteers));
+
+        try
+        {
+            await _shiftMgmt.CreateBuildStrikeShiftsAsync(rotaId, dailyStaffing);
+            TempData["SuccessMessage"] = $"Created {model.Days.Count} shifts for '{rota.Name}'.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index), new { slug });
+    }
+
     [HttpPost("Shifts")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateShift(string slug, CreateShiftModel model)

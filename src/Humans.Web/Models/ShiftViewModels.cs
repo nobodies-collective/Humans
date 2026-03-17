@@ -85,6 +85,21 @@ public class EditShiftModel : CreateShiftModel
     public Guid ShiftId { get; set; }
 }
 
+// === Staffing Grid (Build/Strike) ===
+
+public class StaffingGridModel
+{
+    public Guid RotaId { get; set; }
+    public List<DayStaffingEntry> Days { get; set; } = [];
+}
+
+public class DayStaffingEntry
+{
+    public int DayOffset { get; set; }
+    public int MinVolunteers { get; set; } = 2;
+    public int MaxVolunteers { get; set; } = 5;
+}
+
 // === Browse ===
 
 public class ShiftBrowseViewModel
