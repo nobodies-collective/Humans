@@ -100,6 +100,23 @@ public class DayStaffingEntry
     public int MaxVolunteers { get; set; } = 5;
 }
 
+// === Generate Event Shifts ===
+
+public class GenerateEventShiftsModel
+{
+    public int StartDayOffset { get; set; }
+    public int EndDayOffset { get; set; }
+    public List<TimeSlotEntry> TimeSlots { get; set; } = [];
+    public int MinVolunteers { get; set; } = 2;
+    public int MaxVolunteers { get; set; } = 5;
+}
+
+public class TimeSlotEntry
+{
+    public string StartTime { get; set; } = "08:00";
+    public double DurationHours { get; set; } = 4;
+}
+
 // === Browse ===
 
 public class ShiftBrowseViewModel

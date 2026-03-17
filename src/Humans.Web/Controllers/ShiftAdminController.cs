@@ -201,6 +201,44 @@ public class ShiftAdminController : Controller
         return RedirectToAction(nameof(Index), new { slug });
     }
 
+    [HttpPost("Rotas/{rotaId}/GenerateShifts")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GenerateShifts(string slug, Guid rotaId, GenerateEventShiftsModel model)
+    {
+        var (team, userId) = await ResolveTeamAndUserAsync(slug);
+        if (team == null || userId == null) return NotFound();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
+
+        var rota = await _shiftMgmt.GetRotaByIdAsync(rotaId);
+        if (rota == null) return NotFound();
+        if (rota.TeamId != team.Id) return NotFound();
+
+        var timeSlots = new List<(LocalTime StartTime, double DurationHours)>();
+        foreach (var slot in model.TimeSlots)
+        {
+            if (!TimeOnly.TryParse(slot.StartTime, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                TempData["ErrorMessage"] = $"Invalid start time: {slot.StartTime}";
+                return RedirectToAction(nameof(Index), new { slug });
+            }
+            timeSlots.Add((new LocalTime(parsed.Hour, parsed.Minute), slot.DurationHours));
+        }
+
+        try
+        {
+            await _shiftMgmt.GenerateEventShiftsAsync(rotaId, model.StartDayOffset, model.EndDayOffset,
+                timeSlots, model.MinVolunteers, model.MaxVolunteers);
+            var shiftCount = (model.EndDayOffset - model.StartDayOffset + 1) * model.TimeSlots.Count;
+            TempData["SuccessMessage"] = $"Generated {shiftCount} shifts for '{rota.Name}'.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index), new { slug });
+    }
+
     [HttpPost("Shifts")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateShift(string slug, CreateShiftModel model)
