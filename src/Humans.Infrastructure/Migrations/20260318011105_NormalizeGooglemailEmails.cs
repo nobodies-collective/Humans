@@ -17,15 +17,15 @@ namespace Humans.Infrastructure.Migrations
             // to handle any casing of @googlemail.com → @gmail.com
             migrationBuilder.Sql(@"
                 UPDATE users
-                SET email = REGEXP_REPLACE(email, '@googlemail\.com$', '@gmail.com', 'i'),
-                    normalized_email = UPPER(REGEXP_REPLACE(email, '@googlemail\.com$', '@gmail.com', 'i')),
-                    user_name = REGEXP_REPLACE(user_name, '@googlemail\.com$', '@gmail.com', 'i'),
-                    normalized_user_name = UPPER(REGEXP_REPLACE(user_name, '@googlemail\.com$', '@gmail.com', 'i'))
-                WHERE email ILIKE '%@googlemail.com';
+                SET ""Email"" = REGEXP_REPLACE(""Email"", '@googlemail\.com$', '@gmail.com', 'i'),
+                    ""NormalizedEmail"" = UPPER(REGEXP_REPLACE(""Email"", '@googlemail\.com$', '@gmail.com', 'i')),
+                    ""UserName"" = REGEXP_REPLACE(""UserName"", '@googlemail\.com$', '@gmail.com', 'i'),
+                    ""NormalizedUserName"" = UPPER(REGEXP_REPLACE(""UserName"", '@googlemail\.com$', '@gmail.com', 'i'))
+                WHERE ""Email"" ILIKE '%@googlemail.com';
 
                 UPDATE user_emails
-                SET email = REGEXP_REPLACE(email, '@googlemail\.com$', '@gmail.com', 'i')
-                WHERE email ILIKE '%@googlemail.com';
+                SET ""Email"" = REGEXP_REPLACE(""Email"", '@googlemail\.com$', '@gmail.com', 'i')
+                WHERE ""Email"" ILIKE '%@googlemail.com';
             ");
         }
 
