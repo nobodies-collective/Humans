@@ -18,3 +18,4 @@ Tracks when recurring maintenance processes were last run.
 | NuGet full update | 2026-03-08 | 2026-04-08 | Monthly | — | Non-security package updates |
 | About page package sync | 2026-03-08 | 2026-04-08 | Monthly | — | Update `About.cshtml` package versions after NuGet updates |
 | GitHub issue triage | 2026-03-08 | 2026-03-15 | Weekly | — | Sync issues vs todos.md |
+| Access matrix verification | 2026-03-18 | 2026-03-25 | Weekly | — | Compare `AccessMatrixDefinitions.cs` against actual controller auth checks |
