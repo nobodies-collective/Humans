@@ -107,7 +107,7 @@ public class ShiftSignupServiceTests : IDisposable
     {
         var (es, rota, shift1) = SeedShiftScenario(SignupPolicy.Public);
         // Create a second shift at overlapping time (same day, same start)
-        var shift2 = SeedShift(rota, dayOffset: 1, startHour: 10, durationHours: 4, title: "Overlap Shift");
+        var shift2 = SeedShift(rota, dayOffset: 1, startHour: 10, durationHours: 4);
         var userId = Guid.NewGuid();
         SeedSignup(userId, shift1.Id, SignupStatus.Confirmed);
         await _dbContext.SaveChangesAsync();
@@ -117,20 +117,6 @@ public class ShiftSignupServiceTests : IDisposable
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("Time conflict");
-    }
-
-    [Fact]
-    public async Task SignUp_InactiveShift_ReturnsError()
-    {
-        var (es, rota, shift) = SeedShiftScenario(SignupPolicy.Public);
-        shift.IsActive = false;
-        var userId = Guid.NewGuid();
-        await _dbContext.SaveChangesAsync();
-
-        var result = await _service.SignUpAsync(userId, shift.Id);
-
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("not active");
     }
 
     [Fact]
@@ -185,7 +171,7 @@ public class ShiftSignupServiceTests : IDisposable
     public async Task Approve_RevalidatesOverlap_ReturnsWarning()
     {
         var (es, rota, shift1) = SeedShiftScenario(SignupPolicy.RequireApproval);
-        var shift2 = SeedShift(rota, dayOffset: 1, startHour: 10, durationHours: 4, title: "Conflict Shift");
+        var shift2 = SeedShift(rota, dayOffset: 1, startHour: 10, durationHours: 4);
         var userId = Guid.NewGuid();
         // User has confirmed signup for shift1
         SeedSignup(userId, shift1.Id, SignupStatus.Confirmed);
@@ -314,6 +300,92 @@ public class ShiftSignupServiceTests : IDisposable
     }
 
     // ============================================================
+    // SignUpRange
+    // ============================================================
+
+    [Fact]
+    public async Task SignUpRange_CreatesOneSignupPerDay()
+    {
+        // Arrange: rota with 5 all-day shifts (days -5 to -1), user picks days -3 to -1
+        var (es, rota, _) = SeedShiftScenario(SignupPolicy.Public);
+        rota.Period = RotaPeriod.Build;
+        // Add 5 all-day shifts
+        for (var day = -5; day <= -1; day++)
+            SeedAllDayShift(rota, day);
+        var userId = Guid.NewGuid();
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.SignUpRangeAsync(userId, rota.Id, -3, -1);
+
+        // Assert: 3 signups created, all share same SignupBlockId
+        result.Success.Should().BeTrue();
+        var signups = await _dbContext.ShiftSignups
+            .Where(s => s.UserId == userId)
+            .ToListAsync();
+        signups.Should().HaveCount(3);
+        signups.Should().AllSatisfy(s => s.SignupBlockId.Should().NotBeNull());
+        signups.Select(s => s.SignupBlockId).Distinct().Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task SignUpRange_BlocksIfAnyDayOverlaps()
+    {
+        // Arrange: user already has a confirmed signup on day -2
+        var (es, rota, _) = SeedShiftScenario(SignupPolicy.Public);
+        rota.Period = RotaPeriod.Build;
+        for (var day = -5; day <= -1; day++)
+            SeedAllDayShift(rota, day);
+        var userId = Guid.NewGuid();
+        // Find the day -2 shift and create an existing signup
+        await _dbContext.SaveChangesAsync();
+        var dayMinus2Shift = await _dbContext.Shifts
+            .FirstAsync(s => s.RotaId == rota.Id && s.DayOffset == -2);
+        SeedSignup(userId, dayMinus2Shift.Id, SignupStatus.Confirmed);
+        await _dbContext.SaveChangesAsync();
+
+        // Act: try to sign up for days -3 to -1
+        var result = await _service.SignUpRangeAsync(userId, rota.Id, -3, -1);
+
+        // Assert: fails — duplicate signup check catches this before overlap check
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("Already signed up");
+    }
+
+    // ============================================================
+    // BailRange
+    // ============================================================
+
+    [Fact]
+    public async Task BailRange_BailsAllSignupsInBlock()
+    {
+        // Arrange: user signed up for days -3 to -1 (shared SignupBlockId)
+        var (es, rota, _) = SeedShiftScenario(SignupPolicy.Public);
+        rota.Period = RotaPeriod.Build;
+        var shifts = new List<Shift>();
+        for (var day = -3; day <= -1; day++)
+            shifts.Add(SeedAllDayShift(rota, day));
+        var userId = Guid.NewGuid();
+        var blockId = Guid.NewGuid();
+        foreach (var shift in shifts)
+        {
+            var signup = SeedSignup(userId, shift.Id, SignupStatus.Confirmed);
+            signup.SignupBlockId = blockId;
+        }
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        await _service.BailRangeAsync(blockId, userId);
+
+        // Assert: all 3 signups now Bailed
+        var signups = await _dbContext.ShiftSignups
+            .Where(s => s.SignupBlockId == blockId)
+            .ToListAsync();
+        signups.Should().HaveCount(3);
+        signups.Should().AllSatisfy(s => s.Status.Should().Be(SignupStatus.Bailed));
+    }
+
+    // ============================================================
     // Helpers
     // ============================================================
 
@@ -357,7 +429,7 @@ public class ShiftSignupServiceTests : IDisposable
             Name = "Test Rota",
             Priority = priority,
             Policy = policy,
-            IsActive = true,
+            Period = RotaPeriod.Event,
             CreatedAt = TestNow,
             UpdatedAt = TestNow
         };
@@ -371,19 +443,37 @@ public class ShiftSignupServiceTests : IDisposable
         return (es, rota, shift);
     }
 
-    private Shift SeedShift(Rota rota, int dayOffset, int startHour, double durationHours, string title = "Test Shift")
+    private Shift SeedShift(Rota rota, int dayOffset, int startHour, double durationHours)
     {
         var shift = new Shift
         {
             Id = Guid.NewGuid(),
             RotaId = rota.Id,
-            Title = title,
             DayOffset = dayOffset,
             StartTime = new LocalTime(startHour, 0),
             Duration = Duration.FromHours(durationHours),
             MinVolunteers = 2,
             MaxVolunteers = 5,
-            IsActive = true,
+            CreatedAt = TestNow,
+            UpdatedAt = TestNow
+        };
+        shift.Rota = rota;
+        _dbContext.Shifts.Add(shift);
+        return shift;
+    }
+
+    private Shift SeedAllDayShift(Rota rota, int dayOffset)
+    {
+        var shift = new Shift
+        {
+            Id = Guid.NewGuid(),
+            RotaId = rota.Id,
+            DayOffset = dayOffset,
+            IsAllDay = true,
+            StartTime = new LocalTime(0, 0),
+            Duration = Duration.FromHours(24),
+            MinVolunteers = 2,
+            MaxVolunteers = 5,
             CreatedAt = TestNow,
             UpdatedAt = TestNow
         };

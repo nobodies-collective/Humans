@@ -47,7 +47,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Browse Shifts</h2>
         <div class="d-flex gap-2">
-            @if (User.IsInRole(Humans.Domain.Constants.RoleNames.NoInfoAdmin) || User.IsInRole(Humans.Domain.Constants.RoleNames.Admin))
+            @if (User.IsInRole(Humans.Domain.Constants.RoleNames.NoInfoAdmin) || User.IsInRole(Humans.Domain.Constants.RoleNames.Admin) || User.IsInRole(Humans.Domain.Constants.RoleNames.VolunteerCoordinator))
             {
                 <a asp-controller="ShiftDashboard" asp-action="Index" class="btn btn-outline-warning"><i class="fa-solid fa-gauge-high me-1"></i>Dashboard</a>
             }
@@ -104,6 +104,7 @@
                 <div class="card-body">
                     @foreach (var rotaGroup in dept.Rotas)
                     {
+                        var isBuildStrike = rotaGroup.Rota.Period != RotaPeriod.Event;
                         <h6 class="mt-3">@rotaGroup.Rota.Name
                             @if (rotaGroup.Rota.Priority == ShiftPriority.Essential)
                             {
@@ -113,60 +114,139 @@
                             {
                                 <span class="badge bg-warning text-dark ms-1">Important</span>
                             }
+                            <span class="badge @(rotaGroup.Rota.Period == RotaPeriod.Build ? "bg-info" : rotaGroup.Rota.Period == RotaPeriod.Strike ? "bg-secondary" : "bg-success") ms-1">@rotaGroup.Rota.Period</span>
                         </h6>
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Shift</th>
-                                        <th>Phase</th>
-                                        <th>Date</th>
-                                        <th>Time</th>
-                                        <th>Duration</th>
-                                        <th>Filled</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var item in rotaGroup.Shifts)
-                                    {
-                                        var shift = item.Shift;
-                                        var isFull = item.RemainingSlots <= 0;
-                                        var understaffed = item.ConfirmedCount < shift.MinVolunteers;
-                                        <tr class="@(isFull ? "table-secondary" : "")">
-                                            <td>@shift.Title</td>
-                                            <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
-                                            <td>@FormatDate(es, shift.DayOffset)</td>
-                                            <td>@FormatTime(item.AbsoluteStart, tz)</td>
-                                            <td>@(shift.Duration.TotalHours)h</td>
-                                            <td>
-                                                <span class="@(understaffed ? "text-danger fw-bold" : "")">@item.ConfirmedCount</span>
-                                                <small class="text-muted">/ @shift.MinVolunteers–@shift.MaxVolunteers</small>
-                                                @if (understaffed)
-                                                {
-                                                    <span class="badge bg-warning text-dark">Needs help</span>
-                                                }
-                                            </td>
-                                            <td>
-                                                @if (Model.UserSignupShiftIds.Contains(shift.Id))
-                                                {
-                                                    var status = Model.UserSignupStatuses.GetValueOrDefault(shift.Id);
-                                                    <span class="badge bg-info">@status</span>
-                                                }
-                                                else
-                                                {
-                                                    <form asp-action="SignUp" method="post" class="d-inline">
-                                                        @Html.AntiForgeryToken()
-                                                        <input type="hidden" name="shiftId" value="@shift.Id" />
-                                                        <button type="submit" class="btn btn-sm btn-success">Sign Up</button>
-                                                    </form>
-                                                }
-                                            </td>
+                        @if (!string.IsNullOrEmpty(rotaGroup.Rota.PracticalInfo))
+                        {
+                            <p class="text-muted small">@rotaGroup.Rota.PracticalInfo</p>
+                        }
+
+                        @if (isBuildStrike)
+                        {
+                            @* Build/Strike: show date range with per-day fill rates and range signup *@
+                            var allDayShifts = rotaGroup.Shifts.Where(s => s.Shift.IsAllDay).OrderBy(s => s.Shift.DayOffset).ToList();
+                            var availableShifts = allDayShifts.Where(s => s.RemainingSlots > 0 && !Model.UserSignupShiftIds.Contains(s.Shift.Id)).ToList();
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr><th>Date</th><th>Filled</th><th>Status</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in allDayShifts)
+                                        {
+                                            var isFull = item.RemainingSlots <= 0;
+                                            var understaffed = item.ConfirmedCount < item.Shift.MinVolunteers;
+                                            <tr class="@(isFull ? "table-secondary" : "")">
+                                                <td>@FormatDate(es, item.Shift.DayOffset)</td>
+                                                <td>
+                                                    <span class="@(understaffed ? "text-danger fw-bold" : "")">@item.ConfirmedCount</span>
+                                                    <small class="text-muted">/ @item.Shift.MaxVolunteers</small>
+                                                </td>
+                                                <td>
+                                                    @if (Model.UserSignupShiftIds.Contains(item.Shift.Id))
+                                                    {
+                                                        <span class="badge bg-info">Signed up</span>
+                                                    }
+                                                    else if (isFull)
+                                                    {
+                                                        <span class="badge bg-secondary">Full</span>
+                                                    }
+                                                    else if (understaffed)
+                                                    {
+                                                        <span class="badge bg-warning text-dark">Needs help</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            @if (availableShifts.Count > 0)
+                            {
+                                <form asp-action="SignUpRange" method="post" class="row g-2 align-items-end mb-3">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="rotaId" value="@rotaGroup.Rota.Id" />
+                                    <div class="col-auto">
+                                        <label class="form-label form-label-sm">Start</label>
+                                        <select name="startDayOffset" class="form-select form-select-sm">
+                                            @foreach (var s in availableShifts)
+                                            {
+                                                <option value="@s.Shift.DayOffset">@FormatDate(es, s.Shift.DayOffset)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-auto">
+                                        <label class="form-label form-label-sm">End</label>
+                                        <select name="endDayOffset" class="form-select form-select-sm">
+                                            @foreach (var s in availableShifts)
+                                            {
+                                                <option value="@s.Shift.DayOffset" selected="@(s == availableShifts.Last())">@FormatDate(es, s.Shift.DayOffset)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="submit" class="btn btn-sm btn-success">Sign Up for Range</button>
+                                    </div>
+                                </form>
+                            }
+                        }
+                        else
+                        {
+                            @* Event: standard per-shift signup *@
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Shift</th>
+                                            <th>Phase</th>
+                                            <th>Date</th>
+                                            <th>Time</th>
+                                            <th>Duration</th>
+                                            <th>Filled</th>
+                                            <th></th>
                                         </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in rotaGroup.Shifts)
+                                        {
+                                            var shift = item.Shift;
+                                            var isFull = item.RemainingSlots <= 0;
+                                            var understaffed = item.ConfirmedCount < shift.MinVolunteers;
+                                            <tr class="@(isFull ? "table-secondary" : "")">
+                                                <td>@(shift.IsAllDay ? "All day" : $"{shift.StartTime}–{shift.StartTime.PlusMinutes((int)shift.Duration.TotalMinutes)}")</td>
+                                                <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
+                                                <td>@FormatDate(es, shift.DayOffset)</td>
+                                                <td>@FormatTime(item.AbsoluteStart, tz)</td>
+                                                <td>@(shift.Duration.TotalHours)h</td>
+                                                <td>
+                                                    <span class="@(understaffed ? "text-danger fw-bold" : "")">@item.ConfirmedCount</span>
+                                                    <small class="text-muted">/ @shift.MinVolunteers–@shift.MaxVolunteers</small>
+                                                    @if (understaffed)
+                                                    {
+                                                        <span class="badge bg-warning text-dark">Needs help</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (Model.UserSignupShiftIds.Contains(shift.Id))
+                                                    {
+                                                        var status = Model.UserSignupStatuses.GetValueOrDefault(shift.Id);
+                                                        <span class="badge bg-info">@status</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <form asp-action="SignUp" method="post" class="d-inline">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="shiftId" value="@shift.Id" />
+                                                            <button type="submit" class="btn btn-sm btn-success">Sign Up</button>
+                                                        </form>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
                     }
                 </div>
             </div>

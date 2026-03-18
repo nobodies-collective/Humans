@@ -59,6 +59,7 @@ public class HumansDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
     public DbSet<Shift> Shifts => Set<Shift>();
     public DbSet<ShiftSignup> ShiftSignups => Set<ShiftSignup>();
     public DbSet<VolunteerEventProfile> VolunteerEventProfiles => Set<VolunteerEventProfile>();
+    public DbSet<GeneralAvailability> GeneralAvailability => Set<GeneralAvailability>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

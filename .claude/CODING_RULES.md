@@ -154,17 +154,62 @@ This project uses **Font Awesome 6** (loaded via CDN in `_Layout.cshtml`). Boots
 
 ## Critical: Never Edit EF Core Migration Files
 
-Migration files (`Migrations/*.cs`) are **generated** by `dotnet ef migrations add`. Never manually edit, rename, or rewrite them.
+Migration files (`Migrations/*.cs`) are **generated** by `dotnet ef migrations add`. Never manually edit, rename, or rewrite them. This includes adding `migrationBuilder.Sql()` calls for data cleanup, pre-migration fixups, or any other hand-written code.
 
-**What goes wrong:** If a migration has already been applied to a database and you rename the file or edit its contents, EF Core loses track of it. The database has the old migration ID in `__EFMigrationsHistory`, but the codebase now has a different filename/ID. EF treats the renamed file as a brand new migration and tries to re-create everything that already exists, causing `already exists` errors on every table, column, and index.
+**What goes wrong:** Hand-edited migrations break the Designer/snapshot consistency, cause integration test failures, and create migrations that can't be cleanly removed or regenerated. Even "harmless" SQL additions corrupt the migration because the Designer file no longer matches the actual Up/Down content.
 
-**Rule:** When schema changes are needed after a migration has been committed:
-1. Run `dotnet ef migrations add <NewMigrationName>` — this generates a new migration containing only the diff
-2. Never rename migration files (the timestamp in the filename IS the migration ID)
+**Rule — zero tolerance, no exceptions:**
+1. Run `dotnet ef migrations add <Name>` — commit exactly what it generates
+2. Never add `migrationBuilder.Sql()` calls to generated migrations
 3. Never edit the `Up`/`Down` methods of an existing migration
-4. Never manually write SQL in migration files as a "fix" for migration errors
+4. Never rename migration files (the timestamp IS the migration ID)
+5. Never manually write SQL in migration files for any reason
 
-**If a migration fails because objects already exist**, the database is out of sync with migration history. Fix the root cause (usually a missing `__EFMigrationsHistory` entry or a previously deleted migration), don't patch the migration with `IF NOT EXISTS`.
+**Data cleanup before schema changes:** If data needs to be cleaned up before a column drop (e.g., nulling out references, deleting orphans), do it as a separate operational step — a SQL script run manually before deploying, or an application startup task. Never embed it in the migration.
+
+**If a migration fails because objects already exist**, the database is out of sync with migration history. Fix the root cause (usually a missing `__EFMigrationsHistory` entry or a previously deleted migration), don't patch the migration.
+
+## View Components vs Partial Views
+
+ASP.NET Core offers two reusable view mechanisms. Use the right one:
+
+**Use a View Component** (`ViewComponents/FooViewComponent.cs` + `Views/Shared/Components/Foo/Default.cshtml`) when:
+- The component **fetches its own data** via injected services — the parent controller shouldn't need to know about the component's data needs
+- The component has **interactive behavior** with its own JavaScript (autocomplete, search, Chart.js)
+- The component is used across **multiple unrelated pages** that would each need to duplicate data-loading logic
+
+**Use a Partial View** (`Views/Shared/_Foo.cshtml`) when:
+- The component is **pure presentation** — it renders a model the parent already has in hand
+- No service injection or data fetching needed
+- Examples: badge rendering, status labels, simple card layouts
+
+**The rule:** If a parent controller has to fetch data *specifically* to pass to a partial, that partial should be a View Component.
+
+**Existing View Components:** `ProfileCardViewComponent`, `NavBadgesViewComponent`, `UserAvatarViewComponent`, `TempDataAlertsViewComponent`.
+
+**Example — wrong:**
+```csharp
+// Controller fetches shift data just to pass through to a partial
+var shifts = await _shiftService.GetUpcomingForUser(userId);
+var urgent = await _urgencyService.GetTopUrgent(5);
+ViewData["ShiftCards"] = new ShiftCardsViewModel { NextShifts = shifts, UrgentShifts = urgent };
+// Then in the view: @await Html.PartialAsync("_ShiftCards", ViewData["ShiftCards"])
+```
+
+**Example — right:**
+```csharp
+// View Component fetches its own data — controller doesn't know about shifts
+// In the view: @await Component.InvokeAsync("ShiftCards")
+public class ShiftCardsViewComponent : ViewComponent
+{
+    public async Task<IViewComponentResult> InvokeAsync()
+    {
+        var userId = /* resolve from UserClaimsPrincipal */;
+        var shifts = await _shiftService.GetUpcomingForUser(userId);
+        return View(new ShiftCardsViewModel { ... });
+    }
+}
+```
 
 ## Localization (i18n)
 

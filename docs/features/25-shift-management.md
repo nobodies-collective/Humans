@@ -26,10 +26,12 @@ See `docs/specs/shift-management-spec.md` for the full design specification.
 **So that** volunteers can sign up for work slots
 
 **Acceptance Criteria:**
-- Create rota with name, priority (Normal/Important/Essential), and signup policy (Public/RequireApproval)
-- Create shifts with title, day offset, start time, duration, min/max volunteers
+- Create rota with name, period (Build/Event/Strike), priority (Normal/Important/Essential), signup policy (Public/RequireApproval), and optional practical info
+- Build/strike rotas use all-day shifts with date-range signup; event rotas use time-slotted shifts
+- Bulk shift creation: `CreateBuildStrikeShiftsAsync` for build/strike rotas (one all-day shift per day offset with per-day staffing), `GenerateEventShiftsAsync` for event rotas (Cartesian product of day offsets x time slots)
+- Create individual shifts with day offset, start time, duration, min/max volunteers
 - Mark shifts as AdminOnly to restrict to coordinators/admins
-- Deactivate or delete rotas/shifts (delete blocked if confirmed signups exist)
+- Delete rotas/shifts (delete blocked if confirmed signups exist; no deactivate — delete is the only removal path)
 
 ### US-25.3: Volunteer Browses and Signs Up
 **As a** volunteer
@@ -40,7 +42,8 @@ See `docs/specs/shift-management-spec.md` for the full design specification.
 - Browse shifts filtered by department and date
 - See fill status (confirmed count vs max)
 - Sign up for a shift (auto-confirmed for Public policy, pending for RequireApproval)
-- Overlap detection prevents signing up for conflicting time slots
+- Date-range signup for build/strike rotas via `SignUpRangeAsync` — creates signups for all all-day shifts in the range, linked by a shared `SignupBlockId`
+- Overlap detection prevents signing up for conflicting time slots (event shifts)
 - AdminOnly shifts hidden from non-privileged users
 - EE freeze blocks non-privileged build shift signups after early entry close
 
@@ -62,6 +65,7 @@ See `docs/specs/shift-management-spec.md` for the full design specification.
 **Acceptance Criteria:**
 - View upcoming, pending, and past shifts on /Shifts/Mine
 - Bail from confirmed or pending signups
+- Range bail via `BailRangeAsync` — bails all signups sharing a `SignupBlockId` (build/strike date-range signups)
 - Build shift bail blocked after EE close for non-privileged users
 
 ### US-25.6: Post-Event No-Show Tracking
@@ -78,9 +82,10 @@ See `docs/specs/shift-management-spec.md` for the full design specification.
 | Entity | Purpose |
 |--------|---------|
 | `EventSettings` | Singleton event config: dates, timezone, EE capacity, browsing toggle |
-| `Rota` | Shift container per department+event, with priority and signup policy |
-| `Shift` | Single work slot: day offset, time, duration, volunteer min/max |
-| `ShiftSignup` | User-to-shift link with state machine |
+| `Rota` | Shift container per department+event, with period (Build/Event/Strike), priority, signup policy, and practical info |
+| `Shift` | Single work slot: day offset, time, duration, volunteer min/max; IsAllDay flag for build/strike shifts |
+| `ShiftSignup` | User-to-shift link with state machine; SignupBlockId groups range signups |
+| `GeneralAvailability` | Per-user per-event day availability (general volunteer pool) |
 | `VolunteerEventProfile` | Per-event skills, dietary, medical info, email preferences |
 
 ## State Machine (ShiftSignup)

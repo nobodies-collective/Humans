@@ -19,6 +19,7 @@ public class ShiftAdminController : Controller
     private readonly ITeamService _teamService;
     private readonly IShiftManagementService _shiftMgmt;
     private readonly IShiftSignupService _signupService;
+    private readonly IGeneralAvailabilityService _availabilityService;
     private readonly IProfileService _profileService;
     private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
@@ -28,6 +29,7 @@ public class ShiftAdminController : Controller
         ITeamService teamService,
         IShiftManagementService shiftMgmt,
         IShiftSignupService signupService,
+        IGeneralAvailabilityService availabilityService,
         IProfileService profileService,
         UserManager<User> userManager,
         IClock clock,
@@ -36,6 +38,7 @@ public class ShiftAdminController : Controller
         _teamService = teamService;
         _shiftMgmt = shiftMgmt;
         _signupService = signupService;
+        _availabilityService = availabilityService;
         _profileService = profileService;
         _userManager = userManager;
         _clock = clock;
@@ -66,7 +69,7 @@ public class ShiftAdminController : Controller
 
         foreach (var rota in rotas)
         {
-            foreach (var shift in rota.Shifts.Where(s => s.IsActive))
+            foreach (var shift in rota.Shifts)
             {
                 totalSlots += shift.MaxVolunteers;
                 var shiftSignups = await _signupService.GetByShiftAsync(shift.Id);
@@ -138,6 +141,8 @@ public class ShiftAdminController : Controller
             Description = model.Description,
             Priority = model.Priority,
             Policy = model.Policy,
+            Period = model.Period,
+            PracticalInfo = model.PracticalInfo,
             CreatedAt = _clock.GetCurrentInstant()
         };
 
@@ -162,10 +167,78 @@ public class ShiftAdminController : Controller
         rota.Description = model.Description;
         rota.Priority = model.Priority;
         rota.Policy = model.Policy;
-        rota.IsActive = model.IsActive;
+        rota.Period = model.Period;
+        rota.PracticalInfo = model.PracticalInfo;
 
         await _shiftMgmt.UpdateRotaAsync(rota);
         TempData["SuccessMessage"] = $"Rota '{model.Name}' updated.";
+        return RedirectToAction(nameof(Index), new { slug });
+    }
+
+    [HttpPost("Rotas/{rotaId}/ConfigureStaffing")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ConfigureStaffing(string slug, Guid rotaId, StaffingGridModel model)
+    {
+        var (team, userId) = await ResolveTeamAndUserAsync(slug);
+        if (team == null || userId == null) return NotFound();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
+
+        var rota = await _shiftMgmt.GetRotaByIdAsync(rotaId);
+        if (rota == null) return NotFound();
+        if (rota.TeamId != team.Id) return NotFound();
+
+        var dailyStaffing = model.Days.ToDictionary(
+            d => d.DayOffset,
+            d => (d.MinVolunteers, d.MaxVolunteers));
+
+        try
+        {
+            await _shiftMgmt.CreateBuildStrikeShiftsAsync(rotaId, dailyStaffing);
+            TempData["SuccessMessage"] = $"Created {model.Days.Count} shifts for '{rota.Name}'.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index), new { slug });
+    }
+
+    [HttpPost("Rotas/{rotaId}/GenerateShifts")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> GenerateShifts(string slug, Guid rotaId, GenerateEventShiftsModel model)
+    {
+        var (team, userId) = await ResolveTeamAndUserAsync(slug);
+        if (team == null || userId == null) return NotFound();
+        if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
+
+        var rota = await _shiftMgmt.GetRotaByIdAsync(rotaId);
+        if (rota == null) return NotFound();
+        if (rota.TeamId != team.Id) return NotFound();
+
+        var timeSlots = new List<(LocalTime StartTime, double DurationHours)>();
+        foreach (var slot in model.TimeSlots)
+        {
+            if (!TimeOnly.TryParse(slot.StartTime, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                TempData["ErrorMessage"] = $"Invalid start time: {slot.StartTime}";
+                return RedirectToAction(nameof(Index), new { slug });
+            }
+            timeSlots.Add((new LocalTime(parsed.Hour, parsed.Minute), slot.DurationHours));
+        }
+
+        try
+        {
+            await _shiftMgmt.GenerateEventShiftsAsync(rotaId, model.StartDayOffset, model.EndDayOffset,
+                timeSlots, model.MinVolunteers, model.MaxVolunteers);
+            var shiftCount = Math.Max(0, model.EndDayOffset - model.StartDayOffset + 1) * model.TimeSlots.Count;
+            TempData["SuccessMessage"] = $"Generated {shiftCount} shifts for '{rota.Name}'.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
         return RedirectToAction(nameof(Index), new { slug });
     }
 
@@ -198,7 +271,6 @@ public class ShiftAdminController : Controller
         {
             Id = Guid.NewGuid(),
             RotaId = model.RotaId,
-            Title = model.Title,
             Description = model.Description,
             DayOffset = model.DayOffset,
             StartTime = new LocalTime(parsedTime.Hour, parsedTime.Minute),
@@ -212,7 +284,7 @@ public class ShiftAdminController : Controller
         try
         {
             await _shiftMgmt.CreateShiftAsync(shift);
-            TempData["SuccessMessage"] = $"Shift '{model.Title}' created.";
+            TempData["SuccessMessage"] = "Shift created.";
         }
         catch (InvalidOperationException ex)
         {
@@ -240,7 +312,6 @@ public class ShiftAdminController : Controller
             return RedirectToAction(nameof(Index), new { slug });
         }
 
-        shift.Title = model.Title;
         shift.Description = model.Description;
         shift.DayOffset = model.DayOffset;
         shift.StartTime = new LocalTime(parsedTime.Hour, parsedTime.Minute);
@@ -248,40 +319,70 @@ public class ShiftAdminController : Controller
         shift.MinVolunteers = model.MinVolunteers;
         shift.MaxVolunteers = model.MaxVolunteers;
         shift.AdminOnly = model.AdminOnly;
-        shift.IsActive = model.IsActive;
 
         await _shiftMgmt.UpdateShiftAsync(shift);
-        TempData["SuccessMessage"] = $"Shift '{model.Title}' updated.";
+        TempData["SuccessMessage"] = "Shift updated.";
         return RedirectToAction(nameof(Index), new { slug });
     }
 
-    [HttpPost("Rotas/{rotaId}/Deactivate")]
+    [HttpPost("Rotas/{rotaId}/Delete")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeactivateRota(string slug, Guid rotaId)
+    public async Task<IActionResult> DeleteRota(string slug, Guid rotaId)
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
         if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
-        await _shiftMgmt.DeactivateRotaAsync(rotaId);
-        TempData["SuccessMessage"] = "Rota deactivated.";
+        try
+        {
+            await _shiftMgmt.DeleteRotaAsync(rotaId);
+            TempData["SuccessMessage"] = "Rota deleted.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
         return RedirectToAction(nameof(Index), new { slug });
     }
 
-    [HttpPost("Shifts/{shiftId}/Deactivate")]
+    [HttpPost("Shifts/{shiftId}/Delete")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeactivateShift(string slug, Guid shiftId)
+    public async Task<IActionResult> DeleteShift(string slug, Guid shiftId)
     {
         var (team, userId) = await ResolveTeamAndUserAsync(slug);
         if (team == null || userId == null) return NotFound();
         if (!await CanManageAsync(userId.Value, team.Id)) return Forbid();
 
-        var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
-        if (shift == null) return NotFound();
-        if (shift.Rota.TeamId != team.Id) return NotFound();
+        try
+        {
+            await _shiftMgmt.DeleteShiftAsync(shiftId);
+            TempData["SuccessMessage"] = "Shift deleted.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+        return RedirectToAction(nameof(Index), new { slug });
+    }
 
-        await _shiftMgmt.DeactivateShiftAsync(shiftId);
-        TempData["SuccessMessage"] = "Shift deactivated.";
+    [HttpPost("BailRange")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BailRange(string slug, Guid signupBlockId, string? reason)
+    {
+        var (team, userId) = await ResolveTeamAndUserAsync(slug);
+        if (team == null || userId == null) return NotFound();
+        if (!await CanApproveAsync(userId.Value, team.Id)) return Forbid();
+
+        try
+        {
+            await _signupService.BailRangeAsync(signupBlockId, userId.Value, reason);
+            TempData["SuccessMessage"] = "Range bail completed.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ErrorMessage"] = ex.Message;
+        }
+
         return RedirectToAction(nameof(Index), new { slug });
     }
 
@@ -371,6 +472,10 @@ public class ShiftAdminController : Controller
 
             var canViewMedical = User.IsInRole(RoleNames.NoInfoAdmin) || User.IsInRole(RoleNames.Admin);
 
+            // Load pool data for this shift's day
+            var poolVolunteers = await _availabilityService.GetAvailableForDayAsync(es.Id, shift.DayOffset);
+            var poolUserIds = poolVolunteers.Select(p => p.UserId).ToHashSet();
+
             var results = new List<VolunteerSearchResult>();
             foreach (var user in users)
             {
@@ -395,6 +500,7 @@ public class ShiftAdminController : Controller
                     DietaryPreference = profile?.DietaryPreference,
                     BookedShiftCount = confirmed.Count,
                     HasOverlap = hasOverlap,
+                    IsInPool = poolUserIds.Contains(user.Id),
                     MedicalConditions = profile?.MedicalConditions
                 });
             }

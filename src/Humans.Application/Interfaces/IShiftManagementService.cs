@@ -20,13 +20,13 @@ public interface IShiftManagementService
 
     /// <summary>
     /// Whether the user can create/edit shifts and rotas for the department.
-    /// True for dept coordinators and Admin (NOT NoInfoAdmin).
+    /// True for dept coordinators, Admin, and VolunteerCoordinator (NOT NoInfoAdmin).
     /// </summary>
     Task<bool> CanManageShiftsAsync(Guid userId, Guid departmentTeamId);
 
     /// <summary>
     /// Whether the user can approve/refuse signups and voluntell for the department.
-    /// True for dept coordinators, Admin, AND NoInfoAdmin.
+    /// True for dept coordinators, Admin, NoInfoAdmin, AND VolunteerCoordinator.
     /// </summary>
     Task<bool> CanApproveSignupsAsync(Guid userId, Guid departmentTeamId);
 
@@ -75,11 +75,6 @@ public interface IShiftManagementService
     Task UpdateRotaAsync(Rota rota);
 
     /// <summary>
-    /// Deactivates a rota (sets IsActive=false).
-    /// </summary>
-    Task DeactivateRotaAsync(Guid rotaId);
-
-    /// <summary>
     /// Deletes a rota. Throws if child shifts have confirmed signups.
     /// </summary>
     Task DeleteRotaAsync(Guid rotaId);
@@ -94,6 +89,21 @@ public interface IShiftManagementService
     /// </summary>
     Task<IReadOnlyList<Rota>> GetRotasByDepartmentAsync(Guid teamId, Guid eventSettingsId);
 
+    // === Bulk Shift Creation ===
+
+    /// <summary>
+    /// Creates one all-day shift per day for a Build or Strike rota.
+    /// Throws if the rota has Period=Event.
+    /// </summary>
+    Task CreateBuildStrikeShiftsAsync(Guid rotaId, Dictionary<int, (int Min, int Max)> dailyStaffing);
+
+    /// <summary>
+    /// Generates shifts for an Event rota as Cartesian product of days × time slots.
+    /// Throws if the rota has Period != Event.
+    /// </summary>
+    Task GenerateEventShiftsAsync(Guid rotaId, int startDayOffset, int endDayOffset,
+        List<(LocalTime StartTime, double DurationHours)> timeSlots, int minVolunteers = 2, int maxVolunteers = 5);
+
     // === Shift ===
 
     /// <summary>
@@ -105,11 +115,6 @@ public interface IShiftManagementService
     /// Updates an existing shift.
     /// </summary>
     Task UpdateShiftAsync(Shift shift);
-
-    /// <summary>
-    /// Deactivates a shift (sets IsActive=false).
-    /// </summary>
-    Task DeactivateShiftAsync(Guid shiftId);
 
     /// <summary>
     /// Deletes a shift. Throws if confirmed signups exist; cancels pending signups.

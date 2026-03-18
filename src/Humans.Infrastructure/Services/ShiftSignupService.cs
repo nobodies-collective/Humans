@@ -33,7 +33,7 @@ public class ShiftSignupService : IShiftSignupService
         _logger = logger;
     }
 
-    public async Task<SignupResult> SignUpAsync(Guid userId, Guid shiftId, Guid? actorUserId = null)
+    public async Task<SignupResult> SignUpAsync(Guid userId, Guid shiftId, Guid? actorUserId = null, bool isPrivileged = false)
     {
         // Prevent duplicate signups for the same shift
         var existingSignup = await _dbContext.ShiftSignups
@@ -49,12 +49,10 @@ public class ShiftSignupService : IShiftSignupService
             .FirstOrDefaultAsync(s => s.Id == shiftId);
 
         if (shift == null) return SignupResult.Fail("Shift not found.");
-        if (!shift.IsActive) return SignupResult.Fail("Shift is not active.");
-        if (!shift.Rota.IsActive) return SignupResult.Fail("Rota is not active.");
 
         var es = shift.Rota.EventSettings;
         var now = _clock.GetCurrentInstant();
-        var isPrivileged = await IsPrivilegedAsync(userId, shift.Rota.TeamId);
+        isPrivileged = isPrivileged || await IsPrivilegedAsync(userId, shift.Rota.TeamId);
 
         // System open check
         if (!es.IsShiftBrowsingOpen && !isPrivileged)
@@ -113,7 +111,7 @@ public class ShiftSignupService : IShiftSignupService
         {
             await _auditLogService.LogAsync(
                 AuditAction.ShiftSignupConfirmed, nameof(ShiftSignup), signup.Id,
-                $"Auto-confirmed signup for shift '{shift.Title}'",
+                $"Auto-confirmed signup for shift '{shift.Rota.Name}'",
                 userId, "Self");
         }
 
@@ -163,7 +161,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupConfirmed, nameof(ShiftSignup), signup.Id,
-            $"Approved signup for shift '{signup.Shift.Title}'",
+            $"Approved signup for shift '{signup.Shift.Rota.Name}'",
             reviewerUserId, "Reviewer");
 
         await _dbContext.SaveChangesAsync();
@@ -180,7 +178,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupRefused, nameof(ShiftSignup), signup.Id,
-            $"Refused signup for shift '{signup.Shift.Title}'" + (reason != null ? $": {reason}" : ""),
+            $"Refused signup for shift '{signup.Shift.Rota.Name}'" + (reason != null ? $": {reason}" : ""),
             reviewerUserId, "Reviewer");
 
         await _dbContext.SaveChangesAsync();
@@ -210,7 +208,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupBailed, nameof(ShiftSignup), signup.Id,
-            $"Bailed from shift '{signup.Shift.Title}'" + (reason != null ? $": {reason}" : ""),
+            $"Bailed from shift '{signup.Shift.Rota.Name}'" + (reason != null ? $": {reason}" : ""),
             actorUserId, "Actor");
 
         await _dbContext.SaveChangesAsync();
@@ -260,7 +258,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupVoluntold, nameof(ShiftSignup), signup.Id,
-            $"Voluntold for shift '{shift.Title}'",
+            $"Voluntold for shift '{shift.Rota.Name}'",
             enrollerUserId, "Enroller",
             userId, nameof(User));
 
@@ -285,12 +283,190 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupNoShow, nameof(ShiftSignup), signup.Id,
-            $"Marked no-show for shift '{signup.Shift.Title}'",
+            $"Marked no-show for shift '{signup.Shift.Rota.Name}'",
             reviewerUserId, "Reviewer");
 
         await _dbContext.SaveChangesAsync();
 
         return SignupResult.Ok(signup);
+    }
+
+    public async Task<SignupResult> SignUpRangeAsync(Guid userId, Guid rotaId, int startDayOffset, int endDayOffset, Guid? actorUserId = null, bool isPrivileged = false)
+    {
+        var rota = await _dbContext.Rotas
+            .Include(r => r.EventSettings)
+            .Include(r => r.Shifts)
+            .FirstOrDefaultAsync(r => r.Id == rotaId);
+
+        if (rota == null) return SignupResult.Fail("Rota not found.");
+
+        var es = rota.EventSettings;
+        var now = _clock.GetCurrentInstant();
+        isPrivileged = isPrivileged || await IsPrivilegedAsync(userId, rota.TeamId);
+
+        // System open check
+        if (!es.IsShiftBrowsingOpen && !isPrivileged)
+            return SignupResult.Fail("Shift browsing is not currently open.");
+
+        // EE freeze check for build rotas
+        if (rota.Period == RotaPeriod.Build && es.EarlyEntryClose.HasValue && now >= es.EarlyEntryClose.Value && !isPrivileged)
+            return SignupResult.Fail("Early entry signups are closed.");
+
+        // Find all-day shifts in the range
+        var shiftsInRange = rota.Shifts
+            .Where(s => s.IsAllDay && s.DayOffset >= startDayOffset && s.DayOffset <= endDayOffset)
+            .OrderBy(s => s.DayOffset)
+            .ToList();
+
+        if (shiftsInRange.Count == 0)
+            return SignupResult.Fail("No shifts found in the specified date range.");
+
+        // AdminOnly check (Fix #2)
+        if (!isPrivileged && shiftsInRange.Any(s => s.AdminOnly))
+            return SignupResult.Fail("One or more shifts in this range are restricted to coordinators and admins.");
+
+        // Duplicate signup check — reject if user already has Pending/Confirmed on any shift in range (Fix #1)
+        var shiftIdsInRange = shiftsInRange.Select(s => s.Id).ToHashSet();
+        var hasDuplicate = await _dbContext.ShiftSignups
+            .AnyAsync(s => s.UserId == userId && shiftIdsInRange.Contains(s.ShiftId) &&
+                           (s.Status == SignupStatus.Pending || s.Status == SignupStatus.Confirmed));
+        if (hasDuplicate)
+            return SignupResult.Fail("Already signed up for one or more shifts in this range.");
+
+        // Check overlap for each day (include Pending signups too)
+        var existingSignups = await _dbContext.ShiftSignups
+            .Include(s => s.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
+            .Where(s => s.UserId == userId &&
+                        (s.Status == SignupStatus.Confirmed || s.Status == SignupStatus.Pending))
+            .ToListAsync();
+
+        var conflictingDays = new List<int>();
+        foreach (var shift in shiftsInRange)
+        {
+            var shiftStart = shift.GetAbsoluteStart(es);
+            var shiftEnd = shift.GetAbsoluteEnd(es);
+
+            foreach (var existing in existingSignups)
+            {
+                var existingEs = existing.Shift.Rota.EventSettings;
+                var existingStart = existing.Shift.GetAbsoluteStart(existingEs);
+                var existingEnd = existing.Shift.GetAbsoluteEnd(existingEs);
+
+                if (shiftStart < existingEnd && shiftEnd > existingStart)
+                {
+                    conflictingDays.Add(shift.DayOffset);
+                    break;
+                }
+            }
+        }
+
+        if (conflictingDays.Count > 0)
+        {
+            var dayList = string.Join(", ", conflictingDays);
+            return SignupResult.Fail($"Time conflict on day(s): {dayList}.");
+        }
+
+        // Capacity check — warn if any shift is at/over capacity (Fix #4)
+        string? warning = null;
+        var signupCounts = await _dbContext.ShiftSignups
+            .Where(s => shiftIdsInRange.Contains(s.ShiftId) && s.Status == SignupStatus.Confirmed)
+            .GroupBy(s => s.ShiftId)
+            .Select(g => new { ShiftId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.ShiftId, g => g.Count);
+        var fullDays = shiftsInRange
+            .Where(s => signupCounts.GetValueOrDefault(s.Id) >= s.MaxVolunteers)
+            .Select(s => s.DayOffset)
+            .ToList();
+        if (fullDays.Count > 0)
+            warning = $"Day(s) {string.Join(", ", fullDays)} are at capacity.";
+
+        // EE cap check for build shifts
+        if (rota.Period == RotaPeriod.Build)
+        {
+            var eeWarning = await CheckEeCapAsync(es, shiftsInRange[0].DayOffset);
+            if (eeWarning != null)
+                warning = warning == null ? eeWarning : $"{warning} {eeWarning}";
+        }
+
+        // Create signups
+        var blockId = Guid.NewGuid();
+        var autoConfirm = rota.Policy == SignupPolicy.Public ||
+                          await _shiftMgmt.CanApproveSignupsAsync(userId, rota.TeamId);
+        ShiftSignup? lastSignup = null;
+
+        foreach (var shift in shiftsInRange)
+        {
+            var signup = new ShiftSignup
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                ShiftId = shift.Id,
+                SignupBlockId = blockId,
+                Status = autoConfirm ? SignupStatus.Confirmed : SignupStatus.Pending,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            if (autoConfirm)
+            {
+                signup.ReviewedByUserId = actorUserId ?? userId;
+                signup.ReviewedAt = now;
+            }
+
+            _dbContext.ShiftSignups.Add(signup);
+            lastSignup = signup;
+
+            if (autoConfirm)
+            {
+                await _auditLogService.LogAsync(
+                    AuditAction.ShiftSignupConfirmed,
+                    nameof(ShiftSignup), signup.Id,
+                    $"Range signup for '{rota.Name}' day {shift.DayOffset} (block {blockId})",
+                    userId, "Self");
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return SignupResult.Ok(lastSignup!, warning);
+    }
+
+    public async Task BailRangeAsync(Guid signupBlockId, Guid actorUserId, string? reason = null)
+    {
+        var signups = await _dbContext.ShiftSignups
+            .Include(s => s.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)
+            .Include(s => s.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.Team)
+            .Where(s => s.SignupBlockId == signupBlockId &&
+                        (s.Status == SignupStatus.Confirmed || s.Status == SignupStatus.Pending))
+            .ToListAsync();
+
+        if (signups.Count == 0) return;
+
+        var firstSignup = signups[0];
+        var es = firstSignup.Shift.Rota.EventSettings;
+        var now = _clock.GetCurrentInstant();
+        var isOwner = firstSignup.UserId == actorUserId;
+        var isPrivileged = await IsPrivilegedAsync(actorUserId, firstSignup.Shift.Rota.TeamId);
+
+        if (!isOwner && !isPrivileged)
+            throw new InvalidOperationException("Not authorized to bail this signup block.");
+
+        // EE freeze check — if any shift is build-period and past EarlyEntryClose
+        if (signups.Any(s => s.Shift.IsEarlyEntry) && es.EarlyEntryClose.HasValue && now >= es.EarlyEntryClose.Value && !isPrivileged)
+            throw new InvalidOperationException("Cannot bail from build shifts after early entry close.");
+
+        foreach (var signup in signups)
+        {
+            signup.Bail(actorUserId, _clock, reason);
+
+            await _auditLogService.LogAsync(
+                AuditAction.ShiftSignupBailed, nameof(ShiftSignup), signup.Id,
+                $"Range bail from '{signup.Shift.Rota.Name}' day {signup.Shift.DayOffset} (block {signupBlockId})" +
+                (reason != null ? $": {reason}" : ""),
+                actorUserId, "Actor");
+        }
+
+        await _dbContext.SaveChangesAsync();
     }
 
     public async Task<IReadOnlyList<ShiftSignup>> GetByUserAsync(Guid userId, Guid? eventSettingsId = null)
@@ -367,7 +543,7 @@ public class ShiftSignupService : IShiftSignupService
                 var tz = DateTimeZoneProviders.Tzdb[existingEs.TimeZoneId];
                 var dateStr = existingStart.InZone(tz).ToString("ddd MMM d HH:mm", null);
                 var teamName = existing.Shift.Rota.Team?.Name ?? "Unknown";
-                return $"Time conflict with '{existing.Shift.Title}' ({teamName}, {dateStr}).";
+                return $"Time conflict with '{existing.Shift.Rota.Name}' ({teamName}, {dateStr}).";
             }
         }
 

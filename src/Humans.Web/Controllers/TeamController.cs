@@ -326,7 +326,7 @@ public class TeamController : Controller
     }
 
     [HttpGet("Roster")]
-    public async Task<IActionResult> Roster(string? priority, string? status)
+    public async Task<IActionResult> Roster(string? priority, string? status, string? period)
     {
         var definitions = await _teamService.GetAllRoleDefinitionsAsync();
 
@@ -355,6 +355,7 @@ public class TeamController : Controller
                         SlotPriority.NiceToHave => "bg-secondary",
                         _ => "bg-light text-dark"
                     },
+                    Period = def.Period.ToString(),
                     IsFilled = assignment != null,
                     AssignedUserName = assignment?.TeamMember?.User?.DisplayName
                 });
@@ -370,6 +371,9 @@ public class TeamController : Controller
         else if (string.Equals(status, "Filled", StringComparison.OrdinalIgnoreCase))
             slots = slots.Where(s => s.IsFilled).ToList();
 
+        if (!string.IsNullOrEmpty(period))
+            slots = slots.Where(s => string.Equals(s.Period, period, StringComparison.OrdinalIgnoreCase)).ToList();
+
         // Sort: Critical first, then by team name
         slots = slots
             .OrderBy(s => s.Priority switch { "Critical" => 0, "Important" => 1, "NiceToHave" => 2, _ => 3 })
@@ -378,7 +382,7 @@ public class TeamController : Controller
             .ThenBy(s => s.SlotNumber)
             .ToList();
 
-        return View(new RosterSummaryViewModel { Slots = slots, PriorityFilter = priority, StatusFilter = status });
+        return View(new RosterSummaryViewModel { Slots = slots, PriorityFilter = priority, StatusFilter = status, PeriodFilter = period });
     }
 
     [HttpGet("Map")]

@@ -95,7 +95,7 @@ public class HumanController : Controller
                         var zoned = shiftStart.InZone(signupTz);
                         return new NoShowHistoryItem
                         {
-                            ShiftTitle = s.Shift.Title,
+                            ShiftLabel = s.Shift.Rota.Name,
                             DepartmentName = s.Shift.Rota.Team?.Name ?? "",
                             ShiftDateLabel = zoned.ToString("ddd MMM d HH:mm", null),
                             MarkedByName = s.ReviewedByUser?.DisplayName,
@@ -472,8 +472,8 @@ public class HumanController : Controller
             UserId = id,
             UserDisplayName = user.DisplayName,
             AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
-                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.NoInfoAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.NoInfoAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
         };
 
         return View(viewModel);
@@ -496,8 +496,8 @@ public class HumanController : Controller
             model.UserId = id;
             model.UserDisplayName = user.DisplayName;
             model.AvailableRoles = User.IsInRole(RoleNames.Admin)
-                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
-                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator];
+                ? [RoleNames.Admin, RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.NoInfoAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator]
+                : [RoleNames.Board, RoleNames.TeamsAdmin, RoleNames.CampAdmin, RoleNames.TicketAdmin, RoleNames.NoInfoAdmin, RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator];
             return View(model);
         }
 

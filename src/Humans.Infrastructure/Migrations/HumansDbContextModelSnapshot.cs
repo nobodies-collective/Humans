@@ -985,6 +985,38 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("event_settings", (string)null);
                 });
 
+            modelBuilder.Entity("Humans.Domain.Entities.GeneralAvailability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<string>("AvailableDayOffsets")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EventSettingsId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventSettingsId");
+
+                    b.HasIndex("UserId", "EventSettingsId")
+                        .IsUnique();
+
+                    b.ToTable("general_availability", (string)null);
+                });
+
             modelBuilder.Entity("Humans.Domain.Entities.GoogleResource", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1345,18 +1377,24 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<Guid>("EventSettingsId")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("Policy")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("PracticalInfo")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("Priority")
                         .IsRequired()
@@ -1400,8 +1438,10 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<long>("Duration")
                         .HasColumnType("bigint");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                    b.Property<bool>("IsAllDay")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<int>("MaxVolunteers")
                         .HasColumnType("integer");
@@ -1414,11 +1454,6 @@ namespace Humans.Infrastructure.Migrations
 
                     b.Property<LocalTime>("StartTime")
                         .HasColumnType("time");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
 
                     b.Property<Instant>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1454,6 +1489,9 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<Guid>("ShiftId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("SignupBlockId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1476,6 +1514,8 @@ namespace Humans.Infrastructure.Migrations
                     b.HasIndex("ReviewedByUserId");
 
                     b.HasIndex("ShiftId");
+
+                    b.HasIndex("SignupBlockId");
 
                     b.HasIndex("UserId");
 
@@ -1867,6 +1907,11 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("Priorities")
                         .IsRequired()
@@ -2716,6 +2761,25 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("CampaignGrant");
 
                     b.Navigation("ShiftSignup");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Humans.Domain.Entities.GeneralAvailability", b =>
+                {
+                    b.HasOne("Humans.Domain.Entities.EventSettings", "EventSettings")
+                        .WithMany()
+                        .HasForeignKey("EventSettingsId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Humans.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("EventSettings");
 
                     b.Navigation("User");
                 });

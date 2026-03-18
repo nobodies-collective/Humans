@@ -9,8 +9,9 @@ public interface IShiftSignupService
 {
     /// <summary>
     /// Creates a signup for a user on a shift. Auto-confirms for Public policy.
+    /// Pass isPrivileged=true when the controller has already verified the user is Admin/coordinator.
     /// </summary>
-    Task<SignupResult> SignUpAsync(Guid userId, Guid shiftId, Guid? actorUserId = null);
+    Task<SignupResult> SignUpAsync(Guid userId, Guid shiftId, Guid? actorUserId = null, bool isPrivileged = false);
 
     /// <summary>
     /// Approves a pending signup. Re-validates invariants.
@@ -36,6 +37,17 @@ public interface IShiftSignupService
     /// Marks a confirmed signup as no-show (post-shift only).
     /// </summary>
     Task<SignupResult> MarkNoShowAsync(Guid signupId, Guid reviewerUserId);
+
+    /// <summary>
+    /// Creates signups for a date range of all-day shifts (build/strike).
+    /// All signups share a SignupBlockId for grouped bail.
+    /// </summary>
+    Task<SignupResult> SignUpRangeAsync(Guid userId, Guid rotaId, int startDayOffset, int endDayOffset, Guid? actorUserId = null, bool isPrivileged = false);
+
+    /// <summary>
+    /// Bails all signups sharing a SignupBlockId.
+    /// </summary>
+    Task BailRangeAsync(Guid signupBlockId, Guid actorUserId, string? reason = null);
 
     /// <summary>
     /// Gets all signups for a user, optionally filtered by event.

@@ -45,9 +45,16 @@ public class Rota
     public SignupPolicy Policy { get; set; }
 
     /// <summary>
-    /// Whether this rota is currently active and accepting signups.
+    /// Explicit period set by the coordinator. Drives creation UX (all-day vs time-slotted)
+    /// and signup UX (date-range vs individual).
     /// </summary>
-    public bool IsActive { get; set; } = true;
+    public RotaPeriod Period { get; set; } = RotaPeriod.Event;
+
+    /// <summary>
+    /// Meeting point, pre-shift instructions, what to bring. Shared by all shifts in the rota.
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(2000)]
+    public string? PracticalInfo { get; set; }
 
     /// <summary>
     /// When this rota was created.

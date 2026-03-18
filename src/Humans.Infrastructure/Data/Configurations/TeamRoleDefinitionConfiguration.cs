@@ -57,6 +57,10 @@ public class TeamRoleDefinitionConfiguration : IEntityTypeConfiguration<TeamRole
             .HasForeignKey(d => d.TeamId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.Property(d => d.Period)
+            .HasConversion<string>()
+            .HasMaxLength(50);
+
         builder.Property(d => d.IsManagement)
             .IsRequired();
     }

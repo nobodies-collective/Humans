@@ -943,7 +943,7 @@ public partial class TeamService : ITeamService
 
     public async Task<TeamRoleDefinition> CreateRoleDefinitionAsync(
         Guid teamId, string name, string? description, int slotCount,
-        List<SlotPriority> priorities, int sortOrder, Guid actorUserId,
+        List<SlotPriority> priorities, int sortOrder, RolePeriod period, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams.FindAsync(new object[] { teamId }, cancellationToken)
@@ -994,6 +994,7 @@ public partial class TeamService : ITeamService
             SlotCount = slotCount,
             Priorities = priorities,
             SortOrder = sortOrder,
+            Period = period,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -1016,7 +1017,7 @@ public partial class TeamService : ITeamService
 
     public async Task<TeamRoleDefinition> UpdateRoleDefinitionAsync(
         Guid roleDefinitionId, string name, string? description, int slotCount,
-        List<SlotPriority> priorities, int sortOrder, bool isManagement, Guid actorUserId,
+        List<SlotPriority> priorities, int sortOrder, bool isManagement, RolePeriod period, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
         var definition = await _dbContext.Set<TeamRoleDefinition>()
@@ -1097,6 +1098,7 @@ public partial class TeamService : ITeamService
         }
 
         definition.IsManagement = isManagement;
+        definition.Period = period;
         definition.UpdatedAt = _clock.GetCurrentInstant();
 
         var actor = await _dbContext.Users.FindAsync([actorUserId], cancellationToken);

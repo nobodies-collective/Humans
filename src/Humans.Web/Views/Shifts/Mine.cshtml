@@ -66,35 +66,74 @@
             <div class="card mb-4">
                 <div class="card-header"><h5 class="mb-0">Upcoming Shifts</h5></div>
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr><th>Department</th><th>Shift</th><th>Phase</th><th>Date</th><th>Time</th><th>Duration</th><th></th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in Model.Upcoming)
-                                {
-                                    var shift = item.Signup.Shift;
-                                    <tr>
-                                        <td>@item.DepartmentName</td>
-                                        <td>@shift.Title</td>
-                                        <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
-                                        <td>@FormatDate(es, shift.DayOffset)</td>
-                                        <td>@FormatTime(item.AbsoluteStart, tz!)</td>
-                                        <td>@(shift.Duration.TotalHours)h</td>
-                                        <td>
-                                            <form asp-action="Bail" method="post" class="d-inline">
-                                                @Html.AntiForgeryToken()
-                                                <input type="hidden" name="signupId" value="@item.Signup.Id" />
-                                                <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                        onclick="return confirm('Are you sure you want to bail?')">Bail</button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                    @{
+                        // Group build/strike range signups by SignupBlockId, show individual signups separately
+                        var rangeBlocks = Model.Upcoming
+                            .Where(i => i.Signup.SignupBlockId != null)
+                            .GroupBy(i => i.Signup.SignupBlockId!.Value)
+                            .ToList();
+                        var individualItems = Model.Upcoming
+                            .Where(i => i.Signup.SignupBlockId == null)
+                            .ToList();
+                    }
+
+                    @if (rangeBlocks.Count > 0)
+                    {
+                        @foreach (var block in rangeBlocks)
+                        {
+                            var first = block.OrderBy(b => b.Signup.Shift.DayOffset).First();
+                            var last = block.OrderBy(b => b.Signup.Shift.DayOffset).Last();
+                            var shift = first.Signup.Shift;
+                            <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                                <div>
+                                    <span class="badge @GetPhaseBadge(shift, es) me-1">@GetPhase(shift, es)</span>
+                                    <strong>@shift.Rota.Name</strong> —
+                                    @FormatDate(es, first.Signup.Shift.DayOffset) to @FormatDate(es, last.Signup.Shift.DayOffset)
+                                    <small class="text-muted">(@block.Count() days)</small>
+                                    <span class="ms-1">@first.DepartmentName</span>
+                                </div>
+                                <form asp-action="BailRange" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="signupBlockId" value="@block.Key" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                                            data-confirm="Bail from all @block.Count() days?">Bail</button>
+                                </form>
+                            </div>
+                        }
+                    }
+
+                    @if (individualItems.Count > 0)
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr><th>Department</th><th>Shift</th><th>Phase</th><th>Date</th><th>Time</th><th>Duration</th><th></th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in individualItems)
+                                    {
+                                        var shift = item.Signup.Shift;
+                                        <tr>
+                                            <td>@item.DepartmentName</td>
+                                            <td>@shift.Rota.Name</td>
+                                            <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
+                                            <td>@FormatDate(es, shift.DayOffset)</td>
+                                            <td>@FormatTime(item.AbsoluteStart, tz!)</td>
+                                            <td>@(shift.Duration.TotalHours)h</td>
+                                            <td>
+                                                <form asp-action="Bail" method="post" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="signupId" value="@item.Signup.Id" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                            data-confirm="Are you sure you want to bail?">Bail</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 </div>
             </div>
         }
@@ -115,7 +154,7 @@
                                     var shift = item.Signup.Shift;
                                     <tr>
                                         <td>@item.DepartmentName</td>
-                                        <td>@shift.Title</td>
+                                        <td>@shift.Rota.Name</td>
                                         <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
                                         <td>@FormatDate(es, shift.DayOffset)</td>
                                         <td>@FormatTime(item.AbsoluteStart, tz!)</td>
@@ -152,7 +191,7 @@
                                     var shift = item.Signup.Shift;
                                     <tr>
                                         <td>@item.DepartmentName</td>
-                                        <td>@shift.Title</td>
+                                        <td>@shift.Rota.Name</td>
                                         <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
                                         <td>@FormatDate(es, shift.DayOffset)</td>
                                         <td>@FormatTime(item.AbsoluteStart, tz!)</td>
@@ -172,6 +211,33 @@
             <div class="alert alert-info">No shift signups yet. <a asp-action="Index">Browse available shifts</a>.</div>
         }
 
+        @* General Availability *@
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="mb-0">General Availability</h5></div>
+            <div class="card-body">
+                <p class="text-muted small">Mark which days you're available to help. Coordinators can see who's in the pool when assigning shifts.</p>
+                <form asp-action="SaveAvailability" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="row row-cols-auto g-2 mb-3">
+                        @for (var d = es.BuildStartOffset; d <= es.StrikeEndOffset; d++)
+                        {
+                            var date = es.GateOpeningDate.PlusDays(d);
+                            var dateLabel = date.DayOfWeek.ToString()[..3] + " " + date.ToString("MMM d", null);
+                            var isChecked = Model.AvailableDayOffsets.Contains(d);
+                            <div class="col">
+                                <div class="form-check">
+                                    <input type="checkbox" name="dayOffsets" value="@d" class="form-check-input"
+                                           id="avail-@d" checked="@isChecked" />
+                                    <label class="form-check-label small" for="avail-@d">@dateLabel</label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Save Availability</button>
+                </form>
+            </div>
+        </div>
+
         @if (Model.ICalUrl != null)
         {
             <div class="card mb-4">
@@ -180,15 +246,26 @@
                     <p class="text-muted">Subscribe to your shifts in your calendar app:</p>
                     <div class="input-group mb-2">
                         <input type="text" class="form-control" id="icalUrl" value="@Model.ICalUrl" readonly />
-                        <button class="btn btn-outline-secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('icalUrl').value)">Copy</button>
+                        <button class="btn btn-outline-secondary" type="button" id="copyIcalBtn">Copy</button>
                     </div>
                     <form asp-action="RegenerateIcal" method="post" class="d-inline">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-sm btn-outline-warning"
-                                onclick="return confirm('This will invalidate the current URL. Continue?')">Regenerate URL</button>
+                                data-confirm="This will invalidate the current URL. Continue?">Regenerate URL</button>
                     </form>
                 </div>
             </div>
         }
     }
 </div>
+
+<script>
+(function() {
+    var copyBtn = document.getElementById('copyIcalBtn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(document.getElementById('icalUrl').value);
+        });
+    }
+})();
+</script>

@@ -54,8 +54,9 @@ public class ShiftManagementService : IShiftManagementService
 
     public async Task<bool> CanManageShiftsAsync(Guid userId, Guid departmentTeamId)
     {
-        // Admin can manage all shifts; NoInfoAdmin CANNOT
-        if (await HasActiveRoleAsync(userId, RoleNames.Admin))
+        // Admin and VolunteerCoordinator can manage all shifts system-wide; NoInfoAdmin CANNOT
+        if (await HasActiveRoleAsync(userId, RoleNames.Admin) ||
+            await HasActiveRoleAsync(userId, RoleNames.VolunteerCoordinator))
             return true;
 
         return await IsDeptCoordinatorAsync(userId, departmentTeamId);
@@ -63,9 +64,10 @@ public class ShiftManagementService : IShiftManagementService
 
     public async Task<bool> CanApproveSignupsAsync(Guid userId, Guid departmentTeamId)
     {
-        // Admin and NoInfoAdmin can approve signups
+        // Admin, NoInfoAdmin, and VolunteerCoordinator can approve signups system-wide
         if (await HasActiveRoleAsync(userId, RoleNames.Admin) ||
-            await HasActiveRoleAsync(userId, RoleNames.NoInfoAdmin))
+            await HasActiveRoleAsync(userId, RoleNames.NoInfoAdmin) ||
+            await HasActiveRoleAsync(userId, RoleNames.VolunteerCoordinator))
             return true;
 
         return await IsDeptCoordinatorAsync(userId, departmentTeamId);
@@ -209,15 +211,6 @@ public class ShiftManagementService : IShiftManagementService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task DeactivateRotaAsync(Guid rotaId)
-    {
-        var rota = await _dbContext.Rotas.FindAsync(rotaId);
-        if (rota == null) throw new InvalidOperationException("Rota not found.");
-        rota.IsActive = false;
-        rota.UpdatedAt = _clock.GetCurrentInstant();
-        await _dbContext.SaveChangesAsync();
-    }
-
     public async Task DeleteRotaAsync(Guid rotaId)
     {
         var rota = await _dbContext.Rotas
@@ -227,12 +220,13 @@ public class ShiftManagementService : IShiftManagementService
 
         if (rota == null) throw new InvalidOperationException("Rota not found.");
 
-        var hasConfirmedSignups = rota.Shifts
+        var confirmedCount = rota.Shifts
             .SelectMany(s => s.ShiftSignups)
-            .Any(d => d.Status == SignupStatus.Confirmed);
+            .Count(d => d.Status == SignupStatus.Confirmed);
 
-        if (hasConfirmedSignups)
-            throw new InvalidOperationException("Cannot delete rota with confirmed signups.");
+        if (confirmedCount > 0)
+            throw new InvalidOperationException(
+                $"Cannot delete — {confirmedCount} humans have confirmed signups. Bail or reassign them first.");
 
         // Cancel pending signups and remove all signups before deleting
         // (ShiftSignup→Shift FK is Restrict, so cascade won't handle them)
@@ -270,6 +264,90 @@ public class ShiftManagementService : IShiftManagementService
     }
 
     // ============================================================
+    // Bulk Shift Creation
+    // ============================================================
+
+    public async Task CreateBuildStrikeShiftsAsync(Guid rotaId, Dictionary<int, (int Min, int Max)> dailyStaffing)
+    {
+        var rota = await _dbContext.Rotas
+            .Include(r => r.EventSettings)
+            .FirstOrDefaultAsync(r => r.Id == rotaId);
+
+        if (rota == null) throw new InvalidOperationException("Rota not found");
+        if (rota.Period == RotaPeriod.Event)
+            throw new InvalidOperationException("Build/strike shift generation is only for Build or Strike rotas");
+
+        var es = rota.EventSettings;
+
+        foreach (var dayOffset in dailyStaffing.Keys)
+        {
+            if (rota.Period == RotaPeriod.Build && (dayOffset < es.BuildStartOffset || dayOffset >= 0))
+                throw new InvalidOperationException($"Day offset {dayOffset} is outside the build period ({es.BuildStartOffset} to -1)");
+            if (rota.Period == RotaPeriod.Strike && (dayOffset <= es.EventEndOffset || dayOffset > es.StrikeEndOffset))
+                throw new InvalidOperationException($"Day offset {dayOffset} is outside the strike period ({es.EventEndOffset + 1} to {es.StrikeEndOffset})");
+        }
+
+        var now = _clock.GetCurrentInstant();
+
+        foreach (var (dayOffset, staffing) in dailyStaffing.OrderBy(d => d.Key))
+        {
+            var shift = new Shift
+            {
+                Id = Guid.NewGuid(),
+                RotaId = rotaId,
+                IsAllDay = true,
+                DayOffset = dayOffset,
+                StartTime = new LocalTime(0, 0),
+                Duration = Duration.FromHours(24),
+                MinVolunteers = staffing.Min,
+                MaxVolunteers = staffing.Max,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            _dbContext.Shifts.Add(shift);
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task GenerateEventShiftsAsync(Guid rotaId, int startDayOffset, int endDayOffset,
+        List<(LocalTime StartTime, double DurationHours)> timeSlots, int minVolunteers = 2, int maxVolunteers = 5)
+    {
+        var rota = await _dbContext.Rotas
+            .Include(r => r.EventSettings)
+            .FirstOrDefaultAsync(r => r.Id == rotaId);
+
+        if (rota == null) throw new InvalidOperationException("Rota not found");
+        if (rota.Period != RotaPeriod.Event)
+            throw new InvalidOperationException("Event shift generation is only for Event-period rotas");
+
+        var now = _clock.GetCurrentInstant();
+
+        for (var day = startDayOffset; day <= endDayOffset; day++)
+        {
+            foreach (var (startTime, durationHours) in timeSlots)
+            {
+                var shift = new Shift
+                {
+                    Id = Guid.NewGuid(),
+                    RotaId = rotaId,
+                    IsAllDay = false,
+                    DayOffset = day,
+                    StartTime = startTime,
+                    Duration = Duration.FromHours(durationHours),
+                    MinVolunteers = minVolunteers,
+                    MaxVolunteers = maxVolunteers,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                _dbContext.Shifts.Add(shift);
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    // ============================================================
     // Shift
     // ============================================================
 
@@ -301,15 +379,6 @@ public class ShiftManagementService : IShiftManagementService
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task DeactivateShiftAsync(Guid shiftId)
-    {
-        var shift = await _dbContext.Shifts.FindAsync(shiftId);
-        if (shift == null) throw new InvalidOperationException("Shift not found.");
-        shift.IsActive = false;
-        shift.UpdatedAt = _clock.GetCurrentInstant();
-        await _dbContext.SaveChangesAsync();
-    }
-
     public async Task DeleteShiftAsync(Guid shiftId)
     {
         var shift = await _dbContext.Shifts
@@ -318,9 +387,10 @@ public class ShiftManagementService : IShiftManagementService
 
         if (shift == null) throw new InvalidOperationException("Shift not found.");
 
-        var hasConfirmed = shift.ShiftSignups.Any(d => d.Status == SignupStatus.Confirmed);
-        if (hasConfirmed)
-            throw new InvalidOperationException("Cannot delete shift with confirmed signups.");
+        var confirmedCount = shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
+        if (confirmedCount > 0)
+            throw new InvalidOperationException(
+                $"Cannot delete — {confirmedCount} humans have confirmed signups. Bail or reassign them first.");
 
         // Cancel pending signups, then remove all signups (confirmed already blocked above)
         foreach (var signup in shift.ShiftSignups.Where(d => d.Status == SignupStatus.Pending))
@@ -377,7 +447,7 @@ public class ShiftManagementService : IShiftManagementService
             .Include(s => s.Rota).ThenInclude(r => r.Team)
             .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Include(s => s.ShiftSignups)
-            .Where(s => s.Rota.EventSettingsId == eventSettingsId && s.IsActive && s.Rota.IsActive);
+            .Where(s => s.Rota.EventSettingsId == eventSettingsId);
 
         if (departmentId.HasValue)
             query = query.Where(s => s.Rota.TeamId == departmentId.Value);
@@ -422,7 +492,7 @@ public class ShiftManagementService : IShiftManagementService
             .Include(s => s.Rota).ThenInclude(r => r.Team)
             .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Include(s => s.ShiftSignups)
-            .Where(s => s.Rota.EventSettingsId == eventSettingsId && s.IsActive && s.Rota.IsActive);
+            .Where(s => s.Rota.EventSettingsId == eventSettingsId);
 
         if (!includeAdminOnly)
             query = query.Where(s => !s.AdminOnly);
@@ -486,7 +556,7 @@ public class ShiftManagementService : IShiftManagementService
             .AsNoTracking()
             .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
             .Include(s => s.ShiftSignups)
-            .Where(s => s.Rota.EventSettingsId == eventSettingsId && s.IsActive && s.Rota.IsActive);
+            .Where(s => s.Rota.EventSettingsId == eventSettingsId);
 
         if (departmentId.HasValue)
             query = query.Where(s => s.Rota.TeamId == departmentId.Value);
@@ -531,13 +601,13 @@ public class ShiftManagementService : IShiftManagementService
 
         if (rotas.Count == 0) return null;
 
-        var activeShifts = rotas.SelectMany(r => r.Shifts).Where(s => s.IsActive).ToList();
-        if (activeShifts.Count == 0) return null;
+        var allShifts = rotas.SelectMany(r => r.Shifts).ToList();
+        if (allShifts.Count == 0) return null;
 
-        var allSignups = activeShifts.SelectMany(s => s.ShiftSignups).ToList();
+        var allSignups = allShifts.SelectMany(s => s.ShiftSignups).ToList();
 
         return new ShiftsSummaryData(
-            TotalSlots: activeShifts.Sum(s => s.MaxVolunteers),
+            TotalSlots: allShifts.Sum(s => s.MaxVolunteers),
             ConfirmedCount: allSignups.Count(s => s.Status == SignupStatus.Confirmed),
             PendingCount: allSignups.Count(s => s.Status == SignupStatus.Pending),
             UniqueVolunteerCount: allSignups
@@ -552,7 +622,7 @@ public class ShiftManagementService : IShiftManagementService
     {
         var teams = await _dbContext.Rotas
             .AsNoTracking()
-            .Where(r => r.EventSettingsId == eventSettingsId && r.IsActive)
+            .Where(r => r.EventSettingsId == eventSettingsId)
             .Select(r => new { r.Team.Id, r.Team.Name })
             .Distinct()
             .OrderBy(x => x.Name)

@@ -57,10 +57,6 @@ public static class RecurringJobExtensions
             ("cleanup-email-outbox", () => RecurringJob.AddOrUpdate<CleanupEmailOutboxJob>(
                 "cleanup-email-outbox", job => job.ExecuteAsync(CancellationToken.None), "0 3 * * 0")),
 
-            // Cancel signups on deactivated shifts after 7-day grace period.
-            ("signup-garbage-collection", () => RecurringJob.AddOrUpdate<SignupGarbageCollectionJob>(
-                "signup-garbage-collection", job => job.ExecuteAsync(CancellationToken.None), "0 4 * * *")),
-
             // Sync ticket data from vendor at configured interval (default 15 min).
             ("ticket-vendor-sync", () => RecurringJob.AddOrUpdate<TicketSyncJob>(
                 "ticket-vendor-sync", job => job.ExecuteAsync(CancellationToken.None), $"*/{ticketSyncInterval} * * * *")),

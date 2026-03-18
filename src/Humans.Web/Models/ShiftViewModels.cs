@@ -48,12 +48,15 @@ public class CreateRotaModel
 
     public ShiftPriority Priority { get; set; }
     public SignupPolicy Policy { get; set; }
+    public RotaPeriod Period { get; set; } = RotaPeriod.Event;
+
+    [MaxLength(2000)]
+    public string? PracticalInfo { get; set; }
 }
 
 public class EditRotaModel : CreateRotaModel
 {
     public Guid RotaId { get; set; }
-    public bool IsActive { get; set; } = true;
 }
 
 // === Shift ===
@@ -61,9 +64,6 @@ public class EditRotaModel : CreateRotaModel
 public class CreateShiftModel
 {
     public Guid RotaId { get; set; }
-
-    [Required, MaxLength(256)]
-    public string Title { get; set; } = string.Empty;
 
     [MaxLength(2000)]
     public string? Description { get; set; }
@@ -83,7 +83,38 @@ public class CreateShiftModel
 public class EditShiftModel : CreateShiftModel
 {
     public Guid ShiftId { get; set; }
-    public bool IsActive { get; set; } = true;
+}
+
+// === Staffing Grid (Build/Strike) ===
+
+public class StaffingGridModel
+{
+    public Guid RotaId { get; set; }
+    public List<DayStaffingEntry> Days { get; set; } = [];
+}
+
+public class DayStaffingEntry
+{
+    public int DayOffset { get; set; }
+    public int MinVolunteers { get; set; } = 2;
+    public int MaxVolunteers { get; set; } = 5;
+}
+
+// === Generate Event Shifts ===
+
+public class GenerateEventShiftsModel
+{
+    public int StartDayOffset { get; set; }
+    public int EndDayOffset { get; set; }
+    public List<TimeSlotEntry> TimeSlots { get; set; } = [];
+    public int MinVolunteers { get; set; } = 2;
+    public int MaxVolunteers { get; set; } = 5;
+}
+
+public class TimeSlotEntry
+{
+    public string StartTime { get; set; } = "08:00";
+    public double DurationHours { get; set; } = 4;
 }
 
 // === Browse ===
@@ -139,6 +170,7 @@ public class MyShiftsViewModel
     public List<MySignupItem> Pending { get; set; } = [];
     public List<MySignupItem> Past { get; set; } = [];
     public string? ICalUrl { get; set; }
+    public List<int> AvailableDayOffsets { get; set; } = [];
 }
 
 public class MySignupItem
@@ -242,6 +274,7 @@ public class VolunteerSearchResult
     public string? DietaryPreference { get; set; }
     public int BookedShiftCount { get; set; }
     public bool HasOverlap { get; set; }
+    public bool IsInPool { get; set; }
     public string? MedicalConditions { get; set; }
 }
 
@@ -261,7 +294,7 @@ public class ShiftsSummaryCardViewModel
 
 public class NoShowHistoryItem
 {
-    public string ShiftTitle { get; set; } = string.Empty;
+    public string ShiftLabel { get; set; } = string.Empty;
     public string DepartmentName { get; set; } = string.Empty;
     public string ShiftDateLabel { get; set; } = string.Empty;
     public string? MarkedByName { get; set; }

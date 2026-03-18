@@ -101,7 +101,7 @@
 
                         <tr>
                             <td>
-                                @shift.Title
+                                @shift.Rota.Name
                                 @if (shift.AdminOnly) { <span class="badge bg-dark ms-1">Admin</span> }
                             </td>
                             <td>@item.DepartmentName</td>
@@ -128,7 +128,7 @@
                         <tr class="collapse" id="@collapseId">
                             <td colspan="6">
                                 <div class="p-3 bg-light rounded border">
-                                    <label class="form-label fw-semibold">Search volunteers for: @shift.Title</label>
+                                    <label class="form-label fw-semibold">Search volunteers for: @shift.Rota.Name</label>
                                     <input type="text"
                                            class="form-control mb-2 volunteer-search-input"
                                            placeholder="Type a name (min 2 chars)..."
