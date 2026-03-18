@@ -103,8 +103,8 @@ var allowed = GetAllowedVisibilities(accessLevel);
 private static List<ContactFieldVisibility> GetAllowedVisibilities(ContactFieldVisibility accessLevel) =>
     accessLevel switch
     {
-        ContactFieldVisibility.BoardOnly => [ContactFieldVisibility.BoardOnly, ContactFieldVisibility.LeadsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
-        ContactFieldVisibility.LeadsAndBoard => [ContactFieldVisibility.LeadsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
+        ContactFieldVisibility.BoardOnly => [ContactFieldVisibility.BoardOnly, ContactFieldVisibility.CoordinatorsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
+        ContactFieldVisibility.CoordinatorsAndBoard => [ContactFieldVisibility.CoordinatorsAndBoard, ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
         ContactFieldVisibility.MyTeams => [ContactFieldVisibility.MyTeams, ContactFieldVisibility.AllActiveProfiles],
         ContactFieldVisibility.AllActiveProfiles => [ContactFieldVisibility.AllActiveProfiles],
         _ => [ContactFieldVisibility.AllActiveProfiles]
@@ -215,3 +215,23 @@ public class ShiftCardsViewComponent : ViewComponent
 ## Localization (i18n)
 
 **Admin pages do not require localization.** Existing localized strings in admin views can stay, but do not add new `@Localizer[...]` calls or resource keys for admin-side views (`/Admin/*`, `/TeamAdmin/*`) until further notice. Only public/user-facing views require localization.
+
+## Namespace Alias
+
+Due to namespace collision, use `MemberApplication` alias when referencing `Humans.Domain.Entities.Application`:
+
+```csharp
+using MemberApplication = Humans.Domain.Entities.Application;
+```
+
+## LSP Integration
+
+The `csharp-ls` LSP is active via the `csharp-lsp` Claude Code plugin. It provides real-time C# compiler diagnostics (type errors, missing usings, nullable warnings, etc.) on `.cs` files when they are read.
+
+**After editing any `.cs` file, re-read it before moving on.** Diagnostics appear on `Read`, not on `Edit`. This catches errors immediately without waiting for a full `dotnet build`. Always fix LSP-reported errors in the current file before editing the next one.
+
+## Debugging: Check the Log File
+
+When debugging runtime errors, **always check the log file first** before speculating about causes. Serilog console sink is always enabled via `WriteTo.Console()`.
+
+Use `Grep` on log output filtering by entity ID, error keywords, or timestamp. Write diagnostic log messages (`_logger.LogWarning`/`LogError`) that include entity IDs, actual values, and expected values — not just "operation failed". When something goes wrong, the log should tell you *why*.

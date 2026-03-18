@@ -1,5 +1,13 @@
 # Data Model
 
+## Contents
+
+- [Key Entities](#key-entities) | [Relationships](#relationships) | [User Entity](#user-entity) | [Profile Entity](#profile-entity)
+- [Application Entity](#application-entity) | [BoardVote Entity](#boardvote-entity) | [EmailOutboxMessage Entity](#emailoutboxmessage-entity)
+- [Campaign](#campaign-entity) | [CampaignCode](#campaigncode-entity) | [CampaignGrant](#campaigngrant-entity) | [SystemSetting](#systemsetting-entity)
+- [Enums](#enums): MembershipTier, ConsentCheckStatus, VoteChoice, ApplicationStatus, SystemTeamType, AuditAction, RotaPeriod, RolePeriod
+- [Constants](#constants) | [ContactField Entity](#contactfield-entity) | [Term Lifecycle](#term-lifecycle) | [Camp Enums](#camp-enums)
+
 ## Key Entities
 
 | Entity | Purpose |
