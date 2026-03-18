@@ -84,15 +84,15 @@ Admin role is excluded from all matrices (can do everything everywhere). "Volunt
 | Google resource sync | Denied | Denied | Denied | Limited |
 
 ### Camps
-**Roles:** Volunteer, CampAdmin
+**Roles:** Volunteer, Camp Lead, CampAdmin
 
-| Feature | Volunteer | CampAdmin |
-|---------|-----------|-----------|
-| Browse camps | Allowed | Allowed |
-| Register a camp | Allowed | Allowed |
-| Edit own camp | Allowed | Allowed |
-| Approve/reject camps | Denied | Allowed |
-| Camp settings | Denied | Allowed |
+| Feature | Volunteer | Camp Lead | CampAdmin |
+|---------|-----------|-----------|-----------|
+| Browse camps | Allowed | Allowed | Allowed |
+| Register a camp | Allowed | Allowed | Allowed |
+| Edit own camp | Denied | Allowed | Allowed |
+| Approve/reject camps | Denied | Denied | Allowed |
+| Camp settings | Denied | Denied | Allowed |
 
 ### Governance
 **Roles:** Volunteer, Board
