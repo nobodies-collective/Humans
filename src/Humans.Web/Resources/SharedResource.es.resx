@@ -851,6 +851,18 @@
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve"><value>Solo visible para usted y la junta directiva. Se usa para el calendario de cumplea&#xF1;os.</value></data>
   <data name="TeamDetail_TeamCoordinators" xml:space="preserve"><value>Coordinators</value></data>
 
+  <!-- Team Public Pages -->
+  <data name="TeamDetail_AboutTeam" xml:space="preserve"><value>Sobre</value></data>
+  <data name="TeamDetail_EditPage" xml:space="preserve"><value>Editar Página</value></data>
+  <data name="TeamDetail_LastUpdated" xml:space="preserve"><value>Última actualización</value></data>
+  <data name="TeamDetail_NoPageContent" xml:space="preserve"><value>Este equipo aún no tiene una página. Añade contenido para contar a los humans de qué se trata.</value></data>
+  <data name="TeamDetail_AddPageContent" xml:space="preserve"><value>Añadir Contenido</value></data>
+  <data name="Teams_PublicDirectory" xml:space="preserve"><value>Equipos</value></data>
+  <data name="Teams_PublicDirectorySubtitle" xml:space="preserve"><value>Descubre los equipos que hacen que las cosas sucedan.</value></data>
+  <data name="Teams_LearnMore" xml:space="preserve"><value>Más Info</value></data>
+  <data name="Teams_NoPublicTeams" xml:space="preserve"><value>Aún no hay páginas de equipos públicas.</value></data>
+  <data name="EditTeamPage_Saved" xml:space="preserve"><value>Página del equipo actualizada.</value></data>
+
   <!-- Emergency Contact -->
   <data name="Profile_EmergencyContact" xml:space="preserve"><value>Contacto de emergencia</value></data>
   <data name="Profile_EmergencyContactName" xml:space="preserve"><value>Nombre</value></data>

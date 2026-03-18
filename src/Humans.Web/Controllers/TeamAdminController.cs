@@ -6,6 +6,7 @@ using Microsoft.Extensions.Localization;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Domain.ValueObjects;
 using Humans.Web.Models;
 
 namespace Humans.Web.Controllers;
@@ -830,6 +831,98 @@ public class TeamAdminController : Controller
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
+    }
+
+    [HttpGet("EditPage")]
+    public async Task<IActionResult> EditPage(string slug)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return NotFound();
+
+        var team = await _teamService.GetTeamBySlugAsync(slug);
+        if (team == null)
+            return NotFound();
+
+        var isCoordinator = await _teamService.IsUserCoordinatorOfTeamAsync(team.Id, user.Id);
+        var canManage = isCoordinator || User.IsInRole("Board") || User.IsInRole("Admin") || User.IsInRole("TeamsAdmin");
+        if (!canManage)
+            return Forbid();
+
+        var canBePublic = !team.IsSystemTeam && !team.ParentTeamId.HasValue;
+
+        // Ensure we always show 3 CTA slots
+        var ctas = (team.CallsToAction ?? [])
+            .Select(c => new CallToActionViewModel { Text = c.Text, Url = c.Url, Style = c.Style })
+            .ToList();
+        while (ctas.Count < 3)
+            ctas.Add(new CallToActionViewModel { Style = ctas.Count == 0 ? CallToActionStyle.Primary : CallToActionStyle.Secondary });
+
+        var viewModel = new EditTeamPageViewModel
+        {
+            TeamId = team.Id,
+            Slug = team.Slug,
+            TeamName = team.DisplayName,
+            IsPublicPage = team.IsPublicPage,
+            CanBePublic = canBePublic,
+            PageContent = team.PageContent,
+            CallsToAction = ctas
+        };
+
+        return View(viewModel);
+    }
+
+    [HttpPost("EditPage")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditPage(string slug, EditTeamPageViewModel model)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+            return NotFound();
+
+        var team = await _teamService.GetTeamBySlugAsync(slug);
+        if (team == null)
+            return NotFound();
+
+        var isCoordinator = await _teamService.IsUserCoordinatorOfTeamAsync(team.Id, user.Id);
+        var canManage = isCoordinator || User.IsInRole("Board") || User.IsInRole("Admin") || User.IsInRole("TeamsAdmin");
+        if (!canManage)
+            return Forbid();
+
+        if (!ModelState.IsValid)
+        {
+            model.Slug = team.Slug;
+            model.TeamName = team.DisplayName;
+            model.CanBePublic = !team.IsSystemTeam && !team.ParentTeamId.HasValue;
+            return View(model);
+        }
+
+        // Convert view model CTAs to domain, filtering out empty ones
+        var callsToAction = model.CallsToAction
+            .Where(c => !string.IsNullOrWhiteSpace(c.Text) && !string.IsNullOrWhiteSpace(c.Url))
+            .Select(c => new CallToAction { Text = c.Text!.Trim(), Url = c.Url!.Trim(), Style = c.Style })
+            .ToList();
+
+        try
+        {
+            await _teamService.UpdateTeamPageContentAsync(
+                team.Id,
+                model.PageContent,
+                callsToAction,
+                model.IsPublicPage,
+                user.Id);
+
+            TempData["SuccessMessage"] = _localizer["EditTeamPage_Saved"].Value;
+            return RedirectToAction("Details", "Team", new { slug });
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError("", ex.Message);
+            model.Slug = team.Slug;
+            model.TeamName = team.DisplayName;
+            model.CanBePublic = !team.IsSystemTeam && !team.ParentTeamId.HasValue;
+            return View(model);
+        }
     }
 
     [HttpGet("Roles/SearchMembers")]

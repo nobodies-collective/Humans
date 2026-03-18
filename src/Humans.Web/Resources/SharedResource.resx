@@ -844,6 +844,18 @@
   <data name="Profile_Day" xml:space="preserve"><value>Day</value></data>
   <data name="TeamDetail_TeamCoordinators" xml:space="preserve"><value>Coordinators</value></data>
 
+  <!-- Team Public Pages -->
+  <data name="TeamDetail_AboutTeam" xml:space="preserve"><value>About</value></data>
+  <data name="TeamDetail_EditPage" xml:space="preserve"><value>Edit Page</value></data>
+  <data name="TeamDetail_LastUpdated" xml:space="preserve"><value>Last updated</value></data>
+  <data name="TeamDetail_NoPageContent" xml:space="preserve"><value>This team doesn't have a page yet. Add content to tell humans what you're about.</value></data>
+  <data name="TeamDetail_AddPageContent" xml:space="preserve"><value>Add Page Content</value></data>
+  <data name="Teams_PublicDirectory" xml:space="preserve"><value>Teams</value></data>
+  <data name="Teams_PublicDirectorySubtitle" xml:space="preserve"><value>Discover the teams that make things happen.</value></data>
+  <data name="Teams_LearnMore" xml:space="preserve"><value>Learn More</value></data>
+  <data name="Teams_NoPublicTeams" xml:space="preserve"><value>No public team pages available yet.</value></data>
+  <data name="EditTeamPage_Saved" xml:space="preserve"><value>Team page updated successfully.</value></data>
+
   <!-- Emergency Contact -->
   <data name="Profile_EmergencyContact" xml:space="preserve"><value>Emergency Contact</value></data>
   <data name="Profile_EmergencyContactName" xml:space="preserve"><value>Name</value></data>

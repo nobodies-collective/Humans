@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Domain.ValueObjects;
 
 namespace Humans.Web.Models;
 
@@ -10,6 +11,7 @@ public class TeamIndexViewModel
     public List<TeamSummaryViewModel> Departments { get; set; } = [];
     public List<TeamSummaryViewModel> SystemTeams { get; set; } = [];
     public bool CanCreateTeam { get; set; }
+    public bool IsAuthenticated { get; set; }
 }
 
 public class TeamSummaryViewModel
@@ -21,6 +23,7 @@ public class TeamSummaryViewModel
     public int MemberCount { get; set; }
     public bool IsSystemTeam { get; set; }
     public bool RequiresApproval { get; set; }
+    public bool IsPublicPage { get; set; }
     public bool IsCurrentUserMember { get; set; }
     public bool IsCurrentUserCoordinator { get; set; }
     public string? ParentTeamName { get; set; }
@@ -50,6 +53,18 @@ public class TeamDetailViewModel
     public List<TeamMemberViewModel> Members { get; set; } = [];
     public List<TeamResourceLinkViewModel> Resources { get; set; } = [];
     public List<TeamRoleDefinitionViewModel> RoleDefinitions { get; set; } = [];
+
+    // Public page content
+    public bool IsPublicPage { get; set; }
+    public string? PageContent { get; set; }
+    public string? PageContentHtml { get; set; }
+    public List<CallToAction>? CallsToAction { get; set; }
+    public DateTime? PageContentUpdatedAt { get; set; }
+    public string? PageContentUpdatedByDisplayName { get; set; }
+
+    // Viewer context
+    public bool IsAuthenticated { get; set; }
+    public bool CanEditPageContent { get; set; }
 
     // Current user context
     public bool IsCurrentUserMember { get; set; }
@@ -203,6 +218,31 @@ public class EditTeamViewModel
     /// Available parent teams for the dropdown.
     /// </summary>
     public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> EligibleParents { get; set; } = [];
+}
+
+public class EditTeamPageViewModel
+{
+    public Guid TeamId { get; set; }
+    public string Slug { get; set; } = string.Empty;
+    public string TeamName { get; set; } = string.Empty;
+    public bool IsPublicPage { get; set; }
+    public bool CanBePublic { get; set; }
+
+    [StringLength(50000)]
+    public string? PageContent { get; set; }
+
+    public List<CallToActionViewModel> CallsToAction { get; set; } = [];
+}
+
+public class CallToActionViewModel
+{
+    [StringLength(100)]
+    public string? Text { get; set; }
+
+    [StringLength(512)]
+    public string? Url { get; set; }
+
+    public CallToActionStyle Style { get; set; } = CallToActionStyle.Secondary;
 }
 
 public class TeamMembersViewModel

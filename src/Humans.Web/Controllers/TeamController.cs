@@ -50,28 +50,53 @@ public class TeamController : Controller
         _logger = logger;
     }
 
+    [AllowAnonymous]
     [HttpGet("")]
     public async Task<IActionResult> Index()
     {
         var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var isAuthenticated = user != null;
+
+        if (!isAuthenticated)
         {
-            return NotFound();
+            // Anonymous: show only public teams
+            var allTeams = await _teamService.GetAllTeamsAsync();
+            var teamById = allTeams.ToDictionary(t => t.Id);
+
+            var publicTeams = allTeams
+                .Where(t => t.IsPublicPage && !t.IsSystemTeam && t.ParentTeamId == null)
+                .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(t => new TeamSummaryViewModel
+                {
+                    Id = t.Id,
+                    Name = t.Name,
+                    Description = t.Description,
+                    Slug = t.Slug,
+                    MemberCount = t.Members.Count(m => m.LeftAt == null),
+                    IsPublicPage = true
+                })
+                .ToList();
+
+            return View(new TeamIndexViewModel
+            {
+                Departments = publicTeams,
+                IsAuthenticated = false
+            });
         }
 
-        var allTeams = await _teamService.GetAllTeamsAsync();
-        var userTeams = await _teamService.GetUserTeamsAsync(user.Id);
+        var allTeamsAuth = await _teamService.GetAllTeamsAsync();
+        var userTeams = await _teamService.GetUserTeamsAsync(user!.Id);
         var userTeamIds = userTeams.Select(ut => ut.TeamId).ToHashSet();
         var userCoordinatorTeamIds = userTeams.Where(ut => ut.Role == TeamMemberRole.Coordinator).Select(ut => ut.TeamId).ToHashSet();
 
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
 
         // Build parent lookup for sub-team display
-        var teamById = allTeams.ToDictionary(t => t.Id);
+        var teamById2 = allTeamsAuth.ToDictionary(t => t.Id);
 
         TeamSummaryViewModel ToSummary(Team t)
         {
-            Team? parent = t.ParentTeamId.HasValue && teamById.TryGetValue(t.ParentTeamId.Value, out var p) ? p : null;
+            Team? parent = t.ParentTeamId.HasValue && teamById2.TryGetValue(t.ParentTeamId.Value, out var p) ? p : null;
             return new()
             {
                 Id = t.Id,
@@ -81,6 +106,7 @@ public class TeamController : Controller
                 MemberCount = t.Members.Count(m => m.LeftAt == null),
                 IsSystemTeam = t.IsSystemTeam,
                 RequiresApproval = t.RequiresApproval,
+                IsPublicPage = t.IsPublicPage,
                 IsCurrentUserMember = userTeamIds.Contains(t.Id),
                 IsCurrentUserCoordinator = userCoordinatorTeamIds.Contains(t.Id),
                 ParentTeamName = parent?.Name,
@@ -88,7 +114,7 @@ public class TeamController : Controller
             };
         }
 
-        var allSummaries = allTeams.Select(ToSummary).ToList();
+        var allSummaries = allTeamsAuth.Select(ToSummary).ToList();
 
         var myTeams = allSummaries
             .Where(t => userTeamIds.Contains(t.Id))
@@ -112,28 +138,96 @@ public class TeamController : Controller
             MyTeams = myTeams,
             Departments = departments,
             SystemTeams = systemTeams,
-            CanCreateTeam = isBoardMember || User.IsInRole("TeamsAdmin") || User.IsInRole("Admin")
+            CanCreateTeam = isBoardMember || User.IsInRole("TeamsAdmin") || User.IsInRole("Admin"),
+            IsAuthenticated = true
         };
 
         return View(viewModel);
     }
 
+    [AllowAnonymous]
     [HttpGet("{slug}")]
     public async Task<IActionResult> Details(string slug)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
-        {
-            return NotFound();
-        }
-
         var team = await _teamService.GetTeamBySlugAsync(slug);
         if (team == null)
         {
             return NotFound();
         }
 
-        var isMember = await _teamService.IsUserMemberOfTeamAsync(team.Id, user.Id);
+        var user = await _userManager.GetUserAsync(User);
+        var isAuthenticated = user != null;
+
+        // Anonymous visitors can only see public teams
+        if (!isAuthenticated && !team.IsPublicPage)
+        {
+            return NotFound();
+        }
+
+        // Build page content HTML
+        string? pageContentHtml = null;
+        if (!string.IsNullOrEmpty(team.PageContent))
+        {
+            var sanitizer = new Ganss.Xss.HtmlSanitizer();
+            pageContentHtml = sanitizer.Sanitize(Markdig.Markdown.ToHtml(team.PageContent));
+        }
+
+        // Look up who last edited the page
+        string? pageContentUpdatedByDisplayName = null;
+        if (team.PageContentUpdatedByUserId.HasValue)
+        {
+            var editor = await _userManager.FindByIdAsync(team.PageContentUpdatedByUserId.Value.ToString());
+            pageContentUpdatedByDisplayName = editor?.DisplayName;
+        }
+
+        if (!isAuthenticated)
+        {
+            // Anonymous: show public page with coordinators only
+            var activeMembers = team.Members.Where(m => m.LeftAt == null).ToList();
+            var coordinators = activeMembers.Where(m => m.Role == TeamMemberRole.Coordinator).ToList();
+            var coordinatorUserIds = coordinators.Select(m => m.UserId).ToList();
+            var profilesWithCustomPictures = await _profileService.GetCustomPictureInfoByUserIdsAsync(coordinatorUserIds);
+            var customPictureByUserId = profilesWithCustomPictures.ToDictionary(
+                p => p.UserId,
+                p => Url.Action(nameof(ProfileController.Picture), "Profile", new { id = p.ProfileId, v = p.UpdatedAtTicks })!);
+
+            var viewModel = new TeamDetailViewModel
+            {
+                Id = team.Id,
+                Name = team.DisplayName,
+                Description = team.Description,
+                Slug = team.Slug,
+                IsActive = team.IsActive,
+                IsSystemTeam = team.IsSystemTeam,
+                CreatedAt = team.CreatedAt.ToDateTimeUtc(),
+                IsPublicPage = team.IsPublicPage,
+                PageContent = team.PageContent,
+                PageContentHtml = pageContentHtml,
+                CallsToAction = team.CallsToAction ?? [],
+                PageContentUpdatedAt = team.PageContentUpdatedAt?.ToDateTimeUtc(),
+                PageContentUpdatedByDisplayName = pageContentUpdatedByDisplayName,
+                IsAuthenticated = false,
+                Members = coordinators
+                    .OrderBy(m => m.User.DisplayName, StringComparer.OrdinalIgnoreCase)
+                    .Select(m => new TeamMemberViewModel
+                    {
+                        UserId = m.UserId,
+                        DisplayName = m.User.DisplayName,
+                        ProfilePictureUrl = m.User.ProfilePictureUrl,
+                        HasCustomProfilePicture = customPictureByUserId.ContainsKey(m.UserId),
+                        CustomProfilePictureUrl = customPictureByUserId.GetValueOrDefault(m.UserId),
+                        Role = m.Role.ToString(),
+                        IsCoordinator = true
+                    }).ToList(),
+                ParentTeam = team.ParentTeam,
+                ChildTeams = team.ChildTeams.Where(c => c.IsActive && c.IsPublicPage).OrderBy(c => c.Name, StringComparer.Ordinal).ToList()
+            };
+
+            return View(viewModel);
+        }
+
+        // Authenticated path — full details
+        var isMember = await _teamService.IsUserMemberOfTeamAsync(team.Id, user!.Id);
         var isCoordinator = await _teamService.IsUserCoordinatorOfTeamAsync(team.Id, user.Id);
         var isBoardMember = await _teamService.IsUserBoardMemberAsync(user.Id);
         var isAdmin = await _teamService.IsUserAdminAsync(user.Id);
@@ -149,13 +243,13 @@ public class TeamController : Controller
         }
 
         // Get user IDs of active members to look up custom profile pictures
-        var activeMembers = team.Members.Where(m => m.LeftAt == null).ToList();
-        var memberUserIds = activeMembers.Select(m => m.UserId).ToList();
+        var allActiveMembers = team.Members.Where(m => m.LeftAt == null).ToList();
+        var memberUserIds = allActiveMembers.Select(m => m.UserId).ToList();
 
         // Load profiles that have custom pictures (only need Id and UserId, not the picture data)
-        var profilesWithCustomPictures = await _profileService.GetCustomPictureInfoByUserIdsAsync(memberUserIds);
+        var allProfilesWithCustomPictures = await _profileService.GetCustomPictureInfoByUserIdsAsync(memberUserIds);
 
-        var customPictureByUserId = profilesWithCustomPictures.ToDictionary(
+        var allCustomPictureByUserId = allProfilesWithCustomPictures.ToDictionary(
             p => p.UserId,
             p => Url.Action(nameof(ProfileController.Picture), "Profile", new { id = p.ProfileId, v = p.UpdatedAtTicks })!);
 
@@ -189,7 +283,7 @@ public class TeamController : Controller
             }
         }
 
-        var viewModel = new TeamDetailViewModel
+        var authViewModel = new TeamDetailViewModel
         {
             Id = team.Id,
             Name = team.DisplayName,
@@ -200,6 +294,14 @@ public class TeamController : Controller
             IsSystemTeam = team.IsSystemTeam,
             SystemTeamType = team.SystemTeamType != SystemTeamType.None ? team.SystemTeamType.ToString() : null,
             CreatedAt = team.CreatedAt.ToDateTimeUtc(),
+            IsPublicPage = team.IsPublicPage,
+            PageContent = team.PageContent,
+            PageContentHtml = pageContentHtml,
+            CallsToAction = team.CallsToAction ?? [],
+            PageContentUpdatedAt = team.PageContentUpdatedAt?.ToDateTimeUtc(),
+            PageContentUpdatedByDisplayName = pageContentUpdatedByDisplayName,
+            IsAuthenticated = true,
+            CanEditPageContent = canManage,
             RoleDefinitions = roleDefinitions.Select(TeamRoleDefinitionViewModel.FromEntity).ToList(),
             Resources = googleResources.Select(gr => new TeamResourceLinkViewModel
             {
@@ -214,7 +316,7 @@ public class TeamController : Controller
                     _ => "fa-solid fa-link"
                 }
             }).ToList(),
-            Members = activeMembers
+            Members = allActiveMembers
                 .OrderBy(m => m.Role)
                 .ThenBy(m => m.User.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .Select(m => new TeamMemberViewModel
@@ -223,8 +325,8 @@ public class TeamController : Controller
                     DisplayName = m.User.DisplayName,
                     Email = m.User.Email ?? "",
                     ProfilePictureUrl = m.User.ProfilePictureUrl,
-                    HasCustomProfilePicture = customPictureByUserId.ContainsKey(m.UserId),
-                    CustomProfilePictureUrl = customPictureByUserId.GetValueOrDefault(m.UserId),
+                    HasCustomProfilePicture = allCustomPictureByUserId.ContainsKey(m.UserId),
+                    CustomProfilePictureUrl = allCustomPictureByUserId.GetValueOrDefault(m.UserId),
                     Role = m.Role.ToString(),
                     JoinedAt = m.JoinedAt.ToDateTimeUtc(),
                     IsCoordinator = m.Role == TeamMemberRole.Coordinator
@@ -242,7 +344,7 @@ public class TeamController : Controller
             ShiftsSummary = shiftsSummary
         };
 
-        return View(viewModel);
+        return View(authViewModel);
     }
 
     [HttpGet("Birthdays")]
