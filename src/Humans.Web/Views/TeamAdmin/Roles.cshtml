@@ -23,13 +23,31 @@
     {
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">@role.Name</h5>
+                <div>
+                    <h5 class="mb-0 d-inline">@role.Name</h5>
+                    @if (role.Period != RolePeriod.YearRound)
+                    {
+                        var rpBadge = role.Period switch
+                        {
+                            RolePeriod.Build => "bg-info",
+                            RolePeriod.Event => "bg-success",
+                            RolePeriod.Strike => "bg-secondary",
+                            _ => "bg-light text-dark"
+                        };
+                        <span class="badge @rpBadge ms-2">@role.Period</span>
+                    }
+                    @if (role.IsManagement)
+                    {
+                        <span class="badge bg-warning text-dark ms-1">Management</span>
+                    }
+                </div>
                 @if (!role.IsManagement)
                 {
                     <form asp-controller="TeamAdmin" asp-action="DeleteRole" asp-route-slug="@Model.Slug" asp-route-roleId="@role.Id" method="post"
-                          class="d-inline" onsubmit="return confirm('Are you sure you want to delete this role? All assignments will be removed.')">
+                          class="d-inline">
                         @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                data-confirm="Are you sure you want to delete this role? All assignments will be removed.">Delete</button>
                     </form>
                 }
             </div>

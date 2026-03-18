@@ -67,6 +67,7 @@ else
             <tr>
                 <th>Team</th>
                 <th>Role</th>
+                <th>Period</th>
                 <th>Slot</th>
                 <th>Priority</th>
                 <th>Assigned To</th>
@@ -93,6 +94,17 @@ else
                             </a>
                         }
                     </td>
+                    @{
+                        var periodBadge = slot.Period switch
+                        {
+                            "Build" => "bg-info",
+                            "Event" => "bg-success",
+                            "Strike" => "bg-secondary",
+                            _ => "bg-light text-dark"
+                        };
+                        var periodLabel = slot.Period == "YearRound" ? "Year-round" : slot.Period;
+                    }
+                    <td><span class="badge @periodBadge">@periodLabel</span></td>
                     <td>@slot.SlotNumber</td>
                     <td><span class="badge @slot.PriorityBadgeClass">@(slot.Priority == "NiceToHave" ? "Nice to Have" : slot.Priority)</span></td>
                     <td>
