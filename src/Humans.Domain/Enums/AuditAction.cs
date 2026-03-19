@@ -58,4 +58,6 @@ public enum AuditAction
     ShiftSignupNoShow,
     ShiftSignupCancelled,
     TeamPageContentUpdated,
+    FeedbackResponseSent,
+    FeedbackStatusChanged,
 }

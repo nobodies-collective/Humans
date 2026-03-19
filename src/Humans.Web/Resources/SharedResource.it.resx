@@ -1144,4 +1144,31 @@
   <data name="Shifts_SignedUp" xml:space="preserve"><value>Iscritti</value></data>
   <data name="Shifts_Pending" xml:space="preserve"><value>(in attesa)</value></data>
 
+  <!-- Feedback Email -->
+  <data name="Email_FeedbackResponse_Subject" xml:space="preserve"><value>Aggiornamento sul tuo feedback</value></data>
+  <data name="Email_FeedbackResponse_Body" xml:space="preserve"><value>&lt;h2&gt;Aggiornamento sul tuo Feedback&lt;/h2&gt;
+&lt;p&gt;Ciao {0},&lt;/p&gt;
+&lt;p&gt;Abbiamo esaminato il tuo feedback:&lt;/p&gt;
+&lt;blockquote style="border-left: 3px solid #ccc; padding-left: 12px; color: #666;"&gt;{1}&lt;/blockquote&gt;
+&lt;p&gt;&lt;strong&gt;La nostra risposta:&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;{2}&lt;/p&gt;
+&lt;p&gt;Grazie per aiutarci a migliorare!&lt;/p&gt;
+&lt;p&gt;Il team Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = original description, {2} = response message</comment></data>
+
+  <!-- Feedback Widget -->
+  <data name="Feedback_Button" xml:space="preserve"><value>Feedback</value></data>
+  <data name="Feedback_Title" xml:space="preserve"><value>Invia Feedback</value></data>
+  <data name="Feedback_Category" xml:space="preserve"><value>Categoria</value></data>
+  <data name="Feedback_Category_Bug" xml:space="preserve"><value>Segnalazione bug</value></data>
+  <data name="Feedback_Category_FeatureRequest" xml:space="preserve"><value>Richiesta funzionalità</value></data>
+  <data name="Feedback_Category_Question" xml:space="preserve"><value>Domanda</value></data>
+  <data name="Feedback_Description" xml:space="preserve"><value>Descrizione</value></data>
+  <data name="Feedback_DescriptionPlaceholder" xml:space="preserve"><value>Raccontaci cosa è successo o cosa vorresti vedere...</value></data>
+  <data name="Feedback_Screenshot" xml:space="preserve"><value>Screenshot (opzionale)</value></data>
+  <data name="Feedback_ScreenshotHelp" xml:space="preserve"><value>JPEG, PNG o WebP. Max 10MB.</value></data>
+  <data name="Feedback_Cancel" xml:space="preserve"><value>Annulla</value></data>
+  <data name="Feedback_Submit" xml:space="preserve"><value>Invia</value></data>
+  <data name="Feedback_Submitted" xml:space="preserve"><value>Grazie! Il tuo feedback è stato inviato.</value></data>
+  <data name="Feedback_Error" xml:space="preserve"><value>Qualcosa è andato storto nell'invio del tuo feedback. Riprova.</value></data>
+
 </root>

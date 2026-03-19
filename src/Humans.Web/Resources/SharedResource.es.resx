@@ -1164,4 +1164,31 @@
   <data name="Shifts_SignedUp" xml:space="preserve"><value>Apuntados</value></data>
   <data name="Shifts_Pending" xml:space="preserve"><value>(pendiente)</value></data>
 
+  <!-- Feedback Email -->
+  <data name="Email_FeedbackResponse_Subject" xml:space="preserve"><value>Actualización sobre tu feedback</value></data>
+  <data name="Email_FeedbackResponse_Body" xml:space="preserve"><value>&lt;h2&gt;Actualización sobre tu Feedback&lt;/h2&gt;
+&lt;p&gt;Hola {0},&lt;/p&gt;
+&lt;p&gt;Hemos revisado tu feedback:&lt;/p&gt;
+&lt;blockquote style="border-left: 3px solid #ccc; padding-left: 12px; color: #666;"&gt;{1}&lt;/blockquote&gt;
+&lt;p&gt;&lt;strong&gt;Nuestra respuesta:&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;{2}&lt;/p&gt;
+&lt;p&gt;¡Gracias por ayudarnos a mejorar!&lt;/p&gt;
+&lt;p&gt;El equipo de Humans&lt;/p&gt;</value><comment>{0} = user name, {1} = original description, {2} = response message</comment></data>
+
+  <!-- Feedback Widget -->
+  <data name="Feedback_Button" xml:space="preserve"><value>Feedback</value></data>
+  <data name="Feedback_Title" xml:space="preserve"><value>Enviar Feedback</value></data>
+  <data name="Feedback_Category" xml:space="preserve"><value>Categoría</value></data>
+  <data name="Feedback_Category_Bug" xml:space="preserve"><value>Reporte de error</value></data>
+  <data name="Feedback_Category_FeatureRequest" xml:space="preserve"><value>Solicitud de función</value></data>
+  <data name="Feedback_Category_Question" xml:space="preserve"><value>Pregunta</value></data>
+  <data name="Feedback_Description" xml:space="preserve"><value>Descripción</value></data>
+  <data name="Feedback_DescriptionPlaceholder" xml:space="preserve"><value>Cuéntanos qué pasó o qué te gustaría ver...</value></data>
+  <data name="Feedback_Screenshot" xml:space="preserve"><value>Captura de pantalla (opcional)</value></data>
+  <data name="Feedback_ScreenshotHelp" xml:space="preserve"><value>JPEG, PNG o WebP. Máximo 10MB.</value></data>
+  <data name="Feedback_Cancel" xml:space="preserve"><value>Cancelar</value></data>
+  <data name="Feedback_Submit" xml:space="preserve"><value>Enviar</value></data>
+  <data name="Feedback_Submitted" xml:space="preserve"><value>¡Gracias! Tu feedback ha sido enviado.</value></data>
+  <data name="Feedback_Error" xml:space="preserve"><value>Algo salió mal al enviar tu feedback. Por favor, inténtalo de nuevo.</value></data>
+
 </root>
