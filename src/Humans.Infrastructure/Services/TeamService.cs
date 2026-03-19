@@ -17,7 +17,7 @@ namespace Humans.Infrastructure.Services;
 /// <summary>
 /// Service for managing teams and team membership.
 /// </summary>
-public partial class TeamService : ITeamService
+public class TeamService : ITeamService
 {
     private readonly HumansDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
@@ -1526,15 +1526,16 @@ public partial class TeamService : ITeamService
 
     private static void ValidateRoleName(string name)
     {
-        if (!RoleNameRegex().IsMatch(name))
+        if (string.IsNullOrWhiteSpace(name))
         {
-            throw new InvalidOperationException(
-                "Role name may only contain letters, numbers, spaces, and hyphens");
+            throw new InvalidOperationException("Role name cannot be empty");
+        }
+
+        if (name.Length > 100)
+        {
+            throw new InvalidOperationException("Role name cannot exceed 100 characters");
         }
     }
-
-    [GeneratedRegex(@"^[\p{L}\p{N} \-]+$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
-    private static partial Regex RoleNameRegex();
 
     public async Task<IReadOnlyDictionary<Guid, int>> GetPendingRequestCountsByTeamIdsAsync(
         IEnumerable<Guid> teamIds,
