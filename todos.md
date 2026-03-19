@@ -1,7 +1,7 @@
 # Release TODOs
 
 Audit date: 2026-02-05
-Last synced: 2026-03-18T01:55
+Last synced: 2026-03-19T02:15
 
 ---
 
@@ -20,11 +20,20 @@ Board members voting on Asociado applications should be required to select which
 #### #127: Add incomplete signup lifecycle — reminders and auto-deletion
 Send reminders to humans who signed up but never completed profile/consent, auto-delete after configurable period. Label: enhancement.
 
-#### #137: Public team pages with editable markdown content, CTAs, and member roster
-Public-facing team pages with editable markdown, calls-to-action, and visible member roster. Label: none.
+#### #146: Contact info publicly available without log in
+Barrio contact info (emails) visible on public pages without login. Should hide contact info and replace with apply/recruit button if barrio is open to recruitment, or only show public socials in plain text.
 
-#### #141: Add in-app feedback system for bug reports and feature requests
-Feedback widget on every page (post-login) capturing bug reports / feature requests with automatic URL/browser context and optional screenshot. Admin triage page with status workflow, email responses to reporters, and Claude Code queryable data for dev workflow.
+#### #144: Fix preview environment file share for uploaded images
+Preview environments clone QA DB but lack access to uploaded images. Pages with profile photos, team logos show broken images. Proposed: read-only mount of QA uploads directory.
+
+#### #147: Add feedback-to-issue triage workflow via API
+Extend feedback API for Claude Code workflow: query unprocessed feedback, respond to reporters, link GitHub issues, update status. Integrate with `/whats` so pending feedback surfaces during dev sessions. Supersedes #142.
+
+#### #142: Add "report a bug" link in menu or footer
+Add visible bug reporting link in navigation. Superseded by #147 (feedback widget + API triage).
+
+#### #148: Add automated Codex code review on pull requests
+GitHub Action workflow running OpenAI Codex CLI on PRs to `qa` and `main`, using CODE_REVIEW_RULES.md as context. Non-blocking, posts findings as PR comments.
 
 #### #138: Add Catalan (ca) translation
 New `SharedResource.ca.resx` with all ~805 keys, register `"ca"` culture in `Program.cs`, language selector, and Catalan email templates.
@@ -35,6 +44,9 @@ Let humans manage email notification preferences with magic-link unsubscribe sup
 ---
 
 ### Priority 3: Medium Features
+
+#### #149: Integrate new Figma designs into Humans UI
+Adopt new visual designs from Figma into the app. Extract design tokens, map designs to existing views, implement incrementally. Figma: https://finder-vector-52685742.figma.site/
 
 #### #111: Add organizational email account management (@nobodies.team)
 Three parts: (1) Associate @nobodies.team emails with humans and force as primary for communication + Google services, (2) Admin UI to provision @nobodies.team accounts via Google Workspace, (3) Subtle badge on profiles for humans with @nobodies.team accounts.
@@ -155,6 +167,12 @@ Two OpenTelemetry packages pinned to beta versions. Check for stable releases or
 ---
 
 ## Completed
+
+### #137: Public team pages with editable markdown content, CTAs, and member roster DONE
+Public-facing team pages with editable markdown, calls-to-action, anonymous access, and member roster. Merged to production via PR #145 (commit `31df3c4`).
+
+### #141: In-app feedback system for bug reports and feature requests DONE
+Feedback widget on every page (post-login), admin triage dashboard, API endpoint. Merged to production via PR #145 (commit `2a0a58c`).
 
 ### #133: Add clickable lead profiles on barrio pages and auto-create Barrio Leads system team DONE
 Clickable lead links on camp detail pages, removed "at Nowhere" event name references, added Barrio Leads system team auto-populated from active CampLead assignments. Committed `d3a40c8`.
