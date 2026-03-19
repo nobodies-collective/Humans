@@ -1,7 +1,4 @@
 @model Humans.Web.Models.AdminApplicationListViewModel
-@{
-    ViewData["Title"] = Localizer["AdminApplications_Title"].Value;
-}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>@Localizer["AdminApplications_Title"]</h1>
@@ -66,7 +63,7 @@
                                 <small class="text-muted">@app.UserEmail</small>
                             </td>
                             <td><span class="badge bg-info">@app.MembershipTier</span></td>
-                            <td>@app.SubmittedAt.ToString("d MMM yyyy")</td>
+                            <td>@app.SubmittedAt.ToDisplayDate()</td>
                             <td>
                                 <span class="badge @app.StatusBadgeClass">@app.Status</span>
                             </td>
@@ -86,12 +83,11 @@
     </div>
 </div>
 
-@if (Model.TotalCount > Model.PageSize)
+@if (Model.TotalPages > 1)
 {
-    var totalPages = (int)Math.Ceiling((double)Model.TotalCount / Model.PageSize);
     <nav class="mt-4">
         <ul class="pagination justify-content-center">
-            @for (var i = 1; i <= totalPages && i <= 10; i++)
+            @for (var i = 1; i <= Model.TotalPages && i <= 10; i++)
             {
                 <li class="page-item @(i == Model.PageNumber ? "active" : "")">
                     <a class="page-link" asp-action="Applications" asp-route-page="@i" asp-route-status="@Model.StatusFilter" asp-route-tier="@Model.TierFilter">@i</a>

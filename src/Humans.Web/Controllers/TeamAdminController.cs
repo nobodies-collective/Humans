@@ -4,22 +4,23 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using Humans.Application.Interfaces;
+using Humans.Web.Authorization;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Domain.ValueObjects;
+using Humans.Web.Extensions;
 using Humans.Web.Models;
 
 namespace Humans.Web.Controllers;
 
 [Authorize]
 [Route("Teams/{slug}")]
-public class TeamAdminController : Controller
+public class TeamAdminController : HumansTeamControllerBase
 {
     private readonly ITeamService _teamService;
     private readonly ITeamResourceService _teamResourceService;
     private readonly IGoogleSyncService _googleSyncService;
     private readonly IProfileService _profileService;
-    private readonly UserManager<User> _userManager;
     private readonly ISystemTeamSync _systemTeamSyncJob;
     private readonly ILogger<TeamAdminController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
@@ -33,12 +34,12 @@ public class TeamAdminController : Controller
         ISystemTeamSync systemTeamSyncJob,
         ILogger<TeamAdminController> logger,
         IStringLocalizer<SharedResource> localizer)
+        : base(userManager, teamService)
     {
         _teamService = teamService;
         _teamResourceService = teamResourceService;
         _googleSyncService = googleSyncService;
         _profileService = profileService;
-        _userManager = userManager;
         _systemTeamSyncJob = systemTeamSyncJob;
         _logger = logger;
         _localizer = localizer;
@@ -48,32 +49,20 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ApproveRequest(string slug, Guid requestId, ApproveRejectRequestModel model)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         try
         {
             await _teamService.ApproveJoinRequestAsync(requestId, user.Id, model.Notes);
-            TempData["SuccessMessage"] = _localizer["TeamAdmin_RequestApproved"].Value;
+            SetSuccess(_localizer["TeamAdmin_RequestApproved"].Value);
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Members), new { slug });
@@ -83,38 +72,26 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RejectRequest(string slug, Guid requestId, ApproveRejectRequestModel model)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         if (string.IsNullOrWhiteSpace(model.Notes))
         {
-            TempData["ErrorMessage"] = _localizer["TeamAdmin_ProvideRejectionReason"].Value;
+            SetError(_localizer["TeamAdmin_ProvideRejectionReason"].Value);
             return RedirectToAction(nameof(Members), new { slug });
         }
 
         try
         {
             await _teamService.RejectJoinRequestAsync(requestId, user.Id, model.Notes);
-            TempData["SuccessMessage"] = _localizer["TeamAdmin_RequestRejected"].Value;
+            SetSuccess(_localizer["TeamAdmin_RequestRejected"].Value);
         }
         catch (InvalidOperationException ex)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Members), new { slug });
@@ -124,22 +101,10 @@ public class TeamAdminController : Controller
     public async Task<IActionResult> Members(string slug, int page = 1)
     {
         var pageSize = 20;
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         var allMembers = await _teamService.GetTeamMembersAsync(team.Id);
@@ -207,22 +172,10 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RemoveMember(string slug, Guid userId)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         try
@@ -232,11 +185,11 @@ public class TeamAdminController : Controller
             {
                 await _systemTeamSyncJob.SyncCoordinatorsMembershipForUserAsync(userId);
             }
-            TempData["SuccessMessage"] = _localizer["TeamAdmin_MemberRemoved"].Value;
+            SetSuccess(_localizer["TeamAdmin_MemberRemoved"].Value);
         }
         catch (InvalidOperationException ex)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Members), new { slug });
@@ -246,32 +199,20 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddMember(string slug, AddMemberModel model)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         try
         {
             await _teamService.AddMemberToTeamAsync(team.Id, model.UserId, user.Id);
-            TempData["SuccessMessage"] = _localizer["TeamAdmin_MemberAdded"].Value;
+            SetSuccess(_localizer["TeamAdmin_MemberAdded"].Value);
         }
         catch (InvalidOperationException ex)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Members), new { slug });
@@ -280,27 +221,15 @@ public class TeamAdminController : Controller
     [HttpGet("Members/Search")]
     public async Task<IActionResult> SearchUsers(string slug, string q)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, _, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return Unauthorized();
+            return teamError;
         }
 
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
+        if (!q.HasSearchTerm())
         {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
-        }
-
-        if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
-        {
-            return Json(Array.Empty<object>());
+            return Json(Array.Empty<ApprovedUserSearchResult>());
         }
 
         var results = await _profileService.SearchApprovedUsersAsync(q);
@@ -314,7 +243,7 @@ public class TeamAdminController : Controller
         var filtered = results
             .Where(r => !existingMemberIds.Contains(r.UserId))
             .Take(10)
-            .Select(r => new { r.UserId, r.DisplayName, r.Email })
+            .Select(r => r.ToApprovedUserSearchResult())
             .ToList();
 
         return Json(filtered);
@@ -323,10 +252,10 @@ public class TeamAdminController : Controller
     [HttpGet("Resources")]
     public async Task<IActionResult> Resources(string slug)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (currentUserNotFound, user) = await RequireCurrentUserAsync();
+        if (currentUserNotFound != null)
         {
-            return NotFound();
+            return currentUserNotFound;
         }
 
         var team = await _teamService.GetTeamBySlugAsync(slug);
@@ -378,10 +307,10 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> LinkDriveResource(string slug, LinkDriveResourceModel model)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (currentUserNotFound, user) = await RequireCurrentUserAsync();
+        if (currentUserNotFound != null)
         {
-            return NotFound();
+            return currentUserNotFound;
         }
 
         var team = await _teamService.GetTeamBySlugAsync(slug);
@@ -398,7 +327,7 @@ public class TeamAdminController : Controller
 
         if (!ModelState.IsValid)
         {
-            TempData["ErrorMessage"] = _localizer["TeamAdmin_InvalidDriveUrl"].Value;
+            SetError(_localizer["TeamAdmin_InvalidDriveUrl"].Value);
             return RedirectToAction(nameof(Resources), new { slug });
         }
 
@@ -406,7 +335,7 @@ public class TeamAdminController : Controller
 
         if (result.Success)
         {
-            TempData["SuccessMessage"] = $"Drive resource '{result.Resource!.Name}' linked successfully.";
+            SetSuccess($"Drive resource '{result.Resource!.Name}' linked successfully.");
         }
         else
         {
@@ -415,7 +344,7 @@ public class TeamAdminController : Controller
             {
                 errorMessage += $" {string.Format(_localizer["TeamAdmin_ServiceAccount"].Value, result.ServiceAccountEmail)}";
             }
-            TempData["ErrorMessage"] = errorMessage;
+            SetError(errorMessage);
         }
 
         return RedirectToAction(nameof(Resources), new { slug });
@@ -425,10 +354,10 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> LinkGroup(string slug, LinkGroupModel model)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (currentUserNotFound, user) = await RequireCurrentUserAsync();
+        if (currentUserNotFound != null)
         {
-            return NotFound();
+            return currentUserNotFound;
         }
 
         var team = await _teamService.GetTeamBySlugAsync(slug);
@@ -445,7 +374,7 @@ public class TeamAdminController : Controller
 
         if (!ModelState.IsValid)
         {
-            TempData["ErrorMessage"] = _localizer["TeamAdmin_InvalidGroupEmail"].Value;
+            SetError(_localizer["TeamAdmin_InvalidGroupEmail"].Value);
             return RedirectToAction(nameof(Resources), new { slug });
         }
 
@@ -453,7 +382,7 @@ public class TeamAdminController : Controller
 
         if (result.Success)
         {
-            TempData["SuccessMessage"] = string.Format(_localizer["TeamAdmin_GroupLinked"].Value, result.Resource!.Name);
+            SetSuccess(string.Format(_localizer["TeamAdmin_GroupLinked"].Value, result.Resource!.Name));
         }
         else
         {
@@ -462,7 +391,7 @@ public class TeamAdminController : Controller
             {
                 errorMessage += $" {string.Format(_localizer["TeamAdmin_ServiceAccount"].Value, result.ServiceAccountEmail)}";
             }
-            TempData["ErrorMessage"] = errorMessage;
+            SetError(errorMessage);
         }
 
         return RedirectToAction(nameof(Resources), new { slug });
@@ -472,10 +401,10 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UnlinkResource(string slug, Guid resourceId)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (currentUserNotFound, user) = await RequireCurrentUserAsync();
+        if (currentUserNotFound != null)
         {
-            return NotFound();
+            return currentUserNotFound;
         }
 
         var team = await _teamService.GetTeamBySlugAsync(slug);
@@ -491,7 +420,7 @@ public class TeamAdminController : Controller
         }
 
         await _teamResourceService.UnlinkResourceAsync(resourceId);
-        TempData["SuccessMessage"] = _localizer["TeamAdmin_ResourceUnlinked"].Value;
+        SetSuccess(_localizer["TeamAdmin_ResourceUnlinked"].Value);
 
         return RedirectToAction(nameof(Resources), new { slug });
     }
@@ -500,10 +429,10 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SyncResource(string slug, Guid resourceId)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (currentUserNotFound, user) = await RequireCurrentUserAsync();
+        if (currentUserNotFound != null)
         {
-            return NotFound();
+            return currentUserNotFound;
         }
 
         var team = await _teamService.GetTeamBySlugAsync(slug);
@@ -521,12 +450,12 @@ public class TeamAdminController : Controller
         try
         {
             await _googleSyncService.SyncSingleResourceAsync(resourceId, SyncAction.Execute);
-            TempData["SuccessMessage"] = _localizer["TeamAdmin_ResourceSynced"].Value;
+            SetSuccess(_localizer["TeamAdmin_ResourceSynced"].Value);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error syncing resource {ResourceId}", resourceId);
-            TempData["ErrorMessage"] = string.Format(_localizer["TeamAdmin_ResourceSyncFailed"].Value, ex.Message);
+            SetError(string.Format(_localizer["TeamAdmin_ResourceSyncFailed"].Value, ex.Message));
         }
 
         return RedirectToAction(nameof(Resources), new { slug });
@@ -535,22 +464,10 @@ public class TeamAdminController : Controller
     [HttpGet("Roles")]
     public async Task<IActionResult> Roles(string slug)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         var definitions = await _teamService.GetRoleDefinitionsAsync(team.Id);
@@ -569,7 +486,7 @@ public class TeamAdminController : Controller
             Slug = team.Slug,
             IsSystemTeam = team.IsSystemTeam,
             IsChildTeam = team.ParentTeamId.HasValue,
-            CanManage = canManage,
+            CanManage = true,
             RoleDefinitions = definitions.Select(TeamRoleDefinitionViewModel.FromEntity).ToList(),
             TeamMembers = members.Select(m => new TeamMemberViewModel
             {
@@ -592,22 +509,10 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateRole(string slug, CreateRoleDefinitionModel model)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         try
@@ -620,11 +525,11 @@ public class TeamAdminController : Controller
                 team.Id, model.Name, model.Description, model.SlotCount,
                 priorities, model.SortOrder, model.Period, user.Id);
 
-            TempData["SuccessMessage"] = $"Role '{model.Name}' created.";
+            SetSuccess($"Role '{model.Name}' created.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
@@ -634,22 +539,10 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditRole(string slug, Guid roleId, EditRoleDefinitionModel model)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         try
@@ -662,11 +555,11 @@ public class TeamAdminController : Controller
                 roleId, model.Name, model.Description, model.SlotCount,
                 priorities, model.SortOrder, model.IsManagement, model.Period, user.Id);
 
-            TempData["SuccessMessage"] = $"Role '{model.Name}' updated.";
+            SetSuccess($"Role '{model.Name}' updated.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
@@ -676,32 +569,20 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteRole(string slug, Guid roleId)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         try
         {
             await _teamService.DeleteRoleDefinitionAsync(roleId, user.Id);
-            TempData["SuccessMessage"] = "Role deleted.";
+            SetSuccess("Role deleted.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
@@ -711,22 +592,10 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleManagement(string slug, Guid roleId)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         try
@@ -739,13 +608,13 @@ public class TeamAdminController : Controller
             }
 
             await _teamService.SetRoleIsManagementAsync(roleId, !role.IsManagement, user.Id);
-            TempData["SuccessMessage"] = role.IsManagement
+            SetSuccess(role.IsManagement
                 ? $"'{role.Name}' is no longer the management role."
-                : $"'{role.Name}' is now the management role. Members assigned to it will become Coordinators.";
+                : $"'{role.Name}' is now the management role. Members assigned to it will become Coordinators.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
@@ -755,33 +624,21 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AssignRole(string slug, Guid roleId, AssignRoleModel model)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         try
         {
             await _teamService.AssignToRoleAsync(roleId, model.UserId, user.Id);
             await _systemTeamSyncJob.SyncCoordinatorsMembershipForUserAsync(model.UserId);
-            TempData["SuccessMessage"] = "Member assigned to role.";
+            SetSuccess("Member assigned to role.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
@@ -791,22 +648,10 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UnassignRole(string slug, Guid roleId, Guid memberId)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return NotFound();
-        }
-
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
-        {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
+            return teamError;
         }
 
         try
@@ -823,11 +668,11 @@ public class TeamAdminController : Controller
                 await _systemTeamSyncJob.SyncCoordinatorsMembershipForUserAsync(userId.Value);
             }
 
-            TempData["SuccessMessage"] = "Member unassigned from role.";
+            SetSuccess("Member unassigned from role.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
@@ -836,7 +681,7 @@ public class TeamAdminController : Controller
     [HttpGet("EditPage")]
     public async Task<IActionResult> EditPage(string slug)
     {
-        var user = await _userManager.GetUserAsync(User);
+        var user = await GetCurrentUserAsync();
         if (user == null)
             return NotFound();
 
@@ -845,7 +690,7 @@ public class TeamAdminController : Controller
             return NotFound();
 
         var isCoordinator = await _teamService.IsUserCoordinatorOfTeamAsync(team.Id, user.Id);
-        var canManage = isCoordinator || User.IsInRole("Board") || User.IsInRole("Admin") || User.IsInRole("TeamsAdmin");
+        var canManage = isCoordinator || RoleChecks.IsTeamsAdminBoardOrAdmin(User);
         if (!canManage)
             return Forbid();
 
@@ -876,7 +721,7 @@ public class TeamAdminController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditPage(string slug, EditTeamPageViewModel model)
     {
-        var user = await _userManager.GetUserAsync(User);
+        var user = await GetCurrentUserAsync();
         if (user == null)
             return NotFound();
 
@@ -885,7 +730,7 @@ public class TeamAdminController : Controller
             return NotFound();
 
         var isCoordinator = await _teamService.IsUserCoordinatorOfTeamAsync(team.Id, user.Id);
-        var canManage = isCoordinator || User.IsInRole("Board") || User.IsInRole("Admin") || User.IsInRole("TeamsAdmin");
+        var canManage = isCoordinator || RoleChecks.IsTeamsAdminBoardOrAdmin(User);
         if (!canManage)
             return Forbid();
 
@@ -928,27 +773,15 @@ public class TeamAdminController : Controller
     [HttpGet("Roles/SearchMembers")]
     public async Task<IActionResult> SearchMembersForRole(string slug, string q)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var (teamError, _, team) = await ResolveTeamManagementAsync(slug);
+        if (teamError != null)
         {
-            return Unauthorized();
+            return teamError;
         }
 
-        var team = await _teamService.GetTeamBySlugAsync(slug);
-        if (team == null)
+        if (!q.HasSearchTerm())
         {
-            return NotFound();
-        }
-
-        var canManage = await _teamService.CanUserApproveRequestsForTeamAsync(team.Id, user.Id);
-        if (!canManage)
-        {
-            return Forbid();
-        }
-
-        if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
-        {
-            return Json(Array.Empty<object>());
+            return Json(Array.Empty<RoleAssignmentSearchResult>());
         }
 
         var teamMembers = await _teamService.GetTeamMembersAsync(team.Id);
@@ -960,10 +793,10 @@ public class TeamAdminController : Controller
         // Search team members first by name match
         var matchingTeamMembers = teamMembers
             .Where(m => m.LeftAt == null &&
-                        (m.User.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                         (m.User.Email != null && m.User.Email.Contains(q, StringComparison.OrdinalIgnoreCase))))
+                        (m.User.DisplayName.ContainsOrdinalIgnoreCase(q) ||
+                         m.User.Email.ContainsOrdinalIgnoreCase(q)))
             .Take(10)
-            .Select(m => new { Id = m.UserId, m.User.DisplayName, Email = m.User.Email ?? "", OnTeam = true })
+            .Select(m => new RoleAssignmentSearchResult(m.UserId, m.User.DisplayName, m.User.Email ?? "", true))
             .ToList();
 
         // Also search all approved users for non-members
@@ -971,7 +804,7 @@ public class TeamAdminController : Controller
         var nonMembers = allResults
             .Where(r => !teamMemberUserIds.Contains(r.UserId))
             .Take(10 - matchingTeamMembers.Count)
-            .Select(r => new { Id = r.UserId, r.DisplayName, r.Email, OnTeam = false })
+            .Select(r => new RoleAssignmentSearchResult(r.UserId, r.DisplayName, r.Email, false))
             .ToList();
 
         var combined = matchingTeamMembers.Concat(nonMembers).ToList();

@@ -156,68 +156,31 @@ public class TeamJoinRequestViewModel
     public string? ReviewNotes { get; set; }
 }
 
-public class PendingRequestsViewModel
+public class PendingRequestsViewModel : PagedListViewModel
 {
+    public PendingRequestsViewModel() : base(20)
+    {
+    }
+
     public List<TeamJoinRequestViewModel> Requests { get; set; } = [];
     public Guid? TeamIdFilter { get; set; }
     public string? TeamNameFilter { get; set; }
-    public int TotalCount { get; set; }
-    public int PageNumber { get; set; } = 1;
-    public int PageSize { get; set; } = 20;
 }
 
-public class CreateTeamViewModel
+public class CreateTeamViewModel : TeamFormViewModelBase
 {
-    [Required]
-    [StringLength(256, MinimumLength = 2)]
-    public string Name { get; set; } = string.Empty;
-
-    [StringLength(2000)]
-    public string? Description { get; set; }
-
-    [StringLength(64)]
-    [RegularExpression(@"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", ErrorMessage = "Only lowercase letters, numbers, and hyphens allowed")]
-    public string? GoogleGroupPrefix { get; set; }
-
-    public bool RequiresApproval { get; set; } = true;
-
-    public Guid? ParentTeamId { get; set; }
-
-    /// <summary>
-    /// Available parent teams for the dropdown.
-    /// </summary>
-    public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> EligibleParents { get; set; } = [];
 }
 
-public class EditTeamViewModel
+public class EditTeamViewModel : TeamFormViewModelBase
 {
     public Guid Id { get; set; }
-
-    [Required]
-    [StringLength(256, MinimumLength = 2)]
-    public string Name { get; set; } = string.Empty;
-
-    [StringLength(2000)]
-    public string? Description { get; set; }
-
-    [StringLength(64)]
-    [RegularExpression(@"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", ErrorMessage = "Only lowercase letters, numbers, and hyphens allowed")]
-    public string? GoogleGroupPrefix { get; set; }
 
     // Display-only
     public string? GoogleGroupEmail { get; set; }
     public string Slug { get; set; } = string.Empty;
 
-    public bool RequiresApproval { get; set; }
     public bool IsActive { get; set; }
     public bool IsSystemTeam { get; set; }
-
-    public Guid? ParentTeamId { get; set; }
-
-    /// <summary>
-    /// Available parent teams for the dropdown.
-    /// </summary>
-    public List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> EligibleParents { get; set; } = [];
 }
 
 public class EditTeamPageViewModel
@@ -246,7 +209,12 @@ public class CallToActionViewModel
 }
 
 public class TeamMembersViewModel
+    : PagedListViewModel
 {
+    public TeamMembersViewModel() : base(20)
+    {
+    }
+
     public Guid TeamId { get; set; }
     public string TeamName { get; set; } = string.Empty;
     public string TeamSlug { get; set; } = string.Empty;
@@ -254,9 +222,6 @@ public class TeamMembersViewModel
     public List<TeamMemberViewModel> Members { get; set; } = [];
     public List<TeamJoinRequestViewModel> PendingRequests { get; set; } = [];
     public bool CanManageRoles { get; set; }
-    public int TotalCount { get; set; }
-    public int PageNumber { get; set; } = 1;
-    public int PageSize { get; set; } = 20;
 }
 
 public class BirthdayCalendarViewModel
@@ -457,12 +422,13 @@ public class HumanSearchResultViewModel
     public string? MatchSnippet { get; set; }
 }
 
-public class AdminTeamListViewModel
+public class AdminTeamListViewModel : PagedListViewModel
 {
+    public AdminTeamListViewModel() : base(20)
+    {
+    }
+
     public List<AdminTeamViewModel> Teams { get; set; } = [];
-    public int TotalCount { get; set; }
-    public int PageNumber { get; set; } = 1;
-    public int PageSize { get; set; } = 20;
 }
 
 public class AdminTeamViewModel

@@ -3,6 +3,7 @@ using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Web.Authorization;
 using Humans.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -14,12 +15,11 @@ namespace Humans.Web.Controllers;
 
 [Authorize]
 [Route("Shifts")]
-public class ShiftsController : Controller
+public class ShiftsController : HumansControllerBase
 {
     private readonly IShiftManagementService _shiftMgmt;
     private readonly IShiftSignupService _signupService;
     private readonly IGeneralAvailabilityService _availabilityService;
-    private readonly UserManager<User> _userManager;
     private readonly IClock _clock;
 
     public ShiftsController(
@@ -28,25 +28,27 @@ public class ShiftsController : Controller
         IGeneralAvailabilityService availabilityService,
         UserManager<User> userManager,
         IClock clock)
+        : base(userManager)
     {
         _shiftMgmt = shiftMgmt;
         _signupService = signupService;
         _availabilityService = availabilityService;
-        _userManager = userManager;
         _clock = clock;
     }
 
     [HttpGet("")]
     public async Task<IActionResult> Index(Guid? departmentId, string? date, bool showFull = false)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Challenge();
+        var (currentUserNotFound, user) = await ResolveCurrentUserOrChallengeAsync();
+        if (currentUserNotFound != null)
+        {
+            return currentUserNotFound;
+        }
 
         var es = await _shiftMgmt.GetActiveAsync();
         if (es == null) return View("NoActiveEvent");
 
-        var isPrivileged = User.IsInRole(RoleNames.Admin) ||
-                           User.IsInRole(RoleNames.NoInfoAdmin) ||
+        var isPrivileged = ShiftRoleChecks.IsPrivilegedSignupApprover(User) ||
                            (await _shiftMgmt.GetCoordinatorDepartmentIdsAsync(user.Id)).Count > 0;
 
         var userSignups = await _signupService.GetByUserAsync(user.Id, es.Id);
@@ -158,21 +160,24 @@ public class ShiftsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SignUp(Guid shiftId)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Challenge();
+        var (currentUserNotFound, user) = await ResolveCurrentUserOrChallengeAsync();
+        if (currentUserNotFound != null)
+        {
+            return currentUserNotFound;
+        }
 
-        var privileged = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.NoInfoAdmin);
+        var privileged = ShiftRoleChecks.IsPrivilegedSignupApprover(User);
         var result = await _signupService.SignUpAsync(user.Id, shiftId, isPrivileged: privileged);
 
         if (!result.Success)
         {
-            TempData["ErrorMessage"] = result.Error;
+            SetError(result.Error ?? "Shift signup failed.");
             return RedirectToAction(nameof(Index));
         }
 
-        TempData["SuccessMessage"] = result.Warning != null
+        SetSuccess(result.Warning != null
             ? $"Signed up successfully. Note: {result.Warning}"
-            : "Signed up successfully!";
+            : "Signed up successfully!");
 
         return RedirectToAction(nameof(Index));
     }
@@ -181,21 +186,24 @@ public class ShiftsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SignUpRange(Guid rotaId, int startDayOffset, int endDayOffset)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Challenge();
+        var (currentUserNotFound, user) = await ResolveCurrentUserOrChallengeAsync();
+        if (currentUserNotFound != null)
+        {
+            return currentUserNotFound;
+        }
 
-        var privileged = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.NoInfoAdmin);
+        var privileged = ShiftRoleChecks.IsPrivilegedSignupApprover(User);
         var result = await _signupService.SignUpRangeAsync(user.Id, rotaId, startDayOffset, endDayOffset, isPrivileged: privileged);
 
         if (!result.Success)
         {
-            TempData["ErrorMessage"] = result.Error;
+            SetError(result.Error ?? "Shift range signup failed.");
             return RedirectToAction(nameof(Index));
         }
 
-        TempData["SuccessMessage"] = result.Warning != null
+        SetSuccess(result.Warning != null
             ? $"Signed up for date range. Note: {result.Warning}"
-            : "Signed up for date range!";
+            : "Signed up for date range!");
 
         return RedirectToAction(nameof(Index));
     }
@@ -204,17 +212,20 @@ public class ShiftsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> BailRange(Guid signupBlockId)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Challenge();
+        var (currentUserNotFound, user) = await ResolveCurrentUserOrChallengeAsync();
+        if (currentUserNotFound != null)
+        {
+            return currentUserNotFound;
+        }
 
         try
         {
             await _signupService.BailRangeAsync(signupBlockId, user.Id);
-            TempData["SuccessMessage"] = "Successfully bailed from shift range.";
+            SetSuccess("Successfully bailed from shift range.");
         }
         catch (InvalidOperationException ex)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            SetError(ex.Message);
         }
 
         return RedirectToAction(nameof(Mine));
@@ -224,26 +235,32 @@ public class ShiftsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Bail(Guid signupId, string? reason)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Challenge();
+        var (currentUserNotFound, user) = await ResolveCurrentUserOrChallengeAsync();
+        if (currentUserNotFound != null)
+        {
+            return currentUserNotFound;
+        }
 
         var result = await _signupService.BailAsync(signupId, user.Id, reason);
 
         if (!result.Success)
         {
-            TempData["ErrorMessage"] = result.Error;
+            SetError(result.Error ?? "Shift bail failed.");
             return RedirectToAction(nameof(Mine));
         }
 
-        TempData["SuccessMessage"] = "Successfully bailed from shift.";
+        SetSuccess("Successfully bailed from shift.");
         return RedirectToAction(nameof(Mine));
     }
 
     [HttpGet("Mine")]
     public async Task<IActionResult> Mine()
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Challenge();
+        var (currentUserNotFound, user) = await ResolveCurrentUserOrChallengeAsync();
+        if (currentUserNotFound != null)
+        {
+            return currentUserNotFound;
+        }
 
         var es = await _shiftMgmt.GetActiveAsync();
 
@@ -294,7 +311,7 @@ public class ShiftsController : Controller
         if (user.ICalToken == null)
         {
             user.ICalToken = Guid.NewGuid();
-            await _userManager.UpdateAsync(user);
+            await UpdateCurrentUserAsync(user);
         }
         model.ICalUrl = $"{Request.Scheme}://{Request.Host}/ICal/{user.ICalToken}.ics";
 
@@ -305,14 +322,17 @@ public class ShiftsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveAvailability(List<int>? dayOffsets)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Challenge();
+        var (currentUserNotFound, user) = await ResolveCurrentUserOrChallengeAsync();
+        if (currentUserNotFound != null)
+        {
+            return currentUserNotFound;
+        }
 
         var es = await _shiftMgmt.GetActiveAsync();
         if (es == null) return BadRequest("No active event.");
 
         await _availabilityService.SetAvailabilityAsync(user.Id, es.Id, dayOffsets ?? []);
-        TempData["SuccessMessage"] = "Availability updated.";
+        SetSuccess("Availability updated.");
         return RedirectToAction(nameof(Mine));
     }
 
@@ -320,20 +340,23 @@ public class ShiftsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RegenerateIcal()
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Challenge();
+        var (currentUserNotFound, user) = await ResolveCurrentUserOrChallengeAsync();
+        if (currentUserNotFound != null)
+        {
+            return currentUserNotFound;
+        }
 
         user.ICalToken = Guid.NewGuid();
-        await _userManager.UpdateAsync(user);
+        await UpdateCurrentUserAsync(user);
 
-        TempData["SuccessMessage"] = "iCal URL regenerated.";
+        SetSuccess("iCal URL regenerated.");
         return RedirectToAction(nameof(Mine));
     }
 
     [HttpGet("Settings")]
     public async Task<IActionResult> Settings()
     {
-        if (!User.IsInRole(RoleNames.Admin))
+        if (!RoleChecks.IsAdmin(User))
             return Forbid();
 
         var es = await _shiftMgmt.GetActiveAsync();
@@ -368,7 +391,7 @@ public class ShiftsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Settings(EventSettingsViewModel model)
     {
-        if (!User.IsInRole(RoleNames.Admin))
+        if (!RoleChecks.IsAdmin(User))
             return Forbid();
 
         if (!ModelState.IsValid)
@@ -448,7 +471,7 @@ public class ShiftsController : Controller
             await _shiftMgmt.CreateAsync(entity);
         }
 
-        TempData["SuccessMessage"] = "Event settings saved.";
+        SetSuccess("Event settings saved.");
         return RedirectToAction(nameof(Settings));
     }
 }

@@ -1,7 +1,4 @@
 @model Humans.Web.Models.AuditLogListViewModel
-@{
-    ViewData["Title"] = "Audit Log";
-}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Audit Log</h1>
@@ -29,7 +26,7 @@
             All
         </a>
         <a asp-action="AuditLog" asp-route-filter="AnomalousPermissionDetected"
-           class="btn btn-sm @(string.Equals(Model.ActionFilter, "AnomalousPermissionDetected", StringComparison.Ordinal) ? "btn-warning" : "btn-outline-warning")">
+           class="btn btn-sm @Model.ActionFilter.ToAuditFilterButtonClass(nameof(AuditAction.AnomalousPermissionDetected), "btn-warning", "btn-outline-warning")">
             Anomalous Permissions
             @if (Model.AnomalyCount > 0)
             {
@@ -37,19 +34,19 @@
             }
         </a>
         <a asp-action="AuditLog" asp-route-filter="GoogleResourceAccessGranted"
-           class="btn btn-sm @(string.Equals(Model.ActionFilter, "GoogleResourceAccessGranted", StringComparison.Ordinal) ? "btn-primary" : "btn-outline-primary")">
+           class="btn btn-sm @Model.ActionFilter.ToAuditFilterButtonClass(nameof(AuditAction.GoogleResourceAccessGranted), "btn-primary", "btn-outline-primary")">
             Access Granted
         </a>
         <a asp-action="AuditLog" asp-route-filter="GoogleResourceAccessRevoked"
-           class="btn btn-sm @(string.Equals(Model.ActionFilter, "GoogleResourceAccessRevoked", StringComparison.Ordinal) ? "btn-primary" : "btn-outline-primary")">
+           class="btn btn-sm @Model.ActionFilter.ToAuditFilterButtonClass(nameof(AuditAction.GoogleResourceAccessRevoked), "btn-primary", "btn-outline-primary")">
             Access Revoked
         </a>
         <a asp-action="AuditLog" asp-route-filter="MemberSuspended"
-           class="btn btn-sm @(string.Equals(Model.ActionFilter, "MemberSuspended", StringComparison.Ordinal) ? "btn-primary" : "btn-outline-primary")">
+           class="btn btn-sm @Model.ActionFilter.ToAuditFilterButtonClass(nameof(AuditAction.MemberSuspended), "btn-primary", "btn-outline-primary")">
             Suspensions
         </a>
         <a asp-action="AuditLog" asp-route-filter="RoleAssigned"
-           class="btn btn-sm @(string.Equals(Model.ActionFilter, "RoleAssigned", StringComparison.Ordinal) ? "btn-primary" : "btn-outline-primary")">
+           class="btn btn-sm @Model.ActionFilter.ToAuditFilterButtonClass(nameof(AuditAction.RoleAssigned), "btn-primary", "btn-outline-primary")">
             Roles
         </a>
     </div>
@@ -77,18 +74,10 @@ else
                 <tbody>
                     @foreach (var entry in Model.Entries)
                     {
-                        var rowClass = string.Equals(entry.Action, "AnomalousPermissionDetected", StringComparison.Ordinal)
-                            ? "table-warning" : "";
+                        var rowClass = entry.Action.ToAuditEntryRowClass();
                         <tr class="@rowClass">
                             <td>
-                                @if (string.Equals(entry.Action, "AnomalousPermissionDetected", StringComparison.Ordinal))
-                                {
-                                    <span class="badge bg-warning text-dark">Anomaly</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-secondary">@entry.Action</span>
-                                }
+                                <span class="badge @entry.Action.ToAuditBadgeClass()">@entry.Action.ToAuditBadgeLabel()</span>
                             </td>
                             <td>@entry.Description</td>
                             <td>
@@ -102,7 +91,7 @@ else
                                 }
                                 <span class="ms-1">@entry.ActorName</span>
                             </td>
-                            <td class="text-nowrap">@entry.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td class="text-nowrap">@entry.OccurredAt.ToAuditTimestamp()</td>
                         </tr>
                     }
                 </tbody>
@@ -111,20 +100,17 @@ else
     </div>
 }
 
-@{
-    var totalPages = (int)Math.Ceiling(Model.TotalCount / (double)Model.PageSize);
-}
-@if (totalPages > 1)
+@if (Model.TotalPages > 1)
 {
     <nav class="mt-3">
         <ul class="pagination justify-content-center">
-            @for (var i = 1; i <= totalPages && i <= 10; i++)
+            @for (var i = 1; i <= Model.TotalPages && i <= 10; i++)
             {
                 <li class="page-item @(i == Model.PageNumber ? "active" : "")">
                     <a asp-action="AuditLog" asp-route-filter="@Model.ActionFilter" asp-route-page="@i" class="page-link">@i</a>
                 </li>
             }
-            @if (totalPages > 10)
+            @if (Model.TotalPages > 10)
             {
                 <li class="page-item disabled"><span class="page-link">...</span></li>
             }
@@ -135,17 +121,3 @@ else
 <div class="mt-3">
     <a asp-action="Index" class="btn btn-outline-secondary">Back to Dashboard</a>
 </div>
-
-@section Scripts {
-<script>
-    document.getElementById('checkForm').addEventListener('submit', function (e) {
-        if (!confirm('This will check Drive Activity API for anomalous permission changes. Continue?')) {
-            e.preventDefault();
-            return;
-        }
-        var btn = document.getElementById('checkBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Checking\u2026';
-    });
-</script>
-}

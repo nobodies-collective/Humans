@@ -1,7 +1,4 @@
 @model Humans.Web.Models.AdminRoleAssignmentListViewModel
-@{
-    ViewData["Title"] = Localizer["AdminRoles_Title"].Value;
-}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>@Localizer["AdminRoles_Title"]</h1>
@@ -70,11 +67,11 @@
                                 <small class="text-muted">@ra.UserEmail</small>
                             </td>
                             <td><strong>@ra.RoleName</strong></td>
-                            <td>@ra.ValidFrom.ToString("d MMM yyyy")</td>
+                            <td>@ra.ValidFrom.ToDisplayDate()</td>
                             <td>
                                 @if (ra.ValidTo.HasValue)
                                 {
-                                    @ra.ValidTo.Value.ToString("d MMM yyyy")
+                                    @ra.ValidTo.Value.ToDisplayDate()
                                 }
                                 else
                                 {
@@ -109,12 +106,11 @@
     </div>
 </div>
 
-@if (Model.TotalCount > Model.PageSize)
+@if (Model.TotalPages > 1)
 {
-    var totalPages = (int)Math.Ceiling((double)Model.TotalCount / Model.PageSize);
     <nav class="mt-4">
         <ul class="pagination justify-content-center">
-            @for (var i = 1; i <= totalPages && i <= 10; i++)
+            @for (var i = 1; i <= Model.TotalPages && i <= 10; i++)
             {
                 <li class="page-item @(i == Model.PageNumber ? "active" : "")">
                     <a class="page-link" asp-action="Roles" asp-route-page="@i" asp-route-role="@Model.RoleFilter" asp-route-showInactive="@Model.ShowInactive">@i</a>
