@@ -5,7 +5,7 @@ Historical codebase metrics for Nobodies Humans, tracked per day from the initia
 **Excludes:** EF Core migration files (auto-generated, distorts line counts).
 **Test code** is separated from app code in its own columns.
 
-*Last generated: 2026-03-17* — To regenerate: `cd <repo-root> && bash docs/scripts/generate-stats.sh`
+*Last generated: 2026-03-19* — To regenerate: `cd <repo-root> && bash docs/scripts/generate-stats.sh`
 
 ## Codebase Growth
 
@@ -46,17 +46,19 @@ Historical codebase metrics for Nobodies Humans, tracked per day from the initia
 | 2026-03-15 | 51,978 | 11,253 | 63,231 | 2,342 | 387 | 469 | 359 | 25 | 22 | 103 | 36 | 807 | 503 | 10,158 | 3,269 |
 | 2026-03-16 | 52,193 | 11,249 | 63,442 | 2,352 | 387 | 469 | 358 | 25 | 22 | 103 | 36 | 803 | 546 | 3,283 | 965 |
 | 2026-03-17 | 57,898 | 12,091 | 69,989 | 2,582 | 415 | 511 | 400 | 27 | 25 | 117 | 41 | 805 | 548 | 9,909 | 202 |
+| 2026-03-18 | 58,940 | 12,552 | 71,492 | 2,636 | 430 | 515 | 406 | 28 | 25 | 117 | 42 | 805 | 574 | 7,596 | 1,139 |
+| 2026-03-19 | 60,193 | 12,705 | 72,898 | 2,695 | 435 | 524 | 415 | 28 | 25 | 120 | 42 | 817 | 578 | 5,618 | 3,522 |
 
 ## Highlights
 
 - **First commit:** 2026-02-04 (7.5k lines)
-- **Current:** 70k lines across 511 files in 42 days of development
-- **Growth rate:** ~1,500 lines/day average
+- **Current:** 73k lines across 524 files in 44 days of development
+- **Growth rate:** ~1,657 lines/day average
 - **Biggest day:** 2026-02-05 (+14,094 lines) — initial feature buildout
 - **Busiest refactor day:** 2026-03-15 (+10,158 / -3,269) — ticket vendor integration + admin restructure
-- **Test ratio:** 17% of codebase (12k test lines / 70k total)
-- **Localization:** 805 resx keys (5 languages = ~4,025 translated strings)
-- **Architecture:** 400 classes, 27 interfaces, 25 controllers, 117 views, 41 entities
+- **Test ratio:** 17% of codebase (13k test lines / 73k total)
+- **Localization:** 817 resx keys (5 languages = ~4,085 translated strings)
+- **Architecture:** 415 classes, 28 interfaces, 25 controllers, 120 views, 42 entities
 
 ## Column Key
 
