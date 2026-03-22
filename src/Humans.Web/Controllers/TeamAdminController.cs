@@ -62,6 +62,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
+            _logger.LogWarning(ex, "Failed to approve join request {RequestId} for team {TeamId} by user {UserId}", requestId, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -91,6 +92,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Failed to reject join request {RequestId} for team {TeamId} by user {UserId}", requestId, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -189,6 +191,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Failed to remove member {MemberUserId} from team {TeamId} by user {UserId}", userId, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -212,6 +215,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Failed to add member {MemberUserId} to team {TeamId} by user {UserId}", model.UserId, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -524,6 +528,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
+            _logger.LogWarning(ex, "Failed to create role '{RoleName}' for team {TeamId} by user {UserId}", model.Name, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -554,6 +559,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
+            _logger.LogWarning(ex, "Failed to update role {RoleId} for team {TeamId} by user {UserId}", roleId, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -577,6 +583,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
+            _logger.LogWarning(ex, "Failed to delete role {RoleId} for team {TeamId} by user {UserId}", roleId, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -609,6 +616,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
+            _logger.LogWarning(ex, "Failed to toggle management flag for role {RoleId} in team {TeamId} by user {UserId}", roleId, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -633,6 +641,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
+            _logger.LogWarning(ex, "Failed to assign member {MemberUserId} to role {RoleId} in team {TeamId} by user {UserId}", model.UserId, roleId, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -667,6 +676,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
+            _logger.LogWarning(ex, "Failed to unassign member {MemberId} from role {RoleId} in team {TeamId} by user {UserId}", memberId, roleId, team.Id, user.Id);
             SetError(ex.Message);
         }
 
@@ -757,6 +767,7 @@ public class TeamAdminController : HumansTeamControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Failed to update team page for team {TeamId} by user {UserId}", team.Id, user.Id);
             ModelState.AddModelError("", ex.Message);
             model.Slug = team.Slug;
             model.TeamName = team.DisplayName;
