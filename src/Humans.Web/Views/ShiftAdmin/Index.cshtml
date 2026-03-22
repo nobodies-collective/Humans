@@ -90,9 +90,13 @@
                     <span class="badge bg-secondary ms-2">@rota.Priority</span>
                     <span class="badge bg-info ms-1">@rota.Policy</span>
                     <span class="badge bg-secondary ms-1">@(rota.Period == RotaPeriod.Build ? "Set-up" : rota.Period.ToString())</span>
+                    @if (!string.IsNullOrEmpty(rota.Description))
+                    {
+                        <div class="text-muted small mt-1">@Html.SanitizedMarkdown(rota.Description)</div>
+                    }
                     @if (!string.IsNullOrEmpty(rota.PracticalInfo))
                     {
-                        <div class="text-muted small mt-1">@rota.PracticalInfo</div>
+                        <div class="text-muted small mt-1"><i class="fa-solid fa-circle-info me-1"></i>@Html.SanitizedMarkdown(rota.PracticalInfo)</div>
                     }
                 </div>
                 @if (Model.CanManageShifts)
@@ -137,7 +141,7 @@
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">Description</label>
-                                    <input type="text" name="Description" value="@rota.Description" class="form-control" />
+                                    <textarea name="Description" class="form-control" rows="2">@rota.Description</textarea>
                                 </div>
                             </div>
                             <div class="row g-2 mt-2 align-items-end">
@@ -295,7 +299,9 @@
                                             <td colspan="@(Model.CanApproveSignups ? 7 : 6)">
                                                 <form asp-action="EditShift" asp-route-slug="@Model.Department.Slug" asp-route-shiftId="@shift.Id" method="post">
                                                     @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="Description" value="@shift.Description" />
+                                                    <div class="mb-2">
+                                                        <textarea name="Description" class="form-control form-control-sm" rows="2" placeholder="Shift duties, notes...">@shift.Description</textarea>
+                                                    </div>
                                                     <div class="row g-2 align-items-end">
                                                         <div class="col-md-2">
                                                             <label class="form-label form-label-sm">Date</label>
@@ -636,12 +642,12 @@
                                 <option value="Strike">Strike</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Description</label>
-                            <input type="text" name="Description" class="form-control" />
-                        </div>
                     </div>
-                    <div class="row g-2 mt-2 align-items-end">
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Description</label>
+                            <textarea name="Description" class="form-control" rows="2"></textarea>
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label">Practical Info</label>
                             <textarea name="PracticalInfo" class="form-control" rows="2" placeholder="Meeting point, instructions..."></textarea>

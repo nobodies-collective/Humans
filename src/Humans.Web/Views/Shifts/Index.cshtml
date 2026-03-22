@@ -106,9 +106,13 @@
                             }
                             <span class="badge @(rotaGroup.Rota.Period == RotaPeriod.Build ? "bg-info" : rotaGroup.Rota.Period == RotaPeriod.Strike ? "bg-secondary" : "bg-success") ms-1">@(rotaGroup.Rota.Period == RotaPeriod.Build ? "Set-up" : rotaGroup.Rota.Period.ToString())</span>
                         </h6>
+                        @if (!string.IsNullOrEmpty(rotaGroup.Rota.Description))
+                        {
+                            <div class="text-muted small">@Html.SanitizedMarkdown(rotaGroup.Rota.Description)</div>
+                        }
                         @if (!string.IsNullOrEmpty(rotaGroup.Rota.PracticalInfo))
                         {
-                            <p class="text-muted small">@rotaGroup.Rota.PracticalInfo</p>
+                            <div class="text-muted small"><i class="fa-solid fa-circle-info me-1"></i>@Html.SanitizedMarkdown(rotaGroup.Rota.PracticalInfo)</div>
                         }
 
                         @if (isBuildStrike)
@@ -193,11 +197,19 @@
                                                     </td>
                                                 }
                                             </tr>
+                                            @if (!string.IsNullOrEmpty(item.Shift.Description))
+                                            {
+                                                <tr class="@(isFull ? "table-secondary" : "")">
+                                                    <td colspan="@(Model.ShowSignups ? 4 : 3)" class="text-muted small pt-0 pb-1 border-0">
+                                                        @Html.SanitizedMarkdown(item.Shift.Description)
+                                                    </td>
+                                                </tr>
+                                            }
                                         }
                                     </tbody>
                                 </table>
                             </div>
-                           
+
                         }
                         else
                         {
@@ -226,7 +238,7 @@
                                             var isFull = item.RemainingSlots <= 0;
                                             var understaffed = item.ConfirmedCount < shift.MinVolunteers;
                                             <tr class="@(isFull ? "table-secondary" : "")">
-                                                <td>@(shift.IsAllDay ? "All day" : $"{shift.StartTime.ToString("HH:mm", null)}–{shift.StartTime.PlusMinutes((int)shift.Duration.TotalMinutes).ToString("HH:mm", null)}")</td>
+                                                <td>@(shift.IsAllDay ? "All day" : $"{shift.StartTime.ToDisplayTime()}–{shift.StartTime.PlusMinutes((int)shift.Duration.TotalMinutes).ToDisplayTime()}")</td>
                                                 <td><span class="badge @GetPhaseBadge(shift, es)">@GetPhase(shift, es)</span></td>
                                                 <td>@es.GateOpeningDate.PlusDays(shift.DayOffset).ToDisplayShiftDate()</td>
                                                 <td>@item.AbsoluteStart.ToDisplayTime(tz)</td>
@@ -268,6 +280,14 @@
                                                     }
                                                 </td>
                                             </tr>
+                                            @if (!string.IsNullOrEmpty(shift.Description))
+                                            {
+                                                <tr class="@(isFull ? "table-secondary" : "")">
+                                                    <td colspan="8" class="text-muted small pt-0 pb-1 border-0">
+                                                        @Html.SanitizedMarkdown(shift.Description)
+                                                    </td>
+                                                </tr>
+                                            }
                                         }
                                     </tbody>
                                 </table>
