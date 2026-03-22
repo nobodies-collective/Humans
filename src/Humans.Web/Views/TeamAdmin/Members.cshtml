@@ -52,7 +52,9 @@
                                                     size="32"
                                                     css-class="me-2" />
                                     <div>
-                                        <strong>@request.UserDisplayName</strong><br>
+                                        <a asp-controller="Human" asp-action="View" asp-route-id="@request.UserId" class="text-decoration-none">
+                                            <strong>@request.UserDisplayName</strong>
+                                        </a><br>
                                         <small class="text-muted">@request.UserEmail</small>
                                     </div>
                                 </div>
