@@ -33,7 +33,7 @@ public class FeedbackController : HumansControllerBase
     public async Task<IActionResult> Submit(SubmitFeedbackViewModel model)
     {
         var (userMissing, user) = await RequireCurrentUserAsync();
-        if (userMissing != null)
+        if (userMissing is not null)
         {
             return userMissing;
         }

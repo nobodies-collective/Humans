@@ -19,22 +19,25 @@ public class ApplicationController : HumansControllerBase
     private readonly IApplicationDecisionService _applicationDecisionService;
     private readonly UserManager<Domain.Entities.User> _userManager;
     private readonly IStringLocalizer<SharedResource> _localizer;
+    private readonly ILogger<ApplicationController> _logger;
 
     public ApplicationController(
         IApplicationDecisionService applicationDecisionService,
         UserManager<Domain.Entities.User> userManager,
-        IStringLocalizer<SharedResource> localizer)
+        IStringLocalizer<SharedResource> localizer,
+        ILogger<ApplicationController> logger)
         : base(userManager)
     {
         _applicationDecisionService = applicationDecisionService;
         _userManager = userManager;
         _localizer = localizer;
+        _logger = logger;
     }
 
     public async Task<IActionResult> Index()
     {
         var user = await GetCurrentUserAsync();
-        if (user == null)
+        if (user is null)
             return NotFound();
 
         var applications = await _applicationDecisionService.GetUserApplicationsAsync(user.Id);
@@ -63,7 +66,7 @@ public class ApplicationController : HumansControllerBase
     public async Task<IActionResult> Create()
     {
         var user = await GetCurrentUserAsync();
-        if (user == null)
+        if (user is null)
             return NotFound();
 
         var applications = await _applicationDecisionService.GetUserApplicationsAsync(user.Id);
@@ -93,7 +96,7 @@ public class ApplicationController : HumansControllerBase
         }
 
         var user = await GetCurrentUserAsync();
-        if (user == null)
+        if (user is null)
             return NotFound();
 
         // Validate tier is not Volunteer (applications are for Colaborador/Asociado only)
@@ -122,30 +125,39 @@ public class ApplicationController : HumansControllerBase
             }
         }
 
-        var result = await _applicationDecisionService.SubmitAsync(
-            user.Id, model.MembershipTier, model.Motivation,
-            model.AdditionalInfo, model.SignificantContribution, model.RoleUnderstanding,
-            CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
-
-        if (!result.Success)
+        try
         {
-            if (string.Equals(result.ErrorKey, "AlreadyPending", StringComparison.Ordinal))
-                SetError(_localizer["Application_AlreadyPending"].Value);
+            var result = await _applicationDecisionService.SubmitAsync(
+                user.Id, model.MembershipTier, model.Motivation,
+                model.AdditionalInfo, model.SignificantContribution, model.RoleUnderstanding,
+                CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+
+            if (!result.Success)
+            {
+                if (string.Equals(result.ErrorKey, "AlreadyPending", StringComparison.Ordinal))
+                    SetError(_localizer["Application_AlreadyPending"].Value);
+                return RedirectToAction(nameof(Index));
+            }
+
+            SetSuccess(_localizer["Application_Submitted"].Value);
+            return RedirectToAction(nameof(Details), new { id = result.ApplicationId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to submit application for user {UserId}", user.Id);
+            SetError(_localizer["Application_SubmitError"].Value);
             return RedirectToAction(nameof(Index));
         }
-
-        SetSuccess(_localizer["Application_Submitted"].Value);
-        return RedirectToAction(nameof(Details), new { id = result.ApplicationId });
     }
 
     public async Task<IActionResult> Details(Guid id)
     {
         var user = await GetCurrentUserAsync();
-        if (user == null)
+        if (user is null)
             return NotFound();
 
         var application = await _applicationDecisionService.GetUserApplicationDetailAsync(id, user.Id);
-        if (application == null)
+        if (application is null)
             return NotFound();
 
         var viewModel = new ApplicationDetailViewModel
@@ -182,20 +194,29 @@ public class ApplicationController : HumansControllerBase
     public async Task<IActionResult> Withdraw(Guid id)
     {
         var user = await GetCurrentUserAsync();
-        if (user == null)
+        if (user is null)
             return NotFound();
 
-        var result = await _applicationDecisionService.WithdrawAsync(id, user.Id);
-
-        if (!result.Success)
+        try
         {
-            if (string.Equals(result.ErrorKey, "CannotWithdraw", StringComparison.Ordinal))
-                SetError(_localizer["Application_CannotWithdraw"].Value);
+            var result = await _applicationDecisionService.WithdrawAsync(id, user.Id);
+
+            if (!result.Success)
+            {
+                if (string.Equals(result.ErrorKey, "CannotWithdraw", StringComparison.Ordinal))
+                    SetError(_localizer["Application_CannotWithdraw"].Value);
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            SetSuccess(_localizer["Application_Withdrawn"].Value);
+            return RedirectToAction(nameof(Index));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to withdraw application {ApplicationId}", id);
+            SetError(_localizer["Application_CannotWithdraw"].Value);
             return RedirectToAction(nameof(Details), new { id });
         }
-
-        SetSuccess(_localizer["Application_Withdrawn"].Value);
-        return RedirectToAction(nameof(Index));
     }
 
     [HttpGet("Application/Admin")]
@@ -238,7 +259,7 @@ public class ApplicationController : HumansControllerBase
     {
         var application = await _applicationDecisionService.GetApplicationDetailAsync(id);
 
-        if (application == null)
+        if (application is null)
         {
             return NotFound();
         }

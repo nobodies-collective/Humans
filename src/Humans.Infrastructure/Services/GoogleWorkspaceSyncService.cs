@@ -53,7 +53,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
 
     private async Task<CloudIdentityService> GetCloudIdentityServiceAsync()
     {
-        if (_cloudIdentityService != null)
+        if (_cloudIdentityService is not null)
         {
             return _cloudIdentityService;
         }
@@ -72,7 +72,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
 
     private async Task<DriveService> GetDriveServiceAsync()
     {
-        if (_driveService != null)
+        if (_driveService is not null)
         {
             return _driveService;
         }
@@ -90,7 +90,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
 
     private async Task<GroupssettingsService> GetGroupssettingsServiceAsync()
     {
-        if (_groupssettingsService != null)
+        if (_groupssettingsService is not null)
         {
             return _groupssettingsService;
         }
@@ -134,14 +134,14 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
 
     private async Task<string> GetServiceAccountEmailAsync()
     {
-        if (_serviceAccountEmail != null)
+        if (_serviceAccountEmail is not null)
             return _serviceAccountEmail;
 
         string? json = _settings.ServiceAccountKeyJson;
         if (string.IsNullOrEmpty(json) && !string.IsNullOrEmpty(_settings.ServiceAccountKeyPath))
             json = await File.ReadAllTextAsync(_settings.ServiceAccountKeyPath);
 
-        if (json != null)
+        if (json is not null)
         {
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.TryGetProperty("client_email", out var emailElement))
@@ -164,7 +164,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 && r.ResourceType == GoogleResourceType.DriveFolder
                 && r.IsActive, cancellationToken);
 
-        if (existing != null)
+        if (existing is not null)
         {
             _logger.LogInformation("Team {TeamId} already has active Drive folder {FolderId}", teamId, existing.GoogleId);
             return existing;
@@ -324,7 +324,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         var resource = await _dbContext.GoogleResources
             .FirstOrDefaultAsync(r => r.Id == groupResourceId, cancellationToken);
 
-        if (resource == null || resource.ResourceType != GoogleResourceType.Group)
+        if (resource is null || resource.ResourceType != GoogleResourceType.Group)
         {
             _logger.LogWarning("Group resource {ResourceId} not found", groupResourceId);
             return;
@@ -379,7 +379,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         var resource = await _dbContext.GoogleResources
             .FirstOrDefaultAsync(r => r.Id == groupResourceId, cancellationToken);
 
-        if (resource == null || resource.ResourceType != GoogleResourceType.Group)
+        if (resource is null || resource.ResourceType != GoogleResourceType.Group)
         {
             _logger.LogWarning("Group resource {ResourceId} not found", groupResourceId);
             return;
@@ -399,15 +399,15 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
 
             var match = membersResponse.Memberships?.FirstOrDefault(m =>
                 string.Equals(m.PreferredMemberKey?.Id, userEmail, StringComparison.OrdinalIgnoreCase));
-            if (match != null)
+            if (match is not null)
             {
                 membershipName = match.Name;
                 break;
             }
             nextPageToken = membersResponse.NextPageToken;
-        } while (nextPageToken != null);
+        } while (nextPageToken is not null);
 
-        if (membershipName == null)
+        if (membershipName is null)
         {
             _logger.LogDebug("User {UserEmail} not found in group {GroupId}", userEmail, resource.GoogleId);
             return;
@@ -512,7 +512,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             .FirstOrDefaultAsync(r => r.TeamId == teamId && r.ResourceType == GoogleResourceType.Group && r.IsActive,
                 cancellationToken);
 
-        if (groupResource == null)
+        if (groupResource is null)
         {
             _logger.LogWarning("No active Google Group found for team {TeamId}", teamId);
             return;
@@ -537,14 +537,14 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             {
                 var membersRequest = cloudIdentity.Groups.Memberships.List($"groups/{groupResource.GoogleId}");
                 membersRequest.PageSize = 200;
-                if (pageToken != null)
+                if (pageToken is not null)
                 {
                     membersRequest.PageToken = pageToken;
                 }
 
                 var membersResponse = await membersRequest.ExecuteAsync(cancellationToken);
 
-                if (membersResponse.Memberships != null)
+                if (membersResponse.Memberships is not null)
                 {
                     foreach (var membership in membersResponse.Memberships)
                     {
@@ -599,7 +599,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         CancellationToken cancellationToken = default)
     {
         var user = await _dbContext.Users.FindAsync([userId], cancellationToken);
-        if (user?.Email == null)
+        if (user?.Email is null)
         {
             _logger.LogWarning("User {UserId} not found or has no email", userId);
             return;
@@ -671,7 +671,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
 
         // On Shared Drives, permissionDetails contains inheritance info.
         // A permission is inherited if ALL its detail entries are inherited.
-        if (perm.PermissionDetails != null && perm.PermissionDetails.Count > 0)
+        if (perm.PermissionDetails is not null && perm.PermissionDetails.Count > 0)
         {
             if (perm.PermissionDetails.All(d => d.Inherited == true))
                 return false;
@@ -691,13 +691,13 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             var listReq = drive.Permissions.List(fileId);
             listReq.SupportsAllDrives = true;
             listReq.Fields = "nextPageToken, permissions(id, emailAddress, role, type, permissionDetails)";
-            if (pageToken != null)
+            if (pageToken is not null)
             {
                 listReq.PageToken = pageToken;
             }
 
             var response = await listReq.ExecuteAsync(cancellationToken);
-            if (response.Permissions != null)
+            if (response.Permissions is not null)
             {
                 permissions.AddRange(response.Permissions);
             }
@@ -766,7 +766,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                     .ThenInclude(tm => tm.User)
             .FirstOrDefaultAsync(r => r.Id == resourceId, cancellationToken);
 
-        if (resource == null)
+        if (resource is null)
         {
             return new ResourceSyncDiff
             {
@@ -811,7 +811,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         {
             // Expected: team's active members
             var expectedMembers = resource.Team.Members
-                .Where(tm => tm.User.Email != null)
+                .Where(tm => tm.User.Email is not null)
                 .Select(tm => new { tm.User.Email, tm.User.DisplayName })
                 .ToList();
             var expectedEmails = new HashSet<string>(
@@ -831,12 +831,12 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 {
                     var membersRequest = cloudIdentity.Groups.Memberships.List($"groups/{resource.GoogleId}");
                     membersRequest.PageSize = 200;
-                    if (pageToken != null)
+                    if (pageToken is not null)
                         membersRequest.PageToken = pageToken;
 
                     var membersResponse = await membersRequest.ExecuteAsync(cancellationToken);
 
-                    if (membersResponse.Memberships != null)
+                    if (membersResponse.Memberships is not null)
                     {
                         foreach (var membership in membersResponse.Memberships)
                         {
@@ -977,7 +977,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 var teamName = resource.Team.Name;
                 foreach (var tm in resource.Team.Members)
                 {
-                    if (tm.User.Email == null) continue;
+                    if (tm.User.Email is null) continue;
 
                     if (membersByEmail.TryGetValue(tm.User.Email, out var existing))
                     {
@@ -1067,7 +1067,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                             IsDirectManagedPermission(p) &&
                             string.Equals(p.EmailAddress, member.Email, StringComparison.OrdinalIgnoreCase));
 
-                        if (permToRemove == null)
+                        if (permToRemove is null)
                         {
                             _logger.LogInformation(
                                 "Skipping removal of {Email} from {GoogleId} — permission is inherited, not direct",
@@ -1138,7 +1138,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             .Include(t => t.GoogleResources)
             .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
 
-        if (team == null)
+        if (team is null)
         {
             _logger.LogWarning("Team {TeamId} not found for EnsureTeamGroupAsync", teamId);
             return;
@@ -1148,9 +1148,9 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             .FirstOrDefault(r => r.ResourceType == GoogleResourceType.Group && r.IsActive);
 
         // If prefix was cleared, deactivate any active group resource
-        if (team.GoogleGroupPrefix == null)
+        if (team.GoogleGroupPrefix is null)
         {
-            if (existingGroup != null)
+            if (existingGroup is not null)
             {
                 existingGroup.IsActive = false;
                 _logger.LogInformation("Deactivated Group resource {ResourceId} for team {TeamId} (prefix cleared)",
@@ -1174,7 +1174,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         var expectedUrl = $"https://groups.google.com/a/{_settings.Domain}/g/{team.GoogleGroupPrefix}";
 
         // If existing group matches current prefix, nothing to do
-        if (existingGroup != null &&
+        if (existingGroup is not null &&
             string.Equals(existingGroup.Url, expectedUrl, StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogDebug("Team {TeamId} already has active Group resource {ResourceId} matching prefix",
@@ -1183,7 +1183,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         }
 
         // If existing group doesn't match (prefix changed), deactivate old resource
-        if (existingGroup != null)
+        if (existingGroup is not null)
         {
             existingGroup.IsActive = false;
             _logger.LogInformation("Deactivated Group resource {ResourceId} for team {TeamId} (prefix changed to '{Prefix}')",
@@ -1257,7 +1257,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             .Include(u => u.TeamMemberships.Where(tm => tm.LeftAt == null))
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
-        if (user == null)
+        if (user is null)
         {
             _logger.LogWarning("User {UserId} not found for access restoration", userId);
             return;
@@ -1307,7 +1307,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             {
                 // Fall back to deriving email from URL
                 var prefix = resource.Url?.Split("/g/", StringSplitOptions.None).LastOrDefault();
-                groupEmail = prefix != null ? $"{prefix}@{_settings.Domain}" : null;
+                groupEmail = prefix is not null ? $"{prefix}@{_settings.Domain}" : null;
             }
 
             if (string.IsNullOrEmpty(groupEmail))
@@ -1433,7 +1433,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         string expectedValue,
         string? actualValue)
     {
-        if (actualValue == null) return;
+        if (actualValue is null) return;
         if (!string.Equals(expectedValue, actualValue, StringComparison.OrdinalIgnoreCase))
         {
             drifts.Add(new GroupSettingDrift(settingName, expectedValue, actualValue));

@@ -52,14 +52,14 @@ public class AccountController : Controller
     {
         returnUrl ??= Url.Content("~/");
 
-        if (remoteError != null)
+        if (remoteError is not null)
         {
             _logger.LogWarning("External login error: {Error}", remoteError);
             return RedirectToAction(nameof(Login));
         }
 
         var info = await _signInManager.GetExternalLoginInfoAsync();
-        if (info == null)
+        if (info is null)
         {
             _logger.LogWarning("Could not get external login info");
             return RedirectToAction(nameof(Login));
@@ -76,7 +76,7 @@ public class AccountController : Controller
         {
             // Update last login time
             var existingUser = await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
-            if (existingUser != null)
+            if (existingUser is not null)
             {
                 existingUser.LastLoginAt = _clock.GetCurrentInstant();
                 await _userManager.UpdateAsync(existingUser);

@@ -280,7 +280,7 @@ public class EmailRenderer : IEmailRenderer
 
     private string BuildOutstandingSection(BoardDigestOutstandingCounts? counts)
     {
-        if (counts == null) return "";
+        if (counts is null) return "";
 
         var hasAny = counts.OnboardingReview > 0 || counts.StillOnboarding > 0
             || counts.BoardVotingTotal > 0 || counts.TeamJoinRequests > 0
@@ -410,7 +410,7 @@ public class EmailRenderer : IEmailRenderer
 
         public void Dispose()
         {
-            if (_originalUICulture != null)
+            if (_originalUICulture is not null)
             {
                 CultureInfo.CurrentUICulture = _originalUICulture;
                 CultureInfo.CurrentCulture = _originalCulture!;

@@ -407,6 +407,7 @@
   <data name="Application_InvalidTier" xml:space="preserve"><value>Seleccione Colaborador o Asociado para su solicitud.</value></data>
   <data name="Application_ConfirmAccuracy" xml:space="preserve"><value>Debe confirmar la veracidad de su informaci&#xF3;n.</value></data>
   <data name="Application_Submitted" xml:space="preserve"><value>&#xA1;Su solicitud ha sido enviada correctamente!</value></data>
+  <data name="Application_SubmitError" xml:space="preserve"><value>Algo sali&#xF3; mal al enviar su solicitud. Por favor, int&#xE9;ntelo de nuevo.</value></data>
   <data name="Application_CannotWithdraw" xml:space="preserve"><value>Esta solicitud no puede ser retirada.</value></data>
   <data name="Application_Withdrawn" xml:space="preserve"><value>Su solicitud ha sido retirada.</value></data>
 
@@ -452,6 +453,7 @@
   <data name="Consent_MustCheck" xml:space="preserve"><value>Debe marcar la casilla de consentimiento para continuar.</value></data>
   <data name="Consent_AlreadyConsented" xml:space="preserve"><value>Ya ha otorgado su consentimiento a este documento.</value></data>
   <data name="Consent_ThankYou" xml:space="preserve"><value>Gracias por otorgar su consentimiento a {0}.</value><comment>{0} = document name</comment></data>
+  <data name="Consent_SubmitError" xml:space="preserve"><value>Algo sali&#xF3; mal al registrar su consentimiento. Por favor, int&#xE9;ntelo de nuevo.</value></data>
 
   <!-- ======================== -->
   <!-- Teams                    -->

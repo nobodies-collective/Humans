@@ -48,7 +48,7 @@ public class ShiftSignupService : IShiftSignupService
             .Include(s => s.ShiftSignups)
             .FirstOrDefaultAsync(s => s.Id == shiftId);
 
-        if (shift == null) return SignupResult.Fail("Shift not found.");
+        if (shift is null) return SignupResult.Fail("Shift not found.");
 
         var es = shift.Rota.EventSettings;
         var now = _clock.GetCurrentInstant();
@@ -68,7 +68,7 @@ public class ShiftSignupService : IShiftSignupService
 
         // Overlap check
         var overlapWarning = await CheckOverlapAsync(userId, shift, es);
-        if (overlapWarning != null)
+        if (overlapWarning is not null)
             return SignupResult.Fail(overlapWarning);
 
         // Capacity warning
@@ -81,8 +81,8 @@ public class ShiftSignupService : IShiftSignupService
         if (shift.IsEarlyEntry)
         {
             var eeWarning = await CheckEeCapAsync(es, shift.DayOffset);
-            if (eeWarning != null)
-                warning = warning == null ? eeWarning : $"{warning} {eeWarning}";
+            if (eeWarning is not null)
+                warning = warning is null ? eeWarning : $"{warning} {eeWarning}";
         }
 
         // Determine initial status — Admin, NoInfoAdmin, and Dept Coordinators auto-confirm
@@ -123,7 +123,7 @@ public class ShiftSignupService : IShiftSignupService
     public async Task<SignupResult> ApproveAsync(Guid signupId, Guid reviewerUserId)
     {
         var signup = await LoadSignupWithShiftAsync(signupId);
-        if (signup == null) return SignupResult.Fail("Signup not found.");
+        if (signup is null) return SignupResult.Fail("Signup not found.");
 
         if (signup.Status != SignupStatus.Pending)
             return SignupResult.Fail($"Cannot approve signup in {signup.Status} state.");
@@ -133,19 +133,19 @@ public class ShiftSignupService : IShiftSignupService
         // Re-validate invariants
         var overlapWarning = await CheckOverlapAsync(signup.UserId, signup.Shift, es);
         string? warning = null;
-        if (overlapWarning != null)
+        if (overlapWarning is not null)
             warning = $"Warning: {overlapWarning}";
 
         var confirmedCount = signup.Shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
         if (confirmedCount >= signup.Shift.MaxVolunteers)
-            warning = warning == null ? "Warning: shift is at capacity." : $"{warning} Shift is at capacity.";
+            warning = warning is null ? "Warning: shift is at capacity." : $"{warning} Shift is at capacity.";
 
         // EE cap revalidation for build shifts
         if (signup.Shift.IsEarlyEntry)
         {
             var eeWarning = await CheckEeCapAsync(es, signup.Shift.DayOffset);
-            if (eeWarning != null)
-                warning = warning == null ? $"Warning: {eeWarning}" : $"{warning} {eeWarning}";
+            if (eeWarning is not null)
+                warning = warning is null ? $"Warning: {eeWarning}" : $"{warning} {eeWarning}";
         }
 
         // EE freeze check — block approval of build shifts after early entry close
@@ -172,13 +172,13 @@ public class ShiftSignupService : IShiftSignupService
     public async Task<SignupResult> RefuseAsync(Guid signupId, Guid reviewerUserId, string? reason)
     {
         var signup = await LoadSignupWithShiftAsync(signupId);
-        if (signup == null) return SignupResult.Fail("Signup not found.");
+        if (signup is null) return SignupResult.Fail("Signup not found.");
 
         signup.Refuse(reviewerUserId, _clock, reason);
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupRefused, nameof(ShiftSignup), signup.Id,
-            $"Refused signup for shift '{signup.Shift.Rota.Name}'" + (reason != null ? $": {reason}" : ""),
+            $"Refused signup for shift '{signup.Shift.Rota.Name}'" + (reason is not null ? $": {reason}" : ""),
             reviewerUserId, "Reviewer");
 
         await _dbContext.SaveChangesAsync();
@@ -189,7 +189,7 @@ public class ShiftSignupService : IShiftSignupService
     public async Task<SignupResult> BailAsync(Guid signupId, Guid actorUserId, string? reason)
     {
         var signup = await LoadSignupWithShiftAsync(signupId);
-        if (signup == null) return SignupResult.Fail("Signup not found.");
+        if (signup is null) return SignupResult.Fail("Signup not found.");
 
         var es = signup.Shift.Rota.EventSettings;
         var now = _clock.GetCurrentInstant();
@@ -208,7 +208,7 @@ public class ShiftSignupService : IShiftSignupService
 
         await _auditLogService.LogAsync(
             AuditAction.ShiftSignupBailed, nameof(ShiftSignup), signup.Id,
-            $"Bailed from shift '{signup.Shift.Rota.Name}'" + (reason != null ? $": {reason}" : ""),
+            $"Bailed from shift '{signup.Shift.Rota.Name}'" + (reason is not null ? $": {reason}" : ""),
             actorUserId, "Actor");
 
         await _dbContext.SaveChangesAsync();
@@ -230,14 +230,14 @@ public class ShiftSignupService : IShiftSignupService
             .Include(s => s.ShiftSignups)
             .FirstOrDefaultAsync(s => s.Id == shiftId);
 
-        if (shift == null) return SignupResult.Fail("Shift not found.");
+        if (shift is null) return SignupResult.Fail("Shift not found.");
 
         var es = shift.Rota.EventSettings;
         var now = _clock.GetCurrentInstant();
 
         // Overlap check
         var overlapWarning = await CheckOverlapAsync(userId, shift, es);
-        if (overlapWarning != null)
+        if (overlapWarning is not null)
             return SignupResult.Fail(overlapWarning);
 
         var signup = new ShiftSignup
@@ -270,7 +270,7 @@ public class ShiftSignupService : IShiftSignupService
     public async Task<SignupResult> MarkNoShowAsync(Guid signupId, Guid reviewerUserId)
     {
         var signup = await LoadSignupWithShiftAsync(signupId);
-        if (signup == null) return SignupResult.Fail("Signup not found.");
+        if (signup is null) return SignupResult.Fail("Signup not found.");
 
         var es = signup.Shift.Rota.EventSettings;
         var shiftEnd = signup.Shift.GetAbsoluteEnd(es);
@@ -298,7 +298,7 @@ public class ShiftSignupService : IShiftSignupService
             .Include(r => r.Shifts)
             .FirstOrDefaultAsync(r => r.Id == rotaId);
 
-        if (rota == null) return SignupResult.Fail("Rota not found.");
+        if (rota is null) return SignupResult.Fail("Rota not found.");
 
         var es = rota.EventSettings;
         var now = _clock.GetCurrentInstant();
@@ -384,8 +384,8 @@ public class ShiftSignupService : IShiftSignupService
         if (rota.Period == RotaPeriod.Build)
         {
             var eeWarning = await CheckEeCapAsync(es, shiftsInRange[0].DayOffset);
-            if (eeWarning != null)
-                warning = warning == null ? eeWarning : $"{warning} {eeWarning}";
+            if (eeWarning is not null)
+                warning = warning is null ? eeWarning : $"{warning} {eeWarning}";
         }
 
         // Create signups
@@ -462,7 +462,7 @@ public class ShiftSignupService : IShiftSignupService
             await _auditLogService.LogAsync(
                 AuditAction.ShiftSignupBailed, nameof(ShiftSignup), signup.Id,
                 $"Range bail from '{signup.Shift.Rota.Name}' day {signup.Shift.DayOffset} (block {signupBlockId})" +
-                (reason != null ? $": {reason}" : ""),
+                (reason is not null ? $": {reason}" : ""),
                 actorUserId, "Actor");
         }
 

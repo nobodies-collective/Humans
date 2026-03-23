@@ -12,10 +12,14 @@ namespace Humans.Web.Controllers;
 public class FeedbackApiController : ControllerBase
 {
     private readonly IFeedbackService _feedbackService;
+    private readonly ILogger<FeedbackApiController> _logger;
 
-    public FeedbackApiController(IFeedbackService feedbackService)
+    public FeedbackApiController(
+        IFeedbackService feedbackService,
+        ILogger<FeedbackApiController> logger)
     {
         _feedbackService = feedbackService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -41,7 +45,7 @@ public class FeedbackApiController : ControllerBase
             ReporterLanguage = r.User.PreferredLanguage,
             r.AdminNotes,
             r.GitHubIssueNumber,
-            ScreenshotUrl = r.ScreenshotStoragePath != null ? $"/{r.ScreenshotStoragePath}" : null,
+            ScreenshotUrl = r.ScreenshotStoragePath is not null ? $"/{r.ScreenshotStoragePath}" : null,
             CreatedAt = r.CreatedAt.ToDateTimeUtc(),
             UpdatedAt = r.UpdatedAt.ToDateTimeUtc(),
             AdminResponseSentAt = r.AdminResponseSentAt?.ToDateTimeUtc(),
@@ -57,7 +61,7 @@ public class FeedbackApiController : ControllerBase
     public async Task<IActionResult> Get(Guid id)
     {
         var r = await _feedbackService.GetFeedbackByIdAsync(id);
-        if (r == null) return NotFound();
+        if (r is null) return NotFound();
 
         var responseDetails = await _feedbackService.GetResponseDetailsAsync(id);
 
@@ -75,7 +79,7 @@ public class FeedbackApiController : ControllerBase
             ReporterLanguage = r.User.PreferredLanguage,
             r.AdminNotes,
             r.GitHubIssueNumber,
-            ScreenshotUrl = r.ScreenshotStoragePath != null ? $"/{r.ScreenshotStoragePath}" : null,
+            ScreenshotUrl = r.ScreenshotStoragePath is not null ? $"/{r.ScreenshotStoragePath}" : null,
             CreatedAt = r.CreatedAt.ToDateTimeUtc(),
             UpdatedAt = r.UpdatedAt.ToDateTimeUtc(),
             AdminResponseSentAt = r.AdminResponseSentAt?.ToDateTimeUtc(),
@@ -93,23 +97,47 @@ public class FeedbackApiController : ControllerBase
     [HttpPatch("{id}/status")]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateFeedbackStatusModel model)
     {
-        // API has no user context — pass null actor
-        await _feedbackService.UpdateStatusAsync(id, model.Status, null);
-        return Ok(new { success = true });
+        try
+        {
+            // API has no user context — pass null actor
+            await _feedbackService.UpdateStatusAsync(id, model.Status, null);
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update feedback {FeedbackId} status", id);
+            return StatusCode(500, new { error = "Failed to update status" });
+        }
     }
 
     [HttpPatch("{id}/notes")]
     public async Task<IActionResult> UpdateNotes(Guid id, [FromBody] UpdateFeedbackNotesModel model)
     {
-        await _feedbackService.UpdateAdminNotesAsync(id, model.Notes);
-        return Ok(new { success = true });
+        try
+        {
+            await _feedbackService.UpdateAdminNotesAsync(id, model.Notes);
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update feedback {FeedbackId} notes", id);
+            return StatusCode(500, new { error = "Failed to update notes" });
+        }
     }
 
     [HttpPatch("{id}/github-issue")]
     public async Task<IActionResult> SetGitHubIssue(Guid id, [FromBody] SetGitHubIssueModel model)
     {
-        await _feedbackService.SetGitHubIssueNumberAsync(id, model.IssueNumber);
-        return Ok(new { success = true });
+        try
+        {
+            await _feedbackService.SetGitHubIssueNumberAsync(id, model.IssueNumber);
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set GitHub issue for feedback {FeedbackId}", id);
+            return StatusCode(500, new { error = "Failed to set GitHub issue" });
+        }
     }
 
     [HttpPost("{id}/respond")]
@@ -118,7 +146,15 @@ public class FeedbackApiController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        await _feedbackService.SendResponseAsync(id, model.Message, null);
-        return Ok(new { success = true });
+        try
+        {
+            await _feedbackService.SendResponseAsync(id, model.Message, null);
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send response for feedback {FeedbackId}", id);
+            return StatusCode(500, new { error = "Failed to send response" });
+        }
     }
 }

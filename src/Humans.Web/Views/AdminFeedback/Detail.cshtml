@@ -52,7 +52,7 @@
                     <div class="mt-3">
                         <strong>Screenshot:</strong>
                         <div class="mt-2">
-                            <a href="@Model.ScreenshotUrl" target="_blank">
+                            <a href="@Model.ScreenshotUrl" target="_blank" rel="noopener noreferrer">
                                 <img src="@Model.ScreenshotUrl" class="img-fluid border rounded" style="max-height: 400px;" alt="Feedback screenshot" />
                             </a>
                         </div>
@@ -63,7 +63,7 @@
                     <strong>Page:</strong>
                     @if (Uri.TryCreate(Model.PageUrl, UriKind.Absolute, out var pageUri) && (pageUri.Scheme == "http" || pageUri.Scheme == "https"))
                     {
-                        <a href="@Model.PageUrl" target="_blank">@Model.PageUrl</a>
+                        <a href="@Model.PageUrl" target="_blank" rel="noopener noreferrer">@Model.PageUrl</a>
                     }
                     else
                     {
@@ -118,7 +118,7 @@
                     <button type="submit" class="btn btn-sm btn-primary">Link</button>
                     @if (Model.GitHubIssueNumber.HasValue)
                     {
-                        <a href="https://github.com/nobodies-collective/Humans/issues/@Model.GitHubIssueNumber" target="_blank" class="btn btn-sm btn-outline-secondary">
+                        <a href="https://github.com/nobodies-collective/Humans/issues/@Model.GitHubIssueNumber" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">
                             <i class="fa-brands fa-github me-1"></i>#@Model.GitHubIssueNumber
                         </a>
                     }

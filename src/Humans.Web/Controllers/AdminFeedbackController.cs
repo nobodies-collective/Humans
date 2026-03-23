@@ -14,13 +14,16 @@ namespace Humans.Web.Controllers;
 public class AdminFeedbackController : HumansControllerBase
 {
     private readonly IFeedbackService _feedbackService;
+    private readonly ILogger<AdminFeedbackController> _logger;
 
     public AdminFeedbackController(
         IFeedbackService feedbackService,
-        UserManager<User> userManager)
+        UserManager<User> userManager,
+        ILogger<AdminFeedbackController> logger)
         : base(userManager)
     {
         _feedbackService = feedbackService;
+        _logger = logger;
     }
 
     [HttpGet("")]
@@ -42,7 +45,7 @@ public class AdminFeedbackController : HumansControllerBase
                 ReporterUserId = r.UserId,
                 PageUrl = r.PageUrl,
                 CreatedAt = r.CreatedAt.ToDateTimeUtc(),
-                HasScreenshot = r.ScreenshotStoragePath != null
+                HasScreenshot = r.ScreenshotStoragePath is not null
             }).ToList()
         };
 
@@ -53,7 +56,7 @@ public class AdminFeedbackController : HumansControllerBase
     public async Task<IActionResult> Detail(Guid id)
     {
         var report = await _feedbackService.GetFeedbackByIdAsync(id);
-        if (report == null)
+        if (report is null)
             return NotFound();
 
         var viewModel = new FeedbackDetailViewModel
@@ -64,7 +67,7 @@ public class AdminFeedbackController : HumansControllerBase
             Description = report.Description,
             PageUrl = report.PageUrl,
             UserAgent = report.UserAgent,
-            ScreenshotUrl = report.ScreenshotStoragePath != null ? $"/{report.ScreenshotStoragePath}" : null,
+            ScreenshotUrl = report.ScreenshotStoragePath is not null ? $"/{report.ScreenshotStoragePath}" : null,
             ReporterName = report.User.DisplayName,
             ReporterUserId = report.UserId,
             AdminNotes = report.AdminNotes,
@@ -83,11 +86,19 @@ public class AdminFeedbackController : HumansControllerBase
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateStatus(Guid id, UpdateFeedbackStatusModel model)
     {
-        var (userMissing, user) = await RequireCurrentUserAsync();
-        if (userMissing != null) return userMissing;
+        try
+        {
+            var (userMissing, user) = await RequireCurrentUserAsync();
+            if (userMissing is not null) return userMissing;
 
-        await _feedbackService.UpdateStatusAsync(id, model.Status, user.Id);
-        SetSuccess("Status updated.");
+            await _feedbackService.UpdateStatusAsync(id, model.Status, user.Id);
+            SetSuccess("Status updated.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update feedback {FeedbackId} status", id);
+            SetError("Failed to update status.");
+        }
         return RedirectToAction(nameof(Detail), new { id });
     }
 
@@ -95,8 +106,16 @@ public class AdminFeedbackController : HumansControllerBase
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateNotes(Guid id, UpdateFeedbackNotesModel model)
     {
-        await _feedbackService.UpdateAdminNotesAsync(id, model.Notes);
-        SetSuccess("Notes saved.");
+        try
+        {
+            await _feedbackService.UpdateAdminNotesAsync(id, model.Notes);
+            SetSuccess("Notes saved.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update feedback {FeedbackId} notes", id);
+            SetError("Failed to save notes.");
+        }
         return RedirectToAction(nameof(Detail), new { id });
     }
 
@@ -104,8 +123,16 @@ public class AdminFeedbackController : HumansControllerBase
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SetGitHubIssue(Guid id, SetGitHubIssueModel model)
     {
-        await _feedbackService.SetGitHubIssueNumberAsync(id, model.IssueNumber);
-        SetSuccess("GitHub issue linked.");
+        try
+        {
+            await _feedbackService.SetGitHubIssueNumberAsync(id, model.IssueNumber);
+            SetSuccess("GitHub issue linked.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set GitHub issue for feedback {FeedbackId}", id);
+            SetError("Failed to link GitHub issue.");
+        }
         return RedirectToAction(nameof(Detail), new { id });
     }
 
@@ -119,11 +146,19 @@ public class AdminFeedbackController : HumansControllerBase
             return RedirectToAction(nameof(Detail), new { id });
         }
 
-        var (userMissing, user) = await RequireCurrentUserAsync();
-        if (userMissing != null) return userMissing;
+        try
+        {
+            var (userMissing, user) = await RequireCurrentUserAsync();
+            if (userMissing is not null) return userMissing;
 
-        await _feedbackService.SendResponseAsync(id, model.Message, user.Id);
-        SetSuccess("Response sent.");
+            await _feedbackService.SendResponseAsync(id, model.Message, user.Id);
+            SetSuccess("Response sent.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send response for feedback {FeedbackId}", id);
+            SetError("Failed to send response.");
+        }
         return RedirectToAction(nameof(Detail), new { id });
     }
 }

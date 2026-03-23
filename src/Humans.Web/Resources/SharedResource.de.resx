@@ -405,6 +405,7 @@
   <data name="Application_InvalidTier" xml:space="preserve"><value>Bitte w&#xE4;hlen Sie Colaborador oder Asociado f&#xFC;r Ihren Antrag.</value></data>
   <data name="Application_ConfirmAccuracy" xml:space="preserve"><value>Sie müssen die Richtigkeit Ihrer Angaben bestätigen.</value></data>
   <data name="Application_Submitted" xml:space="preserve"><value>Ihr Antrag wurde erfolgreich eingereicht!</value></data>
+  <data name="Application_SubmitError" xml:space="preserve"><value>Beim Einreichen Ihres Antrags ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.</value></data>
   <data name="Application_CannotWithdraw" xml:space="preserve"><value>Dieser Antrag kann nicht zurückgezogen werden.</value></data>
   <data name="Application_Withdrawn" xml:space="preserve"><value>Ihr Antrag wurde zurückgezogen.</value></data>
 
@@ -448,6 +449,7 @@
   <data name="Consent_MustCheck" xml:space="preserve"><value>Sie müssen das Einwilligungsfeld ankreuzen, um fortzufahren.</value></data>
   <data name="Consent_AlreadyConsented" xml:space="preserve"><value>Sie haben diesem Dokument bereits zugestimmt.</value></data>
   <data name="Consent_ThankYou" xml:space="preserve"><value>Vielen Dank für Ihre Einwilligung zu {0}.</value><comment>{0} = document name</comment></data>
+  <data name="Consent_SubmitError" xml:space="preserve"><value>Beim Speichern Ihrer Einwilligung ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.</value></data>
 
   <!-- ======================== -->
   <!-- Teams                    -->

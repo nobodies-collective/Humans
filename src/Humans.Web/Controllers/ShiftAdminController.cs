@@ -52,13 +52,13 @@ public class ShiftAdminController : HumansTeamControllerBase
             async (resolvedTeam, resolvedUser) =>
                 await CanManageDepartmentAsync(resolvedUser, resolvedTeam)
                 || await CanApproveDepartmentAsync(resolvedUser, resolvedTeam));
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var canManage = await CanManageDepartmentAsync(user, team);
         var canApprove = await CanApproveDepartmentAsync(user, team);
 
         var es = await _shiftMgmt.GetActiveAsync();
-        if (es == null)
+        if (es is null)
         {
             SetError("No active event settings configured.");
             return RedirectToAction("Details", "Team", new { slug });
@@ -91,7 +91,7 @@ public class ShiftAdminController : HumansTeamControllerBase
         foreach (var uid in allUserIds)
         {
             var profile = await _profileService.GetShiftProfileAsync(uid, includeMedical: canViewMedical);
-            if (profile != null)
+            if (profile is not null)
             {
                 profileDict[uid] = profile;
             }
@@ -121,10 +121,10 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> CreateRota(string slug, CreateRotaModel model)
     {
         var (teamError, _, team) = await ResolveDepartmentManagementAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var es = await _shiftMgmt.GetActiveAsync();
-        if (es == null) return BadRequest("No active event.");
+        if (es is null) return BadRequest("No active event.");
 
         if (!ModelState.IsValid)
         {
@@ -156,10 +156,10 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> EditRota(string slug, Guid rotaId, EditRotaModel model)
     {
         var (teamError, _, team) = await ResolveDepartmentManagementAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var rota = await _shiftMgmt.GetRotaByIdAsync(rotaId);
-        if (rota == null) return NotFound();
+        if (rota is null) return NotFound();
         if (rota.TeamId != team.Id) return NotFound();
 
         rota.Name = model.Name;
@@ -179,10 +179,10 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> ConfigureStaffing(string slug, Guid rotaId, StaffingGridModel model)
     {
         var (teamError, _, team) = await ResolveDepartmentManagementAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var rota = await _shiftMgmt.GetRotaByIdAsync(rotaId);
-        if (rota == null) return NotFound();
+        if (rota is null) return NotFound();
         if (rota.TeamId != team.Id) return NotFound();
 
         var dailyStaffing = model.Days.ToDictionary(
@@ -208,10 +208,10 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> GenerateShifts(string slug, Guid rotaId, GenerateEventShiftsModel model)
     {
         var (teamError, _, team) = await ResolveDepartmentManagementAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var rota = await _shiftMgmt.GetRotaByIdAsync(rotaId);
-        if (rota == null) return NotFound();
+        if (rota is null) return NotFound();
         if (rota.TeamId != team.Id) return NotFound();
 
         var timeSlots = new List<(LocalTime StartTime, double DurationHours)>();
@@ -252,7 +252,7 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> CreateShift(string slug, CreateShiftModel model)
     {
         var (teamError, _, team) = await ResolveDepartmentManagementAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         if (!ModelState.IsValid)
         {
@@ -261,7 +261,7 @@ public class ShiftAdminController : HumansTeamControllerBase
         }
 
         var rota = await _shiftMgmt.GetRotaByIdAsync(model.RotaId);
-        if (rota == null) return NotFound();
+        if (rota is null) return NotFound();
         if (rota.TeamId != team.Id) return NotFound();
 
         if (!model.StartTime.TryParseInvariantLocalTime(out var parsedTime))
@@ -303,10 +303,10 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> EditShift(string slug, Guid shiftId, EditShiftModel model)
     {
         var (teamError, _, team) = await ResolveDepartmentManagementAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
-        if (shift == null) return NotFound();
+        if (shift is null) return NotFound();
         if (shift.Rota.TeamId != team.Id) return NotFound();
 
         if (!model.StartTime.TryParseInvariantLocalTime(out var parsedTime))
@@ -333,7 +333,7 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> DeleteRota(string slug, Guid rotaId)
     {
         var (teamError, _, _) = await ResolveDepartmentManagementAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         try
         {
@@ -354,7 +354,7 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> DeleteShift(string slug, Guid shiftId)
     {
         var (teamError, _, _) = await ResolveDepartmentManagementAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         try
         {
@@ -375,7 +375,7 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> BailRange(string slug, Guid signupBlockId, string? reason)
     {
         var (teamError, user, _) = await ResolveDepartmentApprovalAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         try
         {
@@ -396,10 +396,10 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> ApproveSignup(string slug, Guid signupId)
     {
         var (teamError, user, team) = await ResolveDepartmentApprovalAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var signup = await _signupService.GetByIdAsync(signupId);
-        if (signup == null) return NotFound();
+        if (signup is null) return NotFound();
         if (signup.Shift.Rota.TeamId != team.Id) return NotFound();
 
         var result = await _signupService.ApproveAsync(signupId, user.Id);
@@ -420,10 +420,10 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> RefuseSignup(string slug, Guid signupId, string? reason)
     {
         var (teamError, user, team) = await ResolveDepartmentApprovalAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var signup = await _signupService.GetByIdAsync(signupId);
-        if (signup == null) return NotFound();
+        if (signup is null) return NotFound();
         if (signup.Shift.Rota.TeamId != team.Id) return NotFound();
 
         var result = await _signupService.RefuseAsync(signupId, user.Id, reason);
@@ -444,10 +444,10 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> MarkNoShow(string slug, Guid signupId)
     {
         var (teamError, user, team) = await ResolveDepartmentApprovalAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var signupCheck = await _signupService.GetByIdAsync(signupId);
-        if (signupCheck == null) return NotFound();
+        if (signupCheck is null) return NotFound();
         if (signupCheck.Shift.Rota.TeamId != team.Id) return NotFound();
 
         var result = await _signupService.MarkNoShowAsync(signupId, user.Id);
@@ -467,7 +467,7 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> SearchVolunteers(string slug, Guid shiftId, string? query)
     {
         var (teamError, _, team) = await ResolveDepartmentApprovalAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         if (!query.HasSearchTerm())
         {
@@ -477,11 +477,11 @@ public class ShiftAdminController : HumansTeamControllerBase
         try
         {
             var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
-            if (shift == null) return NotFound();
+            if (shift is null) return NotFound();
             if (shift.Rota.TeamId != team.Id) return NotFound();
 
             var es = shift.Rota.EventSettings ?? await _shiftMgmt.GetActiveAsync();
-            if (es == null) return NotFound();
+            if (es is null) return NotFound();
 
             var results = await ShiftVolunteerSearchBuilder.BuildAsync(
                 shift,
@@ -506,10 +506,10 @@ public class ShiftAdminController : HumansTeamControllerBase
     public async Task<IActionResult> Voluntell(string slug, Guid shiftId, Guid userId)
     {
         var (teamError, currentUser, team) = await ResolveDepartmentApprovalAsync(slug);
-        if (teamError != null) return teamError;
+        if (teamError is not null) return teamError;
 
         var shift = await _shiftMgmt.GetShiftByIdAsync(shiftId);
-        if (shift == null) return NotFound();
+        if (shift is null) return NotFound();
         if (shift.Rota.TeamId != team.Id) return NotFound();
 
         var result = await _signupService.VoluntellAsync(userId, shiftId, currentUser.Id);

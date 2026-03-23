@@ -32,7 +32,7 @@ public class TeamSummaryViewModel
     /// <summary>
     /// Sort key that groups sub-teams under their parent: "ParentName - ChildName" or just "Name".
     /// </summary>
-    public string SortKey => ParentTeamName != null ? $"{ParentTeamName} - {Name}" : Name;
+    public string SortKey => ParentTeamName is not null ? $"{ParentTeamName} - {Name}" : Name;
 }
 
 public class TeamDetailViewModel
@@ -314,13 +314,13 @@ public class TeamRoleDefinitionViewModel
                     SlotPriority.NiceToHave => "bg-secondary",
                     _ => "bg-light text-dark"
                 },
-                IsFilled = assignment != null,
+                IsFilled = assignment is not null,
                 AssignedUserId = assignment?.TeamMember?.UserId,
                 AssignedUserName = assignment?.TeamMember?.User?.DisplayName,
                 TeamMemberId = assignment?.TeamMemberId
             });
 
-            if (assignment?.TeamMember?.UserId != null)
+            if (assignment?.TeamMember?.UserId is not null)
                 assignedUserIds.Add(assignment.TeamMember.UserId);
         }
 

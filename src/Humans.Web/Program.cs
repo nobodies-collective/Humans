@@ -280,7 +280,7 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
         {
             var userManager = context.RequestServices.GetRequiredService<UserManager<User>>();
             var user = await userManager.GetUserAsync(context.User);
-            if (user != null && !string.IsNullOrEmpty(user.PreferredLanguage))
+            if (user is not null && !string.IsNullOrEmpty(user.PreferredLanguage))
             {
                 return new ProviderCultureResult(user.PreferredLanguage);
             }

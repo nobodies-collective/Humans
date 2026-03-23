@@ -58,7 +58,7 @@ public class GovernanceController : HumansControllerBase
     public async Task<IActionResult> Index()
     {
         var user = await GetCurrentUserAsync();
-        if (user == null)
+        if (user is null)
             return NotFound();
 
         var applications = await _applicationDecisionService.GetUserApplicationsAsync(user.Id);
@@ -72,12 +72,12 @@ public class GovernanceController : HumansControllerBase
         var viewModel = new GovernanceIndexViewModel
         {
             StatutesContent = statutesContent,
-            HasApplication = latestApplication != null,
+            HasApplication = latestApplication is not null,
             ApplicationStatus = latestApplication?.Status,
             ApplicationSubmittedAt = latestApplication?.SubmittedAt.ToDateTimeUtc(),
             ApplicationResolvedAt = latestApplication?.ResolvedAt?.ToDateTimeUtc(),
             ApplicationStatusBadgeClass = latestApplication?.Status.GetBadgeClass(),
-            CanApply = latestApplication == null ||
+            CanApply = latestApplication is null ||
                 latestApplication.Status != ApplicationStatus.Submitted,
             ColaboradorCount = colaboradorCount,
             AsociadoCount = asociadoCount
@@ -137,7 +137,7 @@ public class GovernanceController : HumansControllerBase
                 _gitHubSettings.Repository,
                 file.Path);
 
-            if (fileContent.Count > 0 && fileContent[0].Content != null)
+            if (fileContent.Count > 0 && fileContent[0].Content is not null)
             {
                 content[lang] = fileContent[0].Content;
             }

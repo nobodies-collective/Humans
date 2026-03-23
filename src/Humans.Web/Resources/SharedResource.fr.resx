@@ -405,6 +405,7 @@
   <data name="Application_InvalidTier" xml:space="preserve"><value>Veuillez s&#xE9;lectionner Colaborador ou Asociado pour votre candidature.</value></data>
   <data name="Application_ConfirmAccuracy" xml:space="preserve"><value>Vous devez confirmer l'exactitude de vos informations.</value></data>
   <data name="Application_Submitted" xml:space="preserve"><value>Votre candidature a &#xE9;t&#xE9; soumise avec succ&#xE8;s&#xA0;!</value></data>
+  <data name="Application_SubmitError" xml:space="preserve"><value>Une erreur s&#x2019;est produite lors de l&#x2019;envoi de votre candidature. Veuillez r&#xE9;essayer.</value></data>
   <data name="Application_CannotWithdraw" xml:space="preserve"><value>Cette candidature ne peut pas &#xEA;tre retir&#xE9;e.</value></data>
   <data name="Application_Withdrawn" xml:space="preserve"><value>Votre candidature a &#xE9;t&#xE9; retir&#xE9;e.</value></data>
 
@@ -448,6 +449,7 @@
   <data name="Consent_MustCheck" xml:space="preserve"><value>Vous devez cocher la case de consentement pour continuer.</value></data>
   <data name="Consent_AlreadyConsented" xml:space="preserve"><value>Vous avez d&#xE9;j&#xE0; consenti &#xE0; ce document.</value></data>
   <data name="Consent_ThankYou" xml:space="preserve"><value>Merci d'avoir consenti &#xE0; {0}.</value><comment>{0} = document name</comment></data>
+  <data name="Consent_SubmitError" xml:space="preserve"><value>Une erreur s&#x2019;est produite lors de l&#x2019;enregistrement de votre consentement. Veuillez r&#xE9;essayer.</value></data>
 
   <!-- ======================== -->
   <!-- Teams                    -->

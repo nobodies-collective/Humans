@@ -62,7 +62,7 @@ public class AdminController : HumansControllerBase
         }
 
         var user = await FindUserByIdAsync(id);
-        if (user == null)
+        if (user is null)
         {
             return NotFound();
         }
@@ -127,7 +127,7 @@ public class AdminController : HumansControllerBase
             report = System.Text.Json.JsonSerializer.Deserialize<SyncReport>(json);
         }
 
-        if (report == null)
+        if (report is null)
         {
             SetInfo("No sync results to display. Run a sync first.");
             return RedirectToAction(nameof(Index));
@@ -347,7 +347,7 @@ public class AdminController : HumansControllerBase
         SyncServiceType serviceType, SyncMode mode)
     {
         var currentUser = await GetCurrentUserAsync();
-        if (currentUser == null) return Unauthorized();
+        if (currentUser is null) return Unauthorized();
 
         await syncSettingsService.UpdateModeAsync(serviceType, mode, currentUser.Id);
 
@@ -445,7 +445,7 @@ public class AdminController : HumansControllerBase
     public async Task<IActionResult> RetryEmailOutboxMessage(Guid id)
     {
         var message = await _dbContext.EmailOutboxMessages.FindAsync(id);
-        if (message == null) return NotFound();
+        if (message is null) return NotFound();
 
         message.Status = EmailOutboxStatus.Queued;
         message.RetryCount = 0;
@@ -463,7 +463,7 @@ public class AdminController : HumansControllerBase
     public async Task<IActionResult> DiscardEmailOutboxMessage(Guid id)
     {
         var message = await _dbContext.EmailOutboxMessages.FindAsync(id);
-        if (message == null) return NotFound();
+        if (message is null) return NotFound();
 
         var recipient = message.RecipientEmail;
         _dbContext.EmailOutboxMessages.Remove(message);
@@ -477,7 +477,7 @@ public class AdminController : HumansControllerBase
     {
         var setting = await _dbContext.SystemSettings
             .FirstOrDefaultAsync(s => s.Key == "IsEmailSendingPaused");
-        if (setting == null)
+        if (setting is null)
         {
             setting = new SystemSetting { Key = "IsEmailSendingPaused", Value = paused ? "true" : "false" };
             _dbContext.SystemSettings.Add(setting);
@@ -529,7 +529,7 @@ public class AdminController : HumansControllerBase
             result = System.Text.Json.JsonSerializer.Deserialize<Application.DTOs.GroupSettingsDriftResult>(json);
         }
 
-        if (result == null)
+        if (result is null)
         {
             SetInfo("No group settings results to display. Run the check first.");
             return RedirectToAction(nameof(Index));

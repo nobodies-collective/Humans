@@ -184,7 +184,7 @@ public class UserEmailService : IUserEmailService
         var pendingEmail = await _dbContext.UserEmails
             .FirstOrDefaultAsync(e => e.UserId == userId && !e.IsVerified && !e.IsOAuth, cancellationToken);
 
-        if (pendingEmail == null)
+        if (pendingEmail is null)
         {
             throw new ValidationException("No email pending verification.");
         }
@@ -207,7 +207,7 @@ public class UserEmailService : IUserEmailService
                 && e.IsVerified
                 && EF.Functions.ILike(e.Email, pendingEmail.Email), cancellationToken);
 
-        if (conflictingEmail != null)
+        if (conflictingEmail is not null)
         {
             // Check for existing pending merge request to avoid duplicates
             // (e.g. email client link prefetch, double-click)
@@ -305,7 +305,7 @@ public class UserEmailService : IUserEmailService
             var oauthEmail = await _dbContext.UserEmails
                 .FirstOrDefaultAsync(e => e.UserId == userId && e.IsOAuth, cancellationToken);
 
-            if (oauthEmail != null)
+            if (oauthEmail is not null)
             {
                 oauthEmail.IsNotificationTarget = true;
                 oauthEmail.UpdatedAt = _clock.GetCurrentInstant();

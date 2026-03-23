@@ -396,6 +396,7 @@
   <data name="Application_InvalidTier" xml:space="preserve"><value>Please select Colaborador or Asociado for your application.</value></data>
   <data name="Application_ConfirmAccuracy" xml:space="preserve"><value>You must confirm the accuracy of your information.</value></data>
   <data name="Application_Submitted" xml:space="preserve"><value>Your application has been submitted successfully!</value></data>
+  <data name="Application_SubmitError" xml:space="preserve"><value>Something went wrong while submitting your application. Please try again.</value></data>
   <data name="Application_CannotWithdraw" xml:space="preserve"><value>This application cannot be withdrawn.</value></data>
   <data name="Application_Withdrawn" xml:space="preserve"><value>Your application has been withdrawn.</value></data>
 
@@ -441,6 +442,7 @@
   <data name="Consent_MustCheck" xml:space="preserve"><value>You must check the consent checkbox to continue.</value></data>
   <data name="Consent_AlreadyConsented" xml:space="preserve"><value>You have already consented to this document.</value></data>
   <data name="Consent_ThankYou" xml:space="preserve"><value>Thank you for consenting to {0}.</value><comment>{0} = document name</comment></data>
+  <data name="Consent_SubmitError" xml:space="preserve"><value>Something went wrong while recording your consent. Please try again.</value></data>
 
   <!-- ======================== -->
   <!-- Teams                    -->
