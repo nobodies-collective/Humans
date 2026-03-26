@@ -58,11 +58,10 @@ public class MagicLinkService : IMagicLinkService
     public async Task SendMagicLinkAsync(string email, string? returnUrl, CancellationToken ct = default)
     {
         // 1. Look up by verified UserEmail first (supports all verified addresses)
-        var upperEmail = email.ToUpperInvariant();
         var userEmail = await _dbContext.UserEmails
             .Include(ue => ue.User)
             .FirstOrDefaultAsync(ue => ue.IsVerified &&
-                ue.Email.ToUpperInvariant() == upperEmail, ct);
+                EF.Functions.ILike(ue.Email, email), ct);
 
         if (userEmail is not null)
         {
@@ -138,11 +137,10 @@ public class MagicLinkService : IMagicLinkService
 
     public async Task<User?> FindUserByVerifiedEmailAsync(string email, CancellationToken ct = default)
     {
-        var upperEmail = email.ToUpperInvariant();
         var userEmail = await _dbContext.UserEmails
             .Include(ue => ue.User)
             .FirstOrDefaultAsync(ue => ue.IsVerified &&
-                ue.Email.ToUpperInvariant() == upperEmail, ct);
+                EF.Functions.ILike(ue.Email, email), ct);
 
         if (userEmail is not null)
         {
