@@ -82,6 +82,11 @@ public interface IShiftSignupService
     Task<ShiftSignup?> GetByIdAsync(Guid signupId);
 
     /// <summary>
+    /// Gets the first signup in a block with Shift.Rota included (for team ownership checks).
+    /// </summary>
+    Task<ShiftSignup?> GetByBlockIdFirstAsync(Guid signupBlockId);
+
+    /// <summary>
     /// Gets all signups for a shift.
     /// </summary>
     Task<IReadOnlyList<ShiftSignup>> GetByShiftAsync(Guid shiftId);

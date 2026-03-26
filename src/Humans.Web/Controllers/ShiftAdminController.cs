@@ -449,8 +449,11 @@ public class ShiftAdminController : HumansTeamControllerBase
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ApproveRange(string slug, Guid signupBlockId)
     {
-        var (teamError, user, _) = await ResolveDepartmentApprovalAsync(slug);
+        var (teamError, user, team) = await ResolveDepartmentApprovalAsync(slug);
         if (teamError is not null) return teamError;
+
+        var probe = await _signupService.GetByBlockIdFirstAsync(signupBlockId);
+        if (probe is null || probe.Shift.Rota.TeamId != team.Id) return NotFound();
 
         var result = await _signupService.ApproveRangeAsync(signupBlockId, user.Id);
         if (result.Success)
@@ -465,8 +468,11 @@ public class ShiftAdminController : HumansTeamControllerBase
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RefuseRange(string slug, Guid signupBlockId, string? reason)
     {
-        var (teamError, user, _) = await ResolveDepartmentApprovalAsync(slug);
+        var (teamError, user, team) = await ResolveDepartmentApprovalAsync(slug);
         if (teamError is not null) return teamError;
+
+        var probe = await _signupService.GetByBlockIdFirstAsync(signupBlockId);
+        if (probe is null || probe.Shift.Rota.TeamId != team.Id) return NotFound();
 
         var result = await _signupService.RefuseRangeAsync(signupBlockId, user.Id, reason);
         if (result.Success)

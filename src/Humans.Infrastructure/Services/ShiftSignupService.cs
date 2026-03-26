@@ -649,6 +649,13 @@ public class ShiftSignupService : IShiftSignupService
             .FirstOrDefaultAsync(d => d.Id == signupId);
     }
 
+    public async Task<ShiftSignup?> GetByBlockIdFirstAsync(Guid signupBlockId)
+    {
+        return await _dbContext.ShiftSignups
+            .Include(s => s.Shift).ThenInclude(s => s.Rota)
+            .FirstOrDefaultAsync(s => s.SignupBlockId == signupBlockId);
+    }
+
     public async Task<IReadOnlyList<ShiftSignup>> GetByShiftAsync(Guid shiftId)
     {
         return await _dbContext.ShiftSignups
