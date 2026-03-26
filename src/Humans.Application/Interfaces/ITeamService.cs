@@ -83,6 +83,7 @@ public record TeamRosterSlotSummary(
     string PriorityBadgeClass,
     string Period,
     bool IsFilled,
+    Guid? AssignedUserId,
     string? AssignedUserName);
 
 public record AdminTeamSummary(

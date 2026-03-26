@@ -95,7 +95,11 @@ else
                     <td>@slot.SlotNumber</td>
                     <td><span class="badge @slot.PriorityBadgeClass">@(slot.Priority == SlotPriority.NiceToHave ? "Nice to Have" : slot.Priority.ToString())</span></td>
                     <td>
-                        @if (slot.IsFilled)
+                        @if (slot.IsFilled && slot.AssignedUserId.HasValue)
+                        {
+                            <human-link user-id="@slot.AssignedUserId.Value" display-name="@slot.AssignedUserName" show-popover="true" />
+                        }
+                        else if (slot.IsFilled)
                         {
                             @slot.AssignedUserName
                         }

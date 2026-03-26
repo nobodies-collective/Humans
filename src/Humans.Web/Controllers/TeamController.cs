@@ -298,6 +298,7 @@ public class TeamController : HumansControllerBase
             PriorityBadgeClass = slot.PriorityBadgeClass,
             Period = Enum.TryParse<RolePeriod>(slot.Period, out var rp) ? rp : RolePeriod.Event,
             IsFilled = slot.IsFilled,
+            AssignedUserId = slot.AssignedUserId,
             AssignedUserName = slot.AssignedUserName
         }).ToList();
 

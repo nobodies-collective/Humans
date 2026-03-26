@@ -1551,6 +1551,7 @@ public class TeamService : ITeamService
                     GetPriorityBadgeClass(slotPriority),
                     definition.Period.ToString(),
                     assignment is not null,
+                    assignment?.TeamMember?.UserId,
                     assignment?.TeamMember?.User?.DisplayName));
             }
         }

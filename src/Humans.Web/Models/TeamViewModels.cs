@@ -413,6 +413,7 @@ public class RosterSlotViewModel
     public string PriorityBadgeClass { get; set; } = string.Empty;
     public RolePeriod Period { get; set; }
     public bool IsFilled { get; set; }
+    public Guid? AssignedUserId { get; set; }
     public string? AssignedUserName { get; set; }
 }
 
