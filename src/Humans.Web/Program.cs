@@ -270,6 +270,15 @@ builder.Services.AddRateLimiter(options =>
 // No explicit config needed — the app is only reachable through Traefik/Coolify
 // on internal Docker networks, so trusting any proxy is safe.
 
+// Session (used for browser-detected timezone — no DB migration needed)
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromHours(8);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+
 // Configure Localization
 builder.Services.AddLocalization();
 
@@ -305,6 +314,10 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 });
 
 var app = builder.Build();
+
+// Initialize timezone-aware display extensions with IHttpContextAccessor
+// so all Instant.ToDisplay*() calls automatically use the user's session timezone.
+DateTimeDisplayExtensions.Initialize(app.Services.GetRequiredService<IHttpContextAccessor>());
 
 // Eagerly resolve HumansMetricsService so the background gauge-refresh timer starts
 // immediately — otherwise observable gauges emit nothing until first injection.
@@ -429,6 +442,8 @@ app.UseSerilogRequestLogging();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseSession();
 
 app.UseRequestLocalization();
 

@@ -1,10 +1,84 @@
 using System.Globalization;
+using Humans.Web.Controllers;
+using Microsoft.AspNetCore.Http;
 using NodaTime;
 
 namespace Humans.Web.Extensions;
 
 public static class DateTimeDisplayExtensions
 {
+    private static IHttpContextAccessor? _httpContextAccessor;
+
+    /// <summary>
+    /// Called once at startup to provide the IHttpContextAccessor.
+    /// After this, all parameterless Instant display methods automatically
+    /// resolve the user's timezone from the current request session.
+    /// </summary>
+    public static void Initialize(IHttpContextAccessor httpContextAccessor)
+    {
+        _httpContextAccessor = httpContextAccessor;
+    }
+
+    /// <summary>
+    /// Resolves the current user's timezone from session → UTC fallback.
+    /// Used internally by parameterless Instant overloads.
+    /// </summary>
+    private static DateTimeZone GetCurrentUserTimeZone()
+    {
+        var session = _httpContextAccessor?.HttpContext?.Session;
+        if (session is null) return DateTimeZone.Utc;
+
+        var sessionTz = session.GetString(TimezoneApiController.SessionKey);
+        if (!string.IsNullOrEmpty(sessionTz))
+        {
+            var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(sessionTz);
+            if (zone is not null) return zone;
+        }
+
+        return DateTimeZone.Utc;
+    }
+
+    /// <summary>
+    /// Resolves the user's timezone from session, falling back to the event default or UTC.
+    /// Fallback chain: session timezone → eventTimeZoneId → UTC.
+    /// </summary>
+    public static DateTimeZone GetUserTimeZone(this ISession session, string? eventTimeZoneId = null)
+    {
+        var sessionTz = session.GetString(TimezoneApiController.SessionKey);
+        if (!string.IsNullOrEmpty(sessionTz))
+        {
+            var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(sessionTz);
+            if (zone is not null) return zone;
+        }
+
+        if (!string.IsNullOrEmpty(eventTimeZoneId))
+        {
+            var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(eventTimeZoneId);
+            if (zone is not null) return zone;
+        }
+
+        return DateTimeZone.Utc;
+    }
+
+    // --- Timezone-aware Instant overloads (explicit) ---
+
+    public static string ToDisplayDate(this Instant value, DateTimeZone timeZone) =>
+        value.InZone(timeZone).Date.ToDisplayDate();
+
+    public static string ToDisplayDateTime(this Instant value, DateTimeZone timeZone) =>
+        value.InZone(timeZone).ToDateTimeUnspecified().ToDisplayDateTime();
+
+    public static string ToDisplayCompactDate(this Instant value, DateTimeZone timeZone) =>
+        value.InZone(timeZone).ToDateTimeUnspecified().ToDisplayCompactDate();
+
+    public static string ToDisplayCompactDateTime(this Instant value, DateTimeZone timeZone) =>
+        value.InZone(timeZone).ToDateTimeUnspecified().ToDisplayCompactDateTime();
+
+    public static string ToDisplayCompactDayTime(this Instant value, DateTimeZone timeZone) =>
+        value.InZone(timeZone).ToDateTimeUnspecified().ToDisplayCompactDayTime();
+
+    // --- DateTime display methods ---
+
     public static string ToDisplayDate(this DateTime value) =>
         value.ToString("d MMM yyyy", CultureInfo.CurrentCulture);
 
@@ -12,7 +86,7 @@ public static class DateTimeDisplayExtensions
         value?.ToDisplayDate();
 
     public static string ToDisplayDate(this Instant value) =>
-        value.ToDateTimeUtc().ToDisplayDate();
+        value.InZone(GetCurrentUserTimeZone()).ToDateTimeUnspecified().ToDisplayDate();
 
     public static string? ToDisplayDate(this Instant? value) =>
         value?.ToDisplayDate();
@@ -30,7 +104,7 @@ public static class DateTimeDisplayExtensions
         value?.ToDisplayLongDate();
 
     public static string ToDisplayLongDate(this Instant value) =>
-        value.ToDateTimeUtc().ToDisplayLongDate();
+        value.InZone(GetCurrentUserTimeZone()).ToDateTimeUnspecified().ToDisplayLongDate();
 
     public static string? ToDisplayLongDate(this Instant? value) =>
         value?.ToDisplayLongDate();
@@ -42,7 +116,7 @@ public static class DateTimeDisplayExtensions
         value?.ToDisplayLongDateTime();
 
     public static string ToDisplayLongDateTime(this Instant value) =>
-        value.ToDateTimeUtc().ToDisplayLongDateTime();
+        value.InZone(GetCurrentUserTimeZone()).ToDateTimeUnspecified().ToDisplayLongDateTime();
 
     public static string? ToDisplayLongDateTime(this Instant? value) =>
         value?.ToDisplayLongDateTime();
@@ -54,7 +128,7 @@ public static class DateTimeDisplayExtensions
         value?.ToDisplayDateTime();
 
     public static string ToDisplayDateTime(this Instant value) =>
-        value.ToDateTimeUtc().ToDisplayDateTime();
+        value.InZone(GetCurrentUserTimeZone()).ToDateTimeUnspecified().ToDisplayDateTime();
 
     public static string? ToDisplayDateTime(this Instant? value) =>
         value?.ToDisplayDateTime();
@@ -66,7 +140,7 @@ public static class DateTimeDisplayExtensions
         value?.ToDisplayCompactDate();
 
     public static string ToDisplayCompactDate(this Instant value) =>
-        value.ToDateTimeUtc().ToDisplayCompactDate();
+        value.InZone(GetCurrentUserTimeZone()).ToDateTimeUnspecified().ToDisplayCompactDate();
 
     public static string? ToDisplayCompactDate(this Instant? value) =>
         value?.ToDisplayCompactDate();
@@ -78,13 +152,13 @@ public static class DateTimeDisplayExtensions
         value?.ToDisplayCompactDateTime();
 
     public static string ToDisplayCompactDateTime(this Instant value) =>
-        value.ToDateTimeUtc().ToDisplayCompactDateTime();
+        value.InZone(GetCurrentUserTimeZone()).ToDateTimeUnspecified().ToDisplayCompactDateTime();
 
     public static string? ToDisplayCompactDateTime(this Instant? value) =>
         value?.ToDisplayCompactDateTime();
 
     public static string ToDisplayCompactDayTime(this Instant value) =>
-        value.ToDateTimeUtc().ToDisplayCompactDayTime();
+        value.InZone(GetCurrentUserTimeZone()).ToDateTimeUnspecified().ToDisplayCompactDayTime();
 
     public static string ToDisplayCompactDayTime(this DateTime value) =>
         value.ToString("MMM d", CultureInfo.CurrentCulture) + " @ " + value.ToString("HH:mm", CultureInfo.InvariantCulture);
