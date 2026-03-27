@@ -113,6 +113,10 @@ public class GoogleWorkspaceUserService : IGoogleWorkspaceUserService
     {
         var service = await GetDirectoryServiceAsync();
 
+        if (string.IsNullOrWhiteSpace(lastName))
+            throw new InvalidOperationException(
+                $"Cannot provision account for {primaryEmail}: FamilyName is required but was empty. The user must have a last name in their profile.");
+
         var newUser = new User
         {
             PrimaryEmail = primaryEmail,

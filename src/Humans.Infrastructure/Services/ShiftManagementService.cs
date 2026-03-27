@@ -50,7 +50,16 @@ public class ShiftManagementService : IShiftManagementService
     public async Task<bool> IsDeptCoordinatorAsync(Guid userId, Guid departmentTeamId)
     {
         var deptIds = await GetCoordinatorDepartmentIdsAsync(userId);
-        return deptIds.Contains(departmentTeamId);
+        if (deptIds.Contains(departmentTeamId))
+            return true;
+
+        // Parent department coordinators can manage child teams
+        var parentTeamId = await _dbContext.Teams.AsNoTracking()
+            .Where(t => t.Id == departmentTeamId)
+            .Select(t => t.ParentTeamId)
+            .FirstOrDefaultAsync();
+
+        return parentTeamId is not null && deptIds.Contains(parentTeamId.Value);
     }
 
     public async Task<bool> CanManageShiftsAsync(Guid userId, Guid departmentTeamId)
@@ -653,7 +662,11 @@ public class ShiftManagementService : IShiftManagementService
         return new ShiftsSummaryData(
             TotalSlots: allShifts.Sum(s => s.MaxVolunteers),
             ConfirmedCount: allSignups.Count(s => s.Status == SignupStatus.Confirmed),
-            PendingCount: allSignups.Count(s => s.Status == SignupStatus.Pending),
+            PendingCount: allSignups
+                .Where(s => s.Status == SignupStatus.Pending)
+                .Select(s => s.SignupBlockId ?? s.Id)
+                .Distinct()
+                .Count(),
             UniqueVolunteerCount: allSignups
                 .Where(s => s.Status == SignupStatus.Confirmed)
                 .Select(s => s.UserId)
