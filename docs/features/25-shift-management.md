@@ -73,6 +73,19 @@ See `docs/specs/shift-management-spec.md` for the full design specification.
 - Bail from confirmed or pending signups
 - Range bail via `BailRangeAsync` — bails all signups sharing a `SignupBlockId` (build/strike date-range signups)
 - Build shift bail blocked after EE close for non-privileged users
+- Reusable `ShiftSignupsViewComponent` shows categorized signups (upcoming/pending/past) on Dashboard and HumanDetail pages
+
+### US-25.7: Guided Shift Discovery
+**As a** volunteer with no upcoming shifts
+**I want to** see a guided introduction to shifts on my dashboard
+**So that** I understand how to get involved
+
+**Acceptance Criteria:**
+- When shift browsing is open and user has no upcoming or pending signups, Dashboard shows a discovery card
+- Discovery card explains the three shift phases (Set-up, Event, Strike) with brief descriptions
+- Urgent understaffed shifts are highlighted within the discovery card
+- Clear CTAs to browse all shifts and view own shift schedule
+- When user has existing signups, the standard shift signups component and urgent shifts list are shown instead
 
 ### US-25.6: Post-Event No-Show Tracking
 **As a** coordinator
@@ -131,6 +144,8 @@ Pending --> Cancelled   (system: shift deleted, account deletion)
 | `/Shifts/Mine` | View own signups (upcoming, pending, past) |
 | `/Shifts/Settings` | Admin: manage EventSettings |
 | `/Teams/{slug}/Shifts` | Coordinator: manage rotas/shifts for a department |
+| `/` (Dashboard) | Shift signups ViewComponent + guided discovery when no signups |
+| `/Human/{id}/Admin` | Shift signups ViewComponent (admin view of user's shifts) |
 
 ## Related Features
 
