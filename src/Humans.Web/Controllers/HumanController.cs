@@ -486,7 +486,15 @@ public class HumanController : HumansControllerBase
                 await _dbContext.SaveChangesAsync();
             }
 
-            SetSuccess($"Account {fullEmail} provisioned and linked. Temporary password: {tempPassword}");
+            // Send credentials to recovery email
+            if (!string.IsNullOrEmpty(recoveryEmail))
+            {
+                await _emailService.SendWorkspaceCredentialsAsync(
+                    recoveryEmail, user.DisplayName, fullEmail, tempPassword,
+                    user.PreferredLanguage);
+            }
+
+            SetSuccess($"Account {fullEmail} provisioned and linked. Credentials sent to {recoveryEmail}.");
         }
         catch (Exception ex)
         {
