@@ -6,7 +6,7 @@
     var userCampSeasonId = (string)ViewBag.UserCampSeasonId;
     var seasonsWithout = (List<Humans.Application.Interfaces.CampSeasonSummaryDto>)ViewBag.SeasonsWithoutPolygon;
     var year = (int)ViewBag.Year;
-    var showMainToolbar = (isPlacementOpen && !string.IsNullOrEmpty(userCampSeasonId)) || (isMapAdmin && seasonsWithout.Any());
+    var showMainToolbar = isMapAdmin && seasonsWithout.Any();
 }
 
 @section Styles {
@@ -31,13 +31,13 @@
     <div id="map"></div>
 
     <!-- Toolbars -->
-    <div class="position-absolute top-0 start-0 mt-2 ms-2 d-flex flex-column gap-2">
+    <div class="position-absolute bottom-0 start-50 translate-middle-x mb-3 d-flex flex-row gap-2">
         @if (isPlacementOpen || isMapAdmin) {
         <div id="main-toolbar" class="card" style="@(showMainToolbar ? "" : "display:none")">
-            <div class="card-body d-flex flex-column gap-2">
+            <div class="card-body d-flex flex-row gap-2 align-items-center">
             @if (isPlacementOpen && !string.IsNullOrEmpty(userCampSeasonId))
             {
-                <button id="add-my-barrio-btn" class="btn btn-primary btn-sm shadow">
+                <button id="add-my-barrio-btn" class="btn btn-primary btn-sm shadow" style="display:none">
                     <i class="fa fa-plus me-1"></i> Add my barrio on the map
                 </button>
             }
@@ -277,7 +277,12 @@
             const btn = document.getElementById('add-my-barrio-btn');
             if (!btn) return;
             const hasPolygon = state.polygons.some(p => p.campSeasonId === USER_CAMP_SEASON_ID);
-            btn.style.display = (IS_PLACEMENT_OPEN && USER_CAMP_SEASON_ID && !hasPolygon) ? '' : 'none';
+            const show = IS_PLACEMENT_OPEN && USER_CAMP_SEASON_ID && !hasPolygon;
+            btn.style.display = show ? '' : 'none';
+            if (show) {
+                const toolbar = document.getElementById('main-toolbar');
+                if (toolbar) toolbar.style.display = '';
+            }
         }
 
         function clearDrawLabel() {
