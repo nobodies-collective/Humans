@@ -19,10 +19,18 @@
 
         #map-page { flex: 1; position: relative; overflow: hidden; }
         #map { height: 100%; width: 100%; }
-.remote-cursor {
-            background: rgba(255,165,0,0.85); color: white;
-            padding: 2px 7px; border-radius: 4px; font-size: 12px;
+        .remote-cursor {
+            position: relative; background: rgba(255,165,0,0.85); color: white;
+            margin-top: 6px;
+            margin-left: 6px;
+            padding: 2px 7px; border-radius: 0 4px 4px 4px; font-size: 12px;
             white-space: nowrap; pointer-events: none;
+            width: fit-content;
+        }
+        .remote-cursor::after {
+            content: ''; position: absolute; top: -6px; left: -6px;
+            border-right: 12px solid transparent;
+            border-top: 12px solid rgba(255,165,0,0.85);
         }
     </style>
 }
@@ -453,7 +461,7 @@
                     const el = document.createElement('div');
                     el.className = 'remote-cursor';
                     el.textContent = userName;
-                    remoteCursors[connectionId] = new maplibregl.Marker({ element: el })
+                    remoteCursors[connectionId] = new maplibregl.Marker({ element: el, anchor: 'top-left' })
                         .setLngLat([lng, lat]).addTo(map);
                 } else {
                     remoteCursors[connectionId].setLngLat([lng, lat]);
