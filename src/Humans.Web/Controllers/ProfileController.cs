@@ -455,9 +455,10 @@ public class ProfileController : HumansControllerBase
         if (user is null)
             return NotFound();
 
-        if (string.IsNullOrWhiteSpace(model.NewEmail))
+        if (string.IsNullOrWhiteSpace(model.NewEmail) || !ModelState.IsValid)
         {
-            ModelState.AddModelError(nameof(model.NewEmail), _localizer["Profile_EnterEmail"].Value);
+            if (string.IsNullOrWhiteSpace(model.NewEmail))
+                ModelState.AddModelError(nameof(model.NewEmail), _localizer["Profile_EnterEmail"].Value);
             return View(nameof(Emails), await BuildEmailsViewModelAsync(user));
         }
 
