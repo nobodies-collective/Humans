@@ -19,13 +19,7 @@
 
         #map-page { flex: 1; position: relative; overflow: hidden; }
         #map { height: 100%; width: 100%; }
-        #area-badge {
-            position: absolute; bottom: 30px; left: 10px; z-index: 10;
-            background: rgba(0,0,0,0.7); color: white;
-            padding: 4px 10px; border-radius: 4px; font-size: 13px;
-            display: none;
-        }
-        .remote-cursor {
+.remote-cursor {
             background: rgba(255,165,0,0.85); color: white;
             padding: 2px 7px; border-radius: 4px; font-size: 12px;
             white-space: nowrap; pointer-events: none;
@@ -80,7 +74,7 @@
         }
     </div>
 
-    <div id="area-badge"><span id="area-display"></span></div>
+
 </div>
 
 <!-- History offcanvas -->
@@ -141,9 +135,22 @@
 
             map.on('draw.create', onDrawChange);
             map.on('draw.update', onDrawChange);
+            map.on('draw.render', onDrawChange);
             map.on('draw.delete', onDrawDelete);
 
             await new Promise(resolve => map.on('load', resolve));
+
+            map.addSource('draw-label', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            map.addLayer({
+                id: 'draw-label', type: 'symbol', source: 'draw-label',
+                layout: {
+                    'text-field': ['get', 'label'],
+                    'text-size': 13,
+                    'text-anchor': 'center',
+                    'text-allow-overlap': true
+                },
+                paint: { 'text-color': '#000000', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }
+            });
 
             state = await (await fetch('/api/camp-map/state')).json();
             renderMap();
@@ -273,16 +280,20 @@
             btn.style.display = (IS_PLACEMENT_OPEN && USER_CAMP_SEASON_ID && !hasPolygon) ? '' : 'none';
         }
 
+        function clearDrawLabel() {
+            map.getSource('draw-label').setData({ type: 'FeatureCollection', features: [] });
+        }
+
         function updateSaveButton() {
             const features = draw.getAll().features;
             document.getElementById('save-btn').disabled = !(features.length > 0 && activeCampSeasonId);
-            const areaBadge = document.getElementById('area-badge');
             if (features.length > 0) {
                 const area = turf.area(features[0]);
-                document.getElementById('area-display').textContent = Math.round(area).toLocaleString() + ' m²';
-                areaBadge.style.display = 'block';
+                const centroid = turf.centroid(features[0]);
+                centroid.properties = { label: Math.round(area).toLocaleString() + ' m²' };
+                map.getSource('draw-label').setData({ type: 'FeatureCollection', features: [centroid] });
             } else {
-                areaBadge.style.display = 'none';
+                clearDrawLabel();
             }
         }
 
@@ -291,7 +302,7 @@
             activeCampSeasonId = null;
             document.getElementById('save-btn').disabled = true;
             document.getElementById('history-btn').disabled = true;
-            document.getElementById('area-badge').style.display = 'none';
+            clearDrawLabel();
             setEditingControlsVisible(false);
         }
 
@@ -334,7 +345,7 @@
                 activeCampSeasonId = null;
                 document.getElementById('save-btn').disabled = true;
                 document.getElementById('history-btn').disabled = true;
-                document.getElementById('area-badge').style.display = 'none';
+                clearDrawLabel();
                 setEditingControlsVisible(false);
                 // SignalR PolygonUpdated will refresh the map layer
             } else {
