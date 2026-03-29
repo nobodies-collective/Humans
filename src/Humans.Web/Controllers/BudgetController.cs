@@ -201,7 +201,10 @@ public class BudgetController : HumansControllerBase
         var (errorResult, user) = await RequireCurrentUserAsync();
         if (errorResult is not null) return errorResult;
 
-        var authResult = await AuthorizeCategoryEditAsync(budgetCategoryId, user.Id);
+        var lineItem = await _dbContext.BudgetLineItems.FindAsync(id);
+        if (lineItem is null) return NotFound();
+
+        var authResult = await AuthorizeCategoryEditAsync(lineItem.BudgetCategoryId, user.Id);
         if (authResult is not null) return authResult;
 
         var nodaDate = expectedDate.HasValue ? LocalDate.FromDateTime(expectedDate.Value) : (LocalDate?)null;
@@ -216,7 +219,7 @@ public class BudgetController : HumansControllerBase
             _logger.LogError(ex, "Error updating line item {LineItemId}", id);
             SetError($"Failed to update line item: {ex.Message}");
         }
-        return RedirectToAction(nameof(CategoryDetail), new { id = budgetCategoryId });
+        return RedirectToAction(nameof(CategoryDetail), new { id = lineItem.BudgetCategoryId });
     }
 
     [HttpPost("LineItems/{id:guid}/Delete")]
@@ -226,7 +229,10 @@ public class BudgetController : HumansControllerBase
         var (errorResult, user) = await RequireCurrentUserAsync();
         if (errorResult is not null) return errorResult;
 
-        var authResult = await AuthorizeCategoryEditAsync(budgetCategoryId, user.Id);
+        var lineItem = await _dbContext.BudgetLineItems.FindAsync(id);
+        if (lineItem is null) return NotFound();
+
+        var authResult = await AuthorizeCategoryEditAsync(lineItem.BudgetCategoryId, user.Id);
         if (authResult is not null) return authResult;
 
         try
@@ -239,7 +245,7 @@ public class BudgetController : HumansControllerBase
             _logger.LogError(ex, "Error deleting line item {LineItemId}", id);
             SetError($"Failed to delete line item: {ex.Message}");
         }
-        return RedirectToAction(nameof(CategoryDetail), new { id = budgetCategoryId });
+        return RedirectToAction(nameof(CategoryDetail), new { id = lineItem.BudgetCategoryId });
     }
 
     private async Task<IActionResult?> AuthorizeCategoryEditAsync(Guid categoryId, Guid userId)
