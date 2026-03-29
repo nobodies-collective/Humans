@@ -54,7 +54,7 @@ public class ShiftSignupsViewComponent : ViewComponent
 
             switch (signup.Status)
             {
-                case SignupStatus.Confirmed when item.AbsoluteStart > now:
+                case SignupStatus.Confirmed when item.AbsoluteEnd > now:
                     model.Upcoming.Add(item);
                     break;
                 case SignupStatus.Pending:
