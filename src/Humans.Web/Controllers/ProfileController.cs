@@ -691,14 +691,8 @@ public class ProfileController : HumansControllerBase
         var hasNobodiesTeam = emails.Any(e => e.IsVerified &&
             e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase));
 
-        // Auto-heal: if user has @nobodies.team email but GoogleEmail is null, fix it
         if (hasNobodiesTeam && user.GoogleEmail is null)
-        {
-            var nobodiesEmail = emails.First(e => e.IsVerified &&
-                e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase));
-            user.GoogleEmail = nobodiesEmail.Email;
-            await _userManager.UpdateAsync(user);
-        }
+            await _userEmailService.TryBackfillGoogleEmailAsync(user.Id);
 
         return new EmailsViewModel
         {
