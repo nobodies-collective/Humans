@@ -232,7 +232,7 @@
                 filter: ['==', ['get', 'soundZone'], 5],
                 paint: {
                     'fill-pattern': 'rainbow-pattern',
-                    'fill-opacity': ['case', ['boolean', ['get', 'isOwn'], false], 0.75, 0.55]
+                    'fill-opacity': ['case', ['boolean', ['get', 'isOwn'], false], 0.55, 0.35]
                 }
             });
             map.addLayer({
@@ -247,7 +247,7 @@
                         5, '#cc00cc',
                         '#666666'
                     ],
-                    'line-width': ['case', ['boolean', ['get', 'isOwn'], false], 4, 2]
+                    'line-width': ['case', ['boolean', ['get', 'isOwn'], false], 4, 1]
                 }
             });
             map.addLayer({
