@@ -199,7 +199,7 @@
                     'text-anchor': 'center',
                     'text-allow-overlap': true
                 },
-                paint: { 'text-color': '#555555', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }
+                paint: { 'text-color': '#cccccc', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }
             });
 
             state = await (await fetch('/api/camp-map/state')).json();
@@ -329,6 +329,7 @@
             if (currentPopup) { currentPopup.remove(); currentPopup = null; }
 
             activeCampSeasonId = campSeasonId;
+            setActivePolygonDim(campSeasonId);
             draw.deleteAll();
 
             const poly = state.polygons.find(p => p.campSeasonId === campSeasonId);
@@ -399,8 +400,20 @@
             }
         }
 
+        function setActivePolygonDim(campSeasonId) {
+            const fillOpacity = campSeasonId
+                ? ['case', ['==', ['get', 'campSeasonId'], campSeasonId], 0.1, ['boolean', ['get', 'isOwn'], false], 0.55, 0.35]
+                : ['case', ['boolean', ['get', 'isOwn'], false], 0.55, 0.35];
+            const surpriseOpacity = campSeasonId
+                ? ['case', ['==', ['get', 'campSeasonId'], campSeasonId], 0.1, ['boolean', ['get', 'isOwn'], false], 0.75, 0.55]
+                : ['case', ['boolean', ['get', 'isOwn'], false], 0.75, 0.55];
+            if (map.getLayer('polygons-fill')) map.setPaintProperty('polygons-fill', 'fill-opacity', fillOpacity);
+            if (map.getLayer('polygons-fill-surprise')) map.setPaintProperty('polygons-fill-surprise', 'fill-opacity', surpriseOpacity);
+        }
+
         function onDrawChange() { updateSaveButton(); }
         function onDrawDelete() {
+            setActivePolygonDim(null);
             activeCampSeasonId = null;
             document.getElementById('save-btn').disabled = true;
             document.getElementById('history-btn').disabled = true;
