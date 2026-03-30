@@ -3,6 +3,7 @@ using Humans.Application.DTOs;
 using Humans.Application.Extensions;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
+using Humans.Domain.Constants;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
 using NodaTime;
@@ -190,25 +191,16 @@ public class TicketQueryService : ITicketQueryService
             .ToListAsync();
 
         // Volunteer ticket coverage
-        var volunteersTeamId = await _dbContext.Set<Team>()
-            .Where(t => t.SystemTeamType == SystemTeamType.Volunteers)
-            .Select(t => t.Id)
-            .OrderBy(id => id)
-            .FirstOrDefaultAsync();
+        var volunteersTeamId = SystemTeamIds.Volunteers;
 
-        var totalActiveVolunteers = 0;
-        var volunteersWithTickets = 0;
-        if (volunteersTeamId != Guid.Empty)
-        {
-            totalActiveVolunteers = await _dbContext.Set<TeamMember>()
-                .CountAsync(tm => tm.TeamId == volunteersTeamId && tm.LeftAt == null);
+        var totalActiveVolunteers = await _dbContext.Set<TeamMember>()
+            .CountAsync(tm => tm.TeamId == volunteersTeamId && tm.LeftAt == null);
 
-            var userIdsWithTickets = await GetUserIdsWithTicketsAsync();
+        var userIdsWithTickets = await GetUserIdsWithTicketsAsync();
 
-            volunteersWithTickets = await _dbContext.Set<TeamMember>()
-                .Where(tm => tm.TeamId == volunteersTeamId && tm.LeftAt == null)
-                .CountAsync(tm => userIdsWithTickets.Contains(tm.UserId));
-        }
+        var volunteersWithTickets = await _dbContext.Set<TeamMember>()
+            .Where(tm => tm.TeamId == volunteersTeamId && tm.LeftAt == null)
+            .CountAsync(tm => userIdsWithTickets.Contains(tm.UserId));
 
         var volunteerCoveragePct = totalActiveVolunteers > 0
             ? Math.Round(volunteersWithTickets * 100m / totalActiveVolunteers, 1)

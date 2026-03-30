@@ -338,11 +338,7 @@ public class TicketController : HumansControllerBase
             .AsSplitQuery()
             .ToListAsync();
 
-        var volunteersTeamId = await _dbContext.Set<Domain.Entities.Team>()
-            .Where(t => t.SystemTeamType == Domain.Enums.SystemTeamType.Volunteers)
-            .Select(t => t.Id)
-            .OrderBy(id => id)
-            .FirstOrDefaultAsync();
+        var volunteersTeamId = Domain.Constants.SystemTeamIds.Volunteers;
 
         var activeHumans = users
             .Where(u => u.Profile is not null &&
