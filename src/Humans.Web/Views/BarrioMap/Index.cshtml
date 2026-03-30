@@ -338,7 +338,7 @@
             setEditingControlsVisible(true);
         });
 
-        document.getElementById('save-btn').addEventListener('click', async () => {
+        document.getElementById('save-btn')?.addEventListener('click', async () => {
             if (!activeCampSeasonId) return;
             const features = draw.getAll().features;
             if (!features.length) return;
@@ -366,7 +366,7 @@
             }
         });
 
-        document.getElementById('history-btn').addEventListener('click', async () => {
+        document.getElementById('history-btn')?.addEventListener('click', async () => {
             if (!activeCampSeasonId) return;
             const resp = await fetch(`/api/camp-map/polygons/${activeCampSeasonId}/history`);
             const history = await resp.json();
