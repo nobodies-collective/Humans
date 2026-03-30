@@ -120,6 +120,21 @@
             41.70290716137069
         ]]; // [SW, NE] corners of festival site
 
+        function generateRainbowPattern() {
+            const size = 60;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const colors = ['#ff0000', '#ff8800', '#ffcc00', '#33cc55', '#3388ff', '#cc00cc'];
+            const stripeH = size / colors.length;
+            for (let i = 0; i < colors.length; i++) {
+                ctx.fillStyle = colors[i];
+                ctx.fillRect(0, i * stripeH, size, stripeH);
+            }
+            return canvas;
+        }
+
         let map, draw, state, connection;
         let activeCampSeasonId = null;
         let remoteCursors = {};
@@ -148,6 +163,8 @@
 
             await new Promise(resolve => map.on('load', resolve));
 
+            map.addImage('rainbow-pattern', generateRainbowPattern());
+
             map.addSource('draw-label', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
             map.addLayer({
                 id: 'draw-label', type: 'symbol', source: 'draw-label',
@@ -169,7 +186,7 @@
         // --- Map rendering ---
 
         function renderMap() {
-            ['limit-zone-line', 'limit-zone-fill', 'polygons-outline', 'polygons-fill', 'polygons-labels'].forEach(id => {
+            ['limit-zone-line', 'limit-zone-fill', 'polygons-outline', 'polygons-fill-surprise', 'polygons-fill', 'polygons-labels'].forEach(id => {
                 if (map.getLayer(id)) map.removeLayer(id);
             });
             ['limit-zone', 'polygons'].forEach(id => {
@@ -188,7 +205,8 @@
                     campSeasonId: p.campSeasonId,
                     campName: p.campName,
                     areaSqm: p.areaSqm,
-                    isOwn: p.campSeasonId === USER_CAMP_SEASON_ID
+                    isOwn: p.campSeasonId === USER_CAMP_SEASON_ID,
+                    soundZone: (p.soundZone !== undefined && p.soundZone !== null) ? p.soundZone : -1
                 });
                 return f;
             });
@@ -196,16 +214,40 @@
             map.addSource('polygons', { type: 'geojson', data: { type: 'FeatureCollection', features } });
             map.addLayer({
                 id: 'polygons-fill', type: 'fill', source: 'polygons',
+                filter: ['!=', ['get', 'soundZone'], 5],
                 paint: {
-                    'fill-color': ['case', ['boolean', ['get', 'isOwn'], false], '#00bfff', '#00ffbf'],
-                    'fill-opacity': 0.35
+                    'fill-color': ['match', ['get', 'soundZone'],
+                        0, '#3388ff',
+                        1, '#33cc55',
+                        2, '#ffcc00',
+                        3, '#ff8800',
+                        4, '#ff3333',
+                        '#999999'
+                    ],
+                    'fill-opacity': ['case', ['boolean', ['get', 'isOwn'], false], 0.55, 0.35]
+                }
+            });
+            map.addLayer({
+                id: 'polygons-fill-surprise', type: 'fill', source: 'polygons',
+                filter: ['==', ['get', 'soundZone'], 5],
+                paint: {
+                    'fill-pattern': 'rainbow-pattern',
+                    'fill-opacity': ['case', ['boolean', ['get', 'isOwn'], false], 0.75, 0.55]
                 }
             });
             map.addLayer({
                 id: 'polygons-outline', type: 'line', source: 'polygons',
                 paint: {
-                    'line-color': ['case', ['boolean', ['get', 'isOwn'], false], '#00bfff', '#00ffbf'],
-                    'line-width': 2
+                    'line-color': ['match', ['get', 'soundZone'],
+                        0, '#2266cc',
+                        1, '#229944',
+                        2, '#cc9900',
+                        3, '#cc6600',
+                        4, '#cc1111',
+                        5, '#cc00cc',
+                        '#666666'
+                    ],
+                    'line-width': ['case', ['boolean', ['get', 'isOwn'], false], 4, 2]
                 }
             });
             map.addLayer({
@@ -430,13 +472,14 @@
                 .withAutomaticReconnect()
                 .build();
 
-            connection.on('PolygonUpdated', (campSeasonId, geoJson, areaSqm) => {
+            connection.on('PolygonUpdated', (campSeasonId, geoJson, areaSqm, soundZone) => {
                 const idx = state.polygons.findIndex(p => p.campSeasonId === campSeasonId);
                 if (idx >= 0) {
                     state.polygons[idx].geoJson = geoJson;
                     state.polygons[idx].areaSqm = areaSqm;
+                    // soundZone is a CampSeason property — it doesn't change on polygon save
                 } else {
-                    state.polygons.push({ campSeasonId, geoJson, areaSqm, campName: '', campSlug: '' });
+                    state.polygons.push({ campSeasonId, geoJson, areaSqm, soundZone: soundZone ?? -1, campName: '', campSlug: '' });
                 }
                 // Refresh the GeoJSON source
                 const src = map.getSource('polygons');
@@ -447,7 +490,8 @@
                             campSeasonId: p.campSeasonId,
                             campName: p.campName,
                             areaSqm: p.areaSqm,
-                            isOwn: p.campSeasonId === USER_CAMP_SEASON_ID
+                            isOwn: p.campSeasonId === USER_CAMP_SEASON_ID,
+                            soundZone: (p.soundZone !== undefined && p.soundZone !== null) ? p.soundZone : -1
                         });
                         return f;
                     });
