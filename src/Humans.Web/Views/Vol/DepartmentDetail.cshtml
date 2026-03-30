@@ -104,16 +104,7 @@ else
                         {
                             <tr>
                                 <td class="d-flex align-items-center gap-2">
-                                    @if (!string.IsNullOrEmpty(member.ProfilePictureUrl))
-                                    {
-                                        <img src="@member.ProfilePictureUrl" alt="" class="rounded-circle" width="28" height="28" />
-                                    }
-                                    else
-                                    {
-                                        <span class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center" style="width:28px;height:28px;">
-                                            <i class="fa-solid fa-user text-muted small"></i>
-                                        </span>
-                                    }
+                                    <vc:user-avatar profile-picture-url="@member.ProfilePictureUrl" display-name="@member.DisplayName" size="28" />
                                     @member.DisplayName
                                 </td>
                                 <td>

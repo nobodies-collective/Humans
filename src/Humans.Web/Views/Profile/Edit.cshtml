@@ -183,7 +183,7 @@
                                                 var visibility = Model.EditableContactFields[i].Visibility;
                                             }
                                             <select name="EditableContactFields[@i].Visibility" id="EditableContactFields_@(i)__Visibility" class="form-select form-select-sm">
-                                                <option value="AllActiveProfiles" selected="@(visibility == ContactFieldVisibility.AllActiveProfiles ? "selected" : null)">All active members</option>
+                                                <option value="AllActiveProfiles" selected="@(visibility == ContactFieldVisibility.AllActiveProfiles ? "selected" : null)">All active humans</option>
                                                 <option value="MyTeams" selected="@(visibility == ContactFieldVisibility.MyTeams ? "selected" : null)">My teams (+ coordinators & board)</option>
                                                 <option value="CoordinatorsAndBoard" selected="@(visibility == ContactFieldVisibility.CoordinatorsAndBoard ? "selected" : null)">Coordinators + Board</option>
                                                 <option value="BoardOnly" selected="@(visibility == ContactFieldVisibility.BoardOnly ? "selected" : null)">Board only</option>
@@ -576,7 +576,7 @@
                                 <div class="col-md-3">
                                     <select name="EditableContactFields[${index}].Visibility" id="EditableContactFields_${index}__Visibility" class="form-select form-select-sm" required>
                                         <option value="" selected disabled>@Localizer["Profile_ChooseVisibility"]</option>
-                                        <option value="AllActiveProfiles">All active members</option>
+                                        <option value="AllActiveProfiles">All active humans</option>
                                         <option value="MyTeams">My teams (+ coordinators & board)</option>
                                         <option value="CoordinatorsAndBoard">Coordinators + Board</option>
                                         <option value="BoardOnly">Board only</option>

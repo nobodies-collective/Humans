@@ -142,7 +142,7 @@
   <data name="Dashboard_NoConsentsRequired" xml:space="preserve"><value>No se requiere consentimiento en este momento.</value></data>
   <data name="Dashboard_LatestApplication" xml:space="preserve"><value>&#xDA;ltima solicitud:</value></data>
   <data name="Dashboard_ViewApplicationHistory" xml:space="preserve"><value>Ver historial de solicitudes</value></data>
-  <data name="Dashboard_GovernanceDescription" xml:space="preserve"><value>Los asociados son miembros con derecho a voto que participan en las decisiones de gobernanza como asambleas y elecciones. Esto est&#xE1; destinado a l&#xED;deres comunitarios y voluntarios comprometidos a largo plazo.</value></data>
+  <data name="Dashboard_GovernanceDescription" xml:space="preserve"><value>Los asociados son humans con derecho a voto que participan en las decisiones de gobernanza como asambleas y elecciones. Esto est&#xE1; destinado a l&#xED;deres comunitarios y humans comprometidos a largo plazo.</value></data>
   <data name="Dashboard_GovernanceOptional" xml:space="preserve"><value>La participaci&#xF3;n en la gobernanza es opcional y no afecta a su acceso a los recursos.</value></data>
   <data name="Dashboard_LearnMore" xml:space="preserve"><value>M&#xE1;s informaci&#xF3;n</value></data>
   <data name="Dashboard_OnboardingTitle" xml:space="preserve"><value>Primeros pasos</value></data>
@@ -239,7 +239,7 @@
   <data name="ProfileEdit_BioHelp" xml:space="preserve"><value>Cu&#xE9;ntenos un poco sobre usted.</value></data>
   <data name="Profile_Pronouns" xml:space="preserve"><value>Pronombres</value></data>
   <data name="ProfileEdit_PronounsPlaceholder" xml:space="preserve"><value>p. ej., elle, ella, &#xE9;l</value></data>
-  <data name="ProfileEdit_ContactInfoHelp" xml:space="preserve"><value>A&#xF1;ada formas de contacto para que otros miembros puedan comunicarse con usted. Controle qui&#xE9;n puede ver cada dato.</value></data>
+  <data name="ProfileEdit_ContactInfoHelp" xml:space="preserve"><value>A&#xF1;ada formas de contacto para que otros humans puedan comunicarse con usted. Controle qui&#xE9;n puede ver cada dato.</value></data>
   <data name="ProfileEdit_AddContactField" xml:space="preserve"><value>A&#xF1;adir campo de contacto</value></data>
   <data name="ProfileEdit_BurnerCVHelp" xml:space="preserve"><value>Documente su participaci&#xF3;n en eventos, roles y campamentos. Las entradas se ordenan por fecha (m&#xE1;s recientes primero).</value></data>
   <data name="ProfileEdit_AddEntry" xml:space="preserve"><value>A&#xF1;adir entrada</value></data>
@@ -306,7 +306,7 @@
   <!-- Governance Index View -->
   <data name="Governance_NotYetApplied" xml:space="preserve"><value>A&#xFA;n no ha solicitado</value></data>
   <data name="Governance_AsociadoDescription" xml:space="preserve"><value>Los asociados son los miembros con derecho a voto de Nobodies Collective. Como asociado, puede asistir a asambleas generales, votar en decisiones colectivas y participar en elecciones.</value></data>
-  <data name="Governance_Optional" xml:space="preserve"><value>Esto es opcional. La mayor&#xED;a de los voluntarios no necesitan convertirse en asociados. Ya tiene acceso a los recursos una vez que haya completado su perfil y consentimientos.</value></data>
+  <data name="Governance_Optional" xml:space="preserve"><value>Esto es opcional. La mayor&#xED;a de los humans no necesitan convertirse en asociados. Ya tiene acceso a los recursos una vez que haya completado su perfil y consentimientos.</value></data>
   <data name="Governance_ApplyButton" xml:space="preserve"><value>Solicitar ser asociado</value></data>
   <data name="Governance_ColaboradorCanApply" xml:space="preserve"><value>Los Colaboradores tambi&#xE9;n pueden solicitar el estatus de Asociado si desean participar en la gobernanza.</value></data>
   <data name="Governance_ApplyForAsociado" xml:space="preserve"><value>Solicitar ser Asociado</value></data>
@@ -327,7 +327,7 @@
   <data name="Governance_VoteOnDecisions" xml:space="preserve"><value>Votar en decisiones colectivas</value></data>
   <data name="Governance_ParticipateElections" xml:space="preserve"><value>Participar en elecciones de la junta</value></data>
   <data name="Governance_WhoShouldApply" xml:space="preserve"><value>&#xBF;Qui&#xE9;n deber&#xED;a solicitarlo?</value></data>
-  <data name="Governance_WhoShouldApplyDescription" xml:space="preserve"><value>La membres&#xED;a de gobernanza est&#xE1; destinada a voluntarios en roles de liderazgo:</value></data>
+  <data name="Governance_WhoShouldApplyDescription" xml:space="preserve"><value>La membres&#xED;a de gobernanza est&#xE1; destinada a humans en roles de liderazgo:</value></data>
   <data name="Governance_CampLeads" xml:space="preserve"><value>L&#xED;deres y coordinadores de campamentos</value></data>
   <data name="Governance_MetaVolunteers" xml:space="preserve"><value>Meta-voluntarios y l&#xED;deres de equipo</value></data>
   <data name="Governance_LongTermMembers" xml:space="preserve"><value>Miembros comprometidos a largo plazo</value></data>
@@ -448,7 +448,7 @@
 
   <!-- Team Index View -->
   <data name="Teams_CreateTeam" xml:space="preserve"><value>Crear equipo</value></data>
-  <data name="Teams_MemberCount" xml:space="preserve"><value>{0} miembro(s)</value><comment>{0} = member count</comment></data>
+  <data name="Teams_MemberCount" xml:space="preserve"><value>{0} human(s)</value><comment>{0} = member count</comment></data>
   <data name="Teams_Member" xml:space="preserve"><value>Miembro</value></data>
   <data name="Teams_RequiresApproval" xml:space="preserve"><value>Requiere aprobaci&#xF3;n</value></data>
   <data name="Teams_ViewDetails" xml:space="preserve"><value>Ver detalles</value></data>
@@ -466,8 +466,8 @@
   <data name="TeamDetail_Members" xml:space="preserve"><value>Miembros ({0})</value><comment>{0} = count</comment></data>
   <data name="TeamDetail_ManageMembers" xml:space="preserve"><value>Gestionar miembros</value></data>
   <data name="TeamDetail_Joined" xml:space="preserve"><value>Incorporaci&#xF3;n</value></data>
-  <data name="TeamDetail_AndMoreMembers" xml:space="preserve"><value>Y {0} miembros m&#xE1;s...</value><comment>{0} = remaining count</comment></data>
-  <data name="TeamDetail_NoMembers" xml:space="preserve"><value>A&#xFA;n no hay miembros.</value></data>
+  <data name="TeamDetail_AndMoreMembers" xml:space="preserve"><value>Y {0} humans m&#xE1;s...</value><comment>{0} = remaining count</comment></data>
+  <data name="TeamDetail_NoMembers" xml:space="preserve"><value>A&#xFA;n no hay humans.</value></data>
   <data name="TeamDetail_Actions" xml:space="preserve"><value>Acciones</value></data>
   <data name="TeamDetail_RequestToJoin" xml:space="preserve"><value>Solicitar unirse</value></data>
   <data name="TeamDetail_JoinTeam" xml:space="preserve"><value>Unirse al equipo</value></data>
@@ -490,7 +490,7 @@
   <data name="MyTeams_Actions" xml:space="preserve"><value>Acciones</value></data>
   <data name="MyTeams_View" xml:space="preserve"><value>Ver</value></data>
   <data name="MyTeams_Leave" xml:space="preserve"><value>Abandonar</value></data>
-  <data name="MyTeams_NoTeams" xml:space="preserve"><value>A&#xFA;n no es miembro de ning&#xFA;n equipo.</value></data>
+  <data name="MyTeams_NoTeams" xml:space="preserve"><value>A&#xFA;n no formas parte de ning&#xFA;n equipo.</value></data>
   <data name="MyTeams_BrowseTeams" xml:space="preserve"><value>Explorar equipos</value></data>
   <data name="MyTeams_PendingRequests" xml:space="preserve"><value>Solicitudes pendientes</value></data>
   <data name="MyTeams_Status" xml:space="preserve"><value>Estado</value></data>
@@ -507,7 +507,7 @@
 
   <!-- Team Controller TempData -->
   <data name="Team_CannotJoinSystem" xml:space="preserve"><value>No es posible unirse directamente a equipos del sistema.</value></data>
-  <data name="Team_AlreadyMember" xml:space="preserve"><value>Ya es miembro de este equipo.</value></data>
+  <data name="Team_AlreadyMember" xml:space="preserve"><value>Ya formas parte de este equipo.</value></data>
   <data name="Team_AlreadyPendingRequest" xml:space="preserve"><value>Ya tiene una solicitud pendiente para este equipo.</value></data>
   <data name="Team_JoinRequestSubmitted" xml:space="preserve"><value>Su solicitud de ingreso ha sido enviada y est&#xE1; pendiente de aprobaci&#xF3;n.</value></data>
   <data name="Team_Joined" xml:space="preserve"><value>&#xA1;Se ha unido al equipo correctamente!</value></data>
@@ -522,7 +522,7 @@
   <data name="TeamAdminRequests_Title" xml:space="preserve"><value>Solicitudes pendientes - {0}</value><comment>{0} = team name</comment></data>
 
   <!-- TeamAdmin Controller TempData -->
-  <data name="TeamAdmin_RequestApproved" xml:space="preserve"><value>Solicitud aprobada. El usuario ya es miembro del equipo.</value></data>
+  <data name="TeamAdmin_RequestApproved" xml:space="preserve"><value>Solicitud aprobada. El human ya forma parte del equipo.</value></data>
   <data name="TeamAdmin_ProvideRejectionReason" xml:space="preserve"><value>Por favor, indique un motivo para el rechazo.</value></data>
   <data name="TeamAdmin_RequestRejected" xml:space="preserve"><value>Solicitud rechazada.</value></data>
   <data name="TeamAdmin_RoleUpdated" xml:space="preserve"><value>Rol del miembro actualizado a {0}.</value><comment>{0} = role name</comment></data>
@@ -792,9 +792,9 @@
   <data name="TeamAdmin_ManageResources" xml:space="preserve"><value>Gestionar recursos</value></data>
   <data name="TeamAdmin_SystemTeam" xml:space="preserve"><value>Equipo del sistema</value></data>
   <data name="TeamAdmin_SystemTeamRolesInfo" xml:space="preserve"><value>Este es un equipo gestionado por el sistema. Los roles de los miembros no se pueden cambiar manualmente.</value></data>
-  <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>&#xBF;Eliminar a este miembro del equipo?</value></data>
+  <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>&#xBF;Eliminar a este human del equipo?</value></data>
   <data name="TeamAdmin_Remove" xml:space="preserve"><value>Eliminar</value></data>
-  <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>A&#xFA;n no hay miembros en este equipo.</value></data>
+  <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>A&#xFA;n no hay humans en este equipo.</value></data>
   <data name="TeamAdmin_BackToTeam" xml:space="preserve"><value>Volver al equipo</value></data>
   <data name="TeamAdmin_ViewPendingRequests" xml:space="preserve"><value>Ver solicitudes pendientes</value></data>
   <data name="TeamAdmin_Message" xml:space="preserve"><value>Mensaje</value></data>
@@ -891,7 +891,7 @@
   <!-- Contribution & Board     -->
   <!-- ======================== -->
   <data name="Profile_ContributionInterests" xml:space="preserve"><value>Como me gustaría contribuir</value></data>
-  <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Comparte tus habilidades, intereses y cómo te gustaría participar. Visible para todos los miembros.</value></data>
+  <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Comparte tus habilidades, intereses y cómo te gustaría participar. Visible para todos los humans.</value></data>
   <data name="Profile_BoardNotes" xml:space="preserve"><value>Notas para la Junta</value></data>
   <data name="ProfileEdit_BoardNotesHelp" xml:space="preserve"><value>Notas privadas para la Junta.</value></data>
   <data name="Validation_PhoneE164" xml:space="preserve"><value>{0} debe empezar con + y c&#xF3;digo de pa&#xED;s (ej. +34 612 345 678)</value></data>
@@ -1216,18 +1216,10 @@
   <data name="CompleteSignup_DisplayNameLabel" xml:space="preserve"><value>Nombre para mostrar</value></data>
   <data name="CompleteSignup_Submit" xml:space="preserve"><value>Crear cuenta</value></data>
   <data name="CompleteSignup_Title" xml:space="preserve"><value>Completa tu registro</value></data>
-  <data name="Email_EmailVerification_Merge_Body" xml:space="preserve"><value><h2>Verificación de fusión de cuentas</h2>
-<p>Hola {0},</p>
-<p>Has solicitado agregar <strong>{1}</strong> a tu cuenta. Esta dirección de correo está actualmente vinculada a otra cuenta.</p>
-<p>Si verificas este correo, se enviará una solicitud de fusión para revisión del administrador. Una vez aprobada, los datos de la otra cuenta se fusionarán con la tuya y la cuenta duplicada será archivada.</p>
-<p>Haz clic en el siguiente enlace para verificar y solicitar la fusión:</p>
-<p><a href="{2}">Verificar y solicitar fusión</a></p>
-<p>Este enlace expira en 24 horas.</p>
-<p>Si no solicitaste esto, puedes ignorar este correo. No se realizarán cambios.</p>
-<p>El equipo de Humans</p></value></data>
-  <data name="Email_MagicLinkLogin_Body" xml:space="preserve"><value><p>Hola {0},</p><p>Haz clic en el siguiente enlace para iniciar sesión:</p><p><a href="{1}">Iniciar sesión en Nobodies</a></p><p>Este enlace expira en 15 minutos y solo se puede usar una vez.</p><p>Si no solicitaste esto, puedes ignorar este correo.</p></value></data>
+  <data name="Email_EmailVerification_Merge_Body" xml:space="preserve"><value>&lt;h2&gt;Verificación de fusión de cuentas&lt;/h2&gt;&lt;p&gt;Hola {0},&lt;/p&gt;&lt;p&gt;Has solicitado agregar &lt;strong&gt;{1}&lt;/strong&gt; a tu cuenta. Esta dirección de correo está actualmente vinculada a otra cuenta.&lt;/p&gt;&lt;p&gt;Si verificas este correo, se enviará una solicitud de fusión para revisión del administrador. Una vez aprobada, los datos de la otra cuenta se fusionarán con la tuya y la cuenta duplicada será archivada.&lt;/p&gt;&lt;p&gt;Haz clic en el siguiente enlace para verificar y solicitar la fusión:&lt;/p&gt;&lt;p&gt;&lt;a href="{2}"&gt;Verificar y solicitar fusión&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Este enlace expira en 24 horas.&lt;/p&gt;&lt;p&gt;Si no solicitaste esto, puedes ignorar este correo. No se realizarán cambios.&lt;/p&gt;&lt;p&gt;El equipo de Humans&lt;/p&gt;</value></data>
+  <data name="Email_MagicLinkLogin_Body" xml:space="preserve"><value>&lt;p&gt;Hola {0},&lt;/p&gt;&lt;p&gt;Haz clic en el siguiente enlace para iniciar sesión:&lt;/p&gt;&lt;p&gt;&lt;a href="{1}"&gt;Iniciar sesión en Nobodies&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Este enlace expira en 15 minutos y solo se puede usar una vez.&lt;/p&gt;&lt;p&gt;Si no solicitaste esto, puedes ignorar este correo.&lt;/p&gt;</value></data>
   <data name="Email_MagicLinkLogin_Subject" xml:space="preserve"><value>Tu enlace de inicio de sesión para Nobodies</value></data>
-  <data name="Email_MagicLinkSignup_Body" xml:space="preserve"><value><p>¡Bienvenido a Nobodies!</p><p>Haz clic en el siguiente enlace para crear tu cuenta:</p><p><a href="{0}">Crear tu cuenta</a></p><p>Este enlace expira en 15 minutos y solo se puede usar una vez.</p><p>Si no solicitaste esto, puedes ignorar este correo.</p></value></data>
+  <data name="Email_MagicLinkSignup_Body" xml:space="preserve"><value>&lt;p&gt;¡Bienvenido a Nobodies!&lt;/p&gt;&lt;p&gt;Haz clic en el siguiente enlace para crear tu cuenta:&lt;/p&gt;&lt;p&gt;&lt;a href="{0}"&gt;Crear tu cuenta&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Este enlace expira en 15 minutos y solo se puede usar una vez.&lt;/p&gt;&lt;p&gt;Si no solicitaste esto, puedes ignorar este correo.&lt;/p&gt;</value></data>
   <data name="Email_MagicLinkSignup_Subject" xml:space="preserve"><value>Bienvenido a Nobodies — confirma tu correo electrónico</value></data>
   <data name="Emails_AddNew" xml:space="preserve"><value>Agregar dirección de correo</value></data>
   <data name="Emails_BackToEdit" xml:space="preserve"><value>Volver a editar perfil</value></data>

@@ -149,7 +149,7 @@
             btn.addEventListener('click', function () {
                 const syncAction = parseInt(this.getAttribute('data-sync-action'));
                 const rt = this.getAttribute('data-resource-type');
-                const actionName = syncAction === 1 ? 'add all missing members' : 'sync all members (add + remove)';
+                const actionName = syncAction === 1 ? 'add all missing humans' : 'sync all humans (add + remove)';
                 if (confirm('Are you sure you want to ' + actionName + ' for all ' + rt + ' resources?')) {
                     executeAll(rt, syncAction);
                 }
@@ -161,7 +161,7 @@
                 const resourceId = this.getAttribute('data-resource-id');
                 const syncAction = parseInt(this.getAttribute('data-sync-action'));
                 const resourceName = this.getAttribute('data-resource-name');
-                const actionName = syncAction === 1 ? 'add missing members to' : 'sync all members for';
+                const actionName = syncAction === 1 ? 'add missing humans to' : 'sync all humans for';
                 if (confirm('Are you sure you want to ' + actionName + ' "' + resourceName + '"?')) {
                     executeSingle(resourceId, syncAction, resourceType);
                 }

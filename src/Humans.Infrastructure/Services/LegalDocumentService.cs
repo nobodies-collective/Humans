@@ -56,7 +56,7 @@ public partial class LegalDocumentService : ILegalDocumentService
                     return new Dictionary<string, string>(StringComparer.Ordinal);
                 }
 
-                return await FetchDocumentContentAsync(definition);
+                return await GetDocumentContentAsync(definition);
             }
             catch (Exception ex)
             {
@@ -66,7 +66,7 @@ public partial class LegalDocumentService : ILegalDocumentService
         }) ?? new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
-    private async Task<Dictionary<string, string>> FetchDocumentContentAsync(LegalDocumentDefinition definition)
+    private async Task<Dictionary<string, string>> GetDocumentContentAsync(LegalDocumentDefinition definition)
     {
         var client = new GitHubClient(new ProductHeaderValue("NobodiesHumans"));
         if (!string.IsNullOrEmpty(_gitHubSettings.AccessToken))

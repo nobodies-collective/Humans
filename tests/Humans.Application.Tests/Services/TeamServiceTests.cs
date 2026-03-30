@@ -30,10 +30,18 @@ public class TeamServiceTests : IDisposable
             .Options;
         _dbContext = new HumansDbContext(options);
         _clock = new FakeClock(Instant.FromUtc(2026, 3, 1, 12, 0));
+        var roleAssignmentService = new RoleAssignmentService(
+            _dbContext,
+            Substitute.For<IAuditLogService>(),
+            Substitute.For<ISystemTeamSync>(),
+            _clock,
+            _cache,
+            NullLogger<RoleAssignmentService>.Instance);
         _service = new TeamService(
             _dbContext,
             Substitute.For<IAuditLogService>(),
             Substitute.For<IEmailService>(),
+            roleAssignmentService,
             _clock,
             _cache,
             NullLogger<TeamService>.Instance);

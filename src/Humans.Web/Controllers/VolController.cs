@@ -350,8 +350,7 @@ public class VolController : HumansControllerBase
             var team = await _teamService.GetTeamBySlugAsync(slug);
             if (team is null || team.ParentTeamId is not null) return NotFound();
 
-            var isCoordinator = RoleChecks.IsAdmin(User) ||
-                                User.IsInRole(RoleNames.VolunteerCoordinator) ||
+            var isCoordinator = RoleChecks.IsVolunteerManager(User) ||
                                 await _teamService.IsUserCoordinatorOfTeamAsync(team.Id, user.Id);
 
             var allTeams = await _teamService.GetAllTeamsAsync();
@@ -457,8 +456,7 @@ public class VolController : HumansControllerBase
             var child = await _teamService.GetTeamBySlugAsync(childSlug);
             if (child is null || child.ParentTeamId != parent.Id) return NotFound();
 
-            var isCoordinator = RoleChecks.IsAdmin(User) ||
-                                User.IsInRole(RoleNames.VolunteerCoordinator) ||
+            var isCoordinator = RoleChecks.IsVolunteerManager(User) ||
                                 await _teamService.IsUserCoordinatorOfTeamAsync(child.Id, user.Id);
 
             var members = await _teamService.GetTeamMembersAsync(child.Id);

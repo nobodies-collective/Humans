@@ -34,4 +34,19 @@ public interface IRoleAssignmentService
     Task<OnboardingResult> EndRoleAsync(
         Guid assignmentId, Guid enderId, string enderDisplayName,
         string? notes, CancellationToken ct = default);
+
+    /// <summary>
+    /// Checks if a user has an active Admin role assignment.
+    /// </summary>
+    Task<bool> IsUserAdminAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if a user has an active Board role assignment.
+    /// </summary>
+    Task<bool> IsUserBoardMemberAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if a user has an active TeamsAdmin role assignment.
+    /// </summary>
+    Task<bool> IsUserTeamsAdminAsync(Guid userId, CancellationToken cancellationToken = default);
 }

@@ -27,12 +27,21 @@ public class TeamRoleServiceTests : IDisposable
             .Options;
         _dbContext = new HumansDbContext(options);
         _clock = new FakeClock(Instant.FromUtc(2026, 3, 11, 12, 0));
+        var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
+        var roleAssignmentService = new RoleAssignmentService(
+            _dbContext,
+            Substitute.For<IAuditLogService>(),
+            Substitute.For<ISystemTeamSync>(),
+            _clock,
+            cache,
+            NullLogger<RoleAssignmentService>.Instance);
         _service = new TeamService(
             _dbContext,
             Substitute.For<IAuditLogService>(),
             Substitute.For<IEmailService>(),
+            roleAssignmentService,
             _clock,
-            new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+            cache,
             NullLogger<TeamService>.Instance);
     }
 

@@ -118,11 +118,11 @@
                             <label class="form-check-label" for="isManagement-@role.Id">Coordinator role</label>
                             @if (role.IsManagement && hasAssignments)
                             {
-                                <div class="form-text text-warning">Unassign all members before unchecking.</div>
+                                <div class="form-text text-warning">Unassign all humans before unchecking.</div>
                             }
                             else
                             {
-                                <div class="form-text">Members assigned to this role automatically become Coordinators.</div>
+                                <div class="form-text">Humans assigned to this role automatically become Coordinators.</div>
                             }
                         </div>
                     }
@@ -174,7 +174,7 @@
                                             @Html.AntiForgeryToken()
                                             <div class="input-group input-group-sm" style="max-width: 300px; display: inline-flex !important;">
                                                 <select name="UserId" class="form-select form-select-sm" required>
-                                                    <option value="">Select member...</option>
+                                                    <option value="">Select human...</option>
                                                     @foreach (var member in Model.TeamMembers.Where(m => !role.AssignedUserIds.Contains(m.UserId)))
                                                     {
                                                         <option value="@member.UserId">@member.DisplayName</option>

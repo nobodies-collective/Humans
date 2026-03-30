@@ -271,17 +271,7 @@ public class HumanController : HumansControllerBase
         var totalCount = allRows.Count;
 
         // Load @nobodies.team email status for all users (fine at ~500 users)
-        var nobodiesTeamEmails = await _dbContext.UserEmails
-            .AsNoTracking()
-            .Where(ue => ue.IsVerified && EF.Functions.ILike(ue.Email, "%@nobodies.team"))
-            .Select(ue => new { ue.UserId, ue.IsNotificationTarget })
-            .ToListAsync();
-
-        var nobodiesTeamByUser = nobodiesTeamEmails
-            .GroupBy(e => e.UserId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Any(e => e.IsNotificationTarget));
+        var nobodiesTeamByUser = await _userEmailService.GetNobodiesTeamEmailStatusByUserAsync();
 
         // Materialize for flexible sorting (fine at ~500 users)
         var allMatching = allRows.Select(r => new AdminHumanViewModel
@@ -409,10 +399,7 @@ public class HumanController : HumansControllerBase
         };
 
         // Check for @nobodies.team email
-        viewModel.NobodiesTeamEmail = await _dbContext.UserEmails
-            .Where(ue => ue.UserId == id && ue.IsVerified && EF.Functions.ILike(ue.Email, "%@nobodies.team"))
-            .Select(ue => ue.Email)
-            .FirstOrDefaultAsync();
+        viewModel.NobodiesTeamEmail = await _userEmailService.GetNobodiesTeamEmailAsync(id);
 
         return View(viewModel);
     }
@@ -514,9 +501,12 @@ public class HumanController : HumansControllerBase
                 await _emailService.SendWorkspaceCredentialsAsync(
                     recoveryEmail, user.DisplayName, fullEmail, tempPassword,
                     user.PreferredLanguage);
+                SetSuccess($"Account {fullEmail} provisioned and linked. Credentials sent to {recoveryEmail}.");
             }
-
-            SetSuccess($"Account {fullEmail} provisioned and linked. Credentials sent to {recoveryEmail}.");
+            else
+            {
+                SetSuccess($"Account {fullEmail} provisioned and linked. No recovery email found — credentials not sent.");
+            }
         }
         catch (Exception ex)
         {
@@ -836,6 +826,7 @@ public class HumanController : HumansControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Failed to create contact for {Email}", model.Email);
             ModelState.AddModelError(string.Empty, ex.Message);
             return View(model);
         }

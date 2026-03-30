@@ -455,9 +455,10 @@ public class ProfileController : HumansControllerBase
         if (user is null)
             return NotFound();
 
-        if (string.IsNullOrWhiteSpace(model.NewEmail))
+        if (string.IsNullOrWhiteSpace(model.NewEmail) || !ModelState.IsValid)
         {
-            ModelState.AddModelError(nameof(model.NewEmail), _localizer["Profile_EnterEmail"].Value);
+            if (string.IsNullOrWhiteSpace(model.NewEmail))
+                ModelState.AddModelError(nameof(model.NewEmail), _localizer["Profile_EnterEmail"].Value);
             return View(nameof(Emails), await BuildEmailsViewModelAsync(user));
         }
 
@@ -647,9 +648,7 @@ public class ProfileController : HumansControllerBase
             }
 
             // If they have a @nobodies.team email, it must be used
-            var hasNobodiesTeam = await _dbContext.UserEmails
-                .AnyAsync(ue => ue.UserId == user.Id && ue.IsVerified
-                    && EF.Functions.ILike(ue.Email, "%@nobodies.team"));
+            var hasNobodiesTeam = await _userEmailService.HasNobodiesTeamEmailAsync(user.Id);
 
             if (hasNobodiesTeam && !email.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
             {

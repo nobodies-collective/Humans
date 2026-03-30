@@ -88,12 +88,12 @@ public class ShiftManagementService : IShiftManagementService
         var result = await _cache.GetOrCreateAsync(CacheKeys.ShiftAuthorization(userId), async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = AuthCacheDuration;
-            return await LoadCoordinatorDepartmentIdsAsync(userId);
+            return await QueryCoordinatorDepartmentIdsAsync(userId);
         });
         return result ?? [];
     }
 
-    private async Task<IReadOnlyList<Guid>> LoadCoordinatorDepartmentIdsAsync(Guid userId)
+    private async Task<IReadOnlyList<Guid>> QueryCoordinatorDepartmentIdsAsync(Guid userId)
     {
         // Check via IsManagement role assignment
         var byRoleAssignment = await _dbContext.TeamRoleAssignments

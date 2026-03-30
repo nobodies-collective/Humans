@@ -142,7 +142,7 @@
   <data name="Dashboard_NoConsentsRequired" xml:space="preserve"><value>No documents require consent at this time.</value></data>
   <data name="Dashboard_LatestApplication" xml:space="preserve"><value>Latest Application:</value></data>
   <data name="Dashboard_ViewApplicationHistory" xml:space="preserve"><value>View application history</value></data>
-  <data name="Dashboard_GovernanceDescription" xml:space="preserve"><value>Asociados are voting members who participate in governance decisions like assemblies and elections. This is intended for community leaders and long-term committed volunteers.</value></data>
+  <data name="Dashboard_GovernanceDescription" xml:space="preserve"><value>Asociados are voting humans who participate in governance decisions like assemblies and elections. This is intended for community leaders and long-term committed humans.</value></data>
   <data name="Dashboard_GovernanceOptional" xml:space="preserve"><value>Governance participation is optional and doesn't affect your access to resources.</value></data>
   <data name="Dashboard_LearnMore" xml:space="preserve"><value>Learn More</value></data>
   <data name="Dashboard_OnboardingTitle" xml:space="preserve"><value>Getting Started</value></data>
@@ -240,7 +240,7 @@
   <data name="ProfileEdit_BioHelp" xml:space="preserve"><value>Tell us a bit about yourself.</value></data>
   <data name="Profile_Pronouns" xml:space="preserve"><value>Pronouns</value></data>
   <data name="ProfileEdit_PronounsPlaceholder" xml:space="preserve"><value>e.g., they/them, she/her, he/him</value></data>
-  <data name="ProfileEdit_ContactInfoHelp" xml:space="preserve"><value>Add ways for other members to reach you. Control who can see each piece of information.</value></data>
+  <data name="ProfileEdit_ContactInfoHelp" xml:space="preserve"><value>Add ways for other humans to reach you. Control who can see each piece of information.</value></data>
   <data name="ProfileEdit_AddContactField" xml:space="preserve"><value>Add Contact Field</value></data>
   <data name="ProfileEdit_BurnerCVHelp" xml:space="preserve"><value>Document your involvement in events, roles, and camps. Entries are sorted by date (newest first).</value></data>
   <data name="ProfileEdit_AddEntry" xml:space="preserve"><value>Add Entry</value></data>
@@ -319,7 +319,7 @@
   <!-- Governance Index View -->
   <data name="Governance_NotYetApplied" xml:space="preserve"><value>Not Yet Applied</value></data>
   <data name="Governance_AsociadoDescription" xml:space="preserve"><value>Asociados are the formal voting members of Nobodies Collective. As an asociado, you can attend general assemblies, vote on collective decisions, and participate in elections.</value></data>
-  <data name="Governance_Optional" xml:space="preserve"><value>This is optional. Most volunteers don't need to become asociados. You already have access to resources once you've completed your profile and consents.</value></data>
+  <data name="Governance_Optional" xml:space="preserve"><value>This is optional. Most humans don't need to become asociados. You already have access to resources once you've completed your profile and consents.</value></data>
   <data name="Governance_ApplyButton" xml:space="preserve"><value>Apply to Become an Asociado</value></data>
   <data name="Governance_ColaboradorCanApply" xml:space="preserve"><value>Colaboradores may also apply for Asociado status if they wish to participate in governance.</value></data>
   <data name="Governance_ApplyForAsociado" xml:space="preserve"><value>Apply for Asociado</value></data>
@@ -340,7 +340,7 @@
   <data name="Governance_VoteOnDecisions" xml:space="preserve"><value>Vote on collective decisions</value></data>
   <data name="Governance_ParticipateElections" xml:space="preserve"><value>Participate in board elections</value></data>
   <data name="Governance_WhoShouldApply" xml:space="preserve"><value>Who Should Apply?</value></data>
-  <data name="Governance_WhoShouldApplyDescription" xml:space="preserve"><value>Governance membership is intended for volunteers in leadership roles:</value></data>
+  <data name="Governance_WhoShouldApplyDescription" xml:space="preserve"><value>Governance membership is intended for humans in leadership roles:</value></data>
   <data name="Governance_CampLeads" xml:space="preserve"><value>Camp leads and coordinators</value></data>
   <data name="Governance_MetaVolunteers" xml:space="preserve"><value>Meta volunteers and team leads</value></data>
   <data name="Governance_LongTermMembers" xml:space="preserve"><value>Long-term committed community members</value></data>
@@ -461,7 +461,7 @@
 
   <!-- Team Index View -->
   <data name="Teams_CreateTeam" xml:space="preserve"><value>Create Team</value></data>
-  <data name="Teams_MemberCount" xml:space="preserve"><value>{0} member(s)</value><comment>{0} = member count</comment></data>
+  <data name="Teams_MemberCount" xml:space="preserve"><value>{0} human(s)</value><comment>{0} = member count</comment></data>
   <data name="Teams_Member" xml:space="preserve"><value>Member</value></data>
   <data name="Teams_RequiresApproval" xml:space="preserve"><value>Requires Approval</value></data>
   <data name="Teams_ViewDetails" xml:space="preserve"><value>View Details</value></data>
@@ -479,8 +479,8 @@
   <data name="TeamDetail_Members" xml:space="preserve"><value>Members ({0})</value><comment>{0} = count</comment></data>
   <data name="TeamDetail_ManageMembers" xml:space="preserve"><value>Manage Members</value></data>
   <data name="TeamDetail_Joined" xml:space="preserve"><value>Joined</value></data>
-  <data name="TeamDetail_AndMoreMembers" xml:space="preserve"><value>And {0} more members...</value><comment>{0} = remaining count</comment></data>
-  <data name="TeamDetail_NoMembers" xml:space="preserve"><value>No members yet.</value></data>
+  <data name="TeamDetail_AndMoreMembers" xml:space="preserve"><value>And {0} more humans...</value><comment>{0} = remaining count</comment></data>
+  <data name="TeamDetail_NoMembers" xml:space="preserve"><value>No humans yet.</value></data>
   <data name="TeamDetail_Actions" xml:space="preserve"><value>Actions</value></data>
   <data name="TeamDetail_RequestToJoin" xml:space="preserve"><value>Request to Join</value></data>
   <data name="TeamDetail_JoinTeam" xml:space="preserve"><value>Join Team</value></data>
@@ -503,7 +503,7 @@
   <data name="MyTeams_Actions" xml:space="preserve"><value>Actions</value></data>
   <data name="MyTeams_View" xml:space="preserve"><value>View</value></data>
   <data name="MyTeams_Leave" xml:space="preserve"><value>Leave</value></data>
-  <data name="MyTeams_NoTeams" xml:space="preserve"><value>You are not a member of any teams yet.</value></data>
+  <data name="MyTeams_NoTeams" xml:space="preserve"><value>You are not part of any teams yet.</value></data>
   <data name="MyTeams_BrowseTeams" xml:space="preserve"><value>Browse teams</value></data>
   <data name="MyTeams_PendingRequests" xml:space="preserve"><value>Pending Requests</value></data>
   <data name="MyTeams_Status" xml:space="preserve"><value>Status</value></data>
@@ -520,7 +520,7 @@
 
   <!-- Team Controller TempData -->
   <data name="Team_CannotJoinSystem" xml:space="preserve"><value>Cannot join system teams directly.</value></data>
-  <data name="Team_AlreadyMember" xml:space="preserve"><value>You are already a member of this team.</value></data>
+  <data name="Team_AlreadyMember" xml:space="preserve"><value>You are already part of this team.</value></data>
   <data name="Team_AlreadyPendingRequest" xml:space="preserve"><value>You already have a pending request for this team.</value></data>
   <data name="Team_JoinRequestSubmitted" xml:space="preserve"><value>Your request to join has been submitted and is pending approval.</value></data>
   <data name="Team_Joined" xml:space="preserve"><value>You have successfully joined the team!</value></data>
@@ -535,7 +535,7 @@
   <data name="TeamAdminRequests_Title" xml:space="preserve"><value>Pending Requests - {0}</value><comment>{0} = team name</comment></data>
 
   <!-- TeamAdmin Controller TempData -->
-  <data name="TeamAdmin_RequestApproved" xml:space="preserve"><value>Request approved. The user is now a team member.</value></data>
+  <data name="TeamAdmin_RequestApproved" xml:space="preserve"><value>Request approved. The human is now part of the team.</value></data>
   <data name="TeamAdmin_ProvideRejectionReason" xml:space="preserve"><value>Please provide a reason for rejection.</value></data>
   <data name="TeamAdmin_RequestRejected" xml:space="preserve"><value>Request rejected.</value></data>
   <data name="TeamAdmin_RoleUpdated" xml:space="preserve"><value>Member role updated to {0}.</value><comment>{0} = role name</comment></data>
@@ -805,9 +805,9 @@
   <data name="TeamAdmin_ManageResources" xml:space="preserve"><value>Manage Resources</value></data>
   <data name="TeamAdmin_SystemTeam" xml:space="preserve"><value>System Team</value></data>
   <data name="TeamAdmin_SystemTeamRolesInfo" xml:space="preserve"><value>This is a system-managed team. Member roles cannot be changed manually.</value></data>
-  <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>Remove this member from the team?</value></data>
+  <data name="TeamAdmin_RemoveConfirm" xml:space="preserve"><value>Remove this human from the team?</value></data>
   <data name="TeamAdmin_Remove" xml:space="preserve"><value>Remove</value></data>
-  <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>No members in this team yet.</value></data>
+  <data name="TeamAdmin_NoMembers" xml:space="preserve"><value>No humans in this team yet.</value></data>
   <data name="TeamAdmin_BackToTeam" xml:space="preserve"><value>Back to Team</value></data>
   <data name="TeamAdmin_ViewPendingRequests" xml:space="preserve"><value>View Pending Requests</value></data>
   <data name="TeamAdmin_Message" xml:space="preserve"><value>Message</value></data>
@@ -910,7 +910,7 @@
   <!-- Contribution & Board     -->
   <!-- ======================== -->
   <data name="Profile_ContributionInterests" xml:space="preserve"><value>How I'd Like to Contribute</value></data>
-  <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Share your skills, interests, and how you'd like to get involved. Visible to all members.</value></data>
+  <data name="ProfileEdit_ContributionInterestsHelp" xml:space="preserve"><value>Share your skills, interests, and how you'd like to get involved. Visible to all humans.</value></data>
   <data name="Profile_BoardNotes" xml:space="preserve"><value>Notes for the Board</value></data>
   <data name="ProfileEdit_BoardNotesHelp" xml:space="preserve"><value>Private notes for the Board.</value></data>
   <data name="Validation_PhoneE164" xml:space="preserve"><value>{0} must start with + and country code (e.g. +34 612 345 678)</value></data>

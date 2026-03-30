@@ -80,7 +80,7 @@ Also do not modify:
 ## Build Command
 
 ```
-dotnet build Humans.slnx && dotnet test Humans.slnx --filter "FullyQualifiedName~Application"
+dotnet build Humans.slnx -v q && dotnet test Humans.slnx -v q --filter "FullyQualifiedName~Application"
 ```
 
 ## Phase 1: Razor Rendering & HTML Structure *(highest frequency — 15+ historical fixes)*

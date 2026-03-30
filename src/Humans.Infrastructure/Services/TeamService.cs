@@ -23,6 +23,7 @@ public class TeamService : ITeamService
     private readonly HumansDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
     private readonly IEmailService _emailService;
+    private readonly IRoleAssignmentService _roleAssignmentService;
     private readonly IClock _clock;
     private readonly IMemoryCache _cache;
     private readonly ILogger<TeamService> _logger;
@@ -31,6 +32,7 @@ public class TeamService : ITeamService
         HumansDbContext dbContext,
         IAuditLogService auditLogService,
         IEmailService emailService,
+        IRoleAssignmentService roleAssignmentService,
         IClock clock,
         IMemoryCache cache,
         ILogger<TeamService> logger)
@@ -38,6 +40,7 @@ public class TeamService : ITeamService
         _dbContext = dbContext;
         _auditLogService = auditLogService;
         _emailService = emailService;
+        _roleAssignmentService = roleAssignmentService;
         _clock = clock;
         _cache = cache;
         _logger = logger;
@@ -1014,41 +1017,14 @@ public class TeamService : ITeamService
         return false;
     }
 
-    public async Task<bool> IsUserAdminAsync(Guid userId, CancellationToken cancellationToken = default)
-    {
-        var now = _clock.GetCurrentInstant();
-        return await _dbContext.RoleAssignments
-            .AnyAsync(ra =>
-                ra.UserId == userId &&
-                ra.RoleName == RoleNames.Admin &&
-                ra.ValidFrom <= now &&
-                (ra.ValidTo == null || ra.ValidTo > now),
-                cancellationToken);
-    }
+    public Task<bool> IsUserAdminAsync(Guid userId, CancellationToken cancellationToken = default)
+        => _roleAssignmentService.IsUserAdminAsync(userId, cancellationToken);
 
-    public async Task<bool> IsUserBoardMemberAsync(Guid userId, CancellationToken cancellationToken = default)
-    {
-        var now = _clock.GetCurrentInstant();
-        return await _dbContext.RoleAssignments
-            .AnyAsync(ra =>
-                ra.UserId == userId &&
-                ra.RoleName == RoleNames.Board &&
-                ra.ValidFrom <= now &&
-                (ra.ValidTo == null || ra.ValidTo > now),
-                cancellationToken);
-    }
+    public Task<bool> IsUserBoardMemberAsync(Guid userId, CancellationToken cancellationToken = default)
+        => _roleAssignmentService.IsUserBoardMemberAsync(userId, cancellationToken);
 
-    public async Task<bool> IsUserTeamsAdminAsync(Guid userId, CancellationToken cancellationToken = default)
-    {
-        var now = _clock.GetCurrentInstant();
-        return await _dbContext.RoleAssignments
-            .AnyAsync(ra =>
-                ra.UserId == userId &&
-                ra.RoleName == RoleNames.TeamsAdmin &&
-                ra.ValidFrom <= now &&
-                (ra.ValidTo == null || ra.ValidTo > now),
-                cancellationToken);
-    }
+    public Task<bool> IsUserTeamsAdminAsync(Guid userId, CancellationToken cancellationToken = default)
+        => _roleAssignmentService.IsUserTeamsAdminAsync(userId, cancellationToken);
 
     public async Task<bool> RemoveMemberAsync(
         Guid teamId,

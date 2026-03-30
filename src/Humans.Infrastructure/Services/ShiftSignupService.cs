@@ -122,7 +122,7 @@ public class ShiftSignupService : IShiftSignupService
 
     public async Task<SignupResult> ApproveAsync(Guid signupId, Guid reviewerUserId)
     {
-        var signup = await LoadSignupWithShiftAsync(signupId);
+        var signup = await GetSignupWithShiftAsync(signupId);
         if (signup is null) return SignupResult.Fail("Signup not found.");
 
         if (signup.Status != SignupStatus.Pending)
@@ -171,7 +171,7 @@ public class ShiftSignupService : IShiftSignupService
 
     public async Task<SignupResult> RefuseAsync(Guid signupId, Guid reviewerUserId, string? reason)
     {
-        var signup = await LoadSignupWithShiftAsync(signupId);
+        var signup = await GetSignupWithShiftAsync(signupId);
         if (signup is null) return SignupResult.Fail("Signup not found.");
 
         signup.Refuse(reviewerUserId, _clock, reason);
@@ -188,7 +188,7 @@ public class ShiftSignupService : IShiftSignupService
 
     public async Task<SignupResult> BailAsync(Guid signupId, Guid actorUserId, string? reason)
     {
-        var signup = await LoadSignupWithShiftAsync(signupId);
+        var signup = await GetSignupWithShiftAsync(signupId);
         if (signup is null) return SignupResult.Fail("Signup not found.");
 
         var es = signup.Shift.Rota.EventSettings;
@@ -358,7 +358,7 @@ public class ShiftSignupService : IShiftSignupService
 
     public async Task<SignupResult> MarkNoShowAsync(Guid signupId, Guid reviewerUserId)
     {
-        var signup = await LoadSignupWithShiftAsync(signupId);
+        var signup = await GetSignupWithShiftAsync(signupId);
         if (signup is null) return SignupResult.Fail("Signup not found.");
 
         var es = signup.Shift.Rota.EventSettings;
@@ -382,7 +382,7 @@ public class ShiftSignupService : IShiftSignupService
 
     public async Task<SignupResult> RemoveSignupAsync(Guid signupId, Guid removedByUserId, string? reason)
     {
-        var signup = await LoadSignupWithShiftAsync(signupId);
+        var signup = await GetSignupWithShiftAsync(signupId);
         if (signup is null) return SignupResult.Fail("Signup not found.");
 
         if (signup.Status != SignupStatus.Confirmed)
@@ -705,7 +705,7 @@ public class ShiftSignupService : IShiftSignupService
             .ToListAsync();
     }
 
-    private async Task<ShiftSignup?> LoadSignupWithShiftAsync(Guid signupId)
+    private async Task<ShiftSignup?> GetSignupWithShiftAsync(Guid signupId)
     {
         return await _dbContext.ShiftSignups
             .Include(d => d.Shift).ThenInclude(s => s.Rota).ThenInclude(r => r.EventSettings)

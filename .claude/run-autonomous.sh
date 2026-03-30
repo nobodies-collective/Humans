@@ -6,13 +6,14 @@ usage() {
   cat <<'EOF'
 Usage: .claude/run-autonomous.sh [options]
 
-Runs Claude Code non-interactively in an isolated worktree. Supports both
-classic multi-pass (resume) mode and tiered mode (fresh context per tier,
-model escalation from Sonnet to Opus).
+Runs Claude Code non-interactively in an isolated worktree. Each pass gets
+fresh context (no session resume). Supports classic multi-pass mode and
+tiered mode (model escalation from Sonnet to Opus).
 
 Modes:
-  bug-hunt   Use the autonomous bug-fix prompt
-  tech-debt  Use the autonomous tech-debt prompt
+  bug-hunt         Autonomous bug-fix (find and fix by category)
+  tech-debt        Autonomous tech-debt discovery (agent decides what to improve)
+  tech-debt-tasks  Execute specific tasks from the tech-debt backlog
 
 Options:
   --mode <name>                Run mode: bug-hunt or tech-debt
@@ -27,10 +28,11 @@ Options:
   --no-worktree                Run in the current checkout instead
   --no-branch                  Reuse the current branch instead of creating one
   --safe                       Run without --dangerously-skip-permissions
-  --max-passes <count>         Total passes (classic mode only, default: 3)
-  --max-turns <count>          Max agentic turns per pass
+  --max-passes <count>         Total fresh passes (classic mode, default: 3)
+  --max-turns <count>          Max agentic turns per pass (unreliable, see #20521)
   --push-remote <name>         Remote to push commits to after each pass
   --no-push                    Disable automatic pushing after each pass
+  --leads <path>               Seed handoff file from a previous run's leads
   --extra-instruction <text>   Append an extra instruction before the prompt
   --help                       Show this help
 
@@ -66,6 +68,7 @@ max_passes=3
 max_turns=""
 push_remote="origin"
 auto_push=1
+leads_file=""
 declare -a extra_instructions=()
 
 while (($# > 0)); do
@@ -135,6 +138,10 @@ while (($# > 0)); do
       auto_push=0
       shift
       ;;
+    --leads)
+      leads_file="${2:?missing leads file path}"
+      shift 2
+      ;;
     --extra-instruction)
       extra_instructions+=("${2:?missing instruction text}")
       shift 2
@@ -173,6 +180,12 @@ case "$mode" in
     branch_prefix="${branch_prefix_override:-claude/weekly-tech-debt}"
     tiers_file=".claude/tiers/tech-debt.json"
     ;;
+  tech-debt-tasks)
+    prompt_path="${prompt_override:-.claude/tech-debt-tasks-prompt.md}"
+    runs_dir="${runs_dir_override:-local/claude-runs/tech-debt-tasks}"
+    branch_prefix="${branch_prefix_override:-claude/tech-debt-tasks}"
+    tiers_file=".claude/tiers/tech-debt.json"
+    ;;
   *)
     echo "Unsupported mode: $mode" >&2
     exit 1
@@ -202,8 +215,52 @@ if (( tiered )) && [[ ! -f "$tiers_file" ]]; then
   exit 1
 fi
 
+# Fetch and check if local main is up to date
+has_upstream=0
+if git remote get-url upstream >/dev/null 2>&1; then
+  has_upstream=1
+  git fetch upstream main >/dev/null 2>&1 || true
+fi
 if git remote get-url origin >/dev/null 2>&1; then
   git fetch origin main >/dev/null 2>&1 || true
+fi
+
+# Determine the authoritative ref to compare against
+if (( has_upstream )); then
+  auth_ref="upstream/main"
+else
+  auth_ref="origin/main"
+fi
+
+if git show-ref --verify --quiet "refs/remotes/${auth_ref}"; then
+  local_head="$(git rev-parse HEAD)"
+  remote_head="$(git rev-parse "$auth_ref")"
+  if [[ "$local_head" != "$remote_head" ]]; then
+    behind="$(git rev-list --count HEAD.."$auth_ref" 2>/dev/null || echo 0)"
+    ahead="$(git rev-list --count "$auth_ref"..HEAD 2>/dev/null || echo 0)"
+    if (( behind > 0 )); then
+      cat >&2 <<EOF
+WARNING: Local main is ${behind} commit(s) behind ${auth_ref}.
+
+Sync before running to avoid working on stale code:
+EOF
+      if (( has_upstream )); then
+        cat >&2 <<EOF
+  git fetch upstream main
+  git checkout main && git reset --hard upstream/main
+  git push origin main --force-with-lease
+EOF
+      else
+        cat >&2 <<EOF
+  git pull origin main
+EOF
+      fi
+      if (( !allow_dirty )); then
+        echo "Rerun with --allow-dirty to skip this check." >&2
+        exit 1
+      fi
+    fi
+  fi
 fi
 
 if (( auto_push )) && ! git remote get-url "$push_remote" >/dev/null 2>&1; then
@@ -225,6 +282,7 @@ console_log="$run_dir/claude.log"
 final_message_file="$run_dir/final-message.md"
 session_id_file="$run_dir/session-id.txt"
 pass_history_file="$run_dir/pass-history.txt"
+handoff_file="$run_dir/tier-handoff.md"
 
 current_branch="$(git branch --show-current || true)"
 if [[ -z "$current_branch" ]]; then
@@ -320,6 +378,16 @@ fi
 echo "running" >"$status_file"
 : >"$pass_history_file"
 
+# Seed handoff file from leads if provided
+if [[ -n "$leads_file" ]]; then
+  if [[ ! -f "$leads_file" ]]; then
+    echo "Leads file not found: $leads_file" >&2
+    exit 1
+  fi
+  cp "$leads_file" "$handoff_file"
+  echo "Seeded handoff from: $leads_file"
+fi
+
 # Build the base preamble (shared across modes)
 build_preamble() {
   local tier_label="${1:-}"
@@ -343,7 +411,11 @@ Execution context:
 EOF
 
   if [[ -n "$tier_label" ]]; then
-    printf '- Current tier: %s\n' "$tier_label"
+    printf '%s\n' "- Current tier: $tier_label"
+  fi
+
+  if [[ -n "$max_turns" ]]; then
+    printf '%s\n' "" "- Turn budget: $max_turns tool calls. Plan your work to fit. Commit early and often — if you run out of turns mid-fix, uncommitted work is lost."
   fi
 
   cat <<EOF
@@ -355,7 +427,10 @@ Operating instructions for this automated run:
 - Use the current git branch. Do not switch branches.
 $push_instruction
 - End with a concise run report that lists bugs fixed or refactors completed, commands run, and any unfinished leads.
+- If the file ${handoff_file} exists, read it at the start for notes from previous passes.
 - Read and follow CLAUDE.md plus relevant files under .claude/ when they help you interpret local project conventions.
+- Work in BITE-SIZED pieces: find one issue, fix it, build, commit. Do not accumulate uncommitted changes across multiple fixes.
+- Aim to wrap up within ~50 tool calls. Commit and write handoff notes before context gets too large. Another fresh pass may follow.
 
 EOF
 
@@ -374,15 +449,51 @@ build_tier_prompt() {
   local tier_model="$2"
   local tier_label="$3"
   local tier_focus="$4"
+  local tier_current="$5"
+  local tier_total="$6"
   local prompt_file="$run_dir/prompt-${tier_name}.md"
+  local is_last=0
+  if (( tier_current == tier_total )); then
+    is_last=1
+  fi
 
   {
     build_preamble "$tier_label"
 
     cat <<EOF
 IMPORTANT: This is a FRESH context pass. Previous tiers have already made fixes.
-Before starting, run: git log --oneline -20
-Review what has already been committed and DO NOT repeat that work.
+This is tier ${tier_current} of ${tier_total}.
+EOF
+
+    if (( is_last )); then
+      cat <<'EOF'
+THIS IS THE FINAL TIER. There are no more passes after this one. Prioritize:
+- Committing any in-progress work before you run out of context
+- Writing a thorough handoff file with all remaining leads
+- Do not start large changes you cannot finish — commit what you have
+EOF
+    else
+      cat <<EOF
+There are $((tier_total - tier_current)) more tier(s) after this one.
+EOF
+    fi
+
+    cat <<EOF
+
+Before starting:
+1. Check if ${handoff_file} exists — if so, read it first. It contains notes from
+   the previous tier: what was investigated and found clean, promising leads not yet
+   fixed, partially analyzed files, and patterns worth knowing about.
+2. Run: git log --oneline -20
+   Review what has already been committed and DO NOT repeat that work.
+
+Before you finish, write your handoff notes to ${handoff_file} (append, don't overwrite):
+- Section header: "## Tier: ${tier_name} (${tier_label})"
+- What you investigated and found clean (no bug/no debt) — so the next tier skips it
+- Leads you found but didn't fix (with file paths and line numbers)
+- Files you partially analyzed (how far you got)
+- Patterns worth noting for the next tier
+- Any issues you hit (build failures, test failures, ambiguous code)
 
 --- TIER FOCUS: ${tier_label} ---
 
@@ -410,8 +521,7 @@ write_pass_log_marker() {
 }
 
 capture_session_id() {
-  # In tiered mode, session_id is per-tier (overwritten each tier).
-  # In classic mode, it persists across resumes.
+  # Session ID captured for metadata only (no resume).
   local extracted
   extracted="$(grep -oP '"session_id"\s*:\s*"\K[^"]+' "$console_log" 2>/dev/null | tail -1)" || true
   if [[ -n "$extracted" ]]; then
@@ -511,58 +621,51 @@ run_fresh_pass() {
   return "$pass_exit"
 }
 
-# Run a resume pass (continues existing session)
-run_resume_pass() {
+# Build a classic-mode fresh pass prompt (with handoff awareness)
+build_classic_pass_prompt() {
   local pass_number="$1"
-  local pass_start_head
-  local pass_end_head
-  local pass_exit
-  local -a claude_args
+  local total_passes="$2"
+  local prompt_file="$run_dir/prompt-pass${pass_number}.md"
 
-  if [[ ! -s "$session_id_file" ]]; then
-    echo "No session ID available for resume" >&2
-    return 1
-  fi
+  {
+    build_preamble ""
 
-  local session_id
-  session_id="$(<"$session_id_file")"
+    if (( pass_number > 1 )); then
+      cat <<EOF
+IMPORTANT: This is pass ${pass_number} of ${total_passes} (FRESH context — no prior conversation).
 
-  pass_start_head="$(git -C "$run_checkout" rev-parse HEAD)"
-  write_pass_log_marker "$pass_number" "resume"
+Before starting:
+1. Check if ${handoff_file} exists — read it for notes from previous passes.
+2. Run: git log --oneline -20
+   Review what has already been committed and DO NOT repeat that work.
 
-  claude_args=(-p --resume "$session_id" --verbose --output-format stream-json)
-  if [[ -n "$max_turns" ]]; then
-    claude_args+=(--max-turns "$max_turns")
-  fi
-  if [[ -n "$model" ]]; then
-    claude_args+=(--model "$model")
-  fi
-  if (( dangerous )); then
-    claude_args+=(--dangerously-skip-permissions)
-  fi
+EOF
+    fi
 
-  local resume_prompt
-  if (( auto_push )); then
-    resume_prompt="Continue the autonomous ${mode} run from where you left off. Do not repeat completed work. Use the existing branch and checkout, continue making small verified commits, and push ${run_branch} to ${push_remote} after each new commit."
-  else
-    resume_prompt="Continue the autonomous ${mode} run from where you left off. Do not repeat completed work. Use the existing branch and checkout, continue making small verified commits, and do not push during this run."
-  fi
+    if (( pass_number == total_passes )); then
+      cat <<'EOF'
+THIS IS THE FINAL PASS. There are no more passes after this one. Prioritize:
+- Committing any in-progress work before you run out of context
+- Writing a thorough handoff file with all remaining leads
+- Do not start large changes you cannot finish — commit what you have
 
-  set +e
-  (cd "$run_checkout" && claude "${claude_args[@]}" "$resume_prompt") 2>&1 | tee -a "$console_log"
-  pass_exit="${PIPESTATUS[0]}"
-  set -e
+EOF
+    fi
 
-  capture_session_id || true
-  extract_final_message
-  pass_end_head="$(git -C "$run_checkout" rev-parse HEAD)"
-  record_pass "$pass_number" "resume" "$pass_start_head" "$pass_end_head" "$pass_exit"
+    cat <<EOF
+Before you finish, write your handoff notes to ${handoff_file} (append, don't overwrite):
+- Section header: "## Pass ${pass_number}"
+- What you investigated and found clean
+- Leads you found but didn't fix (with file paths and line numbers)
+- Files you partially analyzed
+- Any issues you hit
 
-  if (( pass_exit == 0 )); then
-    push_branch_if_enabled
-  fi
+EOF
 
-  return "$pass_exit"
+    cat "$prompt_path"
+  } >"$prompt_file"
+
+  printf '%s' "$prompt_file"
 }
 
 echo "Launching Claude in $run_checkout on branch $run_branch"
@@ -574,7 +677,8 @@ if (( tiered )); then
   # ──────────────────────────────────────────────────────────
   # TIERED MODE: fresh context per tier, model per tier
   # ──────────────────────────────────────────────────────────
-  echo "Mode: tiered (${tiers_csv})"
+  tier_total=${#requested_tiers[@]}
+  echo "Mode: tiered (${tiers_csv}, ${tier_total} tiers, max_passes=${max_passes}/tier)"
 
   pass_number=0
   for tier_name in "${requested_tiers[@]}"; do
@@ -582,6 +686,7 @@ if (( tiered )); then
     tier_json="$(jq -r --arg name "$tier_name" '.tiers[] | select(.name == $name)' "$tiers_file")"
     if [[ -z "$tier_json" || "$tier_json" == "null" ]]; then
       echo "Warning: tier '$tier_name' not found in $tiers_file, skipping" >&2
+      tier_total=$((tier_total - 1))
       continue
     fi
 
@@ -589,62 +694,73 @@ if (( tiered )); then
     tier_label="$(echo "$tier_json" | jq -r '.label')"
     tier_focus="$(echo "$tier_json" | jq -r '.focus')"
 
-    pass_number=$((pass_number + 1))
-    echo ""
-    echo "===== TIER $pass_number: $tier_name ($tier_label) ====="
-
-    # Build a fresh prompt for this tier
-    prompt_file="$(build_tier_prompt "$tier_name" "$tier_model" "$tier_label" "$tier_focus")"
-
-    printf 'tier=%s model=%s label=%s\n' "$tier_name" "${model:-$tier_model}" "$tier_label" >>"$metadata_file"
-
-    tier_exit=0
-    run_fresh_pass "$pass_number" "tier:$tier_name" "$tier_model" "$prompt_file" || tier_exit=$?
-    last_exit="$tier_exit"
-
-    if (( tier_exit != 0 )); then
-      echo "Tier $tier_name failed with exit code $tier_exit" >&2
-      # Continue to next tier — a failure in one tier shouldn't block others
-    fi
-  done
-else
-  # ──────────────────────────────────────────────────────────
-  # CLASSIC MODE: initial prompt + resume passes
-  # ──────────────────────────────────────────────────────────
-  echo "Mode: classic (max_passes=$max_passes)"
-
-  # Build the initial prompt
-  prompt_copy="$run_dir/prompt.md"
-  {
-    build_preamble ""
-    cat "$prompt_path"
-  } >"$prompt_copy"
-
-  pass_number=1
-  run_fresh_pass "$pass_number" "initial" "" "$prompt_copy" || last_exit=$?
-
-  if (( last_exit != 0 )); then
-    echo "failed" >"$status_file"
-  else
-    while (( pass_number < max_passes )); do
-      capture_session_id || break
-
+    tier_pass=0
+    while (( tier_pass < max_passes )); do
       previous_head="$(git -C "$run_checkout" rev-parse HEAD)"
+      tier_pass=$((tier_pass + 1))
       pass_number=$((pass_number + 1))
-      next_exit=0
-      run_resume_pass "$pass_number" || next_exit=$?
-      last_exit="$next_exit"
 
-      if (( next_exit != 0 )); then
+      echo ""
+      if (( max_passes > 1 )); then
+        echo "===== TIER $tier_name pass $tier_pass/$max_passes ($tier_label) ====="
+      else
+        echo "===== TIER $tier_name ($tier_label) ====="
+      fi
+
+      # Build a fresh prompt for this tier pass
+      prompt_file="$(build_tier_prompt "$tier_name" "$tier_model" "$tier_label" "$tier_focus" "$pass_number" "$((pass_number + tier_total - 1))")"
+
+      printf 'tier=%s pass=%s model=%s label=%s\n' "$tier_name" "$tier_pass" "${model:-$tier_model}" "$tier_label" >>"$metadata_file"
+
+      tier_exit=0
+      run_fresh_pass "$pass_number" "tier:${tier_name}:${tier_pass}" "$tier_model" "$prompt_file" || tier_exit=$?
+      last_exit="$tier_exit"
+
+      if (( tier_exit != 0 )); then
+        echo "Tier $tier_name pass $tier_pass failed with exit code $tier_exit" >&2
         break
       fi
 
+      # Stop this tier if no progress
       current_head="$(git -C "$run_checkout" rev-parse HEAD)"
       if [[ "$current_head" == "$previous_head" ]] && [[ -z "$(git -C "$run_checkout" status --porcelain)" ]]; then
+        echo "No progress in tier $tier_name pass $tier_pass — moving to next tier"
         break
       fi
     done
-  fi
+  done
+else
+  # ──────────────────────────────────────────────────────────
+  # CLASSIC MODE: fresh context per pass with progress detection
+  # ──────────────────────────────────────────────────────────
+  echo "Mode: classic (max_passes=$max_passes)"
+
+  pass_number=0
+  while (( pass_number < max_passes )); do
+    previous_head="$(git -C "$run_checkout" rev-parse HEAD)"
+    pass_number=$((pass_number + 1))
+
+    echo ""
+    echo "===== PASS $pass_number/$max_passes ====="
+
+    prompt_file="$(build_classic_pass_prompt "$pass_number" "$max_passes")"
+
+    pass_exit=0
+    run_fresh_pass "$pass_number" "pass:$pass_number" "" "$prompt_file" || pass_exit=$?
+    last_exit="$pass_exit"
+
+    if (( pass_exit != 0 )); then
+      echo "Pass $pass_number failed with exit code $pass_exit" >&2
+      break
+    fi
+
+    # Stop if no progress (no new commits and clean working dir)
+    current_head="$(git -C "$run_checkout" rev-parse HEAD)"
+    if [[ "$current_head" == "$previous_head" ]] && [[ -z "$(git -C "$run_checkout" status --porcelain)" ]]; then
+      echo "No progress in pass $pass_number — stopping"
+      break
+    fi
+  done
 fi
 
 finished_at="$(date -u +%Y%m%dT%H%M%SZ)"

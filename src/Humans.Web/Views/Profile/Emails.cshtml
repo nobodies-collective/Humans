@@ -93,7 +93,7 @@
                                                 <input type="hidden" name="emailId" value="@email.Id" />
                                                 <select name="visibility" class="form-select form-select-sm js-auto-submit" style="width: auto; display: inline-block;">
                                                     <option value="" selected="@(email.Visibility == null ? "selected" : null)">Hidden</option>
-                                                    <option value="AllActiveProfiles" selected="@(email.Visibility == ContactFieldVisibility.AllActiveProfiles ? "selected" : null)">All members</option>
+                                                    <option value="AllActiveProfiles" selected="@(email.Visibility == ContactFieldVisibility.AllActiveProfiles ? "selected" : null)">All humans</option>
                                                     <option value="MyTeams" selected="@(email.Visibility == ContactFieldVisibility.MyTeams ? "selected" : null)">My teams</option>
                                                     <option value="CoordinatorsAndBoard" selected="@(email.Visibility == ContactFieldVisibility.CoordinatorsAndBoard ? "selected" : null)">Coordinators + Board</option>
                                                     <option value="BoardOnly" selected="@(email.Visibility == ContactFieldVisibility.BoardOnly ? "selected" : null)">Board only</option>

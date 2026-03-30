@@ -214,4 +214,40 @@ public class RoleAssignmentService : IRoleAssignmentService
 
         return new OnboardingResult(true);
     }
+
+    public async Task<bool> IsUserAdminAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var now = _clock.GetCurrentInstant();
+        return await _dbContext.RoleAssignments
+            .AnyAsync(ra =>
+                ra.UserId == userId &&
+                ra.RoleName == RoleNames.Admin &&
+                ra.ValidFrom <= now &&
+                (ra.ValidTo == null || ra.ValidTo > now),
+                cancellationToken);
+    }
+
+    public async Task<bool> IsUserBoardMemberAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var now = _clock.GetCurrentInstant();
+        return await _dbContext.RoleAssignments
+            .AnyAsync(ra =>
+                ra.UserId == userId &&
+                ra.RoleName == RoleNames.Board &&
+                ra.ValidFrom <= now &&
+                (ra.ValidTo == null || ra.ValidTo > now),
+                cancellationToken);
+    }
+
+    public async Task<bool> IsUserTeamsAdminAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var now = _clock.GetCurrentInstant();
+        return await _dbContext.RoleAssignments
+            .AnyAsync(ra =>
+                ra.UserId == userId &&
+                ra.RoleName == RoleNames.TeamsAdmin &&
+                ra.ValidFrom <= now &&
+                (ra.ValidTo == null || ra.ValidTo > now),
+                cancellationToken);
+    }
 }

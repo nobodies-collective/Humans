@@ -681,16 +681,14 @@ public class ShiftAdminController : HumansTeamControllerBase
     {
         // Management: Admin + VolunteerCoordinator + dept coordinator
         // Explicitly excludes NoInfoAdmin — they can approve signups but not manage rotas/shifts
-        return RoleChecks.IsAdmin(User) ||
-               User.IsInRole(RoleNames.VolunteerCoordinator) ||
+        return RoleChecks.IsVolunteerManager(User) ||
                await _shiftMgmt.IsDeptCoordinatorAsync(user.Id, team.Id);
     }
 
     private async Task<bool> CanApproveDepartmentAsync(User user, Team team)
     {
         // Approval: Admin + NoInfoAdmin + VolunteerCoordinator + dept coordinator
-        return ShiftRoleChecks.IsPrivilegedSignupApprover(User) ||
-               User.IsInRole(RoleNames.VolunteerCoordinator) ||
+        return ShiftRoleChecks.CanManageDepartment(User) ||
                await _shiftMgmt.IsDeptCoordinatorAsync(user.Id, team.Id);
     }
 }

@@ -16,8 +16,8 @@
         CampaignStatus.Completed => "bg-info",
         _ => "bg-secondary"
     };
-    var isAdmin = User.IsInRole(RoleNames.Admin);
-    var canGenerateCodes = isAdmin || User.IsInRole(RoleNames.TicketAdmin);
+    var isAdmin = Humans.Web.Authorization.RoleChecks.IsAdmin(User);
+    var canGenerateCodes = Humans.Web.Authorization.RoleChecks.CanManageTickets(User);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">

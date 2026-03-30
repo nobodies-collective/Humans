@@ -51,7 +51,7 @@
         <h2>Browse Volunteer Options</h2>
         <div class="d-flex gap-2">
             <vc:access-matrix section="Shifts" />
-            @if (User.IsInRole(Humans.Domain.Constants.RoleNames.NoInfoAdmin) || User.IsInRole(Humans.Domain.Constants.RoleNames.Admin) || User.IsInRole(Humans.Domain.Constants.RoleNames.VolunteerCoordinator))
+            @if (Humans.Web.Authorization.ShiftRoleChecks.CanManageDepartment(User))
             {
                 <a asp-controller="ShiftDashboard" asp-action="Index" class="btn btn-outline-warning"><i class="fa-solid fa-gauge-high me-1"></i>Dashboard</a>
             }
