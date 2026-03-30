@@ -132,7 +132,7 @@
                 ctx.fillStyle = colors[i];
                 ctx.fillRect(0, i * stripeH, size, stripeH);
             }
-            return canvas;
+            return ctx.getImageData(0, 0, size, size);
         }
 
         let map, draw, state, connection;
