@@ -266,8 +266,11 @@
             });
 
             map.on('click', 'polygons-fill', onPolygonClick);
+            map.on('click', 'polygons-fill-surprise', onPolygonClick);
             map.on('mouseenter', 'polygons-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseenter', 'polygons-fill-surprise', () => { map.getCanvas().style.cursor = 'pointer'; });
             map.on('mouseleave', 'polygons-fill', () => { map.getCanvas().style.cursor = ''; });
+            map.on('mouseleave', 'polygons-fill-surprise', () => { map.getCanvas().style.cursor = ''; });
         }
 
         function onPolygonClick(e) {
