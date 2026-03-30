@@ -285,10 +285,11 @@
             map.on('mouseleave', 'polygons-fill', () => { map.getCanvas().style.cursor = ''; });
             map.on('mouseleave', 'polygons-fill-surprise', () => { map.getCanvas().style.cursor = ''; });
 
-            // Bring draw layers (added at control init) above our polygon layers
+            // Bring draw layers and area label above our polygon layers
             map.getStyle().layers
                 .filter(l => l.id.startsWith('gl-draw-'))
                 .forEach(l => map.moveLayer(l.id));
+            map.moveLayer('draw-label');
         }
 
         function onPolygonClick(e) {
