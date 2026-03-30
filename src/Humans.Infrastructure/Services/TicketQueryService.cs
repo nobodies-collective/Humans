@@ -79,6 +79,23 @@ public class TicketQueryService : ITicketQueryService
         return attendeeUserIds.Union(buyerUserIds).ToHashSet();
     }
 
+    public async Task<HashSet<Guid>> GetAllMatchedUserIdsAsync()
+    {
+        var matchedFromAttendees = await _dbContext.TicketAttendees
+            .Where(a => a.MatchedUserId != null)
+            .Select(a => a.MatchedUserId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        var matchedFromOrders = await _dbContext.TicketOrders
+            .Where(o => o.MatchedUserId != null)
+            .Select(o => o.MatchedUserId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        return matchedFromAttendees.Union(matchedFromOrders).ToHashSet();
+    }
+
     public async Task<TicketDashboardStats> GetDashboardStatsAsync()
     {
         // Reset stuck Running state — if Running for > 30 min, treat as stale (crash recovery)

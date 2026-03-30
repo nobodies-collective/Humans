@@ -287,7 +287,7 @@ public class TicketController : HumansControllerBase
     {
         pageSize = pageSize.ClampPageSize();
 
-        var matchedUserIds = await GetMatchedTicketUserIdsAsync();
+        var matchedUserIds = await _ticketQueryService.GetAllMatchedUserIdsAsync();
 
         // Load ALL active humans (not just unmatched) so we can toggle between views
         var users = await _dbContext.Users
@@ -608,23 +608,6 @@ public class TicketController : HumansControllerBase
         }
 
         return sortDesc ? query.OrderByDescending(a => a.AttendeeName) : query.OrderBy(a => a.AttendeeName);
-    }
-
-    private async Task<HashSet<Guid>> GetMatchedTicketUserIdsAsync()
-    {
-        var matchedFromAttendees = await _dbContext.TicketAttendees
-            .Where(a => a.MatchedUserId != null)
-            .Select(a => a.MatchedUserId!.Value)
-            .Distinct()
-            .ToListAsync();
-
-        var matchedFromOrders = await _dbContext.TicketOrders
-            .Where(o => o.MatchedUserId != null)
-            .Select(o => o.MatchedUserId!.Value)
-            .Distinct()
-            .ToListAsync();
-
-        return matchedFromAttendees.Union(matchedFromOrders).ToHashSet();
     }
 
     private static List<User> FilterWhoHasntBoughtHumans(

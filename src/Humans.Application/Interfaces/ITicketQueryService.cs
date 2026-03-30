@@ -25,6 +25,13 @@ public interface ITicketQueryService
     Task<HashSet<Guid>> GetUserIdsWithTicketsAsync();
 
     /// <summary>
+    /// Get all user IDs that have any ticket match (MatchedUserId set),
+    /// regardless of payment or attendee status. Used for "who hasn't bought"
+    /// views where any association counts.
+    /// </summary>
+    Task<HashSet<Guid>> GetAllMatchedUserIdsAsync();
+
+    /// <summary>
     /// Compute aggregated dashboard statistics: revenue, fees, daily sales,
     /// recent orders, volunteer coverage, and sync state.
     /// </summary>
