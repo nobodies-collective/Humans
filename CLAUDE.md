@@ -127,6 +127,7 @@ dotnet run --project src/Humans.Web
 | Analyzers/ReSharper | `.claude/CODE_ANALYSIS.md` |
 | Maintenance log | `.claude/MAINTENANCE_LOG.md` |
 | **Feature specs** | **`docs/features/`** |
+| **Section invariants** | **`docs/sections/`** |
 | **EF migration reviewer** | **`.claude/agents/ef-migration-reviewer.md`** |
 
 ## Critical: EF Migration Review Gate
@@ -151,6 +152,16 @@ The project is licensed under **AGPL-3.0** (`LICENSE` at repo root).
 ## Post-Fix Documentation Check
 
 **After completing a fix or feature but before committing**, check the relevant BRDs in `docs/features/` and update them if the change affects documented behavior, authorization rules, workflows, data model, or routes. This reduces churn from separate doc-only commits.
+
+## Section Invariants
+
+`docs/sections/` contains terse invariant documents for each major section of the app (Profiles, Budget, Teams, Feedback, Camps, Governance, Legal & Consent, Onboarding, Google Integration, Shifts, Campaigns, Tickets, Admin). Each doc defines:
+- **Actors & Roles** — who interacts and in what capacity
+- **Invariants** — hard rules that must always be true (authorization, data integrity, workflow constraints)
+- **Triggers** — side effects and cascades ("when X happens, Y must happen")
+- **Cross-Section Dependencies** — relationships to other sections
+
+**When changing authorization attributes, role checks, or workflow logic in a section**, verify the change is consistent with the section's invariant doc. Update the doc if the change intentionally alters an invariant.
 
 ## Todos and Issue Tracking
 
