@@ -21,6 +21,7 @@ public class HomeController : HumansControllerBase
     private readonly IClock _clock;
     private readonly TicketVendorSettings _ticketSettings;
     private readonly ITicketQueryService _ticketQueryService;
+    private readonly ILegalDocumentService _legalDocService;
     private readonly ILogger<HomeController> _logger;
 
     public HomeController(
@@ -34,6 +35,7 @@ public class HomeController : HumansControllerBase
         IClock clock,
         IOptions<TicketVendorSettings> ticketSettings,
         ITicketQueryService ticketQueryService,
+        ILegalDocumentService legalDocService,
         ILogger<HomeController> logger)
         : base(userManager)
     {
@@ -46,6 +48,7 @@ public class HomeController : HumansControllerBase
         _clock = clock;
         _ticketSettings = ticketSettings.Value;
         _ticketQueryService = ticketQueryService;
+        _legalDocService = legalDocService;
         _logger = logger;
     }
 
@@ -245,10 +248,16 @@ public class HomeController : HumansControllerBase
         return View("Dashboard", viewModel);
     }
 
-    public IActionResult Privacy()
+    public async Task<IActionResult> Privacy()
     {
-        ViewData["DpoEmail"] = _configuration["Email:DpoAddress"];
-        return View();
+        var privacyContent = await _legalDocService.GetDocumentContentAsync("privacy-policy");
+        var viewModel = new SitePoliciesViewModel
+        {
+            PrivacyPolicyContent = privacyContent,
+            DpoEmail = _configuration["Email:DpoAddress"] ?? string.Empty,
+            SupportEmail = _configuration["Email:AdminAddress"] ?? string.Empty
+        };
+        return View(viewModel);
     }
 
     public IActionResult About()

@@ -14,6 +14,7 @@ public partial class LegalDocumentService : ILegalDocumentService
     private static readonly IReadOnlyList<LegalDocumentDefinition> Documents =
     [
         new("statutes", "Statutes", "Estatutos", "ESTATUTOS"),
+        new("privacy-policy", "Privacy Policy", "PrivacyPolicy", "PRIVACY-POLICY"),
     ];
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(1);

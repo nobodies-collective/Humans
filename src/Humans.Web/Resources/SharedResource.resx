@@ -59,7 +59,7 @@
   <data name="Nav_Roster" xml:space="preserve"><value>Roster</value></data>
   <data name="Nav_Consents" xml:space="preserve"><value>Agreements</value></data>
   <data name="Nav_Governance" xml:space="preserve"><value>Governance</value></data>
-  <data name="Nav_Privacy" xml:space="preserve"><value>Privacy</value></data>
+  <data name="Nav_Privacy" xml:space="preserve"><value>Site Policies</value></data>
   <data name="Nav_About" xml:space="preserve"><value>About</value></data>
   <data name="Nav_Admin" xml:space="preserve"><value>Admin</value></data>
   <data name="Nav_OnboardingReview" xml:space="preserve"><value>Review Queue</value></data>
@@ -164,9 +164,26 @@
   <data name="Dashboard_RejectionReason" xml:space="preserve"><value>Reason</value></data>
 
   <!-- ======================== -->
-  <!-- Privacy Policy Page      -->
+  <!-- Site Policies Page       -->
   <!-- ======================== -->
   <data name="Privacy_Title" xml:space="preserve"><value>Privacy Policy</value></data>
+  <data name="SitePolicies_Title" xml:space="preserve"><value>Site Policies</value></data>
+  <data name="SitePolicies_Lead" xml:space="preserve"><value>How Humans handles your data and how this site operates.</value></data>
+  <data name="SitePolicies_DisclosuresTitle" xml:space="preserve"><value>How This Site Works</value></data>
+  <data name="SitePolicies_DelegatedAccessTitle" xml:space="preserve"><value>Delegated Access Roles</value></data>
+  <data name="SitePolicies_DelegatedAccessText" xml:space="preserve"><value>The Board may designate &lt;strong&gt;Consent Coordinators&lt;/strong&gt; and &lt;strong&gt;Volunteer Coordinators&lt;/strong&gt; who receive elevated access to member data (profile details, onboarding status) in order to perform their duties. These role assignments are tracked and audited.</value></data>
+  <data name="SitePolicies_VisibilityTitle" xml:space="preserve"><value>Data Visibility</value></data>
+  <data name="SitePolicies_VisibilityIntro" xml:space="preserve"><value>When you add contact information to your profile, you choose who can see each field. The visibility tiers are:</value></data>
+  <data name="SitePolicies_VisibilityBoardOnly" xml:space="preserve"><value>Only visible to Board members.</value></data>
+  <data name="SitePolicies_VisibilityCoordinatorsAndBoard" xml:space="preserve"><value>Visible to team Coordinators and Board members.</value></data>
+  <data name="SitePolicies_VisibilityMyTeams" xml:space="preserve"><value>Visible to humans who share at least one team with you.</value></data>
+  <data name="SitePolicies_VisibilityAllActive" xml:space="preserve"><value>Visible to all active humans in the organization.</value></data>
+  <data name="SitePolicies_ProvisioningTitle" xml:space="preserve"><value>Automated Processing</value></data>
+  <data name="SitePolicies_ProvisioningText" xml:space="preserve"><value>When you join or leave a team, the system automatically provisions or removes your access to the corresponding Google Workspace resources (Shared Drive folders and Google Groups). These changes are logged in the audit trail.</value></data>
+  <data name="SitePolicies_ContactTitle" xml:space="preserve"><value>Contact</value></data>
+  <data name="SitePolicies_ContactText" xml:space="preserve"><value>For app-related questions or issues, contact us at</value></data>
+  <data name="SitePolicies_DpoText" xml:space="preserve"><value>For formal data protection inquiries, contact our Data Protection Officer at</value></data>
+  <data name="SitePolicies_ManageData" xml:space="preserve"><value>Manage your personal data</value></data>
 
   <!-- ======================== -->
   <!-- Profile                  -->
@@ -272,7 +289,7 @@
   <data name="ProfilePrivacy_CancelDeletion" xml:space="preserve"><value>Cancel Deletion Request</value></data>
   <data name="ProfilePrivacy_DPOContact" xml:space="preserve"><value>For questions about your data or privacy rights, contact our Data Protection Officer:</value></data>
   <data name="ProfilePrivacy_Email" xml:space="preserve"><value>Email:</value></data>
-  <data name="ProfilePrivacy_ViewFullPolicy" xml:space="preserve"><value>View Full Privacy Policy</value></data>
+  <data name="ProfilePrivacy_ViewFullPolicy" xml:space="preserve"><value>View Site Policies</value></data>
   <data name="ProfilePrivacy_ConfirmDeletion" xml:space="preserve"><value>Confirm Account Deletion</value></data>
   <data name="ProfilePrivacy_ConfirmDeletionQuestion" xml:space="preserve"><value>Are you sure you want to request deletion of your account?</value></data>
   <data name="ProfilePrivacy_YesDeleteMyAccount" xml:space="preserve"><value>Yes, Delete My Account</value></data>

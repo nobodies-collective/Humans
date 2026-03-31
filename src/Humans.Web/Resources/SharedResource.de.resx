@@ -59,7 +59,7 @@
   <data name="Nav_Roster" xml:space="preserve"><value>Dienstplan</value></data>
   <data name="Nav_Consents" xml:space="preserve"><value>Vereinbarungen</value></data>
   <data name="Nav_Governance" xml:space="preserve"><value>Governance</value></data>
-  <data name="Nav_Privacy" xml:space="preserve"><value>Datenschutz</value></data>
+  <data name="Nav_Privacy" xml:space="preserve"><value>Website-Richtlinien</value></data>
   <data name="Nav_About" xml:space="preserve"><value>&#xDC;ber uns</value></data>
   <data name="Nav_Admin" xml:space="preserve"><value>Admin</value></data>
   <data name="Nav_OnboardingReview" xml:space="preserve"><value>Pr&#xFC;fwarteschlange</value></data>
@@ -164,9 +164,26 @@
   <data name="Dashboard_RejectionReason" xml:space="preserve"><value>Grund</value></data>
 
   <!-- ======================== -->
-  <!-- Privacy Policy Page      -->
+  <!-- Site Policies Page       -->
   <!-- ======================== -->
   <data name="Privacy_Title" xml:space="preserve"><value>Datenschutzrichtlinie</value></data>
+  <data name="SitePolicies_Title" xml:space="preserve"><value>Website-Richtlinien</value></data>
+  <data name="SitePolicies_Lead" xml:space="preserve"><value>Wie Humans Ihre Daten verwaltet und wie diese Website funktioniert.</value></data>
+  <data name="SitePolicies_DisclosuresTitle" xml:space="preserve"><value>Wie diese Website funktioniert</value></data>
+  <data name="SitePolicies_DelegatedAccessTitle" xml:space="preserve"><value>Delegierte Zugriffsrollen</value></data>
+  <data name="SitePolicies_DelegatedAccessText" xml:space="preserve"><value>Der Vorstand kann &lt;strong&gt;Einwilligungskoordinatoren&lt;/strong&gt; und &lt;strong&gt;Freiwilligenkoordinatoren&lt;/strong&gt; ernennen, die erweiterten Zugriff auf Mitgliederdaten (Profildetails, Onboarding-Status) erhalten, um ihre Aufgaben zu erf&#xFC;llen. Diese Rollenzuweisungen werden protokolliert und gepr&#xFC;ft.</value></data>
+  <data name="SitePolicies_VisibilityTitle" xml:space="preserve"><value>Datensichtbarkeit</value></data>
+  <data name="SitePolicies_VisibilityIntro" xml:space="preserve"><value>Wenn Sie Kontaktinformationen zu Ihrem Profil hinzuf&#xFC;gen, w&#xE4;hlen Sie, wer jedes Feld sehen kann. Die Sichtbarkeitsstufen sind:</value></data>
+  <data name="SitePolicies_VisibilityBoardOnly" xml:space="preserve"><value>Nur f&#xFC;r Vorstandsmitglieder sichtbar.</value></data>
+  <data name="SitePolicies_VisibilityCoordinatorsAndBoard" xml:space="preserve"><value>Sichtbar f&#xFC;r Team-Koordinatoren und Vorstandsmitglieder.</value></data>
+  <data name="SitePolicies_VisibilityMyTeams" xml:space="preserve"><value>Sichtbar f&#xFC;r Humans, die mindestens ein Team mit Ihnen teilen.</value></data>
+  <data name="SitePolicies_VisibilityAllActive" xml:space="preserve"><value>Sichtbar f&#xFC;r alle aktiven Humans in der Organisation.</value></data>
+  <data name="SitePolicies_ProvisioningTitle" xml:space="preserve"><value>Automatisierte Verarbeitung</value></data>
+  <data name="SitePolicies_ProvisioningText" xml:space="preserve"><value>Wenn Sie einem Team beitreten oder es verlassen, stellt das System automatisch den Zugang zu den entsprechenden Google-Workspace-Ressourcen (freigegebene Drive-Ordner und Google Groups) bereit oder entfernt ihn. Diese &#xC4;nderungen werden im Audit-Protokoll erfasst.</value></data>
+  <data name="SitePolicies_ContactTitle" xml:space="preserve"><value>Kontakt</value></data>
+  <data name="SitePolicies_ContactText" xml:space="preserve"><value>Bei Fragen oder Problemen mit der Anwendung kontaktieren Sie uns unter</value></data>
+  <data name="SitePolicies_DpoText" xml:space="preserve"><value>F&#xFC;r formelle Datenschutzanfragen kontaktieren Sie unseren Datenschutzbeauftragten unter</value></data>
+  <data name="SitePolicies_ManageData" xml:space="preserve"><value>Verwalten Sie Ihre pers&#xF6;nlichen Daten</value></data>
 
   <!-- ======================== -->
   <!-- Profile                  -->
@@ -267,7 +284,7 @@
   <data name="ProfilePrivacy_CancelDeletion" xml:space="preserve"><value>Löschantrag zurückziehen</value></data>
   <data name="ProfilePrivacy_DPOContact" xml:space="preserve"><value>Bei Fragen zu Ihren Daten oder Datenschutzrechten wenden Sie sich an unseren Datenschutzbeauftragten:</value></data>
   <data name="ProfilePrivacy_Email" xml:space="preserve"><value>E-Mail:</value></data>
-  <data name="ProfilePrivacy_ViewFullPolicy" xml:space="preserve"><value>Vollständige Datenschutzrichtlinie anzeigen</value></data>
+  <data name="ProfilePrivacy_ViewFullPolicy" xml:space="preserve"><value>Website-Richtlinien anzeigen</value></data>
   <data name="ProfilePrivacy_ConfirmDeletion" xml:space="preserve"><value>Kontolöschung bestätigen</value></data>
   <data name="ProfilePrivacy_ConfirmDeletionQuestion" xml:space="preserve"><value>Sind Sie sicher, dass Sie die Löschung Ihres Kontos beantragen möchten?</value></data>
   <data name="ProfilePrivacy_YesDeleteMyAccount" xml:space="preserve"><value>Ja, mein Konto löschen</value></data>

@@ -59,7 +59,7 @@
   <data name="Nav_Roster" xml:space="preserve"><value>Elenco</value></data>
   <data name="Nav_Consents" xml:space="preserve"><value>Accordi</value></data>
   <data name="Nav_Governance" xml:space="preserve"><value>Governance</value></data>
-  <data name="Nav_Privacy" xml:space="preserve"><value>Privacy</value></data>
+  <data name="Nav_Privacy" xml:space="preserve"><value>Politiche del sito</value></data>
   <data name="Nav_About" xml:space="preserve"><value>Chi siamo</value></data>
   <data name="Nav_Admin" xml:space="preserve"><value>Admin</value></data>
   <data name="Nav_OnboardingReview" xml:space="preserve"><value>Coda di revisione</value></data>
@@ -164,9 +164,26 @@
   <data name="Dashboard_RejectionReason" xml:space="preserve"><value>Motivo</value></data>
 
   <!-- ======================== -->
-  <!-- Privacy Policy Page      -->
+  <!-- Site Policies Page       -->
   <!-- ======================== -->
   <data name="Privacy_Title" xml:space="preserve"><value>Informativa sulla Privacy</value></data>
+  <data name="SitePolicies_Title" xml:space="preserve"><value>Politiche del sito</value></data>
+  <data name="SitePolicies_Lead" xml:space="preserve"><value>Come Humans gestisce i tuoi dati e come funziona questo sito.</value></data>
+  <data name="SitePolicies_DisclosuresTitle" xml:space="preserve"><value>Come funziona questo sito</value></data>
+  <data name="SitePolicies_DelegatedAccessTitle" xml:space="preserve"><value>Ruoli di accesso delegato</value></data>
+  <data name="SitePolicies_DelegatedAccessText" xml:space="preserve"><value>Il Consiglio pu&#xF2; designare &lt;strong&gt;Coordinatori del consenso&lt;/strong&gt; e &lt;strong&gt;Coordinatori dei volontari&lt;/strong&gt; che ricevono un accesso elevato ai dati dei membri (dettagli del profilo, stato di inserimento) per svolgere le loro funzioni. Queste assegnazioni di ruolo vengono registrate e verificate.</value></data>
+  <data name="SitePolicies_VisibilityTitle" xml:space="preserve"><value>Visibilit&#xE0; dei dati</value></data>
+  <data name="SitePolicies_VisibilityIntro" xml:space="preserve"><value>Quando aggiungi informazioni di contatto al tuo profilo, scegli chi pu&#xF2; vedere ogni campo. I livelli di visibilit&#xE0; sono:</value></data>
+  <data name="SitePolicies_VisibilityBoardOnly" xml:space="preserve"><value>Visibile solo ai membri del Consiglio.</value></data>
+  <data name="SitePolicies_VisibilityCoordinatorsAndBoard" xml:space="preserve"><value>Visibile ai Coordinatori di squadra e ai membri del Consiglio.</value></data>
+  <data name="SitePolicies_VisibilityMyTeams" xml:space="preserve"><value>Visibile agli humans che condividono almeno una squadra con te.</value></data>
+  <data name="SitePolicies_VisibilityAllActive" xml:space="preserve"><value>Visibile a tutti gli humans attivi dell&#x27;organizzazione.</value></data>
+  <data name="SitePolicies_ProvisioningTitle" xml:space="preserve"><value>Elaborazione automatizzata</value></data>
+  <data name="SitePolicies_ProvisioningText" xml:space="preserve"><value>Quando ti unisci o lasci una squadra, il sistema fornisce o rimuove automaticamente il tuo accesso alle risorse Google Workspace corrispondenti (cartelle Drive condivise e Google Groups). Queste modifiche vengono registrate nel registro di audit.</value></data>
+  <data name="SitePolicies_ContactTitle" xml:space="preserve"><value>Contatto</value></data>
+  <data name="SitePolicies_ContactText" xml:space="preserve"><value>Per domande o problemi relativi all&#x27;applicazione, contattaci a</value></data>
+  <data name="SitePolicies_DpoText" xml:space="preserve"><value>Per richieste formali sulla protezione dei dati, contatta il nostro Responsabile della Protezione dei Dati a</value></data>
+  <data name="SitePolicies_ManageData" xml:space="preserve"><value>Gestisci i tuoi dati personali</value></data>
 
   <!-- ======================== -->
   <!-- Profile                  -->
@@ -267,7 +284,7 @@
   <data name="ProfilePrivacy_CancelDeletion" xml:space="preserve"><value>Annulla richiesta di eliminazione</value></data>
   <data name="ProfilePrivacy_DPOContact" xml:space="preserve"><value>Per domande sui Suoi dati o diritti alla privacy, contatti il nostro Responsabile della Protezione dei Dati:</value></data>
   <data name="ProfilePrivacy_Email" xml:space="preserve"><value>Email:</value></data>
-  <data name="ProfilePrivacy_ViewFullPolicy" xml:space="preserve"><value>Visualizza informativa completa sulla privacy</value></data>
+  <data name="ProfilePrivacy_ViewFullPolicy" xml:space="preserve"><value>Visualizza le politiche del sito</value></data>
   <data name="ProfilePrivacy_ConfirmDeletion" xml:space="preserve"><value>Conferma eliminazione account</value></data>
   <data name="ProfilePrivacy_ConfirmDeletionQuestion" xml:space="preserve"><value>È sicuro/a di voler richiedere l'eliminazione del Suo account?</value></data>
   <data name="ProfilePrivacy_YesDeleteMyAccount" xml:space="preserve"><value>Sì, elimina il mio account</value></data>
