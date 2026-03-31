@@ -1278,6 +1278,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             .Include(r => r.Team)
             .Where(r => r.IsActive && r.ResourceType == GoogleResourceType.Group)
             .Where(r => r.Url != null && EF.Functions.ILike(r.Url!, expectedUrl))
+            .OrderBy(r => r.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (existingActiveByEmail is not null)
@@ -1292,6 +1293,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         var inactiveForTeam = await _dbContext.GoogleResources
             .Where(r => !r.IsActive && r.ResourceType == GoogleResourceType.Group && r.TeamId == teamId)
             .Where(r => r.Url != null && EF.Functions.ILike(r.Url!, expectedUrl))
+            .OrderBy(r => r.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (inactiveForTeam is not null && !confirmReactivation)

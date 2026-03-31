@@ -340,6 +340,7 @@ public class CampService : ICampService
             entry.AbsoluteExpirationRelativeToNow = CampSettingsCacheTtl;
             return await _dbContext.CampSettings
                 .AsNoTracking()
+                .OrderBy(s => s.Id)
                 .FirstAsync(cancellationToken);
         }) ?? throw new InvalidOperationException("Camp settings not found.");
     }
@@ -1038,7 +1039,7 @@ public class CampService : ICampService
 
     public async Task SetPublicYearAsync(int year, CancellationToken cancellationToken = default)
     {
-        var settings = await _dbContext.CampSettings.FirstAsync(cancellationToken);
+        var settings = await _dbContext.CampSettings.OrderBy(s => s.Id).FirstAsync(cancellationToken);
         settings.PublicYear = year;
         await _dbContext.SaveChangesAsync(cancellationToken);
         _cache.InvalidateCampSettings();
@@ -1046,7 +1047,7 @@ public class CampService : ICampService
 
     public async Task OpenSeasonAsync(int year, CancellationToken cancellationToken = default)
     {
-        var settings = await _dbContext.CampSettings.FirstAsync(cancellationToken);
+        var settings = await _dbContext.CampSettings.OrderBy(s => s.Id).FirstAsync(cancellationToken);
         if (!settings.OpenSeasons.Contains(year))
         {
             settings.OpenSeasons.Add(year);
@@ -1057,7 +1058,7 @@ public class CampService : ICampService
 
     public async Task CloseSeasonAsync(int year, CancellationToken cancellationToken = default)
     {
-        var settings = await _dbContext.CampSettings.FirstAsync(cancellationToken);
+        var settings = await _dbContext.CampSettings.OrderBy(s => s.Id).FirstAsync(cancellationToken);
         if (settings.OpenSeasons.Remove(year))
         {
             await _dbContext.SaveChangesAsync(cancellationToken);

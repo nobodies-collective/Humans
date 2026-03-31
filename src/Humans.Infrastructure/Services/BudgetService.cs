@@ -60,6 +60,7 @@ public class BudgetService : IBudgetService
     public async Task<BudgetYear?> GetActiveYearAsync()
     {
         var activeYear = await _dbContext.BudgetYears
+            .OrderBy(y => y.Id)
             .FirstOrDefaultAsync(y => y.Status == BudgetYearStatus.Active && !y.IsDeleted);
 
         if (activeYear is null)
@@ -237,6 +238,7 @@ public class BudgetService : IBudgetService
 
         var deptGroup = await _dbContext.BudgetGroups
             .Include(g => g.Categories)
+            .OrderBy(g => g.Id)
             .FirstOrDefaultAsync(g => g.BudgetYearId == budgetYearId && g.IsDepartmentGroup)
             ?? throw new InvalidOperationException("No Departments group found for this budget year");
 
