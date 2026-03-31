@@ -209,6 +209,25 @@ Outbound invoices to members/barrios:
 - **Nav:** "Budget" link visible to all authenticated users; "Finance" link remains FinanceAdmin-only
 - **Exit:** Coordinators can manage their department budgets; all members see where money goes
 
+### V1c: Sign Convention and VAT Tracking — IMPLEMENTED (#282, #283)
+- **Sign convention:** Positive amounts = income, negative amounts = expenses
+  - Removed `min=0` constraints on all budget amount inputs
+  - Both `BudgetCategory.AllocatedAmount` and `BudgetLineItem.Amount` accept negative values
+- **VAT/IVA tracking:** `VatRate` int on `BudgetLineItem` (0%, 10%, 21%)
+  - Virtual VAT entries computed for line items with VatRate > 0 and an ExpectedDate
+  - VAT has converse sign: income generates VAT liability (expense), expenses generate VAT credit (income)
+  - Settlement date ~6 weeks after end of quarter containing the expected date
+  - VAT projections shown in category detail views with visual distinction (italicized, badges)
+  - VAT cash flows included in summary overview totals and charts
+- **Dual overview charts** on `/Budget/Summary`:
+  - Income chart (categories with positive totals)
+  - Expenses chart (absolute values of negative totals)
+  - When profitable, expenses chart includes Cash Reserves (90%) and Spanish Taxes (10%) slices
+- **Summary cards:** Total Income, Total Expenses, Net Balance
+- **EF migration** adds `VatRate` column to `budget_line_items`
+- **Donations:** Deferred — donations come from ticket overpayments and direct external sources, not budget allocations. Will be modeled separately when Stripe integration lands.
+- **Exit:** Budget system supports income vs expense distinction and VAT projections
+
 ### V2b: Stripe Integration (2-3 sessions)
 - Stripe sync job
 - Transaction storage and manual category mapping

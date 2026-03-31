@@ -1,11 +1,11 @@
 @model Humans.Web.Models.BudgetSummaryViewModel
 @{
     ViewData["Title"] = $"Budget - {Model.YearName}";
-    var spentPct = Model.TotalBudget > 0 ? Model.TotalLineItems / Model.TotalBudget * 100 : 0;
-    var gaugeClass = spentPct > 100 ? "bg-danger" : spentPct > 80 ? "bg-warning" : "bg-success";
     var jsonOpts = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
-    var chartLabels = Model.Slices.Select(s => s.Name).ToList();
-    var chartData = Model.Slices.Select(s => s.Percentage).ToList();
+    var incomeLabels = Model.IncomeSlices.Select(s => s.Name).ToList();
+    var incomeData = Model.IncomeSlices.Select(s => s.Amount).ToList();
+    var expenseLabels = Model.ExpenseSlices.Select(s => s.Name).ToList();
+    var expenseData = Model.ExpenseSlices.Select(s => s.Amount).ToList();
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -22,108 +22,225 @@
 
 <p class="text-muted mb-4">How the @Model.YearName budget is allocated across departments and infrastructure.</p>
 
-<!-- Budget utilization -->
-<div class="card mb-4">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">Budget Utilization</h5>
-            <span class="fs-4 fw-bold">@spentPct.ToString("N0")%</span>
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Income</h6>
+                <h3 class="card-title mb-0 text-success">&euro;@Model.TotalIncome.ToString("N2")</h3>
+            </div>
         </div>
-        <div class="progress" style="height: 12px;">
-            <div class="progress-bar @gaugeClass" style="width: @Math.Min(spentPct, 100).ToString("N0")%"></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Expenses</h6>
+                <h3 class="card-title mb-0 text-danger">&euro;@Math.Abs(Model.TotalExpenses).ToString("N2")</h3>
+            </div>
         </div>
-        <small class="text-muted mt-1 d-block">Percentage of the total budget detailed in line items.</small>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Net Balance</h6>
+                <h3 class="card-title mb-0 @(Model.NetBalance >= 0 ? "text-success" : "text-danger")">
+                    &euro;@Model.NetBalance.ToString("N2")
+                </h3>
+            </div>
+        </div>
     </div>
 </div>
 
-@if (Model.Slices.Any())
+@if (Model.IncomeSlices.Any() || Model.ExpenseSlices.Any())
 {
     <div class="row">
-        <!-- Pie Chart -->
-        <div class="col-lg-7 mb-4">
-            <div class="card">
-                <div class="card-header">Budget Allocation</div>
+        <!-- Income Chart -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="fa-solid fa-arrow-trend-up me-1 text-success"></i>Income
+                </div>
                 <div class="card-body">
-                    <canvas id="budgetPieChart"></canvas>
+                    @if (Model.IncomeSlices.Any())
+                    {
+                        <canvas id="incomeChart"></canvas>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                            <p class="mb-0">No income line items yet.</p>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
 
-        <!-- Breakdown Table -->
-        <div class="col-lg-5 mb-4">
-            <div class="card">
-                <div class="card-header">Breakdown</div>
-                <div class="table-responsive">
-                    <table class="table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>Category</th>
-                                <th class="text-end">Share</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var slice in Model.Slices)
-                            {
-                                <tr>
-                                    <td>@slice.Name</td>
-                                    <td class="text-end">@slice.Percentage.ToString("N1")%</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+        <!-- Expenses Chart -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="fa-solid fa-arrow-trend-down me-1 text-danger"></i>Expenses
+                </div>
+                <div class="card-body">
+                    @if (Model.ExpenseSlices.Any())
+                    {
+                        <canvas id="expenseChart"></canvas>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-4">
+                            <i class="fa-solid fa-chart-pie fa-2x mb-2"></i>
+                            <p class="mb-0">No expense line items yet.</p>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Breakdown Tables -->
+    <div class="row">
+        @if (Model.IncomeSlices.Any())
+        {
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">Income Breakdown</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th class="text-end">Amount</th>
+                                    <th class="text-end">Share</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var slice in Model.IncomeSlices)
+                                {
+                                    <tr>
+                                        <td>@slice.Name</td>
+                                        <td class="text-end">&euro;@slice.Amount.ToString("N2")</td>
+                                        <td class="text-end">@slice.Percentage.ToString("N1")%</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+        @if (Model.ExpenseSlices.Any())
+        {
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">Expenses Breakdown</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th class="text-end">Amount</th>
+                                    <th class="text-end">Share</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var slice in Model.ExpenseSlices)
+                                {
+                                    <tr>
+                                        <td>@slice.Name</td>
+                                        <td class="text-end">&euro;@slice.Amount.ToString("N2")</td>
+                                        <td class="text-end">@slice.Percentage.ToString("N1")%</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 
     <script>
     if (typeof Chart === 'undefined') {
         var s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
-        s.onload = function() { renderBudgetPie(); };
+        s.onload = function() { renderBudgetCharts(); };
         document.head.appendChild(s);
     } else {
-        document.addEventListener('DOMContentLoaded', function() { renderBudgetPie(); });
+        document.addEventListener('DOMContentLoaded', function() { renderBudgetCharts(); });
     }
 
-    function renderBudgetPie() {
-        var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(chartLabels, jsonOpts));
-        var data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(chartData, jsonOpts));
-
-        var colors = [
-            '#0d6efd', '#198754', '#ffc107', '#dc3545', '#0dcaf0',
-            '#6f42c1', '#fd7e14', '#20c997', '#d63384', '#6610f2',
-            '#adb5bd', '#495057', '#e83e8c', '#17a2b8', '#28a745'
+    function renderBudgetCharts() {
+        var incomeColors = [
+            '#198754', '#20c997', '#0dcaf0', '#0d6efd', '#6f42c1',
+            '#d63384', '#ffc107', '#fd7e14', '#6610f2', '#adb5bd',
+            '#495057', '#e83e8c', '#17a2b8', '#28a745', '#007bff'
         ];
+        var expenseColors = [
+            '#dc3545', '#fd7e14', '#ffc107', '#e83e8c', '#6f42c1',
+            '#0d6efd', '#0dcaf0', '#20c997', '#198754', '#adb5bd',
+            '#495057', '#d63384', '#17a2b8', '#6610f2', '#28a745'
+        ];
+        var tooltipCallback = {
+            label: function(ctx) {
+                return ctx.label + ': \u20ac' + ctx.raw.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            }
+        };
+        var legendOpts = {
+            position: 'bottom',
+            labels: { padding: 16, usePointStyle: true }
+        };
 
-        new Chart(document.getElementById('budgetPieChart'), {
-            type: 'doughnut',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: colors.slice(0, data.length),
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { padding: 16, usePointStyle: true }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) {
-                                return ctx.label + ': ' + ctx.raw.toFixed(1) + '%';
-                            }
-                        }
+        var incomeLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(incomeLabels, jsonOpts));
+        var incomeData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(incomeData, jsonOpts));
+        var expenseLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(expenseLabels, jsonOpts));
+        var expenseData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(expenseData, jsonOpts));
+
+        if (incomeData.length > 0) {
+            new Chart(document.getElementById('incomeChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: incomeLabels,
+                    datasets: [{
+                        data: incomeData,
+                        backgroundColor: incomeColors.slice(0, incomeData.length),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: legendOpts,
+                        tooltip: { callbacks: tooltipCallback }
                     }
                 }
-            }
-        });
+            });
+        }
+
+        if (expenseData.length > 0) {
+            new Chart(document.getElementById('expenseChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: expenseLabels,
+                    datasets: [{
+                        data: expenseData,
+                        backgroundColor: expenseColors.slice(0, expenseData.length),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: legendOpts,
+                        tooltip: { callbacks: tooltipCallback }
+                    }
+                }
+            });
+        }
     }
     </script>
 }
