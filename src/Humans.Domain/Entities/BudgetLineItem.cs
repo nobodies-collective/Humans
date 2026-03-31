@@ -21,6 +21,17 @@ public class BudgetLineItem
     /// </summary>
     public LocalDate? ExpectedDate { get; set; }
 
+    /// <summary>
+    /// Whether this line item represents a donation. Donations are income (positive)
+    /// but excluded from income charts and profit calculations.
+    /// </summary>
+    public bool IsDonation { get; set; }
+
+    /// <summary>
+    /// VAT rate percentage (0, 10, or 21). Default: 0 (no VAT).
+    /// </summary>
+    public int VatRate { get; set; }
+
     public int SortOrder { get; set; }
     public Instant CreatedAt { get; init; }
     public Instant UpdatedAt { get; set; }
