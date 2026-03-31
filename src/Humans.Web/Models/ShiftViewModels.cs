@@ -52,11 +52,21 @@ public class CreateRotaModel
 
     [MaxLength(2000)]
     public string? PracticalInfo { get; set; }
+
+    /// <summary>
+    /// Comma-separated tag IDs to assign to the rota.
+    /// </summary>
+    public string? TagIds { get; set; }
 }
 
 public class EditRotaModel : CreateRotaModel
 {
     public Guid RotaId { get; set; }
+}
+
+public class MoveRotaModel
+{
+    public Guid TargetTeamId { get; set; }
 }
 
 // === Shift ===
@@ -132,6 +142,21 @@ public class ShiftBrowseViewModel
     public HashSet<Guid> UserSignupShiftIds { get; set; } = [];
     public Dictionary<Guid, SignupStatus> UserSignupStatuses { get; set; } = new();
     public bool ShowSignups { get; set; }
+
+    /// <summary>
+    /// All available tags for the filter UI.
+    /// </summary>
+    public List<Humans.Domain.Entities.ShiftTag> AllTags { get; set; } = [];
+
+    /// <summary>
+    /// Currently selected tag IDs for filtering.
+    /// </summary>
+    public List<Guid> FilterTagIds { get; set; } = [];
+
+    /// <summary>
+    /// Tag IDs the current volunteer has selected as preferences (for highlighting).
+    /// </summary>
+    public HashSet<Guid> UserPreferredTagIds { get; set; } = [];
 }
 
 public class DepartmentOption
@@ -203,6 +228,12 @@ public class ShiftAdminViewModel
     public bool CanViewMedical { get; set; }
     public List<DailyStaffingData> StaffingData { get; set; } = [];
     public Instant Now { get; set; }
+    public List<DepartmentOption> AllDepartments { get; set; } = [];
+
+    /// <summary>
+    /// All available tags for the tag picker UI.
+    /// </summary>
+    public List<Humans.Domain.Entities.ShiftTag> AllTags { get; set; } = [];
 }
 
 // === Homepage ===

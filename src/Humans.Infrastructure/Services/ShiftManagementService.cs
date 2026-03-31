@@ -27,17 +27,20 @@ public class ShiftManagementService : IShiftManagementService
     };
 
     private readonly HumansDbContext _dbContext;
+    private readonly IAuditLogService _auditLogService;
     private readonly IMemoryCache _cache;
     private readonly IClock _clock;
     private readonly ILogger<ShiftManagementService> _logger;
 
     public ShiftManagementService(
         HumansDbContext dbContext,
+        IAuditLogService auditLogService,
         IMemoryCache cache,
         IClock clock,
         ILogger<ShiftManagementService> logger)
     {
         _dbContext = dbContext;
+        _auditLogService = auditLogService;
         _cache = cache;
         _clock = clock;
         _logger = logger;
@@ -235,6 +238,42 @@ public class ShiftManagementService : IShiftManagementService
         await _dbContext.SaveChangesAsync();
     }
 
+    public async Task MoveRotaToTeamAsync(Guid rotaId, Guid targetTeamId, Guid actorUserId, string actorDisplayName)
+    {
+        var rota = await _dbContext.Rotas
+            .Include(r => r.Team)
+            .FirstOrDefaultAsync(r => r.Id == rotaId);
+        if (rota is null)
+            throw new InvalidOperationException("Rota not found.");
+
+        var targetTeam = await _dbContext.Teams.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == targetTeamId);
+        if (targetTeam is null)
+            throw new InvalidOperationException("Target team not found.");
+        if (targetTeam.ParentTeamId is not null)
+            throw new InvalidOperationException("Rotas can only be moved to parent teams (departments).");
+        if (targetTeam.SystemTeamType != SystemTeamType.None)
+            throw new InvalidOperationException("Rotas cannot be moved to system teams.");
+        if (rota.TeamId == targetTeamId)
+            throw new InvalidOperationException("Rota is already in this team.");
+
+        var oldTeamName = rota.Team.Name;
+        rota.TeamId = targetTeamId;
+        rota.UpdatedAt = _clock.GetCurrentInstant();
+
+        await _auditLogService.LogAsync(
+            AuditAction.RotaMovedToTeam, nameof(Rota), rota.Id,
+            $"Moved rota '{rota.Name}' from '{oldTeamName}' to '{targetTeam.Name}'",
+            actorUserId, actorDisplayName,
+            relatedEntityId: targetTeamId, relatedEntityType: nameof(Team));
+
+        await _dbContext.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Rota {RotaId} '{RotaName}' moved from team '{OldTeam}' to '{NewTeam}' by user {ActorUserId}",
+            rota.Id, rota.Name, oldTeamName, targetTeam.Name, actorUserId);
+    }
+
     public async Task DeleteRotaAsync(Guid rotaId)
     {
         var rota = await _dbContext.Rotas
@@ -279,6 +318,7 @@ public class ShiftManagementService : IShiftManagementService
     {
         return await _dbContext.Rotas
             .Include(r => r.EventSettings)
+            .Include(r => r.Tags)
             .Include(r => r.Shifts)
                 .ThenInclude(s => s.ShiftSignups)
                     .ThenInclude(su => su.User)
@@ -530,6 +570,7 @@ public class ShiftManagementService : IShiftManagementService
             query = _dbContext.Shifts
                 .Include(s => s.Rota).ThenInclude(r => r.Team)
                 .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
+                .Include(s => s.Rota).ThenInclude(r => r.Tags)
                 .Include(s => s.ShiftSignups).ThenInclude(ss => ss.User);
         }
         else
@@ -537,6 +578,7 @@ public class ShiftManagementService : IShiftManagementService
             query = _dbContext.Shifts
                 .Include(s => s.Rota).ThenInclude(r => r.Team)
                 .Include(s => s.Rota).ThenInclude(r => r.EventSettings)
+                .Include(s => s.Rota).ThenInclude(r => r.Tags)
                 .Include(s => s.ShiftSignups);
         }
 
@@ -709,5 +751,130 @@ public class ShiftManagementService : IShiftManagementService
             .ToListAsync();
 
         return teams.Select(x => (x.Id, x.Name)).ToList();
+    }
+
+    // ============================================================
+    // Shift Tags
+    // ============================================================
+
+    public async Task<IReadOnlyList<ShiftTag>> GetAllTagsAsync()
+    {
+        return await _dbContext.ShiftTags
+            .AsNoTracking()
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<ShiftTag>> SearchTagsAsync(string query)
+    {
+        return await _dbContext.ShiftTags
+            .AsNoTracking()
+            .Where(t => EF.Functions.ILike(t.Name, $"%{query}%"))
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+    }
+
+    public async Task<ShiftTag> GetOrCreateTagAsync(string name)
+    {
+        var trimmed = name.Trim();
+        var existing = await _dbContext.ShiftTags
+            .FirstOrDefaultAsync(t => EF.Functions.ILike(t.Name, trimmed));
+
+        if (existing is not null)
+            return existing;
+
+        var tag = new ShiftTag
+        {
+            Id = Guid.NewGuid(),
+            Name = trimmed
+        };
+        _dbContext.ShiftTags.Add(tag);
+        await _dbContext.SaveChangesAsync();
+        return tag;
+    }
+
+    public async Task SetRotaTagsAsync(Guid rotaId, IReadOnlyList<Guid> tagIds)
+    {
+        var rota = await _dbContext.Rotas
+            .Include(r => r.Tags)
+            .FirstOrDefaultAsync(r => r.Id == rotaId);
+
+        if (rota is null) return;
+
+        rota.Tags.Clear();
+
+        if (tagIds.Count > 0)
+        {
+            var tags = await _dbContext.ShiftTags
+                .Where(t => tagIds.Contains(t.Id))
+                .ToListAsync();
+
+            foreach (var tag in tags)
+            {
+                rota.Tags.Add(tag);
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task<IReadOnlyList<ShiftTag>> GetVolunteerTagPreferencesAsync(Guid userId)
+    {
+        return await _dbContext.VolunteerTagPreferences
+            .AsNoTracking()
+            .Where(v => v.UserId == userId)
+            .Select(v => v.ShiftTag)
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+    }
+
+    public async Task SetVolunteerTagPreferencesAsync(Guid userId, IReadOnlyList<Guid> tagIds)
+    {
+        var existing = await _dbContext.VolunteerTagPreferences
+            .Where(v => v.UserId == userId)
+            .ToListAsync();
+
+        _dbContext.VolunteerTagPreferences.RemoveRange(existing);
+
+        foreach (var tagId in tagIds)
+        {
+            _dbContext.VolunteerTagPreferences.Add(new VolunteerTagPreference
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                ShiftTagId = tagId
+            });
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, int>> GetPendingShiftSignupCountsByTeamAsync(
+        Guid eventSettingsId,
+        CancellationToken cancellationToken = default)
+    {
+        var activeEventId = await _dbContext.EventSettings
+            .Where(e => e.IsActive && e.Id == eventSettingsId)
+            .OrderBy(e => e.Id)
+            .Select(e => e.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (activeEventId == Guid.Empty)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        return await (
+            from rota in _dbContext.Rotas
+            where rota.EventSettingsId == activeEventId
+            join shift in _dbContext.Shifts on rota.Id equals shift.RotaId
+            join signup in _dbContext.ShiftSignups on shift.Id equals signup.ShiftId
+            where signup.Status == SignupStatus.Pending
+            select new { rota.TeamId, BlockKey = signup.SignupBlockId ?? signup.Id }
+        )
+        .Distinct()
+        .GroupBy(x => x.TeamId)
+        .Select(g => new { TeamId = g.Key, Count = g.Count() })
+        .ToDictionaryAsync(x => x.TeamId, x => x.Count, cancellationToken);
     }
 }

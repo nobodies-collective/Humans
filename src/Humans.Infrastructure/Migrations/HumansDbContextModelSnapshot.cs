@@ -502,6 +502,12 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Instant?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -1953,6 +1959,68 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("shift_signups", (string)null);
                 });
 
+            modelBuilder.Entity("Humans.Domain.Entities.ShiftTag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_shift_tags_name_unique");
+
+                    b.ToTable("shift_tags", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0003-000000000001"),
+                            Name = "Heavy lifting"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0003-000000000002"),
+                            Name = "Working in the sun"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0003-000000000003"),
+                            Name = "Working in the shade"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0003-000000000004"),
+                            Name = "Organisational task"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0003-000000000005"),
+                            Name = "Meeting new people"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0003-000000000006"),
+                            Name = "Looking after folks"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0003-000000000007"),
+                            Name = "Exploring the site"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0003-000000000008"),
+                            Name = "Feeding and hydrating folks"
+                        });
+                });
+
             modelBuilder.Entity("Humans.Domain.Entities.SyncServiceSettings", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2395,6 +2463,11 @@ namespace Humans.Infrastructure.Migrations
 
                     b.Property<bool>("IsManagement")
                         .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPublic")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -2904,6 +2977,31 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("volunteer_history_entries", (string)null);
                 });
 
+            modelBuilder.Entity("Humans.Domain.Entities.VolunteerTagPreference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ShiftTagId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftTagId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "ShiftTagId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_volunteer_tag_preferences_user_tag_unique");
+
+                    b.ToTable("volunteer_tag_preferences", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
                 {
                     b.Property<int>("Id")
@@ -3051,6 +3149,21 @@ namespace Humans.Infrastructure.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("user_tokens", (string)null);
+                });
+
+            modelBuilder.Entity("RotaShiftTag", b =>
+                {
+                    b.Property<Guid>("RotaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ShiftTagId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("RotaId", "ShiftTagId");
+
+                    b.HasIndex("ShiftTagId");
+
+                    b.ToTable("rota_shift_tags", (string)null);
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.AccountMergeRequest", b =>
@@ -3781,6 +3894,25 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("Profile");
                 });
 
+            modelBuilder.Entity("Humans.Domain.Entities.VolunteerTagPreference", b =>
+                {
+                    b.HasOne("Humans.Domain.Entities.ShiftTag", "ShiftTag")
+                        .WithMany("VolunteerPreferences")
+                        .HasForeignKey("ShiftTagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Humans.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ShiftTag");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -3828,6 +3960,21 @@ namespace Humans.Infrastructure.Migrations
                     b.HasOne("Humans.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RotaShiftTag", b =>
+                {
+                    b.HasOne("Humans.Domain.Entities.Rota", null)
+                        .WithMany()
+                        .HasForeignKey("RotaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Humans.Domain.Entities.ShiftTag", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftTagId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -3919,6 +4066,11 @@ namespace Humans.Infrastructure.Migrations
             modelBuilder.Entity("Humans.Domain.Entities.Shift", b =>
                 {
                     b.Navigation("ShiftSignups");
+                });
+
+            modelBuilder.Entity("Humans.Domain.Entities.ShiftTag", b =>
+                {
+                    b.Navigation("VolunteerPreferences");
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.Team", b =>

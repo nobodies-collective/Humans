@@ -1277,7 +1277,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         var existingActiveByEmail = await _dbContext.GoogleResources
             .Include(r => r.Team)
             .Where(r => r.IsActive && r.ResourceType == GoogleResourceType.Group)
-            .Where(r => r.Url != null && r.Url.EndsWith($"/g/{team.GoogleGroupPrefix}"))
+            .Where(r => r.Url != null && EF.Functions.ILike(r.Url!, expectedUrl))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (existingActiveByEmail is not null)
@@ -1291,7 +1291,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         // Check for inactive resource for this team (reactivation scenario) BEFORE deactivating anything
         var inactiveForTeam = await _dbContext.GoogleResources
             .Where(r => !r.IsActive && r.ResourceType == GoogleResourceType.Group && r.TeamId == teamId)
-            .Where(r => r.Url != null && r.Url.EndsWith($"/g/{team.GoogleGroupPrefix}"))
+            .Where(r => r.Url != null && EF.Functions.ILike(r.Url!, expectedUrl))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (inactiveForTeam is not null && !confirmReactivation)
@@ -1817,21 +1817,13 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                         Add("MaxMessageBytes", actual.MaxMessageBytes?.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
                         // Compare against expected (only the enforced settings)
-                        CompareGroupSetting(drifts, "WhoCanJoin", _settings.Groups.WhoCanJoin, actual.WhoCanJoin);
-                        CompareGroupSetting(drifts, "WhoCanViewMembership", _settings.Groups.WhoCanViewMembership, actual.WhoCanViewMembership);
-                        CompareGroupSetting(drifts, "WhoCanContactOwner", _settings.Groups.WhoCanContactOwner, actual.WhoCanContactOwner);
-                        CompareGroupSetting(drifts, "WhoCanPostMessage", _settings.Groups.WhoCanPostMessage, actual.WhoCanPostMessage);
-                        CompareGroupSetting(drifts, "WhoCanViewGroup", _settings.Groups.WhoCanViewGroup, actual.WhoCanViewGroup);
-                        CompareGroupSetting(drifts, "WhoCanModerateMembers", _settings.Groups.WhoCanModerateMembers, actual.WhoCanModerateMembers);
-                        CompareGroupSetting(drifts, "AllowExternalMembers",
-                            _settings.Groups.AllowExternalMembers ? "true" : "false", actual.AllowExternalMembers);
-                        CompareGroupSetting(drifts, "IsArchived", "true", actual.IsArchived);
-                        CompareGroupSetting(drifts, "MembersCanPostAsTheGroup", "true", actual.MembersCanPostAsTheGroup);
-                        CompareGroupSetting(drifts, "IncludeInGlobalAddressList", "true", actual.IncludeInGlobalAddressList);
-                        CompareGroupSetting(drifts, "AllowWebPosting", "true", actual.AllowWebPosting);
-                        CompareGroupSetting(drifts, "MessageModerationLevel", "MODERATE_NONE", actual.MessageModerationLevel);
-                        CompareGroupSetting(drifts, "SpamModerationLevel", "MODERATE", actual.SpamModerationLevel);
-                        CompareGroupSetting(drifts, "EnableCollaborativeInbox", "false", actual.EnableCollaborativeInbox);
+                        // Uses the shared expectedSettings dictionary so creation, detection,
+                        // and remediation all agree on the same source of truth.
+                        foreach (var (key, expectedValue) in expectedSettings)
+                        {
+                            actualSettings.TryGetValue(key, out var actualValue);
+                            CompareGroupSetting(drifts, key, expectedValue, actualValue);
+                        }
                     }
                     catch (Google.GoogleApiException ex)
                     {

@@ -112,6 +112,11 @@ public class TeamMemberViewModel
     public bool IsCoordinator { get; set; }
 
     /// <summary>
+    /// The @nobodies.team email address if provisioned, or null.
+    /// </summary>
+    public string? NobodiesTeamEmail { get; set; }
+
+    /// <summary>
     /// The effective profile picture URL (custom upload takes priority over Google avatar).
     /// </summary>
     public string? EffectiveProfilePictureUrl => HasCustomProfilePicture
@@ -252,6 +257,7 @@ public class TeamMembersViewModel
     public List<TeamMemberViewModel> Members { get; set; } = [];
     public List<TeamJoinRequestViewModel> PendingRequests { get; set; } = [];
     public bool CanManageRoles { get; set; }
+    public bool CanProvisionEmails { get; set; }
 }
 
 public class BirthdayCalendarViewModel
@@ -307,6 +313,7 @@ public class TeamRoleDefinitionViewModel
     public int SlotCount { get; set; }
     public List<TeamRoleSlotViewModel> Slots { get; set; } = [];
     public int SortOrder { get; set; }
+    public bool IsPublic { get; set; } = true;
     public bool IsManagement { get; set; }
     public RolePeriod Period { get; set; }
 
@@ -353,6 +360,7 @@ public class TeamRoleDefinitionViewModel
             SlotCount = d.SlotCount,
             Slots = slots,
             SortOrder = d.SortOrder,
+            IsPublic = d.IsPublic,
             IsManagement = d.IsManagement,
             Period = d.Period,
             AssignedUserIds = assignedUserIds
@@ -393,6 +401,7 @@ public class CreateRoleDefinitionModel
     public int SlotCount { get; set; } = 1;
     public List<string> Priorities { get; set; } = ["None"];
     public int SortOrder { get; set; }
+    public bool IsPublic { get; set; } = true;
     public RolePeriod Period { get; set; } = RolePeriod.YearRound;
 }
 
@@ -405,6 +414,7 @@ public class EditRoleDefinitionModel
     public int SlotCount { get; set; }
     public List<string> Priorities { get; set; } = [];
     public int SortOrder { get; set; }
+    public bool IsPublic { get; set; } = true;
     public bool IsManagement { get; set; }
     public RolePeriod Period { get; set; } = RolePeriod.YearRound;
 }

@@ -3,6 +3,7 @@ using Humans.Application.Interfaces;
 using Humans.Application;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Domain.Helpers;
 using Humans.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -113,7 +114,7 @@ public class TicketSyncService : ITicketSyncService
             await _dbContext.SaveChangesAsync(ct);
 
             // Dashboard event summary is cached separately; refresh it after successful sync.
-            _cache.Remove(CacheKeys.TicketEventSummary);
+            _cache.Remove(CacheKeys.TicketEventSummary(eventId));
 
             var result = new TicketSyncResult(ordersSynced, attendeesSynced,
                 ordersMatched, attendeesMatched, codesRedeemed);
@@ -125,6 +126,20 @@ public class TicketSyncService : ITicketSyncService
                 result.OrdersMatched, result.AttendeesMatched, result.CodesRedeemed);
 
             return result;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is null || (int)ex.StatusCode >= 500)
+        {
+            // Transient HTTP errors (network failures, 5xx responses) — expected.
+            // Log concisely (no stack trace), preserve LastSyncAt, retry next run.
+            _logger.LogWarning(
+                "Ticket sync: TicketTailor returned {StatusCode} for event {EventId}, will retry next run",
+                (int?)ex.StatusCode, eventId);
+
+            syncState.SyncStatus = TicketSyncStatus.Idle;
+            syncState.StatusChangedAt = _clock.GetCurrentInstant();
+            await _dbContext.SaveChangesAsync(CancellationToken.None);
+
+            return new TicketSyncResult(0, 0, 0, 0, 0);
         }
         catch (Exception ex)
         {
@@ -142,14 +157,14 @@ public class TicketSyncService : ITicketSyncService
     private async Task<Dictionary<string, Guid>> BuildEmailLookupAsync(CancellationToken ct)
     {
         // Match against ALL user emails (OAuth, verified, unverified)
-        // Case-insensitive via OrdinalIgnoreCase dictionary and GroupBy
+        // Normalize for comparison so gmail/googlemail aliases resolve to the same human.
         // If multiple users share same email, prefer the one where it's the OAuth email
         var userEmails = await _dbContext.Set<UserEmail>()
             .Select(ue => new { ue.Email, ue.UserId, ue.IsOAuth })
             .ToListAsync(ct);
 
-        var lookup = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-        var grouped = userEmails.GroupBy(e => e.Email, StringComparer.OrdinalIgnoreCase);
+        var lookup = new Dictionary<string, Guid>(NormalizingEmailComparer.Instance);
+        var grouped = userEmails.GroupBy(e => e.Email, NormalizingEmailComparer.Instance);
         foreach (var group in grouped)
         {
             var entries = group.ToList();
@@ -368,7 +383,9 @@ public class TicketSyncService : ITicketSyncService
     }
 
     private static Guid? LookupUserId(Dictionary<string, Guid> lookup, string? email) =>
-        email is not null && lookup.TryGetValue(email, out var userId) ? userId : null;
+        email is not null && lookup.TryGetValue(EmailNormalization.NormalizeForComparison(email), out var userId)
+            ? userId
+            : null;
 
     private TicketPaymentStatus ParsePaymentStatus(string status)
     {
@@ -390,12 +407,23 @@ public class TicketSyncService : ITicketSyncService
         return result;
     }
 
-    private static TicketAttendeeStatus ParseAttendeeStatus(string status) =>
-        status.ToLowerInvariant() switch
+    private TicketAttendeeStatus ParseAttendeeStatus(string status)
+    {
+        var result = status.ToLowerInvariant() switch
         {
             "valid" or "active" => TicketAttendeeStatus.Valid,
             "void" or "voided" => TicketAttendeeStatus.Void,
             "checked_in" => TicketAttendeeStatus.CheckedIn,
-            _ => TicketAttendeeStatus.Valid
+            _ => TicketAttendeeStatus.Void
         };
+
+        if (result == TicketAttendeeStatus.Void &&
+            !string.Equals(status, "void", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(status, "voided", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Unknown attendee status '{Status}' from vendor, defaulting to Void", status);
+        }
+
+        return result;
+    }
 }

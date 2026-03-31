@@ -75,6 +75,12 @@ public interface IShiftManagementService
     Task UpdateRotaAsync(Rota rota);
 
     /// <summary>
+    /// Moves a rota to a different department (parent team).
+    /// Preserves all shifts and signups. Records an audit log entry.
+    /// </summary>
+    Task MoveRotaToTeamAsync(Guid rotaId, Guid targetTeamId, Guid actorUserId, string actorDisplayName);
+
+    /// <summary>
     /// Deletes a rota. Throws if child shifts have confirmed signups.
     /// </summary>
     Task DeleteRotaAsync(Guid rotaId);
@@ -179,6 +185,45 @@ public interface IShiftManagementService
     /// </summary>
     Task<IReadOnlyList<(Guid TeamId, string TeamName)>> GetDepartmentsWithRotasAsync(
         Guid eventSettingsId);
+
+    // === Shift Tags ===
+
+    /// <summary>
+    /// Gets all shift tags, ordered by name.
+    /// </summary>
+    Task<IReadOnlyList<ShiftTag>> GetAllTagsAsync();
+
+    /// <summary>
+    /// Searches tags by name (case-insensitive prefix/contains).
+    /// </summary>
+    Task<IReadOnlyList<ShiftTag>> SearchTagsAsync(string query);
+
+    /// <summary>
+    /// Gets or creates a tag by name. Returns existing if name already exists (case-insensitive).
+    /// </summary>
+    Task<ShiftTag> GetOrCreateTagAsync(string name);
+
+    /// <summary>
+    /// Sets the tags for a rota, replacing any existing tags.
+    /// </summary>
+    Task SetRotaTagsAsync(Guid rotaId, IReadOnlyList<Guid> tagIds);
+
+    /// <summary>
+    /// Gets a volunteer's tag preferences.
+    /// </summary>
+    Task<IReadOnlyList<ShiftTag>> GetVolunteerTagPreferencesAsync(Guid userId);
+
+    /// <summary>
+    /// Sets a volunteer's tag preferences, replacing any existing ones.
+    /// </summary>
+    Task SetVolunteerTagPreferencesAsync(Guid userId, IReadOnlyList<Guid> tagIds);
+
+    /// <summary>
+    /// Gets the number of distinct pending shift signups per team for an event.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, int>> GetPendingShiftSignupCountsByTeamAsync(
+        Guid eventSettingsId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
