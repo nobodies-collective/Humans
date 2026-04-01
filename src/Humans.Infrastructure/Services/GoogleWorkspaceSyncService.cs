@@ -535,6 +535,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         {
             var createReq = drive.Permissions.Create(permission, resource.GoogleId);
             createReq.SupportsAllDrives = true;
+            createReq.SendNotificationEmail = false;
             await createReq.ExecuteAsync(cancellationToken);
 
             await _auditLogService.LogGoogleSyncAsync(
