@@ -295,6 +295,86 @@ public class NotificationController : HumansControllerBase
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpPost("BulkResolve")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BulkResolve(List<Guid> selectedIds)
+    {
+        var (err, user) = await RequireCurrentUserAsync();
+        if (err is not null) return err;
+
+        if (selectedIds.Count == 0)
+            return RedirectToAction(nameof(Index));
+
+        var now = _clock.GetCurrentInstant();
+
+        var notifications = await _dbContext.Notifications
+            .Include(n => n.Recipients)
+            .Where(n => selectedIds.Contains(n.Id) &&
+                        n.Class == NotificationClass.Actionable &&
+                        n.ResolvedAt == null)
+            .ToListAsync();
+
+        foreach (var notification in notifications)
+        {
+            if (notification.Recipients.Any(r => r.UserId == user.Id))
+            {
+                notification.ResolvedAt = now;
+                notification.ResolvedByUserId = user.Id;
+            }
+        }
+
+        if (notifications.Count > 0)
+        {
+            await _dbContext.SaveChangesAsync();
+            _cache.Remove(CacheKeys.NavBadgeCounts);
+        }
+
+        if (Request.Headers.XRequestedWith == "XMLHttpRequest")
+            return Ok();
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("BulkDismiss")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BulkDismiss(List<Guid> selectedIds)
+    {
+        var (err, user) = await RequireCurrentUserAsync();
+        if (err is not null) return err;
+
+        if (selectedIds.Count == 0)
+            return RedirectToAction(nameof(Index));
+
+        var now = _clock.GetCurrentInstant();
+
+        var notifications = await _dbContext.Notifications
+            .Include(n => n.Recipients)
+            .Where(n => selectedIds.Contains(n.Id) &&
+                        n.Class == NotificationClass.Informational &&
+                        n.ResolvedAt == null)
+            .ToListAsync();
+
+        foreach (var notification in notifications)
+        {
+            if (notification.Recipients.Any(r => r.UserId == user.Id))
+            {
+                notification.ResolvedAt = now;
+                notification.ResolvedByUserId = user.Id;
+            }
+        }
+
+        if (notifications.Count > 0)
+        {
+            await _dbContext.SaveChangesAsync();
+            _cache.Remove(CacheKeys.NavBadgeCounts);
+        }
+
+        if (Request.Headers.XRequestedWith == "XMLHttpRequest")
+            return Ok();
+
+        return RedirectToAction(nameof(Index));
+    }
+
     [HttpGet("ClickThrough/{id}")]
     public async Task<IActionResult> ClickThrough(Guid id)
     {

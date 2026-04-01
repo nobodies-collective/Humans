@@ -1196,6 +1196,42 @@ tr[data-href] {
     font-size: 2.5rem;
 }
 
+/* --- Bulk Actions --- */
+.notification-bulk-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    background-color: var(--h-parchment);
+    border: 1px solid var(--h-border);
+    border-radius: var(--h-radius);
+}
+
+.notification-bulk-count {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--h-sepia);
+}
+
+.notification-checkbox-col {
+    padding: 0.6rem 0.5rem 0.6rem 0.75rem;
+    display: flex;
+    align-items: flex-start;
+    flex-shrink: 0;
+}
+
+.notification-row-wrapper {
+    border-bottom: 1px solid var(--h-border-light);
+}
+
+.notification-row-wrapper:last-child {
+    border-bottom: none;
+}
+
+.notification-row-wrapper .notification-row {
+    border-bottom: none;
+}
+
 /* --- Mobile (< 576px) --- */
 @media (max-width: 575.98px) {
     .notification-popup {
