@@ -48,6 +48,7 @@ public class TeamServiceTests : IDisposable
             _dbContext,
             Substitute.For<IAuditLogService>(),
             Substitute.For<IEmailService>(),
+            Substitute.For<INotificationService>(),
             _roleAssignmentService,
             shiftManagementService,
             _clock,

@@ -13,5 +13,6 @@ public class CategoryPreferenceItem
     public string DisplayName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool OptedOut { get; set; }
+    public bool InboxEnabled { get; set; } = true;
     public bool IsEditable { get; set; }
 }

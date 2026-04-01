@@ -901,7 +901,7 @@ public class ProfileController : HumansControllerBase
                     continue;
 
                 await _commPrefService.UpdatePreferenceAsync(
-                    user.Id, item.Category, item.OptedOut, "Profile");
+                    user.Id, item.Category, item.OptedOut, item.InboxEnabled, "Profile");
             }
 
             SetSuccess(_localizer["Profile_Updated"].Value);
@@ -927,6 +927,7 @@ public class ProfileController : HumansControllerBase
                 DisplayName = p.Category.ToDisplayName(),
                 Description = p.Category.ToDescription(),
                 OptedOut = p.OptedOut,
+                InboxEnabled = p.InboxEnabled,
                 IsEditable = p.Category != MessageCategory.System,
             }).ToList()
         };

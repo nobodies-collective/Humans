@@ -160,6 +160,63 @@ public class CommunicationPreferenceService : ICommunicationPreferenceService
             userId, category, optedOut, source);
     }
 
+    public async Task UpdatePreferenceAsync(
+        Guid userId, MessageCategory category, bool optedOut, bool inboxEnabled, string source,
+        CancellationToken cancellationToken = default)
+    {
+        // System messages cannot be opted out of
+        if (category == MessageCategory.System)
+        {
+            _logger.LogWarning("Attempted to change System preference for user {UserId} — ignored", userId);
+            return;
+        }
+
+        var now = _clock.GetCurrentInstant();
+
+        var pref = await _db.CommunicationPreferences
+            .FirstOrDefaultAsync(
+                cp => cp.UserId == userId && cp.Category == category,
+                cancellationToken);
+
+        if (pref is null)
+        {
+            pref = new CommunicationPreference
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Category = category,
+                OptedOut = optedOut,
+                InboxEnabled = inboxEnabled,
+                UpdatedAt = now,
+                UpdateSource = source,
+            };
+            _db.CommunicationPreferences.Add(pref);
+        }
+        else
+        {
+            if (pref.OptedOut == optedOut && pref.InboxEnabled == inboxEnabled)
+                return; // idempotent — no change needed
+
+            pref.OptedOut = optedOut;
+            pref.InboxEnabled = inboxEnabled;
+            pref.UpdatedAt = now;
+            pref.UpdateSource = source;
+        }
+
+        var description = $"{category} set to OptedOut={optedOut}, InboxEnabled={inboxEnabled} via {source}";
+
+        await _auditLog.LogAsync(
+            AuditAction.CommunicationPreferenceChanged,
+            "User", userId, description,
+            "CommunicationPreferenceService");
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "User {UserId} communication preference {Category} set to OptedOut={OptedOut}, InboxEnabled={InboxEnabled} via {Source}",
+            userId, category, optedOut, inboxEnabled, source);
+    }
+
     public string GenerateUnsubscribeToken(Guid userId, MessageCategory category)
     {
         var payload = $"{userId}|{category}";

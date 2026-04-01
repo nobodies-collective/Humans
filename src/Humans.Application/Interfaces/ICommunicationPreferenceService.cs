@@ -29,6 +29,14 @@ public interface ICommunicationPreferenceService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Updates opt-out and inbox-enabled status for a specific category. Idempotent.
+    /// Logs an audit entry for compliance.
+    /// </summary>
+    Task UpdatePreferenceAsync(
+        Guid userId, MessageCategory category, bool optedOut, bool inboxEnabled, string source,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Generates a time-limited unsubscribe token encoding userId + category.
     /// Token expires after ~90 days.
     /// </summary>
