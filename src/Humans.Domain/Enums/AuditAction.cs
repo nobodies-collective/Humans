@@ -72,4 +72,5 @@ public enum AuditAction
     CommunicationPreferenceChanged,
     ContactCreated,
     RotaMovedToTeam,
+    GoogleResourceInheritanceDriftCorrected,
 }
