@@ -66,6 +66,9 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
             .IsRequired()
             .HasDefaultValue(true);
 
+        builder.Property(t => t.IsHidden)
+            .IsRequired();
+
         builder.Property(t => t.HasBudget)
             .IsRequired();
 
@@ -147,7 +150,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 CallsToAction = (List<CallToAction>?)null,
                 CustomSlug = (string?)null,
                 ShowCoordinatorsOnPublicPage = true,
-                HasBudget = false
+                HasBudget = false,
+                IsHidden = false
             },
             new
             {
@@ -169,7 +173,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 CallsToAction = (List<CallToAction>?)null,
                 CustomSlug = (string?)null,
                 ShowCoordinatorsOnPublicPage = true,
-                HasBudget = false
+                HasBudget = false,
+                IsHidden = false
             },
             new
             {
@@ -191,7 +196,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 CallsToAction = (List<CallToAction>?)null,
                 CustomSlug = (string?)null,
                 ShowCoordinatorsOnPublicPage = true,
-                HasBudget = false
+                HasBudget = false,
+                IsHidden = false
             },
             new
             {
@@ -213,7 +219,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 CallsToAction = (List<CallToAction>?)null,
                 CustomSlug = (string?)null,
                 ShowCoordinatorsOnPublicPage = true,
-                HasBudget = false
+                HasBudget = false,
+                IsHidden = false
             },
             new
             {
@@ -235,7 +242,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 CallsToAction = (List<CallToAction>?)null,
                 CustomSlug = (string?)null,
                 ShowCoordinatorsOnPublicPage = true,
-                HasBudget = false
+                HasBudget = false,
+                IsHidden = false
             },
             new
             {
@@ -257,7 +265,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 CallsToAction = (List<CallToAction>?)null,
                 CustomSlug = (string?)null,
                 ShowCoordinatorsOnPublicPage = true,
-                HasBudget = false
+                HasBudget = false,
+                IsHidden = false
             });
     }
 }

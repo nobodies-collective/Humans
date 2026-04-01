@@ -67,6 +67,11 @@
                             <label asp-for="HasBudget" class="form-check-label">Include in budget planning</label>
                             <div class="form-text">When enabled, this team gets a budget category under the Departments group when a new budget year is created.</div>
                         </div>
+                        <div class="mb-3 form-check">
+                            <input asp-for="IsHidden" type="checkbox" class="form-check-input" />
+                            <label asp-for="IsHidden" class="form-check-label">Hidden team</label>
+                            <div class="form-text">Hidden teams are not visible on profile cards, team listings, or public pages. They can still be targeted by campaigns.</div>
+                        </div>
                     }
 
                     <div class="d-flex gap-2">

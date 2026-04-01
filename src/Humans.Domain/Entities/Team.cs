@@ -107,6 +107,13 @@ public class Team
     public List<CallToAction>? CallsToAction { get; set; }
 
     /// <summary>
+    /// Whether this team is hidden from non-admin users.
+    /// Hidden teams do not appear on profile cards, team listings, or public pages,
+    /// but can still be targeted by campaigns and managed by admins.
+    /// </summary>
+    public bool IsHidden { get; set; }
+
+    /// <summary>
     /// Whether this team participates in budget planning.
     /// When true, a BudgetCategory is auto-created under the Departments group on budget year creation.
     /// </summary>

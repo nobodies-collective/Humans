@@ -31,6 +31,7 @@
 - Each team has a unique slug used for URL routing. A custom slug can override the auto-generated one.
 - A Google Group prefix, if set, provisions a @nobodies.team group for the team.
 - Only departments (not sub-teams or system teams) can have public team pages.
+- A **hidden team** (`IsHidden = true`) is invisible to non-admin users: it does not appear on profile cards, team directory, My Teams, or team detail pages. Hidden teams remain fully visible and manageable by Admin and TeamsAdmin. Campaigns can target hidden teams for code distribution.
 
 ## Negative Access Rules
 

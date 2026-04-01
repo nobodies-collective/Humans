@@ -153,6 +153,7 @@ Team
 ├── GoogleGroupPrefix: string? (100) [email prefix before @nobodies.team]
 ├── CreatedAt: Instant
 ├── UpdatedAt: Instant
+├── IsHidden: bool [default false, hidden from non-admin users when true]
 ├── IsPublicPage: bool [default false, opt-in public visibility]
 ├── PageContent: string? (50000) [markdown content for public page]
 ├── PageContentUpdatedAt: Instant? [last edit timestamp]

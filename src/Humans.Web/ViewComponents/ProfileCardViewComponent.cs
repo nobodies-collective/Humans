@@ -108,10 +108,10 @@ public class ProfileCardViewComponent : ViewComponent
             ? await _volunteerHistoryService.GetAllAsync(profile.Id)
             : [];
 
-        // Get user's teams (excluding Volunteers system team)
+        // Get user's teams (excluding Volunteers system team and hidden teams)
         var userTeams = await _teamService.GetUserTeamsAsync(userId);
         var displayableTeams = userTeams
-            .Where(tm => tm.Team.SystemTeamType != SystemTeamType.Volunteers)
+            .Where(tm => tm.Team.SystemTeamType != SystemTeamType.Volunteers && !tm.Team.IsHidden)
             .OrderBy(tm => tm.Team.Name, StringComparer.Ordinal)
             .Select(tm => new TeamMembershipViewModel
             {

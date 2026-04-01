@@ -215,6 +215,7 @@ public class EditTeamViewModel : TeamFormViewModelBase
     public bool IsActive { get; set; }
     public bool IsSystemTeam { get; set; }
     public bool HasBudget { get; set; }
+    public bool IsHidden { get; set; }
 }
 
 public class EditTeamPageViewModel

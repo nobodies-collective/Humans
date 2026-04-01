@@ -55,6 +55,7 @@ public class TeamService : ITeamService
         bool requiresApproval,
         Guid? parentTeamId = null,
         string? googleGroupPrefix = null,
+        bool isHidden = false,
         CancellationToken cancellationToken = default)
     {
         var baseSlug = Helpers.SlugHelper.GenerateSlug(name);
@@ -98,6 +99,7 @@ public class TeamService : ITeamService
                 Slug = slug,
                 IsActive = true,
                 RequiresApproval = requiresApproval,
+                IsHidden = isHidden,
                 ParentTeamId = parentTeamId,
                 GoogleGroupPrefix = googleGroupPrefix,
                 SystemTeamType = SystemTeamType.None,
@@ -122,7 +124,7 @@ public class TeamService : ITeamService
                 }
 
                 UpsertCachedTeam(new CachedTeam(team.Id, team.Name, team.Description, team.Slug,
-                    team.IsSystemTeam, team.SystemTeamType, team.RequiresApproval, team.IsPublicPage, team.CreatedAt, [],
+                    team.IsSystemTeam, team.SystemTeamType, team.RequiresApproval, team.IsPublicPage, team.IsHidden, team.CreatedAt, [],
                     ParentTeamId: parentTeamId));
                 _logger.LogInformation("Created team {TeamName} with slug {Slug}", name, slug);
                 return team;
@@ -192,7 +194,7 @@ public class TeamService : ITeamService
         if (!userId.HasValue)
         {
             var publicDepartments = cachedTeams.Values
-                .Where(t => t.IsPublicPage && !t.IsSystemTeam && t.ParentTeamId is null)
+                .Where(t => t.IsPublicPage && !t.IsSystemTeam && !t.IsHidden && t.ParentTeamId is null)
                 .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(t => CreateDirectorySummary(t, cachedTeams, userId))
                 .ToList();
@@ -211,6 +213,7 @@ public class TeamService : ITeamService
             await _roleAssignmentService.IsUserTeamsAdminAsync(userId.Value, cancellationToken);
 
         var summaries = cachedTeams.Values
+            .Where(t => !t.IsHidden)
             .Select(t => CreateDirectorySummary(t, cachedTeams, userId))
             .ToList();
 
@@ -251,6 +254,18 @@ public class TeamService : ITeamService
         if (!userId.HasValue && !team.IsPublicPage)
         {
             return null;
+        }
+
+        // Hidden teams are not visible to non-admin users
+        if (team.IsHidden)
+        {
+            if (!userId.HasValue)
+                return null;
+
+            var viewerIsAdmin = await _roleAssignmentService.IsUserAdminAsync(userId.Value, cancellationToken) ||
+                await _roleAssignmentService.IsUserTeamsAdminAsync(userId.Value, cancellationToken);
+            if (!viewerIsAdmin)
+                return null;
         }
 
         var activeMembers = team.Members
@@ -363,6 +378,7 @@ public class TeamService : ITeamService
             : new Dictionary<Guid, int>();
 
         return memberships
+            .Where(m => !m.Team.IsHidden)
             .Select(m =>
             {
                 var directCount = pendingCounts.GetValueOrDefault(m.TeamId, 0);
@@ -397,6 +413,7 @@ public class TeamService : ITeamService
         string? googleGroupPrefix = null,
         string? customSlug = null,
         bool? hasBudget = null,
+        bool? isHidden = null,
         CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams.FindAsync(new object[] { teamId }, cancellationToken)
@@ -487,6 +504,8 @@ public class TeamService : ITeamService
         team.CustomSlug = customSlug;
         if (hasBudget.HasValue)
             team.HasBudget = hasBudget.Value;
+        if (isHidden.HasValue)
+            team.IsHidden = isHidden.Value;
         team.UpdatedAt = _clock.GetCurrentInstant();
 
         if (becomingChild)
@@ -1993,6 +2012,7 @@ public class TeamService : ITeamService
         SystemTeamType: team.SystemTeamType,
         RequiresApproval: team.RequiresApproval,
         IsPublicPage: team.IsPublicPage,
+        IsHidden: team.IsHidden,
         CreatedAt: team.CreatedAt,
         Members: team.Members
             .Where(m => m.LeftAt is null)
