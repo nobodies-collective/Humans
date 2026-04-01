@@ -5,7 +5,7 @@
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-controller="Admin" asp-action="Index">Admin</a></li>
+        <li class="breadcrumb-item"><a asp-action="Index">Google</a></li>
         <li class="breadcrumb-item active" aria-current="page">@@nobodies.team Accounts</li>
     </ol>
 </nav>
@@ -23,7 +23,7 @@
     <div class="card">
         <div class="card-header">Provision New Account</div>
         <div class="card-body">
-            <form asp-action="Provision" method="post" class="row g-3 align-items-end">
+            <form asp-action="ProvisionAccount" method="post" class="row g-3 align-items-end">
                 @Html.AntiForgeryToken()
                 <div class="col-md-3">
                     <label class="form-label">Email Prefix</label>
@@ -148,7 +148,7 @@
                                 }
                                 else
                                 {
-                                    <form asp-action="Link" method="post" class="d-flex align-items-center gap-2 link-form">
+                                    <form asp-action="LinkAccount" method="post" class="d-flex align-items-center gap-2 link-form">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="email" value="@account.PrimaryEmail" />
                                         <input type="hidden" name="userId" class="link-userId" />

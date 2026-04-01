@@ -431,6 +431,12 @@ public class TeamController : HumansControllerBase
             return RedirectToAction(nameof(Details), new { slug });
         }
 
+        // Hidden teams cannot be joined by non-admin users
+        if (team.IsHidden && !RoleChecks.IsTeamsAdminBoardOrAdmin(User))
+        {
+            return NotFound();
+        }
+
         var isMember = await _teamService.IsUserMemberOfTeamAsync(team.Id, user.Id);
         if (isMember)
         {
@@ -558,43 +564,6 @@ public class TeamController : HumansControllerBase
         return RedirectToAction(nameof(MyTeams));
     }
 
-    [HttpGet("Sync")]
-    [Authorize(Roles = RoleGroups.TeamsAdminBoardOrAdmin)]
-    public IActionResult Sync()
-    {
-        var viewModel = new TeamSyncViewModel
-        {
-            CanExecuteActions = RoleChecks.IsAdmin(User)
-        };
-        return View(viewModel);
-    }
-
-    [HttpGet("Sync/Preview/{resourceType}")]
-    [Authorize(Roles = RoleGroups.TeamsAdminBoardOrAdmin)]
-    public async Task<IActionResult> SyncPreview(GoogleResourceType resourceType)
-    {
-        var result = await _googleSyncService.SyncResourcesByTypeAsync(resourceType, SyncAction.Preview);
-        return Json(result);
-    }
-
-    [HttpPost("Sync/Execute/{resourceId}")]
-    [Authorize(Roles = RoleNames.Admin)]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SyncExecute(Guid resourceId)
-    {
-        var result = await _googleSyncService.SyncSingleResourceAsync(resourceId, SyncAction.Execute);
-        return Json(result);
-    }
-
-    [HttpPost("Sync/ExecuteAll/{resourceType}")]
-    [Authorize(Roles = RoleNames.Admin)]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SyncExecuteAll(GoogleResourceType resourceType)
-    {
-        var result = await _googleSyncService.SyncResourcesByTypeAsync(resourceType, SyncAction.Execute);
-        return Json(result);
-    }
-
     [HttpGet("Summary")]
     [Authorize(Roles = RoleGroups.TeamsAdminBoardOrAdmin)]
     public async Task<IActionResult> Summary()
@@ -633,7 +602,7 @@ public class TeamController : HumansControllerBase
 
         try
         {
-            var team = await _teamService.CreateTeamAsync(model.Name, model.Description, model.RequiresApproval, model.ParentTeamId, model.GoogleGroupPrefix);
+            var team = await _teamService.CreateTeamAsync(model.Name, model.Description, model.RequiresApproval, model.ParentTeamId, model.GoogleGroupPrefix, model.IsHidden);
             var currentUser = await GetCurrentUserAsync();
             _logger.LogInformation("Admin {AdminId} created team {TeamId} ({TeamName})", currentUser?.Id, team.Id, team.Name);
 
@@ -702,6 +671,7 @@ public class TeamController : HumansControllerBase
             IsActive = team.IsActive,
             IsSystemTeam = team.IsSystemTeam,
             HasBudget = team.HasBudget,
+            IsHidden = team.IsHidden,
             ParentTeamId = team.ParentTeamId,
             EligibleParents = await GetEligibleParentTeamsAsync(excludeTeamId: id, cancellationToken)
         };
@@ -727,7 +697,7 @@ public class TeamController : HumansControllerBase
 
         try
         {
-            await _teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive, model.ParentTeamId, model.GoogleGroupPrefix, model.CustomSlug, model.HasBudget);
+            await _teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive, model.ParentTeamId, model.GoogleGroupPrefix, model.CustomSlug, model.HasBudget, model.IsHidden);
             var currentUser = await GetCurrentUserAsync();
             _logger.LogInformation("Admin {AdminId} updated team {TeamId}", currentUser?.Id, id);
 
@@ -822,7 +792,8 @@ public class TeamController : HumansControllerBase
         RoleSlotCount = team.RoleSlotCount,
         CreatedAt = team.CreatedAt.ToDateTimeUtc(),
         IsChildTeam = team.IsChildTeam,
-        PendingShiftSignupCount = team.PendingShiftSignupCount
+        PendingShiftSignupCount = team.PendingShiftSignupCount,
+        IsHidden = team.IsHidden
     };
 
     private async Task<List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>> GetEligibleParentTeamsAsync(

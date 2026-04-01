@@ -5,7 +5,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Resource Sync Status</h2>
-    <a asp-controller="Team" asp-action="Index" class="btn btn-outline-secondary btn-sm">Back to Teams</a>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">Back to Google</a>
 </div>
 
 <ul class="nav nav-tabs" id="syncTabs" role="tablist">
@@ -71,7 +71,7 @@
         const pane = document.getElementById(paneId);
         pane.innerHTML = '<div class="text-center py-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>';
 
-        fetch('/Teams/Sync/Preview/' + getResourceTypeValue(resourceType))
+        fetch('/Google/Sync/Preview/' + getResourceTypeValue(resourceType))
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 // Sort resources alphabetically
@@ -200,7 +200,7 @@
                 return '<a href="/Teams/' + encodeURIComponent(t.slug) + '" class="badge bg-light text-dark border me-1 text-decoration-none">' + label + '</a>';
             }).join('')
             : '<span class="text-muted">None</span>';
-        const auditUrl = '@Url.Action("GoogleSyncResourceAudit", "Board", new { id = Guid.Empty })'.replace('00000000-0000-0000-0000-000000000000', diff.resourceId);
+        const auditUrl = '@Url.Action("GoogleSyncResourceAudit", "Google", new { id = Guid.Empty })'.replace('00000000-0000-0000-0000-000000000000', diff.resourceId);
         const canViewAudit = @Json.Serialize(Humans.Web.Authorization.RoleChecks.IsAdminOrBoard(User));
         const auditLinkHtml = canViewAudit
             ? '<a class="btn btn-sm btn-outline-secondary" href="' + auditUrl.replace('__RESOURCE_ID__', diff.resourceId) + '">Audit</a>'
@@ -298,7 +298,7 @@
     }
 
     function executeSingle(resourceId, syncAction, resourceType) {
-        fetch('/Teams/Sync/Execute/' + resourceId + '?action=' + syncAction, {
+        fetch('/Google/Sync/Execute/' + resourceId + '?action=' + syncAction, {
             method: 'POST',
             headers: {
                 'RequestVerificationToken': antiForgeryToken,
@@ -319,7 +319,7 @@
 
     function executeAll(resourceType, syncAction) {
         const typeValue = getResourceTypeValue(resourceType);
-        fetch('/Teams/Sync/ExecuteAll/' + typeValue + '?action=' + syncAction, {
+        fetch('/Google/Sync/ExecuteAll/' + typeValue + '?action=' + syncAction, {
             method: 'POST',
             headers: {
                 'RequestVerificationToken': antiForgeryToken,

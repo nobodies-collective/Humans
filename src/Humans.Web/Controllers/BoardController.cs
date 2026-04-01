@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
-using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
 using Humans.Web.Extensions;
 using Humans.Web.Models;
@@ -18,24 +17,18 @@ public class BoardController : HumansControllerBase
 {
     private readonly IAuditLogService _auditLogService;
     private readonly IOnboardingService _onboardingService;
-    private readonly ITeamResourceService _teamResourceService;
     private readonly HumansDbContext _dbContext;
-    private readonly ILogger<BoardController> _logger;
 
     public BoardController(
         IAuditLogService auditLogService,
         IOnboardingService onboardingService,
-        ITeamResourceService teamResourceService,
         UserManager<User> userManager,
-        HumansDbContext dbContext,
-        ILogger<BoardController> logger)
+        HumansDbContext dbContext)
         : base(userManager)
     {
         _auditLogService = auditLogService;
         _onboardingService = onboardingService;
-        _teamResourceService = teamResourceService;
         _dbContext = dbContext;
-        _logger = logger;
     }
 
     [HttpGet("")]
@@ -107,49 +100,4 @@ public class BoardController : HumansControllerBase
 
         return View("~/Views/Shared/AuditLog.cshtml", viewModel);
     }
-
-    [HttpPost("AuditLog/CheckDriveActivity")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CheckDriveActivity(
-        [FromServices] IDriveActivityMonitorService monitorService)
-    {
-        var currentUser = await GetCurrentUserAsync();
-
-        try
-        {
-            var count = await monitorService.CheckForAnomalousActivityAsync();
-            _logger.LogInformation("Board {UserId} triggered manual Drive activity check: {Count} anomalies",
-                currentUser?.Id, count);
-
-            SetSuccess(count > 0
-                ? $"Drive activity check completed: {count} anomalous change(s) detected."
-                : "Drive activity check completed: no anomalies detected.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Manual Drive activity check failed");
-            SetError("Drive activity check failed. Check logs for details.");
-        }
-
-        return RedirectToAction(nameof(AuditLog), new { filter = nameof(AuditAction.AnomalousPermissionDetected) });
-    }
-
-    [HttpGet("GoogleSync/Resource/{id:guid}/Audit")]
-    public async Task<IActionResult> GoogleSyncResourceAudit(Guid id)
-    {
-        var resource = await _teamResourceService.GetResourceByIdAsync(id);
-
-        if (resource is null)
-        {
-            return NotFound();
-        }
-
-        var entries = await _auditLogService.GetByResourceAsync(id);
-        return GoogleSyncAuditView(
-            $"Sync Audit: {resource.Name}",
-            Url.Action(nameof(TeamController.Sync), "Team"),
-            "Back to Sync Status",
-            entries);
-    }
-
 }

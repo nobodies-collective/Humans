@@ -30,7 +30,6 @@ public class HumanController : HumansControllerBase
     private readonly IShiftSignupService _shiftSignupService;
     private readonly IShiftManagementService _shiftMgmt;
     private readonly IUserEmailService _userEmailService;
-    private readonly IEmailProvisioningService _emailProvisioningService;
     private readonly IContactService _contactService;
     private readonly IClock _clock;
     private readonly IStringLocalizer<SharedResource> _localizer;
@@ -47,7 +46,6 @@ public class HumanController : HumansControllerBase
         IShiftSignupService shiftSignupService,
         IShiftManagementService shiftMgmt,
         IUserEmailService userEmailService,
-        IEmailProvisioningService emailProvisioningService,
         IContactService contactService,
         IClock clock,
         IStringLocalizer<SharedResource> localizer,
@@ -64,7 +62,6 @@ public class HumanController : HumansControllerBase
         _shiftSignupService = shiftSignupService;
         _shiftMgmt = shiftMgmt;
         _userEmailService = userEmailService;
-        _emailProvisioningService = emailProvisioningService;
         _contactService = contactService;
         _clock = clock;
         _localizer = localizer;
@@ -73,7 +70,7 @@ public class HumanController : HumansControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> View(Guid id)
+    public async Task<IActionResult> HumanProfile(Guid id)
     {
         var profile = await _profileService.GetProfileAsync(id);
 
@@ -178,7 +175,7 @@ public class HumanController : HumansControllerBase
             return NotFound();
 
         if (currentUser.Id == id)
-            return RedirectToAction(nameof(View), new { id });
+            return RedirectToAction(nameof(HumanProfile), new { id });
 
         var targetUser = await FindUserByIdAsync(id);
         if (targetUser is null)
@@ -202,7 +199,7 @@ public class HumanController : HumansControllerBase
             return NotFound();
 
         if (currentUser.Id == id)
-            return RedirectToAction(nameof(View), new { id });
+            return RedirectToAction(nameof(HumanProfile), new { id });
 
         var targetUser = await _userManager.Users
             .Include(u => u.UserEmails)
@@ -258,7 +255,7 @@ public class HumanController : HumansControllerBase
             _localizer["SendMessage_Success"].Value,
             targetUser.DisplayName));
 
-        return RedirectToAction(nameof(View), new { id });
+        return RedirectToAction(nameof(HumanProfile), new { id });
     }
 
     [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
@@ -324,7 +321,7 @@ public class HumanController : HumansControllerBase
 
     [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
     [HttpGet("{id:guid}/Admin")]
-    public async Task<IActionResult> HumanDetail(Guid id)
+    public async Task<IActionResult> HumanProfileAdmin(Guid id)
     {
         var data = await _profileService.GetAdminHumanDetailAsync(id);
         if (data is null)
@@ -403,40 +400,6 @@ public class HumanController : HumansControllerBase
         return View(viewModel);
     }
 
-    [Authorize(Roles = RoleGroups.HumanAdminOrAdmin)]
-    [HttpPost("{id:guid}/ProvisionEmail")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ProvisionEmail(Guid id, string emailPrefix)
-    {
-        if (string.IsNullOrWhiteSpace(emailPrefix))
-        {
-            SetError("Email prefix is required.");
-            return RedirectToAction(nameof(HumanDetail), new { id });
-        }
-
-        var currentUser = await GetCurrentUserAsync();
-        if (currentUser is null)
-            return NotFound();
-
-        var result = await _emailProvisioningService.ProvisionNobodiesEmailAsync(
-            id, emailPrefix, currentUser.Id, currentUser.DisplayName);
-
-        if (!result.Success)
-        {
-            SetError(result.ErrorMessage ?? "Provisioning failed.");
-        }
-        else if (result.RecoveryEmail is not null)
-        {
-            SetSuccess($"Account {result.FullEmail} provisioned and linked. Credentials sent to {result.RecoveryEmail}.");
-        }
-        else
-        {
-            SetSuccess($"Account {result.FullEmail} provisioned and linked. No recovery email found — credentials not sent.");
-        }
-
-        return RedirectToAction(nameof(HumanDetail), new { id });
-    }
-
     [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
     [HttpGet("{id:guid}/Outbox")]
     public async Task<IActionResult> Outbox(Guid id)
@@ -464,7 +427,7 @@ public class HumanController : HumansControllerBase
             return NotFound();
 
         SetSuccess(_localizer["Admin_MemberSuspended"].Value);
-        return RedirectToAction(nameof(HumanDetail), new { id });
+        return RedirectToAction(nameof(HumanProfileAdmin), new { id });
     }
 
     [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
@@ -481,7 +444,7 @@ public class HumanController : HumansControllerBase
             return NotFound();
 
         SetSuccess(_localizer["Admin_MemberUnsuspended"].Value);
-        return RedirectToAction(nameof(HumanDetail), new { id });
+        return RedirectToAction(nameof(HumanProfileAdmin), new { id });
     }
 
     [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
@@ -498,7 +461,7 @@ public class HumanController : HumansControllerBase
             return NotFound();
 
         SetSuccess(_localizer["Admin_VolunteerApproved"].Value);
-        return RedirectToAction(nameof(HumanDetail), new { id });
+        return RedirectToAction(nameof(HumanProfileAdmin), new { id });
     }
 
     [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
@@ -517,30 +480,11 @@ public class HumanController : HumansControllerBase
                 SetError("This human has already been rejected.");
             else
                 return NotFound();
-            return RedirectToAction(nameof(HumanDetail), new { id });
+            return RedirectToAction(nameof(HumanProfileAdmin), new { id });
         }
 
         SetSuccess("Signup rejected.");
-        return RedirectToAction(nameof(HumanDetail), new { id });
-    }
-
-    [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
-    [HttpGet("{id:guid}/Admin/GoogleSyncAudit")]
-    public async Task<IActionResult> HumanGoogleSyncAudit(Guid id)
-    {
-        var user = await FindUserByIdAsync(id);
-
-        if (user is null)
-        {
-            return NotFound();
-        }
-
-        var entries = await _auditLogService.GetGoogleSyncByUserAsync(id);
-        return GoogleSyncAuditView(
-            $"Google Sync Audit: {user.DisplayName}",
-            Url.Action(nameof(HumanDetail), new { id }),
-            "Back to Member Detail",
-            entries);
+        return RedirectToAction(nameof(HumanProfileAdmin), new { id });
     }
 
     [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
@@ -601,11 +545,11 @@ public class HumanController : HumansControllerBase
         if (!result.Success)
         {
             SetError(string.Format(_localizer["Admin_RoleAlreadyActive"].Value, model.RoleName));
-            return RedirectToAction(nameof(HumanDetail), new { id });
+            return RedirectToAction(nameof(HumanProfileAdmin), new { id });
         }
 
         SetSuccess(string.Format(_localizer["Admin_RoleAssigned"].Value, model.RoleName));
-        return RedirectToAction(nameof(HumanDetail), new { id });
+        return RedirectToAction(nameof(HumanProfileAdmin), new { id });
     }
 
     [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
@@ -638,11 +582,11 @@ public class HumanController : HumansControllerBase
         if (!result.Success)
         {
             SetError(_localizer["Admin_RoleNotActive"].Value);
-            return RedirectToAction(nameof(HumanDetail), new { id = roleAssignment.UserId });
+            return RedirectToAction(nameof(HumanProfileAdmin), new { id = roleAssignment.UserId });
         }
 
         SetSuccess(string.Format(_localizer["Admin_RoleEnded"].Value, roleAssignment.RoleName, roleAssignment.User.DisplayName));
-        return RedirectToAction(nameof(HumanDetail), new { id = roleAssignment.UserId });
+        return RedirectToAction(nameof(HumanProfileAdmin), new { id = roleAssignment.UserId });
     }
 
     [Authorize(Roles = RoleGroups.HumanAdminBoardOrAdmin)]
