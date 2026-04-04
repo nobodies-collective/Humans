@@ -7,7 +7,32 @@
             </div>
             <div class="modal-body">
                 <h6>When is it?</h6>
-                <p class="text-muted small">The placement phase runs for a limited time — exact dates will be shown here soon. Place your barrio before it closes!</p>
+                @{
+                    var placementOpensAt = ViewBag.PlacementOpensAt as NodaTime.LocalDateTime?;
+                    var placementClosesAt = ViewBag.PlacementClosesAt as NodaTime.LocalDateTime?;
+                    const string dtFmt = "d MMMM 'at' HH:mm";
+                }
+                @if (placementOpensAt.HasValue || placementClosesAt.HasValue)
+                {
+                    <p class="text-muted small">
+                        @if (placementOpensAt.HasValue && placementClosesAt.HasValue)
+                        {
+                            <span>Opens: <strong>@placementOpensAt.Value.ToString(dtFmt, null)</strong> &middot; Closes: <strong>@placementClosesAt.Value.ToString(dtFmt, null)</strong> (Spain time)</span>
+                        }
+                        else if (placementOpensAt.HasValue)
+                        {
+                            <span>Opens: <strong>@placementOpensAt.Value.ToString(dtFmt, null)</strong> (Spain time)</span>
+                        }
+                        else
+                        {
+                            <span>Closes: <strong>@placementClosesAt!.Value.ToString(dtFmt, null)</strong> (Spain time)</span>
+                        }
+                    </p>
+                }
+                else
+                {
+                    <p class="text-muted small">The placement phase runs for a limited time — exact dates will be shown here soon. Place your barrio before it closes!</p>
+                }
 
                 <div class="row g-4">
 
