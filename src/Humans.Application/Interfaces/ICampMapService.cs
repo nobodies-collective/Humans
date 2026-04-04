@@ -33,6 +33,8 @@ public interface ICampMapService
     Task ClosePlacementAsync(Guid userId, CancellationToken cancellationToken = default);
     Task UpdateLimitZoneAsync(string geoJson, Guid userId, CancellationToken cancellationToken = default);
     Task DeleteLimitZoneAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task UpdateOfficialZonesAsync(string geoJson, Guid userId, CancellationToken cancellationToken = default);
+    Task DeleteOfficialZonesAsync(Guid userId, CancellationToken cancellationToken = default);
     Task UpdatePlacementDatesAsync(LocalDateTime? opensAt, LocalDateTime? closesAt, CancellationToken cancellationToken = default);
 
     // Export

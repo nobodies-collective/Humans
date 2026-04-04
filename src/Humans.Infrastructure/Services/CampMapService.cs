@@ -239,6 +239,22 @@ public class CampMapService : ICampMapService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task UpdateOfficialZonesAsync(string geoJson, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        settings.OfficialZonesGeoJson = geoJson;
+        settings.UpdatedAt = _clock.GetCurrentInstant();
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteOfficialZonesAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        settings.OfficialZonesGeoJson = null;
+        settings.UpdatedAt = _clock.GetCurrentInstant();
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task UpdatePlacementDatesAsync(LocalDateTime? opensAt, LocalDateTime? closesAt, CancellationToken cancellationToken = default)
     {
         var settings = await GetSettingsAsync(cancellationToken);

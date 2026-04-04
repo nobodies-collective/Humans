@@ -426,4 +426,34 @@ public class CampMapServiceTests : IDisposable
         updated.PlacementOpensAt.Should().BeNull();
         updated.PlacementClosesAt.Should().BeNull();
     }
+
+    // --- UpdateOfficialZonesAsync / DeleteOfficialZonesAsync ---
+
+    [Fact]
+    public async Task UpdateOfficialZonesAsync_StoresGeoJson()
+    {
+        await SeedMapSettingsAsync();
+        const string geoJson = """{"type":"FeatureCollection","features":[]}""";
+
+        await _sut.UpdateOfficialZonesAsync(geoJson, Guid.NewGuid());
+
+        var settings = await _dbContext.CampMapSettings.SingleAsync();
+        settings.OfficialZonesGeoJson.Should().Be(geoJson);
+        settings.UpdatedAt.Should().Be(_clock.GetCurrentInstant());
+    }
+
+    [Fact]
+    public async Task DeleteOfficialZonesAsync_SetsNull()
+    {
+        await SeedMapSettingsAsync();
+        var settings = await _dbContext.CampMapSettings.SingleAsync();
+        settings.OfficialZonesGeoJson = """{"type":"FeatureCollection","features":[]}""";
+        await _dbContext.SaveChangesAsync();
+
+        await _sut.DeleteOfficialZonesAsync(Guid.NewGuid());
+
+        var updated = await _dbContext.CampMapSettings.SingleAsync();
+        updated.OfficialZonesGeoJson.Should().BeNull();
+        updated.UpdatedAt.Should().Be(_clock.GetCurrentInstant());
+    }
 }

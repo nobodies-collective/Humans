@@ -22,5 +22,8 @@ public class CampMapSettings
     /// <summary>GeoJSON FeatureCollection defining the visual site boundary. Null until uploaded.</summary>
     public string? LimitZoneGeoJson { get; set; }
 
+    /// <summary>GeoJSON FeatureCollection of official zones (read-only overlay). Each Feature must have a "name" property. Null until uploaded.</summary>
+    public string? OfficialZonesGeoJson { get; set; }
+
     public Instant UpdatedAt { get; set; }
 }
