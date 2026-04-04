@@ -7,7 +7,6 @@ using Humans.Domain.Enums;
 using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Services;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NodaTime;
@@ -79,9 +78,15 @@ public class CampMapServiceTests : IDisposable
         var user = new User { Id = Guid.NewGuid(), UserName = "admin@test.com", Email = "admin@test.com" };
         _dbContext.Users.Add(user);
 
-        var role = new IdentityRole<Guid> { Id = Guid.NewGuid(), Name = RoleNames.CampAdmin, NormalizedName = RoleNames.CampAdmin.ToUpperInvariant() };
-        _dbContext.Roles.Add(role);
-        _dbContext.UserRoles.Add(new IdentityUserRole<Guid> { UserId = user.Id, RoleId = role.Id });
+        _dbContext.RoleAssignments.Add(new RoleAssignment
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            RoleName = RoleNames.CampAdmin,
+            ValidFrom = _clock.GetCurrentInstant().Minus(Duration.FromHours(1)),
+            CreatedAt = _clock.GetCurrentInstant(),
+            CreatedByUserId = user.Id
+        });
 
         await _dbContext.SaveChangesAsync();
         return user.Id;
