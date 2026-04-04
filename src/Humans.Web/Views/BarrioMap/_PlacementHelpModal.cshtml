@@ -2,11 +2,11 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Placement phase</h5>
+                <h5 class="modal-title">@Localizer["BarrioMap_PlacementPhase"]</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <h6>When is it?</h6>
+                <h6>@Localizer["BarrioMap_Help_WhenIsIt"]</h6>
                 @{
                     var placementOpensAt = ViewBag.PlacementOpensAt as NodaTime.LocalDateTime?;
                     var placementClosesAt = ViewBag.PlacementClosesAt as NodaTime.LocalDateTime?;
@@ -17,21 +17,21 @@
                     <p class="text-muted small">
                         @if (placementOpensAt.HasValue && placementClosesAt.HasValue)
                         {
-                            <span>Opens: <strong>@placementOpensAt.Value.ToString(dtFmt, null)</strong> &middot; Closes: <strong>@placementClosesAt.Value.ToString(dtFmt, null)</strong> (Spain time)</span>
+                            <span>@Localizer["BarrioMap_Help_Opens"] <strong>@placementOpensAt.Value.ToString(dtFmt, null)</strong> &middot; @Localizer["BarrioMap_Help_Closes"] <strong>@placementClosesAt.Value.ToString(dtFmt, null)</strong> @Localizer["BarrioMap_Help_SpainTime"]</span>
                         }
                         else if (placementOpensAt.HasValue)
                         {
-                            <span>Opens: <strong>@placementOpensAt.Value.ToString(dtFmt, null)</strong> (Spain time)</span>
+                            <span>@Localizer["BarrioMap_Help_Opens"] <strong>@placementOpensAt.Value.ToString(dtFmt, null)</strong> @Localizer["BarrioMap_Help_SpainTime"]</span>
                         }
                         else
                         {
-                            <span>Closes: <strong>@placementClosesAt!.Value.ToString(dtFmt, null)</strong> (Spain time)</span>
+                            <span>@Localizer["BarrioMap_Help_Closes"] <strong>@placementClosesAt!.Value.ToString(dtFmt, null)</strong> @Localizer["BarrioMap_Help_SpainTime"]</span>
                         }
                     </p>
                 }
                 else
                 {
-                    <p class="text-muted small">The placement phase runs for a limited time — exact dates will be shown here soon. Place your barrio before it closes!</p>
+                    <p class="text-muted small">@Localizer["BarrioMap_Help_WhenPlaceholder"]</p>
                 }
 
                 <div class="row g-4">
@@ -40,8 +40,8 @@
                         <div class="card h-100">
                             <img src="~/img/barrio-map/barrio-draw.png" class="card-img-top" style="max-height: 250px; object-fit: contain; object-position: top;" alt="Drawing a barrio" />
                             <div class="card-body p-2">
-                                <h6 class="card-title mb-1">Placing your barrio</h6>
-                                <p class="card-text text-muted small mb-0">Click <strong>Add my barrio on the map</strong> to start drawing. Then click on the map to drop points that define your space — each click adds a corner. Close the shape by clicking back on the first point.</p>
+                                <h6 class="card-title mb-1">@Localizer["BarrioMap_Help_PlacingTitle"]</h6>
+                                <p class="card-text text-muted small mb-0">@Html.Raw(string.Format(Localizer["BarrioMap_Help_PlacingBody"].Value, $"<strong>{Localizer["BarrioMap_AddMyBarrioButton"]}</strong>"))</p>
                             </div>
                         </div>
                     </div>
@@ -50,13 +50,13 @@
                         <div class="card h-100">
                             <img src="~/img/barrio-map/barrio-edit.png" class="card-img-top" style="max-height: 250px; object-fit: contain; object-position: top;" alt="Editing a barrio shape" />
                             <div class="card-body p-2">
-                                <h6 class="card-title mb-1">Adjusting the shape</h6>
+                                <h6 class="card-title mb-1">@Localizer["BarrioMap_Help_AdjustingTitle"]</h6>
                                 <ul class="card-text text-muted small ps-3 mb-0">
-                                    <li>Drag a corner point to move it</li>
-                                    <li>Drag the whole shape to reposition it</li>
-                                    <li>Click the midpoint of an edge (where the length in metres is shown) to add a new corner</li>
-                                    <li>Click a point to select it (it turns orange), then press <kbd>Delete</kbd> or <kbd>Backspace</kbd> to remove it</li>
-                                    <li>The area in m² is shown in the centre and updates as you edit</li>
+                                    <li>@Localizer["BarrioMap_Help_Adjusting_VertexMove"]</li>
+                                    <li>@Localizer["BarrioMap_Help_Adjusting_Reposition"]</li>
+                                    <li>@Localizer["BarrioMap_Help_Adjusting_AddVertex"]</li>
+                                    <li>@Localizer["BarrioMap_Help_Adjusting_DeleteVertex"]</li>
+                                    <li>@Localizer["BarrioMap_Help_Adjusting_Area"]</li>
                                 </ul>
                             </div>
                         </div>
@@ -66,8 +66,8 @@
                         <div class="card h-100">
                             <img src="~/img/barrio-map/barrio-history.png" class="card-img-top" style="max-height: 250px; object-fit: contain; object-position: top;" alt="History of a barrio" />
                             <div class="card-body p-2">
-                                <h6 class="card-title mb-1">Saving &amp; editing later</h6>
-                                <p class="card-text text-muted small mb-0">Happy with it? Hit <strong>Save</strong>. Afterwards, click your barrio on the map to see its size, then <strong>Edit</strong> to jump back into edit mode. Every save creates a history entry — use the <strong>History</strong> button to browse and restore any previous version: hit the preview button to show the version, and then save the one you want to restore. No stress, you can't break anything!</p>
+                                <h6 class="card-title mb-1">@Localizer["BarrioMap_Help_SavingTitle"]</h6>
+                                <p class="card-text text-muted small mb-0">@Localizer["BarrioMap_Help_SavingBody"]</p>
                             </div>
                         </div>
                     </div>
@@ -76,8 +76,8 @@
                         <div class="card h-100">
                             <img src="~/img/barrio-map/barrio-out-of-zone.png" class="card-img-top" style="max-height: 250px; object-fit: contain; object-position: top;" alt="Invalid placement" />
                             <div class="card-body p-2">
-                                <h6 class="card-title mb-1">Stay inside the white zones</h6>
-                                <p class="card-text text-muted small mb-0">The dashed white areas mark the safe camping zones, protected by lightning poles. <strong>Camping outside them is not allowed</strong>, so keep your barrio inside those boundaries.</p>
+                                <h6 class="card-title mb-1">@Localizer["BarrioMap_Help_ZonesTitle"]</h6>
+                                <p class="card-text text-muted small mb-0">@Localizer["BarrioMap_Help_ZonesBody"]</p>
                             </div>
                         </div>
                     </div>
@@ -86,8 +86,8 @@
                         <div class="card h-100">
                             <img src="~/img/barrio-map/barrio-overlap.png" class="card-img-top" style="max-height: 250px; object-fit: contain; object-position: top;" alt="Overlap of two barrios" />
                             <div class="card-body p-2">
-                                <h6 class="card-title mb-1">Overlaps? Talk it out!</h6>
-                                <p class="card-text text-muted small mb-0">If your barrio overlaps with another, reach out on <a href="https://discord.com/channels/1462886445583962245/1467793922074873896" target="_blank" class="text-decoration-none">Discord #city-planning</a> and work it out together. If there are unresolved conflicts at the end of the phase, the city planning team will sort them out.</p>
+                                <h6 class="card-title mb-1">@Localizer["BarrioMap_Help_OverlapsTitle"]</h6>
+                                <p class="card-text text-muted small mb-0">@Html.Raw(string.Format(Localizer["BarrioMap_Help_OverlapsBody"].Value, $"<a href=\"https://discord.com/channels/1462886445583962245/1467793922074873896\" target=\"_blank\" class=\"text-decoration-none\">{Localizer["BarrioMap_Help_OverlapsDiscordChannel"]}</a>"))</p>
                             </div>
                         </div>
                     </div>
@@ -95,8 +95,8 @@
                     <div class="col-12 col-md-6">
                         <div class="card h-100">
                             <div class="card-body p-2">
-                                <h6 class="card-title mb-1">Colours &amp; sound zones</h6>
-                                <p class="card-text text-muted small mb-0">Each barrio is coloured by its preferred sound zone (editable from your barrio page).</p>
+                                <h6 class="card-title mb-1">@Localizer["BarrioMap_Help_ColorsTitle"]</h6>
+                                <p class="card-text text-muted small mb-0">@Localizer["BarrioMap_Help_ColorsBody"]</p>
                             </div>
                         </div>
                     </div>

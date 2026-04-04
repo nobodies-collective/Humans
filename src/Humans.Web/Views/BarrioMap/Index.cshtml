@@ -47,18 +47,18 @@
         <div class="card shadow-sm">
             <div class="card-body py-2 px-3 d-flex flex-column align-items-center gap-1">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="fw-semibold">Placement phase</span>
+                    <span class="fw-semibold">@Localizer["BarrioMap_PlacementPhase"]</span>
                     @if (isPlacementOpen)
                     {
-                        <span class="badge bg-success">Open</span>
+                        <span class="badge bg-success">@Localizer["BarrioMap_StatusOpen"]</span>
                     }
                     else
                     {
-                        <span class="badge bg-secondary">Closed</span>
+                        <span class="badge bg-secondary">@Localizer["BarrioMap_StatusClosed"]</span>
                     }
                 </div>
                 <button class="btn btn-primary btn-sm small" data-bs-toggle="modal" data-bs-target="#placement-help-modal">
-                    <i class="fa fa-question-circle me-1"></i>Help
+                    <i class="fa fa-question-circle me-1"></i>@Localizer["BarrioMap_HelpButton"]
                 </button>
             </div>
         </div>
@@ -74,14 +74,14 @@
             @if (isPlacementOpen && !string.IsNullOrEmpty(userCampSeasonId))
             {
                 <button id="add-my-barrio-btn" class="btn btn-primary btn-sm shadow" style="display:none">
-                    <i class="fa fa-plus me-1"></i> Add my barrio on the map
+                    <i class="fa fa-plus me-1"></i> @Localizer["BarrioMap_AddMyBarrioButton"]
                 </button>
             }
             @if (isMapAdmin && seasonsWithout.Any())
             {
                 <div id="add-barrio-container" class="d-flex gap-2 align-items-center">
                     <select id="add-barrio-select" class="form-select form-select-sm" style="width:200px;">
-                        <option value="">Add a barrio…</option>
+                        <option value="">@Localizer["BarrioMap_AddABarrioOption"]</option>
                         @foreach (var s in seasonsWithout)
                         {
                             <option value="@s.CampSeasonId">@s.CampName</option>
@@ -90,13 +90,13 @@
                 </div>
             }
             <button id="save-btn" class="btn btn-success btn-sm" style="display:none" disabled>
-                <i class="fa fa-save me-1"></i> Save
+                <i class="fa fa-save me-1"></i> @Localizer["BarrioMap_SaveButton"]
             </button>
             <button id="cancel-btn" class="btn btn-outline-secondary btn-sm" style="display:none">
-                <i class="fa fa-times me-1"></i> Cancel
+                <i class="fa fa-times me-1"></i> @Localizer["Common_Cancel"]
             </button>
             <button id="history-btn" class="btn btn-outline-primary btn-sm" style="display:none" disabled>
-                <i class="fa fa-history me-1"></i> History
+                <i class="fa fa-history me-1"></i> @Localizer["BarrioMap_HistoryButton"]
             </button>
             </div>
         </div>
@@ -106,7 +106,7 @@
         <div class="card">
             <div class="card-body">
                 <a href="/BarrioMap/Admin" class="btn btn-outline-primary btn-sm">
-                    <i class="fa fa-cog me-1"></i> Admin
+                    <i class="fa fa-cog me-1"></i> @Localizer["BarrioMap_AdminLink"]
                 </a>
             </div>
         </div>
