@@ -125,6 +125,7 @@
                     <li>Drag a corner point to move it</li>
                     <li>Drag the whole shape to reposition it</li>
                     <li>Click the midpoint of an edge (where the length in metres is shown) to add a new corner</li>
+                    <li>Click a point to select it (it turns orange), then press <kbd>Delete</kbd> or <kbd>Backspace</kbd> to remove it</li>
                     <li>The area in m² is shown in the centre and updates as you edit</li>
                 </ul>
                 <div class="bg-light border rounded mb-3 d-flex align-items-center justify-content-center" style="height:100px">
@@ -225,8 +226,10 @@
                     { id: 'gl-draw-polygon-stroke-active',   type: 'line', filter: ['all', ['==', 'active', 'true'],  ['==', '$type', 'Polygon']],                               layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 3 } },
                     { id: 'gl-draw-line-inactive', type: 'line', filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 2 } },
                     { id: 'gl-draw-line-active',   type: 'line', filter: ['all', ['==', 'active', 'true'],  ['==', '$type', 'LineString']],                               layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-dasharray': ['literal', [2, 2]], 'line-width': 3 } },
-                    { id: 'gl-draw-polygon-and-line-vertex-stroke-inactive', type: 'circle', filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']], paint: { 'circle-radius': 10, 'circle-color': '#fff' } },
-                    { id: 'gl-draw-polygon-and-line-vertex-inactive',        type: 'circle', filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']], paint: { 'circle-radius': 7, 'circle-color': '#0080ff' } },
+                    { id: 'gl-draw-polygon-and-line-vertex-stroke-inactive', type: 'circle', filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static'], ['==', 'active', 'false']], paint: { 'circle-radius': 10, 'circle-color': '#fff' } },
+                    { id: 'gl-draw-polygon-and-line-vertex-inactive',        type: 'circle', filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static'], ['==', 'active', 'false']], paint: { 'circle-radius': 7,  'circle-color': '#0080ff' } },
+                    { id: 'gl-draw-polygon-and-line-vertex-stroke-active',   type: 'circle', filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['==', 'active', 'true']],                            paint: { 'circle-radius': 12, 'circle-color': '#fff' } },
+                    { id: 'gl-draw-polygon-and-line-vertex-active',          type: 'circle', filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['==', 'active', 'true']],                            paint: { 'circle-radius': 8,  'circle-color': '#ff6600' } },
                     { id: 'gl-draw-polygon-midpoint', type: 'circle', filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']], paint: { 'circle-radius': 5, 'circle-color': '#ffffff' } },
                 ]
             });
@@ -262,7 +265,7 @@
                     'text-anchor': 'center',
                     'text-allow-overlap': true
                 },
-                paint: { 'text-color': '#cccccc', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }
+                paint: { 'text-color': '#444444', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }
             });
 
             state = await (await fetch('/api/camp-map/state')).json();
@@ -369,6 +372,7 @@
         }
 
         function onPolygonClick(e) {
+            if (activeCampSeasonId) return;
             const props = e.features[0].properties;
             const campSeasonId = props.campSeasonId;
             const isOwn = props.campSeasonId === USER_CAMP_SEASON_ID;
@@ -473,6 +477,14 @@
             if (map.getLayer('polygons-fill')) map.setPaintProperty('polygons-fill', 'fill-opacity', fillOpacity);
             if (map.getLayer('polygons-fill-surprise')) map.setPaintProperty('polygons-fill-surprise', 'fill-opacity', surpriseOpacity);
         }
+
+        // mapbox-gl-draw loses keyboard focus after vertex clicks — handle Delete globally
+        document.addEventListener('keydown', e => {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && activeCampSeasonId) {
+                e.preventDefault();
+                draw.trash();
+            }
+        });
 
         function onDrawChange() { updateSaveButton(); }
         function onDrawDelete() {
