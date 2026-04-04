@@ -60,6 +60,34 @@
             </div>
         </div>
 
+        <!-- Placement Dates -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header fw-semibold">
+                    <i class="fa fa-calendar me-1"></i> Placement Dates (@settings.Year)
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">Informational only — shown in the help modal. Does not automatically open or close placement.</p>
+                    <form method="post" action="/BarrioMap/Admin/UpdatePlacementDates">
+                        @Html.AntiForgeryToken()
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Opens at</label>
+                            <input type="datetime-local" name="opensAt" class="form-control form-control-sm"
+                                   value="@(settings.PlacementOpensAt?.ToString("yyyy-MM-ddTHH:mm", null) ?? string.Empty)" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Closes at</label>
+                            <input type="datetime-local" name="closesAt" class="form-control form-control-sm"
+                                   value="@(settings.PlacementClosesAt?.ToString("yyyy-MM-ddTHH:mm", null) ?? string.Empty)" />
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fa fa-save me-1"></i> Save dates
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- Limit Zone -->
         <div class="col-md-6">
             <div class="card">
