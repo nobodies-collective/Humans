@@ -11,18 +11,15 @@ namespace Humans.Web.Controllers;
 
 [Authorize]
 [Route("BarrioMap")]
-public class BarrioMapController : Controller
+public class BarrioMapController : HumansControllerBase
 {
     private readonly ICampMapService _campMapService;
-    private readonly UserManager<User> _userManager;
 
     public BarrioMapController(ICampMapService campMapService, UserManager<User> userManager)
+        : base(userManager)
     {
         _campMapService = campMapService;
-        _userManager = userManager;
     }
-
-    private Guid CurrentUserId() => Guid.Parse(_userManager.GetUserId(User)!);
 
     private async Task<bool> IsMapAdminAsync(Guid userId, CancellationToken ct)
     {
@@ -33,16 +30,18 @@ public class BarrioMapController : Controller
     [HttpGet("")]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
         var settings = await _campMapService.GetSettingsAsync(cancellationToken);
-        var isMapAdmin = await IsMapAdminAsync(userId, cancellationToken);
-        var userSeasonId = await _campMapService.GetUserCampSeasonIdForYearAsync(userId, settings.Year, cancellationToken);
+        var isMapAdmin = await IsMapAdminAsync(user.Id, cancellationToken);
+        var userSeasonId = await _campMapService.GetUserCampSeasonIdForYearAsync(user.Id, settings.Year, cancellationToken);
         var seasonsWithout = await _campMapService.GetCampSeasonsWithoutCampPolygonAsync(settings.Year, cancellationToken);
 
         ViewBag.IsPlacementOpen = settings.IsPlacementOpen;
         ViewBag.IsMapAdmin = isMapAdmin;
         ViewBag.UserCampSeasonId = userSeasonId?.ToString() ?? string.Empty;
-        ViewBag.CurrentUserId = userId.ToString();
+        ViewBag.CurrentUserId = user.Id.ToString();
         ViewBag.SeasonsWithoutCampPolygon = seasonsWithout;
         ViewBag.Year = settings.Year;
         ViewBag.PlacementOpensAt = settings.PlacementOpensAt;
@@ -54,8 +53,10 @@ public class BarrioMapController : Controller
     [HttpGet("Admin")]
     public async Task<IActionResult> Admin(CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
 
         ViewBag.Settings = await _campMapService.GetSettingsAsync(cancellationToken);
@@ -66,10 +67,13 @@ public class BarrioMapController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> OpenPlacement(CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
-        await _campMapService.OpenPlacementAsync(userId, cancellationToken);
+        await _campMapService.OpenPlacementAsync(user.Id, cancellationToken);
+        SetSuccess("Placement phase opened.");
         return RedirectToAction(nameof(Admin));
     }
 
@@ -77,10 +81,13 @@ public class BarrioMapController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ClosePlacement(CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
-        await _campMapService.ClosePlacementAsync(userId, cancellationToken);
+        await _campMapService.ClosePlacementAsync(user.Id, cancellationToken);
+        SetSuccess("Placement phase closed.");
         return RedirectToAction(nameof(Admin));
     }
 
@@ -88,12 +95,15 @@ public class BarrioMapController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UploadLimitZone(IFormFile file, CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
         using var reader = new StreamReader(file.OpenReadStream());
         var geoJson = await reader.ReadToEndAsync(cancellationToken);
-        await _campMapService.UpdateLimitZoneAsync(geoJson, userId, cancellationToken);
+        await _campMapService.UpdateLimitZoneAsync(geoJson, user.Id, cancellationToken);
+        SetSuccess("Limit zone uploaded.");
         return RedirectToAction(nameof(Admin));
     }
 
@@ -101,8 +111,10 @@ public class BarrioMapController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdatePlacementDates(string? opensAt, string? closesAt, CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
 
         var pattern = LocalDateTimePattern.CreateWithInvariantCulture("yyyy-MM-ddTHH:mm");
@@ -110,14 +122,17 @@ public class BarrioMapController : Controller
         LocalDateTime? closes = closesAt is { Length: > 0 } ? pattern.Parse(closesAt).Value : null;
 
         await _campMapService.UpdatePlacementDatesAsync(opens, closes, cancellationToken);
+        SetSuccess("Placement dates updated.");
         return RedirectToAction(nameof(Admin));
     }
 
     [HttpGet("Admin/DownloadLimitZone")]
     public async Task<IActionResult> DownloadLimitZone(CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
         var settings = await _campMapService.GetSettingsAsync(cancellationToken);
         if (settings.LimitZoneGeoJson is null)
@@ -130,10 +145,13 @@ public class BarrioMapController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteLimitZone(CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
-        await _campMapService.DeleteLimitZoneAsync(userId, cancellationToken);
+        await _campMapService.DeleteLimitZoneAsync(user.Id, cancellationToken);
+        SetSuccess("Limit zone deleted.");
         return RedirectToAction(nameof(Admin));
     }
 
@@ -141,20 +159,25 @@ public class BarrioMapController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UploadOfficialZones(IFormFile file, CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
         using var reader = new StreamReader(file.OpenReadStream());
         var geoJson = await reader.ReadToEndAsync(cancellationToken);
-        await _campMapService.UpdateOfficialZonesAsync(geoJson, userId, cancellationToken);
+        await _campMapService.UpdateOfficialZonesAsync(geoJson, user.Id, cancellationToken);
+        SetSuccess("Official zones uploaded.");
         return RedirectToAction(nameof(Admin));
     }
 
     [HttpGet("Admin/DownloadOfficialZones")]
     public async Task<IActionResult> DownloadOfficialZones(CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
         var settings = await _campMapService.GetSettingsAsync(cancellationToken);
         if (settings.OfficialZonesGeoJson is null)
@@ -167,10 +190,13 @@ public class BarrioMapController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteOfficialZones(CancellationToken cancellationToken)
     {
-        var userId = CurrentUserId();
-        if (!await IsMapAdminAsync(userId, cancellationToken))
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
-        await _campMapService.DeleteOfficialZonesAsync(userId, cancellationToken);
+        await _campMapService.DeleteOfficialZonesAsync(user.Id, cancellationToken);
+        SetSuccess("Official zones deleted.");
         return RedirectToAction(nameof(Admin));
     }
 }
