@@ -3,10 +3,12 @@ using System.Security.Cryptography;
 using System.Text;
 using Humans.Application.Configuration;
 using Humans.Application.Extensions;
+using Humans.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
@@ -49,6 +51,7 @@ public class DevLoginController : Controller
     private readonly IConfiguration _config;
     private readonly ConfigurationRegistry _configRegistry;
     private readonly IMemoryCache _cache;
+    private readonly IOptions<CampMapOptions> _campMapOptions;
     private readonly ILogger<DevLoginController> _logger;
 
     public DevLoginController(
@@ -60,6 +63,7 @@ public class DevLoginController : Controller
         IConfiguration config,
         ConfigurationRegistry configRegistry,
         IMemoryCache cache,
+        IOptions<CampMapOptions> campMapOptions,
         ILogger<DevLoginController> logger)
     {
         _userManager = userManager;
@@ -70,6 +74,7 @@ public class DevLoginController : Controller
         _config = config;
         _configRegistry = configRegistry;
         _cache = cache;
+        _campMapOptions = campMapOptions;
         _logger = logger;
     }
 
@@ -95,6 +100,8 @@ public class DevLoginController : Controller
             await EnsurePersonaAsync(info, id);
             if (IsBarrioLeadSlug(info.Slug))
                 await EnsureBarrioCampAsync(info.Slug, id);
+            if (IsCityPlanningSlug(info.Slug))
+                await EnsureCityPlanningTeamAsync(id);
         }
         finally
         {
@@ -504,6 +511,63 @@ public class DevLoginController : Controller
             deptId, "dev-test-department", subTeamId, "dev-test-subteam");
     }
 
+    /// <summary>
+    /// Ensures the city planning team (from config) exists and the user is a coordinator of it.
+    /// </summary>
+    private async Task EnsureCityPlanningTeamAsync(Guid userId)
+    {
+        var teamSlug = _campMapOptions.Value.CityPlanningTeamSlug;
+        if (string.IsNullOrEmpty(teamSlug))
+        {
+            _logger.LogWarning("DEV: CampMap:CityPlanningTeamSlug is not configured, skipping city planning team seeding");
+            return;
+        }
+
+        var now = _clock.GetCurrentInstant();
+        var changed = false;
+
+        var team = await _db.Teams.FirstOrDefaultAsync(t => t.Slug == teamSlug);
+        if (team is null)
+        {
+            team = new Team
+            {
+                Id = Guid.NewGuid(),
+                Name = "City Planning",
+                Description = "Dev-seeded city planning team",
+                Slug = teamSlug,
+                IsActive = true,
+                RequiresApproval = false,
+                SystemTeamType = SystemTeamType.None,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            _db.Teams.Add(team);
+            changed = true;
+            _logger.LogInformation("DEV: seeded city planning team {Slug}", teamSlug);
+        }
+
+        var hasMembership = await _db.TeamMembers.AnyAsync(tm => tm.TeamId == team.Id && tm.UserId == userId);
+        if (!hasMembership)
+        {
+            _db.TeamMembers.Add(new TeamMember
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                TeamId = team.Id,
+                Role = TeamMemberRole.Coordinator,
+                JoinedAt = now
+            });
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await _db.SaveChangesAsync();
+            _cache.InvalidateActiveTeams();
+            _cache.InvalidateUserAccess(userId);
+        }
+    }
+
     // ============================================================
     // Static helpers
     // ============================================================
@@ -515,7 +579,8 @@ public class DevLoginController : Controller
             new("volunteer", "Volunteer"),
             new("barrio-1-lead", "Barrio 1 Lead"),
             new("barrio-2-lead", "Barrio 2 Lead"),
-            new("coordinator", "Coordinator")
+            new("coordinator", "Coordinator"),
+            new("city-planning", "City Planning Team")
         };
 
         var roles = typeof(RoleNames)
@@ -535,6 +600,9 @@ public class DevLoginController : Controller
     private static bool IsBarrioLeadSlug(string slug) =>
         slug.EndsWith("-lead", StringComparison.OrdinalIgnoreCase) &&
         slug.StartsWith("barrio-", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCityPlanningSlug(string slug) =>
+        string.Equals(slug, "city-planning", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Deterministic GUID from persona slug — stable across restarts for idempotent seeding.
