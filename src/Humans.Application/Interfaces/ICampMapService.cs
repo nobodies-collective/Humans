@@ -13,6 +13,7 @@ public interface ICampMapService
     Task<SoundZone?> GetCampSeasonSoundZoneAsync(Guid campSeasonId, CancellationToken cancellationToken = default);
     Task<string?> GetCampSeasonNameAsync(Guid campSeasonId, CancellationToken cancellationToken = default);
     Task<Guid?> GetUserCampSeasonIdForYearAsync(Guid userId, int year, CancellationToken cancellationToken = default);
+    Task<string?> GetUserDisplayNameAsync(Guid userId, CancellationToken cancellationToken = default);
 
     // Writes
     Task<(CampPolygon polygon, CampPolygonHistory history)> SaveCampPolygonAsync(

@@ -1,15 +1,14 @@
 using System.Collections.Concurrent;
+using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
-using Humans.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Humans.Web.Hubs;
 
 [Authorize]
-public class CampMapHub(HumansDbContext db, UserManager<User> userManager) : Hub
+public class CampMapHub(ICampMapService campMapService, UserManager<User> userManager) : Hub
 {
     private static readonly ConcurrentDictionary<string, string> _displayNames = new(StringComparer.Ordinal);
 
@@ -18,10 +17,7 @@ public class CampMapHub(HumansDbContext db, UserManager<User> userManager) : Hub
         var userId = userManager.GetUserId(Context.User!);
         if (userId != null)
         {
-            var burnerName = await db.Profiles
-                .Where(p => p.UserId == Guid.Parse(userId))
-                .Select(p => p.BurnerName)
-                .FirstOrDefaultAsync();
+            var burnerName = await campMapService.GetUserDisplayNameAsync(Guid.Parse(userId));
             _displayNames[Context.ConnectionId] = !string.IsNullOrWhiteSpace(burnerName)
                 ? burnerName
                 : Context.User?.Identity?.Name ?? "Unknown";
