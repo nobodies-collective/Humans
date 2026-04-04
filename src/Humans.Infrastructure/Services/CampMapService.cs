@@ -169,6 +169,16 @@ public class CampMapService : ICampMapService
             .AnyAsync(tm => tm.TeamId == team.Id && tm.UserId == userId && tm.LeftAt == null, cancellationToken);
     }
 
+    public async Task<bool> IsCityPlanningTeamMemberAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var team = await _dbContext.Teams
+            .FirstOrDefaultAsync(t => t.Slug == _options.Value.CityPlanningTeamSlug, cancellationToken);
+        if (team == null) return false;
+
+        return await _dbContext.TeamMembers
+            .AnyAsync(tm => tm.TeamId == team.Id && tm.UserId == userId && tm.LeftAt == null, cancellationToken);
+    }
+
     public async Task<bool> CanUserEditAsync(Guid userId, Guid campSeasonId, CancellationToken cancellationToken = default)
     {
         if (await IsUserMapAdminAsync(userId, cancellationToken)) return true;

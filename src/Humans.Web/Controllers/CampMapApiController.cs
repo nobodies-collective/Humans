@@ -1,5 +1,6 @@
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
+using Humans.Web.Authorization;
 using Humans.Web.Hubs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -28,6 +29,12 @@ public class CampMapApiController : ControllerBase
     }
 
     private Guid CurrentUserId() => Guid.Parse(_userManager.GetUserId(User)!);
+
+    private async Task<bool> IsMapAdminAsync(Guid userId, CancellationToken ct)
+    {
+        return RoleChecks.IsCampAdmin(User) ||
+               await _campMapService.IsCityPlanningTeamMemberAsync(userId, ct);
+    }
 
     /// <summary>Returns current map state: settings, all camp polygons, unmapped seasons.</summary>
     [HttpGet("state")]
@@ -89,7 +96,7 @@ public class CampMapApiController : ControllerBase
         CancellationToken cancellationToken)
     {
         var userId = CurrentUserId();
-        if (!await _campMapService.IsUserMapAdminAsync(userId, cancellationToken))
+        if (!await IsMapAdminAsync(userId, cancellationToken))
             return Forbid();
 
         var (polygon, _) = await _campMapService.RestoreCampPolygonVersionAsync(
@@ -109,7 +116,7 @@ public class CampMapApiController : ControllerBase
     public async Task<IActionResult> ExportGeoJson([FromQuery] int? year, CancellationToken cancellationToken)
     {
         var userId = CurrentUserId();
-        if (!await _campMapService.IsUserMapAdminAsync(userId, cancellationToken))
+        if (!await IsMapAdminAsync(userId, cancellationToken))
             return Forbid();
 
         var settings = await _campMapService.GetSettingsAsync(cancellationToken);

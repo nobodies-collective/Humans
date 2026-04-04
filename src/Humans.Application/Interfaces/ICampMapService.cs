@@ -26,6 +26,7 @@ public interface ICampMapService
     // Authorization
     Task<bool> CanUserEditAsync(Guid userId, Guid campSeasonId, CancellationToken cancellationToken = default);
     Task<bool> IsUserMapAdminAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<bool> IsCityPlanningTeamMemberAsync(Guid userId, CancellationToken cancellationToken = default);
 
     // Settings (creates row on demand for PublicYear)
     Task<CampMapSettings> GetSettingsAsync(CancellationToken cancellationToken = default);
