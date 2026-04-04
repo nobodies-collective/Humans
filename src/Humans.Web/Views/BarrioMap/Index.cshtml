@@ -4,7 +4,7 @@
     var isPlacementOpen = (bool)ViewBag.IsPlacementOpen;
     var isMapAdmin = (bool)ViewBag.IsMapAdmin;
     var userCampSeasonId = (string)ViewBag.UserCampSeasonId;
-    var seasonsWithout = (List<Humans.Application.Interfaces.CampSeasonSummaryDto>)ViewBag.SeasonsWithoutPolygon;
+    var seasonsWithout = (List<Humans.Application.Interfaces.CampSeasonSummaryDto>)ViewBag.SeasonsWithoutCampPolygon;
     var year = (int)ViewBag.Year;
     var showMainToolbar = isMapAdmin && seasonsWithout.Any();
 }
@@ -280,10 +280,10 @@
         // --- Map rendering ---
 
         function renderMap() {
-            ['limit-zone-line', 'limit-zone-fill', 'polygons-outline', 'polygons-fill-surprise', 'polygons-fill', 'polygons-labels'].forEach(id => {
+            ['limit-zone-line', 'limit-zone-fill', 'camp-polygons-outline', 'camp-polygons-fill-surprise', 'camp-polygons-fill', 'camp-polygons-labels'].forEach(id => {
                 if (map.getLayer(id)) map.removeLayer(id);
             });
-            ['limit-zone', 'polygons'].forEach(id => {
+            ['limit-zone', 'camp-polygons'].forEach(id => {
                 if (map.getSource(id)) map.removeSource(id);
             });
 
@@ -293,7 +293,7 @@
                 map.addLayer({ id: 'limit-zone-line', type: 'line', source: 'limit-zone', paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-dasharray': [4, 2] } });
             }
 
-            const features = state.polygons.map(p => {
+            const features = state.campPolygons.map(p => {
                 const f = JSON.parse(p.geoJson);
                 f.properties = Object.assign(f.properties || {}, {
                     campSeasonId: p.campSeasonId,
@@ -305,9 +305,9 @@
                 return f;
             });
 
-            map.addSource('polygons', { type: 'geojson', data: { type: 'FeatureCollection', features } });
+            map.addSource('camp-polygons', { type: 'geojson', data: { type: 'FeatureCollection', features } });
             map.addLayer({
-                id: 'polygons-fill', type: 'fill', source: 'polygons',
+                id: 'camp-polygons-fill', type: 'fill', source: 'camp-polygons',
                 filter: ['!=', ['get', 'soundZone'], 5],
                 paint: {
                     'fill-color': ['match', ['get', 'soundZone'],
@@ -322,7 +322,7 @@
                 }
             });
             map.addLayer({
-                id: 'polygons-fill-surprise', type: 'fill', source: 'polygons',
+                id: 'camp-polygons-fill-surprise', type: 'fill', source: 'camp-polygons',
                 filter: ['==', ['get', 'soundZone'], 5],
                 paint: {
                     'fill-pattern': 'rainbow-pattern',
@@ -330,7 +330,7 @@
                 }
             });
             map.addLayer({
-                id: 'polygons-outline', type: 'line', source: 'polygons',
+                id: 'camp-polygons-outline', type: 'line', source: 'camp-polygons',
                 paint: {
                     'line-color': ['match', ['get', 'soundZone'],
                         0, '#2266cc',
@@ -345,7 +345,7 @@
                 }
             });
             map.addLayer({
-                id: 'polygons-labels', type: 'symbol', source: 'polygons',
+                id: 'camp-polygons-labels', type: 'symbol', source: 'camp-polygons',
                 layout: {
                     'text-field': ['get', 'campName'],
                     'text-size': 14,
@@ -359,12 +359,12 @@
                 }
             });
 
-            map.on('click', 'polygons-fill', onPolygonClick);
-            map.on('click', 'polygons-fill-surprise', onPolygonClick);
-            map.on('mouseenter', 'polygons-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
-            map.on('mouseenter', 'polygons-fill-surprise', () => { map.getCanvas().style.cursor = 'pointer'; });
-            map.on('mouseleave', 'polygons-fill', () => { map.getCanvas().style.cursor = ''; });
-            map.on('mouseleave', 'polygons-fill-surprise', () => { map.getCanvas().style.cursor = ''; });
+            map.on('click', 'camp-polygons-fill', onCampPolygonClick);
+            map.on('click', 'camp-polygons-fill-surprise', onCampPolygonClick);
+            map.on('mouseenter', 'camp-polygons-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseenter', 'camp-polygons-fill-surprise', () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', 'camp-polygons-fill', () => { map.getCanvas().style.cursor = ''; });
+            map.on('mouseleave', 'camp-polygons-fill-surprise', () => { map.getCanvas().style.cursor = ''; });
 
             // Bring draw layers and labels above our polygon layers
             map.getStyle().layers
@@ -374,7 +374,7 @@
             map.moveLayer('draw-label');
         }
 
-        function onPolygonClick(e) {
+        function onCampPolygonClick(e) {
             if (activeCampSeasonId) return;
             const props = e.features[0].properties;
             const campSeasonId = props.campSeasonId;
@@ -402,7 +402,7 @@
             setActivePolygonDim(campSeasonId);
             draw.deleteAll();
 
-            const poly = state.polygons.find(p => p.campSeasonId === campSeasonId);
+            const poly = state.campPolygons.find(p => p.campSeasonId === campSeasonId);
             if (poly) {
                 const f = JSON.parse(poly.geoJson);
                 if (!f.id) f.id = 'active-polygon';
@@ -441,7 +441,7 @@
         function updateAddMyBarrioVisibility() {
             const btn = document.getElementById('add-my-barrio-btn');
             if (!btn) return;
-            const hasPolygon = state.polygons.some(p => p.campSeasonId === USER_CAMP_SEASON_ID);
+            const hasPolygon = state.campPolygons.some(p => p.campSeasonId === USER_CAMP_SEASON_ID);
             const show = IS_PLACEMENT_OPEN && USER_CAMP_SEASON_ID && !hasPolygon;
             btn.style.display = show ? '' : 'none';
             if (show) {
@@ -491,8 +491,8 @@
             const surpriseOpacity = campSeasonId
                 ? ['case', ['==', ['get', 'campSeasonId'], campSeasonId], 0.1, ['boolean', ['get', 'isOwn'], false], 0.75, 0.55]
                 : ['case', ['boolean', ['get', 'isOwn'], false], 0.75, 0.55];
-            if (map.getLayer('polygons-fill')) map.setPaintProperty('polygons-fill', 'fill-opacity', fillOpacity);
-            if (map.getLayer('polygons-fill-surprise')) map.setPaintProperty('polygons-fill-surprise', 'fill-opacity', surpriseOpacity);
+            if (map.getLayer('camp-polygons-fill')) map.setPaintProperty('camp-polygons-fill', 'fill-opacity', fillOpacity);
+            if (map.getLayer('camp-polygons-fill-surprise')) map.setPaintProperty('camp-polygons-fill-surprise', 'fill-opacity', surpriseOpacity);
         }
 
         // mapbox-gl-draw loses keyboard focus after vertex clicks — handle Delete globally
@@ -546,7 +546,7 @@
             const areaSqm = turf.area(feature);
             const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
 
-            const resp = await fetch(`/api/camp-map/polygons/${activeCampSeasonId}`, {
+            const resp = await fetch(`/api/camp-map/camp-polygons/${activeCampSeasonId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
                 body: JSON.stringify({ geoJson: JSON.stringify(feature), areaSqm })
@@ -579,7 +579,7 @@
 
         document.getElementById('history-btn')?.addEventListener('click', async () => {
             if (!activeCampSeasonId) return;
-            const resp = await fetch(`/api/camp-map/polygons/${activeCampSeasonId}/history`);
+            const resp = await fetch(`/api/camp-map/camp-polygons/${activeCampSeasonId}/history`);
             const history = await resp.json();
 
             const list = document.getElementById('history-list');
@@ -620,7 +620,7 @@
             if (!activeCampSeasonId) return;
             if (!confirm('Restore this polygon version? The current version will be saved to history first.')) return;
             const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
-            const resp = await fetch(`/api/camp-map/polygons/${activeCampSeasonId}/restore/${historyId}`, {
+            const resp = await fetch(`/api/camp-map/camp-polygons/${activeCampSeasonId}/restore/${historyId}`, {
                 method: 'POST',
                 headers: { 'RequestVerificationToken': token }
             });
@@ -641,19 +641,19 @@
                 .withAutomaticReconnect()
                 .build();
 
-            connection.on('PolygonUpdated', (campSeasonId, geoJson, areaSqm, soundZone, campName) => {
-                const idx = state.polygons.findIndex(p => p.campSeasonId === campSeasonId);
+            connection.on('CampPolygonUpdated', (campSeasonId, geoJson, areaSqm, soundZone, campName) => {
+                const idx = state.campPolygons.findIndex(p => p.campSeasonId === campSeasonId);
                 if (idx >= 0) {
-                    state.polygons[idx].geoJson = geoJson;
-                    state.polygons[idx].areaSqm = areaSqm;
+                    state.campPolygons[idx].geoJson = geoJson;
+                    state.campPolygons[idx].areaSqm = areaSqm;
                     // soundZone and campName are CampSeason properties — they don't change on polygon save
                 } else {
-                    state.polygons.push({ campSeasonId, geoJson, areaSqm, soundZone: soundZone ?? -1, campName: campName ?? '', campSlug: '' });
+                    state.campPolygons.push({ campSeasonId, geoJson, areaSqm, soundZone: soundZone ?? -1, campName: campName ?? '', campSlug: '' });
                 }
                 // Refresh the GeoJSON source
-                const src = map.getSource('polygons');
+                const src = map.getSource('camp-polygons');
                 if (src) {
-                    const features = state.polygons.map(p => {
+                    const features = state.campPolygons.map(p => {
                         const f = JSON.parse(p.geoJson);
                         f.properties = Object.assign(f.properties || {}, {
                             campSeasonId: p.campSeasonId,

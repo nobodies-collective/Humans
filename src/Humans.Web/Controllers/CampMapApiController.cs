@@ -29,44 +29,44 @@ public class CampMapApiController : ControllerBase
 
     private Guid CurrentUserId() => Guid.Parse(_userManager.GetUserId(User)!);
 
-    /// <summary>Returns current map state: settings, all polygons, unmapped seasons.</summary>
+    /// <summary>Returns current map state: settings, all camp polygons, unmapped seasons.</summary>
     [HttpGet("state")]
     public async Task<IActionResult> GetState(CancellationToken cancellationToken)
     {
         var settings = await _campMapService.GetSettingsAsync(cancellationToken);
-        var polygons = await _campMapService.GetPolygonsAsync(settings.Year, cancellationToken);
-        var seasonsWithout = await _campMapService.GetCampSeasonsWithoutPolygonAsync(settings.Year, cancellationToken);
+        var campPolygons = await _campMapService.GetCampPolygonsAsync(settings.Year, cancellationToken);
+        var seasonsWithout = await _campMapService.GetCampSeasonsWithoutCampPolygonAsync(settings.Year, cancellationToken);
 
         return Ok(new
         {
             isPlacementOpen = settings.IsPlacementOpen,
             limitZoneGeoJson = settings.LimitZoneGeoJson,
-            polygons,
-            seasonsWithoutPolygon = seasonsWithout
+            campPolygons,
+            campSeasonsWithoutPolygon = seasonsWithout
         });
     }
 
-    /// <summary>Returns polygon version history for a camp season, newest first.</summary>
-    [HttpGet("polygons/{campSeasonId:guid}/history")]
-    public async Task<IActionResult> GetHistory(Guid campSeasonId, CancellationToken cancellationToken)
+    /// <summary>Returns camp polygon version history for a camp season, newest first.</summary>
+    [HttpGet("camp-polygons/{campSeasonId:guid}/history")]
+    public async Task<IActionResult> GetCampPolygonHistory(Guid campSeasonId, CancellationToken cancellationToken)
     {
-        var history = await _campMapService.GetPolygonHistoryAsync(campSeasonId, cancellationToken);
+        var history = await _campMapService.GetCampPolygonHistoryAsync(campSeasonId, cancellationToken);
         return Ok(history);
     }
 
-    /// <summary>Save or update a polygon. Broadcasts update to all connected clients via SignalR.</summary>
-    [HttpPut("polygons/{campSeasonId:guid}")]
+    /// <summary>Save or update a camp polygon. Broadcasts update to all connected clients via SignalR.</summary>
+    [HttpPut("camp-polygons/{campSeasonId:guid}")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SavePolygon(
+    public async Task<IActionResult> SaveCampPolygon(
         Guid campSeasonId,
-        [FromBody] SavePolygonRequest request,
+        [FromBody] SaveCampPolygonRequest request,
         CancellationToken cancellationToken)
     {
         var userId = CurrentUserId();
         if (!await _campMapService.CanUserEditAsync(userId, campSeasonId, cancellationToken))
             return Forbid();
 
-        var (polygon, _) = await _campMapService.SavePolygonAsync(
+        var (polygon, _) = await _campMapService.SaveCampPolygonAsync(
             campSeasonId, request.GeoJson, request.AreaSqm, userId,
             cancellationToken: cancellationToken);
 
@@ -74,15 +74,15 @@ public class CampMapApiController : ControllerBase
         var soundZoneValue = soundZone.HasValue ? (int)soundZone.Value : -1;
         var campName = await _campMapService.GetCampSeasonNameAsync(campSeasonId, cancellationToken) ?? string.Empty;
         await _hubContext.Clients.All.SendAsync(
-            "PolygonUpdated", campSeasonId, polygon.GeoJson, polygon.AreaSqm, soundZoneValue, campName, cancellationToken);
+            "CampPolygonUpdated", campSeasonId, polygon.GeoJson, polygon.AreaSqm, soundZoneValue, campName, cancellationToken);
 
         return Ok(new { campSeasonId, geoJson = polygon.GeoJson, areaSqm = polygon.AreaSqm });
     }
 
-    /// <summary>Restore a polygon to a historical version. Map admins only.</summary>
-    [HttpPost("polygons/{campSeasonId:guid}/restore/{historyId:guid}")]
+    /// <summary>Restore a camp polygon to a historical version. Map admins only.</summary>
+    [HttpPost("camp-polygons/{campSeasonId:guid}/restore/{historyId:guid}")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RestorePolygon(
+    public async Task<IActionResult> RestoreCampPolygon(
         Guid campSeasonId,
         Guid historyId,
         CancellationToken cancellationToken)
@@ -91,19 +91,19 @@ public class CampMapApiController : ControllerBase
         if (!await _campMapService.IsUserMapAdminAsync(userId, cancellationToken))
             return Forbid();
 
-        var (polygon, _) = await _campMapService.RestorePolygonVersionAsync(
+        var (polygon, _) = await _campMapService.RestoreCampPolygonVersionAsync(
             campSeasonId, historyId, userId, cancellationToken);
 
         var soundZone = await _campMapService.GetCampSeasonSoundZoneAsync(campSeasonId, cancellationToken);
         var soundZoneValue = soundZone.HasValue ? (int)soundZone.Value : -1;
         var campName = await _campMapService.GetCampSeasonNameAsync(campSeasonId, cancellationToken) ?? string.Empty;
         await _hubContext.Clients.All.SendAsync(
-            "PolygonUpdated", campSeasonId, polygon.GeoJson, polygon.AreaSqm, soundZoneValue, campName, cancellationToken);
+            "CampPolygonUpdated", campSeasonId, polygon.GeoJson, polygon.AreaSqm, soundZoneValue, campName, cancellationToken);
 
         return Ok(new { campSeasonId, geoJson = polygon.GeoJson, areaSqm = polygon.AreaSqm });
     }
 
-    /// <summary>Export all polygons for a year as GeoJSON FeatureCollection. Map admins only.</summary>
+    /// <summary>Export all camp polygons for a year as GeoJSON FeatureCollection. Map admins only.</summary>
     [HttpGet("export.geojson")]
     public async Task<IActionResult> ExportGeoJson([FromQuery] int? year, CancellationToken cancellationToken)
     {

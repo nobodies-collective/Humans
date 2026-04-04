@@ -28,13 +28,13 @@ public class BarrioMapController : Controller
         var settings = await _campMapService.GetSettingsAsync(cancellationToken);
         var isMapAdmin = await _campMapService.IsUserMapAdminAsync(userId, cancellationToken);
         var userSeasonId = await _campMapService.GetUserCampSeasonIdForYearAsync(userId, settings.Year, cancellationToken);
-        var seasonsWithout = await _campMapService.GetCampSeasonsWithoutPolygonAsync(settings.Year, cancellationToken);
+        var seasonsWithout = await _campMapService.GetCampSeasonsWithoutCampPolygonAsync(settings.Year, cancellationToken);
 
         ViewBag.IsPlacementOpen = settings.IsPlacementOpen;
         ViewBag.IsMapAdmin = isMapAdmin;
         ViewBag.UserCampSeasonId = userSeasonId?.ToString() ?? string.Empty;
         ViewBag.CurrentUserId = userId.ToString();
-        ViewBag.SeasonsWithoutPolygon = seasonsWithout;
+        ViewBag.SeasonsWithoutCampPolygon = seasonsWithout;
         ViewBag.Year = settings.Year;
 
         return View();

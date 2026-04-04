@@ -23,7 +23,7 @@ public class CampMapService : ICampMapService
         _options = options;
     }
 
-    public async Task<List<CampPolygonDto>> GetPolygonsAsync(int year, CancellationToken cancellationToken = default)
+    public async Task<List<CampPolygonDto>> GetCampPolygonsAsync(int year, CancellationToken cancellationToken = default)
     {
         return await _dbContext.CampPolygons
             .Include(p => p.CampSeason).ThenInclude(s => s.Camp)
@@ -54,7 +54,7 @@ public class CampMapService : ICampMapService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<List<CampSeasonSummaryDto>> GetCampSeasonsWithoutPolygonAsync(int year, CancellationToken cancellationToken = default)
+    public async Task<List<CampSeasonSummaryDto>> GetCampSeasonsWithoutCampPolygonAsync(int year, CancellationToken cancellationToken = default)
     {
         return await _dbContext.CampSeasons
             .Include(s => s.Camp)
@@ -64,13 +64,13 @@ public class CampMapService : ICampMapService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<List<PolygonHistoryEntryDto>> GetPolygonHistoryAsync(Guid campSeasonId, CancellationToken cancellationToken = default)
+    public async Task<List<CampPolygonHistoryEntryDto>> GetCampPolygonHistoryAsync(Guid campSeasonId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.CampPolygonHistories
             .Include(h => h.ModifiedByUser)
             .Where(h => h.CampSeasonId == campSeasonId)
             .OrderByDescending(h => h.ModifiedAt)
-            .Select(h => new PolygonHistoryEntryDto(
+            .Select(h => new CampPolygonHistoryEntryDto(
                 h.Id,
                 h.ModifiedByUser.UserName ?? h.ModifiedByUserId.ToString(),
                 h.ModifiedAt.ToString("g", null),
@@ -93,7 +93,7 @@ public class CampMapService : ICampMapService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<(CampPolygon polygon, CampPolygonHistory history)> SavePolygonAsync(
+    public async Task<(CampPolygon polygon, CampPolygonHistory history)> SaveCampPolygonAsync(
         Guid campSeasonId, string geoJson, double areaSqm, Guid modifiedByUserId,
         string note = "Saved", CancellationToken cancellationToken = default)
     {
@@ -137,7 +137,7 @@ public class CampMapService : ICampMapService
         return (polygon, history);
     }
 
-    public async Task<(CampPolygon polygon, CampPolygonHistory history)> RestorePolygonVersionAsync(
+    public async Task<(CampPolygon polygon, CampPolygonHistory history)> RestoreCampPolygonVersionAsync(
         Guid campSeasonId, Guid historyId, Guid restoredByUserId,
         CancellationToken cancellationToken = default)
     {
@@ -147,7 +147,7 @@ public class CampMapService : ICampMapService
 
         var localDt = entry.ModifiedAt.InUtc().LocalDateTime;
         var note = $"Restored from {localDt:yyyy-MM-dd HH:mm} UTC";
-        return await SavePolygonAsync(campSeasonId, entry.GeoJson, entry.AreaSqm, restoredByUserId, note, cancellationToken);
+        return await SaveCampPolygonAsync(campSeasonId, entry.GeoJson, entry.AreaSqm, restoredByUserId, note, cancellationToken);
     }
 
     public async Task<bool> IsUserMapAdminAsync(Guid userId, CancellationToken cancellationToken = default)

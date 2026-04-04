@@ -7,19 +7,19 @@ namespace Humans.Application.Interfaces;
 public interface ICampMapService
 {
     // Queries
-    Task<List<CampPolygonDto>> GetPolygonsAsync(int year, CancellationToken cancellationToken = default);
-    Task<List<CampSeasonSummaryDto>> GetCampSeasonsWithoutPolygonAsync(int year, CancellationToken cancellationToken = default);
-    Task<List<PolygonHistoryEntryDto>> GetPolygonHistoryAsync(Guid campSeasonId, CancellationToken cancellationToken = default);
+    Task<List<CampPolygonDto>> GetCampPolygonsAsync(int year, CancellationToken cancellationToken = default);
+    Task<List<CampSeasonSummaryDto>> GetCampSeasonsWithoutCampPolygonAsync(int year, CancellationToken cancellationToken = default);
+    Task<List<CampPolygonHistoryEntryDto>> GetCampPolygonHistoryAsync(Guid campSeasonId, CancellationToken cancellationToken = default);
     Task<SoundZone?> GetCampSeasonSoundZoneAsync(Guid campSeasonId, CancellationToken cancellationToken = default);
     Task<string?> GetCampSeasonNameAsync(Guid campSeasonId, CancellationToken cancellationToken = default);
     Task<Guid?> GetUserCampSeasonIdForYearAsync(Guid userId, int year, CancellationToken cancellationToken = default);
 
     // Writes
-    Task<(CampPolygon polygon, CampPolygonHistory history)> SavePolygonAsync(
+    Task<(CampPolygon polygon, CampPolygonHistory history)> SaveCampPolygonAsync(
         Guid campSeasonId, string geoJson, double areaSqm, Guid modifiedByUserId,
         string note = "Saved", CancellationToken cancellationToken = default);
 
-    Task<(CampPolygon polygon, CampPolygonHistory history)> RestorePolygonVersionAsync(
+    Task<(CampPolygon polygon, CampPolygonHistory history)> RestoreCampPolygonVersionAsync(
         Guid campSeasonId, Guid historyId, Guid restoredByUserId,
         CancellationToken cancellationToken = default);
 
@@ -51,7 +51,7 @@ public record CampSeasonSummaryDto(
     string CampName,
     string CampSlug);
 
-public record PolygonHistoryEntryDto(
+public record CampPolygonHistoryEntryDto(
     Guid Id,
     string ModifiedByDisplayName,
     string ModifiedAt,
@@ -59,4 +59,4 @@ public record PolygonHistoryEntryDto(
     string Note,
     string GeoJson);
 
-public record SavePolygonRequest(string GeoJson, double AreaSqm);
+public record SaveCampPolygonRequest(string GeoJson, double AreaSqm);

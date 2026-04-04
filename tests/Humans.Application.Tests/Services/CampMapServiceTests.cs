@@ -103,12 +103,12 @@ public class CampMapServiceTests : IDisposable
     // --- Tests ---
 
     [Fact]
-    public async Task SavePolygonAsync_FirstSave_CreatesBothPolygonAndHistory()
+    public async Task SaveCampPolygonAsync_FirstSave_CreatesBothPolygonAndHistory()
     {
         var (_, season, user) = await SeedCampWithLeadAsync();
         const string geoJson = """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[]]}}""";
 
-        await _sut.SavePolygonAsync(season.Id, geoJson, 500.0, user.Id);
+        await _sut.SaveCampPolygonAsync(season.Id, geoJson, 500.0, user.Id);
 
         var polygon = await _dbContext.CampPolygons.SingleAsync(p => p.CampSeasonId == season.Id);
         var history = await _dbContext.CampPolygonHistories.SingleAsync(h => h.CampSeasonId == season.Id);
@@ -120,14 +120,14 @@ public class CampMapServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SavePolygonAsync_SecondSave_UpdatesPolygonAndAppendsHistory()
+    public async Task SaveCampPolygonAsync_SecondSave_UpdatesPolygonAndAppendsHistory()
     {
         var (_, season, user) = await SeedCampWithLeadAsync();
         const string geoJson1 = """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]}}""";
         const string geoJson2 = """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[2,0],[2,2],[0,0]]]}}""";
 
-        await _sut.SavePolygonAsync(season.Id, geoJson1, 100.0, user.Id);
-        await _sut.SavePolygonAsync(season.Id, geoJson2, 200.0, user.Id);
+        await _sut.SaveCampPolygonAsync(season.Id, geoJson1, 100.0, user.Id);
+        await _sut.SaveCampPolygonAsync(season.Id, geoJson2, 200.0, user.Id);
 
         var polygonCount = await _dbContext.CampPolygons.CountAsync(p => p.CampSeasonId == season.Id);
         var historyCount = await _dbContext.CampPolygonHistories.CountAsync(h => h.CampSeasonId == season.Id);
@@ -140,17 +140,17 @@ public class CampMapServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RestorePolygonVersionAsync_RestoresGeoJsonWithNote()
+    public async Task RestoreCampPolygonVersionAsync_RestoresGeoJsonWithNote()
     {
         var (_, season, user) = await SeedCampWithLeadAsync();
         const string originalGeoJson = """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]}}""";
 
-        var (_, historyEntry) = await _sut.SavePolygonAsync(season.Id, originalGeoJson, 100.0, user.Id);
+        var (_, historyEntry) = await _sut.SaveCampPolygonAsync(season.Id, originalGeoJson, 100.0, user.Id);
         _clock.Advance(Duration.FromSeconds(1));
-        await _sut.SavePolygonAsync(season.Id, """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[5,0],[5,5],[0,0]]]}}""", 999.0, user.Id);
+        await _sut.SaveCampPolygonAsync(season.Id, """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[5,0],[5,5],[0,0]]]}}""", 999.0, user.Id);
         _clock.Advance(Duration.FromSeconds(1));
 
-        await _sut.RestorePolygonVersionAsync(season.Id, historyEntry.Id, user.Id);
+        await _sut.RestoreCampPolygonVersionAsync(season.Id, historyEntry.Id, user.Id);
 
         var polygon = await _dbContext.CampPolygons.SingleAsync(p => p.CampSeasonId == season.Id);
         var latestHistory = await _dbContext.CampPolygonHistories
@@ -284,29 +284,29 @@ public class CampMapServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPolygonsAsync_ReturnsOnlyPolygonsForYear()
+    public async Task GetCampPolygonsAsync_ReturnsOnlyPolygonsForYear()
     {
         var (_, season2026, user) = await SeedCampWithLeadAsync(year: 2026);
         var (_, season2027, _) = await SeedCampWithLeadAsync(year: 2027);
 
-        await _sut.SavePolygonAsync(season2026.Id, """{"type":"Feature"}""", 100, user.Id);
-        await _sut.SavePolygonAsync(season2027.Id, """{"type":"Feature"}""", 200, user.Id);
+        await _sut.SaveCampPolygonAsync(season2026.Id, """{"type":"Feature"}""", 100, user.Id);
+        await _sut.SaveCampPolygonAsync(season2027.Id, """{"type":"Feature"}""", 200, user.Id);
 
-        var result = await _sut.GetPolygonsAsync(2026);
+        var result = await _sut.GetCampPolygonsAsync(2026);
 
         result.Should().HaveCount(1);
         result[0].CampSeasonId.Should().Be(season2026.Id);
     }
 
     [Fact]
-    public async Task GetCampSeasonsWithoutPolygonAsync_ExcludesSeasonsWithPolygon()
+    public async Task GetCampSeasonsWithoutCampPolygonAsync_ExcludesSeasonsWithPolygon()
     {
         var (_, seasonWith, user) = await SeedCampWithLeadAsync(year: 2026);
         var (_, seasonWithout, _) = await SeedCampWithLeadAsync(year: 2026);
 
-        await _sut.SavePolygonAsync(seasonWith.Id, """{"type":"Feature"}""", 100, user.Id);
+        await _sut.SaveCampPolygonAsync(seasonWith.Id, """{"type":"Feature"}""", 100, user.Id);
 
-        var result = await _sut.GetCampSeasonsWithoutPolygonAsync(2026);
+        var result = await _sut.GetCampSeasonsWithoutCampPolygonAsync(2026);
 
         result.Should().HaveCount(1);
         result[0].CampSeasonId.Should().Be(seasonWithout.Id);
@@ -318,7 +318,7 @@ public class CampMapServiceTests : IDisposable
         var (_, season, user) = await SeedCampWithLeadAsync(year: 2026);
         const string geoJson = """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]},"properties":{}}""";
 
-        await _sut.SavePolygonAsync(season.Id, geoJson, 100.0, user.Id);
+        await _sut.SaveCampPolygonAsync(season.Id, geoJson, 100.0, user.Id);
 
         var result = await _sut.ExportAsGeoJsonAsync(2026);
 
@@ -330,16 +330,16 @@ public class CampMapServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPolygonHistoryAsync_ReturnsEntriesInDescendingOrder()
+    public async Task GetCampPolygonHistoryAsync_ReturnsEntriesInDescendingOrder()
     {
         var (_, season, user) = await SeedCampWithLeadAsync();
 
         _clock.Advance(Duration.FromSeconds(1));
-        await _sut.SavePolygonAsync(season.Id, """{"type":"Feature"}""", 100.0, user.Id);
+        await _sut.SaveCampPolygonAsync(season.Id, """{"type":"Feature"}""", 100.0, user.Id);
         _clock.Advance(Duration.FromSeconds(1));
-        await _sut.SavePolygonAsync(season.Id, """{"type":"Feature"}""", 200.0, user.Id);
+        await _sut.SaveCampPolygonAsync(season.Id, """{"type":"Feature"}""", 200.0, user.Id);
 
-        var history = await _sut.GetPolygonHistoryAsync(season.Id);
+        var history = await _sut.GetCampPolygonHistoryAsync(season.Id);
 
         history.Should().HaveCount(2);
         history[0].AreaSqm.Should().Be(200.0); // Most recent first
@@ -347,28 +347,28 @@ public class CampMapServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPolygonsAsync_IncludesSoundZone_WhenSet()
+    public async Task GetCampPolygonsAsync_IncludesSoundZone_WhenSet()
     {
         var (_, season, user) = await SeedCampWithLeadAsync();
         season.SoundZone = SoundZone.Blue;
         await _dbContext.SaveChangesAsync();
         const string geoJson = """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[]]}}""";
-        await _sut.SavePolygonAsync(season.Id, geoJson, 100.0, user.Id);
+        await _sut.SaveCampPolygonAsync(season.Id, geoJson, 100.0, user.Id);
 
-        var polygons = await _sut.GetPolygonsAsync(season.Year);
+        var polygons = await _sut.GetCampPolygonsAsync(season.Year);
 
         polygons.Single().SoundZone.Should().Be(SoundZone.Blue);
     }
 
     [Fact]
-    public async Task GetPolygonsAsync_SoundZoneIsNull_WhenNotSet()
+    public async Task GetCampPolygonsAsync_SoundZoneIsNull_WhenNotSet()
     {
         var (_, season, user) = await SeedCampWithLeadAsync();
         // SoundZone not set, defaults to null
         const string geoJson = """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[]]}}""";
-        await _sut.SavePolygonAsync(season.Id, geoJson, 100.0, user.Id);
+        await _sut.SaveCampPolygonAsync(season.Id, geoJson, 100.0, user.Id);
 
-        var polygons = await _sut.GetPolygonsAsync(season.Year);
+        var polygons = await _sut.GetCampPolygonsAsync(season.Year);
 
         polygons.Single().SoundZone.Should().BeNull();
     }
