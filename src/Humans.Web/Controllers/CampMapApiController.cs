@@ -28,7 +28,12 @@ public class CampMapApiController : ControllerBase
         _userManager = userManager;
     }
 
-    private Guid CurrentUserId() => Guid.Parse(_userManager.GetUserId(User)!);
+    private Guid CurrentUserId()
+    {
+        var id = _userManager.GetUserId(User)
+                 ?? throw new InvalidOperationException("Authenticated user has no ID claim.");
+        return Guid.Parse(id);
+    }
 
     private async Task<bool> IsMapAdminAsync(Guid userId, CancellationToken ct)
     {
