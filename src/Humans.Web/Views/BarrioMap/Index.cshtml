@@ -5,6 +5,9 @@
     var userCampSeasonId = (string)ViewBag.UserCampSeasonId;
     var seasonsWithout = (List<Humans.Application.Interfaces.CampSeasonSummaryDto>)ViewBag.SeasonsWithoutCampPolygon;
     var showMainToolbar = isMapAdmin && seasonsWithout.Any();
+    var placementOpensAt = ViewBag.PlacementOpensAt as NodaTime.LocalDateTime?;
+    var placementClosesAt = ViewBag.PlacementClosesAt as NodaTime.LocalDateTime?;
+    var showPlacementCard = isPlacementOpen || placementOpensAt.HasValue || placementClosesAt.HasValue;
 }
 
 @section Styles {
@@ -37,13 +40,23 @@
          data-is-placement-open="@(isPlacementOpen ? "true" : "false")"
          data-is-map-admin="@(isMapAdmin ? "true" : "false")"></div>
 
-    @if (isPlacementOpen)
+    @if (showPlacementCard)
     {
     <!-- Placement phase card -->
     <div class="position-absolute top-0 start-0 m-3">
         <div class="card shadow-sm">
-            <div class="card-body py-2 px-3 d-flex flex-column align-items-center">
-                <div class="fw-semibold">Placement phase</div>
+            <div class="card-body py-2 px-3 d-flex flex-column align-items-center gap-1">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-semibold">Placement phase</span>
+                    @if (isPlacementOpen)
+                    {
+                        <span class="badge bg-success">Open</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Closed</span>
+                    }
+                </div>
                 <button class="btn btn-primary btn-sm small" data-bs-toggle="modal" data-bs-target="#placement-help-modal">
                     <i class="fa fa-question-circle me-1"></i>Help
                 </button>
@@ -101,7 +114,7 @@
     </div>
 </div>
 
-@if (isPlacementOpen)
+@if (showPlacementCard)
 {
     @await Html.PartialAsync("_PlacementHelpModal")
 }
