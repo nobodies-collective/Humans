@@ -4,6 +4,12 @@ import { CONFIG } from './config.js';
 import { isOutsideZone, overlapsOtherCamps } from './geometry.js';
 import { setActivePolygonDim } from './layers.js';
 
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
 // --- Popup ---
 
 export function onCampPolygonClick(e) {
@@ -20,7 +26,7 @@ export function onCampPolygonClick(e) {
 
     if (appState.currentPopup) appState.currentPopup.remove();
     appState.currentPopup = new maplibregl.Popup().setLngLat(e.lngLat)
-        .setHTML(`<div><strong>${props.campName || 'Camp'}</strong></div>${area}${warning}${overlapWarn}${editBtn}`)
+        .setHTML(`<div><strong>${escHtml(props.campName || 'Camp')}</strong></div>${area}${warning}${overlapWarn}${editBtn}`)
         .addTo(appState.map);
 
     if (canEdit) {
@@ -185,9 +191,9 @@ export async function loadHistory() {
             <div class="border-bottom py-2 px-1">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="fw-semibold small">${h.modifiedByDisplayName}</div>
-                        <div class="text-muted" style="font-size:12px">${h.modifiedAt} &middot; ${Math.round(h.areaSqm).toLocaleString()} m²</div>
-                        <div class="text-secondary" style="font-size:12px">${h.note}</div>
+                        <div class="fw-semibold small">${escHtml(h.modifiedByDisplayName)}</div>
+                        <div class="text-muted" style="font-size:12px">${escHtml(h.modifiedAt)} &middot; ${Math.round(h.areaSqm).toLocaleString()} m²</div>
+                        <div class="text-secondary" style="font-size:12px">${escHtml(h.note)}</div>
                     </div>
                     <div class="d-flex gap-1 flex-shrink-0">
                         <button class="btn btn-outline-secondary btn-sm py-0 preview-btn" data-id="${h.id}" data-geojson="${encodeURIComponent(h.geoJson)}">Preview</button>
