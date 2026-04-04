@@ -1,5 +1,6 @@
 // SignalR hub connection and real-time event handlers.
 import { appState } from './state.js';
+import { CONFIG } from './config.js';
 import { buildCampPolygonFeatures } from './geometry.js';
 import { updateAddMyBarrioVisibility } from './edit.js';
 
@@ -28,6 +29,7 @@ export function initSignalR() {
     });
 
     appState.connection.on('CursorMoved', (connectionId, userName, lat, lng) => {
+        if (!CONFIG.IS_PLACEMENT_OPEN) return;
         if (!appState.remoteCursors[connectionId]) {
             const el = document.createElement('div');
             el.className = 'remote-cursor';
@@ -46,9 +48,11 @@ export function initSignalR() {
 
     appState.connection.start().catch(console.error);
 
-    map.on('mousemove', e => {
-        if (appState.connection.state === signalR.HubConnectionState.Connected) {
-            appState.connection.invoke('UpdateCursor', e.lngLat.lat, e.lngLat.lng).catch(() => {});
-        }
-    });
+    if (CONFIG.IS_PLACEMENT_OPEN) {
+        map.on('mousemove', e => {
+            if (appState.connection.state === signalR.HubConnectionState.Connected) {
+                appState.connection.invoke('UpdateCursor', e.lngLat.lat, e.lngLat.lng).catch(() => {});
+            }
+        });
+    }
 }
