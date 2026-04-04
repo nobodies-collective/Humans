@@ -3,7 +3,7 @@ using NodaTime;
 
 #nullable disable
 
-namespace Humans.Infrastructure.Data.Migrations
+namespace Humans.Infrastructure.Migrations
 {
     /// <inheritdoc />
     public partial class AddPlacementDatesToCampMapSettings : Migration

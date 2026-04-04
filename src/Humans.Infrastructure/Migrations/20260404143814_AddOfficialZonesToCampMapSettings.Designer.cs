@@ -10,11 +10,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Humans.Infrastructure.Data.Migrations
+namespace Humans.Infrastructure.Migrations
 {
     [DbContext(typeof(HumansDbContext))]
-    [Migration("20260404135648_AddPlacementDatesToCampMapSettings")]
-    partial class AddPlacementDatesToCampMapSettings
+    [Migration("20260404143814_AddOfficialZonesToCampMapSettings")]
+    partial class AddOfficialZonesToCampMapSettings
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -719,6 +719,9 @@ namespace Humans.Infrastructure.Data.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("LimitZoneGeoJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OfficialZonesGeoJson")
                         .HasColumnType("text");
 
                     b.Property<Instant?>("OpenedAt")
