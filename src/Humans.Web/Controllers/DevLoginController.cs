@@ -319,7 +319,7 @@ public class DevLoginController : Controller
     }
 
     /// <summary>
-    /// Seeds a test barrio and its lead
+    /// Seeds a test barrio
     /// </summary>
     private async Task EnsureBarrioCampAsync(string personaSlug, Guid leadUserId)
     {
@@ -328,8 +328,10 @@ public class DevLoginController : Controller
         var campName = campSlug.Replace("-", " ", StringComparison.Ordinal); // "barrio 1" → title-case below
         campName = string.Concat(campName[..1].ToUpperInvariant(), campName.AsSpan(1)); // "Barrio 1" / "Barrio 2"
 
+        var year = (await _db.CampSettings.FirstAsync()).PublicYear;
+
         var campId = PersonaGuid($"dev-camp:{campSlug}");
-        var seasonId = PersonaGuid($"dev-camp-season:{campSlug}:2026");
+        var seasonId = PersonaGuid($"dev-camp-season:{campSlug}:{year}");
         var leadId = PersonaGuid($"dev-camp-lead:{campSlug}:{leadUserId}");
 
         var now = _clock.GetCurrentInstant();
@@ -341,7 +343,7 @@ public class DevLoginController : Controller
                 Id = campId,
                 Slug = campSlug,
                 ContactEmail = $"dev-{campSlug}@localhost",
-                ContactPhone = string.Empty,
+                ContactPhone = "+34 600 000 000",
                 CreatedByUserId = leadUserId,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -351,12 +353,13 @@ public class DevLoginController : Controller
             {
                 Id = seasonId,
                 CampId = campId,
-                Year = 2026,
+                Year = year,
                 Name = campName,
-                Status = Humans.Domain.Enums.CampSeasonStatus.Pending,
-                BlurbLong = string.Empty,
-                BlurbShort = string.Empty,
-                Languages = string.Empty,
+                Status = Humans.Domain.Enums.CampSeasonStatus.Active,
+                BlurbShort = $"A dev test barrio ({campName}).",
+                BlurbLong = $"{campName} is a development test barrio used for local and preview environment testing. Feel free to edit this description.",
+                Languages = "English, Spanish",
+                MemberCount = 42,
                 CreatedAt = now,
                 UpdatedAt = now
             });
