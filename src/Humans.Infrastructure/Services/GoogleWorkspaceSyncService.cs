@@ -1724,7 +1724,7 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             if (string.IsNullOrEmpty(groupEmail))
             {
                 // Fall back to deriving email from URL
-                var prefix = resource.Url?.Split("/g/", StringSplitOptions.None).LastOrDefault();
+                var prefix = resource.Url?.Split("/g/").LastOrDefault();
                 groupEmail = prefix is not null ? $"{prefix}@{_settings.Domain}" : null;
             }
 
