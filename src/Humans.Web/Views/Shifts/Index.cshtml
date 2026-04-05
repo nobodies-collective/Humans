@@ -1,5 +1,4 @@
 @model Humans.Web.Models.ShiftBrowseViewModel
-@using Humans.Domain.Enums
 @using NodaTime
 
 @{
@@ -535,6 +534,10 @@
                                                     {
                                                         var status = Model.UserSignupStatuses.GetValueOrDefault(shift.Id);
                                                         <span class="badge bg-info">@status</span>
+                                                    }
+                                                    else if (isFull)
+                                                    {
+                                                        <span class="badge bg-secondary">Full</span>
                                                     }
                                                     else
                                                     {

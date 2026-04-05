@@ -1,6 +1,5 @@
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
-using NodaTime;
 
 namespace Humans.Web.Models;
 
@@ -42,7 +41,7 @@ public class RecentActivityViewModel
 
 public class AdminHumanListViewModel : PagedListViewModel
 {
-    public AdminHumanListViewModel() : base(20)
+    public AdminHumanListViewModel() : base()
     {
     }
 
@@ -127,7 +126,7 @@ public class AdminHumanApplicationViewModel
 
 public class AdminApplicationListViewModel : PagedListViewModel
 {
-    public AdminApplicationListViewModel() : base(20)
+    public AdminApplicationListViewModel() : base()
     {
     }
 
@@ -362,6 +361,22 @@ public class EmailOutboxViewModel
     public int FailedCount { get; set; }
     public bool IsPaused { get; set; }
     public List<EmailOutboxMessage> Messages { get; set; } = [];
+}
+
+public class DbStatsViewModel
+{
+    public long TotalQueryCount { get; set; }
+    public List<DbStatEntryViewModel> Entries { get; set; } = [];
+}
+
+public class DbStatEntryViewModel
+{
+    public string Operation { get; set; } = string.Empty;
+    public string Table { get; set; } = string.Empty;
+    public long Count { get; set; }
+    public double AverageMs { get; set; }
+    public double MaxMs { get; set; }
+    public double TotalMs { get; set; }
 }
 
 public class DuplicateAccountListViewModel

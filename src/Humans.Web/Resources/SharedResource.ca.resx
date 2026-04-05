@@ -850,6 +850,9 @@
   <data name="TeamDetail_LastUpdated" xml:space="preserve"><value>Última actualització</value></data>
   <data name="TeamDetail_NoPageContent" xml:space="preserve"><value>Aquest equip encara no té una pàgina. Afegeix contingut per explicar als humans de què es tracta.</value></data>
   <data name="TeamDetail_AddPageContent" xml:space="preserve"><value>Afegeix contingut</value></data>
+  <data name="TeamDetail_ChildTeamMembers" xml:space="preserve"><value>Humans via sub-teams ({0})</value><comment>{0} = count</comment></data>
+  <data name="TeamDetail_ManageRoles" xml:space="preserve"><value>Gestionar Rols</value></data>
+  <data name="TeamDetail_SubTeams" xml:space="preserve"><value>Sub-teams</value></data>
   <data name="Teams_PublicDirectory" xml:space="preserve"><value>Equips</value></data>
   <data name="Teams_PublicDirectorySubtitle" xml:space="preserve"><value>Descobreix els equips que fan que les coses passin.</value></data>
   <data name="Teams_LearnMore" xml:space="preserve"><value>Més informació</value></data>
@@ -1313,5 +1316,18 @@
   <data name="Notification_Bulk_Selected" xml:space="preserve"><value>{0} seleccionades</value></data>
   <data name="Notification_Bulk_Resolve" xml:space="preserve"><value>Resol les seleccionades</value></data>
   <data name="Notification_Bulk_Dismiss" xml:space="preserve"><value>Descarta les seleccionades</value></data>
+
+  <!-- Get Involved card (Dashboard) -->
+  <data name="GetInvolved_Title" xml:space="preserve"><value>Participa</value></data>
+  <data name="GetInvolved_Intro" xml:space="preserve"><value>L'event funciona amb energia humana. Tria torns que encaixin al teu horari — cada hora compta.</value></data>
+  <data name="GetInvolved_Phase_Setup" xml:space="preserve"><value>Muntatge</value></data>
+  <data name="GetInvolved_Phase_Setup_Desc" xml:space="preserve"><value>Construeix el recinte abans d'obrir portes. Treball físic, horaris flexibles, ideal per conèixer l'equip.</value></data>
+  <data name="GetInvolved_Phase_Event" xml:space="preserve"><value>Esdeveniment</value></data>
+  <data name="GetInvolved_Phase_Event_Desc" xml:space="preserve"><value>Mantén-ho tot en marxa durant l'event. Barres, portes, seguretat, art — n'hi ha per a tothom.</value></data>
+  <data name="GetInvolved_Phase_Strike" xml:space="preserve"><value>Desmuntatge</value></data>
+  <data name="GetInvolved_Phase_Strike_Desc" xml:space="preserve"><value>Desmunta-ho tot i no deixis rastre. Treball gratificant, normalment de menor durada.</value></data>
+  <data name="GetInvolved_UrgentShifts" xml:space="preserve"><value>Torns que necessiten humans ara</value></data>
+  <data name="GetInvolved_BrowseAllShifts" xml:space="preserve"><value>Veure tots els torns</value></data>
+  <data name="GetInvolved_MyShifts" xml:space="preserve"><value>Els meus torns</value></data>
 
 </root>

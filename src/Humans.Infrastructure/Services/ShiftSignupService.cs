@@ -1,5 +1,4 @@
 using Humans.Application.Interfaces;
-using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
@@ -75,11 +74,11 @@ public class ShiftSignupService : IShiftSignupService
         if (overlapWarning is not null)
             return SignupResult.Fail(overlapWarning);
 
-        // Capacity warning
+        // Capacity check — hard block
         string? warning = null;
         var confirmedCount = shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
         if (confirmedCount >= shift.MaxVolunteers)
-            warning = "This shift is at capacity.";
+            return SignupResult.Fail("This shift is at capacity.");
 
         // EE cap warning
         if (shift.IsEarlyEntry)
@@ -146,9 +145,10 @@ public class ShiftSignupService : IShiftSignupService
         if (overlapWarning is not null)
             warning = $"Warning: {overlapWarning}";
 
+        // Capacity check — hard block
         var confirmedCount = signup.Shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
         if (confirmedCount >= signup.Shift.MaxVolunteers)
-            warning = warning is null ? "Warning: shift is at capacity." : $"{warning} Shift is at capacity.";
+            return SignupResult.Fail("Cannot approve: shift is at capacity.");
 
         // EE cap revalidation for build shifts
         if (signup.Shift.IsEarlyEntry)
@@ -257,6 +257,11 @@ public class ShiftSignupService : IShiftSignupService
         var es = shift.Rota.EventSettings;
         var now = _clock.GetCurrentInstant();
 
+        // Capacity check — hard block
+        var confirmedCount = shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
+        if (confirmedCount >= shift.MaxVolunteers)
+            return SignupResult.Fail("This shift is at capacity.");
+
         // Overlap check
         var overlapWarning = await CheckOverlapAsync(userId, shift, es);
         if (overlapWarning is not null)
@@ -288,6 +293,23 @@ public class ShiftSignupService : IShiftSignupService
 
         await DispatchSignupChangeNotificationAsync(signup,
             $"Voluntold for '{shift.Rota.Name}' on day {shift.DayOffset}.");
+
+        // In-app notification to the assigned volunteer (best-effort)
+        try
+        {
+            await _notificationService.SendAsync(
+                NotificationSource.ShiftAssigned,
+                NotificationClass.Informational,
+                NotificationPriority.Normal,
+                $"You were assigned to {shift.Rota.Name} on day {shift.DayOffset}",
+                [userId],
+                actionUrl: "/Shifts",
+                actionLabel: "View shifts");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to dispatch ShiftAssigned notification for user {UserId} shift {ShiftId}", userId, shiftId);
+        }
 
         return SignupResult.Ok(signup);
     }
@@ -341,13 +363,39 @@ public class ShiftSignupService : IShiftSignupService
         if (assignable.Count == 0)
             return SignupResult.Fail("All shifts in range have time conflicts with existing signups.");
 
+        // Capacity check — skip shifts that are at capacity (DB query, not navigation property)
+        var assignableIds = assignable.Select(s => s.Id).ToHashSet();
+        var signupCounts = await _dbContext.ShiftSignups
+            .Where(s => assignableIds.Contains(s.ShiftId) && s.Status == SignupStatus.Confirmed)
+            .GroupBy(s => s.ShiftId)
+            .Select(g => new { ShiftId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.ShiftId, g => g.Count);
+
+        var skippedCapacity = new List<int>();
+        var capacityFiltered = new List<Shift>();
+        foreach (var shift in assignable)
+        {
+            if (signupCounts.GetValueOrDefault(shift.Id) >= shift.MaxVolunteers)
+                skippedCapacity.Add(shift.DayOffset);
+            else
+                capacityFiltered.Add(shift);
+        }
+
+        if (capacityFiltered.Count == 0)
+            return SignupResult.Fail("All shifts in range are at capacity.");
+
+        assignable = capacityFiltered;
+
         // Create confirmed signups with shared SignupBlockId
         var blockId = Guid.NewGuid();
         var now = _clock.GetCurrentInstant();
         ShiftSignup? firstSignup = null;
-        string? warning = skippedOverlaps.Count > 0
-            ? $"Skipped {skippedOverlaps.Count} shift(s) due to time conflicts."
-            : null;
+        var warningParts = new List<string>();
+        if (skippedOverlaps.Count > 0)
+            warningParts.Add($"Skipped {skippedOverlaps.Count} shift(s) due to time conflicts.");
+        if (skippedCapacity.Count > 0)
+            warningParts.Add($"Skipped day(s) {string.Join(", ", skippedCapacity)} at capacity.");
+        string? warning = warningParts.Count > 0 ? string.Join(" ", warningParts) : null;
 
         foreach (var shift in assignable)
         {
@@ -380,6 +428,23 @@ public class ShiftSignupService : IShiftSignupService
 
         await DispatchSignupChangeNotificationAsync(firstSignup!,
             $"Voluntold range for '{rota.Name}' ({assignable.Count} shifts).");
+
+        // In-app notification to the assigned volunteer (best-effort)
+        try
+        {
+            await _notificationService.SendAsync(
+                NotificationSource.ShiftAssigned,
+                NotificationClass.Informational,
+                NotificationPriority.Normal,
+                $"You were assigned to {rota.Name} ({assignable.Count} shifts)",
+                [userId],
+                actionUrl: "/Shifts",
+                actionLabel: "View shifts");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to dispatch ShiftAssigned notification for user {UserId} rota {RotaId}", userId, rotaId);
+        }
 
         return SignupResult.Ok(firstSignup!, warning);
     }
@@ -504,11 +569,12 @@ public class ShiftSignupService : IShiftSignupService
 
         if (conflictingDays.Count > 0)
         {
-            var dayList = string.Join(", ", conflictingDays);
+            var dayList = string.Join(", ", conflictingDays.Select(offset =>
+                FormatShiftDate(es.GateOpeningDate.PlusDays(offset))));
             return SignupResult.Fail($"Time conflict on day(s): {dayList}.");
         }
 
-        // Capacity check — warn if any shift is at/over capacity (Fix #4)
+        // Capacity check — hard block: exclude full shifts from the range
         string? warning = null;
         var signupCounts = await _dbContext.ShiftSignups
             .Where(s => shiftIdsInRange.Contains(s.ShiftId) && s.Status == SignupStatus.Confirmed)
@@ -519,14 +585,26 @@ public class ShiftSignupService : IShiftSignupService
             .Where(s => signupCounts.GetValueOrDefault(s.Id) >= s.MaxVolunteers)
             .Select(s => s.DayOffset)
             .ToList();
+
+        var availableShifts = shiftsInRange
+            .Where(s => signupCounts.GetValueOrDefault(s.Id) < s.MaxVolunteers)
+            .ToList();
+
+        if (availableShifts.Count == 0)
+            return SignupResult.Fail("All shifts in this range are at capacity.");
+
         if (fullDays.Count > 0)
-            warning = $"Day(s) {string.Join(", ", fullDays)} are at capacity.";
+        {
+            var dayList = string.Join(", ", fullDays.Select(offset =>
+                FormatShiftDate(es.GateOpeningDate.PlusDays(offset))));
+            warning = $"Day(s) {dayList} are at capacity.";
+        }
 
         // EE cap check for build shifts
         if (rota.Period == RotaPeriod.Build)
         {
             var fullEeDays = new List<int>();
-            foreach (var dayOffset in shiftsInRange
+            foreach (var dayOffset in availableShifts
                          .Where(shift => shift.IsEarlyEntry)
                          .Select(shift => shift.DayOffset)
                          .Distinct()
@@ -539,7 +617,9 @@ public class ShiftSignupService : IShiftSignupService
 
             if (fullEeDays.Count > 0)
             {
-                var eeWarning = $"Early entry capacity reached for day(s): {string.Join(", ", fullEeDays)}.";
+                var eeDayList = string.Join(", ", fullEeDays.Select(offset =>
+                    FormatShiftDate(es.GateOpeningDate.PlusDays(offset))));
+                var eeWarning = $"Early entry capacity reached for day(s): {eeDayList}.";
                 warning = warning is null ? eeWarning : $"{warning} {eeWarning}";
             }
         }
@@ -550,7 +630,7 @@ public class ShiftSignupService : IShiftSignupService
                           await _shiftMgmt.CanApproveSignupsAsync(userId, rota.TeamId);
         ShiftSignup? lastSignup = null;
 
-        foreach (var shift in shiftsInRange)
+        foreach (var shift in availableShifts)
         {
             var signup = new ShiftSignup
             {
@@ -605,16 +685,21 @@ public class ShiftSignupService : IShiftSignupService
         if (signups.Count == 0) return SignupResult.Fail("No pending signups found for this block.");
 
         var warnings = new List<string>();
+        var skippedAtCapacity = new List<ShiftSignup>();
         var now = _clock.GetCurrentInstant();
+        var approved = new List<ShiftSignup>();
 
         foreach (var signup in signups)
         {
             var es = signup.Shift.Rota.EventSettings;
 
-            // Capacity check (same as single-item ApproveAsync)
+            // Capacity check — hard block per-shift (refuse signups for full shifts)
             var confirmedCount = signup.Shift.ShiftSignups.Count(d => d.Status == SignupStatus.Confirmed);
             if (confirmedCount >= signup.Shift.MaxVolunteers)
-                warnings.Add($"Day {signup.Shift.DayOffset} is at capacity.");
+            {
+                skippedAtCapacity.Add(signup);
+                continue;
+            }
 
             // EE cap revalidation for build shifts
             if (signup.Shift.IsEarlyEntry)
@@ -633,6 +718,7 @@ public class ShiftSignupService : IShiftSignupService
             }
 
             signup.Confirm(reviewerUserId, _clock);
+            approved.Add(signup);
 
             await _auditLogService.LogAsync(
                 AuditAction.ShiftSignupConfirmed, nameof(ShiftSignup), signup.Id,
@@ -640,13 +726,38 @@ public class ShiftSignupService : IShiftSignupService
                 reviewerUserId);
         }
 
+        // Auto-refuse signups that couldn't be approved due to capacity
+        if (skippedAtCapacity.Count > 0)
+        {
+            foreach (var skipped in skippedAtCapacity)
+            {
+                skipped.Refuse(reviewerUserId, _clock, "Shift at capacity");
+
+                await _auditLogService.LogAsync(
+                    AuditAction.ShiftSignupRefused, nameof(ShiftSignup), skipped.Id,
+                    $"Auto-refused (at capacity) for shift '{skipped.Shift.Rota.Name}' day {skipped.Shift.DayOffset} (block {signupBlockId})",
+                    reviewerUserId);
+            }
+
+            var skippedDays = skippedAtCapacity.Select(s => s.Shift.DayOffset).ToList();
+            warnings.Add($"Day(s) {string.Join(", ", skippedDays)} refused (at capacity).");
+        }
+
+        if (approved.Count == 0)
+        {
+            // Still need to persist the auto-refused signups
+            if (skippedAtCapacity.Count > 0)
+                await _dbContext.SaveChangesAsync();
+            return SignupResult.Fail("Cannot approve: all shifts in this range are at capacity.");
+        }
+
         await _dbContext.SaveChangesAsync();
 
-        await DispatchSignupChangeNotificationAsync(signups[0],
-            $"Range approved ({signups.Count} shifts) for '{signups[0].Shift.Rota.Name}'.");
+        await DispatchSignupChangeNotificationAsync(approved[0],
+            $"Range approved ({approved.Count} shifts) for '{approved[0].Shift.Rota.Name}'.");
 
         var warning = warnings.Count > 0 ? string.Join(" ", warnings.Distinct(StringComparer.Ordinal)) : null;
-        return SignupResult.Ok(signups[0], warning);
+        return SignupResult.Ok(approved[0], warning);
     }
 
     public async Task<SignupResult> RefuseRangeAsync(Guid signupBlockId, Guid reviewerUserId, string? reason)
@@ -927,4 +1038,11 @@ public class ShiftSignupService : IShiftSignupService
             _logger.LogError(ex, "Failed to dispatch ShiftSignupChange notification for signup {SignupId}", signup.Id);
         }
     }
+
+    /// <summary>
+    /// Formats a LocalDate for display in shift messages (e.g., "Wed Jul 1").
+    /// Mirrors the Web-layer ToDisplayShiftDate() extension.
+    /// </summary>
+    private static string FormatShiftDate(LocalDate date) =>
+        date.DayOfWeek.ToString()[..3] + " " + date.ToString("MMM d", null);
 }

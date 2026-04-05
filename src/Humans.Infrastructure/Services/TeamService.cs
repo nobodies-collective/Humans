@@ -11,7 +11,6 @@ using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Domain.ValueObjects;
 using Humans.Infrastructure.Data;
-using System.Text.RegularExpressions;
 
 namespace Humans.Infrastructure.Services;
 
@@ -361,8 +360,6 @@ public class TeamService : ITeamService
         var allMemberships = await GetUserTeamsAsync(userId, cancellationToken);
         var memberships = allMemberships;
         var isBoardMember = await _roleAssignmentService.IsUserBoardMemberAsync(userId, cancellationToken);
-        var isAdmin = await _roleAssignmentService.IsUserAdminAsync(userId, cancellationToken);
-        var isTeamsAdmin = await _roleAssignmentService.IsUserTeamsAdminAsync(userId, cancellationToken);
 
         var coordinatorTeamIds = memberships
             .Where(m => (m.Role == TeamMemberRole.Coordinator || isBoardMember) && !m.Team.IsSystemTeam)
@@ -1162,6 +1159,23 @@ public class TeamService : ITeamService
         InvalidateShiftAuthorizationIfNeeded(userId, roleAssignments);
 
         _logger.LogInformation("Actor {ActorId} removed user {UserId} from team {TeamId}", actorUserId, userId, teamId);
+
+        // In-app notification to the removed user (best-effort)
+        try
+        {
+            await _notificationService.SendAsync(
+                NotificationSource.TeamMemberRemoved,
+                NotificationClass.Informational,
+                NotificationPriority.Normal,
+                $"You were removed from {team.Name}",
+                [userId],
+                actionUrl: "/Teams",
+                cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to dispatch TeamMemberRemoved notification for user {UserId} team {TeamId}", userId, teamId);
+        }
 
         return wasCoordinator;
     }
@@ -1991,6 +2005,22 @@ public class TeamService : ITeamService
         }
 
         return result;
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, string>> GetManagementRoleNamesByTeamIdsAsync(
+        IEnumerable<Guid> teamIds,
+        CancellationToken cancellationToken = default)
+    {
+        var teamIdList = teamIds.ToList();
+        if (teamIdList.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        return await _dbContext.Set<TeamRoleDefinition>()
+            .AsNoTracking()
+            .Where(d => teamIdList.Contains(d.TeamId) && d.IsManagement && d.IsPublic)
+            .ToDictionaryAsync(d => d.TeamId, d => d.Name, cancellationToken);
     }
 
     public async Task<IReadOnlyDictionary<Guid, List<string>>> GetNonSystemTeamNamesByUserIdsAsync(

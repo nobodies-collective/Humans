@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NodaTime;
-using Humans.Application;
 using Humans.Application.Extensions;
 using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
@@ -19,6 +18,7 @@ public class RoleAssignmentService : IRoleAssignmentService
 {
     private readonly HumansDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
+    private readonly INotificationService _notificationService;
     private readonly ISystemTeamSync _systemTeamSyncJob;
     private readonly IClock _clock;
     private readonly IMemoryCache _cache;
@@ -27,6 +27,7 @@ public class RoleAssignmentService : IRoleAssignmentService
     public RoleAssignmentService(
         HumansDbContext dbContext,
         IAuditLogService auditLogService,
+        INotificationService notificationService,
         ISystemTeamSync systemTeamSyncJob,
         IClock clock,
         IMemoryCache cache,
@@ -34,6 +35,7 @@ public class RoleAssignmentService : IRoleAssignmentService
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
+        _notificationService = notificationService;
         _systemTeamSyncJob = systemTeamSyncJob;
         _clock = clock;
         _cache = cache;
@@ -143,8 +145,6 @@ public class RoleAssignmentService : IRoleAssignmentService
 
         _dbContext.RoleAssignments.Add(roleAssignment);
 
-        var user = await _dbContext.Users.FindAsync([userId], ct);
-
         await _auditLogService.LogAsync(
             AuditAction.RoleAssigned, nameof(User), userId,
             $"Role '{roleName}' assigned",
@@ -156,6 +156,23 @@ public class RoleAssignmentService : IRoleAssignmentService
 
         _logger.LogInformation("Admin {AdminId} assigned role {Role} to user {UserId}",
             assignerId, roleName, userId);
+
+        // In-app notification to the user (best-effort)
+        try
+        {
+            await _notificationService.SendAsync(
+                NotificationSource.RoleAssignmentChanged,
+                NotificationClass.Informational,
+                NotificationPriority.Normal,
+                $"You were assigned the {roleName} role",
+                [userId],
+                actionUrl: "/Profile",
+                cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to dispatch RoleAssignmentChanged notification for user {UserId} role {Role}", userId, roleName);
+        }
 
         // Trigger sync for Board role changes
         if (string.Equals(roleName, RoleNames.Board, StringComparison.Ordinal))
@@ -205,6 +222,23 @@ public class RoleAssignmentService : IRoleAssignmentService
 
         _logger.LogInformation("Admin {AdminId} ended role {Role} for user {UserId}",
             enderId, roleAssignment.RoleName, roleAssignment.UserId);
+
+        // In-app notification to the user (best-effort)
+        try
+        {
+            await _notificationService.SendAsync(
+                NotificationSource.RoleAssignmentChanged,
+                NotificationClass.Informational,
+                NotificationPriority.Normal,
+                $"Your {roleAssignment.RoleName} role assignment has ended",
+                [roleAssignment.UserId],
+                actionUrl: "/Profile",
+                cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to dispatch RoleAssignmentChanged notification for user {UserId} role {Role}", roleAssignment.UserId, roleAssignment.RoleName);
+        }
 
         // Trigger sync for Board role changes
         if (string.Equals(roleAssignment.RoleName, RoleNames.Board, StringComparison.Ordinal))

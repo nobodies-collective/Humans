@@ -147,6 +147,10 @@ The project grew quickly from the initial member portal into a broader operation
 | **Mar 27** | Budget phase 1 foundation and related finance scaffolding |
 | **Mar 30-31** | Documentation refresh, repo stats update, and docs index expansion |
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow and guidelines.
+
 ## License
 
 AGPL-3.0

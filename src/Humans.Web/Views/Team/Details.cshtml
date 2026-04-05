@@ -213,11 +213,37 @@
         </div>
         }
 
+        @if (Model.IsAuthenticated && Model.SubteamLeads.Any())
+        {
+        <div class="card mb-4">
+            <div class="card-header">
+                <span>Subteam Leads (@Model.SubteamLeads.Count)</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    @foreach (var lead in Model.SubteamLeads)
+                    {
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <human-link user-id="@lead.UserId" display-name="@lead.DisplayName"
+                                        mode="Card" size="128"
+                                        profile-picture-url="@lead.EffectiveProfilePictureUrl"
+                                        avatar-css-class="border border-primary border-3"
+                                        avatar-bg-color="bg-primary">
+                                <span class="badge bg-primary small">@(lead.RoleTitle ?? "Coordinator")</span>
+                                <span class="badge bg-secondary bg-opacity-50 small">@lead.ChildTeamName</span>
+                            </human-link>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        }
+
         @if (Model.IsAuthenticated && Model.ChildTeamMembers.Any())
         {
         <div class="card mb-4">
             <div class="card-header">
-                <span>Humans via sub-teams (@Model.ChildTeamMembers.Count)</span>
+                <span>@Localizer["TeamDetail_ChildTeamMembers", Model.ChildTeamMembers.Count]</span>
             </div>
             <div class="card-body">
                 <div class="row g-3">
@@ -340,7 +366,7 @@
                         }
                     </a>
                     <a asp-controller="TeamAdmin" asp-action="Roles" asp-route-slug="@Model.Slug" class="list-group-item list-group-item-action">
-                        Manage Roles
+                        @Localizer["TeamDetail_ManageRoles"]
                     </a>
                     @if (Model.CanCurrentUserEditTeam)
                     {
@@ -358,7 +384,7 @@
         @if (Model.ChildTeams.Any())
         {
             <div class="card mb-4">
-                <div class="card-header">Sub-teams</div>
+                <div class="card-header">@Localizer["TeamDetail_SubTeams"]</div>
                 <div class="list-group list-group-flush">
                     @foreach (var child in Model.ChildTeams)
                     {

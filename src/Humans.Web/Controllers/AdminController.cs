@@ -4,14 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Humans.Application.Configuration;
 using Humans.Application.Interfaces;
-using Humans.Domain.Constants;
 using Humans.Domain.Entities;
+using Humans.Web.Authorization;
 using Humans.Infrastructure.Data;
 using Humans.Web.Models;
 
 namespace Humans.Web.Controllers;
 
-[Authorize(Roles = RoleNames.Admin)]
 [Route("Admin")]
 public class AdminController : HumansControllerBase
 {
@@ -21,6 +20,7 @@ public class AdminController : HumansControllerBase
     private readonly IWebHostEnvironment _environment;
     private readonly IOnboardingService _onboardingService;
     private readonly ConfigurationRegistry _configRegistry;
+    private readonly QueryStatistics _queryStatistics;
 
     public AdminController(
         HumansDbContext dbContext,
@@ -28,7 +28,8 @@ public class AdminController : HumansControllerBase
         ILogger<AdminController> logger,
         IWebHostEnvironment environment,
         IOnboardingService onboardingService,
-        ConfigurationRegistry configRegistry)
+        ConfigurationRegistry configRegistry,
+        QueryStatistics queryStatistics)
         : base(userManager)
     {
         _dbContext = dbContext;
@@ -37,15 +38,18 @@ public class AdminController : HumansControllerBase
         _environment = environment;
         _onboardingService = onboardingService;
         _configRegistry = configRegistry;
+        _queryStatistics = queryStatistics;
     }
 
     [HttpGet("")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
     public IActionResult Index()
     {
         return View();
     }
 
     [HttpPost("Humans/{id}/Purge")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> PurgeHuman(Guid id)
     {
@@ -92,6 +96,7 @@ public class AdminController : HumansControllerBase
     }
 
     [HttpGet("Logs")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
     public IActionResult Logs(int count = 50)
     {
         count = Math.Clamp(count, 1, 200);
@@ -100,6 +105,7 @@ public class AdminController : HumansControllerBase
     }
 
     [HttpGet("Configuration")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
     public IActionResult Configuration()
     {
         var entries = _configRegistry.GetAll();
@@ -165,7 +171,58 @@ public class AdminController : HumansControllerBase
         });
     }
 
+    [HttpGet("DbStats")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
+    public IActionResult DbStats()
+    {
+        try
+        {
+            var snapshot = _queryStatistics.GetSnapshot();
+            var model = new DbStatsViewModel
+            {
+                TotalQueryCount = _queryStatistics.TotalCount,
+                Entries = snapshot.Select(e => new DbStatEntryViewModel
+                {
+                    Operation = e.Operation,
+                    Table = e.Table,
+                    Count = e.Count,
+                    AverageMs = Math.Round(e.AverageMilliseconds, 2),
+                    MaxMs = Math.Round(e.MaxMilliseconds, 2),
+                    TotalMs = Math.Round(e.TotalMilliseconds, 2)
+                }).ToList()
+            };
+            return View(model);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading DB stats");
+            SetError("Failed to load database statistics.");
+            return RedirectToAction(nameof(Index));
+        }
+    }
+
+    [HttpPost("DbStats/Reset")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
+    [ValidateAntiForgeryToken]
+    public IActionResult ResetDbStats()
+    {
+        try
+        {
+            _queryStatistics.Reset();
+            _logger.LogInformation("Admin reset DB query statistics");
+            SetSuccess("Query statistics have been reset.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting DB stats");
+            SetError("Failed to reset database statistics.");
+        }
+
+        return RedirectToAction(nameof(DbStats));
+    }
+
     [HttpPost("ClearHangfireLocks")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ClearHangfireLocks()
     {

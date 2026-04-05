@@ -79,6 +79,11 @@ public class TeamDetailViewModel
     public ShiftsSummaryCardViewModel? ShiftsSummary { get; set; }
 
     /// <summary>
+    /// Coordinators/leads from child teams. Only populated for departments with child team coordinators.
+    /// </summary>
+    public List<ChildTeamMemberViewModel> SubteamLeads { get; set; } = [];
+
+    /// <summary>
     /// Members from child teams rolled up to this department. Only populated for departments.
     /// </summary>
     public List<ChildTeamMemberViewModel> ChildTeamMembers { get; set; } = [];
@@ -93,6 +98,8 @@ public class ChildTeamMemberViewModel
     public string? CustomProfilePictureUrl { get; set; }
     public string ChildTeamName { get; set; } = string.Empty;
     public string ChildTeamSlug { get; set; } = string.Empty;
+    public bool IsCoordinator { get; set; }
+    public string? RoleTitle { get; set; }
 
     public string? EffectiveProfilePictureUrl => HasCustomProfilePicture
         ? CustomProfilePictureUrl
@@ -184,7 +191,7 @@ public class TeamJoinRequestViewModel
 
 public class PendingRequestsViewModel : PagedListViewModel
 {
-    public PendingRequestsViewModel() : base(20)
+    public PendingRequestsViewModel() : base()
     {
     }
 
@@ -247,7 +254,7 @@ public class CallToActionViewModel
 public class TeamMembersViewModel
     : PagedListViewModel
 {
-    public TeamMembersViewModel() : base(20)
+    public TeamMembersViewModel() : base()
     {
     }
 
@@ -509,7 +516,7 @@ public class HumanSearchResultViewModel
 
 public class AdminTeamListViewModel : PagedListViewModel
 {
-    public AdminTeamListViewModel() : base(20)
+    public AdminTeamListViewModel() : base()
     {
     }
 
