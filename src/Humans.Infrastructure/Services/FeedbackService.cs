@@ -190,8 +190,6 @@ public class FeedbackService : IFeedbackService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         _cache.InvalidateNavBadgeCounts();
-
-        _logger.LogInformation("Feedback {ReportId} status changed to {Status} by {ActorId}", id, status, actorUserId);
     }
 
     public async Task SetGitHubIssueNumberAsync(
@@ -299,5 +297,16 @@ public class FeedbackService : IFeedbackService
                 (f.Status == FeedbackStatus.Open && f.LastAdminMessageAt == null) ||
                 (f.LastReporterMessageAt != null && (f.LastAdminMessageAt == null || f.LastReporterMessageAt > f.LastAdminMessageAt)),
                 cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<(Guid UserId, string DisplayName, int Count)>> GetDistinctReportersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.FeedbackReports
+            .Include(f => f.User)
+            .GroupBy(f => new { f.UserId, f.User.DisplayName })
+            .Select(g => ValueTuple.Create(g.Key.UserId, g.Key.DisplayName, g.Count()))
+            .OrderBy(r => r.Item2)
+            .ToListAsync(cancellationToken);
     }
 }
