@@ -34,120 +34,193 @@ public class TicketingBudgetService : ITicketingBudgetService
         _logger = logger;
     }
 
-    public async Task<int> SyncActualsAsync(Guid budgetYearId)
+    public async Task<int> SyncActualsAsync(Guid budgetYearId, CancellationToken ct = default)
     {
-        var ticketingGroup = await LoadTicketingGroupAsync(budgetYearId);
-        if (ticketingGroup is null)
+        try
         {
-            _logger.LogDebug("No ticketing group found for budget year {YearId}", budgetYearId);
-            return 0;
-        }
-
-        // Get categories by name
-        var revenueCategory = ticketingGroup.Categories.FirstOrDefault(c => string.Equals(c.Name, "Ticket Revenue", StringComparison.Ordinal));
-        var feesCategory = ticketingGroup.Categories.FirstOrDefault(c => string.Equals(c.Name, "Processing Fees", StringComparison.Ordinal));
-
-        if (revenueCategory is null || feesCategory is null)
-        {
-            _logger.LogWarning("Ticketing group missing expected categories for year {YearId}", budgetYearId);
-            return 0;
-        }
-
-        // Get the VAT rate from the projection parameters (for setting on revenue line items)
-        var projectionVatRate = ticketingGroup.TicketingProjection?.VatRate ?? 0;
-
-        // Load all paid orders with fees
-        var orders = await _dbContext.TicketOrders
-            .Where(o => o.PaymentStatus == TicketPaymentStatus.Paid)
-            .Select(o => new
+            var ticketingGroup = await LoadTicketingGroupAsync(budgetYearId);
+            if (ticketingGroup is null)
             {
-                o.PurchasedAt,
-                o.TotalAmount,
-                o.StripeFee,
-                o.ApplicationFee,
-                TicketCount = o.Attendees.Count(a =>
-                    a.Status == TicketAttendeeStatus.Valid || a.Status == TicketAttendeeStatus.CheckedIn)
-            })
-            .ToListAsync();
+                _logger.LogDebug("No ticketing group found for budget year {YearId}", budgetYearId);
+                return 0;
+            }
 
-        // Group by ISO week (Mon-Sun)
-        var today = _clock.GetCurrentInstant().InUtc().Date;
-        var currentWeekMonday = GetIsoMonday(today);
+            var revenueCategory = ticketingGroup.Categories.FirstOrDefault(c => string.Equals(c.Name, "Ticket Revenue", StringComparison.Ordinal));
+            var feesCategory = ticketingGroup.Categories.FirstOrDefault(c => string.Equals(c.Name, "Processing Fees", StringComparison.Ordinal));
 
-        var weeklyData = orders
-            .GroupBy(o =>
+            if (revenueCategory is null || feesCategory is null)
             {
-                var date = o.PurchasedAt.InUtc().Date;
-                return GetIsoMonday(date);
-            })
-            .Where(g => g.Key < currentWeekMonday) // Only completed weeks
-            .OrderBy(g => g.Key)
-            .Select(g =>
-            {
-                var monday = g.Key;
-                var sunday = monday.PlusDays(6);
-                return new
+                _logger.LogWarning("Ticketing group missing expected categories for year {YearId}", budgetYearId);
+                return 0;
+            }
+
+            var projectionVatRate = ticketingGroup.TicketingProjection?.VatRate ?? 0;
+
+            var orders = await _dbContext.TicketOrders
+                .Where(o => o.PaymentStatus == TicketPaymentStatus.Paid)
+                .Select(o => new
                 {
-                    Monday = monday,
-                    Sunday = sunday,
-                    Label = FormatWeekLabel(monday, sunday),
-                    TicketCount = g.Sum(o => o.TicketCount),
-                    Revenue = g.Sum(o => o.TotalAmount),
-                    StripeFees = g.Sum(o => o.StripeFee ?? 0m),
-                    TtFees = g.Sum(o => o.ApplicationFee ?? 0m)
-                };
-            })
-            .ToList();
+                    o.PurchasedAt,
+                    o.TotalAmount,
+                    o.StripeFee,
+                    o.ApplicationFee,
+                    TicketCount = o.Attendees.Count(a =>
+                        a.Status == TicketAttendeeStatus.Valid || a.Status == TicketAttendeeStatus.CheckedIn)
+                })
+                .ToListAsync(ct);
 
-        var now = _clock.GetCurrentInstant();
-        var lineItemsCreated = 0;
+            var today = _clock.GetCurrentInstant().InUtc().Date;
+            var currentWeekMonday = GetIsoMonday(today);
 
-        foreach (var week in weeklyData)
-        {
-            var weekDesc = week.Label;
+            var weeklyData = orders
+                .GroupBy(o =>
+                {
+                    var date = o.PurchasedAt.InUtc().Date;
+                    return GetIsoMonday(date);
+                })
+                .Where(g => g.Key < currentWeekMonday)
+                .OrderBy(g => g.Key)
+                .Select(g =>
+                {
+                    var monday = g.Key;
+                    var sunday = monday.PlusDays(6);
+                    return new
+                    {
+                        Monday = monday,
+                        Sunday = sunday,
+                        Label = FormatWeekLabel(monday, sunday),
+                        TicketCount = g.Sum(o => o.TicketCount),
+                        Revenue = g.Sum(o => o.TotalAmount),
+                        StripeFees = g.Sum(o => o.StripeFee ?? 0m),
+                        TtFees = g.Sum(o => o.ApplicationFee ?? 0m)
+                    };
+                })
+                .ToList();
 
-            // Revenue with VatRate set — existing VAT projection system handles the rest
-            lineItemsCreated += UpsertLineItem(revenueCategory, $"{RevenuePrefix}{weekDesc}",
-                week.Revenue, week.Monday, projectionVatRate, false, $"{week.TicketCount} tickets", now);
+            var now = _clock.GetCurrentInstant();
+            var lineItemsCreated = 0;
 
-            // Fees (negative amounts) — both Stripe and TT charge 21% IVA on fees
-            if (week.StripeFees > 0)
-                lineItemsCreated += UpsertLineItem(feesCategory, $"{StripePrefix}{weekDesc}",
-                    -week.StripeFees, week.Monday, FeeVatRate, false, null, now);
-            if (week.TtFees > 0)
-                lineItemsCreated += UpsertLineItem(feesCategory, $"{TtPrefix}{weekDesc}",
-                    -week.TtFees, week.Monday, FeeVatRate, false, null, now);
+            foreach (var week in weeklyData)
+            {
+                var weekDesc = week.Label;
+
+                lineItemsCreated += UpsertLineItem(revenueCategory, $"{RevenuePrefix}{weekDesc}",
+                    week.Revenue, week.Monday, projectionVatRate, false, $"{week.TicketCount} tickets", now);
+
+                if (week.StripeFees > 0)
+                    lineItemsCreated += UpsertLineItem(feesCategory, $"{StripePrefix}{weekDesc}",
+                        -week.StripeFees, week.Monday, FeeVatRate, false, null, now);
+                if (week.TtFees > 0)
+                    lineItemsCreated += UpsertLineItem(feesCategory, $"{TtPrefix}{weekDesc}",
+                        -week.TtFees, week.Monday, FeeVatRate, false, null, now);
+            }
+
+            if (weeklyData.Count > 0 && ticketingGroup.TicketingProjection is not null)
+            {
+                var totalRevenue = weeklyData.Sum(w => w.Revenue);
+                var totalStripeFees = weeklyData.Sum(w => w.StripeFees);
+                var totalTtFees = weeklyData.Sum(w => w.TtFees);
+                var totalTickets = weeklyData.Sum(w => w.TicketCount);
+
+                UpdateProjectionFromActuals(ticketingGroup.TicketingProjection,
+                    totalRevenue, totalStripeFees, totalTtFees, totalTickets, now);
+            }
+
+            lineItemsCreated += MaterializeProjections(ticketingGroup, revenueCategory, feesCategory, now);
+
+            if (_dbContext.ChangeTracker.HasChanges())
+                await _dbContext.SaveChangesAsync(ct);
+
+            _logger.LogInformation("Ticketing budget sync: {Created} line items created/updated for {Weeks} actual weeks + projections",
+                lineItemsCreated, weeklyData.Count);
+
+            return lineItemsCreated;
         }
-
-        // Materialize projections for future weeks
-        lineItemsCreated += MaterializeProjections(ticketingGroup, revenueCategory, feesCategory, now);
-
-        if (_dbContext.ChangeTracker.HasChanges())
-            await _dbContext.SaveChangesAsync();
-
-        _logger.LogInformation("Ticketing budget sync: {Created} line items created/updated for {Weeks} actual weeks + projections",
-            lineItemsCreated, weeklyData.Count);
-
-        return lineItemsCreated;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to sync ticketing actuals for budget year {YearId}", budgetYearId);
+            throw;
+        }
     }
 
-    public async Task<int> RefreshProjectionsAsync(Guid budgetYearId)
+    public async Task<int> RefreshProjectionsAsync(Guid budgetYearId, CancellationToken ct = default)
     {
-        var ticketingGroup = await LoadTicketingGroupAsync(budgetYearId);
-        if (ticketingGroup is null) return 0;
+        try
+        {
+            var ticketingGroup = await LoadTicketingGroupAsync(budgetYearId);
+            if (ticketingGroup is null) return 0;
 
-        var revenueCategory = ticketingGroup.Categories.FirstOrDefault(c => string.Equals(c.Name, "Ticket Revenue", StringComparison.Ordinal));
-        var feesCategory = ticketingGroup.Categories.FirstOrDefault(c => string.Equals(c.Name, "Processing Fees", StringComparison.Ordinal));
-        if (revenueCategory is null || feesCategory is null) return 0;
+            var revenueCategory = ticketingGroup.Categories.FirstOrDefault(c => string.Equals(c.Name, "Ticket Revenue", StringComparison.Ordinal));
+            var feesCategory = ticketingGroup.Categories.FirstOrDefault(c => string.Equals(c.Name, "Processing Fees", StringComparison.Ordinal));
+            if (revenueCategory is null || feesCategory is null) return 0;
 
-        var now = _clock.GetCurrentInstant();
-        var created = MaterializeProjections(ticketingGroup, revenueCategory, feesCategory, now);
+            var now = _clock.GetCurrentInstant();
+            var created = MaterializeProjections(ticketingGroup, revenueCategory, feesCategory, now);
 
-        if (_dbContext.ChangeTracker.HasChanges())
-            await _dbContext.SaveChangesAsync();
+            if (_dbContext.ChangeTracker.HasChanges())
+                await _dbContext.SaveChangesAsync(ct);
 
-        _logger.LogInformation("Ticketing projections refreshed: {Count} line items", created);
-        return created;
+            _logger.LogInformation("Ticketing projections refreshed: {Count} line items", created);
+            return created;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh ticketing projections for budget year {YearId}", budgetYearId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Updates projection parameters (AvgTicketPrice, StripeFeePercent, TicketTailorFeePercent)
+    /// from actual order data so that future projections use real averages.
+    /// </summary>
+    private void UpdateProjectionFromActuals(TicketingProjection projection,
+        decimal totalRevenue, decimal totalStripeFees, decimal totalTtFees, int totalTickets, Instant now)
+    {
+        if (totalTickets > 0)
+        {
+            projection.AverageTicketPrice = Math.Round(totalRevenue / totalTickets, 2);
+        }
+
+        if (totalRevenue > 0)
+        {
+            projection.StripeFeePercent = Math.Round(totalStripeFees / totalRevenue * 100m, 2);
+            projection.TicketTailorFeePercent = Math.Round(totalTtFees / totalRevenue * 100m, 2);
+        }
+
+        projection.UpdatedAt = now;
+
+        _logger.LogInformation(
+            "Updated projection from actuals: AvgPrice={AvgPrice}, StripeFee={StripeFee}%, TtFee={TtFee}%, from {Tickets} tickets",
+            projection.AverageTicketPrice, projection.StripeFeePercent, projection.TicketTailorFeePercent, totalTickets);
+    }
+
+    public int GetActualTicketsSold(BudgetGroup ticketingGroup)
+    {
+        var revenueCategory = ticketingGroup.Categories
+            .FirstOrDefault(c => string.Equals(c.Name, "Ticket Revenue", StringComparison.Ordinal));
+
+        if (revenueCategory is null) return 0;
+
+        // Sum ticket counts from auto-generated (non-projected) revenue line items.
+        // These are the actuals lines with notes like "187 tickets".
+        var total = 0;
+        foreach (var item in revenueCategory.LineItems)
+        {
+            if (!item.IsAutoGenerated) continue;
+            if (item.Description.StartsWith(ProjectedPrefix, StringComparison.Ordinal)) continue;
+            if (string.IsNullOrEmpty(item.Notes)) continue;
+
+            // Notes format: "187 tickets" or "~42 tickets" (projected use ~)
+            var notes = item.Notes.TrimStart('~');
+            var spaceIdx = notes.IndexOf(' ', StringComparison.Ordinal);
+            if (spaceIdx > 0 && int.TryParse(notes.AsSpan(0, spaceIdx), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var count))
+            {
+                total += count;
+            }
+        }
+
+        return total;
     }
 
     private async Task<BudgetGroup?> LoadTicketingGroupAsync(Guid budgetYearId)

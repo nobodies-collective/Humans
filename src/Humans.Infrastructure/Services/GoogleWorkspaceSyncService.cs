@@ -463,6 +463,47 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         {
             _logger.LogDebug("User {UserEmail} is already a member of group {GroupId}", userEmail, resource.GoogleId);
         }
+        catch (Google.GoogleApiException ex) when (ex.Error?.Code == 403)
+        {
+            // Distinguish member-level rejection (no Google account) from
+            // service-account permission errors (caller lacks group access).
+            // Permission errors mention "caller" or "service account" in the message.
+            var errorMessage = ex.Error?.Message ?? ex.Message ?? "";
+            var isCallerPermissionError = errorMessage.Contains("caller", StringComparison.OrdinalIgnoreCase)
+                || errorMessage.Contains("service account", StringComparison.OrdinalIgnoreCase)
+                || errorMessage.Contains("does not have permission", StringComparison.OrdinalIgnoreCase);
+
+            if (isCallerPermissionError)
+            {
+                _logger.LogWarning(
+                    "Service account lacks permission to add members to group {GroupName} ({GroupId}) — HTTP 403: {ErrorMessage}",
+                    resource.Name, resource.GoogleId, errorMessage);
+                // Don't mark the user as rejected — this is a group/SA permission issue, not a user email issue
+                return;
+            }
+
+            _logger.LogWarning(
+                "Google rejected {UserEmail} for group {GroupName} ({GroupId}) — HTTP 403. " +
+                "This typically means the email address does not have a Google account associated with it. " +
+                "Error: {ErrorMessage}",
+                userEmail, resource.Name, resource.GoogleId, errorMessage);
+
+            // Mark the user's Google email as Rejected so sync stops retrying
+            var user = await _dbContext.Users
+                .FirstOrDefaultAsync(u => EF.Functions.ILike(u.Email!, userEmail) ||
+                    (u.GoogleEmail != null && EF.Functions.ILike(u.GoogleEmail, userEmail)), cancellationToken);
+            if (user is not null && user.GoogleEmailStatus != GoogleEmailStatus.Rejected)
+            {
+                user.GoogleEmailStatus = GoogleEmailStatus.Rejected;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            await _auditLogService.LogGoogleSyncAsync(
+                AuditAction.GoogleResourceAccessGranted, groupResourceId,
+                $"Google rejected {userEmail} for group {resource.Name} — no Google account for this address (HTTP 403)",
+                nameof(GoogleWorkspaceSyncService),
+                userEmail, "MEMBER", GoogleSyncSource.ManualSync, success: false);
+        }
     }
 
     /// <inheritdoc />
@@ -630,10 +671,11 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             return;
         }
 
-        // Get current team members
+        // Get current team members (skip users with rejected Google email status)
         var teamMembers = await _dbContext.TeamMembers
             .Include(tm => tm.User)
-            .Where(tm => tm.TeamId == teamId && tm.LeftAt == null)
+            .Where(tm => tm.TeamId == teamId && tm.LeftAt == null
+                && tm.User.GoogleEmailStatus != GoogleEmailStatus.Rejected)
             .Select(tm => tm.User.GoogleEmail ?? tm.User.Email)
             .Where(email => email != null)
             .ToListAsync(cancellationToken);
@@ -718,6 +760,18 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             return;
         }
 
+        if (user!.GoogleEmailStatus == GoogleEmailStatus.Rejected)
+        {
+            _logger.LogDebug("Skipping AddUserToTeamResources for user {UserId} — GoogleEmailStatus is Rejected", userId);
+            return;
+        }
+
+        // When GoogleEmail differs from the OAuth email, the old email should be removed
+        // from Groups to prevent duplicate delivery (e.g., user got @nobodies.team address)
+        var previousEmail = !string.Equals(googleEmail, user.Email, StringComparison.OrdinalIgnoreCase)
+            ? user.Email
+            : null;
+
         var resources = await _dbContext.GoogleResources
             .Where(r => r.TeamId == teamId && r.IsActive)
             .ToListAsync(cancellationToken);
@@ -727,6 +781,12 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             if (resource.ResourceType == GoogleResourceType.Group)
             {
                 await AddUserToGroupAsync(resource.Id, googleEmail, cancellationToken);
+
+                // Remove the old OAuth email from the group to avoid duplicate delivery
+                if (previousEmail is not null)
+                {
+                    await RemoveUserFromGroupAsync(resource.Id, previousEmail, cancellationToken);
+                }
             }
             else
             {
@@ -751,6 +811,12 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 if (resource.ResourceType == GoogleResourceType.Group)
                 {
                     await AddUserToGroupAsync(resource.Id, googleEmail, cancellationToken);
+
+                    // Remove the old OAuth email from the parent group too
+                    if (previousEmail is not null)
+                    {
+                        await RemoveUserFromGroupAsync(resource.Id, previousEmail, cancellationToken);
+                    }
                 }
                 else
                 {
@@ -1007,8 +1073,11 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
         try
         {
             // Expected: team's active members (use Google service email preference)
+            // Skip users with Rejected GoogleEmailStatus — their email was permanently
+            // rejected by Google (no Google account associated with the address)
             var expectedMembers = resource.Team.Members
-                .Where(tm => tm.User.GetGoogleServiceEmail() is not null)
+                .Where(tm => tm.User.GetGoogleServiceEmail() is not null
+                    && tm.User.GoogleEmailStatus != GoogleEmailStatus.Rejected)
                 .Select(tm => new { Email = tm.User.GetGoogleServiceEmail(), tm.User.DisplayName, tm.User.Id, tm.User.ProfilePictureUrl })
                 .ToList();
 
@@ -1019,7 +1088,9 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
             foreach (var cm in childMembers)
             {
                 var email = cm.User.GetGoogleServiceEmail();
-                if (email is not null && !expectedMembers.Any(m =>
+                if (email is not null
+                    && cm.User.GoogleEmailStatus != GoogleEmailStatus.Rejected
+                    && !expectedMembers.Any(m =>
                     NormalizingEmailComparer.Instance.Equals(m.Email, email)))
                 {
                     expectedMembers.Add(new { Email = (string?)email, cm.User.DisplayName, cm.User.Id, cm.User.ProfilePictureUrl });
@@ -1341,7 +1412,8 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 foreach (var tm in resource.Team.Members)
                 {
                     var memberEmail = tm.User.GetGoogleServiceEmail();
-                    if (memberEmail is null) continue;
+                    if (memberEmail is null || tm.User.GoogleEmailStatus == GoogleEmailStatus.Rejected)
+                        continue;
 
                     if (membersByEmail.TryGetValue(memberEmail, out var existing))
                     {
@@ -1361,7 +1433,8 @@ public class GoogleWorkspaceSyncService : IGoogleSyncService
                 foreach (var cm in childMembers)
                 {
                     var memberEmail = cm.User.GetGoogleServiceEmail();
-                    if (memberEmail is null) continue;
+                    if (memberEmail is null || cm.User.GoogleEmailStatus == GoogleEmailStatus.Rejected)
+                        continue;
 
                     var childTeamLink = new TeamLink(cm.Team.Name, cm.Team.Slug, level);
                     if (membersByEmail.TryGetValue(memberEmail, out var existing2))

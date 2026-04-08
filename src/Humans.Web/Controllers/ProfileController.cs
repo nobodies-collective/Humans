@@ -431,6 +431,18 @@ public class ProfileController : HumansControllerBase
             user.Id, model.BurnerName, saveRequest,
             CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
 
+        // Cancel any pending deletion request when creating a profile
+        if (isInitialSetup && user.IsDeletionPending)
+        {
+            user.DeletionRequestedAt = null;
+            user.DeletionScheduledFor = null;
+            user.DeletionEligibleAfter = null;
+            await UserManager.UpdateAsync(user);
+            _logger.LogInformation(
+                "Cancelled pending deletion request for user {UserId} on profile creation",
+                user.Id);
+        }
+
         // Save contact fields
         var contactFieldDtos = model.EditableContactFields
             .Where(cf => !string.IsNullOrWhiteSpace(cf.Value))
@@ -1290,7 +1302,7 @@ public class ProfileController : HumansControllerBase
         var viewModel = new AdminHumanDetailViewModel
         {
             UserId = data.User.Id,
-            Email = data.User.Email ?? string.Empty,
+            Email = data.User.GetEffectiveEmail() ?? string.Empty,
             DisplayName = data.User.DisplayName,
             ProfilePictureUrl = data.User.ProfilePictureUrl,
             CreatedAt = data.User.CreatedAt.ToDateTimeUtc(),
@@ -1334,6 +1346,19 @@ public class ProfileController : HumansControllerBase
                 LanguageName = Helpers.LanguageCatalog.GetDisplayName(pl.LanguageCode),
                 Proficiency = pl.Proficiency
             }).ToList(),
+            OAuthEmail = data.User.Email,
+            GoogleServiceEmail = data.User.GetGoogleServiceEmail(),
+            GoogleEmailStatus = data.User.GoogleEmailStatus,
+            UserEmails = data.User.UserEmails
+                .OrderBy(e => e.DisplayOrder)
+                .Select(e => new AdminUserEmailViewModel
+                {
+                    Email = e.Email,
+                    IsOAuth = e.IsOAuth,
+                    IsVerified = e.IsVerified,
+                    IsNotificationTarget = e.IsNotificationTarget,
+                    Visibility = e.Visibility,
+                }).ToList(),
         };
 
         // nobodies.team email is now resolved by NobodiesEmailBadgeViewComponent in the view

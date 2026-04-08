@@ -61,13 +61,15 @@ public class ProcessAccountDeletionsJob : IRecurringJob
 
         try
         {
-            // Find accounts where deletion is scheduled and the time has passed
+            // Find accounts where deletion is scheduled and both the grace period
+            // and any event hold (DeletionEligibleAfter) have passed
             var usersToDelete = await _dbContext.Users
                 .Include(u => u.Profile)
                 .Include(u => u.UserEmails)
                 .Include(u => u.TeamMemberships)
                 .Include(u => u.RoleAssignments)
-                .Where(u => u.DeletionScheduledFor != null && u.DeletionScheduledFor <= now)
+                .Where(u => u.DeletionScheduledFor != null && u.DeletionScheduledFor <= now
+                    && (u.DeletionEligibleAfter == null || u.DeletionEligibleAfter <= now))
                 .ToListAsync(cancellationToken);
 
             if (usersToDelete.Count == 0)
@@ -98,8 +100,10 @@ public class ProcessAccountDeletionsJob : IRecurringJob
                         $"Account anonymized (was {originalName})",
                         nameof(ProcessAccountDeletionsJob));
 
-                    // Cache invalidation must follow the persisted anonymization even if the
-                    // best-effort confirmation email fails afterward.
+                    // Save atomically per user so a failure in one doesn't leave others
+                    // in a partially-persisted state
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+
                     processedUserIds.Add(user.Id);
 
                     // Send confirmation to original email if we have it
@@ -119,13 +123,11 @@ public class ProcessAccountDeletionsJob : IRecurringJob
                 catch (Exception ex)
                 {
                     _logger.LogError(ex,
-                        "Failed to process deletion for user {UserId}",
+                        "Failed to process deletion for user {UserId}. Detaching tracked changes",
                         user.Id);
-                    // Continue processing other users
+                    _dbContext.ChangeTracker.Clear();
                 }
             }
-
-            await _dbContext.SaveChangesAsync(cancellationToken);
 
             foreach (var userId in processedUserIds)
             {
@@ -172,6 +174,7 @@ public class ProcessAccountDeletionsJob : IRecurringJob
         // Clear deletion request fields (deletion is now complete)
         user.DeletionRequestedAt = null;
         user.DeletionScheduledFor = null;
+        user.DeletionEligibleAfter = null;
 
         // Disable login
         user.LockoutEnabled = true;
