@@ -296,14 +296,12 @@ public class GuestController : HumansControllerBase
             return null;
 
         var result = _commPrefService.ValidateUnsubscribeToken(utoken);
-        if (result is null)
+        if (result.Status != TokenValidationStatus.Valid)
             return null;
 
-        var (userId, _) = result.Value;
-
         // Verify user still exists
-        var exists = await FindUserByIdAsync(userId);
-        return exists is not null ? userId : null;
+        var exists = await FindUserByIdAsync(result.UserId);
+        return exists is not null ? result.UserId : null;
     }
 
     private async Task<CommunicationPreferencesViewModel> BuildCommunicationPreferencesViewModelAsync(Guid userId)

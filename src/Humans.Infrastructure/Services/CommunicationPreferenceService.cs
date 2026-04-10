@@ -83,7 +83,20 @@ public class CommunicationPreferenceService : ICommunicationPreferenceService
         }
 
         if (created)
-            await _db.SaveChangesAsync(cancellationToken);
+        {
+            try
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                // Another request already created the defaults — reload
+                _db.ChangeTracker.Clear();
+                existing = await _db.CommunicationPreferences
+                    .Where(cp => cp.UserId == userId)
+                    .ToListAsync(cancellationToken);
+            }
+        }
 
         return existing
             .OrderBy(cp => cp.Category)
