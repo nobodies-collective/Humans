@@ -1485,12 +1485,6 @@ public class ProfileController : HumansControllerBase
             return View(model);
         }
 
-        // Enforce role assignment authorization
-        if (!RoleChecks.CanManageRole(User, model.RoleName))
-        {
-            return Forbid();
-        }
-
         var currentUser = await GetCurrentUserAsync();
         if (currentUser is null)
         {
@@ -1498,10 +1492,15 @@ public class ProfileController : HumansControllerBase
         }
 
         var result = await _roleAssignmentService.AssignRoleAsync(
-            id, model.RoleName, currentUser.Id, model.Notes);
+            id, model.RoleName, currentUser.Id, model.Notes, User);
 
         if (!result.Success)
         {
+            if (string.Equals(result.ErrorKey, "Unauthorized", StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+
             SetError(string.Format(_localizer["Admin_RoleAlreadyActive"].Value, model.RoleName));
             return RedirectToAction(nameof(AdminDetail), new { id });
         }
@@ -1522,12 +1521,6 @@ public class ProfileController : HumansControllerBase
             return NotFound();
         }
 
-        // Enforce role assignment authorization
-        if (!RoleChecks.CanManageRole(User, roleAssignment.RoleName))
-        {
-            return Forbid();
-        }
-
         var currentUser = await GetCurrentUserAsync();
         if (currentUser is null)
         {
@@ -1535,10 +1528,15 @@ public class ProfileController : HumansControllerBase
         }
 
         var result = await _roleAssignmentService.EndRoleAsync(
-            roleId, currentUser.Id, notes);
+            roleId, currentUser.Id, notes, User);
 
         if (!result.Success)
         {
+            if (string.Equals(result.ErrorKey, "Unauthorized", StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+
             SetError(_localizer["Admin_RoleNotActive"].Value);
             return RedirectToAction(nameof(AdminDetail), new { id = roleAssignment.UserId });
         }
