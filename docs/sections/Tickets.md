@@ -44,3 +44,21 @@
 - **Profiles**: Ticket orders and attendees are auto-matched against human email addresses.
 - **Admin**: Sync configuration and manual vendor operations are Admin-only.
 - **Event Participation**: Ticket sync auto-creates/updates EventParticipation records. Admin can backfill historical data via Tickets > Backfill.
+
+## Architecture — Current vs Target
+
+See `.claude/DESIGN_RULES.md` for the full rules.
+
+**Owning services:** `TicketQueryService`, `TicketSyncService`, `TicketingBudgetService`
+**Owned tables:** `ticket_orders`, `ticket_attendees`, `ticket_sync_states`
+
+### Current Violations
+
+**TicketQueryService — queries non-owned tables (Rule 2c):**
+- Queries `Users` table directly for user matching
+
+**Controllers:** Compliant — TicketController does not inject DbContext.
+
+### Target State
+
+- TicketQueryService calls `IUserService` or `IProfileService` for user data instead of querying `Users` directly
