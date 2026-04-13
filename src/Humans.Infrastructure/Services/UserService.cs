@@ -24,23 +24,23 @@ public class UserService : IUserService
         _logger = logger;
     }
 
-    public async Task<EventParticipation?> GetParticipationAsync(Guid userId, int year)
+    public async Task<EventParticipation?> GetParticipationAsync(Guid userId, int year, CancellationToken ct = default)
     {
         return await _dbContext.EventParticipations
-            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year);
+            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year, ct);
     }
 
-    public async Task<List<EventParticipation>> GetAllParticipationsForYearAsync(int year)
+    public async Task<List<EventParticipation>> GetAllParticipationsForYearAsync(int year, CancellationToken ct = default)
     {
         return await _dbContext.EventParticipations
             .Where(ep => ep.Year == year)
-            .ToListAsync();
+            .ToListAsync(ct);
     }
 
-    public async Task<EventParticipation> DeclareNotAttendingAsync(Guid userId, int year)
+    public async Task<EventParticipation> DeclareNotAttendingAsync(Guid userId, int year, CancellationToken ct = default)
     {
         var existing = await _dbContext.EventParticipations
-            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year);
+            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year, ct);
 
         var now = _clock.GetCurrentInstant();
 
@@ -73,7 +73,7 @@ public class UserService : IUserService
             _dbContext.EventParticipations.Add(existing);
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "User {UserId} declared NotAttending for year {Year}",
@@ -82,10 +82,10 @@ public class UserService : IUserService
         return existing;
     }
 
-    public async Task<bool> UndoNotAttendingAsync(Guid userId, int year)
+    public async Task<bool> UndoNotAttendingAsync(Guid userId, int year, CancellationToken ct = default)
     {
         var existing = await _dbContext.EventParticipations
-            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year);
+            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year, ct);
 
         if (existing is null)
             return false;
@@ -100,7 +100,7 @@ public class UserService : IUserService
         }
 
         _dbContext.EventParticipations.Remove(existing);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "User {UserId} undid NotAttending declaration for year {Year}",
@@ -109,10 +109,10 @@ public class UserService : IUserService
         return true;
     }
 
-    public async Task SetParticipationFromTicketSyncAsync(Guid userId, int year, ParticipationStatus status)
+    public async Task SetParticipationFromTicketSyncAsync(Guid userId, int year, ParticipationStatus status, CancellationToken ct = default)
     {
         var existing = await _dbContext.EventParticipations
-            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year);
+            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year, ct);
 
         if (existing is not null)
         {
@@ -141,10 +141,10 @@ public class UserService : IUserService
         // Note: caller is responsible for SaveChangesAsync (batch context)
     }
 
-    public async Task RemoveTicketSyncParticipationAsync(Guid userId, int year)
+    public async Task RemoveTicketSyncParticipationAsync(Guid userId, int year, CancellationToken ct = default)
     {
         var existing = await _dbContext.EventParticipations
-            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year);
+            .FirstOrDefaultAsync(ep => ep.UserId == userId && ep.Year == year, ct);
 
         if (existing is null)
             return;
@@ -162,11 +162,11 @@ public class UserService : IUserService
         // Note: caller is responsible for SaveChangesAsync (batch context)
     }
 
-    public async Task<int> BackfillParticipationsAsync(int year, List<(Guid UserId, ParticipationStatus Status)> entries)
+    public async Task<int> BackfillParticipationsAsync(int year, List<(Guid UserId, ParticipationStatus Status)> entries, CancellationToken ct = default)
     {
         var existing = await _dbContext.EventParticipations
             .Where(ep => ep.Year == year)
-            .ToDictionaryAsync(ep => ep.UserId);
+            .ToDictionaryAsync(ep => ep.UserId, ct);
 
         var count = 0;
         foreach (var (userId, status) in entries)
@@ -198,7 +198,7 @@ public class UserService : IUserService
             count++;
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "Backfilled {Count} participation records for year {Year}",

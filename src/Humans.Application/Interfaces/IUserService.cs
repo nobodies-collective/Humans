@@ -11,23 +11,23 @@ public interface IUserService
     /// <summary>
     /// Get the participation record for a user in a given year. Returns null if no record exists.
     /// </summary>
-    Task<EventParticipation?> GetParticipationAsync(Guid userId, int year);
+    Task<EventParticipation?> GetParticipationAsync(Guid userId, int year, CancellationToken ct = default);
 
     /// <summary>
     /// Get all participation records for a given year.
     /// </summary>
-    Task<List<EventParticipation>> GetAllParticipationsForYearAsync(int year);
+    Task<List<EventParticipation>> GetAllParticipationsForYearAsync(int year, CancellationToken ct = default);
 
     /// <summary>
     /// Declare that the user is not attending this year's event.
     /// </summary>
-    Task<EventParticipation> DeclareNotAttendingAsync(Guid userId, int year);
+    Task<EventParticipation> DeclareNotAttendingAsync(Guid userId, int year, CancellationToken ct = default);
 
     /// <summary>
     /// Undo a "not attending" declaration. Removes the record.
     /// Only works if the current status is NotAttending with Source=UserDeclared.
     /// </summary>
-    Task<bool> UndoNotAttendingAsync(Guid userId, int year);
+    Task<bool> UndoNotAttendingAsync(Guid userId, int year, CancellationToken ct = default);
 
     /// <summary>
     /// Set participation status from ticket sync. Handles the lifecycle rules:
@@ -35,17 +35,17 @@ public interface IUserService
     /// - Checked in → Attended (permanent)
     /// - Ticket purchase overrides NotAttending
     /// </summary>
-    Task SetParticipationFromTicketSyncAsync(Guid userId, int year, ParticipationStatus status);
+    Task SetParticipationFromTicketSyncAsync(Guid userId, int year, ParticipationStatus status, CancellationToken ct = default);
 
     /// <summary>
     /// Remove a TicketSync-sourced participation record when a user no longer has valid tickets.
     /// Does not remove UserDeclared or AdminBackfill records.
     /// Does not remove Attended records (permanent).
     /// </summary>
-    Task RemoveTicketSyncParticipationAsync(Guid userId, int year);
+    Task RemoveTicketSyncParticipationAsync(Guid userId, int year, CancellationToken ct = default);
 
     /// <summary>
     /// Bulk import historical participation data (admin backfill).
     /// </summary>
-    Task<int> BackfillParticipationsAsync(int year, List<(Guid UserId, ParticipationStatus Status)> entries);
+    Task<int> BackfillParticipationsAsync(int year, List<(Guid UserId, ParticipationStatus Status)> entries, CancellationToken ct = default);
 }
