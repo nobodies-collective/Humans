@@ -1,6 +1,4 @@
-using System.Security.Claims;
 using AwesomeAssertions;
-using Humans.Application.Authorization;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Infrastructure.Data;
@@ -331,10 +329,10 @@ public class GoogleAdminServiceTests : IDisposable
         _dbContext.Teams.Add(team);
         await _dbContext.SaveChangesAsync();
 
-        _googleSyncService.EnsureTeamGroupAsync(teamId, Arg.Any<ClaimsPrincipal>(), false, Arg.Any<CancellationToken>())
+        _googleSyncService.EnsureTeamGroupAsync(teamId, false, Arg.Any<CancellationToken>())
             .Returns(DTOs.GroupLinkResult.Ok());
 
-        var result = await _service.LinkGroupToTeamAsync(teamId, "test-team", SystemPrincipal.Instance);
+        var result = await _service.LinkGroupToTeamAsync(teamId, "test-team");
 
         result.Success.Should().BeTrue();
         result.Message.Should().Contain("test-team@nobodies.team");
@@ -346,7 +344,7 @@ public class GoogleAdminServiceTests : IDisposable
     [Fact]
     public async Task LinkGroupToTeamAsync_ReturnsErrorIfTeamNotFound()
     {
-        var result = await _service.LinkGroupToTeamAsync(Guid.NewGuid(), "prefix", SystemPrincipal.Instance);
+        var result = await _service.LinkGroupToTeamAsync(Guid.NewGuid(), "prefix");
 
         result.Success.Should().BeFalse();
         result.ErrorMessage.Should().Contain("not found");
@@ -367,10 +365,10 @@ public class GoogleAdminServiceTests : IDisposable
         _dbContext.Teams.Add(team);
         await _dbContext.SaveChangesAsync();
 
-        _googleSyncService.EnsureTeamGroupAsync(teamId, Arg.Any<ClaimsPrincipal>(), false, Arg.Any<CancellationToken>())
+        _googleSyncService.EnsureTeamGroupAsync(teamId, false, Arg.Any<CancellationToken>())
             .Returns(DTOs.GroupLinkResult.Error("Failed to create group"));
 
-        var result = await _service.LinkGroupToTeamAsync(teamId, "new-prefix", SystemPrincipal.Instance);
+        var result = await _service.LinkGroupToTeamAsync(teamId, "new-prefix");
 
         result.Success.Should().BeFalse();
         result.ErrorMessage.Should().Contain("Failed to create group");

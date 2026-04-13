@@ -613,7 +613,7 @@ public class TeamAdminController : HumansTeamControllerBase
 
         try
         {
-            await _teamResourceService.SetRestrictInheritedAccessAsync(resourceId, restrict, User, CancellationToken.None);
+            await _teamResourceService.SetRestrictInheritedAccessAsync(resourceId, restrict, CancellationToken.None);
             var label = restrict ? "enabled" : "disabled";
             SetSuccess($"Inherited access restriction {label}.");
         }
@@ -676,7 +676,7 @@ public class TeamAdminController : HumansTeamControllerBase
 
         try
         {
-            await _googleSyncService.SyncSingleResourceAsync(resourceId, SyncAction.Execute, User);
+            await _googleSyncService.SyncSingleResourceAsync(resourceId, SyncAction.Execute);
             SetSuccess(_localizer["TeamAdmin_ResourceSynced"].Value);
         }
         catch (Exception ex)

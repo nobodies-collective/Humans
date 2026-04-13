@@ -1,11 +1,9 @@
-using System.Security.Claims;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
-using Humans.Application.Authorization;
 using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
@@ -62,7 +60,6 @@ public class ProcessGoogleSyncOutboxJobTests : IDisposable
         await _googleSyncService.Received(1).AddUserToTeamResourcesAsync(
             outboxEvent.TeamId,
             outboxEvent.UserId,
-            SystemPrincipal.Instance,
             Arg.Any<CancellationToken>());
 
         var updatedEvent = await _dbContext.GoogleSyncOutboxEvents.SingleAsync();
@@ -80,7 +77,6 @@ public class ProcessGoogleSyncOutboxJobTests : IDisposable
             .When(s => s.RemoveUserFromTeamResourcesAsync(
                 outboxEvent.TeamId,
                 outboxEvent.UserId,
-                Arg.Any<ClaimsPrincipal>(),
                 Arg.Any<CancellationToken>()))
             .Do(_ => throw new InvalidOperationException("google timeout"));
 
@@ -103,7 +99,6 @@ public class ProcessGoogleSyncOutboxJobTests : IDisposable
             .When(s => s.RemoveUserFromTeamResourcesAsync(
                 outboxEvent.TeamId,
                 outboxEvent.UserId,
-                Arg.Any<ClaimsPrincipal>(),
                 Arg.Any<CancellationToken>()))
             .Do(_ => throw new InvalidOperationException("google timeout"));
 

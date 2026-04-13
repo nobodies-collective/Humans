@@ -696,11 +696,7 @@ public partial class TeamResourceService : ITeamResourceService
     }
 
     /// <inheritdoc />
-    public async Task SetRestrictInheritedAccessAsync(
-        Guid resourceId,
-        bool restrict,
-        System.Security.Claims.ClaimsPrincipal principal,
-        CancellationToken ct = default)
+    public async Task SetRestrictInheritedAccessAsync(Guid resourceId, bool restrict, CancellationToken ct = default)
     {
         var resource = await _dbContext.GoogleResources.FindAsync([resourceId], ct);
         if (resource is null) return;
@@ -717,7 +713,7 @@ public partial class TeamResourceService : ITeamResourceService
 
         try
         {
-            await _googleSyncService.SetInheritedPermissionsDisabledAsync(resource.GoogleId, restrict, principal, ct);
+            await _googleSyncService.SetInheritedPermissionsDisabledAsync(resource.GoogleId, restrict, ct);
             _logger.LogInformation("Set RestrictInheritedAccess={Restrict} for resource {ResourceId} ({GoogleId})",
                 restrict, resourceId, resource.GoogleId);
         }

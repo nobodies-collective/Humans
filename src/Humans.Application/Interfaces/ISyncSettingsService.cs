@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 
@@ -15,14 +14,6 @@ public interface ISyncSettingsService
     /// <summary>Get sync mode for a specific service.</summary>
     Task<SyncMode> GetModeAsync(SyncServiceType serviceType, CancellationToken ct = default);
 
-    /// <summary>
-    /// Update sync mode for a service. Authorization is enforced at the service boundary —
-    /// callers must pass a <see cref="ClaimsPrincipal"/> with Admin (or system) privileges.
-    /// </summary>
-    Task UpdateModeAsync(
-        SyncServiceType serviceType,
-        SyncMode mode,
-        Guid actorUserId,
-        ClaimsPrincipal principal,
-        CancellationToken ct = default);
+    /// <summary>Update sync mode for a service.</summary>
+    Task UpdateModeAsync(SyncServiceType serviceType, SyncMode mode, Guid actorUserId, CancellationToken ct = default);
 }

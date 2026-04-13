@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NodaTime;
-using Humans.Application.Authorization;
 using Humans.Application.Interfaces;
 using Humans.Domain.Constants;
 using Humans.Domain.Enums;
@@ -83,7 +82,6 @@ public class ProcessGoogleSyncOutboxJob : IRecurringJob
                             await _googleSyncService.AddUserToTeamResourcesAsync(
                                 outboxEvent.TeamId,
                                 outboxEvent.UserId,
-                                SystemPrincipal.Instance,
                                 cancellationToken);
                             break;
 
@@ -91,7 +89,6 @@ public class ProcessGoogleSyncOutboxJob : IRecurringJob
                             await _googleSyncService.RemoveUserFromTeamResourcesAsync(
                                 outboxEvent.TeamId,
                                 outboxEvent.UserId,
-                                SystemPrincipal.Instance,
                                 cancellationToken);
                             break;
 
