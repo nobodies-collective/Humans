@@ -221,7 +221,7 @@ public class RoleAssignmentService : IRoleAssignmentService
             _logger.LogWarning(
                 "Authorization denied for ending role: principal {Principal} attempted to end role {Role} for user {UserId}",
                 principal.Identity?.Name, roleAssignment.RoleName, roleAssignment.UserId);
-            return new OnboardingResult(false, "NotFound");
+            return new OnboardingResult(false, "Unauthorized");
         }
 
         var now = _clock.GetCurrentInstant();

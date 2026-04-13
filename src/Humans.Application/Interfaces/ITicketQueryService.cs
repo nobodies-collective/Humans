@@ -107,8 +107,9 @@ public interface ITicketQueryService
     Task<List<OrderExportRow>> GetOrderExportDataAsync();
 
     /// <summary>
-    /// Checks whether a user has a matched ticket attendee record.
-    /// Used for guest dashboard and communication preferences ticketing lock.
+    /// Checks whether a user has a matched ticket record — as either an attendee
+    /// or an order buyer. Used for guest dashboard and communication preferences
+    /// ticketing lock.
     /// </summary>
     Task<bool> HasTicketAttendeeMatchAsync(Guid userId);
 
