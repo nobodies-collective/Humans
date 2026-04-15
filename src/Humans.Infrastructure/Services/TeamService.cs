@@ -139,7 +139,7 @@ public class TeamService : ITeamService
 
                 UpsertCachedTeam(new CachedTeam(team.Id, team.Name, team.Description, team.Slug,
                     team.IsSystemTeam, team.SystemTeamType, team.RequiresApproval, team.IsPublicPage, team.IsHidden,
-                    team.CreatedAt, [], ParentTeamId: parentTeamId));
+                    team.IsPromotedToDirectory, team.CreatedAt, [], ParentTeamId: parentTeamId));
                 _logger.LogInformation("Created team {TeamName} with slug {Slug}", name, slug);
                 return team;
             }
@@ -217,8 +217,13 @@ public class TeamService : ITeamService
 
         if (!userId.HasValue)
         {
+            // Top-level teams opt into the public directory via IsPublicPage.
+            // Subteams cannot set IsPublicPage (forced false in UpdateTeamAsync);
+            // their opt-in is IsPromotedToDirectory.
             var publicDepartments = cachedTeams.Values
-                .Where(t => t.IsPublicPage && !t.IsSystemTeam && !t.IsHidden && t.ParentTeamId is null)
+                .Where(t => !t.IsSystemTeam && !t.IsHidden
+                    && ((t.ParentTeamId is null && t.IsPublicPage)
+                        || (t.ParentTeamId is not null && t.IsPromotedToDirectory)))
                 .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(t => CreateDirectorySummary(t, cachedTeams, userId))
                 .ToList();
@@ -241,7 +246,10 @@ public class TeamService : ITeamService
             ? cachedTeams.Values
             : cachedTeams.Values.Where(t => !t.IsHidden);
 
-        var summaries = visibleTeams
+        var directoryTeams = visibleTeams
+            .Where(t => t.ParentTeamId is null || t.IsPromotedToDirectory);
+
+        var summaries = directoryTeams
             .Select(t => CreateDirectorySummary(t, cachedTeams, userId))
             .ToList();
 
@@ -279,10 +287,17 @@ public class TeamService : ITeamService
             return null;
         }
 
-        if (!userId.HasValue &&
-            (!team.IsPublicPage || team.IsHidden || team.IsSystemTeam || team.ParentTeamId.HasValue))
+        if (!userId.HasValue)
         {
-            return null;
+            // Anonymous visitors can see top-level teams with IsPublicPage,
+            // or subteams that have been promoted to the directory.
+            var isAnonymouslyVisible = !team.IsHidden && !team.IsSystemTeam
+                && ((team.ParentTeamId is null && team.IsPublicPage)
+                    || (team.ParentTeamId is not null && team.IsPromotedToDirectory));
+            if (!isAnonymouslyVisible)
+            {
+                return null;
+            }
         }
 
         var activeMembers = team.Members
@@ -439,6 +454,7 @@ public class TeamService : ITeamService
         bool? hasBudget = null,
         bool? isHidden = null,
         bool? isSensitive = null,
+        bool? isPromotedToDirectory = null,
         CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams.FindAsync(new object[] { teamId }, cancellationToken)
@@ -534,6 +550,8 @@ public class TeamService : ITeamService
             team.IsHidden = isHidden.Value;
         if (isSensitive.HasValue)
             team.IsSensitive = isSensitive.Value;
+        if (isPromotedToDirectory.HasValue)
+            team.IsPromotedToDirectory = isPromotedToDirectory.Value;
         if (team.IsSystemTeam || parentTeamId.HasValue)
         {
             team.IsPublicPage = false;
@@ -2161,6 +2179,7 @@ public class TeamService : ITeamService
         RequiresApproval: team.RequiresApproval,
         IsPublicPage: team.IsPublicPage,
         IsHidden: team.IsHidden,
+        IsPromotedToDirectory: team.IsPromotedToDirectory,
         CreatedAt: team.CreatedAt,
         Members: team.Members
             .Where(m => m.LeftAt is null)
