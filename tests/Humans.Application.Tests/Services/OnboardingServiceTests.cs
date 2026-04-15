@@ -39,8 +39,12 @@ public class OnboardingServiceTests : IDisposable
 
         _dbContext = new HumansDbContext(options);
         _clock = new FakeClock(Instant.FromUtc(2026, 3, 1, 12, 0));
+        // Real UserService backed by the same in-memory DbContext so
+        // stitched user reads in OnboardingService's BoardVoting methods
+        // resolve to the seeded users without extra mocking.
+        var userService = new UserService(_dbContext, _clock, NullLogger<UserService>.Instance);
         _service = new OnboardingService(
-            _dbContext, _auditLogService, _emailService, _notificationService,
+            _dbContext, userService, _auditLogService, _emailService, _notificationService,
             _notificationInboxService, _syncJob,
             _membershipCalculator, _metrics, _clock, _cache,
             NullLogger<OnboardingService>.Instance);
@@ -603,8 +607,8 @@ public class OnboardingServiceTests : IDisposable
         var (applications, _) = await _service.GetBoardVotingDashboardAsync();
 
         applications.Should().HaveCount(2);
-        applications[0].Id.Should().Be(colabId);
-        applications[1].Id.Should().Be(asocId);
+        applications[0].ApplicationId.Should().Be(colabId);
+        applications[1].ApplicationId.Should().Be(asocId);
     }
 
     [Fact]
@@ -712,8 +716,8 @@ public class OnboardingServiceTests : IDisposable
         var result = await _service.GetBoardVotingDetailAsync(appId);
 
         result.Should().NotBeNull();
-        result!.Id.Should().Be(appId);
-        result.BoardVotes.Should().HaveCount(1);
+        result!.ApplicationId.Should().Be(appId);
+        result.Votes.Should().HaveCount(1);
     }
 
     [Fact]
@@ -744,9 +748,8 @@ public class OnboardingServiceTests : IDisposable
         var result = await _service.GetBoardVotingDetailAsync(appId);
 
         result.Should().NotBeNull();
-        var vote = result!.BoardVotes.First();
-        vote.BoardMemberUser.Should().NotBeNull();
-        vote.BoardMemberUser.DisplayName.Should().Be("Voter");
+        var vote = result!.Votes.First();
+        vote.BoardMemberDisplayName.Should().Be("Voter");
     }
 
     // --- HasBoardVotesAsync ---
