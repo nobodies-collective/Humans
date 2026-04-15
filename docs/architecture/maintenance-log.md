@@ -15,7 +15,7 @@ Tracks when recurring maintenance processes were last run.
 | Navigation audit | 2026-03-22 | 2026-04-22 | Monthly | — | `/nav-audit` — discoverability, backlinks |
 | GDPR audit | — | — | Quarterly | — | Exports, consent, PII logging |
 | Migration squash check | 2026-02-24 | 2026-03-24 | Monthly | — | Check `/Admin/DbVersion` on prod, QA (humans.n.burn.camp), and local dev. Oldest `lastApplied` across all three is the safe squash boundary. |
-| NuGet full update | 2026-04-05 | 2026-05-05 | Monthly | — | Non-security package updates |
-| About page package sync | 2026-04-05 | 2026-05-05 | Monthly | — | Update `About.cshtml` package versions after NuGet updates |
+| NuGet full update | 2026-04-15 | 2026-05-15 | Monthly | — | Non-security package updates |
+| About page package sync | 2026-04-15 | 2026-05-15 | Monthly | — | Update `About.cshtml` package versions after NuGet updates |
 | GitHub issue triage | 2026-03-08 | 2026-03-15 | Weekly | — | Sync issues vs todos.md |
 | Access matrix verification | 2026-03-18 | 2026-03-25 | Weekly | — | Compare `AccessMatrixDefinitions.cs` against actual controller auth checks |

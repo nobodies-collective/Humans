@@ -42,6 +42,21 @@
     </PackageReference>
   </ItemGroup>
 
+  <!--
+    NuGet audit suppressions for Magick.NET-Q8-AnyCPU 14.12.0.
+    14.12.0 is the latest published version; these are upstream ImageMagick
+    native-library CVEs awaiting a new Magick.NET release. Revisit on each
+    Magick.NET bump and prune entries that are no longer reported.
+  -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-98cp-rj9f-6v5g" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8vfj-q2cp-5m5j" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pmpg-6pww-fg6q" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-q8h3-jv9v-57qx" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-w54j-7wpm-crhj" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-x928-4434-crqj" />
+  </ItemGroup>
+
   <!-- Analyzers -->
   <ItemGroup>
     <PackageReference Include="Roslynator.Analyzers">
