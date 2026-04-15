@@ -442,53 +442,13 @@ public class DevLoginController : Controller
             changed = true;
         }
 
-        // Ensure active coordinator membership on department
-        if (!await _db.TeamMembers.AnyAsync(tm => tm.TeamId == deptId && tm.UserId == coordinatorUserId && tm.LeftAt == null))
-        {
-            var inactive = await _db.TeamMembers
-                .FirstOrDefaultAsync(tm => tm.TeamId == deptId && tm.UserId == coordinatorUserId && tm.LeftAt != null);
-            if (inactive is not null)
-            {
-                inactive.LeftAt = null;
-                inactive.Role = TeamMemberRole.Coordinator;
-            }
-            else
-            {
-                _db.TeamMembers.Add(new TeamMember
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = coordinatorUserId,
-                    TeamId = deptId,
-                    Role = TeamMemberRole.Coordinator,
-                    JoinedAt = now
-                });
-            }
-            changed = true;
-        }
+        // Ensure department membership exists with Coordinator role.
+        // Repair the role if a prior version of the seed (or any other code path) left
+        // the row at Member — the e2e teams-auth tests rely on this being Coordinator.
+        changed |= await EnsureSeededMembershipAsync(deptId, coordinatorUserId, TeamMemberRole.Coordinator, now);
 
-        // Ensure active membership on sub-team
-        if (!await _db.TeamMembers.AnyAsync(tm => tm.TeamId == subTeamId && tm.UserId == coordinatorUserId && tm.LeftAt == null))
-        {
-            var inactive = await _db.TeamMembers
-                .FirstOrDefaultAsync(tm => tm.TeamId == subTeamId && tm.UserId == coordinatorUserId && tm.LeftAt != null);
-            if (inactive is not null)
-            {
-                inactive.LeftAt = null;
-                inactive.Role = TeamMemberRole.Member;
-            }
-            else
-            {
-                _db.TeamMembers.Add(new TeamMember
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = coordinatorUserId,
-                    TeamId = subTeamId,
-                    Role = TeamMemberRole.Member,
-                    JoinedAt = now
-                });
-            }
-            changed = true;
-        }
+        // Ensure sub-team membership exists with Member role.
+        changed |= await EnsureSeededMembershipAsync(subTeamId, coordinatorUserId, TeamMemberRole.Member, now);
 
         if (changed)
         {
@@ -499,6 +459,42 @@ public class DevLoginController : Controller
                 "DEV: ensured coordinator teams — department {DeptId}, sub-team {SubTeamId}",
                 deptId, subTeamId);
         }
+    }
+
+    private async Task<bool> EnsureSeededMembershipAsync(
+        Guid teamId,
+        Guid userId,
+        TeamMemberRole expectedRole,
+        Instant now)
+    {
+        var existing = await _db.TeamMembers
+            .FirstOrDefaultAsync(tm => tm.TeamId == teamId && tm.UserId == userId);
+
+        if (existing is null)
+        {
+            _db.TeamMembers.Add(new TeamMember
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                TeamId = teamId,
+                Role = expectedRole,
+                JoinedAt = now
+            });
+            return true;
+        }
+
+        var changed = false;
+        if (existing.LeftAt is not null)
+        {
+            existing.LeftAt = null;
+            changed = true;
+        }
+        if (existing.Role != expectedRole)
+        {
+            existing.Role = expectedRole;
+            changed = true;
+        }
+        return changed;
     }
 
     /// <summary>
