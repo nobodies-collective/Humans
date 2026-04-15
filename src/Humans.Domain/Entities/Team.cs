@@ -155,11 +155,6 @@ public class Team
     public ICollection<TeamJoinRequest> JoinRequests { get; } = new List<TeamJoinRequest>();
 
     /// <summary>
-    /// Navigation property to associated Google resources.
-    /// </summary>
-    public ICollection<GoogleResource> GoogleResources { get; } = new List<GoogleResource>();
-
-    /// <summary>
     /// Navigation property to legal documents scoped to this team.
     /// </summary>
     public ICollection<LegalDocument> LegalDocuments { get; } = new List<LegalDocument>();
@@ -168,6 +163,19 @@ public class Team
     /// Navigation property to role definitions.
     /// </summary>
     public ICollection<TeamRoleDefinition> RoleDefinitions { get; } = new List<TeamRoleDefinition>();
+
+    /// <summary>
+    /// Whether this subteam is promoted to appear on the Teams directory page.
+    /// Only meaningful for subteams (ParentTeamId != null). Top-level teams always appear.
+    /// </summary>
+    public bool IsPromotedToDirectory { get; set; }
+
+    /// <summary>
+    /// Whether this team should appear in the Teams directory.
+    /// Top-level teams always appear; subteams only if promoted.
+    /// Not mapped to DB — use inline expression for EF queries.
+    /// </summary>
+    public bool IsInDirectory => ParentTeamId == null || IsPromotedToDirectory;
 
     /// <summary>
     /// Whether this is a system-managed team.

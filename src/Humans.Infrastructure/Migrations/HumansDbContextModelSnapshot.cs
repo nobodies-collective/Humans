@@ -1069,6 +1069,9 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<LocalDateTime?>("PlacementOpensAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("RegistrationInfo")
+                        .HasColumnType("text");
+
                     b.Property<Instant>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2402,6 +2405,9 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<bool>("IsHidden")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsPromotedToDirectory")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsPublicPage")
                         .HasColumnType("boolean");
 
@@ -2479,6 +2485,7 @@ namespace Humans.Infrastructure.Migrations
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
+                            IsPromotedToDirectory = false,
                             IsPublicPage = false,
                             IsSensitive = false,
                             Name = "Volunteers",
@@ -2496,6 +2503,7 @@ namespace Humans.Infrastructure.Migrations
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
+                            IsPromotedToDirectory = false,
                             IsPublicPage = false,
                             IsSensitive = false,
                             Name = "Coordinators",
@@ -2513,6 +2521,7 @@ namespace Humans.Infrastructure.Migrations
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
+                            IsPromotedToDirectory = false,
                             IsPublicPage = false,
                             IsSensitive = false,
                             Name = "Board",
@@ -2530,6 +2539,7 @@ namespace Humans.Infrastructure.Migrations
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
+                            IsPromotedToDirectory = false,
                             IsPublicPage = false,
                             IsSensitive = false,
                             Name = "Asociados",
@@ -2547,6 +2557,7 @@ namespace Humans.Infrastructure.Migrations
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
+                            IsPromotedToDirectory = false,
                             IsPublicPage = false,
                             IsSensitive = false,
                             Name = "Colaboradors",
@@ -2564,6 +2575,7 @@ namespace Humans.Infrastructure.Migrations
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
+                            IsPromotedToDirectory = false,
                             IsPublicPage = false,
                             IsSensitive = false,
                             Name = "Barrio Leads",
@@ -4006,9 +4018,9 @@ namespace Humans.Infrastructure.Migrations
             modelBuilder.Entity("Humans.Domain.Entities.GoogleResource", b =>
                 {
                     b.HasOne("Humans.Domain.Entities.Team", "Team")
-                        .WithMany("GoogleResources")
+                        .WithMany()
                         .HasForeignKey("TeamId")
-                        .OnDelete(DeleteBehavior.SetNull)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Team");
@@ -4558,8 +4570,6 @@ namespace Humans.Infrastructure.Migrations
             modelBuilder.Entity("Humans.Domain.Entities.Team", b =>
                 {
                     b.Navigation("ChildTeams");
-
-                    b.Navigation("GoogleResources");
 
                     b.Navigation("JoinRequests");
 

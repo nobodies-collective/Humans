@@ -76,6 +76,9 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
         builder.Property(t => t.IsSensitive)
             .IsRequired();
 
+        builder.Property(t => t.IsPromotedToDirectory)
+            .IsRequired();
+
         builder.Property(t => t.PageContent)
             .HasMaxLength(50000);
 
@@ -107,10 +110,16 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
             .HasForeignKey(jr => jr.TeamId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasMany(t => t.GoogleResources)
+        // google_resources is owned by TeamResourceService. The Team → GoogleResource
+        // navigation was removed to enforce ownership — the relationship is now
+        // configured from the GoogleResource side only via its Team nav property.
+        // Restrict (not SetNull): GoogleResource.TeamId is non-nullable, so SetNull
+        // would produce a NOT NULL violation on team delete. Teams should never be
+        // hard-deleted if resources exist — the caller must unlink resources first.
+        builder.HasMany<GoogleResource>()
             .WithOne(gr => gr.Team)
             .HasForeignKey(gr => gr.TeamId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(t => t.Slug)
             .IsUnique();
@@ -129,6 +138,7 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
 
         // Ignore computed properties
         builder.Ignore(t => t.IsSystemTeam);
+        builder.Ignore(t => t.IsInDirectory);
         builder.Ignore(t => t.GoogleGroupEmail);
         builder.Ignore(t => t.DisplayName);
 
@@ -156,7 +166,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 ShowCoordinatorsOnPublicPage = true,
                 HasBudget = false,
                 IsHidden = false,
-                IsSensitive = false
+                IsSensitive = false,
+                IsPromotedToDirectory = false
             },
             new
             {
@@ -180,7 +191,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 ShowCoordinatorsOnPublicPage = true,
                 HasBudget = false,
                 IsHidden = false,
-                IsSensitive = false
+                IsSensitive = false,
+                IsPromotedToDirectory = false
             },
             new
             {
@@ -204,7 +216,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 ShowCoordinatorsOnPublicPage = true,
                 HasBudget = false,
                 IsHidden = false,
-                IsSensitive = false
+                IsSensitive = false,
+                IsPromotedToDirectory = false
             },
             new
             {
@@ -228,7 +241,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 ShowCoordinatorsOnPublicPage = true,
                 HasBudget = false,
                 IsHidden = false,
-                IsSensitive = false
+                IsSensitive = false,
+                IsPromotedToDirectory = false
             },
             new
             {
@@ -252,7 +266,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 ShowCoordinatorsOnPublicPage = true,
                 HasBudget = false,
                 IsHidden = false,
-                IsSensitive = false
+                IsSensitive = false,
+                IsPromotedToDirectory = false
             },
             new
             {
@@ -276,7 +291,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 ShowCoordinatorsOnPublicPage = true,
                 HasBudget = false,
                 IsHidden = false,
-                IsSensitive = false
+                IsSensitive = false,
+                IsPromotedToDirectory = false
             });
     }
 }

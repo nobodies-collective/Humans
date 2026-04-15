@@ -8,7 +8,7 @@ namespace Humans.Application.Interfaces;
 public record CachedTeam(
     Guid Id, string Name, string? Description, string Slug,
     bool IsSystemTeam, SystemTeamType SystemTeamType, bool RequiresApproval,
-    bool IsPublicPage, bool IsHidden, Instant CreatedAt, List<CachedTeamMember> Members,
+    bool IsPublicPage, bool IsHidden, bool IsPromotedToDirectory, Instant CreatedAt, List<CachedTeamMember> Members,
     Guid? ParentTeamId = null);
 
 public record CachedTeamMember(
@@ -71,13 +71,6 @@ public record MyTeamMembershipSummary(
     Instant JoinedAt,
     bool CanLeave,
     int PendingRequestCount);
-
-public record UserTeamGoogleResource(
-    string TeamName,
-    string TeamSlug,
-    string ResourceName,
-    GoogleResourceType ResourceType,
-    string? Url);
 
 public record TeamRosterSlotSummary(
     string TeamName,
@@ -172,12 +165,6 @@ public interface ITeamService
     Task<IReadOnlyList<TeamMember>> GetUserTeamsAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets active Google resources grouped by team for a user's active team memberships.
-    /// Used by the MyGoogleResources view component on the dashboard.
-    /// </summary>
-    Task<IReadOnlyList<UserTeamGoogleResource>> GetUserTeamGoogleResourcesAsync(Guid userId, CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Gets the current user's team memberships with viewer-specific pending-request counts.
     /// </summary>
     Task<IReadOnlyList<MyTeamMembershipSummary>> GetMyTeamMembershipsAsync(
@@ -199,6 +186,7 @@ public interface ITeamService
         bool? hasBudget = null,
         bool? isHidden = null,
         bool? isSensitive = null,
+        bool? isPromotedToDirectory = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

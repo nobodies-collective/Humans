@@ -60,6 +60,16 @@ Log.Logger = logConfig.CreateLogger();
 
 builder.Host.UseSerilog();
 
+// Validate the DI container at startup so cycles and captive dependencies
+// fail the process fast instead of manifesting as silent hangs at first request.
+// (The runtime cycle check can't see through factory-lambda registrations; ValidateOnBuild
+// eagerly resolves every service through its real constructor graph.)
+builder.Host.UseDefaultServiceProvider(options =>
+{
+    options.ValidateOnBuild = true;
+    options.ValidateScopes = true;
+});
+
 // Add services to the container
 
 // Configuration registry — auto-collects metadata about every config setting the app touches.
@@ -188,14 +198,31 @@ builder.Services.AddAuthentication()
                 var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
                     .CreateLogger("GoogleOAuth");
 
-                var isCorrelationFailure = context.Failure?.Message?.Contains("Correlation", StringComparison.OrdinalIgnoreCase) == true;
-                if (isCorrelationFailure)
+                var failureMessage = context.Failure?.Message ?? string.Empty;
+                var isCorrelationFailure = failureMessage.Contains("Correlation", StringComparison.OrdinalIgnoreCase);
+                var isAccessDenied = failureMessage.Contains("access_denied", StringComparison.OrdinalIgnoreCase)
+                    || failureMessage.Contains("denied by the resource owner", StringComparison.OrdinalIgnoreCase);
+
+                var clientIp = context.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+                // All three categories are expected user behavior, but support needs to trace them
+                // when someone calls in. Log at Warning with the client IP so /Admin/Logs surfaces
+                // them and the event can be correlated to a user report. Stack traces dropped —
+                // the failure reason and IP are the actionable bits. See #483.
+                if (isAccessDenied)
                 {
-                    logger.LogDebug(context.Failure, "Google sign-in correlation failed (expected for stale/duplicate requests)");
+                    logger.LogWarning(
+                        "Google sign-in cancelled by user (access_denied) from {ClientIp}", clientIp);
+                }
+                else if (isCorrelationFailure)
+                {
+                    logger.LogWarning(
+                        "Google sign-in correlation cookie missing from {ClientIp} (stale or duplicate request)", clientIp);
                 }
                 else
                 {
-                    logger.LogWarning(context.Failure, "Google sign-in failed: {Error}", context.Failure?.Message);
+                    logger.LogWarning(
+                        context.Failure, "Google sign-in failed from {ClientIp}: {Error}", clientIp, failureMessage);
                 }
 
                 context.Response.Redirect("/Account/Login?error=sign-in-failed");
@@ -422,9 +449,9 @@ var app = builder.Build();
 // so all Instant.ToDisplay*() calls automatically use the user's session timezone.
 DateTimeDisplayExtensions.Initialize(app.Services.GetRequiredService<IHttpContextAccessor>());
 
-// Eagerly resolve HumansMetricsService so the background gauge-refresh timer starts
+// Eagerly resolve IHumansMetrics so the background gauge-refresh timer starts
 // immediately — otherwise observable gauges emit nothing until first injection.
-app.Services.GetRequiredService<HumansMetricsService>();
+app.Services.GetRequiredService<IHumansMetrics>();
 
 // Localization diagnostic check
 {

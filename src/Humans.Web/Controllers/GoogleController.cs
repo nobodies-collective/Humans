@@ -92,7 +92,7 @@ public class GoogleController : HumansControllerBase
     [Authorize(Policy = PolicyNames.AdminOnly)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SyncSystemTeams(
-        [FromServices] Humans.Infrastructure.Jobs.SystemTeamSyncJob systemTeamSyncJob)
+        [FromServices] Humans.Application.Interfaces.ISystemTeamSync systemTeamSyncJob)
     {
         try
         {

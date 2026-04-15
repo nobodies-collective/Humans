@@ -1,16 +1,10 @@
-using System.Net;
-using System.Text.Json;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
-using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Data;
-using Humans.Infrastructure.Helpers;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using NodaTime;
 
 namespace Humans.Infrastructure.Services;
@@ -19,30 +13,24 @@ public class CampaignService : ICampaignService
 {
     private readonly HumansDbContext _dbContext;
     private readonly IClock _clock;
-    private readonly IHumansMetrics _metrics;
     private readonly INotificationService _notificationService;
     private readonly ICommunicationPreferenceService _commPrefService;
-    private readonly EmailSettings _settings;
-    private readonly string _environmentName;
+    private readonly IEmailService _emailService;
     private readonly ILogger<CampaignService> _logger;
 
     public CampaignService(
         HumansDbContext dbContext,
         IClock clock,
-        IHumansMetrics metrics,
         INotificationService notificationService,
         ICommunicationPreferenceService commPrefService,
-        IOptions<EmailSettings> settings,
-        IHostEnvironment hostEnvironment,
+        IEmailService emailService,
         ILogger<CampaignService> logger)
     {
         _dbContext = dbContext;
         _clock = clock;
-        _metrics = metrics;
         _notificationService = notificationService;
         _commPrefService = commPrefService;
-        _settings = settings.Value;
-        _environmentName = hostEnvironment.EnvironmentName;
+        _emailService = emailService;
         _logger = logger;
     }
 
@@ -388,7 +376,14 @@ public class CampaignService : ICampaignService
                 $"Not enough codes available. Need {eligibleUsers.Count}, have {availableCodes.Count}.");
 
         var now = _clock.GetCurrentInstant();
+        var failedCount = 0;
 
+        // Persist and enqueue one grant at a time. If an enqueue throws mid-loop, we
+        // flip that single grant to Failed locally so subsequent grants still get
+        // processed and RetryAllFailedAsync picks the failed ones up on the next pass.
+        // A batch-level save-then-enqueue would orphan the tail: saved grants whose
+        // outbox row never landed, with LatestEmailStatus == Queued, neither retriable
+        // nor re-granted on the next wave.
         for (var i = 0; i < eligibleUsers.Count; i++)
         {
             var user = eligibleUsers[i];
@@ -405,18 +400,28 @@ public class CampaignService : ICampaignService
                 LatestEmailAt = now
             };
             _dbContext.CampaignGrants.Add(grant);
+            await _dbContext.SaveChangesAsync(ct);
 
-            var outboxMessage = RenderOutboxMessage(campaign, user, code.Code, grant.Id, now);
-            _dbContext.EmailOutboxMessages.Add(outboxMessage);
-
-            _metrics.RecordEmailQueued("campaign_code");
+            try
+            {
+                await _emailService.SendCampaignCodeAsync(
+                    BuildCampaignCodeRequest(campaign, user, code.Code, grant.Id),
+                    ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to enqueue campaign code email for user {UserId} grant {GrantId} in campaign {CampaignId}",
+                    user.Id, grant.Id, campaignId);
+                grant.LatestEmailStatus = EmailOutboxStatus.Failed;
+                await _dbContext.SaveChangesAsync(ct);
+                failedCount++;
+            }
         }
 
-        await _dbContext.SaveChangesAsync(ct);
-
         _logger.LogInformation(
-            "Campaign {CampaignId}: sent wave to team {TeamId}, {Count} grants created",
-            campaignId, teamId, eligibleUsers.Count);
+            "Campaign {CampaignId}: sent wave to team {TeamId}, {Count} grants created, {FailedCount} failed to enqueue",
+            campaignId, teamId, eligibleUsers.Count, failedCount);
 
         // In-app notification to each recipient (best-effort)
         try
@@ -450,17 +455,76 @@ public class CampaignService : ICampaignService
 
         var now = _clock.GetCurrentInstant();
 
-        var outboxMessage = RenderOutboxMessage(
-            grant.Campaign, grant.User, grant.Code.Code, grant.Id, now);
-        _dbContext.EmailOutboxMessages.Add(outboxMessage);
-
         grant.LatestEmailStatus = EmailOutboxStatus.Queued;
         grant.LatestEmailAt = now;
 
         await _dbContext.SaveChangesAsync(ct);
 
-        _metrics.RecordEmailQueued("campaign_code");
+        await _emailService.SendCampaignCodeAsync(
+            BuildCampaignCodeRequest(grant.Campaign, grant.User, grant.Code.Code, grant.Id),
+            ct);
+
         _logger.LogInformation("Resent campaign email for grant {GrantId}", grantId);
+    }
+
+    public async Task<int> MarkGrantsRedeemedAsync(
+        IReadOnlyCollection<DiscountCodeRedemption> redemptions,
+        CancellationToken ct = default)
+    {
+        if (redemptions.Count == 0)
+            return 0;
+
+        // Case-insensitive set of codes we need to look up in the database.
+        var codeStrings = redemptions
+            .Where(r => !string.IsNullOrEmpty(r.Code))
+            .Select(r => r.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (codeStrings.Count == 0)
+            return 0;
+
+        // Load unredeemed grants on active/completed campaigns. Filter by code in
+        // memory so the DB query stays simple and collation-independent.
+        var unredeemed = (await _dbContext.CampaignGrants
+            .Include(g => g.Code)
+            .Include(g => g.Campaign)
+            .Where(g => g.Code != null
+                && (g.Campaign.Status == CampaignStatus.Active || g.Campaign.Status == CampaignStatus.Completed)
+                && g.RedeemedAt == null)
+            .ToListAsync(ct))
+            .Where(g => g.Code != null && codeStrings.Contains(g.Code.Code))
+            .ToList();
+
+        // Iterate redemptions in input order, matching one grant per redemption so
+        // that N orders with the same code redeem N distinct grants (matching the
+        // prior single-service behavior). When a code matches grants in multiple
+        // campaigns, the most recently created campaign wins.
+        var redeemedCount = 0;
+        foreach (var redemption in redemptions)
+        {
+            if (string.IsNullOrEmpty(redemption.Code))
+                continue;
+
+            var grant = unredeemed
+                .Where(g => string.Equals(g.Code!.Code, redemption.Code, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(g => g.Campaign.CreatedAt)
+                .FirstOrDefault();
+
+            if (grant is null)
+                continue;
+
+            grant.RedeemedAt = redemption.RedeemedAt;
+            unredeemed.Remove(grant);
+            redeemedCount++;
+        }
+
+        if (redeemedCount > 0)
+        {
+            await _dbContext.SaveChangesAsync(ct);
+            _logger.LogInformation("Marked {Count} campaign grants redeemed from discount-code matches", redeemedCount);
+        }
+
+        return redeemedCount;
     }
 
     public async Task RetryAllFailedAsync(Guid campaignId, CancellationToken ct = default)
@@ -477,24 +541,37 @@ public class CampaignService : ICampaignService
             return;
 
         var now = _clock.GetCurrentInstant();
+        var stillFailedCount = 0;
 
+        // Flip-and-enqueue one grant at a time. A batch flip-to-Queued + loop enqueue
+        // would lose grants whose enqueue throws: they would leave the Failed set
+        // without a corresponding outbox row and never be retriable again.
         foreach (var grant in failedGrants)
         {
-            var outboxMessage = RenderOutboxMessage(
-                grant.Campaign, grant.User, grant.Code.Code, grant.Id, now);
-            _dbContext.EmailOutboxMessages.Add(outboxMessage);
-
             grant.LatestEmailStatus = EmailOutboxStatus.Queued;
             grant.LatestEmailAt = now;
+            await _dbContext.SaveChangesAsync(ct);
 
-            _metrics.RecordEmailQueued("campaign_code");
+            try
+            {
+                await _emailService.SendCampaignCodeAsync(
+                    BuildCampaignCodeRequest(grant.Campaign, grant.User, grant.Code.Code, grant.Id),
+                    ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Retry failed to re-enqueue campaign code email for grant {GrantId} in campaign {CampaignId}",
+                    grant.Id, campaignId);
+                grant.LatestEmailStatus = EmailOutboxStatus.Failed;
+                await _dbContext.SaveChangesAsync(ct);
+                stillFailedCount++;
+            }
         }
 
-        await _dbContext.SaveChangesAsync(ct);
-
         _logger.LogInformation(
-            "Campaign {CampaignId}: retried {Count} failed grants",
-            campaignId, failedGrants.Count);
+            "Campaign {CampaignId}: retried {Count} failed grants, {StillFailedCount} still failed",
+            campaignId, failedGrants.Count, stillFailedCount);
     }
 
     private async Task<List<Guid>> GetActiveTeamUserIdsAsync(Guid teamId, CancellationToken ct)
@@ -513,54 +590,24 @@ public class CampaignService : ICampaignService
             .CountAsync(ct);
     }
 
-    private EmailOutboxMessage RenderOutboxMessage(
-        Campaign campaign, User user, string code, Guid grantId, Instant now)
+    /// <summary>
+    /// Build a <see cref="CampaignCodeEmailRequest"/> describing the raw campaign content
+    /// (unrendered markdown template, recipient, grant id). The outbox email service
+    /// performs the actual markdown→HTML rendering and template wrapping — keeping
+    /// email_outbox_messages ownership in a single place.
+    /// </summary>
+    private static CampaignCodeEmailRequest BuildCampaignCodeRequest(
+        Campaign campaign, User user, string code, Guid grantId)
     {
-        var recipientEmail = GetNotificationEmail(user);
-        var name = user.DisplayName;
-
-        var encodedCode = WebUtility.HtmlEncode(code);
-        var encodedName = WebUtility.HtmlEncode(name);
-
-        // Substitute placeholders in Markdown source, then render to HTML
-        var markdown = campaign.EmailBodyTemplate
-            .Replace("{{Code}}", encodedCode, StringComparison.Ordinal)
-            .Replace("{{Name}}", encodedName, StringComparison.Ordinal);
-        var renderedBody = Markdig.Markdown.ToHtml(markdown);
-
-        var renderedSubject = campaign.EmailSubject
-            .Replace("{{Code}}", code, StringComparison.Ordinal)
-            .Replace("{{Name}}", name, StringComparison.Ordinal);
-
-        // Generate unsubscribe headers and footer link for CampaignCodes category
-        var unsubHeaders = _commPrefService.GenerateUnsubscribeHeaders(user.Id, MessageCategory.CampaignCodes);
-        string? extraHeadersJson = null;
-        if (unsubHeaders is not null)
-        {
-            extraHeadersJson = JsonSerializer.Serialize(unsubHeaders);
-        }
-        var unsubscribeUrl = _commPrefService.GenerateBrowserUnsubscribeUrl(user.Id, MessageCategory.CampaignCodes);
-
-        // Wrap in email template
-        var (wrappedHtml, plainText) = EmailBodyComposer.Compose(
-            renderedBody, _settings.BaseUrl, _environmentName, unsubscribeUrl);
-
-        return new EmailOutboxMessage
-        {
-            Id = Guid.NewGuid(),
-            RecipientEmail = recipientEmail,
-            RecipientName = name,
-            Subject = renderedSubject,
-            HtmlBody = wrappedHtml,
-            PlainTextBody = plainText,
-            TemplateName = "campaign_code",
-            UserId = user.Id,
-            CampaignGrantId = grantId,
-            ReplyTo = campaign.ReplyToAddress,
-            ExtraHeaders = extraHeadersJson,
-            Status = EmailOutboxStatus.Queued,
-            CreatedAt = now
-        };
+        return new CampaignCodeEmailRequest(
+            UserId: user.Id,
+            CampaignGrantId: grantId,
+            RecipientEmail: GetNotificationEmail(user),
+            RecipientName: user.DisplayName,
+            Subject: campaign.EmailSubject,
+            MarkdownBody: campaign.EmailBodyTemplate,
+            Code: code,
+            ReplyTo: campaign.ReplyToAddress);
     }
 
     private static string GetNotificationEmail(User user)

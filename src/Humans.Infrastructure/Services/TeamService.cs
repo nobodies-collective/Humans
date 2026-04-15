@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 using Humans.Application;
@@ -26,9 +27,15 @@ public class TeamService : ITeamService
     private readonly IRoleAssignmentService _roleAssignmentService;
     private readonly IShiftManagementService _shiftManagementService;
     private readonly ISystemTeamSync _systemTeamSync;
+    private readonly IServiceProvider _serviceProvider;
     private readonly IClock _clock;
     private readonly IMemoryCache _cache;
     private readonly ILogger<TeamService> _logger;
+
+    // Lazy to break the DI cycle with ITeamResourceService, which also needs ITeamService
+    // for user-membership lookups when resolving resources.
+    private ITeamResourceService TeamResourceService
+        => _serviceProvider.GetRequiredService<ITeamResourceService>();
 
     public TeamService(
         HumansDbContext dbContext,
@@ -38,6 +45,7 @@ public class TeamService : ITeamService
         IRoleAssignmentService roleAssignmentService,
         IShiftManagementService shiftManagementService,
         ISystemTeamSync systemTeamSync,
+        IServiceProvider serviceProvider,
         IClock clock,
         IMemoryCache cache,
         ILogger<TeamService> logger)
@@ -49,6 +57,7 @@ public class TeamService : ITeamService
         _roleAssignmentService = roleAssignmentService;
         _shiftManagementService = shiftManagementService;
         _systemTeamSync = systemTeamSync;
+        _serviceProvider = serviceProvider;
         _clock = clock;
         _cache = cache;
         _logger = logger;
@@ -130,7 +139,7 @@ public class TeamService : ITeamService
 
                 UpsertCachedTeam(new CachedTeam(team.Id, team.Name, team.Description, team.Slug,
                     team.IsSystemTeam, team.SystemTeamType, team.RequiresApproval, team.IsPublicPage, team.IsHidden,
-                    team.CreatedAt, [], ParentTeamId: parentTeamId));
+                    team.IsPromotedToDirectory, team.CreatedAt, [], ParentTeamId: parentTeamId));
                 _logger.LogInformation("Created team {TeamName} with slug {Slug}", name, slug);
                 return team;
             }
@@ -208,8 +217,13 @@ public class TeamService : ITeamService
 
         if (!userId.HasValue)
         {
+            // Top-level teams opt into the public directory via IsPublicPage.
+            // Subteams cannot set IsPublicPage (forced false in UpdateTeamAsync);
+            // their opt-in is IsPromotedToDirectory.
             var publicDepartments = cachedTeams.Values
-                .Where(t => t.IsPublicPage && !t.IsSystemTeam && !t.IsHidden && t.ParentTeamId is null)
+                .Where(t => !t.IsSystemTeam && !t.IsHidden
+                    && ((t.ParentTeamId is null && t.IsPublicPage)
+                        || (t.ParentTeamId is not null && t.IsPromotedToDirectory)))
                 .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(t => CreateDirectorySummary(t, cachedTeams, userId))
                 .ToList();
@@ -232,7 +246,10 @@ public class TeamService : ITeamService
             ? cachedTeams.Values
             : cachedTeams.Values.Where(t => !t.IsHidden);
 
-        var summaries = visibleTeams
+        var directoryTeams = visibleTeams
+            .Where(t => t.ParentTeamId is null || t.IsPromotedToDirectory);
+
+        var summaries = directoryTeams
             .Select(t => CreateDirectorySummary(t, cachedTeams, userId))
             .ToList();
 
@@ -270,10 +287,17 @@ public class TeamService : ITeamService
             return null;
         }
 
-        if (!userId.HasValue &&
-            (!team.IsPublicPage || team.IsHidden || team.IsSystemTeam || team.ParentTeamId.HasValue))
+        if (!userId.HasValue)
         {
-            return null;
+            // Anonymous visitors can see top-level teams with IsPublicPage,
+            // or subteams that have been promoted to the directory.
+            var isAnonymouslyVisible = !team.IsHidden && !team.IsSystemTeam
+                && ((team.ParentTeamId is null && team.IsPublicPage)
+                    || (team.ParentTeamId is not null && team.IsPromotedToDirectory));
+            if (!isAnonymouslyVisible)
+            {
+                return null;
+            }
         }
 
         var activeMembers = team.Members
@@ -362,22 +386,6 @@ public class TeamService : ITeamService
             .ToListAsync(cancellationToken);
     }
 
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<UserTeamGoogleResource>> GetUserTeamGoogleResourcesAsync(Guid userId, CancellationToken cancellationToken = default)
-    {
-        var teamResources = await (
-            from tm in _dbContext.TeamMembers.AsNoTracking()
-            where tm.UserId == userId && tm.LeftAt == null
-            join t in _dbContext.Teams on tm.TeamId equals t.Id
-            join r in _dbContext.GoogleResources on t.Id equals r.TeamId
-            where r.IsActive
-            orderby t.Name, r.Name
-            select new UserTeamGoogleResource(t.Name, t.Slug, r.Name, r.ResourceType, r.Url)
-        ).ToListAsync(cancellationToken);
-
-        return teamResources;
-    }
-
     public async Task<IReadOnlyList<MyTeamMembershipSummary>> GetMyTeamMembershipsAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
@@ -446,6 +454,7 @@ public class TeamService : ITeamService
         bool? hasBudget = null,
         bool? isHidden = null,
         bool? isSensitive = null,
+        bool? isPromotedToDirectory = null,
         CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams.FindAsync(new object[] { teamId }, cancellationToken)
@@ -541,6 +550,8 @@ public class TeamService : ITeamService
             team.IsHidden = isHidden.Value;
         if (isSensitive.HasValue)
             team.IsSensitive = isSensitive.Value;
+        if (isPromotedToDirectory.HasValue)
+            team.IsPromotedToDirectory = isPromotedToDirectory.Value;
         if (team.IsSystemTeam || parentTeamId.HasValue)
         {
             team.IsPublicPage = false;
@@ -1903,11 +1914,7 @@ public class TeamService : ITeamService
             if (user is null) return;
 
             var email = user.GetEffectiveEmail() ?? user.Email!;
-            var resources = await _dbContext.GoogleResources
-                .AsNoTracking()
-                .Where(gr => gr.TeamId == team.Id && gr.IsActive)
-                .Select(gr => new { gr.Name, gr.Url })
-                .ToListAsync(cancellationToken);
+            var resources = await TeamResourceService.GetTeamResourcesAsync(team.Id, cancellationToken);
 
             await _emailService.SendAddedToTeamAsync(
                 email, user.DisplayName, team.Name, team.Slug,
@@ -2052,7 +2059,6 @@ public class TeamService : ITeamService
         var query = _dbContext.Teams
             .Include(t => t.Members.Where(m => m.LeftAt == null))
             .Include(t => t.JoinRequests.Where(r => r.Status == TeamJoinRequestStatus.Pending))
-            .Include(t => t.GoogleResources)
             .Include(t => t.RoleDefinitions)
             .OrderBy(t => t.SystemTeamType)
             .ThenBy(t => t.Name);
@@ -2085,7 +2091,13 @@ public class TeamService : ITeamService
             : await _shiftManagementService.GetPendingShiftSignupCountsByTeamAsync(
                 activeEventId, cancellationToken);
 
-        return new AdminTeamListResult(BuildAdminTeamSummaries(items, pendingShiftCounts), totalCount);
+        var teamIds = items.Select(t => t.Id).ToList();
+        var resourceSummaries = await TeamResourceService
+            .GetTeamResourceSummariesAsync(teamIds, cancellationToken);
+
+        return new AdminTeamListResult(
+            BuildAdminTeamSummaries(items, pendingShiftCounts, resourceSummaries),
+            totalCount);
     }
 
     // ==========================================================================
@@ -2167,6 +2179,7 @@ public class TeamService : ITeamService
         RequiresApproval: team.RequiresApproval,
         IsPublicPage: team.IsPublicPage,
         IsHidden: team.IsHidden,
+        IsPromotedToDirectory: team.IsPromotedToDirectory,
         CreatedAt: team.CreatedAt,
         Members: team.Members
             .Where(m => m.LeftAt is null)
@@ -2182,7 +2195,8 @@ public class TeamService : ITeamService
 
     private static IReadOnlyList<AdminTeamSummary> BuildAdminTeamSummaries(
         IReadOnlyList<Team> teams,
-        IReadOnlyDictionary<Guid, int> pendingShiftCounts)
+        IReadOnlyDictionary<Guid, int> pendingShiftCounts,
+        IReadOnlyDictionary<Guid, TeamResourceSummary> resourceSummaries)
     {
         var ordered = new List<AdminTeamSummary>(teams.Count);
 
@@ -2193,30 +2207,31 @@ public class TeamService : ITeamService
                 continue;
             }
 
-            ordered.Add(CreateAdminTeamSummary(team, isChildTeam: false, pendingShiftCounts));
+            ordered.Add(CreateAdminTeamSummary(team, isChildTeam: false, pendingShiftCounts, resourceSummaries));
 
             var children = teams
                 .Where(child => child.ParentTeamId == team.Id)
                 .OrderBy(child => child.Name, StringComparer.OrdinalIgnoreCase);
 
-            ordered.AddRange(children.Select(child => CreateAdminTeamSummary(child, isChildTeam: true, pendingShiftCounts)));
+            ordered.AddRange(children.Select(child =>
+                CreateAdminTeamSummary(child, isChildTeam: true, pendingShiftCounts, resourceSummaries)));
         }
 
         return ordered;
     }
 
     private static AdminTeamSummary CreateAdminTeamSummary(
-        Team team, bool isChildTeam, IReadOnlyDictionary<Guid, int> pendingShiftCounts)
+        Team team,
+        bool isChildTeam,
+        IReadOnlyDictionary<Guid, int> pendingShiftCounts,
+        IReadOnlyDictionary<Guid, TeamResourceSummary> resourceSummaries)
     {
         var systemTeamType = team.SystemTeamType != SystemTeamType.None
             ? team.SystemTeamType.ToString()
             : null;
-        var hasMailGroup = team.GoogleResources.Any(resource =>
-            resource.ResourceType == GoogleResourceType.Group &&
-            resource.IsActive);
-        var driveResourceCount = team.GoogleResources.Count(resource =>
-            resource.ResourceType != GoogleResourceType.Group &&
-            resource.IsActive);
+        var resourceSummary = resourceSummaries.TryGetValue(team.Id, out var summary)
+            ? summary
+            : TeamResourceSummary.Empty;
 
         return new AdminTeamSummary(
             team.Id,
@@ -2228,9 +2243,9 @@ public class TeamService : ITeamService
             systemTeamType,
             team.Members.Count,
             team.JoinRequests.Count,
-            hasMailGroup,
+            resourceSummary.HasMailGroup,
             team.GoogleGroupEmail,
-            driveResourceCount,
+            resourceSummary.DriveResourceCount,
             team.RoleDefinitions.Sum(role => role.SlotCount),
             team.CreatedAt,
             isChildTeam,

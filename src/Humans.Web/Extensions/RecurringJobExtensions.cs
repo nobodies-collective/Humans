@@ -1,5 +1,6 @@
 using Hangfire;
 using Humans.Application.Configuration;
+using Humans.Application.Interfaces;
 using Humans.Infrastructure.Jobs;
 
 namespace Humans.Web.Extensions;
@@ -19,7 +20,7 @@ public static class RecurringJobExtensions
         {
             // Google sync jobs — controlled by SyncServiceSettings (Admin/SyncSettings).
             // Set service mode to "None" to disable without redeploying.
-            ("system-team-sync", () => RecurringJob.AddOrUpdate<SystemTeamSyncJob>(
+            ("system-team-sync", () => RecurringJob.AddOrUpdate<ISystemTeamSync>(
                 "system-team-sync", job => job.ExecuteAsync(CancellationToken.None), Cron.Hourly)),
 
             ("google-resource-reconciliation", () => RecurringJob.AddOrUpdate<GoogleResourceReconciliationJob>(
