@@ -50,14 +50,36 @@ See `docs/architecture/design-rules.md` for the full rules.
 **Owning services:** `CityPlanningService`
 **Owned tables:** `city_planning_settings`, `camp_polygons`, `camp_polygon_histories`
 
-### Current Violations
+## Target Architecture Direction
 
-**CityPlanningService — queries non-owned tables (Rule 2c):**
-- Queries `CampSeasons` table (owned by Camps) in GetCampSeasonSoundZoneAsync(), GetCampSeasonNameAsync(), and GetCampSeasonsWithoutCampPolygonAsync()
+> **Status:** This section currently follows the "services in Infrastructure, direct DbContext" model. It will be migrated to the repository/store/decorator pattern per [`../architecture/design-rules.md`](../architecture/design-rules.md). **Delete this block once the migration lands and this section's services live in `Humans.Application` with `*Repository.cs` impls in `Humans.Infrastructure/Repositories/`.**
 
-**Controllers:** Compliant — no DbContext injection.
+### Target repositories
 
-### Target State
+- **`ICityPlanningRepository`** — owns `city_planning_settings`, `camp_polygons`, `camp_polygon_histories`
+  - Aggregate-local navs kept: none (each of the three tables is its own aggregate root; `CampPolygon` and `CampPolygonHistory` are keyed by `CampSeasonId` but do not navigate between each other)
+  - Cross-domain navs stripped: `CampPolygon.CampSeason` (Camps), `CampPolygon.LastModifiedByUser` (Users), `CampPolygonHistory.CampSeason` (Camps), `CampPolygonHistory.ModifiedByUser` (Users) — replace with raw FK ids; resolve display data via `ICampService` / `IUserService` at the service layer
+  - Note: `camp_polygon_histories` is append-only per §12 — repository exposes `AddAsync` and `GetXxxAsync` but no `UpdateAsync`/`DeleteAsync`.
 
-- CityPlanningService calls `ICampService` for camp season data instead of querying `CampSeasons` directly
-- CampService exposes methods like `GetCampSeasonSoundZoneAsync()`, `GetCampSeasonNameAsync()`, `GetUnplacedCampSeasonsAsync()`
+### Current violations
+
+Observed in this section's service code as of 2026-04-15:
+
+- **Cross-domain `.Include()` calls:** `CityPlanningService.cs:104` — `.Include(h => h.ModifiedByUser)` on `CampPolygonHistories` pulls `User` (Users domain) so history rows can show who edited them.
+- **Cross-section direct DbContext reads:** None found. `CampSeasons` access already routes through `ICampService` (e.g. `GetCampSeasonDisplayDataForYearAsync`, `GetCampSeasonSoundZoneAsync`, `GetCampSeasonNameAsync`, `GetCampSeasonBriefsForYearAsync`, `GetCampLeadSeasonIdForYearAsync`, `IsUserCampLeadAsync`, `GetSettingsAsync`).
+- **Inline `IMemoryCache` usage in service methods:** None found.
+- **Cross-domain nav properties on this section's entities:**
+  - `CampPolygon.CampSeason` → Camps
+  - `CampPolygon.LastModifiedByUser` → Users
+  - `CampPolygonHistory.CampSeason` → Camps
+  - `CampPolygonHistory.ModifiedByUser` → Users
+  - `CityPlanningSettings`: none
+
+### Touch-and-clean guidance
+
+Until this section is migrated end-to-end, when touching its code:
+
+- When modifying the history list path (`CityPlanningService.cs:103-115`), start moving off the cross-domain `.Include(h => h.ModifiedByUser)`: project to a DTO with `ModifiedByUserId` only, then resolve user display names in a second pass via `IUserService` (batch lookup). Do not add new `.Include()` calls that cross into Camps or Users.
+- Keep all new `CampSeasons` / `Camps` / `Users` access behind `ICampService` / `IUserService`. Never reintroduce `_dbContext.CampSeasons` or `_dbContext.Users` reads into this service (see §6).
+- Treat `CampPolygonHistory` as strictly append-only (§12): `CityPlanningService.cs:161` `Add` is the only permitted write. Never add `Update`/`Remove` on `_dbContext.CampPolygonHistories` — restores must write a new history row and overwrite the `CampPolygon`, which the current `RestoreAsync` path already does.
+- When adding a new read method, return section-local DTOs (as `GetCampSeasonsWithoutCampPolygonAsync` already does with `CampSeasonSummaryDto`). Do not return `CampPolygon` / `CampPolygonHistory` entities with navs populated — it bakes cross-domain coupling into callers and will block the repository extraction.

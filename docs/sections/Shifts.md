@@ -66,19 +66,65 @@ See `docs/architecture/design-rules.md` for the full rules.
 **Owning services:** `ShiftManagementService`, `ShiftSignupService`, `GeneralAvailabilityService`
 **Owned tables:** `rotas`, `shifts`, `shift_signups`, `event_settings`, `general_availabilities`, `volunteer_event_profiles`
 
-### Current Violations
+## Target Architecture Direction
 
-**ShiftManagementService — queries non-owned tables (Rule 2c):**
-- Queries `RoleAssignments` table (owned by Auth) in HasActiveRoleAsync()
-- Caches authorization data derived from RoleAssignments and TeamMembers under `shift-auth` key (Rule 2d)
+> **Status:** This section currently follows the "services in Infrastructure, direct DbContext" model. It will be migrated to the repository/store/decorator pattern per [`../architecture/design-rules.md`](../architecture/design-rules.md). **Delete this block once the migration lands and this section's services live in `Humans.Application` with `*Repository.cs` impls in `Humans.Infrastructure/Repositories/`.**
 
-**ShiftSignupService — queries non-owned tables (Rule 2c):**
-- Queries `TeamMembers` table (owned by Teams) in CheckAndNotifyCoverageGapAsync() and DispatchSignupChangeNotificationAsync() to find coordinators
+### Target repositories
 
-**Controllers:** Compliant — no DbContext injection.
+- **`IShiftManagementRepository`** — owns `rotas`, `shifts`, `event_settings` (and the shift-tag tables, see note below)
+  - Aggregate-local navs kept: `Rota.Shifts`, `Rota.EventSettings`, `Rota.Tags`, `Shift.Rota`, `Shift.ShiftSignups` (read-side delete cascade only), `EventSettings.Rotas`
+  - Cross-domain navs stripped: `Rota.Team` (Teams), any `.Select(r => new { r.Team.Id, r.Team.Name })` projections
+- **`IShiftSignupRepository`** — owns `shift_signups`
+  - Aggregate-local navs kept: `ShiftSignup.Shift`, `Shift.Rota` and `Rota.EventSettings` (read-only projection chain), `Shift.ShiftSignups` (for capacity counts)
+  - Cross-domain navs stripped: `ShiftSignup.User`, `ShiftSignup.ReviewedByUser`, `ShiftSignup.EnrolledByUser`, `Rota.Team`
+- **`IVolunteerEventProfileRepository`** — owns `volunteer_event_profiles`
+  - Aggregate-local navs kept: none beyond the row itself
+  - Cross-domain navs stripped: `VolunteerEventProfile.User`
+- **`IGeneralAvailabilityRepository`** — owns `general_availabilities`
+  - Aggregate-local navs kept: `GeneralAvailability.EventSettings` (read-side, for cross-repo join on shared aggregate root)
+  - Cross-domain navs stripped: `GeneralAvailability.User`
 
-### Target State
+**Note on service/table mapping:** §8 groups all six tables under the three owning services but does not split them 1:1. Actual read/write distribution observed in code:
 
-- ShiftManagementService calls `IRoleAssignmentService` (Auth) for role checks instead of querying `RoleAssignments` directly
-- ShiftSignupService calls `ITeamService` for coordinator lookups instead of querying `TeamMembers`
-- Authorization cache is either owned by RoleAssignmentService or ShiftManagementService caches results from service calls (not raw DB queries)
+- `ShiftManagementService` writes `rotas`, `shifts`, `event_settings`; also reads/writes `shift_tags` and `volunteer_tag_preferences` (neither listed in §8 — flagged below).
+- `ShiftSignupService` writes `shift_signups`; reads `rotas`, `shifts`, `event_settings` (within-section, cross-service — acceptable under §3 once those become repo calls instead of direct `DbContext`).
+- `GeneralAvailabilityService` writes `general_availabilities`.
+- `volunteer_event_profiles` is not currently touched by any of the three services on disk (search returned zero hits in these files) — its ownership needs explicit resolution before the split lands. Pulled into its own repo above as the neutral default.
+
+### Current violations
+
+Observed in this section's service code as of 2026-04-15:
+
+- **Cross-domain `.Include()` calls:**
+  - `ShiftManagementService.cs:216, 280, 488, 538, 546` — `.Include(r => r.Team)` / `.ThenInclude(r => r.Team)` (Teams section)
+  - `ShiftSignupService.cs:57, 687, 802, 849, 862, 888, 918` — `.ThenInclude(r => r.Team)` (Teams section)
+  - `ShiftSignupService.cs:541` — `.Include(s => s.ShiftSignups).ThenInclude(ss => ss.User)` (Users/Identity)
+  - `ShiftSignupService.cs:876` — `.Include(d => d.User)` on `ShiftSignup` (Users/Identity)
+  - `ShiftSignupService.cs:890` — `.Include(s => s.ReviewedByUser)` (Users/Identity)
+  - `GeneralAvailabilityService.cs:60` — `.Include(g => g.User)` (Users/Identity)
+- **Cross-section direct DbContext reads:** None found. Role checks go through `_roleAssignmentService` (Auth), team lookups through `ITeamService` (Teams). The `.Select(r => new { r.Team.Id, r.Team.Name })` projection at `ShiftManagementService.cs:864` is the only direct Teams-table touch and is covered under cross-domain `.Include`/nav-walk above.
+- **Within-section cross-service direct DbContext reads:**
+  - `ShiftSignupService` reads `_dbContext.Rotas` (`ShiftSignupService.cs:326, 510`), `_dbContext.Shifts` (`:55, 257`), and `_dbContext.EventSettings` (via `.Include` chains) — all owned by `ShiftManagementService` per §8. Acceptable once both are behind repos and the dependency is expressed as `IShiftManagementRepository` → `IShiftSignupRepository`.
+- **Inline `IMemoryCache` usage in service methods:**
+  - `ShiftManagementService.cs:97` — `_cache.GetOrCreateAsync(CacheKeys.ShiftAuthorization(userId), ...)` wrapping `TeamService.GetUserCoordinatedTeamIdsAsync(userId)`. Per §4/§5 this cache belongs in the Teams caching decorator, not here. Drop the `shift-auth` cache and let Teams own the result.
+  - No `_cache.` references in `ShiftSignupService` or `GeneralAvailabilityService`.
+- **Cross-domain nav properties on this section's entities:**
+  - `Rota.Team` (→ Teams)
+  - `Shift` has no cross-domain nav (clean)
+  - `ShiftSignup.User`, `ShiftSignup.EnrolledByUser`, `ShiftSignup.ReviewedByUser` (→ Users/Identity)
+  - `VolunteerEventProfile.User` (→ Users/Identity)
+  - `GeneralAvailability.User` (→ Users/Identity); `GeneralAvailability.EventSettings` is section-local
+  - `VolunteerTagPreference.User` (→ Users/Identity) — entity not listed in §8
+- **§8 gaps (tables touched by this section but not listed under Shifts in the ownership map):**
+  - `shift_tags` — read/written by `ShiftManagementService` (`:878, 886, 896, 907, 924`). Not listed in §8 under any section. Likely Shifts.
+  - `volunteer_tag_preferences` — read/written by `ShiftManagementService` (`:939, 949, 953, 957`). Not listed in §8 under any section. Likely Shifts. **Flag: §8 needs an explicit decision; assumed Shifts-owned for the repository split.**
+
+### Touch-and-clean guidance
+
+Until this section is migrated end-to-end, when touching its code:
+
+- Do not add new `.Include(r => r.Team)` / `.ThenInclude(r => r.Team)` calls — the seven existing occurrences in `ShiftManagementService.cs` and `ShiftSignupService.cs` are the full set to remove; any new view/DTO needing a team name should pull it from `ITeamService` by id.
+- Do not add new `.Include(... => ... .User)` chains on `ShiftSignup` or `GeneralAvailability` — project to `UserId` and resolve display data via `IProfileService` / `IUserService`.
+- Do not add new `_cache.` calls in `ShiftManagementService`; route authorization caching through `IRoleAssignmentService` / `ITeamService`. The existing `ShiftAuthorization` cache at `ShiftManagementService.cs:97` should be deleted in the same PR that moves Teams to a cached store.
+- If you add a new table to this section, add it to §8 of `design-rules.md` **in the same commit** — do not repeat the `shift_tags` / `volunteer_tag_preferences` omission.

@@ -52,6 +52,43 @@ See `docs/architecture/design-rules.md` for the full rules.
 **Owning services:** `BudgetService`
 **Owned tables:** `budget_years`, `budget_groups`, `budget_categories`, `budget_line_items`, `budget_audit_logs`, `ticketing_projections`
 
-### Current State
+## Target Architecture Direction
 
-**Compliant.** No violations found. Controllers do not inject DbContext. BudgetService only queries its own tables. Cache ownership is correct.
+> **Status:** This section currently follows the "services in Infrastructure, direct DbContext" model. It will be migrated to the repository/store/decorator pattern per [`../architecture/design-rules.md`](../architecture/design-rules.md). **Delete this block once the migration lands and this section's services live in `Humans.Application` with `*Repository.cs` impls in `Humans.Infrastructure/Repositories/`.**
+
+### Target repositories
+
+- **`IBudgetRepository`** — owns `budget_years`, `budget_groups`, `budget_categories`, `budget_line_items`, `budget_audit_logs`, `ticketing_projections`
+  - Aggregate-local navs kept: `BudgetYear.Groups`, `BudgetYear.AuditLogs`, `BudgetGroup.BudgetYear`, `BudgetGroup.Categories`, `BudgetGroup.TicketingProjection`, `BudgetCategory.BudgetGroup`, `BudgetCategory.LineItems`, `BudgetLineItem.BudgetCategory`, `BudgetAuditLog.BudgetYear`, `TicketingProjection.BudgetGroup`
+  - Cross-domain navs stripped: `BudgetCategory.Team` → `BudgetCategory.TeamId` only (Teams domain); `BudgetLineItem.ResponsibleTeam` → `BudgetLineItem.ResponsibleTeamId` only (Teams domain); `BudgetAuditLog.ActorUser` → `BudgetAuditLog.ActorUserId` only (Users/Identity domain)
+  - Note: `budget_audit_logs` is append-only per §12 — repository exposes `AddAsync` and `GetXxxAsync` but no `UpdateAsync`/`DeleteAsync`.
+
+### Current violations
+
+Observed in this section's service code as of 2026-04-15:
+
+- **Cross-domain `.Include()` calls:**
+  - `BudgetService.cs:542` — `.Include(c => c.Team)` (Teams domain) when loading a category detail
+  - `BudgetService.cs:867` — `.Include(a => a.ActorUser)` (Users/Identity domain) when loading the audit log
+- **Cross-section direct DbContext reads:**
+  - `BudgetService.cs:107` — `_dbContext.Teams.Where(t => t.HasBudget && t.IsActive)` during budget year creation (Teams section)
+  - `BudgetService.cs:321` — `_dbContext.Teams.Where(...)` during Sync Departments (Teams section)
+  - `BudgetService.cs:922` — `_dbContext.TeamMembers` in `GetEffectiveCoordinatorTeamIdsAsync` (Teams section)
+  - `BudgetService.cs:930` — `_dbContext.Set<TeamRoleAssignment>()` with deep `.TeamMember` / `.TeamRoleDefinition.Team` nav traversal in `GetEffectiveCoordinatorTeamIdsAsync` (Teams section)
+  - `BudgetService.cs:945` — `_dbContext.Teams.Where(t => t.ParentTeamId != null ...)` for child-team expansion (Teams section)
+  - `TicketingBudgetService.cs:44` — `_dbContext.TicketOrders` (Tickets section)
+- **Within-section cross-service direct DbContext reads:** None found.
+- **Inline `IMemoryCache` usage in service methods:** None found.
+- **Cross-domain nav properties on this section's entities:**
+  - `BudgetCategory.Team` → Teams domain
+  - `BudgetLineItem.ResponsibleTeam` → Teams domain
+  - `BudgetAuditLog.ActorUser` → Users/Identity domain
+
+### Touch-and-clean guidance
+
+Until this section is migrated end-to-end, when touching its code:
+
+- Do **not** add new `.Include()` calls that traverse into `Team`, `ResponsibleTeam`, `ActorUser`, or any other non-Budget entity. If you need a team name or actor display name alongside budget data, load the Budget aggregate first, then call `ITeamService` / `IUserService` to stitch the labels in memory.
+- When adding new coordinator/permission checks, do **not** grow `GetEffectiveCoordinatorTeamIdsAsync` (`BudgetService.cs:919`) with more Teams-table queries. That method is the largest cross-section bleed in the file and should migrate behind `ITeamService.GetEffectiveCoordinatorTeamIdsAsync(userId)` on the Teams side — push new logic there instead.
+- New cross-section reads must go through the owning service interface (`ITeamService`, `ITicketQueryService`, `IUserService`), never `_dbContext`. Treat any new `_dbContext.Teams` / `_dbContext.TeamMembers` / `_dbContext.TicketOrders` call in Budget services as a regression.
+- Keep new audit-log writes using `AddAsync`-only semantics — never `Update` or `Remove` a `BudgetAuditLog` row, even in cleanup code (§12).

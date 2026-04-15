@@ -74,22 +74,57 @@ See `docs/architecture/design-rules.md` for the full rules.
 **Owning services:** `GoogleSyncService`, `GoogleAdminService`, `GoogleWorkspaceUserService`, `DriveActivityMonitorService`, `SyncSettingsService`, `EmailProvisioningService`
 **Owned tables:** `google_resources`, `sync_service_settings`
 
-### Current Violations
+## Target Architecture Direction
 
-**GoogleController — injects HumansDbContext via action parameter (Rule 1):**
-- Accepts `[FromServices] HumansDbContext` in at least one action method
+> **Status:** This section currently follows the "services in Infrastructure, direct DbContext" model. It will be migrated to the repository/store/decorator pattern per [`../architecture/design-rules.md`](../architecture/design-rules.md). **Delete this block once the migration lands and this section's services live in `Humans.Application` with `*Repository.cs` impls in `Humans.Infrastructure/Repositories/`.** This is the highest fan-in section of the refactor — expect the largest touch surface outside Profiles.
 
-**GoogleWorkspaceSyncService — queries non-owned tables (Rule 2c):**
-- Queries `Users` table (4 locations) for user data during sync operations
-- Queries `Teams` table (3 locations) for team data during sync
+### Target repositories
 
-**GoogleAdminService — queries non-owned tables (Rule 2c):**
-- Queries `Users` table (4 locations) for user data
-- Queries `Teams` table (2 locations) for team data
+- **`ISyncSettingsRepository`** — owns `sync_service_settings`
+  - Aggregate-local navs kept: none (`SyncServiceSettings` has no same-aggregate children)
+  - Cross-domain navs stripped: `UpdatedByUser` (User nav) — replace with `UpdatedByUserId` only; resolve display name via `IUserService` at the caller
+- **`IGoogleSyncOutboxRepository`** — owns `google_sync_outbox_events`
+  - Aggregate-local navs kept: none (flat record)
+  - Cross-domain navs stripped: none (entity already holds only `TeamId`/`UserId` scalars)
+- Note: `IGoogleWorkspaceUserService`, `IGoogleAdminService`, `IDriveActivityMonitorService`, and the bulk of `IGoogleWorkspaceSyncService` are **external-API wrappers** around Google Drive/Groups/Admin SDK HTTP calls. They do not own persistent tables beyond the two above. Per §7 they still need per-service caching and metrics/retry decorators, but their "repository" surface is the Google HTTP client, not EF Core. Their only legitimate EF touchpoints are `ISyncSettingsRepository` (to read the current `SyncMode` gate before each gateway op) and `IGoogleSyncOutboxRepository` (to enqueue/dequeue outbox events).
+- All other table access currently performed by these services belongs to other sections and must move behind `ITeamService` / `ITeamResourceService` / `IUserService` / `IProfileService` / `ITeamMemberService` calls.
 
-**Controllers:** GoogleController has a violation; TeamAdminController (which handles team-level resource linking) is clean.
+### Current violations
 
-### Target State
+Observed in this section's service code as of 2026-04-15:
 
-- GoogleController delegates all data access to Google services
-- GoogleWorkspaceSyncService and GoogleAdminService call `IUserService`/`IProfileService` and `ITeamService` for user and team data instead of querying those tables directly
+- **Cross-domain `.Include()` calls** (18 total):
+  - `GoogleWorkspaceSyncService.cs:196-197, 219-220` — `TeamMembers.Include(tm => tm.User).Include(tm => tm.Team)` (Users + Teams)
+  - `GoogleWorkspaceSyncService.cs:676` — `TeamMembers.Include(tm => tm.User)` (Users)
+  - `GoogleWorkspaceSyncService.cs:926, 1021, 1046, 1699, 1845` — `GoogleResources.Include(r => r.Team)` (Team Resources → Teams)
+  - `GoogleWorkspaceSyncService.cs:1807` — `Users.Include(u => u.TeamMemberships)` (Users → Teams)
+  - `GoogleWorkspaceSyncService.cs:2488` — `UserEmails.Include(ue => ue.User)` (Profiles → Users)
+  - `GoogleAdminService.cs:61` — `UserEmails.Include(ue => ue.User)` (Profiles → Users)
+  - `GoogleAdminService.cs:338, 528` — `Users.Include(u => u.UserEmails)` (Users → Profiles)
+  - `SyncSettingsService.cs:24` — `SyncServiceSettings.Include(s => s.UpdatedByUser)` (own table → Users)
+  - `EmailProvisioningService.cs:55-56` — `Users.Include(u => u.UserEmails).Include(u => u.Profile)` (Users + Profiles)
+
+- **Cross-section direct DbContext reads** (~41 call sites; own-table reads excluded):
+  - **Team Resources (`GoogleResources`, 20 sites)** — `GoogleWorkspaceSyncService.cs:249, 284, 329, 402, 433, 527, 664, 744, 775, 805, 925, 1020, 1045, 1653, 1698, 1714, 1778, 1844, 2299, 2410`. The entire CRUD surface against `google_resources` lives in this service despite §8 assigning the table to `TeamResourceService`. This is the single biggest violation in the section.
+  - **Teams (`Teams`, 5 sites)** — `GoogleWorkspaceSyncService.cs:801, 1644, 2122`; `GoogleAdminService.cs:386, 426`
+  - **Teams (`TeamMembers`, 5 sites)** — `GoogleWorkspaceSyncService.cs:194, 217, 675`; `GoogleAdminService.cs:275, 453`
+  - **Users (9 sites)** — `GoogleWorkspaceSyncService.cs:492, 755, 1806, 2066`; `GoogleAdminService.cs:250, 337, 439, 527`; `DriveActivityMonitorService.cs:417`; `EmailProvisioningService.cs:54`
+  - **Profiles (`UserEmails`, 2 sites)** — `GoogleAdminService.cs:59, 258`
+  - **Unclassified (`SystemSettings`, 3 sites)** — `DriveActivityMonitorService.cs:438, 464, 473`. `system_settings` is not listed in §8; ownership must be decided before migration (see ambiguity note below).
+
+- **Inline `IMemoryCache` usage in service methods:** None found. None of the six services hold an `IMemoryCache` field — caching, where it exists, is done inside the Google API client layer, not the EF-facing service code. Caching decorators will need to be introduced alongside the repositories rather than extracted from existing code.
+
+- **Cross-domain nav properties on this section's entities:**
+  - `SyncServiceSettings.UpdatedByUser` (→ `User`) — must be dropped from the entity; keep only `UpdatedByUserId` scalar.
+  - `GoogleSyncOutboxEvent` — clean. Holds `TeamId`/`UserId` scalars with no navs, already conforming.
+
+### Touch-and-clean guidance
+
+Until this section is migrated end-to-end, when touching its code:
+
+- **Do not add new `_dbContext.GoogleResources.*` calls in `GoogleWorkspaceSyncService`.** That table is owned by `TeamResourceService` per §8 — new reads/writes must go through `ITeamResourceService`. The existing 20 offenders (e.g. `GoogleWorkspaceSyncService.cs:284, 329, 1653, 1778`) are grandfathered; nothing new should land.
+- **Replace `.Include(tm => tm.User).Include(tm => tm.Team)`** at `GoogleWorkspaceSyncService.cs:196-197, 219-220, 676` with an `ITeamMemberService` / `ITeamService` / `IUserService` call that returns a narrow DTO. Do not widen the surface by adding another `Include`.
+- **In `GoogleAdminService.cs:59, 250, 258, 275, 337, 439, 453, 527`, stop reading `Users`/`UserEmails`/`TeamMembers` directly.** Route through `IUserService`, `IProfileService`, and `ITeamMemberService`. When adding a new admin action, wire the cross-section call at the top of the method and pass narrow inputs down.
+- **`SyncSettingsService.cs:24` — drop `.Include(s => s.UpdatedByUser)`** next time this method is edited. Resolve the display name at the controller via `IUserService.GetDisplayNameAsync(updatedByUserId)` instead of pulling the `User` aggregate through an EF nav.
+- **`EmailProvisioningService.cs:54-56` — the `Users.Include(UserEmails).Include(Profile)` read is three sections in one query.** Split into `IUserService.GetByIdAsync` + `IProfileService.GetByUserIdAsync` + (Profile-owned) `IUserEmailService.GetForUserAsync` when next touched.
+- **Do not add more `SystemSettings` reads** in `DriveActivityMonitorService` until the owner of `system_settings` is resolved in §8. Leave the existing three lines alone; surface any new config needs through `ISyncSettingsService` or a dedicated settings service.
