@@ -55,7 +55,8 @@ public class CityPlanningService : ICityPlanningService
                     data.CampSlug,
                     p.GeoJson,
                     p.AreaSqm,
-                    data.SoundZone);
+                    data.SoundZone,
+                    SpaceSizeToSqm(data.SpaceRequirement));
             })
             .ToList();
     }
@@ -80,23 +81,40 @@ public class CityPlanningService : ICityPlanningService
 
     public async Task<List<CampSeasonSummaryDto>> GetCampSeasonsWithoutCampPolygonAsync(int year, CancellationToken cancellationToken = default)
     {
-        // Get all camp seasons for the year from camp service
-        var allSeasons = await _campService.GetCampSeasonBriefsForYearAsync(year, cancellationToken);
-        var seasonIdsForYear = allSeasons.Select(s => s.CampSeasonId).ToList();
+        // Get display data for the year from camp service (keyed by campSeasonId)
+        var displayData = await _campService.GetCampSeasonDisplayDataForYearAsync(year, cancellationToken);
+        var seasonIds = displayData.Keys.ToList();
 
         // Get camp season IDs that already have polygons, filtered in SQL to this year's seasons only
         var polygonSeasonIds = await _dbContext.CampPolygons
-            .Where(p => seasonIdsForYear.Contains(p.CampSeasonId))
+            .Where(p => seasonIds.Contains(p.CampSeasonId))
             .Select(p => p.CampSeasonId)
             .ToListAsync(cancellationToken);
 
         var polygonSeasonIdSet = new HashSet<Guid>(polygonSeasonIds);
 
-        return allSeasons
-            .Where(s => !polygonSeasonIdSet.Contains(s.CampSeasonId))
-            .Select(s => new CampSeasonSummaryDto(s.CampSeasonId, s.Name, s.CampSlug))
+        return displayData
+            .Where(kvp => !polygonSeasonIdSet.Contains(kvp.Key))
+            .Select(kvp => new CampSeasonSummaryDto(kvp.Key, kvp.Value.Name, kvp.Value.CampSlug, SpaceSizeToSqm(kvp.Value.SpaceRequirement), kvp.Value.SoundZone))
             .ToList();
     }
+
+    // Keep in sync with SpaceSize enum — adding a new enum value requires a matching case here.
+    private static double? SpaceSizeToSqm(SpaceSize? size) => size switch
+    {
+        SpaceSize.Sqm150 => 150,
+        SpaceSize.Sqm300 => 300,
+        SpaceSize.Sqm450 => 450,
+        SpaceSize.Sqm600 => 600,
+        SpaceSize.Sqm800 => 800,
+        SpaceSize.Sqm1000 => 1000,
+        SpaceSize.Sqm1200 => 1200,
+        SpaceSize.Sqm1500 => 1500,
+        SpaceSize.Sqm1800 => 1800,
+        SpaceSize.Sqm2200 => 2200,
+        SpaceSize.Sqm2800 => 2800,
+        _ => null
+    };
 
     public async Task<List<CampPolygonHistoryEntryDto>> GetCampPolygonHistoryAsync(Guid campSeasonId, CancellationToken cancellationToken = default)
     {

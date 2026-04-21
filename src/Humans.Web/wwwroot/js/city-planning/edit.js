@@ -1,8 +1,24 @@
 // Editing mode: toolbar state, draw label updates, popup, button handlers.
 import { appState } from './state.js';
 import { CONFIG } from './config.js';
-import { isOutsideZone, overlapsOtherCamps } from './geometry.js';
+import { isOutsideZone, overlapsOtherCamps, getSoundZoneOutOfRange, SIZE_RATIO_UPPER, SIZE_RATIO_LOWER } from './geometry.js';
 import { setActivePolygonDim } from './layers.js';
+
+function getCampSoundZone(campSeasonId) {
+    if (!campSeasonId) return -1;
+    const poly = appState.campMap?.campPolygons?.find(p => p.campSeasonId === campSeasonId);
+    if (poly !== undefined) return poly.soundZone ?? -1;
+    const season = appState.campMap?.campSeasonsWithoutPolygon?.find(s => s.campSeasonId === campSeasonId);
+    return season?.soundZone ?? -1;
+}
+
+function getSpaceRequirementSqm(campSeasonId) {
+    if (!campSeasonId) return null;
+    const poly = appState.campMap?.campPolygons?.find(p => p.campSeasonId === campSeasonId);
+    if (poly) return poly.spaceRequirementSqm ?? null;
+    const season = appState.campMap?.campSeasonsWithoutPolygon?.find(s => s.campSeasonId === campSeasonId);
+    return season?.spaceRequirementSqm ?? null;
+}
 
 function escHtml(s) {
     const d = document.createElement('div');
@@ -22,12 +38,20 @@ export function onCampPolygonClick(e) {
     const area         = props.areaSqm   ? `<div class="text-muted small">${Math.round(props.areaSqm).toLocaleString()} m²</div>` : '';
     const warning      = props.outsideZone ? `<div class="text-danger small">⚠️ Outside limits</div>` : '';
     const overlapWarn  = props.overlaps    ? `<div class="text-warning small">⚠️ Overlaps with another barrio</div>` : '';
+    const sizeWarn     = (() => {
+        if (!props.spaceRequirementSqm || !props.areaSqm) return '';
+        const ratio = props.areaSqm / props.spaceRequirementSqm;
+        if (ratio > SIZE_RATIO_UPPER) return `<div class="text-warning small">⚠️ Area much larger than requested (${Math.round(props.spaceRequirementSqm).toLocaleString()} m²)</div>`;
+        if (ratio < SIZE_RATIO_LOWER) return `<div class="text-warning small">⚠️ Area much smaller than requested (${Math.round(props.spaceRequirementSqm).toLocaleString()} m²)</div>`;
+        return '';
+    })();
+    const soundZoneWarn = props.soundZoneOutOfRange ? `<div class="text-warning small">⚠️ Sound zone doesn't match this area</div>` : '';
     const editBtn      = canEdit ? `<button class="btn btn-primary btn-sm js-edit-barrio-btn">Edit</button>` : '';
     const historyBtn   = `<button class="btn btn-outline-secondary btn-sm js-history-barrio-btn"><i class="fa fa-history me-1"></i>History</button>`;
 
     if (appState.currentPopup) appState.currentPopup.remove();
     appState.currentPopup = new maplibregl.Popup().setLngLat(e.lngLat)
-        .setHTML(`<div><strong>${escHtml(props.campName || 'Camp')}</strong></div>${area}${warning}${overlapWarn}<div class="d-flex flex-column gap-1 mt-1">${editBtn}${historyBtn}</div>`)
+        .setHTML(`<div><strong>${escHtml(props.campName || 'Camp')}</strong></div>${area}${warning}${overlapWarn}${sizeWarn}${soundZoneWarn}<div class="d-flex flex-column gap-1 mt-1">${editBtn}${historyBtn}</div>`)
         .addTo(appState.map);
 
     if (canEdit) {
@@ -151,9 +175,21 @@ export function updateSaveButton() {
             ? { type: 'FeatureCollection', features: [poly] }
             : { type: 'FeatureCollection', features: [] });
 
+        const editId = appState.activeCampSeasonId ?? appState.previewCampSeasonId;
+        const spaceReqSqm = getSpaceRequirementSqm(editId);
+        const sizeWarning = (() => {
+            if (!spaceReqSqm) return '';
+            const ratio = area / spaceReqSqm;
+            if (ratio > SIZE_RATIO_UPPER) return `\n⚠️ Area larger than requested (${Math.round(spaceReqSqm).toLocaleString()} m²)`;
+            if (ratio < SIZE_RATIO_LOWER) return `\n⚠️ Area smaller than requested (${Math.round(spaceReqSqm).toLocaleString()} m²)`;
+            return '';
+        })();
+        const soundZoneMismatch = getSoundZoneOutOfRange(poly, getCampSoundZone(editId));
         const warnings = [
-            ...(outside  ? ['\n⚠️ Outside limits'] : []),
-            ...(overlap   ? ['\n⚠️ Overlaps with another barrio'] : []),
+            ...(outside           ? ['\n⚠️ Outside limits'] : []),
+            ...(overlap            ? ['\n⚠️ Overlaps with another barrio'] : []),
+            ...(sizeWarning        ? [sizeWarning] : []),
+            ...(soundZoneMismatch  ? ['\n⚠️ Sound zone doesn\'t match this area'] : []),
         ];
         centroid.properties = { label: Math.round(area).toLocaleString() + ' m²' + warnings.join('') };
         map.getSource('draw-label').setData({ type: 'FeatureCollection', features: [centroid] });
