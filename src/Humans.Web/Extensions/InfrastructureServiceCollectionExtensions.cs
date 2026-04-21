@@ -311,6 +311,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<IGeneralAvailabilityService, GeneralAvailabilityService>();
 
+        services.AddScoped<ICalendarService, CalendarService>();
+
         // Feedback API key
         services.Configure<FeedbackApiSettings>(opts =>
         {
