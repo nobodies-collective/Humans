@@ -11,8 +11,7 @@ This section also surfaces your two core GDPR rights: a copy of everything the o
 ## Key pages at a glance
 
 - **Your consents** (`/Consent`) — any signed-in human reviews documents they've signed and re-signs when versions change.
-- **Download my data** (`/Profile/Me/DownloadData`) — humans with a profile self-serve an Article 15 JSON export.
-- **Request deletion** (`/Profile/Me/Delete`) — any signed-in human triggers an Article 17 account deletion.
+- **My Data** (`/Profile/Me/Privacy`) - Download my Data (Article 15) and Account Deletion (Article 17)
 - **Published documents** (`/Legal`) — anyone, including signed-out visitors, reads current legal documents.
 - **Consent check queue** (`/Onboarding/ConsentQueue`) — [Consent Coordinator](Glossary.md#consent-coordinator), [Board](Glossary.md#board), and [Admin](Glossary.md#admin) clear or flag humans awaiting activation.
 - **Manage documents** (`/Admin/LegalDocuments`) — Board and Admin create, edit, archive, and publish legal documents.
