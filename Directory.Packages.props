@@ -26,8 +26,6 @@
     <PackageVersion Include="Hangfire.Core" Version="1.8.23" />
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.23" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.21.1" />
-    <!-- Diagnostics (non-Production endpoints) -->
-    <PackageVersion Include="Microsoft.Diagnostics.Runtime" Version="3.1.512801" />
     <!-- Dependency Injection (Scrutor.Decorate<>) -->
     <PackageVersion Include="Scrutor" Version="6.1.0" />
     <!-- Email -->

@@ -529,6 +529,61 @@ app.Use(async (context, next) =>
     }
 });
 
+// Hang detector (Development/Staging only): every request gets a 30s budget.
+// If the pipeline doesn't complete in time, log which path hung plus thread-pool
+// counters, then keep awaiting so that when downstream honours the cancellation
+// token we also capture the async stack trace of the stuck await chain.
+if (!app.Environment.IsProduction())
+{
+    app.Use(async (context, next) =>
+    {
+        var originalAborted = context.RequestAborted;
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(originalAborted);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
+        context.RequestAborted = timeoutCts.Token;
+
+        try
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+            var path = $"{context.Request.Method} {context.Request.Path}{context.Request.QueryString}";
+
+            var nextTask = next(context);
+            var timeoutTask = Task.Delay(Timeout.Infinite, timeoutCts.Token);
+            var completed = await Task.WhenAny(nextTask, timeoutTask);
+
+            if (completed == timeoutTask && !nextTask.IsCompleted)
+            {
+                logger.LogError(
+                    "REQUEST HUNG >30s: {Path} | threadpool-threads={TP} pending-work={Pending} completed-work={Completed}",
+                    path,
+                    ThreadPool.ThreadCount,
+                    ThreadPool.PendingWorkItemCount,
+                    ThreadPool.CompletedWorkItemCount);
+
+                try { await nextTask; }
+                catch (OperationCanceledException ex)
+                {
+                    logger.LogError(ex, "HUNG REQUEST CANCEL STACK: {Path}", path);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "HUNG REQUEST EXCEPTION STACK: {Path}", path);
+                    throw;
+                }
+            }
+            else
+            {
+                await nextTask;
+            }
+        }
+        finally
+        {
+            context.RequestAborted = originalAborted;
+        }
+    });
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
