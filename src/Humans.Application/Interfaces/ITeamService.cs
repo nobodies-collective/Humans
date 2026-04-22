@@ -391,6 +391,20 @@ public interface ITeamService
         Guid actorUserId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Sets the <see cref="TeamMember.Role"/> for an active membership to the
+    /// given value. Used by <c>DuplicateAccountService.ResolveAsync</c> to
+    /// preserve a coordinator role when migrating the membership from the
+    /// archived source account to the target. No-op if the user has no active
+    /// membership on the team.
+    /// </summary>
+    Task SetMemberRoleAsync(
+        Guid teamId,
+        Guid userId,
+        TeamMemberRole role,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default);
+
     // ==========================================================================
     // Team Page Content
     // ==========================================================================
@@ -588,6 +602,15 @@ public interface ITeamService
     /// Removes a user from all teams in the cache (e.g., on account deletion/suspension).
     /// </summary>
     void RemoveMemberFromAllTeamsCache(Guid userId);
+
+    /// <summary>
+    /// Evicts the ActiveTeams master cache entry so the next read repopulates
+    /// from the database. Use when an orchestrator can't rely on the in-place
+    /// cache mutations the team service performs during writes — typically
+    /// after a transactional rollback, where the DB has reverted but the
+    /// in-memory mutations haven't.
+    /// </summary>
+    void InvalidateActiveTeamsCache();
 
     /// <summary>
     /// Ends all active team memberships for a user, removes their team role assignments,

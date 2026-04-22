@@ -1392,6 +1392,32 @@ public class TeamService : ITeamService, IUserDataContributor
         return member;
     }
 
+    public async Task SetMemberRoleAsync(
+        Guid teamId,
+        Guid userId,
+        TeamMemberRole role,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var member = await _dbContext.TeamMembers
+            .FirstOrDefaultAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.LeftAt == null,
+                cancellationToken);
+
+        if (member is null || member.Role == role)
+            return;
+
+        member.Role = role;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        UpdateMemberRoleInTeamCache(teamId, userId, role);
+
+        await _auditLogService.LogAsync(
+            AuditAction.TeamMemberRoleChanged, nameof(Team), teamId,
+            $"Set member role to {role}",
+            actorUserId,
+            relatedEntityId: userId, relatedEntityType: nameof(User));
+    }
+
     public async Task<IReadOnlyList<TeamMember>> GetTeamMembersAsync(
         Guid teamId,
         CancellationToken cancellationToken = default)
@@ -2688,6 +2714,8 @@ public class TeamService : ITeamService, IUserDataContributor
             }
         });
     }
+
+    public void InvalidateActiveTeamsCache() => _cache.InvalidateActiveTeams();
 
     public async Task<int> RevokeAllMembershipsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
