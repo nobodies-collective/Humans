@@ -37,7 +37,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
     private readonly IRoleAssignmentRepository _repository;
     private readonly IUserService _userService;
     private readonly IAuditLogService _auditLogService;
-    private readonly INotificationService _notificationService;
+    private readonly INotificationEmitter _notificationService;
     private readonly ISystemTeamSync _systemTeamSyncJob;
     private readonly INavBadgeCacheInvalidator _navBadge;
     private readonly IRoleAssignmentClaimsCacheInvalidator _claimsInvalidator;
@@ -48,7 +48,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         IRoleAssignmentRepository repository,
         IUserService userService,
         IAuditLogService auditLogService,
-        INotificationService notificationService,
+        INotificationEmitter notificationService,
         ISystemTeamSync systemTeamSyncJob,
         INavBadgeCacheInvalidator navBadge,
         IRoleAssignmentClaimsCacheInvalidator claimsInvalidator,
@@ -265,6 +265,10 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
 
         return activeRoles.Count;
     }
+
+    public Task<IReadOnlyList<Guid>> GetActiveUserIdsForRoleAsync(
+        string roleName, CancellationToken ct = default) =>
+        _repository.GetActiveUserIdsForRoleAsync(roleName, _clock.GetCurrentInstant(), ct);
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
