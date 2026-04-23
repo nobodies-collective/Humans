@@ -73,4 +73,17 @@ public interface ICampaignService
     /// ticket orders separately.
     /// </summary>
     Task<CampaignCodeTrackingData> GetCodeTrackingAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates a campaign grant's denormalized email delivery status
+    /// (<c>LatestEmailStatus</c>) and timestamp (<c>LatestEmailAt</c>).
+    /// Returns <c>true</c> if the grant was found and updated. Used by the
+    /// email outbox processor so the job can record Sent/Failed without
+    /// touching <c>campaign_grants</c> directly (design-rules §2c).
+    /// </summary>
+    Task<bool> UpdateGrantEmailStatusAsync(
+        Guid grantId,
+        Humans.Domain.Enums.EmailOutboxStatus status,
+        Instant latestEmailAt,
+        CancellationToken ct = default);
 }

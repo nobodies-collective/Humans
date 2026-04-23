@@ -657,4 +657,11 @@ public sealed class CampaignService : ICampaignService, IUserDataContributor
 
         return [new UserDataSlice(GdprExportSections.CampaignGrants, shaped)];
     }
+
+    public Task<bool> UpdateGrantEmailStatusAsync(
+        Guid grantId,
+        EmailOutboxStatus status,
+        Instant latestEmailAt,
+        CancellationToken ct = default) =>
+        _repository.UpdateGrantStatusAsync(grantId, status, latestEmailAt, ct);
 }
