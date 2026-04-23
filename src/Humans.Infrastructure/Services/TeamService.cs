@@ -24,10 +24,8 @@ public class TeamService : ITeamService, IUserDataContributor
 {
     private readonly HumansDbContext _dbContext;
     private readonly IAuditLogService _auditLogService;
-    private readonly IEmailService _emailService;
     private readonly INotificationEmitter _notificationService;
     private readonly IShiftManagementService _shiftManagementService;
-    private readonly ISystemTeamSync _systemTeamSync;
     private readonly IServiceProvider _serviceProvider;
     private readonly IClock _clock;
     private readonly IMemoryCache _cache;
@@ -43,13 +41,21 @@ public class TeamService : ITeamService, IUserDataContributor
     private IRoleAssignmentService RoleAssignmentService
         => _serviceProvider.GetRequiredService<IRoleAssignmentService>();
 
+    // Lazy to break constructor-time cycles through the email/profile stack:
+    // IUserService -> TeamService -> IEmailService -> IUserEmailService -> IUserService
+    // and
+    // IUserService -> TeamService -> ISystemTeamSync -> IEmailService -> IUserEmailService -> IUserService.
+    private IEmailService EmailService
+        => _serviceProvider.GetRequiredService<IEmailService>();
+
+    private ISystemTeamSync SystemTeamSync
+        => _serviceProvider.GetRequiredService<ISystemTeamSync>();
+
     public TeamService(
         HumansDbContext dbContext,
         IAuditLogService auditLogService,
-        IEmailService emailService,
         INotificationEmitter notificationService,
         IShiftManagementService shiftManagementService,
-        ISystemTeamSync systemTeamSync,
         IServiceProvider serviceProvider,
         IClock clock,
         IMemoryCache cache,
@@ -57,10 +63,8 @@ public class TeamService : ITeamService, IUserDataContributor
     {
         _dbContext = dbContext;
         _auditLogService = auditLogService;
-        _emailService = emailService;
         _notificationService = notificationService;
         _shiftManagementService = shiftManagementService;
-        _systemTeamSync = systemTeamSync;
         _serviceProvider = serviceProvider;
         _clock = clock;
         _cache = cache;
@@ -683,7 +687,7 @@ public class TeamService : ITeamService, IUserDataContributor
         {
             foreach (var userId in usersNeedingShiftAuthorizationInvalidation)
             {
-                await _systemTeamSync.SyncCoordinatorsMembershipForUserAsync(userId, cancellationToken);
+                await SystemTeamSync.SyncCoordinatorsMembershipForUserAsync(userId, cancellationToken);
             }
         }
 
@@ -2127,7 +2131,7 @@ public class TeamService : ITeamService, IUserDataContributor
             var email = user.GetEffectiveEmail() ?? user.Email!;
             var resources = await TeamResourceService.GetTeamResourcesAsync(team.Id, cancellationToken);
 
-            await _emailService.SendAddedToTeamAsync(
+            await EmailService.SendAddedToTeamAsync(
                 email, user.DisplayName, team.Name, team.Slug,
                 resources.Select(r => (r.Name, r.Url)),
                 user.PreferredLanguage,
