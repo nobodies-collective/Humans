@@ -29,6 +29,7 @@ public class HumansWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
             config.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 ["ConnectionStrings:DefaultConnection"] = _postgres.GetConnectionString(),
+                ["DevAuth:Enabled"] = "true",
                 ["Authentication:Google:ClientId"] = "test-client-id",
                 ["Authentication:Google:ClientSecret"] = "test-client-secret",
                 ["Email:SmtpHost"] = "localhost",

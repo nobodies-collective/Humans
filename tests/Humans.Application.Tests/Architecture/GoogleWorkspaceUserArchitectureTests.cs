@@ -114,7 +114,7 @@ public class GoogleWorkspaceUserArchitectureTests
     public void IWorkspaceUserDirectoryClient_LivesInApplicationInterfacesNamespace()
     {
         typeof(IWorkspaceUserDirectoryClient).Namespace
-            .Should().Be("Humans.Application.Interfaces",
+            .Should().Be("Humans.Application.Interfaces.GoogleIntegration",
                 because: "connector interfaces live alongside other application interfaces per design-rules §2b");
     }
 

@@ -137,7 +137,7 @@ public class TeamResourceArchitectureTests
     public void ITeamResourceGoogleClient_LivesInApplicationInterfacesNamespace()
     {
         typeof(ITeamResourceGoogleClient).Namespace
-            .Should().Be("Humans.Application.Interfaces");
+            .Should().Be("Humans.Application.Interfaces.GoogleIntegration");
     }
 
     [Fact]

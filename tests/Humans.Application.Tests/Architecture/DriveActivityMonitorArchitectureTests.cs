@@ -120,7 +120,7 @@ public class DriveActivityMonitorArchitectureTests
     public void IGoogleDriveActivityClient_LivesInApplicationInterfacesNamespace()
     {
         typeof(IGoogleDriveActivityClient).Namespace
-            .Should().Be("Humans.Application.Interfaces",
+            .Should().Be("Humans.Application.Interfaces.GoogleIntegration",
                 because: "connector interfaces live alongside other application interfaces per design-rules §2b");
     }
 

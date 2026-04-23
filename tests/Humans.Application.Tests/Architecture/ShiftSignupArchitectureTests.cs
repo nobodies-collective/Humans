@@ -106,7 +106,7 @@ public class ShiftSignupArchitectureTests
         var repoType = typeof(ShiftSignupRepository);
 
         repoType.Namespace
-            .Should().Be("Humans.Infrastructure.Repositories",
-                because: "repository implementations live in Humans.Infrastructure.Repositories per design-rules §3 — the only layer that may reference Microsoft.EntityFrameworkCore");
+            .Should().Be("Humans.Infrastructure.Repositories.Shifts",
+                because: "repository implementations live in Humans.Infrastructure.Repositories.<Section> per design-rules §3 — the only layer that may reference Microsoft.EntityFrameworkCore");
     }
 }

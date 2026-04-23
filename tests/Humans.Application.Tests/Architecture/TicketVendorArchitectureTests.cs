@@ -38,7 +38,7 @@ public class TicketVendorArchitectureTests
     public void ITicketVendorService_LivesInApplicationInterfacesNamespace()
     {
         typeof(ITicketVendorService).Namespace
-            .Should().Be("Humans.Application.Interfaces",
+            .Should().Be("Humans.Application.Interfaces.Tickets",
                 because: "the vendor-agnostic port lives in the Application layer; HTTP/SDK adapters are Infrastructure (design-rules §1, §15)");
     }
 

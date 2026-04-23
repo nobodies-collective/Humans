@@ -154,8 +154,8 @@ public class EmailArchitectureTests
     public void IEmailBodyComposer_AndIImmediateOutboxProcessor_LiveInApplicationInterfaces()
     {
         typeof(IEmailBodyComposer).Namespace
-            .Should().Be("Humans.Application.Interfaces");
+            .Should().Be("Humans.Application.Interfaces.Email");
         typeof(IImmediateOutboxProcessor).Namespace
-            .Should().Be("Humans.Application.Interfaces");
+            .Should().Be("Humans.Application.Interfaces.Email");
     }
 }
