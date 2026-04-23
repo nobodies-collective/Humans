@@ -44,13 +44,13 @@ public class ShiftSignupServiceEarlyEntryTests : IDisposable
         var roleAssignmentService = Substitute.For<IRoleAssignmentService>();
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(ITeamService)).Returns(teamService);
+        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(roleAssignmentService);
 
         var shiftRepo = new ShiftManagementRepository(new TestDbContextFactory(options));
 
         _shiftMgmt = new ShiftManagementService(
             shiftRepo,
             _auditLog,
-            roleAssignmentService,
             serviceProvider,
             new MemoryCache(new MemoryCacheOptions()),
             _clock,

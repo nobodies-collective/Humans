@@ -56,7 +56,6 @@ public class TeamRoleServiceTests : IDisposable
         var shiftManagementService = new ShiftManagementService(
             shiftRepo,
             Substitute.For<IAuditLogService>(),
-            roleAssignmentService,
             serviceProvider,
             cache,
             _clock,

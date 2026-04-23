@@ -70,13 +70,13 @@ public class ShiftManagementServiceTests : IDisposable
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(ITeamService)).Returns(_teamService);
         serviceProvider.GetService(typeof(IUserService)).Returns(_userService);
+        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(_roleAssignmentService);
 
         var repo = new ShiftManagementRepository(new TestDbContextFactory(options));
 
         _service = new ShiftManagementService(
             repo,
             Substitute.For<IAuditLogService>(),
-            _roleAssignmentService,
             serviceProvider,
             new MemoryCache(new MemoryCacheOptions()),
             _clock,

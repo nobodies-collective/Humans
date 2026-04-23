@@ -41,13 +41,13 @@ public class ShiftDashboardMetricsTests : IDisposable
         serviceProvider.GetService(typeof(ITeamService)).Returns(new FakeTeamService(_dbContext));
         serviceProvider.GetService(typeof(ITicketQueryService)).Returns(new FakeTicketQueryService(_dbContext));
         serviceProvider.GetService(typeof(IUserService)).Returns(new FakeUserService(_dbContext));
+        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(Substitute.For<IRoleAssignmentService>());
 
         var repo = new ShiftManagementRepository(new TestDbContextFactory(options));
 
         _service = new ShiftManagementService(
             repo,
             Substitute.For<IAuditLogService>(),
-            Substitute.For<IRoleAssignmentService>(),
             serviceProvider,
             new MemoryCache(new MemoryCacheOptions()),
             _clock,

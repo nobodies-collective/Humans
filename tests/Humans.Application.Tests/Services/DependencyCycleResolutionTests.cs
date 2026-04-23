@@ -3,6 +3,7 @@ using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Services.Auth;
+using Humans.Application.Services.Shifts;
 using Humans.Application.Services.Users;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Services;
@@ -33,10 +34,10 @@ public class DependencyCycleResolutionTests
         services.AddScoped<IUserEmailRepository>(_ => Substitute.For<IUserEmailRepository>());
         services.AddScoped<IFullProfileInvalidator>(_ => Substitute.For<IFullProfileInvalidator>());
         services.AddScoped<IRoleAssignmentRepository>(_ => Substitute.For<IRoleAssignmentRepository>());
+        services.AddScoped<IShiftManagementRepository>(_ => Substitute.For<IShiftManagementRepository>());
         services.AddScoped<IAuditLogService>(_ => Substitute.For<IAuditLogService>());
         services.AddScoped<IEmailService>(_ => Substitute.For<IEmailService>());
         services.AddScoped<INotificationEmitter>(_ => Substitute.For<INotificationEmitter>());
-        services.AddScoped<IShiftManagementService>(_ => Substitute.For<IShiftManagementService>());
         services.AddScoped<ISystemTeamSync>(_ => Substitute.For<ISystemTeamSync>());
         services.AddScoped<INavBadgeCacheInvalidator>(_ => Substitute.For<INavBadgeCacheInvalidator>());
         services.AddScoped<IRoleAssignmentClaimsCacheInvalidator>(_ => Substitute.For<IRoleAssignmentClaimsCacheInvalidator>());
@@ -48,11 +49,15 @@ public class DependencyCycleResolutionTests
         services.AddScoped<RoleAssignmentService>();
         services.AddScoped<IRoleAssignmentService>(sp => sp.GetRequiredService<RoleAssignmentService>());
 
+        services.AddScoped<ShiftManagementService>();
+        services.AddScoped<IShiftManagementService>(sp => sp.GetRequiredService<ShiftManagementService>());
+
         services.AddScoped<TeamService>();
         services.AddScoped<ITeamService>(sp => sp.GetRequiredService<TeamService>());
 
         services.AddScoped<Microsoft.Extensions.Logging.ILogger<UserService>>(_ => NullLogger<UserService>.Instance);
         services.AddScoped<Microsoft.Extensions.Logging.ILogger<RoleAssignmentService>>(_ => NullLogger<RoleAssignmentService>.Instance);
+        services.AddScoped<Microsoft.Extensions.Logging.ILogger<ShiftManagementService>>(_ => NullLogger<ShiftManagementService>.Instance);
         services.AddScoped<Microsoft.Extensions.Logging.ILogger<TeamService>>(_ => NullLogger<TeamService>.Instance);
 
         using var provider = services.BuildServiceProvider(validateScopes: true);

@@ -31,11 +31,11 @@ public class ShiftUrgencyTests
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(ITeamService)).Returns(Substitute.For<ITeamService>());
+        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(Substitute.For<IRoleAssignmentService>());
 
         _service = new ShiftManagementService(
             Substitute.For<IShiftManagementRepository>(),
             Substitute.For<IAuditLogService>(),
-            Substitute.For<IRoleAssignmentService>(),
             serviceProvider,
             new MemoryCache(new MemoryCacheOptions()),
             new FakeClock(TestNow),

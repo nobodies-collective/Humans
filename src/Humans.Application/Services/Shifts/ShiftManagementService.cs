@@ -48,7 +48,6 @@ public sealed class ShiftManagementService : IShiftManagementService, IShiftAuth
 
     private readonly IShiftManagementRepository _repo;
     private readonly IAuditLogService _auditLogService;
-    private readonly IRoleAssignmentService _roleAssignmentService;
     private readonly IServiceProvider _serviceProvider;
     private readonly IMemoryCache _cache;
     private readonly IClock _clock;
@@ -56,6 +55,10 @@ public sealed class ShiftManagementService : IShiftManagementService, IShiftAuth
 
     // Lazy-resolved to break circular dependency: TeamService → IShiftManagementService → ITeamService
     private ITeamService TeamService => _serviceProvider.GetRequiredService<ITeamService>();
+
+    // Lazy-resolved to break the constructor-time cycle:
+    // IUserService -> TeamService -> IShiftManagementService -> IRoleAssignmentService -> IUserService.
+    private IRoleAssignmentService RoleAssignmentService => _serviceProvider.GetRequiredService<IRoleAssignmentService>();
 
     // Resolved on demand so this class stays construction-cheap in tests and
     // avoids forcing the (heavy) ticket/user services as hard ctor dependencies.
@@ -67,7 +70,6 @@ public sealed class ShiftManagementService : IShiftManagementService, IShiftAuth
     public ShiftManagementService(
         IShiftManagementRepository repo,
         IAuditLogService auditLogService,
-        IRoleAssignmentService roleAssignmentService,
         IServiceProvider serviceProvider,
         IMemoryCache cache,
         IClock clock,
@@ -75,7 +77,6 @@ public sealed class ShiftManagementService : IShiftManagementService, IShiftAuth
     {
         _repo = repo;
         _auditLogService = auditLogService;
-        _roleAssignmentService = roleAssignmentService;
         _serviceProvider = serviceProvider;
         _cache = cache;
         _clock = clock;
@@ -130,7 +131,7 @@ public sealed class ShiftManagementService : IShiftManagementService, IShiftAuth
 
     private async Task<bool> HasActiveRoleAsync(Guid userId, string roleName)
     {
-        return await _roleAssignmentService.HasActiveRoleAsync(userId, roleName);
+        return await RoleAssignmentService.HasActiveRoleAsync(userId, roleName);
     }
 
     /// <summary>
