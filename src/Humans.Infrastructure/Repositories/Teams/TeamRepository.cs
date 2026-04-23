@@ -262,6 +262,7 @@ public sealed class TeamRepository : ITeamRepository
         Team team, bool requiresApproval, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
         db.Teams.Add(team);
         try
         {
@@ -287,6 +288,7 @@ public sealed class TeamRepository : ITeamRepository
             await db.SaveChangesAsync(ct);
         }
 
+        await tx.CommitAsync(ct);
         return true;
     }
 

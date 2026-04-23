@@ -20,9 +20,6 @@ internal static class TicketsSectionExtensions
         services.AddSingleton<ITicketRepository, TicketRepository>();
         services.AddScoped<ITicketSyncService, TicketsTicketSyncService>();
 
-        // Tickets repository — Singleton, IDbContextFactory-backed per §15b.
-        services.AddSingleton<ITicketRepository, TicketRepository>();
-
         // Application-layer TicketQueryService (no caching decorator yet —
         // reads are not hot-path enough to justify one at our scale).
         services.AddScoped<TicketsTicketQueryService>();
