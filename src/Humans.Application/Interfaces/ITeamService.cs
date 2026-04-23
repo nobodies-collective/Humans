@@ -370,6 +370,17 @@ public interface ITeamService
     Task<IReadOnlyList<TeamOptionDto>> GetActiveTeamOptionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Sets <c>Team.GoogleGroupPrefix</c> to <paramref name="prefix"/> (may be
+    /// null to clear) and persists the change. Returns the previous prefix so
+    /// callers can revert on downstream-service failure. Returns (<c>false</c>,
+    /// <c>null</c>) if the team does not exist. Narrow alternative to
+    /// <see cref="UpdateTeamAsync"/> for flows that only need to touch the
+    /// Google-group wiring.
+    /// </summary>
+    Task<(bool Updated, string? PreviousPrefix)> SetGoogleGroupPrefixAsync(
+        Guid teamId, string? prefix, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets all teams for admin list with active member counts and pending request counts.
     /// </summary>
     Task<(IReadOnlyList<Team> Items, int TotalCount)> GetAllTeamsForAdminAsync(

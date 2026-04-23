@@ -178,20 +178,6 @@ public class TeamService : ITeamService, IUserDataContributor
             .FirstOrDefaultAsync(t => t.Id == teamId, cancellationToken);
     }
 
-    public async Task<string?> GetTeamNameByGoogleGroupPrefixAsync(
-        string googleGroupPrefix, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrEmpty(googleGroupPrefix))
-            return null;
-
-        return await _dbContext.Teams
-            .AsNoTracking()
-            .Where(t => t.GoogleGroupPrefix != null
-                        && EF.Functions.ILike(t.GoogleGroupPrefix, googleGroupPrefix))
-            .Select(t => t.Name)
-            .FirstOrDefaultAsync(cancellationToken);
-    }
-
     public async Task<IReadOnlyDictionary<Guid, string>> GetTeamNamesByIdsAsync(
         IReadOnlyCollection<Guid> teamIds,
         CancellationToken cancellationToken = default)
@@ -295,6 +281,44 @@ public class TeamService : ITeamService, IUserDataContributor
 
         return teamIds;
     }
+
+    public async Task<(bool Updated, string? PreviousPrefix)> SetGoogleGroupPrefixAsync(
+        Guid teamId, string? prefix, CancellationToken cancellationToken = default)
+    {
+        var team = await _dbContext.Teams.FindAsync([teamId], cancellationToken);
+        if (team is null)
+            return (false, null);
+
+        var previous = team.GoogleGroupPrefix;
+        team.GoogleGroupPrefix = prefix;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        _cache.InvalidateActiveTeams();
+        return (true, previous);
+    }
+
+    public async Task<string?> GetTeamNameByGoogleGroupPrefixAsync(
+        string prefix, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(prefix))
+            return null;
+
+        // Case-insensitive exact match: use ILIKE with an explicit escape so
+        // literal '_' / '%' in the prefix don't act as wildcards and match an
+        // unrelated team.
+        var escaped = EscapeLikePattern(prefix.Trim());
+        return await _dbContext.Teams
+            .AsNoTracking()
+            .Where(t => t.GoogleGroupPrefix != null
+                && EF.Functions.ILike(t.GoogleGroupPrefix, escaped, "\\"))
+            .Select(t => t.Name)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static string EscapeLikePattern(string value)
+        => value
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
 
     public async Task<TeamDirectoryResult> GetTeamDirectoryAsync(
         Guid? userId,
