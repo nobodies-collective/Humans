@@ -393,7 +393,6 @@ public class ShiftManagementServiceTests : IDisposable
         _dbContext.Rotas.Add(rota);
 
         rota.EventSettings = es;
-        rota.Team = team;
 
         return (es, rota);
     }

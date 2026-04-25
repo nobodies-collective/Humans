@@ -160,8 +160,7 @@ public class ShiftSignupServiceEarlyEntryTests : IDisposable
             Period = RotaPeriod.Build,
             CreatedAt = TestNow,
             UpdatedAt = TestNow,
-            EventSettings = eventSettings,
-            Team = team
+            EventSettings = eventSettings
         };
         _dbContext.Rotas.Add(rota);
 

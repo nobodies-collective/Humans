@@ -232,7 +232,7 @@ public class ShiftUrgencyTests
 
     private static UrgentShift MakeUrgentShift(int dayOffset, double score, int remaining)
     {
-        var rota = new Rota { Priority = ShiftPriority.Normal, Team = new Team { Name = "Test" } };
+        var rota = new Rota { Priority = ShiftPriority.Normal, TeamId = Guid.NewGuid() };
         var shift = new Shift
         {
             Id = Guid.NewGuid(),

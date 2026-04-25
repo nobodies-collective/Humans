@@ -534,7 +534,6 @@ public class ShiftSignupServiceTests : IDisposable
 
         // Set navigation properties for in-memory provider
         rota.EventSettings = es;
-        rota.Team = team;
 
         var shift = SeedShift(rota, dayOffset: 1, startHour: 10, durationHours: 4);
         return (es, rota, shift);
