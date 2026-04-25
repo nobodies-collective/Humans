@@ -1734,7 +1734,7 @@
   <data name="Privacy_ComplaintBody" xml:space="preserve"><value>Si no estàs satisfet amb la nostra resposta, tens dret a presentar una reclamació davant l'Agència Espanyola de Protecció de Dades (AEPD) a {0}.</value><comment>{0} = AEPD URL</comment></data>
 
 
-  <data name="ShiftDash_Overview_ShiftsFilled" xml:space="preserve"><value>Torns coberts</value></data>
+  <data name="ShiftDash_Overview_ShiftsFilled" xml:space="preserve"><value>Places cobertes</value></data>
   <data name="ShiftDash_Overview_TicketHolders" xml:space="preserve"><value>Amb entrada</value></data>
   <data name="ShiftDash_Overview_TicketHoldersSubline" xml:space="preserve"><value>humans que han pagat</value></data>
   <data name="ShiftDash_Overview_TicketHoldersEngaged" xml:space="preserve"><value>Ticket holding humans</value></data>
@@ -1748,12 +1748,12 @@
 
   <data name="ShiftDash_PeriodFilter_Label" xml:space="preserve"><value>Mostrant:</value></data>
   <data name="ShiftDash_PeriodFilter_All" xml:space="preserve"><value>Tot</value></data>
-  <data name="ShiftDash_PeriodFilter_BuildDays" xml:space="preserve"><value>Dies de muntatge</value></data>
-  <data name="ShiftDash_PeriodFilter_EventShifts" xml:space="preserve"><value>Torns d'esdeveniment</value></data>
+  <data name="ShiftDash_PeriodFilter_BuildDays" xml:space="preserve"><value>Muntatge</value></data>
+  <data name="ShiftDash_PeriodFilter_EventShifts" xml:space="preserve"><value>Esdeveniment</value></data>
   <data name="ShiftDash_PeriodFilter_Strike" xml:space="preserve"><value>Desmuntatge</value></data>
 
   <data name="ShiftDash_Departments_Title" xml:space="preserve"><value>Departaments</value></data>
-  <data name="ShiftDash_Departments_SortNote" xml:space="preserve"><value>ordenats pel % més baix cobert primer</value></data>
+  <data name="ShiftDash_Departments_SortNote" xml:space="preserve"><value>ordenats pel % més baix de places cobertes primer</value></data>
   <data name="ShiftDash_Departments_Col_Department" xml:space="preserve"><value>Departament</value></data>
   <data name="ShiftDash_Departments_Col_Total" xml:space="preserve"><value>Total</value></data>
   <data name="ShiftDash_Departments_Col_Filled" xml:space="preserve"><value>Coberts</value></data>

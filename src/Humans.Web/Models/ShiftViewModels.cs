@@ -415,9 +415,15 @@ public class ShiftDashboardViewModel
     public DashboardOverview? Overview { get; set; }
     public IReadOnlyList<CoordinatorActivityRow> CoordinatorActivity { get; set; } = Array.Empty<CoordinatorActivityRow>();
     public IReadOnlyList<DashboardTrendPoint> Trends { get; set; } = Array.Empty<DashboardTrendPoint>();
+    public IReadOnlyList<DailyDepartmentStaffing> DailyDepartmentStaffing { get; set; } = Array.Empty<DailyDepartmentStaffing>();
+    public IReadOnlyList<ShiftDurationBreakdownRow> ShiftDurationBreakdown { get; set; } = Array.Empty<ShiftDurationBreakdownRow>();
+    public CoverageHeatmap CoverageHeatmap { get; set; } = new(Array.Empty<CoverageHeatmapDay>(), Array.Empty<CoverageHeatmapRotaRow>());
     public TrendWindow TrendWindow { get; set; } = TrendWindow.Last30Days;
     public bool IsDevelopment { get; set; }
+    public BuildDayCountdown Countdown { get; set; } = new(0, LocalDate.MinIsoValue, 0, 0);
 }
+
+public record BuildDayCountdown(int DaysToBuild, LocalDate FirstBuildDay, int Weeks, int RemainderDays);
 
 public class VolunteerSearchResult
 {
