@@ -29,13 +29,9 @@
                         <label class="form-label">Name <span class="text-danger">*</span></label>
                         <input name="Name" class="form-control" maxlength="256" required placeholder="e.g. Shipping Container #1" />
                     </div>
-                    <div class="col-md-5">
+                    <div class="col-md-7">
                         <label class="form-label">Description</label>
                         <input name="Description" class="form-control" maxlength="2000" placeholder="Size, type, special requirements…" />
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Sort Order</label>
-                        <input name="SortOrder" class="form-control" type="number" value="@(Model.Containers.Count + 1)" />
                     </div>
                 </div>
                 <div class="mt-3">
@@ -55,7 +51,7 @@
 else
 {
     <div class="row g-3">
-        @foreach (var c in Model.Containers.OrderBy(x => x.SortOrder).ThenBy(x => x.Name))
+        @foreach (var c in Model.Containers.OrderBy(x => x.Name))
         {
             <div class="col-md-6 col-lg-4">
                 <div class="card h-100">
@@ -69,7 +65,6 @@ else
                         {
                             <p class="card-text text-muted small">@c.Description</p>
                         }
-                        <p class="card-text"><small class="text-muted">Sort order: @c.SortOrder</small></p>
                     </div>
                     @if (Model.CanManage)
                     {
@@ -134,10 +129,6 @@ else
                             <div class="mb-3">
                                 <label class="form-label">Description</label>
                                 <textarea name="Description" class="form-control" rows="3" maxlength="2000">@c.Description</textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Sort Order</label>
-                                <input name="SortOrder" class="form-control" type="number" value="@c.SortOrder" />
                             </div>
                         </div>
                         <div class="modal-footer">

@@ -19,7 +19,6 @@ public class ContainerViewModel
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
     public string? ImageFileName { get; set; }
-    public int SortOrder { get; set; }
 }
 
 public class ContainerFormModel
@@ -30,8 +29,6 @@ public class ContainerFormModel
 
     [StringLength(2000)]
     public string? Description { get; set; }
-
-    public int SortOrder { get; set; }
 }
 
 public class OrgContainerIndexViewModel

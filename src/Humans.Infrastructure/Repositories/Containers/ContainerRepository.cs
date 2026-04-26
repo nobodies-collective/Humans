@@ -20,8 +20,7 @@ public sealed class ContainerRepository : IContainerRepository
         return await ctx.Containers
             .AsNoTracking()
             .Where(c => c.CampSeasonId == campSeasonId)
-            .OrderBy(c => c.SortOrder)
-            .ThenBy(c => c.Name)
+            .OrderBy(c => c.Name)
             .ToListAsync(ct);
     }
 
@@ -31,8 +30,7 @@ public sealed class ContainerRepository : IContainerRepository
         return await ctx.Containers
             .AsNoTracking()
             .Where(c => c.CampSeasonId == null && c.Year == year)
-            .OrderBy(c => c.SortOrder)
-            .ThenBy(c => c.Name)
+            .OrderBy(c => c.Name)
             .ToListAsync(ct);
     }
 

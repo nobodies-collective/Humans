@@ -279,8 +279,7 @@ public class CityPlanningController : HumansControllerBase
                 Name = c.Name,
                 Description = c.Description,
                 ImageUrl = c.ImageStoragePath,
-                ImageFileName = c.ImageFileName,
-                SortOrder = c.SortOrder
+                ImageFileName = c.ImageFileName
             }).ToList()
         };
 
@@ -307,8 +306,7 @@ public class CityPlanningController : HumansControllerBase
             CampSeasonId: null,
             Year: year,
             Name: model.Name,
-            Description: model.Description,
-            SortOrder: model.SortOrder), cancellationToken);
+            Description: model.Description), cancellationToken);
 
         SetSuccess("Container added.");
         return RedirectToAction(nameof(OrgContainers), new { year });
@@ -337,8 +335,7 @@ public class CityPlanningController : HumansControllerBase
             CampSeasonId: null,
             Year: container.Year,
             Name: model.Name,
-            Description: model.Description,
-            SortOrder: model.SortOrder), cancellationToken);
+            Description: model.Description), cancellationToken);
 
         SetSuccess("Container updated.");
         return RedirectToAction(nameof(OrgContainers), new { year = container.Year });

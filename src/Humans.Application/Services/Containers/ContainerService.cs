@@ -52,7 +52,6 @@ public sealed class ContainerService : IContainerService
             Year = data.Year,
             Name = data.Name,
             Description = data.Description,
-            SortOrder = data.SortOrder,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -68,7 +67,6 @@ public sealed class ContainerService : IContainerService
 
         container.Name = data.Name;
         container.Description = data.Description;
-        container.SortOrder = data.SortOrder;
         container.UpdatedAt = _clock.GetCurrentInstant();
 
         var updated = await _repo.UpdateAsync(container, ct);
@@ -136,7 +134,6 @@ public sealed class ContainerService : IContainerService
         c.ImageStoragePath is not null ? $"/{c.ImageStoragePath}" : null,
         c.ImageContentType,
         c.ImageFileName,
-        c.SortOrder,
         c.CreatedAt,
         c.UpdatedAt);
 }

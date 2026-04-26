@@ -71,8 +71,7 @@ public class ContainerController : HumansControllerBase
                 Name = c.Name,
                 Description = c.Description,
                 ImageUrl = c.ImageStoragePath,
-                ImageFileName = c.ImageFileName,
-                SortOrder = c.SortOrder
+                ImageFileName = c.ImageFileName
             }).ToList()
         };
 
@@ -104,8 +103,7 @@ public class ContainerController : HumansControllerBase
             CampSeasonId: season.Id,
             Year: year,
             Name: model.Name,
-            Description: model.Description,
-            SortOrder: model.SortOrder), ct);
+            Description: model.Description), ct);
 
         SetSuccess("Container added.");
         return RedirectToAction(nameof(Index), new { slug, year });
@@ -131,8 +129,7 @@ public class ContainerController : HumansControllerBase
             CampSeasonId: entity.CampSeasonId,
             Year: entity.Year,
             Name: model.Name,
-            Description: model.Description,
-            SortOrder: model.SortOrder), ct);
+            Description: model.Description), ct);
 
         SetSuccess("Container updated.");
         return RedirectToAction(nameof(Index), new { slug, year });

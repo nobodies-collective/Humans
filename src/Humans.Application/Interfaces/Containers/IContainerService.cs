@@ -29,7 +29,6 @@ public record ContainerDto(
     string? ImageStoragePath,
     string? ImageContentType,
     string? ImageFileName,
-    int SortOrder,
     Instant CreatedAt,
     Instant UpdatedAt
 );
@@ -38,6 +37,5 @@ public record ContainerData(
     Guid? CampSeasonId,
     int Year,
     string Name,
-    string? Description,
-    int SortOrder
+    string? Description
 );
