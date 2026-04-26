@@ -115,7 +115,7 @@ public class CityPlanningController : HumansControllerBase
         var settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
         await _cityPlanningService.OpenContainerPlacementAsync(user.Id, cancellationToken);
         SetSuccess("Container placement phase opened.");
-        return RedirectToAction(nameof(OrgContainers), new { year = settings.Year });
+        return RedirectToAction(nameof(Containers), new { year = settings.Year });
     }
 
     [HttpPost("Admin/CloseContainerPlacement")]
@@ -131,7 +131,7 @@ public class CityPlanningController : HumansControllerBase
         var settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
         await _cityPlanningService.CloseContainerPlacementAsync(user.Id, cancellationToken);
         SetSuccess("Container placement phase closed.");
-        return RedirectToAction(nameof(OrgContainers), new { year = settings.Year });
+        return RedirectToAction(nameof(Containers), new { year = settings.Year });
     }
 
     [HttpPost("Admin/UploadLimitZone")]
@@ -288,11 +288,11 @@ public class CityPlanningController : HumansControllerBase
     }
 
     // ======================================================================
-    // Org-level containers
+    // Containers
     // ======================================================================
 
     [HttpGet("Admin/Containers/{year}")]
-    public async Task<IActionResult> OrgContainers(int year, CancellationToken cancellationToken)
+    public async Task<IActionResult> Containers(int year, CancellationToken cancellationToken)
     {
         var (error, user) = await RequireCurrentUserAsync();
         if (error != null) return error;
@@ -356,7 +356,7 @@ public class CityPlanningController : HumansControllerBase
         if (!ModelState.IsValid)
         {
             SetError("Please correct the validation errors.");
-            return RedirectToAction(nameof(OrgContainers), new { year });
+            return RedirectToAction(nameof(Containers), new { year });
         }
 
         await _containerService.CreateAsync(new ContainerData(
@@ -366,7 +366,7 @@ public class CityPlanningController : HumansControllerBase
             Description: model.Description), cancellationToken);
 
         SetSuccess("Container added.");
-        return RedirectToAction(nameof(OrgContainers), new { year });
+        return RedirectToAction(nameof(Containers), new { year });
     }
 
     [HttpPost("Admin/Containers/{year}/Create")]
@@ -382,7 +382,7 @@ public class CityPlanningController : HumansControllerBase
         if (!ModelState.IsValid)
         {
             SetError("Please correct the validation errors.");
-            return RedirectToAction(nameof(OrgContainers), new { year });
+            return RedirectToAction(nameof(Containers), new { year });
         }
 
         await _containerService.CreateAsync(new ContainerData(
@@ -392,7 +392,7 @@ public class CityPlanningController : HumansControllerBase
             Description: model.Description), cancellationToken);
 
         SetSuccess("Container added.");
-        return RedirectToAction(nameof(OrgContainers), new { year });
+        return RedirectToAction(nameof(Containers), new { year });
     }
 
     [HttpPost("Admin/Containers/{id}/Edit")]
@@ -411,7 +411,7 @@ public class CityPlanningController : HumansControllerBase
         if (!ModelState.IsValid)
         {
             SetError("Please correct the validation errors.");
-            return RedirectToAction(nameof(OrgContainers), new { year = container.Year });
+            return RedirectToAction(nameof(Containers), new { year = container.Year });
         }
 
         await _containerService.UpdateAsync(id, new ContainerData(
@@ -421,7 +421,7 @@ public class CityPlanningController : HumansControllerBase
             Description: model.Description), cancellationToken);
 
         SetSuccess("Container updated.");
-        return RedirectToAction(nameof(OrgContainers), new { year = container.Year });
+        return RedirectToAction(nameof(Containers), new { year = container.Year });
     }
 
     [HttpPost("Admin/Containers/{id}/Delete")]
@@ -440,7 +440,7 @@ public class CityPlanningController : HumansControllerBase
         var year = container.Year;
         await _containerService.DeleteAsync(id, cancellationToken);
         SetSuccess("Container deleted.");
-        return RedirectToAction(nameof(OrgContainers), new { year });
+        return RedirectToAction(nameof(Containers), new { year });
     }
 
     [HttpPost("Admin/Containers/{id}/Image/Upload")]
@@ -459,7 +459,7 @@ public class CityPlanningController : HumansControllerBase
         if (file is null || file.Length == 0)
         {
             SetError("Please select a file to upload.");
-            return RedirectToAction(nameof(OrgContainers), new { year = container.Year });
+            return RedirectToAction(nameof(Containers), new { year = container.Year });
         }
 
         try
@@ -472,7 +472,7 @@ public class CityPlanningController : HumansControllerBase
             SetError(ex.Message);
         }
 
-        return RedirectToAction(nameof(OrgContainers), new { year = container.Year });
+        return RedirectToAction(nameof(Containers), new { year = container.Year });
     }
 
     [HttpPost("Admin/Containers/{id}/Image/Delete")]
@@ -491,7 +491,7 @@ public class CityPlanningController : HumansControllerBase
         var year = container.Year;
         await _containerService.DeleteImageAsync(id, cancellationToken);
         SetSuccess("Image removed.");
-        return RedirectToAction(nameof(OrgContainers), new { year });
+        return RedirectToAction(nameof(Containers), new { year });
     }
 
     private static bool IsValidJson(string value)
