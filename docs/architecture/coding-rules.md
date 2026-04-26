@@ -1,3 +1,7 @@
+<!-- freshness:flag-on-change
+  Cross-cutting C# coding rules (reflection-safe properties, JSON serialization, NodaTime, navigation/timezone handling). Flag if any architectural pattern shift in src/** invalidates a stated rule.
+-->
+
 # Coding Rules
 
 ## Critical: Do Not Remove "Unused" Properties
@@ -333,7 +337,9 @@ public class ShiftCardsViewComponent : ViewComponent
 
 ## Localization (i18n)
 
-**Admin pages do not require localization.** Existing localized strings in admin views can stay, but do not add new `@Localizer[...]` calls or resource keys for admin-side views (`/Admin/*`, `/TeamAdmin/*`) until further notice. Only public/user-facing views require localization.
+**Admin pages do not require localization.** Existing localized strings in admin views can stay, but do not add new `@Localizer[...]` calls or resource keys for admin-side views (`/Admin/*`, `/TeamAdmin/*`, `/Shifts/Dashboard`) until further notice. Only public/user-facing views require localization.
+
+The coordinator-facing `/Shifts/Dashboard` is an admin function — existing localization can stay, but new strings there do **not** need to be added to `ca`/`de`/`fr`/`it` resources.
 
 ## Namespace Alias
 

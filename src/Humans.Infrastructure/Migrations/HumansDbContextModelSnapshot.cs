@@ -824,6 +824,50 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("camp_leads", (string)null);
                 });
 
+            modelBuilder.Entity("Humans.Domain.Entities.CampMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CampSeasonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ConfirmedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant?>("RemovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RemovedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("RequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("CampSeasonId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_camp_members_active_unique")
+                        .HasFilter("\"Status\" <> 'Removed'");
+
+                    b.ToTable("camp_members", (string)null);
+                });
+
             modelBuilder.Entity("Humans.Domain.Entities.CampPolygon", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3935,6 +3979,17 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Camp");
+                });
+
+            modelBuilder.Entity("Humans.Domain.Entities.CampMember", b =>
+                {
+                    b.HasOne("Humans.Domain.Entities.CampSeason", "CampSeason")
+                        .WithMany()
+                        .HasForeignKey("CampSeasonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CampSeason");
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.CampPolygon", b =>

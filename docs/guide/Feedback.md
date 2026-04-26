@@ -1,3 +1,17 @@
+<!-- freshness:triggers
+  src/Humans.Web/Views/Feedback/**
+  src/Humans.Web/Controllers/FeedbackController.cs
+  src/Humans.Web/Controllers/FeedbackApiController.cs
+  src/Humans.Web/ViewComponents/FeedbackWidgetViewComponent.cs
+  src/Humans.Application/Services/Feedback/**
+  src/Humans.Domain/Entities/FeedbackReport.cs
+  src/Humans.Domain/Entities/FeedbackMessage.cs
+  src/Humans.Infrastructure/Data/Configurations/Feedback/**
+-->
+<!-- freshness:flag-on-change
+  Floating feedback widget, submission flow, my-reports view, FeedbackAdmin triage, status transitions, and GitHub linkage. Review when feedback views, controllers, services, or entities change.
+-->
+
 # Feedback
 
 ## What this section is for
@@ -28,13 +42,13 @@ Open **My Feedback** from your profile dropdown, or go to `/Feedback`. You see y
 
 When an admin posts a message on one of your reports, you receive an email in your preferred language with the reply and a direct link back to the report.
 
-## As a Board member / Admin
+## As a Board member / Admin (Feedback Admin)
 
 The capabilities below require the **FeedbackAdmin** or **Admin** role. FeedbackAdmin is scoped to feedback triage only — it does not grant any other admin power.
 
 ### Triage the inbox
 
-Go to `/Feedback`. You see every report from every human. The main nav shows a badge with the count of reports that need your reply — reports where the reporter has posted a message more recently than any admin response, or where no admin has ever replied. Filter by status and category, and click a report to open its detail panel.
+Go to `/Feedback`. You see every report from every human. The main nav shows a badge with the count of reports that need your reply — reports where the reporter has posted a message more recently than any admin response, or where the report is still Open and no admin has ever replied. Resolved and Won't Fix reports never count toward the badge. Filter by status, category, reporter, assignee, team, or unassigned-only, and click a report to open its detail panel on the right.
 
 ### Reply to a reporter
 

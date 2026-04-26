@@ -146,6 +146,16 @@ public class ShiftBrowseViewModel
     public bool ShowSignups { get; set; }
 
     /// <summary>
+    /// Current sort mode: "urgency" for most-needed-first, null/empty for default by-department grouping.
+    /// </summary>
+    public string? Sort { get; set; }
+
+    /// <summary>
+    /// Flat list of rotas sorted by urgency score (populated only when Sort == "urgency").
+    /// </summary>
+    public List<RotaShiftGroup> UrgencyRankedRotas { get; set; } = [];
+
+    /// <summary>
     /// All available tags for the filter UI.
     /// </summary>
     public List<ShiftTag> AllTags { get; set; } = [];
@@ -179,6 +189,21 @@ public class RotaShiftGroup
 {
     public Rota Rota { get; set; } = null!;
     public List<ShiftDisplayItem> Shifts { get; set; } = [];
+
+    /// <summary>Department name, populated for urgency-sorted view where rotas are shown flat.</summary>
+    public string? DepartmentName { get; set; }
+
+    /// <summary>Department slug for linking, populated for urgency-sorted view.</summary>
+    public string? DepartmentSlug { get; set; }
+
+    /// <summary>Highest urgency score among shifts in this rota (for sorting).</summary>
+    public double MaxUrgencyScore { get; set; }
+
+    /// <summary>Total confirmed signups across all shifts in this rota.</summary>
+    public int TotalConfirmed { get; set; }
+
+    /// <summary>Total max volunteer slots across all shifts in this rota.</summary>
+    public int TotalSlots { get; set; }
 }
 
 public record ShiftSignupInfo(Guid UserId, string DisplayName, SignupStatus Status, string? ProfilePictureUrl);
@@ -191,6 +216,7 @@ public class ShiftDisplayItem
     public ShiftPeriod Period { get; set; }
     public int ConfirmedCount { get; set; }
     public int RemainingSlots { get; set; }
+    public double UrgencyScore { get; set; }
     public IReadOnlyList<ShiftSignupInfo> Signups { get; set; } = [];
 }
 
@@ -227,6 +253,15 @@ public class ShiftAdminViewModel
     public bool CanManageShifts { get; set; }
     public bool CanApproveSignups { get; set; }
     public Dictionary<Guid, VolunteerEventProfile> VolunteerProfiles { get; set; } = new();
+
+    /// <summary>
+    /// User display data (DisplayName, ProfilePictureUrl) keyed by UserId for every signup
+    /// in <see cref="Rotas"/> and <see cref="PendingSignups"/>. Resolved by the controller via
+    /// <c>IUserService.GetByIdsAsync</c>; the view reads from this dictionary instead of
+    /// navigating <c>ShiftSignup.User</c> (cross-domain nav, removed per design-rules §6c).
+    /// </summary>
+    public IReadOnlyDictionary<Guid, User> Users { get; set; } = new Dictionary<Guid, User>();
+
     public bool CanViewMedical { get; set; }
     public List<DailyStaffingData> StaffingData { get; set; } = [];
     public List<DailyStaffingHours> StaffingHours { get; set; } = [];
@@ -415,9 +450,15 @@ public class ShiftDashboardViewModel
     public DashboardOverview? Overview { get; set; }
     public IReadOnlyList<CoordinatorActivityRow> CoordinatorActivity { get; set; } = Array.Empty<CoordinatorActivityRow>();
     public IReadOnlyList<DashboardTrendPoint> Trends { get; set; } = Array.Empty<DashboardTrendPoint>();
+    public IReadOnlyList<DailyDepartmentStaffing> DailyDepartmentStaffing { get; set; } = Array.Empty<DailyDepartmentStaffing>();
+    public IReadOnlyList<ShiftDurationBreakdownRow> ShiftDurationBreakdown { get; set; } = Array.Empty<ShiftDurationBreakdownRow>();
+    public CoverageHeatmap CoverageHeatmap { get; set; } = new(Array.Empty<CoverageHeatmapDay>(), Array.Empty<CoverageHeatmapRotaRow>());
     public TrendWindow TrendWindow { get; set; } = TrendWindow.Last30Days;
     public bool IsDevelopment { get; set; }
+    public BuildDayCountdown Countdown { get; set; } = new(0, LocalDate.MinIsoValue, 0, 0);
 }
+
+public record BuildDayCountdown(int DaysToBuild, LocalDate FirstBuildDay, int Weeks, int RemainderDays);
 
 public class VolunteerSearchResult
 {

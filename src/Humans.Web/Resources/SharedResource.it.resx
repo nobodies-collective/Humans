@@ -1424,6 +1424,7 @@
   <data name="CityPlanning_SaveButton" xml:space="preserve"><value>Salva</value></data>
   <data name="CityPlanning_HistoryButton" xml:space="preserve"><value>Cronologia</value></data>
   <data name="CityPlanning_AdminLink" xml:space="preserve"><value>Admin</value></data>
+  <data name="CityPlanning_GoToPlacementMap" xml:space="preserve"><value>Vai alla mappa di posizionamento</value></data>
   <data name="CityPlanning_Admin_Title" xml:space="preserve"><value>Admin Mappa Barrios</value></data>
   <data name="CityPlanning_Admin_ViewMap" xml:space="preserve"><value>Visualizza mappa</value></data>
   <data name="CityPlanning_Admin_PlacementPhaseCard" xml:space="preserve"><value>Fase di Posizionamento</value></data>
@@ -1469,6 +1470,29 @@
   <data name="CityPlanning_Admin_AddBarrioContainer" xml:space="preserve"><value>Aggiungi Contenitore — {0}</value></data>
   <data name="CityPlanning_Admin_OrgContainerNamePlaceholder" xml:space="preserve"><value>es. Contenitore Magazzino A</value></data>
   <data name="CityPlanning_Admin_OrgContainerDescPlaceholder" xml:space="preserve"><value>Dimensione, tipo, posizione…</value></data>
+  <!-- Import polygons -->
+  <data name="CityPlanning_Admin_ImportCard" xml:space="preserve"><value>Importa poligoni</value></data>
+  <data name="CityPlanning_Admin_ImportDescription" xml:space="preserve"><value>Carica una FeatureCollection GeoJSON per aggiornare in blocco i poligoni dei barrio per {0}. Le feature vengono abbinate dalla proprietà campName o campSlug.</value></data>
+  <data name="CityPlanning_Admin_ImportFileLabel" xml:space="preserve"><value>File GeoJSON</value></data>
+  <data name="CityPlanning_Admin_ImportPreviewBtn" xml:space="preserve"><value>Anteprima</value></data>
+  <data name="CityPlanning_Admin_ImportModalTitle" xml:space="preserve"><value>Anteprima importazione</value></data>
+  <data name="CityPlanning_Admin_ImportWillBeUpdated" xml:space="preserve"><value>Verranno aggiornati</value></data>
+  <data name="CityPlanning_Admin_ImportCampHeader" xml:space="preserve"><value>Barrio</value></data>
+  <data name="CityPlanning_Admin_ImportPreviousArea" xml:space="preserve"><value>Area precedente</value></data>
+  <data name="CityPlanning_Admin_ImportNewArea" xml:space="preserve"><value>Nuova area</value></data>
+  <data name="CityPlanning_Admin_ImportUnrecognized" xml:space="preserve"><value>Feature non riconosciute (verranno saltate)</value></data>
+  <data name="CityPlanning_Admin_ImportConfirmBtn" xml:space="preserve"><value>Conferma importazione</value></data>
+  <data name="CityPlanning_Admin_ImportSelectFileError" xml:space="preserve"><value>Seleziona un file GeoJSON.</value></data>
+  <data name="CityPlanning_Admin_ImportInvalidJsonError" xml:space="preserve"><value>File non valido — JSON non valido.</value></data>
+  <data name="CityPlanning_Admin_ImportNotFeatureCollectionError" xml:space="preserve"><value>Il file deve essere una FeatureCollection GeoJSON.</value></data>
+  <data name="CityPlanning_Admin_ImportFetchStateError" xml:space="preserve"><value>Impossibile caricare l'elenco dei barrio. Riprova.</value></data>
+  <data name="CityPlanning_Admin_ImportNoCampsMatched" xml:space="preserve"><value>Nessun barrio corrispondente.</value></data>
+  <data name="CityPlanning_Admin_ImportTokenMissingError" xml:space="preserve"><value>Token di sicurezza mancante. Aggiorna la pagina.</value></data>
+  <data name="CityPlanning_Admin_ImportFileTooLargeError" xml:space="preserve"><value>File troppo grande (max 10 MB).</value></data>
+  <data name="CityPlanning_Admin_ImportNotPolygonSuffix" xml:space="preserve"><value>(non è un poligono)</value></data>
+  <data name="CityPlanning_Admin_ImportUpdating" xml:space="preserve"><value>Aggiornamento di {0} poligono/i…</value></data>
+  <data name="CityPlanning_Admin_ImportSuccess" xml:space="preserve"><value>{0} poligono/i aggiornato/i.</value></data>
+  <data name="CityPlanning_Admin_ImportPartialFailure" xml:space="preserve"><value>{0} aggiornato/i, {1} non riuscito/i: {2}.</value></data>
   <data name="CityPlanning_HistoryTitle" xml:space="preserve"><value>Cronologia poligoni</value></data>
   <data name="CityPlanning_Loading" xml:space="preserve"><value>Caricamento…</value></data>
   <data name="CityPlanning_Help_WhenIsIt" xml:space="preserve"><value>Quando si svolge?</value></data>
@@ -1645,6 +1669,15 @@
   <data name="Shifts_AllPhases" xml:space="preserve"><value>Tutte le fasi</value></data>
   <data name="Shifts_HiddenBadge" xml:space="preserve"><value>Nascosto</value></data>
   <data name="Shifts_MatchesPrefs" xml:space="preserve"><value>Corrisponde alle tue preferenze</value></data>
+  <data name="Shifts_SortUrgency" xml:space="preserve"><value>Pi&#249; urgenti</value></data>
+  <data name="Shifts_SortDept" xml:space="preserve"><value>Per reparto</value></data>
+  <data name="Shifts_SortUrgencyHint" xml:space="preserve"><value>I turni che hanno pi&#249; bisogno di persone per primi</value></data>
+  <data name="Shifts_SortDeptHint" xml:space="preserve"><value>Raggruppa i turni per reparto</value></data>
+  <data name="Shifts_SlotsFilled" xml:space="preserve"><value>posti occupati</value></data>
+  <data name="Shifts_RotaSingular" xml:space="preserve"><value>turno</value></data>
+  <data name="Shifts_RotaPlural" xml:space="preserve"><value>turni</value></data>
+  <data name="Shifts_ShiftSingular" xml:space="preserve"><value>fascia</value></data>
+  <data name="Shifts_ShiftPlural" xml:space="preserve"><value>fasce</value></data>
   <data name="Shifts_SignUpButton" xml:space="preserve"><value>Iscriviti</value></data>
   <data name="Shifts_BrowsingClosed" xml:space="preserve"><value>La consultazione dei turni non è ancora aperta. Torna più tardi!</value></data>
   <data name="Shifts_NoActiveEvent" xml:space="preserve"><value>Nessun evento attivo configurato. Un amministratore deve prima configurare le impostazioni dell'evento.</value></data>
@@ -1765,7 +1798,7 @@
   <data name="Privacy_ComplaintBody" xml:space="preserve"><value>Se non sei soddisfatto della nostra risposta, hai il diritto di presentare un reclamo all'Agenzia Spagnola per la Protezione dei Dati (AEPD) a {0}.</value><comment>{0} = AEPD URL</comment></data>
 
 
-  <data name="ShiftDash_Overview_ShiftsFilled" xml:space="preserve"><value>Turni coperti</value></data>
+  <data name="ShiftDash_Overview_ShiftsFilled" xml:space="preserve"><value>Posti coperti</value></data>
   <data name="ShiftDash_Overview_TicketHolders" xml:space="preserve"><value>Con biglietto</value></data>
   <data name="ShiftDash_Overview_TicketHoldersSubline" xml:space="preserve"><value>humans che hanno pagato</value></data>
   <data name="ShiftDash_Overview_TicketHoldersEngaged" xml:space="preserve"><value>Ticket holding humans</value></data>
@@ -1779,12 +1812,12 @@
 
   <data name="ShiftDash_PeriodFilter_Label" xml:space="preserve"><value>Visualizzazione:</value></data>
   <data name="ShiftDash_PeriodFilter_All" xml:space="preserve"><value>Tutto</value></data>
-  <data name="ShiftDash_PeriodFilter_BuildDays" xml:space="preserve"><value>Giorni di montaggio</value></data>
-  <data name="ShiftDash_PeriodFilter_EventShifts" xml:space="preserve"><value>Turni dell'evento</value></data>
+  <data name="ShiftDash_PeriodFilter_BuildDays" xml:space="preserve"><value>Montaggio</value></data>
+  <data name="ShiftDash_PeriodFilter_EventShifts" xml:space="preserve"><value>Evento</value></data>
   <data name="ShiftDash_PeriodFilter_Strike" xml:space="preserve"><value>Smontaggio</value></data>
 
   <data name="ShiftDash_Departments_Title" xml:space="preserve"><value>Dipartimenti</value></data>
-  <data name="ShiftDash_Departments_SortNote" xml:space="preserve"><value>ordinati per % più basso di copertura</value></data>
+  <data name="ShiftDash_Departments_SortNote" xml:space="preserve"><value>ordinati per % più basso di posti coperti</value></data>
   <data name="ShiftDash_Departments_Col_Department" xml:space="preserve"><value>Dipartimento</value></data>
   <data name="ShiftDash_Departments_Col_Total" xml:space="preserve"><value>Totale</value></data>
   <data name="ShiftDash_Departments_Col_Filled" xml:space="preserve"><value>Coperti</value></data>

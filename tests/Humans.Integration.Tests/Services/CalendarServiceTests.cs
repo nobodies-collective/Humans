@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using AwesomeAssertions;
 using Humans.Application.DTOs.Calendar;
 using Humans.Application.Interfaces.Calendar;
@@ -16,7 +17,7 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
     private readonly HumansWebApplicationFactory _factory;
     public CalendarServiceTests(HumansWebApplicationFactory factory) => _factory = factory;
 
-    [Fact]
+    [HumansFact]
     public async Task CreateEventAsync_persists_and_GetEventById_returns_it()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -53,7 +54,7 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
         fetched.EndUtc.Should().Be(end);
     }
 
-    [Fact]
+    [HumansFact]
     public async Task GetOccurrencesInWindow_returns_single_event_when_overlapping()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -85,7 +86,7 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
         occ.Single(o => string.Equals(o.Title, "Inside", StringComparison.Ordinal)).IsRecurring.Should().BeFalse();
     }
 
-    [Fact]
+    [HumansFact]
     public async Task GetOccurrencesInWindow_filters_by_team()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -115,7 +116,7 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
         occ.Should().NotContain(o => o.Title == "B-evt");
     }
 
-    [Fact]
+    [HumansFact]
     public async Task Soft_deleted_events_do_not_appear_in_window()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -140,7 +141,7 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
         occ.Should().BeEmpty();
     }
 
-    [Fact]
+    [HumansFact]
     public async Task Recurring_weekly_event_stays_at_local_time_across_Madrid_DST()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -178,7 +179,7 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
         }
     }
 
-    [Fact]
+    [HumansFact]
     public async Task Recurring_bounded_event_is_skipped_when_until_before_window()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -204,7 +205,7 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
         occ.Should().BeEmpty();
     }
 
-    [Fact]
+    [HumansFact]
     public async Task Cancelled_exception_removes_that_occurrence()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -235,7 +236,7 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
         occ.Select(o => o.OccurrenceStartUtc).Should().NotContain(cancel);
     }
 
-    [Fact]
+    [HumansFact]
     public async Task Override_changes_title_and_moves_occurrence()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -276,7 +277,7 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
         special.OriginalOccurrenceStartUtc.Should().Be(original);
     }
 
-    [Fact]
+    [HumansFact]
     public async Task UpdateEvent_changes_fields_and_preserves_id()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
@@ -303,7 +304,56 @@ public class CalendarServiceTests : IClassFixture<HumansWebApplicationFactory>
         fetched.StartUtc.Should().Be(Instant.FromUtc(2026, 7, 2, 17, 0));
     }
 
-    [Fact]
+    [HumansFact]
+    public async Task CreateEvent_rejects_malformed_rrule()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var svc = scope.ServiceProvider.GetRequiredService<ICalendarService>();
+        var db = scope.ServiceProvider.GetRequiredService<HumansDbContext>();
+
+        var team = await SeedTeamAsync(db, $"T-{Guid.NewGuid():N}");
+        var uid = await SeedUserAsync(scope, $"calsvc-{Guid.NewGuid():N}@test.local");
+
+        var act = async () => await svc.CreateEventAsync(new CreateCalendarEventDto(
+            "Bad", null, null, null, team.Id,
+            Instant.FromUtc(2026, 5, 1, 17, 0),
+            Instant.FromUtc(2026, 5, 1, 18, 0),
+            false,
+            RecurrenceRule: "FREQ=NOT_A_REAL_FREQ",
+            RecurrenceTimezone: "Europe/Madrid"), uid);
+
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*Recurrence rule is malformed*");
+    }
+
+    [HumansFact]
+    public async Task UpdateEvent_rejects_malformed_rrule()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var svc = scope.ServiceProvider.GetRequiredService<ICalendarService>();
+        var db = scope.ServiceProvider.GetRequiredService<HumansDbContext>();
+
+        var team = await SeedTeamAsync(db, $"T-{Guid.NewGuid():N}");
+        var uid = await SeedUserAsync(scope, $"calsvc-{Guid.NewGuid():N}@test.local");
+
+        var ev = await svc.CreateEventAsync(new CreateCalendarEventDto(
+            "Original", null, null, null, team.Id,
+            Instant.FromUtc(2026, 5, 1, 17, 0),
+            Instant.FromUtc(2026, 5, 1, 18, 0), false, null, null), uid);
+
+        var act = async () => await svc.UpdateEventAsync(ev.Id, new UpdateCalendarEventDto(
+            "Updated", null, null, null, team.Id,
+            Instant.FromUtc(2026, 5, 2, 17, 0),
+            Instant.FromUtc(2026, 5, 2, 18, 0),
+            false,
+            RecurrenceRule: "FREQ=NOT_A_REAL_FREQ",
+            RecurrenceTimezone: "Europe/Madrid"), uid);
+
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*Recurrence rule is malformed*");
+    }
+
+    [HumansFact]
     public async Task DeleteEvent_soft_deletes_and_hides_from_queries()
     {
         await using var scope = _factory.Services.CreateAsyncScope();

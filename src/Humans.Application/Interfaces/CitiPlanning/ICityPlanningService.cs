@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;
@@ -71,4 +72,7 @@ public record CampPolygonHistoryEntryDto(
     string Note,
     string GeoJson);
 
-public record SaveCampPolygonRequest(string GeoJson, double AreaSqm);
+public record SaveCampPolygonRequest(
+    string GeoJson,
+    double AreaSqm,
+    [property: StringLength(512, ErrorMessage = "Note cannot exceed 512 characters")] string? Note = null);

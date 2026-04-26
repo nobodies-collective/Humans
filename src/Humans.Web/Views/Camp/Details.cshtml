@@ -1,6 +1,7 @@
 @model Humans.Web.Models.CampDetailViewModel
 @{
     ViewData["Title"] = Model.Name;
+    var isCityPlanningMember = ViewBag.IsCityPlanningTeamMember as bool? ?? false;
 }
 
 <nav aria-label="breadcrumb">
@@ -180,47 +181,67 @@
                 </div>
             }
 
-            @* Placement data (visible only to leads and CampAdmins) *@
-            @if (Model.IsCurrentUserLead || Model.IsCurrentUserCampAdmin)
+            @* Placement data (visible to leads, CampAdmins, and city planning team) *@
+            @if (Model.IsCurrentUserLead || Model.IsCurrentUserCampAdmin || isCityPlanningMember)
             {
-            <div class="card mb-4">
-                <div class="card-header">
-                    <i class="fa-solid fa-map-location-dot me-1"></i> Placement
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <dl>
-                                @if (season.SoundZone.HasValue)
-                                {
-                                    <dt>Sound Zone</dt>
-                                    <dd><span class="badge bg-info">@season.SoundZone</span></dd>
-                                }
-                                @if (season.SpaceRequirement.HasValue)
-                                {
-                                    <dt>Space Requirement</dt>
-                                    <dd>@season.SpaceRequirement</dd>
-                                }
-                                @if (Model.IsCurrentUserLead || Model.IsCurrentUserCampAdmin)
-                                {
-                                    <dt>Containers</dt>
-                                    <dd><a asp-controller="Container" asp-action="Index"
-                                           asp-route-slug="@Model.Slug" asp-route-year="@season.Year">Manage containers →</a></dd>
-                                }
-                            </dl>
-                        </div>
-                        <div class="col-md-6">
-                            <dl>
-                                @if (season.ElectricalGrid.HasValue)
-                                {
-                                    <dt>Electrical Grid</dt>
-                                    <dd>@season.ElectricalGrid</dd>
-                                }
-                            </dl>
+                var isPlacementOpen = ViewBag.PlacementIsOpen as bool? ?? false;
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-map-location-dot me-1"></i> Placement</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="text-muted small">@Localizer["CityPlanning_PlacementPhase"]:</span>
+                            @if (isPlacementOpen)
+                            {
+                                <span class="badge bg-success">@Localizer["CityPlanning_StatusOpen"]</span>
+                                <a asp-controller="CityPlanning" asp-action="Index" class="btn btn-sm btn-outline-primary">
+                                    <i class="fa-solid fa-map me-1"></i> @Localizer["CityPlanning_GoToPlacementMap"]
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">@Localizer["CityPlanning_StatusClosed"]</span>
+                            }
+                            <button type="button" class="btn btn-link btn-sm p-0"
+                                    data-bs-toggle="modal" data-bs-target="#placement-help-modal"
+                                    title="@Localizer["CityPlanning_PlacementPhaseInfo"]">
+                                <i class="fa-solid fa-circle-info text-muted"></i>
+                            </button>
                         </div>
                     </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <dl>
+                                    @if (season.SoundZone.HasValue)
+                                    {
+                                        <dt>Sound Zone</dt>
+                                        <dd><span class="badge bg-info">@season.SoundZone</span></dd>
+                                    }
+                                    @if (season.SpaceRequirement.HasValue)
+                                    {
+                                        <dt>Space Requirement</dt>
+                                        <dd>@season.SpaceRequirement</dd>
+                                    }
+                                    @if (Model.IsCurrentUserLead || Model.IsCurrentUserCampAdmin)
+                                    {
+                                        <dt>Containers</dt>
+                                        <dd><a asp-controller="Container" asp-action="Index"
+                                               asp-route-slug="@Model.Slug" asp-route-year="@season.Year">Manage containers →</a></dd>
+                                    }
+                                </dl>
+                            </div>
+                            <div class="col-md-6">
+                                <dl>
+                                    @if (season.ElectricalGrid.HasValue)
+                                    {
+                                        <dt>Electrical Grid</dt>
+                                        <dd>@season.ElectricalGrid</dd>
+                                    }
+                                </dl>
+                            </div>
+                    </div>
                 </div>
-            </div>
+                @await Html.PartialAsync("~/Views/CityPlanning/_PlacementHelpModal.cshtml")
             }
         }
     </div>
@@ -288,6 +309,58 @@
                         </li>
                     }
                 </ul>
+            </div>
+        }
+
+        @* My membership (authenticated only — never shown to anonymous visitors) *@
+        @if (User.Identity?.IsAuthenticated == true && Model.Membership.Status != CampMemberStatusSummaryView.NoOpenSeason)
+        {
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fa-solid fa-campground me-1"></i> My membership
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-2">
+                        This does <strong>not</strong> join you to the camp. Join through the camp's own process first, then tell Humans so you get access to any per-camp roles, Early Entry allocations, and notifications.
+                    </p>
+                    @switch (Model.Membership.Status)
+                    {
+                        case CampMemberStatusSummaryView.None:
+                            <form asp-controller="Camp" asp-action="RequestMembership" asp-route-slug="@Model.Slug" method="post">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-primary w-100">
+                                    <i class="fa-solid fa-hand me-1"></i> Request to join for @Model.Membership.OpenSeasonYear
+                                </button>
+                            </form>
+                            break;
+                        case CampMemberStatusSummaryView.Pending:
+                            <div class="d-grid gap-2">
+                                <div class="alert alert-warning py-2 mb-0">
+                                    <i class="fa-solid fa-hourglass-half me-1"></i> Pending lead approval for @Model.Membership.OpenSeasonYear.
+                                </div>
+                                <form asp-controller="Camp" asp-action="WithdrawMembershipRequest" asp-route-slug="@Model.Slug" asp-route-campMemberId="@Model.Membership.CampMemberId" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-outline-secondary w-100" data-confirm="Withdraw your pending request?">
+                                        <i class="fa-solid fa-xmark me-1"></i> Withdraw request
+                                    </button>
+                                </form>
+                            </div>
+                            break;
+                        case CampMemberStatusSummaryView.Active:
+                            <div class="d-grid gap-2">
+                                <div class="alert alert-success py-2 mb-0">
+                                    <i class="fa-solid fa-check me-1"></i> You are a member for @Model.Membership.OpenSeasonYear.
+                                </div>
+                                <form asp-controller="Camp" asp-action="LeaveMembership" asp-route-slug="@Model.Slug" asp-route-campMemberId="@Model.Membership.CampMemberId" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-outline-warning w-100" data-confirm="Leave this camp for this season?">
+                                        <i class="fa-solid fa-right-from-bracket me-1"></i> Leave camp
+                                    </button>
+                                </form>
+                            </div>
+                            break;
+                    }
+                </div>
             </div>
         }
 
