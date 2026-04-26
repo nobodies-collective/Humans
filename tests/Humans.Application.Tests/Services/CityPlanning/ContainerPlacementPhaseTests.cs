@@ -14,7 +14,7 @@ using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
-using Xunit;
+using Humans.Testing;
 
 namespace Humans.Application.Tests.Services.CityPlanning;
 
@@ -51,7 +51,7 @@ public class ContainerPlacementPhaseTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    [Fact]
+    [HumansFact]
     public async Task OpenContainerPlacement_SetsIsOpenAndTimestamp()
     {
         var userId = Guid.NewGuid();
@@ -64,7 +64,7 @@ public class ContainerPlacementPhaseTests : IDisposable
         settings.ContainerPlacementClosedAt.Should().BeNull();
     }
 
-    [Fact]
+    [HumansFact]
     public async Task CloseContainerPlacement_SetsIsClosedAndTimestamp()
     {
         var userId = Guid.NewGuid();

@@ -15,6 +15,7 @@ public class Container
     public string? ImageStoragePath { get; set; }
     public string? ImageContentType { get; set; }
     public string? ImageFileName { get; set; }
+    public string? LocationGeoJson { get; set; }
     public Instant CreatedAt { get; init; }
     public Instant UpdatedAt { get; set; }
 }

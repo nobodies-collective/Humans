@@ -140,6 +140,7 @@ public sealed class ContainerService : IContainerService
         c.ImageStoragePath is not null ? $"/{c.ImageStoragePath}" : null,
         c.ImageContentType,
         c.ImageFileName,
+        c.LocationGeoJson,
         c.CreatedAt,
         c.UpdatedAt);
 }

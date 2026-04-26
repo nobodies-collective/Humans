@@ -30,6 +30,7 @@ public record ContainerDto(
     string? ImageStoragePath,
     string? ImageContentType,
     string? ImageFileName,
+    string? LocationGeoJson,
     Instant CreatedAt,
     Instant UpdatedAt
 );

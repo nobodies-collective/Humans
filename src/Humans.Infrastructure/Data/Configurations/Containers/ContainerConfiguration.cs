@@ -15,6 +15,7 @@ public class ContainerConfiguration : IEntityTypeConfiguration<Container>
         builder.Property(c => c.ImageStoragePath).HasMaxLength(512);
         builder.Property(c => c.ImageContentType).HasMaxLength(64);
         builder.Property(c => c.ImageFileName).HasMaxLength(256);
+        builder.Property(c => c.LocationGeoJson).HasColumnType("text");
 
         builder.HasIndex(c => c.CampSeasonId);
         builder.HasIndex(c => c.Year);
