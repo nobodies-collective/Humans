@@ -13,6 +13,8 @@ public interface IContainerService
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task UploadImageAsync(Guid id, Stream stream, string fileName, string contentType, long length, CancellationToken ct = default);
     Task DeleteImageAsync(Guid id, CancellationToken ct = default);
+    Task<ContainerDto> SavePlacementAsync(Guid id, string geoJson, CancellationToken ct = default);
+    Task ClearPlacementAsync(Guid id, CancellationToken ct = default);
 }
 
 public interface IContainerImageStorage

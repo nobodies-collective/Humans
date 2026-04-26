@@ -131,6 +131,29 @@ public sealed class ContainerService : IContainerService
         await _repo.UpdateAsync(container, ct);
     }
 
+    public async Task<ContainerDto> SavePlacementAsync(Guid id, string geoJson, CancellationToken ct = default)
+    {
+        var container = await _repo.GetByIdAsync(id, ct)
+            ?? throw new InvalidOperationException("Container not found.");
+
+        container.LocationGeoJson = geoJson;
+        container.UpdatedAt = _clock.GetCurrentInstant();
+
+        var updated = await _repo.UpdateAsync(container, ct);
+        return ToDto(updated);
+    }
+
+    public async Task ClearPlacementAsync(Guid id, CancellationToken ct = default)
+    {
+        var container = await _repo.GetByIdAsync(id, ct)
+            ?? throw new InvalidOperationException("Container not found.");
+
+        container.LocationGeoJson = null;
+        container.UpdatedAt = _clock.GetCurrentInstant();
+
+        await _repo.UpdateAsync(container, ct);
+    }
+
     private static ContainerDto ToDto(Container c) => new(
         c.Id,
         c.CampSeasonId,
