@@ -587,4 +587,43 @@ public sealed class CachingProfileService : IProfileService, IFullProfileInvalid
         }
         return anonymized;
     }
+
+    public async Task<IReadOnlySet<Guid>> SuspendForMissingConsentAsync(
+        IReadOnlyCollection<Guid> userIds,
+        Instant now,
+        CancellationToken ct = default)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var inner = scope.ServiceProvider.GetRequiredKeyedService<IProfileService>(InnerServiceKey);
+        var suspendedIds = await inner.SuspendForMissingConsentAsync(userIds, now, ct);
+        // IsSuspended is part of the FullProfile projection — refresh the
+        // cache entry for every user that was actually mutated so downstream
+        // readers see the suspended view immediately.
+        foreach (var userId in suspendedIds)
+        {
+            await RefreshEntryAsync(userId, ct);
+        }
+        return suspendedIds;
+    }
+
+    public async Task<IReadOnlyList<(Guid UserId, MembershipTier NewTier)>>
+        DowngradeTierForExpiredAsync(
+            MembershipTier currentTier,
+            IReadOnlyCollection<Guid> userIdsToKeep,
+            IReadOnlyDictionary<Guid, MembershipTier> fallbackTierByUser,
+            Instant now,
+            CancellationToken ct = default)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var inner = scope.ServiceProvider.GetRequiredKeyedService<IProfileService>(InnerServiceKey);
+        var downgrades = await inner.DowngradeTierForExpiredAsync(
+            currentTier, userIdsToKeep, fallbackTierByUser, now, ct);
+        // MembershipTier is part of the FullProfile projection — refresh the
+        // cache entry for every downgraded user.
+        foreach (var (userId, _) in downgrades)
+        {
+            await RefreshEntryAsync(userId, ct);
+        }
+        return downgrades;
+    }
 }

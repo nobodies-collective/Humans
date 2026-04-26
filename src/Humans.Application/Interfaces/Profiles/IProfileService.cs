@@ -206,4 +206,45 @@ public interface IProfileService
     /// <see cref="Users.IUserService.AnonymizeExpiredAccountAsync"/>.
     /// </summary>
     Task<bool> AnonymizeExpiredProfileAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets <see cref="Profile.IsSuspended"/> to true and stamps
+    /// <see cref="Profile.UpdatedAt"/> for users whose consent grace period has
+    /// expired. Unlike <see cref="SuspendAsync"/>, this variant does not
+    /// require an admin actor, skip-list already-suspended profiles (so the
+    /// caller can pre-filter with the returned set), and does not write an
+    /// audit log entry — the caller is expected to emit the
+    /// <see cref="Humans.Domain.Enums.AuditAction.MemberSuspended"/> entry
+    /// itself so it can include job-specific context.
+    /// Returns the set of user ids whose profile was actually mutated (i.e.
+    /// those who had a profile and were not already suspended).
+    /// No-op (absent from the returned set) for users without a profile or
+    /// already suspended. Used by the SuspendNonCompliantMembersJob so the
+    /// Profile section owns the write (design-rules §2c).
+    /// </summary>
+    Task<IReadOnlySet<Guid>> SuspendForMissingConsentAsync(
+        IReadOnlyCollection<Guid> userIds,
+        Instant now,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// For every profile whose <see cref="Profile.MembershipTier"/> equals
+    /// <paramref name="currentTier"/> and whose <c>UserId</c> is NOT in
+    /// <paramref name="userIdsToKeep"/>, downgrade the tier to the value
+    /// supplied by <paramref name="fallbackTierByUser"/> (falling back to
+    /// <see cref="MembershipTier.Volunteer"/> when the user is absent from
+    /// the map). Stamps <see cref="Profile.UpdatedAt"/> to
+    /// <paramref name="now"/> and persists in a single save. Returns a list
+    /// of (UserId, NewTier) tuples so the caller can emit audit entries
+    /// without a second round-trip. Used by
+    /// <c>SystemTeamSyncJob.SyncTierTeamAsync</c> so the job does not write
+    /// to <c>profiles</c> directly (design-rules §2c).
+    /// </summary>
+    Task<IReadOnlyList<(Guid UserId, MembershipTier NewTier)>>
+        DowngradeTierForExpiredAsync(
+            MembershipTier currentTier,
+            IReadOnlyCollection<Guid> userIdsToKeep,
+            IReadOnlyDictionary<Guid, MembershipTier> fallbackTierByUser,
+            Instant now,
+            CancellationToken ct = default);
 }

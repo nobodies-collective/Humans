@@ -1003,20 +1003,12 @@ public class ProfileController : HumansControllerBase
     [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Client)]
     public async Task<IActionResult> Picture(Guid id, CancellationToken ct)
     {
-        try
-        {
-            var (data, contentType) = await _profileService.GetProfilePictureAsync(id, ct);
+        var (data, contentType) = await _profileService.GetProfilePictureAsync(id, ct);
 
-            if (data is null || string.IsNullOrEmpty(contentType))
-                return NotFound();
+        if (data is null || string.IsNullOrEmpty(contentType))
+            return NotFound();
 
-            return File(data, contentType);
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogWarning("Profile picture request for {ProfileId} was cancelled", id);
-            return new EmptyResult();
-        }
+        return File(data, contentType);
     }
 
     // ─── View Another Profile ────────────────────────────────────────
@@ -1052,18 +1044,33 @@ public class ProfileController : HumansControllerBase
                 var noShows = await _shiftSignupService.GetNoShowHistoryAsync(id);
                 if (noShows.Count > 0)
                 {
+                    var noShowTeamIds = noShows.Select(s => s.Shift.Rota.TeamId).Distinct().ToList();
+                    var noShowTeamNames = await _teamService.GetTeamNamesByIdsAsync(noShowTeamIds, ct);
+
+                    var reviewerIds = noShows
+                        .Where(s => s.ReviewedByUserId.HasValue)
+                        .Select(s => s.ReviewedByUserId!.Value)
+                        .Distinct()
+                        .ToList();
+                    var reviewers = reviewerIds.Count == 0
+                        ? (IReadOnlyDictionary<Guid, User>)new Dictionary<Guid, User>()
+                        : await _userService.GetByIdsAsync(reviewerIds, ct);
+
                     noShowHistory = noShows.Select(s =>
                     {
                         var signupEs = s.Shift.Rota.EventSettings;
                         var signupTz = DateTimeZoneProviders.Tzdb[signupEs.TimeZoneId];
                         var shiftStart = s.Shift.GetAbsoluteStart(signupEs);
                         var zoned = shiftStart.InZone(signupTz);
+                        var reviewer = s.ReviewedByUserId.HasValue
+                            ? reviewers.GetValueOrDefault(s.ReviewedByUserId.Value)
+                            : null;
                         return new NoShowHistoryItem
                         {
                             ShiftLabel = s.Shift.Rota.Name,
-                            DepartmentName = s.Shift.Rota.Team?.Name ?? "",
+                            DepartmentName = noShowTeamNames.GetValueOrDefault(s.Shift.Rota.TeamId, ""),
                             ShiftDateLabel = zoned.ToDisplayShortDateTime(),
-                            MarkedByName = s.ReviewedByUser?.DisplayName,
+                            MarkedByName = reviewer?.DisplayName,
                             MarkedAtLabel = s.ReviewedAt?.InZone(signupTz).ToDisplayShortMonthDayTime()
                         };
                     }).ToList();
