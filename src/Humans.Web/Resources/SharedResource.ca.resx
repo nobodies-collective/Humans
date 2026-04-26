@@ -1471,7 +1471,7 @@
   <data name="CityPlanning_Admin_AddOrgContainer" xml:space="preserve"><value>Afegir Contenidor de Nobodies</value></data>
   <data name="CityPlanning_Admin_AddBarrioContainer" xml:space="preserve"><value>Afegir Contenidor — {0}</value></data>
   <data name="CityPlanning_Admin_OrgContainerNamePlaceholder" xml:space="preserve"><value>p.ex. Contenidor d'Emmagatzematge A</value></data>
-  <data name="CityPlanning_Admin_OrgContainerDescPlaceholder" xml:space="preserve"><value>Mida, tipus, ubicació…</value></data>
+  <data name="CityPlanning_Admin_OrgContainerDescPlaceholder" xml:space="preserve"><value>Tipus, color, signes d'identificació, altres notes…</value></data>
   <!-- Import polygons -->
   <data name="CityPlanning_Admin_ImportCard" xml:space="preserve"><value>Importar polígons</value></data>
   <data name="CityPlanning_Admin_ImportDescription" xml:space="preserve"><value>Puja una FeatureCollection GeoJSON per actualitzar en bloc els polígons de barrios de {0}. Les entitats s'associen per la propietat campName o campSlug.</value></data>
