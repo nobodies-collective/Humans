@@ -33,6 +33,8 @@ public interface ICityPlanningService
     Task<CityPlanningSettings> GetSettingsAsync(CancellationToken cancellationToken = default);
     Task OpenPlacementAsync(Guid userId, CancellationToken cancellationToken = default);
     Task ClosePlacementAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task OpenContainerPlacementAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task CloseContainerPlacementAsync(Guid userId, CancellationToken cancellationToken = default);
     Task UpdateLimitZoneAsync(string geoJson, Guid userId, CancellationToken cancellationToken = default);
     Task DeleteLimitZoneAsync(Guid userId, CancellationToken cancellationToken = default);
     Task UpdateOfficialZonesAsync(string geoJson, Guid userId, CancellationToken cancellationToken = default);

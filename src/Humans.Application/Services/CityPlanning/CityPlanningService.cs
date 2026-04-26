@@ -253,6 +253,36 @@ public sealed class CityPlanningService : ICityPlanningService
             cancellationToken);
     }
 
+    public async Task OpenContainerPlacementAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var campSettings = await _campService.GetSettingsAsync(cancellationToken);
+        var now = _clock.GetCurrentInstant();
+        await _repo.MutateSettingsAsync(
+            campSettings.PublicYear,
+            s =>
+            {
+                s.IsContainerPlacementOpen = true;
+                s.ContainerPlacementOpenedAt = now;
+            },
+            now,
+            cancellationToken);
+    }
+
+    public async Task CloseContainerPlacementAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var campSettings = await _campService.GetSettingsAsync(cancellationToken);
+        var now = _clock.GetCurrentInstant();
+        await _repo.MutateSettingsAsync(
+            campSettings.PublicYear,
+            s =>
+            {
+                s.IsContainerPlacementOpen = false;
+                s.ContainerPlacementClosedAt = now;
+            },
+            now,
+            cancellationToken);
+    }
+
     public async Task UpdateLimitZoneAsync(
         string geoJson, Guid userId, CancellationToken cancellationToken = default)
     {
