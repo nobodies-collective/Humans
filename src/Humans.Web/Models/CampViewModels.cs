@@ -75,8 +75,6 @@ public class CampSeasonDetailViewModel
     public int MemberCount { get; set; }
     public SpaceSize? SpaceRequirement { get; set; }
     public SoundZone? SoundZone { get; set; }
-    public int ContainerCount { get; set; }
-    public string? ContainerNotes { get; set; }
     public ElectricalGrid? ElectricalGrid { get; set; }
     public bool IsNameLocked { get; set; }
 }
@@ -113,8 +111,6 @@ public class CampRegisterViewModel
     public int MemberCount { get; set; }
     public SpaceSize? SpaceRequirement { get; set; }
     public SoundZone? SoundZone { get; set; }
-    public int ContainerCount { get; set; }
-    public string? ContainerNotes { get; set; }
     public ElectricalGrid? ElectricalGrid { get; set; }
 }
 

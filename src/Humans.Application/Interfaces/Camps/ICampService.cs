@@ -116,8 +116,6 @@ public record CampSeasonData(
     int MemberCount,
     SpaceSize? SpaceRequirement,
     SoundZone? SoundZone,
-    int ContainerCount,
-    string? ContainerNotes,
     ElectricalGrid? ElectricalGrid);
 
 public record CampDirectoryFilter(
@@ -190,8 +188,6 @@ public record CampEditData(
     int MemberCount,
     SpaceSize? SpaceRequirement,
     SoundZone? SoundZone,
-    int ContainerCount,
-    string? ContainerNotes,
     ElectricalGrid? ElectricalGrid,
     IReadOnlyList<CampLeadSummary> Leads,
     IReadOnlyList<CampImageSummary> Images,
@@ -227,8 +223,6 @@ public record CampSeasonDetailData(
     int MemberCount,
     SpaceSize? SpaceRequirement,
     SoundZone? SoundZone,
-    int ContainerCount,
-    string? ContainerNotes,
     ElectricalGrid? ElectricalGrid,
     bool IsNameLocked);
 
@@ -256,8 +250,6 @@ public record CampPlacementSummary(
     int MemberCount,
     string? SpaceRequirement,
     string? SoundZone,
-    int ContainerCount,
-    string? ContainerNotes,
     string Status,
     string? ElectricalGrid);
 

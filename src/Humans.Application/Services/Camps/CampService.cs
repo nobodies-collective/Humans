@@ -467,8 +467,6 @@ public sealed class CampService : ICampService, IUserDataContributor
             season.MemberCount,
             season.SpaceRequirement,
             season.SoundZone,
-            season.ContainerCount,
-            season.ContainerNotes,
             season.ElectricalGrid,
             season.NameLockDate.HasValue && today >= season.NameLockDate.Value);
     }
@@ -508,8 +506,6 @@ public sealed class CampService : ICampService, IUserDataContributor
             season.MemberCount,
             season.SpaceRequirement,
             season.SoundZone,
-            season.ContainerCount,
-            season.ContainerNotes,
             season.ElectricalGrid,
             leads,
             camp.Images
@@ -559,8 +555,6 @@ public sealed class CampService : ICampService, IUserDataContributor
             season.MemberCount,
             season.SpaceRequirement?.ToString(),
             season.SoundZone?.ToString(),
-            season.ContainerCount,
-            season.ContainerNotes,
             season.Status.ToString(),
             season.ElectricalGrid?.ToString());
     }
@@ -613,8 +607,6 @@ public sealed class CampService : ICampService, IUserDataContributor
             MemberCount = previousSeason.MemberCount,
             SpaceRequirement = previousSeason.SpaceRequirement,
             SoundZone = previousSeason.SoundZone,
-            ContainerCount = previousSeason.ContainerCount,
-            ContainerNotes = previousSeason.ContainerNotes,
             ElectricalGrid = previousSeason.ElectricalGrid,
             CreatedAt = now,
             UpdatedAt = now
@@ -656,8 +648,6 @@ public sealed class CampService : ICampService, IUserDataContributor
             season.MemberCount = data.MemberCount;
             season.SpaceRequirement = data.SpaceRequirement;
             season.SoundZone = data.SoundZone;
-            season.ContainerCount = data.ContainerCount;
-            season.ContainerNotes = data.ContainerNotes;
             season.ElectricalGrid = data.ElectricalGrid;
             season.UpdatedAt = now;
 
@@ -1301,8 +1291,6 @@ public sealed class CampService : ICampService, IUserDataContributor
             MemberCount = data.MemberCount,
             SpaceRequirement = data.SpaceRequirement,
             SoundZone = data.SoundZone,
-            ContainerCount = data.ContainerCount,
-            ContainerNotes = data.ContainerNotes,
             ElectricalGrid = data.ElectricalGrid,
             CreatedAt = now,
             UpdatedAt = now

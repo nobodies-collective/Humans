@@ -201,17 +201,16 @@
                                     <dt>Space Requirement</dt>
                                     <dd>@season.SpaceRequirement</dd>
                                 }
-                                <dt>Containers</dt>
-                                <dd>@season.ContainerCount</dd>
+                                @if (Model.IsCurrentUserLead || Model.IsCurrentUserCampAdmin)
+                                {
+                                    <dt>Containers</dt>
+                                    <dd><a asp-controller="Container" asp-action="Index"
+                                           asp-route-slug="@Model.Slug" asp-route-year="@season.Year">Manage containers →</a></dd>
+                                }
                             </dl>
                         </div>
                         <div class="col-md-6">
                             <dl>
-                                @if (!string.IsNullOrEmpty(season.ContainerNotes))
-                                {
-                                    <dt>Container Notes</dt>
-                                    <dd>@season.ContainerNotes</dd>
-                                }
                                 @if (season.ElectricalGrid.HasValue)
                                 {
                                     <dt>Electrical Grid</dt>

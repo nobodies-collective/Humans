@@ -1,7 +1,9 @@
 using Humans.Application.Interfaces.Camps;
 using Humans.Application.Interfaces.CitiPlanning;
+using Humans.Application.Interfaces.Containers;
 using Humans.Domain.Entities;
 using Humans.Web.Authorization;
+using Humans.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -16,15 +18,18 @@ public class CityPlanningController : HumansControllerBase
 {
     private readonly ICityPlanningService _cityPlanningService;
     private readonly ICampService _campService;
+    private readonly IContainerService _containerService;
 
     public CityPlanningController(
         ICityPlanningService cityPlanningService,
         ICampService campService,
+        IContainerService containerService,
         UserManager<User> userManager)
         : base(userManager)
     {
         _cityPlanningService = cityPlanningService;
         _campService = campService;
+        _containerService = containerService;
     }
 
     private async Task<bool> IsMapAdminAsync(Guid userId, CancellationToken ct)
@@ -248,6 +253,165 @@ public class CityPlanningController : HumansControllerBase
         await _cityPlanningService.DeleteOfficialZonesAsync(user.Id, cancellationToken);
         SetSuccess("Official zones deleted.");
         return RedirectToAction(nameof(Admin));
+    }
+
+    // ======================================================================
+    // Org-level containers
+    // ======================================================================
+
+    [HttpGet("Admin/Containers/{year}")]
+    public async Task<IActionResult> OrgContainers(int year, CancellationToken cancellationToken)
+    {
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
+            return Forbid();
+
+        var containers = await _containerService.GetOrgByYearAsync(year, cancellationToken);
+
+        var vm = new OrgContainerIndexViewModel
+        {
+            Year = year,
+            Containers = containers.Select(c => new ContainerViewModel
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Description = c.Description,
+                ImageUrl = c.ImageStoragePath,
+                ImageFileName = c.ImageFileName,
+                SortOrder = c.SortOrder
+            }).ToList()
+        };
+
+        return View(vm);
+    }
+
+    [HttpPost("Admin/Containers/{year}/Create")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateOrgContainer(int year, ContainerFormModel model, CancellationToken cancellationToken)
+    {
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
+            return Forbid();
+
+        if (!ModelState.IsValid)
+        {
+            SetError("Please correct the validation errors.");
+            return RedirectToAction(nameof(OrgContainers), new { year });
+        }
+
+        await _containerService.CreateAsync(new ContainerData(
+            CampSeasonId: null,
+            Year: year,
+            Name: model.Name,
+            Description: model.Description,
+            SortOrder: model.SortOrder), cancellationToken);
+
+        SetSuccess("Container added.");
+        return RedirectToAction(nameof(OrgContainers), new { year });
+    }
+
+    [HttpPost("Admin/Containers/{id}/Edit")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditOrgContainer(Guid id, ContainerFormModel model, CancellationToken cancellationToken)
+    {
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
+            return Forbid();
+
+        var container = await _containerService.GetByIdAsync(id, cancellationToken);
+        if (container is null) return NotFound();
+
+        if (!ModelState.IsValid)
+        {
+            SetError("Please correct the validation errors.");
+            return RedirectToAction(nameof(OrgContainers), new { year = container.Year });
+        }
+
+        await _containerService.UpdateAsync(id, new ContainerData(
+            CampSeasonId: null,
+            Year: container.Year,
+            Name: model.Name,
+            Description: model.Description,
+            SortOrder: model.SortOrder), cancellationToken);
+
+        SetSuccess("Container updated.");
+        return RedirectToAction(nameof(OrgContainers), new { year = container.Year });
+    }
+
+    [HttpPost("Admin/Containers/{id}/Delete")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteOrgContainer(Guid id, CancellationToken cancellationToken)
+    {
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
+            return Forbid();
+
+        var container = await _containerService.GetByIdAsync(id, cancellationToken);
+        if (container is null) return NotFound();
+
+        var year = container.Year;
+        await _containerService.DeleteAsync(id, cancellationToken);
+        SetSuccess("Container deleted.");
+        return RedirectToAction(nameof(OrgContainers), new { year });
+    }
+
+    [HttpPost("Admin/Containers/{id}/Image/Upload")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UploadOrgContainerImage(Guid id, IFormFile? file, CancellationToken cancellationToken)
+    {
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
+            return Forbid();
+
+        var container = await _containerService.GetByIdAsync(id, cancellationToken);
+        if (container is null) return NotFound();
+
+        if (file is null || file.Length == 0)
+        {
+            SetError("Please select a file to upload.");
+            return RedirectToAction(nameof(OrgContainers), new { year = container.Year });
+        }
+
+        try
+        {
+            await _containerService.UploadImageAsync(id, file.OpenReadStream(), file.FileName, file.ContentType, file.Length, cancellationToken);
+            SetSuccess("Image uploaded.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            SetError(ex.Message);
+        }
+
+        return RedirectToAction(nameof(OrgContainers), new { year = container.Year });
+    }
+
+    [HttpPost("Admin/Containers/{id}/Image/Delete")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteOrgContainerImage(Guid id, CancellationToken cancellationToken)
+    {
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
+            return Forbid();
+
+        var container = await _containerService.GetByIdAsync(id, cancellationToken);
+        if (container is null) return NotFound();
+
+        var year = container.Year;
+        await _containerService.DeleteImageAsync(id, cancellationToken);
+        SetSuccess("Image removed.");
+        return RedirectToAction(nameof(OrgContainers), new { year });
     }
 
     private static bool IsValidJson(string value)

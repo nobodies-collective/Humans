@@ -921,13 +921,6 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<Guid>("CampId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("ContainerCount")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ContainerNotes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1046,6 +1039,57 @@ namespace Humans.Infrastructure.Migrations
                             OpenSeasons = "[2026]",
                             PublicYear = 2026
                         });
+                });
+
+            modelBuilder.Entity("Humans.Domain.Entities.Container", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CampSeasonId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ImageContentType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ImageFileName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("ImageStoragePath")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Instant>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampSeasonId");
+
+                    b.HasIndex("Year");
+
+                    b.ToTable("containers", (string)null);
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.Campaign", b =>
@@ -3925,6 +3969,16 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("CampSeason");
 
                     b.Navigation("ModifiedByUser");
+                });
+
+            modelBuilder.Entity("Humans.Domain.Entities.Container", b =>
+                {
+                    b.HasOne("Humans.Domain.Entities.CampSeason", "CampSeason")
+                        .WithMany()
+                        .HasForeignKey("CampSeasonId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("CampSeason");
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.CampSeason", b =>

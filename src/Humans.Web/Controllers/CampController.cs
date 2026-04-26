@@ -727,8 +727,6 @@ public class CampController : HumansCampControllerBase
             MemberCount: model.MemberCount,
             SpaceRequirement: model.SpaceRequirement,
             SoundZone: model.SoundZone,
-            ContainerCount: model.ContainerCount,
-            ContainerNotes: model.ContainerNotes,
             ElectricalGrid: model.ElectricalGrid);
     }
 
@@ -789,8 +787,6 @@ public class CampController : HumansCampControllerBase
             MemberCount = editData.MemberCount,
             SpaceRequirement = editData.SpaceRequirement,
             SoundZone = editData.SoundZone,
-            ContainerCount = editData.ContainerCount,
-            ContainerNotes = editData.ContainerNotes,
             ElectricalGrid = editData.ElectricalGrid,
             Leads = editData.Leads
                 .Select(lead => new CampLeadViewModel
@@ -859,8 +855,6 @@ public class CampController : HumansCampControllerBase
                 MemberCount = campDetail.CurrentSeason.MemberCount,
                 SpaceRequirement = campDetail.CurrentSeason.SpaceRequirement,
                 SoundZone = campDetail.CurrentSeason.SoundZone,
-                ContainerCount = campDetail.CurrentSeason.ContainerCount,
-                ContainerNotes = campDetail.CurrentSeason.ContainerNotes,
                 ElectricalGrid = campDetail.CurrentSeason.ElectricalGrid,
                 IsNameLocked = campDetail.CurrentSeason.IsNameLocked
             },

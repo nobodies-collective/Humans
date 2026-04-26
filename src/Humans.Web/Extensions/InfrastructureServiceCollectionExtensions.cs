@@ -28,6 +28,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddTeamsSection();
         services.AddGovernanceSection();
         services.AddCampsSection();
+        services.AddContainersSection();
         services.AddCityPlanningSection(configuration);
         services.AddBudgetSection();
         services.AddShiftsSection();
