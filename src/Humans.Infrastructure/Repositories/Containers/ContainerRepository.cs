@@ -34,6 +34,16 @@ public sealed class ContainerRepository : IContainerRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<Container>> GetAllByYearAsync(int year, CancellationToken ct = default)
+    {
+        await using var ctx = await _factory.CreateDbContextAsync(ct);
+        return await ctx.Containers
+            .AsNoTracking()
+            .Where(c => c.Year == year)
+            .OrderBy(c => c.Name)
+            .ToListAsync(ct);
+    }
+
     public async Task<Container?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var ctx = await _factory.CreateDbContextAsync(ct);

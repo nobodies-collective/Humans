@@ -1,53 +1,37 @@
 @model Humans.Web.Models.OrgContainerIndexViewModel
 @{
-    ViewData["Title"] = $"Org Containers {Model.Year}";
+    ViewData["Title"] = $"Containers {Model.Year}";
 }
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
         <li class="breadcrumb-item"><a asp-action="Admin">City Planning Admin</a></li>
-        <li class="breadcrumb-item active" aria-current="page">Org Containers @Model.Year</li>
+        <li class="breadcrumb-item active" aria-current="page">Containers @Model.Year</li>
     </ol>
 </nav>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Org Containers <small class="text-muted">@Model.Year</small></h1>
+    <h1>Containers <small class="text-muted">@Model.Year</small></h1>
 </div>
 
 <vc:temp-data-alerts />
 
-<div class="card mb-4">
-    <div class="card-header"><i class="fa-solid fa-plus me-1"></i> Add Container</div>
-    <div class="card-body">
-        <form asp-action="CreateOrgContainer" asp-route-year="@Model.Year" method="post">
-            @Html.AntiForgeryToken()
-            <div class="row g-3">
-                <div class="col-md-5">
-                    <label class="form-label">Name <span class="text-danger">*</span></label>
-                    <input name="Name" class="form-control" maxlength="256" required placeholder="e.g. Storage Container A" />
-                </div>
-                <div class="col-md-7">
-                    <label class="form-label">Description</label>
-                    <input name="Description" class="form-control" maxlength="2000" placeholder="Size, type, location…" />
-                </div>
-            </div>
-            <div class="mt-3">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fa-solid fa-plus me-1"></i> Add
-                </button>
-            </div>
-        </form>
-    </div>
+@* ── Org containers ──────────────────────────────────────────────────── *@
+<div class="d-flex align-items-center gap-2 mb-3">
+    <h2 class="h4 mb-0">Org Containers</h2>
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addOrgModal">
+        <i class="fa-solid fa-plus me-1"></i> Add
+    </button>
 </div>
 
-@if (Model.Containers.Count == 0)
+@if (Model.OrgContainers.Count == 0)
 {
-    <div class="alert alert-secondary">No org-level containers for @Model.Year yet.</div>
+    <div class="alert alert-secondary mb-4">No org-level containers for @Model.Year yet.</div>
 }
 else
 {
-    <div class="row g-3">
-        @foreach (var c in Model.Containers.OrderBy(x => x.Name))
+    <div class="row g-3 mb-4">
+        @foreach (var c in Model.OrgContainers)
         {
             <div class="col-md-6 col-lg-4">
                 <div class="card h-100">
@@ -98,9 +82,201 @@ else
             </div>
         }
     </div>
+}
 
-    @* Edit modals *@
-    @foreach (var c in Model.Containers)
+@* ── Barrio containers ───────────────────────────────────────────────── *@
+<h2 class="h4 mb-3 mt-2">Barrio Containers</h2>
+
+@foreach (var group in Model.BarrioGroups)
+{
+    <div class="d-flex align-items-center gap-2 mt-4 mb-2">
+        <h3 class="h5 mb-0">@group.CampName</h3>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addBarrioModal-@group.SeasonId">
+            <i class="fa-solid fa-plus me-1"></i> Add
+        </button>
+    </div>
+
+    @if (group.Containers.Count == 0)
+    {
+        <div class="alert alert-secondary mb-3">No containers for @group.CampName yet.</div>
+    }
+    else
+    {
+        <div class="row g-3 mb-3">
+            @foreach (var c in group.Containers)
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100">
+                        @if (c.ImageUrl is not null)
+                        {
+                            <img src="@c.ImageUrl" class="card-img-top" alt="@c.Name" style="max-height:200px;object-fit:cover;" />
+                        }
+                        <div class="card-body">
+                            <h5 class="card-title">@c.Name</h5>
+                            @if (!string.IsNullOrEmpty(c.Description))
+                            {
+                                <p class="card-text text-muted small">@c.Description</p>
+                            }
+                        </div>
+                        <div class="card-footer d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editModal-@c.Id">
+                                <i class="fa-solid fa-pen me-1"></i> Edit
+                            </button>
+                            @if (c.ImageUrl is null)
+                            {
+                                <button type="button" class="btn btn-outline-secondary btn-sm"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#imageModal-@c.Id">
+                                    <i class="fa-solid fa-image me-1"></i> Upload Image
+                                </button>
+                            }
+                            else
+                            {
+                                <form asp-action="DeleteOrgContainerImage" asp-route-id="@c.Id" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-outline-warning btn-sm"
+                                            data-confirm="Remove image from @c.Name?">
+                                        <i class="fa-solid fa-image me-1"></i> Remove Image
+                                    </button>
+                                </form>
+                            }
+                            <form asp-action="DeleteOrgContainer" asp-route-id="@c.Id" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-danger btn-sm"
+                                        data-confirm="Delete container @c.Name?">
+                                    <i class="fa-solid fa-trash me-1"></i> Delete
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@* ── Modals ──────────────────────────────────────────────────────────── *@
+
+<div class="modal fade" id="addOrgModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Org Container</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="CreateOrgContainer" asp-route-year="@Model.Year" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input name="Name" class="form-control" maxlength="256" required placeholder="e.g. Storage Container A" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea name="Description" class="form-control" rows="3" maxlength="2000" placeholder="Size, type, location…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@foreach (var c in Model.OrgContainers)
+{
+    <div class="modal fade" id="editModal-@c.Id" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Container</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form asp-action="EditOrgContainer" asp-route-id="@c.Id" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <input name="Name" class="form-control" value="@c.Name" maxlength="256" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea name="Description" class="form-control" rows="3" maxlength="2000">@c.Description</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @if (c.ImageUrl is null)
+    {
+        <div class="modal fade" id="imageModal-@c.Id" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Upload Image — @c.Name</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form asp-action="UploadOrgContainerImage" asp-route-id="@c.Id"
+                          method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Image file (JPEG, PNG, or WebP — max 10 MB)</label>
+                                <input type="file" name="file" class="form-control" accept="image/jpeg,image/png,image/webp" required />
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Upload</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@foreach (var group in Model.BarrioGroups)
+{
+    <div class="modal fade" id="addBarrioModal-@group.SeasonId" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Container — @group.CampName</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form asp-action="CreateBarrioContainer" asp-route-year="@Model.Year" asp-route-seasonId="@group.SeasonId" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <input name="Name" class="form-control" maxlength="256" required placeholder="e.g. Shipping Container #1" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea name="Description" class="form-control" rows="3" maxlength="2000" placeholder="Size, type, special requirements…"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @foreach (var c in group.Containers)
     {
         <div class="modal fade" id="editModal-@c.Id" tabindex="-1">
             <div class="modal-dialog">

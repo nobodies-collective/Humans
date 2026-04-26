@@ -34,5 +34,14 @@ public class ContainerFormModel
 public class OrgContainerIndexViewModel
 {
     public int Year { get; set; }
+    public List<ContainerViewModel> OrgContainers { get; set; } = new();
+    public List<BarrioContainerGroup> BarrioGroups { get; set; } = new();
+}
+
+public class BarrioContainerGroup
+{
+    public Guid SeasonId { get; set; }
+    public string CampName { get; set; } = string.Empty;
+    public string CampSlug { get; set; } = string.Empty;
     public List<ContainerViewModel> Containers { get; set; } = new();
 }

@@ -6,6 +6,7 @@ public interface IContainerService
 {
     Task<IReadOnlyList<ContainerDto>> GetBySeasonAsync(Guid campSeasonId, CancellationToken ct = default);
     Task<IReadOnlyList<ContainerDto>> GetOrgByYearAsync(int year, CancellationToken ct = default);
+    Task<IReadOnlyList<ContainerDto>> GetAllByYearAsync(int year, CancellationToken ct = default);
     Task<ContainerDto?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<ContainerDto> CreateAsync(ContainerData data, CancellationToken ct = default);
     Task<ContainerDto> UpdateAsync(Guid id, ContainerData data, CancellationToken ct = default);

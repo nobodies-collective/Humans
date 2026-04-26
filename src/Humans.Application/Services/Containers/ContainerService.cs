@@ -36,6 +36,12 @@ public sealed class ContainerService : IContainerService
         return containers.Select(ToDto).ToList();
     }
 
+    public async Task<IReadOnlyList<ContainerDto>> GetAllByYearAsync(int year, CancellationToken ct = default)
+    {
+        var containers = await _repo.GetAllByYearAsync(year, ct);
+        return containers.Select(ToDto).ToList();
+    }
+
     public async Task<ContainerDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         var container = await _repo.GetByIdAsync(id, ct);

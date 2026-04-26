@@ -268,22 +268,71 @@ public class CityPlanningController : HumansControllerBase
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
             return Forbid();
 
-        var containers = await _containerService.GetOrgByYearAsync(year, cancellationToken);
+        var allContainers = await _containerService.GetAllByYearAsync(year, cancellationToken);
+        var seasonBriefs = await _campService.GetCampSeasonBriefsForYearAsync(year, cancellationToken);
+
+        var bySeasonId = allContainers
+            .Where(c => c.CampSeasonId is not null)
+            .GroupBy(c => c.CampSeasonId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         var vm = new OrgContainerIndexViewModel
         {
             Year = year,
-            Containers = containers.Select(c => new ContainerViewModel
-            {
-                Id = c.Id,
-                Name = c.Name,
-                Description = c.Description,
-                ImageUrl = c.ImageStoragePath,
-                ImageFileName = c.ImageFileName
-            }).ToList()
+            OrgContainers = allContainers
+                .Where(c => c.CampSeasonId is null)
+                .Select(ToContainerViewModel)
+                .ToList(),
+            BarrioGroups = seasonBriefs
+                .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(s => new BarrioContainerGroup
+                {
+                    SeasonId = s.CampSeasonId,
+                    CampName = s.Name,
+                    CampSlug = s.CampSlug,
+                    Containers = bySeasonId.TryGetValue(s.CampSeasonId, out var cs)
+                        ? cs.Select(ToContainerViewModel).ToList()
+                        : []
+                })
+                .ToList()
         };
 
         return View(vm);
+    }
+
+    private static ContainerViewModel ToContainerViewModel(ContainerDto c) => new()
+    {
+        Id = c.Id,
+        Name = c.Name,
+        Description = c.Description,
+        ImageUrl = c.ImageStoragePath,
+        ImageFileName = c.ImageFileName
+    };
+
+    [HttpPost("Admin/Containers/{year}/Barrios/{seasonId}/Create")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateBarrioContainer(int year, Guid seasonId, ContainerFormModel model, CancellationToken cancellationToken)
+    {
+        var (error, user) = await RequireCurrentUserAsync();
+        if (error != null) return error;
+
+        if (!await IsMapAdminAsync(user.Id, cancellationToken))
+            return Forbid();
+
+        if (!ModelState.IsValid)
+        {
+            SetError("Please correct the validation errors.");
+            return RedirectToAction(nameof(OrgContainers), new { year });
+        }
+
+        await _containerService.CreateAsync(new ContainerData(
+            CampSeasonId: seasonId,
+            Year: year,
+            Name: model.Name,
+            Description: model.Description), cancellationToken);
+
+        SetSuccess("Container added.");
+        return RedirectToAction(nameof(OrgContainers), new { year });
     }
 
     [HttpPost("Admin/Containers/{year}/Create")]
