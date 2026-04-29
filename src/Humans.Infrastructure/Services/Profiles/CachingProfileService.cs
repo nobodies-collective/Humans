@@ -233,7 +233,7 @@ public sealed class CachingProfileService : IProfileService, IFullProfileInvalid
         return await inner.GetProfileEditDataAsync(userId, ct);
     }
 
-    public async Task<(byte[]? Data, string? ContentType)> GetProfilePictureAsync(
+    public async Task<(byte[] Data, string ContentType)?> GetProfilePictureAsync(
         Guid profileId, CancellationToken ct = default)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
@@ -389,6 +389,15 @@ public sealed class CachingProfileService : IProfileService, IFullProfileInvalid
         await RefreshEntryAsync(userId, ct);
     }
 
+    public async Task SetProfilePictureAsync(
+        Guid userId, byte[] pictureData, string contentType, CancellationToken ct = default)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var inner = scope.ServiceProvider.GetRequiredKeyedService<IProfileService>(InnerServiceKey);
+        await inner.SetProfilePictureAsync(userId, pictureData, contentType, ct);
+        await RefreshEntryAsync(userId, ct);
+    }
+
     public async Task<Guid> SaveProfileAsync(
         Guid userId, string displayName, ProfileSaveRequest request, string language,
         CancellationToken ct = default)
@@ -406,20 +415,18 @@ public sealed class CachingProfileService : IProfileService, IFullProfileInvalid
         return result;
     }
 
+    // Shift-authorization cache invalidation lives on
+    // AccountDeletionService.RequestDeletionAsync (peterdrier/Humans#314 review)
+    // — keeps eviction co-located with the orchestrating mutation, so direct
+    // callers of IAccountDeletionService don't need this decorator for
+    // correctness. The decorator's job here is just the FullProfile refresh.
     public async Task<OnboardingResult> RequestDeletionAsync(Guid userId, CancellationToken ct = default)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var inner = scope.ServiceProvider.GetRequiredKeyedService<IProfileService>(InnerServiceKey);
         var result = await inner.RequestDeletionAsync(userId, ct);
         if (result.Success)
-        {
             await RefreshEntryAsync(userId, ct);
-            // §15 NEW-B resolved in issue #541a: Shifts now exposes
-            // IShiftAuthorizationInvalidator, so the 60s shift-auth:{userId}
-            // entry drops immediately on deletion.
-            var shiftAuthInvalidator = scope.ServiceProvider.GetRequiredService<IShiftAuthorizationInvalidator>();
-            shiftAuthInvalidator.Invalidate(userId);
-        }
         return result;
     }
 

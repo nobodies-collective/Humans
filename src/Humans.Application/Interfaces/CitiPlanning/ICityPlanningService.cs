@@ -75,4 +75,4 @@ public record CampPolygonHistoryEntryDto(
 public record SaveCampPolygonRequest(
     string GeoJson,
     double AreaSqm,
-    [property: StringLength(512, ErrorMessage = "Note cannot exceed 512 characters")] string? Note = null);
+    [StringLength(512, ErrorMessage = "Note cannot exceed 512 characters")] string? Note = null);

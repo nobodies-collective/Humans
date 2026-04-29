@@ -48,6 +48,8 @@ public class HumansDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
     public DbSet<CampSettings> CampSettings => Set<CampSettings>();
     public DbSet<CampMember> CampMembers => Set<CampMember>();
     public DbSet<Container> Containers => Set<Container>();
+    public DbSet<CampRoleDefinition> CampRoleDefinitions => Set<CampRoleDefinition>();
+    public DbSet<CampRoleAssignment> CampRoleAssignments => Set<CampRoleAssignment>();
     public DbSet<CampPolygon> CampPolygons => Set<CampPolygon>();
     public DbSet<CampPolygonHistory> CampPolygonHistories => Set<CampPolygonHistory>();
     public DbSet<CityPlanningSettings> CityPlanningSettings => Set<CityPlanningSettings>();

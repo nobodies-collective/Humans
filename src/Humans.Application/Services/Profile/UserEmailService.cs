@@ -248,20 +248,55 @@ public sealed class UserEmailService : IUserEmailService
         var email = await _repository.GetByIdAndUserIdAsync(emailId, userId, cancellationToken)
             ?? throw new InvalidOperationException("Email not found.");
 
-        if (email.IsOAuth)
-            throw new ValidationException("The sign-in email cannot be deleted.");
-
-        // If this was the notification target, reassign to OAuth email
-        if (email.IsNotificationTarget)
+        // Preserve-at-least-one-verified-email invariant — replaces the old
+        // IsOAuth-based block per email-identity-decoupling spec PR 1
+        // (docs/superpowers/specs/2026-04-27-email-and-oauth-decoupling-design.md).
+        //
+        // The original rule was "preserve at least one auth method" (verified
+        // UserEmail OR AspNetUserLogins row). Tightened to "preserve at least
+        // one verified UserEmail" because OAuth-only users are still un-
+        // notifiable: GetEffectiveEmail() falls back to User.Email which is
+        // null for post-PR-1 users, so an OAuth-only state would silently
+        // drop every system email (re-consent reminders, suspension notices,
+        // password resets, etc.). The OAuth login still works for sign-in,
+        // but signing in to an account that can't receive notifications is
+        // worse UX than blocking the delete.
+        //
+        // We only enforce when removing a verified row — unverified rows
+        // aren't notification targets and aren't usable for magic-link
+        // sign-in, so deleting one cannot reduce the verified-email count.
+        if (email.IsVerified)
         {
             var allEmails = await _repository.GetByUserIdForMutationAsync(userId, cancellationToken);
-            var oauthEmail = allEmails.FirstOrDefault(e => e.IsOAuth);
-            if (oauthEmail is not null)
+            var verifiedRemaining = allEmails.Count(e => e.IsVerified && e.Id != emailId);
+
+            if (verifiedRemaining == 0)
             {
-                oauthEmail.IsNotificationTarget = true;
-                oauthEmail.UpdatedAt = _clock.GetCurrentInstant();
-                // Persist reassignment before the delete so both changes are durable
-                await _repository.UpdateAsync(oauthEmail, cancellationToken);
+                throw new ValidationException(
+                    "Cannot remove your last verified email. Add another verified email first " +
+                    "so you can still receive system notifications.");
+            }
+
+            // If this row is the notification target, hand off to the next
+            // verified row by display order so the user keeps a usable
+            // notification address. The earlier "prefer IsOAuth" successor
+            // ranking is intentionally dropped: AddOAuthEmailAsync sets
+            // IsOAuth=true for magic-link signups too (pre-existing misnomer
+            // tracked for PR 3 when the flag becomes Provider/ProviderKey),
+            // so leaning on it here would mis-pick successors for users
+            // who never signed up via OAuth.
+            if (email.IsNotificationTarget)
+            {
+                var successor = allEmails
+                    .Where(e => e.Id != emailId && e.IsVerified)
+                    .OrderBy(e => e.DisplayOrder)
+                    .FirstOrDefault();
+                if (successor is not null)
+                {
+                    successor.IsNotificationTarget = true;
+                    successor.UpdatedAt = _clock.GetCurrentInstant();
+                    await _repository.UpdateAsync(successor, cancellationToken);
+                }
             }
         }
 

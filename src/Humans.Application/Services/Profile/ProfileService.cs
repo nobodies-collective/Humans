@@ -11,9 +11,7 @@ using Humans.Domain.Enums;
 using MemberApplication = Humans.Domain.Entities.Application;
 using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.Campaigns;
-using Humans.Application.Interfaces.Email;
 using Humans.Application.Interfaces.Consent;
-using Humans.Application.Interfaces.Teams;
 using Humans.Application.Interfaces.Tickets;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Interfaces.Onboarding;
@@ -35,15 +33,15 @@ public sealed class ProfileService : IProfileService, IUserDataContributor
     private readonly IContactFieldRepository _contactFieldRepository;
     private readonly ICommunicationPreferenceRepository _communicationPreferenceRepository;
     private readonly IOnboardingEligibilityQuery _onboardingEligibilityQuery;
-    private readonly IEmailService _emailService;
     private readonly IAuditLogService _auditLogService;
     private readonly IMembershipCalculator _membershipCalculator;
     private readonly IConsentService _consentService;
     private readonly ITicketQueryService _ticketQueryService;
     private readonly IApplicationDecisionService _applicationDecisionService;
     private readonly ICampaignService _campaignService;
-    private readonly ITeamService _teamService;
     private readonly IRoleAssignmentService _roleAssignmentService;
+    private readonly IAccountDeletionService _accountDeletionService;
+    private readonly IProfilePictureStore _profilePictureStore;
     private readonly IClock _clock;
     private readonly ILogger<ProfileService> _logger;
 
@@ -54,15 +52,15 @@ public sealed class ProfileService : IProfileService, IUserDataContributor
         IContactFieldRepository contactFieldRepository,
         ICommunicationPreferenceRepository communicationPreferenceRepository,
         IOnboardingEligibilityQuery onboardingEligibilityQuery,
-        IEmailService emailService,
         IAuditLogService auditLogService,
         IMembershipCalculator membershipCalculator,
         IConsentService consentService,
         ITicketQueryService ticketQueryService,
         IApplicationDecisionService applicationDecisionService,
         ICampaignService campaignService,
-        ITeamService teamService,
         IRoleAssignmentService roleAssignmentService,
+        IAccountDeletionService accountDeletionService,
+        IProfilePictureStore profilePictureStore,
         IClock clock,
         ILogger<ProfileService> logger)
     {
@@ -72,15 +70,15 @@ public sealed class ProfileService : IProfileService, IUserDataContributor
         _contactFieldRepository = contactFieldRepository;
         _communicationPreferenceRepository = communicationPreferenceRepository;
         _onboardingEligibilityQuery = onboardingEligibilityQuery;
-        _emailService = emailService;
         _auditLogService = auditLogService;
         _membershipCalculator = membershipCalculator;
         _consentService = consentService;
         _ticketQueryService = ticketQueryService;
         _applicationDecisionService = applicationDecisionService;
         _campaignService = campaignService;
-        _teamService = teamService;
         _roleAssignmentService = roleAssignmentService;
+        _accountDeletionService = accountDeletionService;
+        _profilePictureStore = profilePictureStore;
         _clock = clock;
         _logger = logger;
     }
@@ -129,6 +127,34 @@ public sealed class ProfileService : IProfileService, IUserDataContributor
         // Store update handled by CachingProfileService decorator
     }
 
+    public async Task SetProfilePictureAsync(
+        Guid userId, byte[] pictureData, string contentType, CancellationToken ct = default)
+    {
+        if (pictureData.Length == 0)
+        {
+            throw new ArgumentException("Picture data must not be empty", nameof(pictureData));
+        }
+        if (string.IsNullOrWhiteSpace(contentType))
+        {
+            throw new ArgumentException("Content type must not be empty", nameof(contentType));
+        }
+
+        var profile = await _profileRepository.GetByUserIdAsync(userId, ct);
+        if (profile is null)
+        {
+            _logger.LogWarning(
+                "Cannot set profile picture for user {UserId} — no profile exists", userId);
+            return;
+        }
+
+        profile.ProfilePictureData = pictureData;
+        profile.ProfilePictureContentType = contentType;
+        profile.UpdatedAt = _clock.GetCurrentInstant();
+        await _profileRepository.UpdateAsync(profile, ct);
+
+        // FullProfile cache invalidation handled by CachingProfileService decorator.
+    }
+
     public async Task<(Domain.Entities.Profile? Profile, MemberApplication? LatestApplication, int PendingConsentCount)>
         GetProfileIndexDataAsync(Guid userId, CancellationToken ct = default)
     {
@@ -169,9 +195,53 @@ public sealed class ProfileService : IProfileService, IUserDataContributor
         return (profile, isTierLocked, pendingApplication);
     }
 
-    public Task<(byte[]? Data, string? ContentType)> GetProfilePictureAsync(
-        Guid profileId, CancellationToken ct = default) =>
-        _profileRepository.GetProfilePictureDataAsync(profileId, ct);
+    public async Task<(byte[] Data, string ContentType)?> GetProfilePictureAsync(
+        Guid profileId, CancellationToken ct = default)
+    {
+        // Anonymization gate (issue nobodies-collective/Humans#527, GDPR):
+        // a cheap scalar projection of the DB content-type column is the
+        // source of truth for whether a picture should be served. If
+        // AnonymizeExpiredProfileAsync (or any future cleanup) has cleared
+        // the DB column, do not serve from disk even if a stale file
+        // remains — that closes the loop for the case where the
+        // best-effort filesystem delete failed during anonymization.
+        var dbContentType = await _profileRepository.GetProfilePictureContentTypeAsync(profileId, ct);
+        if (string.IsNullOrEmpty(dbContentType))
+        {
+            return null;
+        }
+
+        // Filesystem fast path. Avoids loading the bytea column when the
+        // file is already on disk (the common case after migrate-on-read).
+        var fsHit = await _profilePictureStore.TryReadAsync(profileId, ct);
+        if (fsHit is not null)
+        {
+            return (fsHit.Value.Data, fsHit.Value.ContentType);
+        }
+
+        // DB fallback + migrate-on-read.
+        var (data, contentType) = await _profileRepository.GetProfilePictureDataAsync(profileId, ct);
+        if (data is null || string.IsNullOrEmpty(contentType))
+        {
+            return null;
+        }
+
+        try
+        {
+            await _profilePictureStore.WriteAsync(profileId, data, contentType, ct);
+            _logger.LogInformation(
+                "Profile picture {ProfileId} served from DB fallback; migrated to filesystem",
+                profileId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex,
+                "Profile picture {ProfileId} served from DB fallback; migration to filesystem failed",
+                profileId);
+        }
+
+        return (data, contentType);
+    }
 
     public async Task<Guid> SaveProfileAsync(
         Guid userId, string displayName, ProfileSaveRequest request, string language,
@@ -228,16 +298,39 @@ public sealed class ProfileService : IProfileService, IUserDataContributor
             profile.DateOfBirth = null;
         }
 
-        // Handle profile picture
+        // Handle profile picture. Phase 1 of issue nobodies-collective/Humans#527:
+        // dual-write to filesystem + DB so rollback stays safe. Phase 2 drops the
+        // DB columns once phase 1 has bedded in.
         if (request.RemoveProfilePicture)
         {
             profile.ProfilePictureData = null;
             profile.ProfilePictureContentType = null;
+            try
+            {
+                await _profilePictureStore.DeleteAsync(profile.Id, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to delete profile picture from filesystem for {ProfileId}; DB delete still applied",
+                    profile.Id);
+            }
         }
         else if (request.ProfilePictureData is not null && request.ProfilePictureContentType is not null)
         {
             profile.ProfilePictureData = request.ProfilePictureData;
             profile.ProfilePictureContentType = request.ProfilePictureContentType;
+            try
+            {
+                await _profilePictureStore.WriteAsync(
+                    profile.Id, request.ProfilePictureData, request.ProfilePictureContentType, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to write profile picture to filesystem for {ProfileId}; DB write still applied",
+                    profile.Id);
+            }
         }
 
         // Handle tier application during initial setup
@@ -300,54 +393,16 @@ public sealed class ProfileService : IProfileService, IUserDataContributor
         return profile.Id;
     }
 
-    public async Task<OnboardingResult> RequestDeletionAsync(Guid userId, CancellationToken ct = default)
+    public Task<OnboardingResult> RequestDeletionAsync(Guid userId, CancellationToken ct = default)
     {
-        var user = await _userService.GetByIdAsync(userId, ct);
-        if (user is null)
-            return new OnboardingResult(false, "NotFound");
-
-        if (user.IsDeletionPending)
-            return new OnboardingResult(false, "AlreadyPending");
-
-        var now = _clock.GetCurrentInstant();
-        var deletionDate = now.Plus(Duration.FromDays(30));
-
-        // 1. Persist deletion-pending fields on User (tracked write via IUserService)
-        await _userService.SetDeletionPendingAsync(userId, now, deletionDate, ct);
-
-        // 2. Revoke team memberships and team role assignments
-        var endedMemberships = await _teamService.RevokeAllMembershipsAsync(userId, ct);
-
-        // 3. Revoke governance role assignments
-        var endedRoles = await _roleAssignmentService.RevokeAllActiveAsync(userId, ct);
-
-        // 4. Audit log
-        await _auditLogService.LogAsync(
-            AuditAction.MembershipsRevokedOnDeletionRequest, nameof(User), userId,
-            $"Revoked {endedMemberships} team membership(s) and {endedRoles} role assignment(s) on deletion request",
-            userId);
-
-        _logger.LogWarning(
-            "User {UserId} requested account deletion. Scheduled for {DeletionDate}. " +
-            "Revoked {MembershipCount} memberships and {RoleCount} roles immediately",
-            userId, deletionDate, endedMemberships, endedRoles);
-
-        // 5. Send deletion confirmation email
-        var userEmails = await _userEmailRepository.GetByUserIdReadOnlyAsync(userId, ct);
-        var notificationEmail = userEmails.FirstOrDefault(e => e.IsNotificationTarget && e.IsVerified)?.Email
-                                ?? user.Email;
-        if (notificationEmail is not null)
-        {
-            await _emailService.SendAccountDeletionRequestedAsync(
-                notificationEmail,
-                user.DisplayName,
-                deletionDate.ToDateTimeUtc(),
-                user.PreferredLanguage,
-                ct);
-        }
-
-        // Store update and cache invalidation handled by CachingProfileService decorator
-        return new OnboardingResult(true);
+        // Delegates to IAccountDeletionService — the single orchestrator for
+        // user-initiated / admin / expiry deletion paths. See issue nobodies-collective/Humans#582:
+        // ProfileService keeps only own-data mutations; cross-section cascade
+        // (team memberships, role assignments, deletion-pending fields, audit,
+        // email) belongs to the orchestrator. CachingProfileService's
+        // RequestDeletionAsync wrapper still fires its post-success cache
+        // refresh + ShiftAuthorization invalidation.
+        return _accountDeletionService.RequestDeletionAsync(userId, ct);
     }
 
     public async Task<OnboardingResult> CancelDeletionAsync(Guid userId, CancellationToken ct = default)
@@ -997,8 +1052,36 @@ public sealed class ProfileService : IProfileService, IUserDataContributor
         return true;
     }
 
-    public Task<bool> AnonymizeExpiredProfileAsync(Guid userId, CancellationToken ct = default) =>
-        _profileRepository.AnonymizeForDeletionByUserIdAsync(userId, ct);
+    public async Task<bool> AnonymizeExpiredProfileAsync(Guid userId, CancellationToken ct = default)
+    {
+        // Anonymize clears ProfilePictureData / ProfilePictureContentType in
+        // the DB and best-effort wipes the filesystem copy (phase 1 of issue
+        // nobodies-collective/Humans#527). The DB clear alone is NOT
+        // sufficient under the FS-first read path: if this delete throws,
+        // the file remains on disk and TryReadAsync would otherwise serve it
+        // indefinitely. The read-path gate in GetProfilePictureAsync (which
+        // checks the DB content-type before consulting the filesystem)
+        // closes that loop — but we still log this failure as an Error so
+        // an operator can clean up the stale file out-of-band.
+        var profile = await _profileRepository.GetByUserIdReadOnlyAsync(userId, ct);
+        var anonymized = await _profileRepository.AnonymizeForDeletionByUserIdAsync(userId, ct);
+        if (anonymized && profile is not null)
+        {
+            try
+            {
+                await _profilePictureStore.DeleteAsync(profile.Id, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex,
+                    "Failed to delete filesystem profile picture during anonymization for {ProfileId}; " +
+                    "DB has been cleared so the read-path gate prevents the stale file from being served, " +
+                    "but the file should be removed manually to complete GDPR data deletion",
+                    profile.Id);
+            }
+        }
+        return anonymized;
+    }
 
     public Task<IReadOnlySet<Guid>> SuspendForMissingConsentAsync(
         IReadOnlyCollection<Guid> userIds,

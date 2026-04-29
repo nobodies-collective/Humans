@@ -67,6 +67,19 @@ public class AccountController : Controller
             return RedirectToAction(nameof(Login), new { returnUrl, error = "oauth" });
         }
 
+        // Log once per sign-in whether the Google avatar URL was provided. We capture the
+        // URL on User.ProfilePictureUrl but never render it — see issue #532 and the
+        // "Import my Google photo" button on /Profile/Edit.
+        var googlePictureClaim = info.Principal.FindFirstValue("urn:google:picture");
+        if (!string.IsNullOrEmpty(googlePictureClaim))
+        {
+            _logger.LogInformation("Google avatar URL captured for {Provider} sign-in", info.LoginProvider);
+        }
+        else
+        {
+            _logger.LogInformation("Google avatar URL not captured for {Provider} sign-in (claim missing)", info.LoginProvider);
+        }
+
         // Sign in the user with this external login provider if the user already has a login
         var result = await _signInManager.ExternalLoginSignInAsync(
             info.LoginProvider,
@@ -228,12 +241,16 @@ public class AccountController : Controller
             }
         }
 
-        // No existing account — create a new one
+        // No existing account — create a new one.
+        // Identity-column writes decoupled per email-identity-decoupling spec PR 1
+        // (docs/superpowers/specs/2026-04-27-email-and-oauth-decoupling-design.md).
+        // UserName = id.ToString() (Identity needs a unique non-empty UserName);
+        // the email columns stay at defaults — UserEmail row is the source of truth.
+        var newUserId = Guid.NewGuid();
         var user = new User
         {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
+            Id = newUserId,
+            UserName = newUserId.ToString(),
             DisplayName = name ?? email,
             ProfilePictureUrl = pictureUrl,
             CreatedAt = _clock.GetCurrentInstant(),
@@ -241,27 +258,72 @@ public class AccountController : Controller
         };
 
         var createResult = await _userManager.CreateAsync(user);
-        if (createResult.Succeeded)
+        if (!createResult.Succeeded)
         {
-            createResult = await _userManager.AddLoginAsync(user, info);
-            if (createResult.Succeeded)
+            foreach (var error in createResult.Errors)
+                ModelState.AddModelError(string.Empty, error.Description);
+            ViewData["ReturnUrl"] = returnUrl;
+            return View(nameof(Login));
+        }
+
+        // Link the OAuth login. If linking fails after Create succeeded, undo the
+        // user creation to avoid an orphan User with no auth method (would be
+        // unreachable via either OAuth or magic link). RequireUniqueEmail = false
+        // means Identity no longer rejects the partial create on its own — we
+        // must clean up explicitly.
+        var oauthLinkResult = await _userManager.AddLoginAsync(user, info);
+        if (!oauthLinkResult.Succeeded)
+        {
+            try
             {
-                // Create OAuth UserEmail record for the login email
-                await _userEmailService.AddOAuthEmailAsync(user.Id, email);
-
-                await _signInManager.SignInAsync(user, isPersistent: false);
-                _logger.LogInformation("User created an account using {Provider}", info.LoginProvider);
-                return RedirectToLocal(returnUrl);
+                await _userManager.DeleteAsync(user);
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to clean up orphan user {UserId} after AddLoginAsync failure for {Provider}",
+                    user.Id, info.LoginProvider);
+            }
+
+            foreach (var error in oauthLinkResult.Errors)
+                ModelState.AddModelError(string.Empty, error.Description);
+            ViewData["ReturnUrl"] = returnUrl;
+            return View(nameof(Login));
         }
 
-        foreach (var error in createResult.Errors)
+        // Create OAuth UserEmail record for the login email. If this fails
+        // after CreateAsync + AddLoginAsync both succeeded, we still have an
+        // orphan: the User + AspNetUserLogins row persist, but no UserEmail
+        // row exists, so GetEffectiveEmail() returns null and the user
+        // becomes un-notifiable. Symmetric to CompleteSignup's cleanup.
+        try
         {
-            ModelState.AddModelError(string.Empty, error.Description);
+            await _userEmailService.AddOAuthEmailAsync(user.Id, email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to create UserEmail for OAuth signup {UserId} ({Email}); rolling back user + login",
+                user.Id, email);
+            try
+            {
+                await _userManager.DeleteAsync(user);
+            }
+            catch (Exception deleteEx)
+            {
+                _logger.LogError(deleteEx,
+                    "Failed to clean up orphan user {UserId} after AddOAuthEmailAsync failure",
+                    user.Id);
+            }
+            ModelState.AddModelError(string.Empty,
+                "We couldn't finish setting up your account. Please try again.");
+            ViewData["ReturnUrl"] = returnUrl;
+            return View(nameof(Login));
         }
 
-        ViewData["ReturnUrl"] = returnUrl;
-        return View(nameof(Login));
+        await _signInManager.SignInAsync(user, isPersistent: false);
+        _logger.LogInformation("User created an account using {Provider}", info.LoginProvider);
+        return RedirectToLocal(returnUrl);
     }
 
     // --- Magic Link Auth ---
@@ -371,11 +433,14 @@ public class AccountController : Controller
         }
 
         var now = _clock.GetCurrentInstant();
+        // Identity-column writes decoupled per email-identity-decoupling spec PR 1.
+        // AddOAuthEmailAsync below creates the verified UserEmail row that
+        // becomes the source of truth for the email.
+        var newUserId = Guid.NewGuid();
         var user = new User
         {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
+            Id = newUserId,
+            UserName = newUserId.ToString(),
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? email : displayName.Trim(),
             CreatedAt = now,
             LastLoginAt = now
@@ -389,8 +454,37 @@ public class AccountController : Controller
             return View("MagicLinkError");
         }
 
-        // Create UserEmail record via service (non-OAuth, verified, notification target)
-        await _userEmailService.AddOAuthEmailAsync(user.Id, email);
+        // Create the verified UserEmail row. Misnomer alert: AddOAuthEmailAsync
+        // sets IsOAuth=true even though this is a magic-link signup, not OAuth.
+        // The IsOAuth flag is repurposed in PR 3 (becomes Provider/ProviderKey)
+        // and this call site will be revisited then.
+        //
+        // If creating the UserEmail row fails (race condition, DB error, etc.)
+        // delete the just-created User. RequireUniqueEmail = false means
+        // Identity no longer rejects partial state on its own; an orphan User
+        // with no UserEmail row would be unreachable via either OAuth or
+        // magic link. Same pattern as the OAuth callback new-user branch.
+        try
+        {
+            await _userEmailService.AddOAuthEmailAsync(user.Id, email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to create UserEmail for magic-link signup {UserId} ({Email}); rolling back user",
+                user.Id, email);
+            try
+            {
+                await _userManager.DeleteAsync(user);
+            }
+            catch (Exception deleteEx)
+            {
+                _logger.LogError(deleteEx,
+                    "Failed to clean up orphan user {UserId} after AddOAuthEmailAsync failure",
+                    user.Id);
+            }
+            return View("MagicLinkError");
+        }
 
         await _signInManager.SignInAsync(user, isPersistent: false);
         _logger.LogInformation("Magic link signup: user {UserId} created account for {Email}", user.Id, email);

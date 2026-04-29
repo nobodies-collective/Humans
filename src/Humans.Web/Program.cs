@@ -166,7 +166,14 @@ builder.Services.AddDataProtection()
 // Configure ASP.NET Core Identity
 builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
     {
-        options.User.RequireUniqueEmail = true;
+        // Email uniqueness is enforced at the UserEmails layer
+        // (UserEmailService.AddEmailAsync + cross-User merge detection in
+        // AccountMergeService). After PR 1 of the email-identity-decoupling
+        // spec, User.Email is left null on new users — Identity-level
+        // uniqueness would either fire spuriously on the null column or, more
+        // likely, be a no-op. Disabling it makes the contract explicit: the
+        // UserEmail table owns email uniqueness.
+        options.User.RequireUniqueEmail = false;
         options.SignIn.RequireConfirmedEmail = false;
     })
     .AddEntityFrameworkStores<HumansDbContext>()
@@ -242,6 +249,14 @@ builder.Services.AddAuthentication()
 builder.Services.AddHumansAuthorizationPolicies();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation, RoleAssignmentClaimsTransformation>();
+
+// Named HttpClient used by /Profile/Me/ImportGooglePhoto to fetch the signed-in user's
+// Google avatar once on demand. Short timeout — if Google is slow we surface an error
+// rather than keeping the request hanging.
+builder.Services.AddHttpClient("GoogleAvatar", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 // Configure Hangfire
 builder.Services.AddHangfire((sp, config) =>
@@ -570,7 +585,7 @@ app.Use(async (context, next) =>
     context.Response.Headers.Append("X-Frame-Options", "DENY");
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
-    context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+    context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=(self)");
     await next();
 });
 

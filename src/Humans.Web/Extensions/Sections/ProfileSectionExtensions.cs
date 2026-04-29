@@ -2,6 +2,7 @@ using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Infrastructure.Caching;
+using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.HostedServices;
 using Humans.Infrastructure.Services;
 using Humans.Infrastructure.Services.Profiles;
@@ -14,18 +15,27 @@ using ProfilesAccountMergeService = Humans.Application.Services.Profile.AccountM
 using ProfilesDuplicateAccountService = Humans.Application.Services.Profile.DuplicateAccountService;
 using UsersAccountProvisioningService = Humans.Application.Services.Users.AccountProvisioningService;
 using UsersUnsubscribeService = Humans.Application.Services.Users.UnsubscribeService;
+using UsersUserEmailBackfillService = Humans.Application.Services.Users.UserEmailBackfillService;
 using GoogleEmailProvisioningService = Humans.Application.Services.GoogleIntegration.EmailProvisioningService;
 using Humans.Application.Interfaces.GoogleIntegration;
-using Humans.Application.Interfaces.Users;
 using Humans.Application.Interfaces.Profiles;
+using Humans.Application.Interfaces.Users;
 using Humans.Infrastructure.Repositories.Profiles;
 
 namespace Humans.Web.Extensions.Sections;
 
 internal static class ProfileSectionExtensions
 {
-    internal static IServiceCollection AddProfileSection(this IServiceCollection services)
+    internal static IServiceCollection AddProfileSection(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
+        // Profile picture filesystem storage (issue nobodies-collective/Humans#527).
+        // Phase 1: dual-write filesystem + DB; read filesystem-first, migrate-on-miss.
+        services.Configure<ProfilePictureStorageOptions>(
+            configuration.GetSection(ProfilePictureStorageOptions.SectionName));
+        services.AddSingleton<IProfilePictureStore, FileSystemProfilePictureStore>();
+
         // Profile section — repository/store/decorator pattern (§15 Step 0, PR #504)
         // Repositories use IDbContextFactory and are registered as Singleton so the
         // CachingProfileService Singleton can inject them directly without scope-factory indirection.
@@ -56,6 +66,7 @@ internal static class ProfileSectionExtensions
         services.AddScoped<IDuplicateAccountService, ProfilesDuplicateAccountService>();
         services.AddScoped<IContactService, ProfilesContactService>();
         services.AddScoped<IAccountProvisioningService, UsersAccountProvisioningService>();
+        services.AddScoped<IUserEmailBackfillService, UsersUserEmailBackfillService>();
 
         // ProfileService (inner): Scoped — has many Scoped cross-section deps.
         // Registered under the keyed "profile-inner" key so CachingProfileService can

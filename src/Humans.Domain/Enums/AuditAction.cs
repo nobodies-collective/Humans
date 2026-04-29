@@ -86,4 +86,12 @@ public enum AuditAction
     CampMemberWithdrawn,
     CampMemberLeft,
     CampMemberRemoved,
+    CampMemberAddedByLead,
+    CampRoleDefinitionCreated,
+    CampRoleDefinitionUpdated,
+    CampRoleDefinitionDeactivated,
+    CampRoleDefinitionReactivated,
+    CampRoleAssigned,
+    CampRoleUnassigned,
+    AccountPurged,
 }

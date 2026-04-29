@@ -87,11 +87,13 @@ public class ShiftsController : HumansControllerBase
             filterToDate ??= periodTo;
         }
 
-        // Build the browse view — show all active shifts, hide AdminOnly from regular volunteers
+        // Build the browse view — show all active shifts, hide AdminOnly from regular volunteers.
+        // includeSignups is unconditionally true while signup lists are public (matches ShowSignups
+        // below). Flip back to `includeSignups: isPrivileged` if/when ShowSignups is reverted.
         var urgentShifts = await _shiftMgmt.GetBrowseShiftsAsync(
             es.Id, departmentId: departmentId,
             fromDate: filterFromDate, toDate: filterToDate,
-            includeAdminOnly: isPrivileged, includeSignups: isPrivileged,
+            includeAdminOnly: isPrivileged, includeSignups: true,
             includeHidden: isPrivileged);
 
         // Apply tag filter — keep only shifts whose rota has at least one of the selected tags
@@ -208,7 +210,9 @@ public class ShiftsController : HumansControllerBase
             UserSignupStatuses = userSignupStatuses,
             Departments = departments,
             AllDepartments = allDepartments,
-            ShowSignups = isPrivileged,
+            // Temporarily public — signups list visible to all browsers. Keep the isPrivileged
+            // computation in place so we can flip back to `ShowSignups = isPrivileged` if folks object.
+            ShowSignups = true,
             Sort = isUrgencySort ? "urgency" : null,
             UrgencyRankedRotas = urgencyRankedRotas,
             AllTags = allTags.ToList(),

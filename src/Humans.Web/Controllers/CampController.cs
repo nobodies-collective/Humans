@@ -12,6 +12,9 @@ using NodaTime;
 using Humans.Application.Interfaces.Camps;
 using Humans.Application.Interfaces.CitiPlanning;
 using Humans.Application.Interfaces.Notifications;
+using Humans.Application.Interfaces.Users;
+using Humans.Application.Services.Camps;
+using Humans.Web.Models.Camp;
 
 namespace Humans.Web.Controllers;
 
@@ -21,8 +24,10 @@ public class CampController : HumansCampControllerBase
 {
     private readonly ICampService _campService;
     private readonly ICampContactService _campContactService;
+    private readonly ICampRoleService _campRoleService;
     private readonly ICityPlanningService _cityPlanningService;
     private readonly INotificationService _notificationService;
+    private readonly IUserService _userService;
     private readonly IClock _clock;
     private readonly ILogger<CampController> _logger;
     private readonly IStringLocalizer<SharedResource> _localizer;
@@ -30,8 +35,10 @@ public class CampController : HumansCampControllerBase
     public CampController(
         ICampService campService,
         ICampContactService campContactService,
+        ICampRoleService campRoleService,
         ICityPlanningService cityPlanningService,
         INotificationService notificationService,
+        IUserService userService,
         UserManager<User> userManager,
         IAuthorizationService authorizationService,
         IClock clock,
@@ -41,8 +48,10 @@ public class CampController : HumansCampControllerBase
     {
         _campService = campService;
         _campContactService = campContactService;
+        _campRoleService = campRoleService;
         _cityPlanningService = cityPlanningService;
         _notificationService = notificationService;
+        _userService = userService;
         _clock = clock;
         _logger = logger;
         _localizer = localizer;
@@ -379,7 +388,7 @@ public class CampController : HumansCampControllerBase
 
     [Authorize]
     [HttpGet("{slug}/Edit")]
-    public async Task<IActionResult> Edit(string slug, int? year)
+    public async Task<IActionResult> Edit(string slug, int? year, CancellationToken ct)
     {
         var (errorResult, _, camp) = await ResolveCampManagementAsync(slug);
         if (errorResult is not null)
@@ -396,7 +405,63 @@ public class CampController : HumansCampControllerBase
 
         var viewModel = MapToEditViewModel(editData);
         await PopulateEditMembersAsync(viewModel);
+
+        // Build per-camp roles panel against the camp's open season (if any).
+        // canManage is implicitly true here: ResolveCampManagementAsync already
+        // returned Forbid for callers without CampOperationRequirement.Manage.
+        var openSeason = camp.Seasons.FirstOrDefault(s => s.Status == CampSeasonStatus.Active);
+        viewModel.RolesPanel = openSeason is null
+            ? null
+            : await BuildRolesPanelAsync(camp.Slug, openSeason.Id, canManage: true, ct);
+
         return View(viewModel);
+    }
+
+    private async Task<CampRolesPanelViewModel> BuildRolesPanelAsync(
+        string campSlug, Guid campSeasonId, bool canManage, CancellationToken ct)
+    {
+        var panelData = await _campRoleService.BuildPanelAsync(campSeasonId, ct);
+        var members = await _campService.GetSeasonMembersAsync(campSeasonId, ct);
+        var activeMemberUserIds = members
+            .Where(m => m.Status == CampMemberStatus.Active)
+            .Select(m => m.UserId)
+            .ToList();
+        IReadOnlyDictionary<Guid, User> users = activeMemberUserIds.Count == 0
+            ? new Dictionary<Guid, User>()
+            : await _userService.GetByIdsAsync(activeMemberUserIds, ct);
+
+        var activeMembers = members
+            .Where(m => m.Status == CampMemberStatus.Active)
+            .Select(m => new CampMemberPickerOption(
+                m.Id,
+                m.UserId,
+                users.TryGetValue(m.UserId, out var u) ? u.DisplayName ?? "(unknown)" : "(unknown)"))
+            .OrderBy(o => o.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var rows = panelData.Rows.Select(r => new CampRoleRowViewModel
+        {
+            DefinitionId = r.Definition.Id,
+            Name = r.Definition.Name,
+            Description = r.Definition.Description,
+            SlotCount = r.Definition.SlotCount,
+            MinimumRequired = r.Definition.MinimumRequired,
+            FilledSlots = r.FilledSlots
+                .Select(s => new CampRoleSlotViewModel(s.AssignmentId, s.CampMemberId, s.UserId, s.DisplayName))
+                .ToList(),
+            EmptySlotCount = r.EmptySlotCount,
+            OverCapacity = r.OverCapacity,
+            CurrentCount = r.CurrentCount,
+        }).ToList();
+
+        return new CampRolesPanelViewModel
+        {
+            CampSeasonId = campSeasonId,
+            CampSlug = campSlug,
+            CanManage = canManage,
+            ActiveMembers = activeMembers,
+            Rows = rows,
+        };
     }
 
     private async Task PopulateEditMembersAsync(CampEditViewModel viewModel)
@@ -931,6 +996,119 @@ public class CampController : HumansCampControllerBase
         {
             _logger.LogWarning(ex, "Remove camp member failed for member {MemberId} and camp {CampId}", campMemberId, camp.Id);
             SetError(ex.Message);
+        }
+
+        return RedirectToAction(nameof(Edit), new { slug });
+    }
+
+    [Authorize]
+    [HttpPost("{slug}/Members/Add")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddMember(string slug, Guid userId, CancellationToken ct)
+    {
+        var (errorResult, user, camp) = await ResolveCampManagementAsync(slug);
+        if (errorResult is not null) return errorResult;
+
+        if (userId == Guid.Empty)
+        {
+            SetError("Please search and select a human first.");
+            return RedirectToAction(nameof(Edit), new { slug });
+        }
+
+        var openSeason = camp.Seasons.FirstOrDefault(s => s.Status == CampSeasonStatus.Active);
+        if (openSeason is null)
+        {
+            SetError("No active season for this camp.");
+            return RedirectToAction(nameof(Edit), new { slug });
+        }
+
+        try
+        {
+            await _campService.AddCampMemberAsLeadAsync(openSeason.Id, userId, user.Id, ct);
+            SetSuccess("Human added to camp.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AddMember failed for camp {CampSlug}, user {UserId}.", slug, userId);
+            SetError("Failed to add human to camp.");
+        }
+
+        return RedirectToAction(nameof(Edit), new { slug });
+    }
+
+    // ======================================================================
+    // Per-camp role assignments (issue nobodies-collective#489)
+    // ======================================================================
+
+    [Authorize]
+    [HttpPost("{slug}/Roles/Assign")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AssignRole(string slug, Guid roleDefinitionId, Guid campMemberId, CancellationToken ct)
+    {
+        var (errorResult, user, camp) = await ResolveCampManagementAsync(slug);
+        if (errorResult is not null) return errorResult;
+
+        var openSeason = camp.Seasons.FirstOrDefault(s => s.Status == CampSeasonStatus.Active);
+        if (openSeason is null)
+        {
+            SetError("No active season for this camp.");
+            return RedirectToAction(nameof(Edit), new { slug });
+        }
+
+        var outcome = await _campRoleService.AssignAsync(openSeason.Id, roleDefinitionId, campMemberId, user.Id, ct);
+        var message = outcome switch
+        {
+            AssignCampRoleOutcome.Assigned => "Role assigned.",
+            AssignCampRoleOutcome.RoleNotFound => "Role definition not found.",
+            AssignCampRoleOutcome.RoleDeactivated => "That role is deactivated.",
+            AssignCampRoleOutcome.MemberNotFound => "Camp member not found.",
+            AssignCampRoleOutcome.MemberNotActive => "Only active camp members can hold roles.",
+            AssignCampRoleOutcome.MemberSeasonMismatch => "Member is not in this season.",
+            AssignCampRoleOutcome.SlotCapReached => "All slots for this role are filled.",
+            AssignCampRoleOutcome.AlreadyHoldsRole => "That human already holds this role.",
+            AssignCampRoleOutcome.SeasonNotFound => "Season not found.",
+            _ => "Unknown error.",
+        };
+
+        if (outcome == AssignCampRoleOutcome.Assigned)
+        {
+            SetSuccess(message);
+        }
+        else
+        {
+            SetError(message);
+        }
+
+        return RedirectToAction(nameof(Edit), new { slug });
+    }
+
+    [Authorize]
+    [HttpPost("{slug}/Roles/{assignmentId:guid}/Unassign")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UnassignRole(string slug, Guid assignmentId, CancellationToken ct)
+    {
+        var (errorResult, user, camp) = await ResolveCampManagementAsync(slug);
+        if (errorResult is not null) return errorResult;
+
+        // C2: verify the assignment belongs to a season of THIS camp before delegating to the service.
+        var assignment = await _campRoleService.GetAssignmentByIdAsync(assignmentId, ct);
+        var seasonIds = camp.Seasons.Select(s => s.Id).ToHashSet();
+        if (assignment is null || !seasonIds.Contains(assignment.CampSeasonId))
+        {
+            _logger.LogWarning(
+                "Cross-camp UnassignRole blocked: actor {ActorId} attempted assignment {AssignmentId} from camp {CampSlug}.",
+                user.Id, assignmentId, slug);
+            return Forbid();
+        }
+
+        var ok = await _campRoleService.UnassignAsync(assignmentId, user.Id, ct);
+        if (ok)
+        {
+            SetSuccess("Role unassigned.");
+        }
+        else
+        {
+            SetError("Assignment not found.");
         }
 
         return RedirectToAction(nameof(Edit), new { slug });

@@ -60,6 +60,9 @@
                 <a asp-action="AudienceSegmentation" class="list-group-item list-group-item-action">
                     <i class="fa-solid fa-chart-pie me-2"></i>Audience Segmentation
                 </a>
+                <a asp-action="BackfillUserEmails" class="list-group-item list-group-item-action">
+                    <i class="fa-solid fa-envelopes-bulk me-2"></i>Backfill UserEmail rows
+                </a>
             </div>
         </div>
 
@@ -88,6 +91,11 @@
                     <form asp-controller="DevSeed" asp-action="SeedBudget" method="post">
                         <button type="submit" class="btn btn-outline-info">
                             <i class="fa-solid fa-coins me-1"></i> Seed Budget Data
+                        </button>
+                    </form>
+                    <form asp-controller="DevSeed" asp-action="SeedCampRoles" method="post">
+                        <button type="submit" class="btn btn-outline-info">
+                            <i class="fa-solid fa-user-tag me-1"></i> Seed Camp Roles
                         </button>
                     </form>
                 </div>

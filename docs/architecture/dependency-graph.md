@@ -4,8 +4,8 @@ Directed graph of service-to-service dependencies, reflecting the post-§15 Part
 
 ## How to read
 
-- Solid arrow (`-->`) = ctor-injected dependency, eagerly resolved.
-- Dashed arrow labelled `(lazy)` = resolved on-demand via `IServiceProvider.GetRequiredService<T>()`. This pattern breaks DI cycles where two services legitimately call each other.
+- Solid black arrow (`-->`) = ctor-injected dependency, eagerly resolved.
+- Dashed orange arrow labelled `(lazy)` = resolved on-demand via `IServiceProvider.GetRequiredService<T>()`. This pattern breaks DI cycles where two services legitimately call each other. The edges are colored via Mermaid `linkStyle` so the cycle-breaking sites stand out — a healthy graph minimizes them.
 - Cross-cutting services (AuditLog, Email, Notification, RoleAssignment, HumansMetrics) are shown separately to reduce noise.
 - Intra-section edges are omitted when they don't cross a section boundary.
 
@@ -93,6 +93,7 @@ graph LR
     User[UserService]:::users
     AcctProv[AccountProvisioningService]:::users
     Unsub[UnsubscribeService]:::users
+    AcctDel[AccountDeletionService]:::users
 
     MagicLink[MagicLinkService]:::auth
 
@@ -120,10 +121,9 @@ graph LR
     Prof --> TicketQ
     Prof --> AppDec
     Prof --> Campaign
-    Prof --> Team
     Prof --> Role
-    Prof --> Email
     Prof --> Audit
+    Prof --> AcctDel
     CF --> Team
     CF --> Role
     Contact --> User
@@ -264,9 +264,16 @@ graph LR
     Budget --> Team
 
     %% Users section
-    User --> Team
     AcctProv --> Audit
     Unsub --> CommPref
+    AcctDel --> User
+    AcctDel --> UEmail
+    AcctDel --> Team
+    AcctDel --> Role
+    AcctDel --> ShiftMgmt
+    AcctDel --> ShiftSign
+    AcctDel --> Audit
+    AcctDel --> Email
 
     %% Auth section
     Role --> User
@@ -317,10 +324,7 @@ graph LR
     Team -. "lazy" .-> TRes
     Team -. "lazy" .-> Role
     Team -. "lazy" .-> Email
-    User -. "lazy" .-> Prof
-    User -. "lazy" .-> Role
-    User -. "lazy" .-> ShiftMgmt
-    User -. "lazy" .-> ShiftSign
+    AcctDel -. "lazy" .-> Prof
     Consent -. "lazy" .-> MembershipCalc
     MembershipCalc -. "lazy" .-> Consent
     ShiftMgmt -. "lazy" .-> Team
@@ -330,23 +334,32 @@ graph LR
     ShiftSign -. "lazy" .-> Team
     UEmail -. "lazy" .-> Merge
     GSyncSvc -. "lazy" .-> TRes
+
+    %% ── Edge styling ──
+    %% Lazy-resolution edges — colored + thickened so the cycle-breaking
+    %% dashed arrows pop visually against eager solid arrows. The index range
+    %% below covers every "-. lazy .->" edge in this graph; recompute when
+    %% adding/removing edges. Eager count is currently the number of "-->"
+    %% lines above this block.
+    linkStyle 165,166,167,168,169,170,171,172,173,174,175,176,177,178 stroke:#f97316,stroke-width:2.5px
 ```
 
 ## Cycles broken by lazy-resolution
 
-The `IServiceProvider` + property-getter lazy-resolution pattern is used to break otherwise-intractable DI cycles. Each pair below would fail constructor injection if both sides tried to eager-inject the other:
+The `IServiceProvider` + property-getter lazy-resolution pattern is used to break otherwise-intractable DI cycles. Each pair below would fail constructor injection if both sides tried to eager-inject the other. The deletion-cascade extraction (peterdrier/Humans PR #314, nobodies-collective/Humans#582) made `UserService` and `ProfileService` purely foundational — the four old User↔* cycles are gone, replaced by a single Profile↔AccountDeletion cycle local to the deletion-orchestration code.
 
-1. **Team ↔ User** — TeamService lazy-resolves `IUserService` for user-slice stitching; UserService eagerly injects `ITeamService` for nav invalidation.
-2. **Team ↔ TeamResource** — TeamService lazy-resolves `ITeamResourceService` for team-deletion resource cleanup; TeamResourceService eagerly injects `ITeamService` for ownership checks.
-3. **User ↔ Profile** — UserService lazy-resolves `IProfileService` for full-profile reads triggered by user edits; ProfileService eagerly injects `IUserService` for identity lookups.
-4. **User ↔ Role** — UserService lazy-resolves `IRoleAssignmentService` for role-claim invalidation; RoleAssignmentService eagerly injects `IUserService`.
-5. **User ↔ ShiftManagement** — UserService lazy-resolves `IShiftManagementService` for authorization cache invalidation on user changes; ShiftManagementService lazy-resolves `IUserService`. Both sides are lazy because this cycle is two-way hot. (UserService also lazy-resolves `IShiftSignupService`, but that edge is one-way — ShiftSignupService does not call back into UserService.)
-6. **ShiftManagement ↔ Team** — ShiftManagementService lazy-resolves `ITeamService`; TeamService eagerly injects `IShiftManagementService`. (ShiftSignupService also lazy-resolves `ITeamService`, but the reverse edge runs through ShiftManagementService, not ShiftSignupService directly.)
-7. **ShiftManagement ↔ TicketQuery** — ShiftManagementService lazy-resolves `ITicketQueryService` (ticket-holder → shift-eligibility lookups); TicketQueryService eagerly injects `IShiftManagementService`.
-8. **Consent ↔ MembershipCalculator** — ConsentService lazy-resolves `IMembershipCalculator` for status recomputes; MembershipCalculator lazy-resolves `IConsentService` for required-docs-given checks. Both sides are lazy because this cycle is two-way hot.
-9. **GoogleWorkspaceSync ↔ TeamResource** — GoogleWorkspaceSyncService lazy-resolves `ITeamResourceService` for resource reconciliation during workspace sync; TeamResourceService eagerly injects `IGoogleWorkspaceSyncService` to push resource changes into Google.
+1. **Team ↔ TeamResource** — TeamService lazy-resolves `ITeamResourceService` for team-deletion resource cleanup; TeamResourceService eagerly injects `ITeamService` for ownership checks.
+2. **Profile ↔ AccountDeletion** — ProfileService eagerly injects `IAccountDeletionService` for the one-line `RequestDeletionAsync` delegation; AccountDeletionService lazy-resolves `IProfileService` to invoke the cascade's profile-anonymization step. New as of PR #314 — replaces the old User↔Profile lazy edge.
+3. **ShiftManagement ↔ Team** — ShiftManagementService lazy-resolves `ITeamService`; TeamService eagerly injects `IShiftManagementService`. (ShiftSignupService also lazy-resolves `ITeamService`, but the reverse edge runs through ShiftManagementService, not ShiftSignupService directly.)
+4. **ShiftManagement ↔ TicketQuery** — ShiftManagementService lazy-resolves `ITicketQueryService` (ticket-holder → shift-eligibility lookups); TicketQueryService eagerly injects `IShiftManagementService`.
+5. **Consent ↔ MembershipCalculator** — ConsentService lazy-resolves `IMembershipCalculator` for status recomputes; MembershipCalculator lazy-resolves `IConsentService` for required-docs-given checks. Both sides are lazy because this cycle is two-way hot.
+6. **GoogleWorkspaceSync ↔ TeamResource** — GoogleWorkspaceSyncService lazy-resolves `ITeamResourceService` for resource reconciliation during workspace sync; TeamResourceService eagerly injects `IGoogleWorkspaceSyncService` to push resource changes into Google.
 
-Other notable one-way lazy edges (not cycles): UserEmailService lazy-resolves `IAccountMergeService` for merge-driven email reparenting, but AccountMergeService injects `IUserEmailRepository` (not the service) to avoid creating a reverse edge. ShiftManagementService lazy-resolves `IRoleAssignmentService`, but RoleAssignmentService does not call back into ShiftManagement. TeamService lazy-resolves `IRoleAssignmentService` and `IEmailService` for the same reason.
+Other notable one-way lazy edges (not cycles):
+- **Team → User** — TeamService lazy-resolves `IUserService` for user-slice stitching. Used to be a cycle (User↔Team), but PR #314 dropped UserService's eager `ITeamService` injection — User is now outbound-edge-free.
+- **AccountDeletion → User / Role / ShiftManagement / ShiftSignup / UserEmail** — AccountDeletionService eagerly injects all of these for the cascade. None of them inject AccountDeletionService, so no reverse edge. (Profile is the one exception, hence the cycle in #2 above.)
+- **UserEmail → AccountMerge** — UserEmailService lazy-resolves `IAccountMergeService` for merge-driven email reparenting; AccountMergeService injects `IUserEmailRepository` (not the service) to avoid creating a reverse edge.
+- **ShiftManagement → Role / User**, **Team → Role / Email**, **GoogleWorkspaceSync → TeamResource** are one-way lazy edges where the target service does not call back. Lazy is used because eager injection would still create a cycle through other paths in the graph.
 
 When adding a new cross-service call, default to ctor injection. Reach for the lazy pattern only when ctor injection produces a circular DI error, and document why at the call site.
 
@@ -357,9 +370,9 @@ Threshold: services with >= 3 incoming edges (eager + lazy combined).
 | Service | Eager dependents | Lazy dependents | Notes |
 |---------|-----------------:|----------------:|-------|
 | `TeamService` | 21 | 2 | Largest fan-in. Expose efficient batch methods (`GetByIdsAsync`) to avoid N+1 at call sites. |
-| `UserService` | 20 | 2 | Second-largest fan-in. Same batch-method guidance. |
+| `UserService` | 20 | 2 | Second-largest fan-in. Same batch-method guidance. **No outbound edges** as of peterdrier/Humans PR #314 — User is purely foundational; the four pre-existing User↔* cycles were resolved by extracting deletion-cascade orchestration into `AccountDeletionService`. |
 | `AuditLogService` | 19 | 0 | Cross-cutting — every write-path service logs audit events. No-op alternative: audit decorator (rejected; audit is in-service per §7a). |
-| `ProfileService` | 11 | 1 | Biggest Profile consumer is ProfileService itself (full-profile stitching). |
+| `ProfileService` | 11 | 1 | Biggest Profile consumer is ProfileService itself (full-profile stitching). Eagerly injects `IAccountDeletionService` for the `RequestDeletionAsync` one-line delegation; that's the new Profile↔AccountDeletion cycle (lazy on the AccountDeletion side). |
 | `RoleAssignmentService` | 8 | 3 | Auth hub. |
 | `UserEmailService` | 9 | 1 | Email-identity lookups across the system. |
 | `IEmailService` | 8 | 1 | Abstract over SmtpEmailService + OutboxEmailService. |
@@ -367,6 +380,7 @@ Threshold: services with >= 3 incoming edges (eager + lazy combined).
 | `ShiftManagementService` | 6 | 1 | Shift hub. |
 | `CommunicationPreferenceService` | 6 | 0 | Consent + unsubscribe gating for any outbound message. |
 | `TeamResourceService` | 3 | 2 | Teams-owned Google resources. |
+| `AccountDeletionService` | 1 | 0 | New as of peterdrier/Humans PR #314 (nobodies-collective/Humans#582). Single eager dependent: `ProfileService`. Lazy-resolves `IProfileService` itself to invoke the cascade's profile-anonymization step. Owns the User-section deletion cascade so foundational User/Profile services stay outbound-edge-free. |
 | `HumansMetricsService` | 4 | 0 | Invoked from Application services that emit counter events (ConsentService, OnboardingService, AppDec, OutboxEmail). Scheduled for push-model inversion in #580 — after that, HumansMetricsService becomes zero-section-knowledge infrastructure. |
 | `NotificationEmitter` | 4 | 0 | Lower-level enqueue surface used by Team/Role/Camp/Notif. |
 | `ApplicationDecisionService` | 4 | 0 | Tier-application decisions; read by Prof, Onboard, Dash, NotifMeter. |
