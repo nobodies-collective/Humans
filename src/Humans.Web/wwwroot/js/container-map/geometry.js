@@ -67,5 +67,5 @@ export function featureToCollection(feature) {
  * bearing: CW from north (output of turf.bearing).
  */
 export function rotationFromBearing(bearing) {
-    return 90 - bearing;
+    return bearing - 90;
 }
