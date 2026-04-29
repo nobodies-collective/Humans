@@ -97,7 +97,8 @@ function groupByCamp(items) {
 function makeUnplacedCard(c) {
     const isActive = c.id === _activeId;
     const canClick = !isActive && c.canEdit;
-    const card = document.createElement('div');
+    const card = document.createElement(canClick ? 'button' : 'div');
+    if (canClick) card.type = 'button';
     card.className = 'list-group-item'
         + (isActive ? ' active' : '')
         + (canClick ? ' list-group-item-action' : '');
