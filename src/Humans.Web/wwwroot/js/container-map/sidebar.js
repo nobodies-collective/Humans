@@ -10,11 +10,13 @@ let _activeId    = null;  // currently active container ID
 let _onActivate  = null;  // callback(container) when user clicks an unplaced card
 let _onClear     = null;  // callback(container) when user clicks "Clear placement"
 let _onSelect    = null;  // callback(container) when user clicks a placed card
+let _onLocate    = null;  // callback(container) when user clicks the locate button
 
-export function initSidebar(onActivate, onClear, onSelect) {
+export function initSidebar(onActivate, onClear, onSelect, onLocate) {
     _onActivate = onActivate;
     _onClear    = onClear;
     _onSelect   = onSelect;
+    _onLocate   = onLocate;
 }
 
 /** Provide the campSeasonId → campName lookup used for barrio group headers. */
@@ -119,14 +121,25 @@ function makePlacedCard(c) {
     card.innerHTML = `
         <div class="fw-semibold small">✓ ${escHtml(c.name)}</div>
         ${c.description ? `<div class="small text-truncate opacity-75">${escHtml(c.description)}</div>` : ''}
-        ${c.canEdit ? `<div class="mt-1">
-            <button class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:11px;"
-                data-clear-id="${c.id}">Clear placement</button>
-        </div>` : ''}
+        <div class="mt-1 d-flex gap-1">
+            <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:11px;"
+                data-locate-id="${c.id}" title="Center map on this container">
+                <i class="fa-solid fa-location-dot"></i>
+            </button>
+            ${c.canEdit ? `<button class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:11px;"
+                data-clear-id="${c.id}">Clear placement</button>` : ''}
+        </div>
     `;
+    const locateBtn = card.querySelector('[data-locate-id]');
+    if (locateBtn) {
+        locateBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _onLocate?.(c);
+        });
+    }
     if (c.canEdit) {
         card.addEventListener('click', (e) => {
-            if (e.target.closest('[data-clear-id]')) return;
+            if (e.target.closest('[data-clear-id]') || e.target.closest('[data-locate-id]')) return;
             _onSelect?.(c);
         });
         const clearBtn = card.querySelector('[data-clear-id]');

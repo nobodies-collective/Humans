@@ -92,6 +92,11 @@ async function init() {
             selectPlacedContainer(container);
             updateContainerSource(map, containers, container.id);
         },
+        // onLocate: user clicked the locate button on a placed card
+        (container) => {
+            const f = JSON.parse(container.locationGeoJson);
+            map.flyTo({ center: [f.properties.center_lng, f.properties.center_lat], duration: 400 });
+        },
     );
     setContainers(containers);
 
