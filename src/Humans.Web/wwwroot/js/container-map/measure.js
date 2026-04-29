@@ -1,11 +1,13 @@
 // Measuring tool: two-point distance with rubber-band preview.
-import { appState } from './state.js';
-import { exitEditMode } from './edit.js';
+// Standalone port of city-planning/measure.js — no appState dependency.
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] };
 
-let firstPoint = null;   // [lng, lat] or null
-let secondPoint = null;  // [lng, lat] or null
+let _map         = null;
+let _active      = false;
+let _firstPoint  = null;
+let _secondPoint = null;
+let _onMouseMove = null;
 
 function formatDistance(meters) {
     if (meters >= 1000) return (meters / 1000).toFixed(2) + ' km';
@@ -22,107 +24,98 @@ function distanceLabel(a, b) {
 }
 
 function setPoints(pts) {
-    appState.map.getSource('measure-points').setData({
+    _map.getSource('measure-points').setData({
         type: 'FeatureCollection',
         features: pts.map(p => ({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: {} })),
     });
 }
 
 function setLine(a, b) {
-    appState.map.getSource('measure-line').setData({
+    _map.getSource('measure-line').setData({
         type: 'FeatureCollection',
         features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: [a, b] }, properties: {} }],
     });
 }
 
 function setPreviewLine(a, b) {
-    appState.map.getSource('measure-preview-line').setData({
+    _map.getSource('measure-preview-line').setData({
         type: 'FeatureCollection',
         features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: [a, b] }, properties: {} }],
     });
 }
 
 function setLabel(pos, text) {
-    appState.map.getSource('measure-label').setData({
+    _map.getSource('measure-label').setData({
         type: 'FeatureCollection',
         features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: pos }, properties: { label: text } }],
     });
 }
 
 function clearAll() {
-    appState.map.getSource('measure-points')?.setData(EMPTY_FC);
-    appState.map.getSource('measure-line')?.setData(EMPTY_FC);
-    appState.map.getSource('measure-preview-line')?.setData(EMPTY_FC);
-    appState.map.getSource('measure-label')?.setData(EMPTY_FC);
+    _map.getSource('measure-points')?.setData(EMPTY_FC);
+    _map.getSource('measure-line')?.setData(EMPTY_FC);
+    _map.getSource('measure-preview-line')?.setData(EMPTY_FC);
+    _map.getSource('measure-label')?.setData(EMPTY_FC);
 }
-
-// mousemove handler reference so we can remove it on exit
-let onMouseMove = null;
 
 function attachMouseMove() {
     detachMouseMove();
-    onMouseMove = e => {
-        if (!firstPoint) return;
+    _onMouseMove = e => {
+        if (!_firstPoint) return;
         const cursor = [e.lngLat.lng, e.lngLat.lat];
-        setPreviewLine(firstPoint, cursor);
-        const mid = midpoint(firstPoint, cursor);
-        setLabel(mid, distanceLabel(firstPoint, cursor));
+        setPreviewLine(_firstPoint, cursor);
+        setLabel(midpoint(_firstPoint, cursor), distanceLabel(_firstPoint, cursor));
     };
-    appState.map.on('mousemove', onMouseMove);
+    _map.on('mousemove', _onMouseMove);
 }
 
 function detachMouseMove() {
-    if (onMouseMove) {
-        appState.map.off('mousemove', onMouseMove);
-        onMouseMove = null;
+    if (_onMouseMove) {
+        _map.off('mousemove', _onMouseMove);
+        _onMouseMove = null;
     }
 }
 
 function onMapClick(e) {
     const coord = [e.lngLat.lng, e.lngLat.lat];
 
-    if (!firstPoint) {
-        // Place first point
-        firstPoint = coord;
-        secondPoint = null;
-        setPoints([firstPoint]);
-        appState.map.getSource('measure-line').setData(EMPTY_FC);
-        appState.map.getSource('measure-label').setData(EMPTY_FC);
+    if (!_firstPoint) {
+        _firstPoint = coord;
+        _secondPoint = null;
+        setPoints([_firstPoint]);
+        _map.getSource('measure-line').setData(EMPTY_FC);
+        _map.getSource('measure-label').setData(EMPTY_FC);
         attachMouseMove();
         return;
     }
 
-    if (!secondPoint) {
-        // Place second point — lock in measurement
-        secondPoint = coord;
-        setPoints([firstPoint, secondPoint]);
-        setLine(firstPoint, secondPoint);
-        const mid = midpoint(firstPoint, secondPoint);
-        setLabel(mid, distanceLabel(firstPoint, secondPoint));
-        appState.map.getSource('measure-preview-line').setData(EMPTY_FC);
+    if (!_secondPoint) {
+        _secondPoint = coord;
+        setPoints([_firstPoint, _secondPoint]);
+        setLine(_firstPoint, _secondPoint);
+        setLabel(midpoint(_firstPoint, _secondPoint), distanceLabel(_firstPoint, _secondPoint));
+        _map.getSource('measure-preview-line').setData(EMPTY_FC);
         detachMouseMove();
         return;
     }
 
     // Third click: start a new measurement from this point
-    firstPoint = coord;
-    secondPoint = null;
-    setPoints([firstPoint]);
-    appState.map.getSource('measure-line').setData(EMPTY_FC);
-    appState.map.getSource('measure-label').setData(EMPTY_FC);
+    _firstPoint = coord;
+    _secondPoint = null;
+    setPoints([_firstPoint]);
+    _map.getSource('measure-line').setData(EMPTY_FC);
+    _map.getSource('measure-label').setData(EMPTY_FC);
     attachMouseMove();
 }
 
 export function enterMeasureMode() {
-    if (appState.measuringActive) return;
-    if (appState.activeCampSeasonId) exitEditMode();
-
-    appState.measuringActive = true;
-    firstPoint = null;
-    secondPoint = null;
+    if (_active) return;
+    _active = true;
+    _firstPoint = null;
+    _secondPoint = null;
     clearAll();
-    appState.map.getCanvas().style.cursor = 'crosshair';
-    appState.map.on('click', onMapClick);
+    _map.getCanvas().style.cursor = 'crosshair';
+    _map.on('click', onMapClick);
 
     const btn = document.getElementById('measure-btn');
     btn.classList.remove('btn-outline-secondary');
@@ -131,16 +124,14 @@ export function enterMeasureMode() {
 }
 
 export function exitMeasureMode() {
-    if (!appState.measuringActive) return;
-
+    if (!_active) return;
     detachMouseMove();
-    appState.map.off('click', onMapClick);
+    _map.off('click', onMapClick);
     clearAll();
-
-    firstPoint = null;
-    secondPoint = null;
-    appState.measuringActive = false;
-    appState.map.getCanvas().style.cursor = '';
+    _firstPoint = null;
+    _secondPoint = null;
+    _active = false;
+    _map.getCanvas().style.cursor = '';
 
     const btn = document.getElementById('measure-btn');
     btn.classList.remove('btn-warning');
@@ -148,8 +139,10 @@ export function exitMeasureMode() {
     btn.setAttribute('aria-pressed', 'false');
 }
 
+export function isMeasuring() { return _active; }
+
 export function initMeasure(map) {
-    if (typeof turf === 'undefined') throw new Error('measure.js requires turf.js to be loaded globally');
+    _map = map;
     map.addSource('measure-points',       { type: 'geojson', data: EMPTY_FC });
     map.addSource('measure-line',         { type: 'geojson', data: EMPTY_FC });
     map.addSource('measure-preview-line', { type: 'geojson', data: EMPTY_FC });

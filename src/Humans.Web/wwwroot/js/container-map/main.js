@@ -4,6 +4,7 @@ import { loadContainers, savePlacement, clearPlacement }   from './api.js';
 import { addBackgroundLayers, addContainerLayers, updateContainerSource } from './layers.js';
 import { initSidebar, setCampNames, setContainers, setActiveId, markPlaced, scrollToPlaced } from './sidebar.js';
 import { initInteraction, activateContainer, selectPlacedContainer, deactivate } from './interaction.js';
+import { initMeasure, enterMeasureMode, exitMeasureMode, isMeasuring } from './measure.js';
 
 const toast = document.getElementById('map-toast');
 let containers = []; // live container data array
@@ -37,6 +38,7 @@ async function init() {
     const stateData = await fetch('/api/city-planning/state').then(r => r.json());
     addBackgroundLayers(map, stateData);
     addContainerLayers(map);
+    initMeasure(map);
 
     // Build campSeasonId → campName lookup for sidebar grouping
     const campNames = Object.fromEntries(
@@ -60,9 +62,21 @@ async function init() {
     }
 
     // Wire sidebar
+    document.getElementById('measure-btn').addEventListener('click', () => {
+        if (isMeasuring()) {
+            exitMeasureMode();
+        } else {
+            deactivate();
+            setActiveId(null);
+            updateContainerSource(map, containers, null);
+            enterMeasureMode();
+        }
+    });
+
     initSidebar(
         // onActivate: user clicked an unplaced container card
         async (container) => {
+            exitMeasureMode();
             deactivate();
             const center = getBarrioCenter(stateData, container);
             setActiveId(container.id);
@@ -87,6 +101,7 @@ async function init() {
         },
         // onSelect: user clicked a placed container card
         (container) => {
+            exitMeasureMode();
             deactivate();
             setActiveId(container.id);
             selectPlacedContainer(container);
