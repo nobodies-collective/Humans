@@ -52,7 +52,9 @@ public class ContainerAuthorizationHandler : AuthorizationHandler<ContainerOpera
         {
             var seasonInfo = await _campService.GetCampSeasonInfoAsync(resource.CampSeasonId.Value);
             if (seasonInfo is not null && await _campService.IsUserCampLeadAsync(userId, seasonInfo.CampId))
+            {
                 context.Succeed(requirement);
+            }
         }
     }
 }

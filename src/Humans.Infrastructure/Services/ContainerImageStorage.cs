@@ -35,6 +35,8 @@ public sealed class ContainerImageStorage : IContainerImageStorage
     {
         var fullPath = Path.Combine(Root, storagePath);
         if (File.Exists(fullPath))
+        {
             File.Delete(fullPath);
+        }
     }
 }

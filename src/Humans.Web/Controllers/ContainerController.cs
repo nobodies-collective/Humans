@@ -38,7 +38,7 @@ public class ContainerController : HumansControllerBase
     {
         if (RoleChecks.IsCampAdmin(User)) return true;
         if (await _cityPlanningService.IsCityPlanningTeamMemberAsync(userId, ct)) return true;
-        if (await _campService.IsUserCampLeadAsync(userId, camp.Id)) return true;
+        if (await _campService.IsUserCampLeadAsync(userId, camp.Id, ct)) return true;
         return false;
     }
 
