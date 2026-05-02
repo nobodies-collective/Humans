@@ -56,7 +56,7 @@ async function init() {
         paint: { 'text-color': '#000000', 'text-halo-color': '#ffffff', 'text-halo-width': 2 },
     });
 
-    // ── Camp limits (togglable, on by default) ───────────────────────────────
+    // ── Camp limits (togglable, off by default) ───────────────────────────────
     if (state.limitZoneGeoJson) {
         let limitData = JSON.parse(state.limitZoneGeoJson);
         if (limitData.type === 'Feature') limitData = { type: 'FeatureCollection', features: [limitData] };
@@ -66,7 +66,7 @@ async function init() {
         LAYER_GROUPS.campLimits = ['limit-zone-fill', 'limit-zone-line'];
     }
 
-    // ── Containers (togglable, on by default) ────────────────────────────────
+    // ── Containers (togglable, off by default) ────────────────────────────────
     const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     const containerColor = css('--container-fill') || '#8b7355';
 
