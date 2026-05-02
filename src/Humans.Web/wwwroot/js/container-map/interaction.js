@@ -65,7 +65,7 @@ export function activateContainer(container, centerLng, centerLat) {
     repositionHandle();
     rotationHandle.style.display = 'flex';
 
-    _map.panTo([centerLng, centerLat], { duration: 300 });
+    _map.easeTo({ center: [centerLng, centerLat], zoom: 19, duration: 300 });
 }
 
 /**
@@ -82,6 +82,8 @@ export function selectPlacedContainer(container) {
     updateActiveSource(_map, _activeFeature);
     repositionHandle();
     rotationHandle.style.display = 'flex';
+
+    _map.easeTo({ center: [_currentCenter.lng, _currentCenter.lat], zoom: 19, duration: 300 });
 }
 
 /**
