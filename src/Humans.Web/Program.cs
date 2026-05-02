@@ -698,7 +698,9 @@ app.MapHub<CityPlanningHub>("/hubs/city-planning");
         if (pending.Count > 0)
         {
             foreach (var migration in pending)
+            {
                 migrationLogger.LogInformation("Pending migration: {Migration}", migration);
+            }
 
             await dbContext.Database.MigrateAsync();
 

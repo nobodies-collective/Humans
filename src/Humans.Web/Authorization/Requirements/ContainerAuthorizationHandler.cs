@@ -39,7 +39,9 @@ public class ContainerAuthorizationHandler : AuthorizationHandler<ContainerOpera
 
         var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim is null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
             return;
+        }
 
         if (await _cityPlanningService.IsCityPlanningTeamMemberAsync(userId))
         {

@@ -207,7 +207,9 @@ public static class AccessMatrixDefinitions
     {
         var dict = new Dictionary<string, AccessLevel>(StringComparer.Ordinal);
         for (var i = 0; i < roleAccessPairs.Length; i += 2)
+        {
             dict[(string)roleAccessPairs[i]] = (AccessLevel)roleAccessPairs[i + 1];
+        }
         return new AccessMatrixFeature { Name = name, RoleAccess = dict };
     }
 }
