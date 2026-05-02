@@ -84,6 +84,11 @@ export function addBackgroundLayers(map, stateData) {
  * and updateActiveSource() to populate them.
  */
 export function addContainerLayers(map) {
+    const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    const colorUnselected = css('--container-fill');
+    const colorActive     = css('--container-fill-selected');
+    const colorBorder     = css('--h-border-light');
+
     map.addSource('containers', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -98,20 +103,24 @@ export function addContainerLayers(map) {
     map.addLayer({
         id: 'containers-readonly-fill', type: 'fill', source: 'containers',
         filter: ['==', ['get', 'canEdit'], false],
-        paint: { 'fill-color': '#e8a020', 'fill-opacity': 0.6 },
+        paint: { 'fill-color': colorUnselected, 'fill-opacity': 0.5 },
     });
 
     // Editable containers (canEdit = true, not active)
     map.addLayer({
         id: 'containers-editable-fill', type: 'fill', source: 'containers',
         filter: ['==', ['get', 'canEdit'], true],
-        paint: { 'fill-color': '#e8a020', 'fill-opacity': 0.85 },
+        paint: { 'fill-color': colorUnselected, 'fill-opacity': 0.75 },
     });
 
     // Active container (separate source)
     map.addLayer({
         id: 'containers-active-fill', type: 'fill', source: 'container-active',
-        paint: { 'fill-color': '#4fc3f7', 'fill-opacity': 0.9 },
+        paint: { 'fill-color': colorActive, 'fill-opacity': 0.9 },
+    });
+    map.addLayer({
+        id: 'containers-active-outline', type: 'line', source: 'container-active',
+        paint: { 'line-color': colorBorder, 'line-width': 2 },
     });
 
     // Labels (shown at close zoom on non-active containers)
