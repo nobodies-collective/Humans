@@ -197,6 +197,47 @@ public class CityPlanningApiController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Export placed containers accessible to the caller as a GeoJSON FeatureCollection.</summary>
+    [HttpGet("containers/{year:int}/export.geojson")]
+    public async Task<IActionResult> ExportContainersGeoJson(int year, CancellationToken cancellationToken)
+    {
+        var userId = CurrentUserId();
+        var isMapAdmin = await IsMapAdminAsync(userId, cancellationToken);
+        var userSeasonId = await _campService.GetCampLeadSeasonIdForYearAsync(userId, year, cancellationToken);
+
+        if (!isMapAdmin && !userSeasonId.HasValue)
+            return Forbid();
+
+        var allContainers = await _containerService.GetAllByYearAsync(year, cancellationToken);
+
+        var placed = allContainers
+            .Where(c => c.LocationGeoJson is not null)
+            .Where(c => isMapAdmin || c.CampSeasonId == userSeasonId)
+            .ToList();
+
+        var features = placed.Select(c =>
+        {
+            var f = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(c.LocationGeoJson!);
+            var props = f?["properties"]?.AsObject();
+            if (props != null)
+            {
+                props["containerId"]   = c.Id.ToString();
+                props["containerName"] = c.Name;
+                props["type"] = "Container";
+            }
+            return f;
+        });
+
+        var collection = new System.Text.Json.Nodes.JsonObject
+        {
+            ["type"]     = "FeatureCollection",
+            ["features"] = new System.Text.Json.Nodes.JsonArray(features.Select(f => (System.Text.Json.Nodes.JsonNode?)f).ToArray()),
+        };
+
+        var fileName = $"containers-{year}.geojson";
+        return File(System.Text.Encoding.UTF8.GetBytes(collection.ToJsonString()), "application/geo+json", fileName);
+    }
+
     /// <summary>Save or update the placement GeoJSON for a container.</summary>
     [HttpPut("containers/{id:guid}/placement")]
     [ValidateAntiForgeryToken]

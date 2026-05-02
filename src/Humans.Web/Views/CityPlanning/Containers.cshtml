@@ -12,9 +12,14 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>@Localizer["Container_Breadcrumb"] <small class="text-muted">@Model.Year</small></h1>
-    <a asp-action="ContainerMap" asp-route-year="@Model.Year" class="btn btn-outline-primary btn-sm">
-        <i class="fa-solid fa-map-location-dot me-1"></i> @Localizer["ContainerMap_PlaceOnMap"]
-    </a>
+    <div class="d-flex gap-2">
+        <a href="/api/city-planning/containers/@Model.Year/export.geojson" class="btn btn-outline-secondary btn-sm">
+            <i class="fa-solid fa-download me-1"></i> @Localizer["Common_ExportGeoJson"]
+        </a>
+        <a asp-action="ContainerMap" asp-route-year="@Model.Year" class="btn btn-outline-primary btn-sm">
+            <i class="fa-solid fa-map-location-dot me-1"></i> @Localizer["ContainerMap_PlaceOnMap"]
+        </a>
+    </div>
 </div>
 
 <vc:temp-data-alerts />

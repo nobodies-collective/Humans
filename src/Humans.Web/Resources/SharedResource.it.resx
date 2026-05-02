@@ -44,6 +44,7 @@
   <data name="Common_Add" xml:space="preserve"><value>Aggiungi</value></data>
   <data name="Common_Delete" xml:space="preserve"><value>Elimina</value></data>
   <data name="Common_Back" xml:space="preserve"><value>Indietro</value></data>
+  <data name="Common_ExportGeoJson" xml:space="preserve"><value>Export GeoJSON</value></data>
   <data name="Common_Submit" xml:space="preserve"><value>Invia</value></data>
   <data name="Common_NotProvided" xml:space="preserve"><value>Non fornito</value></data>
   <data name="Common_Error" xml:space="preserve"><value>Qualcosa è andato storto. Riprova più tardi.</value></data>
