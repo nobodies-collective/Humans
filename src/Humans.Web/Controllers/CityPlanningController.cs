@@ -87,7 +87,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         ViewBag.Settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
         return View();
@@ -101,7 +103,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
         await _cityPlanningService.OpenPlacementAsync(user.Id, cancellationToken);
         SetSuccess("Placement phase opened.");
         return RedirectToAction(nameof(Admin));
@@ -115,7 +119,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
         await _cityPlanningService.ClosePlacementAsync(user.Id, cancellationToken);
         SetSuccess("Placement phase closed.");
         return RedirectToAction(nameof(Admin));
@@ -129,7 +135,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         var settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
         await _cityPlanningService.OpenContainerPlacementAsync(user.Id, cancellationToken);
@@ -145,7 +153,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         var settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
         await _cityPlanningService.CloseContainerPlacementAsync(user.Id, cancellationToken);
@@ -161,7 +171,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
         if (file is null || file.Length == 0)
         {
             SetError("Please select a GeoJSON file to upload.");
@@ -192,7 +204,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         var pattern = LocalDateTimePattern.CreateWithInvariantCulture("yyyy-MM-ddTHH:mm");
 
@@ -224,10 +238,14 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
         var settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
         if (settings.LimitZoneGeoJson is null)
+        {
             return NotFound();
+        }
         var bytes = System.Text.Encoding.UTF8.GetBytes(settings.LimitZoneGeoJson);
         return File(bytes, "application/geo+json", $"limit-zone-{settings.Year}.geojson");
     }
@@ -240,7 +258,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
         await _cityPlanningService.DeleteLimitZoneAsync(user.Id, cancellationToken);
         SetSuccess("Limit zone deleted.");
         return RedirectToAction(nameof(Admin));
@@ -254,7 +274,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
         if (file is null || file.Length == 0)
         {
             SetError("Please select a GeoJSON file to upload.");
@@ -284,10 +306,14 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
         var settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
         if (settings.OfficialZonesGeoJson is null)
+        {
             return NotFound();
+        }
         var bytes = System.Text.Encoding.UTF8.GetBytes(settings.OfficialZonesGeoJson);
         return File(bytes, "application/geo+json", $"official-zones-{settings.Year}.geojson");
     }
@@ -300,7 +326,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
         await _cityPlanningService.DeleteOfficialZonesAsync(user.Id, cancellationToken);
         SetSuccess("Official zones deleted.");
         return RedirectToAction(nameof(Admin));
@@ -321,7 +349,9 @@ public class CityPlanningController : HumansControllerBase
         var settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
 
         if (!isMapAdmin && (!settings.IsContainerPlacementOpen || !userSeasonId.HasValue))
+        {
             return Forbid();
+        }
 
         string campSlug = string.Empty;
         string campName = string.Empty;
@@ -352,7 +382,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         var settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
         var allContainers = await _containerService.GetAllByYearAsync(year, cancellationToken);
@@ -406,7 +438,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         if (!ModelState.IsValid)
         {
@@ -432,7 +466,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         if (!ModelState.IsValid)
         {
@@ -458,7 +494,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         var container = await _containerService.GetByIdAsync(id, cancellationToken);
         if (container is null) return NotFound();
@@ -487,7 +525,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         var container = await _containerService.GetByIdAsync(id, cancellationToken);
         if (container is null) return NotFound();
@@ -506,7 +546,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         var container = await _containerService.GetByIdAsync(id, cancellationToken);
         if (container is null) return NotFound();
@@ -538,7 +580,9 @@ public class CityPlanningController : HumansControllerBase
         if (error != null) return error;
 
         if (!await IsMapAdminAsync(user.Id, cancellationToken))
+        {
             return Forbid();
+        }
 
         var container = await _containerService.GetByIdAsync(id, cancellationToken);
         if (container is null) return NotFound();

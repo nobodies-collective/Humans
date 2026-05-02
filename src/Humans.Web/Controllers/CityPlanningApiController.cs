@@ -100,10 +100,14 @@ public class CityPlanningApiController : ControllerBase
         var userId = CurrentUserId();
         if (!RoleChecks.IsCampAdmin(User) &&
             !await _cityPlanningService.CanUserEditAsync(userId, campSeasonId, cancellationToken))
+        {
             return Forbid();
+        }
 
         if (string.IsNullOrWhiteSpace(request.GeoJson) || !IsValidJson(request.GeoJson))
+        {
             return BadRequest("Invalid GeoJSON.");
+        }
 
         var (polygon, _) = await _cityPlanningService.SaveCampPolygonAsync(
             campSeasonId, request.GeoJson, request.AreaSqm, userId,
@@ -136,7 +140,9 @@ public class CityPlanningApiController : ControllerBase
     {
         var userId = CurrentUserId();
         if (!await IsMapAdminAsync(userId, cancellationToken))
+        {
             return Forbid();
+        }
 
         var (polygon, _) = await _cityPlanningService.RestoreCampPolygonVersionAsync(
             campSeasonId, historyId, userId, cancellationToken);
@@ -163,7 +169,9 @@ public class CityPlanningApiController : ControllerBase
     {
         var userId = CurrentUserId();
         if (!await IsMapAdminAsync(userId, cancellationToken))
+        {
             return Forbid();
+        }
 
         var settings = await _cityPlanningService.GetSettingsAsync(cancellationToken);
         var exportYear = year ?? settings.Year;
@@ -206,7 +214,9 @@ public class CityPlanningApiController : ControllerBase
         var userSeasonId = await _campService.GetCampLeadSeasonIdForYearAsync(userId, year, cancellationToken);
 
         if (!isMapAdmin && !userSeasonId.HasValue)
+        {
             return Forbid();
+        }
 
         var allContainers = await _containerService.GetAllByYearAsync(year, cancellationToken);
 
@@ -262,7 +272,9 @@ public class CityPlanningApiController : ControllerBase
         }
 
         if (string.IsNullOrWhiteSpace(request.GeoJson) || !IsValidContainerPlacementGeoJson(request.GeoJson))
+        {
             return UnprocessableEntity("Invalid container placement GeoJSON.");
+        }
 
         var updated = await _containerService.SavePlacementAsync(id, request.GeoJson, cancellationToken);
         return Ok(new { id = updated.Id, locationGeoJson = updated.LocationGeoJson });
