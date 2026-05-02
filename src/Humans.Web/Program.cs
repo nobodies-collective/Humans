@@ -449,7 +449,7 @@ builder.Services.AddCors(options =>
 });
 
 // Add Controllers with Views
-builder.Services.AddControllersWithViews(options =>
+var servicesWithViews = builder.Services.AddControllersWithViews(options =>
     {
         options.Filters.Add<MembershipRequiredFilter>();
         options.Filters.Add<Humans.Web.Filters.AuthorizationPillFilter>();
@@ -458,6 +458,12 @@ builder.Services.AddControllersWithViews(options =>
     .AddDataAnnotationsLocalization();
 builder.Services.AddRazorPages();
 builder.Services.AddSignalR();
+
+// In Developement, compile Razor pages each time they are loaded
+if (builder.Environment.IsDevelopment())
+{
+    servicesWithViews.AddRazorRuntimeCompilation();
+}
 
 // IExceptionHandler pipeline. Order matters — handlers run in registration order
 // until one returns true. Cancellation handler goes FIRST so client-abort
