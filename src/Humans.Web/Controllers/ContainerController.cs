@@ -76,6 +76,8 @@ public class ContainerController : HumansControllerBase
 
         var containers = await _containerService.GetBySeasonAsync(season.Id, ct);
 
+        var isLead = canManage && !isPrivileged;
+
         var vm = new ContainerIndexViewModel
         {
             CampSlug = camp.Slug,
@@ -84,6 +86,7 @@ public class ContainerController : HumansControllerBase
             SeasonId = season.Id,
             CanManage = canManage && (isPrivileged || settings.IsContainerPlacementOpen),
             IsPlacementOpen = settings.IsContainerPlacementOpen,
+            IsLeadButPhaseClosed = isLead && !settings.IsContainerPlacementOpen,
             Containers = containers.Select(c => new ContainerViewModel
             {
                 Id = c.Id,

@@ -18,9 +18,8 @@ using Humans.Testing;
 
 namespace Humans.Application.Tests.Services.CityPlanning;
 
-public class ContainerPlacementPhaseTests : IDisposable
+public class ContainerPlacementPhaseTests
 {
-    private readonly HumansDbContext _dbContext;
     private readonly FakeClock _clock;
     private readonly ICampService _campService;
     private readonly CityPlanningService _sut;
@@ -30,7 +29,6 @@ public class ContainerPlacementPhaseTests : IDisposable
         var dbOptions = new DbContextOptionsBuilder<HumansDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        _dbContext = new HumansDbContext(dbOptions);
         _clock = new FakeClock(Instant.FromUtc(2026, 4, 26, 10, 0, 0));
         _campService = Substitute.For<ICampService>();
         _campService.GetSettingsAsync(Arg.Any<CancellationToken>())
@@ -43,12 +41,6 @@ public class ContainerPlacementPhaseTests : IDisposable
             Substitute.For<ITeamService>(),
             Substitute.For<IProfileService>(),
             Substitute.For<IUserService>());
-    }
-
-    public void Dispose()
-    {
-        _dbContext.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     [HumansFact]

@@ -11,6 +11,7 @@ public class ContainerIndexViewModel
     public List<ContainerViewModel> Containers { get; set; } = new();
     public bool CanManage { get; set; }
     public bool IsPlacementOpen { get; set; }
+    public bool IsLeadButPhaseClosed { get; set; }
 }
 
 public class ContainerViewModel
