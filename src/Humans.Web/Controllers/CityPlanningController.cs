@@ -442,6 +442,9 @@ public class CityPlanningController : HumansControllerBase
             return Forbid();
         }
 
+        var season = await _campService.GetCampSeasonByIdAsync(seasonId, cancellationToken);
+        if (season is null || season.Year != year) return NotFound();
+
         if (!ModelState.IsValid)
         {
             SetError("Please correct the validation errors.");
