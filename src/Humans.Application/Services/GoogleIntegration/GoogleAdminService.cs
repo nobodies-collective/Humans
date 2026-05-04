@@ -609,25 +609,30 @@ public sealed class GoogleAdminService : IGoogleAdminService
     {
         try
         {
-            // Load all users (UserEmails included by GetAllUsersAsync), then
-            // filter to those whose canonical IsGoogle Workspace identity is
-            // a @nobodies.team address.
+            // Issue #635 (§15i): read UserEmails through the owning section
+            // service (design-rules §2c) instead of traversing user.UserEmails
+            // cross-domain. The service returns the entities so this caller
+            // can read per-row IsVerified / IsGoogle / Provider flags.
             var allUsers = await _userService.GetAllUsersAsync(ct);
+            var allUserIds = allUsers.Select(u => u.Id).ToList();
+            var emailsByUserId = await _userEmailService.GetEntitiesByUserIdsAsync(allUserIds, ct);
 
             var nobodiesUsers = allUsers
-                .Select(u => new
+                .Select(u =>
                 {
-                    u.Id,
-                    u.DisplayName,
-                    GoogleEmail = u.UserEmails
+                    var emails = emailsByUserId.TryGetValue(u.Id, out var list)
+                        ? list
+                        : Array.Empty<UserEmail>();
+                    var googleEmail = emails
                         .Where(e => e.IsVerified && e.IsGoogle)
                         .Select(e => e.Email)
                         .FirstOrDefault()
-                        ?? u.UserEmails
+                        ?? emails
                             .Where(e => e.IsVerified && e.Provider != null)
                             .OrderBy(e => e.Email, StringComparer.OrdinalIgnoreCase)
                             .Select(e => e.Email)
-                            .FirstOrDefault()
+                            .FirstOrDefault();
+                    return new { u.Id, u.DisplayName, GoogleEmail = googleEmail };
                 })
                 .Where(x => x.GoogleEmail is not null &&
                     x.GoogleEmail.EndsWith($"@{NobodiesTeamDomain}", StringComparison.OrdinalIgnoreCase))
@@ -712,19 +717,21 @@ public sealed class GoogleAdminService : IGoogleAdminService
     {
         try
         {
-            // GetByIdsWithEmailsAsync so the canonical IsGoogle UserEmail row
-            // resolves below — singular GetByIdAsync does not load UserEmails.
-            var usersById = await _userService.GetByIdsWithEmailsAsync([userId], ct);
-            if (!usersById.TryGetValue(userId, out var user))
+            // Issue #635 (§15i): read UserEmails through the owning section
+            // service (design-rules §2c) instead of traversing user.UserEmails
+            // cross-domain.
+            var user = await _userService.GetByIdAsync(userId, ct);
+            if (user is null)
             {
                 return new EmailRenameFixResult(false, ErrorMessage: "Human not found.");
             }
 
-            var oldEmail = user.UserEmails
+            var userEmails = await _userEmailService.GetEntitiesByUserIdAsync(userId, ct);
+            var oldEmail = userEmails
                 .Where(e => e.IsVerified && e.IsGoogle)
                 .Select(e => e.Email)
                 .FirstOrDefault()
-                ?? user.UserEmails
+                ?? userEmails
                     .Where(e => e.IsVerified && e.Provider != null)
                     .OrderBy(e => e.Email, StringComparer.OrdinalIgnoreCase)
                     .Select(e => e.Email)

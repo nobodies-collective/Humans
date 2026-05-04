@@ -288,10 +288,11 @@ public sealed class UserEmailService : IUserEmailService, IUserMerge
         }
 
         // Preserve at least one verified UserEmail. An OAuth-only account can still
-        // sign in but cannot receive system notifications (GetEffectiveEmail falls
-        // back to User.Email, which is null post email-decoupling), so blocking the
-        // last-verified-row delete is preferable to silently dropping notifications.
-        // Unverified rows aren't notification targets, so deleting one is safe.
+        // sign in but cannot receive system notifications (the User.Email override
+        // falls back to base.Email when no verified UserEmails are loaded, and
+        // base.Email is null post email-decoupling), so blocking the last-verified-row
+        // delete is preferable to silently dropping notifications. Unverified rows
+        // aren't notification targets, so deleting one is safe.
         if (email.IsVerified)
         {
             var allEmails = await _repository.GetByUserIdForMutationAsync(userId, cancellationToken);
@@ -483,6 +484,24 @@ public sealed class UserEmailService : IUserEmailService, IUserMerge
             .Where(e => e.IsVerified)
             .Select(e => e.Email)
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<UserEmail>> GetEntitiesByUserIdAsync(
+        Guid userId, CancellationToken cancellationToken = default) =>
+        await _repository.GetByUserIdReadOnlyAsync(userId, cancellationToken);
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<UserEmail>>> GetEntitiesByUserIdsAsync(
+        IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken = default)
+    {
+        if (userIds.Count == 0)
+            return new Dictionary<Guid, IReadOnlyList<UserEmail>>();
+
+        var allEmails = await _repository.GetAllAsync(cancellationToken);
+        var idSet = new HashSet<Guid>(userIds);
+        return allEmails
+            .Where(e => idSet.Contains(e.UserId))
+            .GroupBy(e => e.UserId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<UserEmail>)g.ToList());
     }
 
     public async Task<IReadOnlyDictionary<Guid, string>> GetNotificationEmailsByUserIdsAsync(
@@ -714,8 +733,8 @@ public sealed class UserEmailService : IUserEmailService, IUserMerge
             description = $"Linked {provider} `{fresh.Email}` to user (new row)";
         }
 
-        // First OAuth sign-in: promote the just-added row to primary so
-        // GetEffectiveEmail() / NotificationEmail derivation has a target.
+        // First OAuth sign-in: promote the just-added row to primary so the
+        // User.Email override / FullProfile.PrimaryEmail derivation has a target.
         await EnsurePrimaryInvariantAsync(userId, cancellationToken);
 
         await _fullProfileInvalidator.InvalidateAsync(userId, cancellationToken);

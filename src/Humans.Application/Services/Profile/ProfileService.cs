@@ -101,9 +101,10 @@ public sealed class ProfileService : IProfileService, IUserDataContributor, IUse
         if (user is null) return null;
 
         var userEmails = await _userEmailRepository.GetByUserIdReadOnlyAsync(userId, ct);
-        var notificationEmail = userEmails.FirstOrDefault(e => e.IsPrimary && e.IsVerified)?.Email ?? user.Email;
 
-        return FullProfile.Create(profile, user, profile.VolunteerHistory.ToList(), notificationEmail);
+        // Issue #635 (§15i): pass userEmails directly so PrimaryEmail /
+        // AllVerifiedEmails / GoogleEmail derive from already-loaded data.
+        return FullProfile.Create(profile, user, profile.VolunteerHistory.ToList(), userEmails);
     }
 
     public async Task<IReadOnlyDictionary<Guid, Domain.Entities.Profile>> GetByUserIdsAsync(
@@ -126,6 +127,27 @@ public sealed class ProfileService : IProfileService, IUserDataContributor, IUse
         await _profileRepository.UpdateAsync(profile, ct);
 
         // Store update handled by CachingProfileService decorator
+    }
+
+    public async Task EnsureStubProfileAsync(Guid userId, CancellationToken ct = default)
+    {
+        var existing = await _profileRepository.GetByUserIdAsync(userId, ct);
+        if (existing is not null) return;
+
+        var now = _clock.GetCurrentInstant();
+        var profile = new Domain.Entities.Profile
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            CreatedAt = now,
+            UpdatedAt = now,
+            State = ProfileState.Stub,
+        };
+        // Use the idempotent insert: a concurrent caller (signup/login provisioning
+        // racing the admin backfill) may insert between our GetByUserId check and
+        // SaveChanges. The repo translates Postgres 23505 on profiles.UserId into
+        // a successful no-op so this method's "ensure exists" contract holds.
+        await _profileRepository.AddIfNotExistsByUserIdAsync(profile, ct);
     }
 
     public async Task SetProfilePictureAsync(
@@ -268,12 +290,18 @@ public sealed class ProfileService : IProfileService, IUserDataContributor, IUse
 
         if (profile is null)
         {
+            // Issue #635 (§15i): newly created profiles always start as Stub.
+            // Transitions to Active happen below once required fields are
+            // populated (BurnerName/FirstName/LastName), giving the
+            // ProfileService_UpdateProfileAsync_TransitionsStubToActive
+            // behavior contract a single home.
             profile = new Domain.Entities.Profile
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 CreatedAt = now,
-                UpdatedAt = now
+                UpdatedAt = now,
+                State = ProfileState.Stub,
             };
             await _profileRepository.AddAsync(profile, ct);
         }
@@ -408,6 +436,18 @@ public sealed class ProfileService : IProfileService, IUserDataContributor, IUse
             }
         }
 
+        // Issue #635 (§15i): Stub → Active transition. When all required
+        // identity fields are populated and the profile is not Suspended,
+        // promote the lifecycle marker. Predicate lives on the Profile
+        // entity so the same rule serves the lazy-compute path in
+        // CachingProfileService.ComputeProfileState.
+        if (profile.State != ProfileState.Suspended)
+        {
+            profile.State = profile.HasRequiredIdentityFields()
+                ? ProfileState.Active
+                : ProfileState.Stub;
+        }
+
         await _profileRepository.UpdateAsync(profile, ct);
 
         // Update display name on user (cross-section → IUserService)
@@ -469,9 +509,6 @@ public sealed class ProfileService : IProfileService, IUserDataContributor, IUse
     public Task<IReadOnlyList<Guid>> GetActiveApprovedUserIdsAsync(CancellationToken ct = default) =>
         _profileRepository.GetActiveApprovedUserIdsAsync(ct);
 
-    public Task<int> GetActiveApprovedCountAsync(CancellationToken ct = default) =>
-        _profileRepository.CountActiveApprovedAsync(ct);
-
     public Task<int> GetConsentReviewPendingCountAsync(CancellationToken ct = default) =>
         _profileRepository.GetConsentReviewPendingCountAsync(ct);
 
@@ -522,7 +559,13 @@ public sealed class ProfileService : IProfileService, IUserDataContributor, IUse
         var userIds = profiles.Select(p => p.UserId).ToList();
         var users = await _userService.GetByIdsAsync(userIds, ct);
 
-        var notificationEmails = await _userEmailRepository.GetAllNotificationTargetEmailsAsync(ct);
+        // Issue #635 (§15i): bulk-load every UserEmail so FullProfile.Create
+        // can populate PrimaryEmail / AllVerifiedEmails / GoogleEmail without
+        // per-user repo calls. Trivial at ~500-user scale.
+        var allUserEmails = await _userEmailRepository.GetAllAsync(ct);
+        var emailsByUserId = allUserEmails
+            .GroupBy(e => e.UserId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<UserEmail>)g.ToList());
 
         var result = new List<FullProfile>(profiles.Count);
         foreach (var profile in profiles)
@@ -530,8 +573,10 @@ public sealed class ProfileService : IProfileService, IUserDataContributor, IUse
             if (!users.TryGetValue(profile.UserId, out var user))
                 continue;
 
-            notificationEmails.TryGetValue(profile.UserId, out var notificationEmail);
-            result.Add(FullProfile.Create(profile, user, profile.VolunteerHistory.ToList(), notificationEmail));
+            var userEmails = emailsByUserId.TryGetValue(profile.UserId, out var list)
+                ? list
+                : Array.Empty<UserEmail>();
+            result.Add(FullProfile.Create(profile, user, profile.VolunteerHistory.ToList(), userEmails));
         }
 
         return result;
@@ -1055,7 +1100,24 @@ public sealed class ProfileService : IProfileService, IUserDataContributor, IUse
         if (profile is null)
             return new OnboardingResult(false, "NotFound");
 
+#pragma warning disable HUM_PROFILE_ISSUSPENDED
         profile.IsSuspended = suspended;
+#pragma warning restore HUM_PROFILE_ISSUSPENDED
+
+        // Issue #635 (§15i): mirror the bool into ProfileState. New write paths
+        // go through State; the bool write above is kept dual until the
+        // separate follow-up PR drops the column after prod soak.
+        if (suspended)
+        {
+            profile.State = ProfileState.Suspended;
+        }
+        else
+        {
+            profile.State = profile.HasRequiredIdentityFields()
+                ? ProfileState.Active
+                : ProfileState.Stub;
+        }
+
         if (suspended)
             profile.AdminNotes = notes;
         profile.UpdatedAt = _clock.GetCurrentInstant();
