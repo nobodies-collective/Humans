@@ -2,7 +2,7 @@
 // Shows official zones and camps always; containers and camp limits are togglable.
 
 import { CONFIG } from './config.js';
-import { initMeasure, enterMeasureMode, exitMeasureMode, isMeasuring } from './shared/measure.js';
+import { initMeasure, wireMeasureButtons } from './shared/measure.js';
 import { addOfficialZonesLayers } from './shared/official-zones-layer.js';
 import { SOUND_ZONE_FILL_EXPR, SOUND_ZONE_LINE_EXPR } from './shared/sound-zone-colors.js';
 
@@ -93,9 +93,7 @@ async function init() {
     wireToggle('toggle-containers',  LAYER_GROUPS.containers,  map);
     wireToggle('toggle-camp-limits', LAYER_GROUPS.campLimits,  map);
 
-    document.getElementById('measure-btn').addEventListener('click', () => {
-        if (isMeasuring()) exitMeasureMode(); else enterMeasureMode();
-    });
+    wireMeasureButtons();
 }
 
 function wireToggle(btnId, layerIds, map) {

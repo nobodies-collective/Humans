@@ -4,7 +4,7 @@ import { loadContainers, savePlacement, clearPlacement }   from './api.js';
 import { addBackgroundLayers, addContainerLayers, updateContainerSource } from './layers.js';
 import { initSidebar, setCampNames, setContainers, setActiveId, markPlaced, scrollToPlaced } from './sidebar.js';
 import { initInteraction, activateContainer, selectPlacedContainer, deactivate } from './interaction.js';
-import { initMeasure, enterMeasureMode, exitMeasureMode, isMeasuring } from './measure.js';
+import { initMeasure, exitMeasureMode, wireMeasureButtons } from './measure.js';
 
 const toast = document.getElementById('map-toast');
 let containers = []; // live container data array
@@ -61,16 +61,12 @@ async function init() {
         }
     }
 
-    // Wire sidebar
-    document.getElementById('measure-btn').addEventListener('click', () => {
-        if (isMeasuring()) {
-            exitMeasureMode();
-        } else {
+    wireMeasureButtons({
+        beforeEnter: () => {
             deactivate();
             setActiveId(null);
             updateContainerSource(map, containers, null);
-            enterMeasureMode();
-        }
+        },
     });
 
     initSidebar(

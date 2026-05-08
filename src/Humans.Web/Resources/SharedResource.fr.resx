@@ -1467,6 +1467,7 @@
   <data name="CityPlanning_SaveButton" xml:space="preserve"><value>Enregistrer</value></data>
   <data name="CityPlanning_HistoryButton" xml:space="preserve"><value>Historique</value></data>
   <data name="CityPlanning_MeasureButton" xml:space="preserve"><value>Mesurer</value></data>
+  <data name="CityPlanning_ClearMeasurementsButton" xml:space="preserve"><value>Effacer toutes les mesures</value></data>
   <data name="CityPlanning_CampLimits" xml:space="preserve"><value>Limites du camp</value></data>
   <data name="CityPlanning_BarrioZones" xml:space="preserve"><value>Zones de barrio</value></data>
   <data name="CityPlanning_Layers" xml:space="preserve"><value>Couches</value></data>

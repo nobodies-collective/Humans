@@ -289,7 +289,7 @@ public static class SectionHelpContent
 
             ### Measure Tool
 
-            Click the **Measure** button (ruler icon) to enter measurement mode. Click points on the map to trace a path — the total distance is shown as you go. Click the Measure button again to exit.
+            Click the **Measure** button (ruler icon) to enter measurement mode, then click two points on the map to record a distance. Measure mode exits automatically once a measurement is recorded — click **Measure** again to add another. **Right-click** an existing measurement to delete it. Use the trash button next to **Measure** to clear all measurements at once.
 
             ### Who Can Edit What
 
@@ -317,7 +317,7 @@ public static class SectionHelpContent
 
             ### Measure Tool
 
-            Click the **Measure** button (ruler icon) to enter measurement mode. Click points on the map to trace a path — the cumulative distance updates as you go. Click Measure again or press Escape to exit.
+            Click the **Measure** button (ruler icon) to enter measurement mode, then click two points on the map to record a distance. Measure mode exits automatically once a measurement is recorded — click **Measure** again to add another. **Right-click** an existing measurement to delete it. Use the trash button next to **Measure** to clear all measurements at once.
 
             ### Navigation
 
@@ -356,7 +356,7 @@ public static class SectionHelpContent
 
             ### Measure Tool
 
-            Click the **Measure** button (ruler icon) to enter measurement mode. Click points on the map to trace a path — the cumulative distance updates as you go. Click Measure again or press Escape to exit. Measure mode exits edit mode if active.
+            Click the **Measure** button (ruler icon) to enter measurement mode, then click two points on the map to record a distance. Measure mode exits automatically once a measurement is recorded — click **Measure** again to add another. **Right-click** an existing measurement to delete it. Use the trash button next to **Measure** to clear all measurements at once. Entering measure mode exits edit mode if active.
 
             ### For Map Admins
 
@@ -524,7 +524,7 @@ public static class SectionHelpContent
 | **Placement open** | The admin-controlled window during which barrio leads can place and move their containers. |
 | **Map Admin** | Effective role for city-planning administration. Granted by holding `CampAdmin` or being a member of the `city-planning` team. |
 | **Barrio Lead** | The camp lead for a barrio — can place that barrio's containers while placement is open. |
-| **Measure tool** | A click-to-trace tool that shows cumulative distances on the map. |
+| **Measure tool** | A two-click tool that records straight-line distances on the map. Multiple measurements persist until cleared; right-click deletes one. |
 """,
 
         ["CityPlanningOverview"] = """
@@ -541,7 +541,7 @@ public static class SectionHelpContent
 | **Placement Phase** | The window during which barrio leads can draw or edit their camp polygons. |
 | **Map Admin** | Effective role for city-planning administration. Granted by holding `CampAdmin` or being in the `city-planning` team. |
 | **Barrio Lead** | The camp lead for a barrio — can place their barrio's polygon and containers while placement is open. |
-| **Measure tool** | A click-to-trace tool that shows cumulative distances on the map. |
+| **Measure tool** | A two-click tool that records straight-line distances on the map. Multiple measurements persist until cleared; right-click deletes one. |
 | **SignalR** | The real-time channel used to push polygon updates to all connected users simultaneously. |
 """,
 
