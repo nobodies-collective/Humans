@@ -216,6 +216,56 @@ Grep for ViewComponent invocations to verify reuse:
 git grep -nE '<vc:<section-kebab>|Component\.InvokeAsync\("<Section>"' src/Humans.Web/Views/
 ```
 
+**A2.5a Redundancy check against system-level shared components.** The biggest source of UI maintenance debt in this codebase is sections rolling their own renderer for things that already have a canonical shared component — especially anything that shows a user (avatar + name, profile cards, baseball-card popovers, role badges, email badges, search inputs). When a section invents its own version, every cross-cutting change (avatar shape, name format, link target, missing-user fallback, accessibility) has to be hunted down and applied N times.
+
+First, build/refresh the catalog of system-level shared components the section might collide with. These live in `src/Humans.Web/ViewComponents/*.cs` and `src/Humans.Web/Views/Shared/_*.cshtml` and are owned by the platform, not any one section:
+
+```bash
+ls src/Humans.Web/ViewComponents/
+ls src/Humans.Web/Views/Shared/Components/
+find src/Humans.Web/Views/Shared -maxdepth 2 -name '_*.cshtml'
+```
+
+The user-display family — always check first, since it is where redundancy bites hardest:
+
+| Concern | Canonical shared component |
+|---------|---------------------------|
+| User name + avatar inline (anywhere a user appears in a list, table cell, audit row) | `<vc:human>` / `HumanViewComponent` (`_HumanPopover` partial for the hover card) |
+| Full profile / baseball card | `<vc:profile-card>` / `ProfileCardViewComponent` / `_ProfileCard` |
+| Role pill / authorization indicator | `_RoleBadge.cshtml` / `_AuthorizationPill.cshtml` |
+| Nobodies email badge | `<vc:nobodies-email-badge>` |
+| User search box + results | `_HumanSearchInput.cshtml` / `_HumanSearchResults.cshtml` |
+| User dropdown / signed-in menu | `_LoginPartial.cshtml` / `_AdminTopbarUserMenu.cshtml` |
+
+(Refresh this table from the actual `ViewComponents/` and `Views/Shared/` listing each run — components get added.)
+
+Then scan **the whole section's view + component surface** (not just shared-folder candidates from A2.5 — inline rendering inside the section's own page views is the more common form of this drift):
+
+```bash
+# Inline user displays — avatar + name combos, name links to /Humans/<id>, etc.
+git grep -nE '(avatar|profile-pic|@user\.DisplayName|@Model\.DisplayName.*<img|asp-action="Detail".*Humans|/Humans/Detail/)' src/Humans.Web/Views/<Section>/ src/Humans.Web/ViewComponents/<Section>*.cs
+
+# Hand-rolled role/auth pills
+git grep -nE '(badge|pill).*role|role.*badge|class="[^"]*role[^"]*"' src/Humans.Web/Views/<Section>/
+
+# Hand-rolled user lookups / searches
+git grep -nE 'autocomplete.*user|user.*autocomplete|search.*human|human.*search' src/Humans.Web/Views/<Section>/
+```
+
+For each hit, decide:
+
+| Finding | Disposition |
+|---------|------------|
+| Section renders user (avatar/name/link) inline with its own markup | **Phase 3 fix**: replace with `<vc:human user-id="..." />` or `@await Html.PartialAsync("_HumanPopover", ...)`. |
+| Section has its own role/auth badge markup | **Phase 3 fix**: replace with `_RoleBadge` / `_AuthorizationPill`. |
+| Section has its own user-search input + results panel | **Phase 3 fix**: replace with `_HumanSearchInput` / `_HumanSearchResults`. |
+| Shared component is *almost* right but missing one parameter the section needs (e.g. compact mode, hide-link) | **Phase 2 fix on the shared component** (add the parameter), then Phase 3 callsite swap. Note: this means the shared component owner — typically the platform/admin shell — is the producer; flag as a follow-up if the parameter add is non-trivial. |
+| Section's renderer is genuinely different in domain meaning (not a near-duplicate, just happens to also show a user) | Keep; record the distinction in the plan so future runs don't re-flag it. |
+
+**Inverse check (don't only look for duplicates of user-display).** Anything that *should* be reusable across sections and currently isn't — section-local components rendering generic concerns (date formatters, money formatters, status pills, action menus, attachment lists) — is a Phase 3 candidate to **promote** into `Views/Shared/` or `ViewComponents/`. The signal: another section's view contains near-identical markup. Surface as a candidate; the actual promotion is judgment-call (don't preemptively over-share).
+
+Output for each section pass: a `Redundancy candidates` subsection in the plan listing each duplicate find with disposition (Phase 3 swap / Phase 2 shared-component extension / keep + justify).
+
 **A2.6 Interface budget + segregation + consolidation.** Count methods on each public interface. For each interface ≥10 methods, ensure `InterfaceMethodBudgetTests.Budgets` entry exists with current count. Beyond the budget number, flag:
 
 - **Status-split methods that should be a single `GetAll()` + caller-side filter.** The canonical anti-pattern: `GetActiveUsers()`, `GetSuspendedUsers()`, `GetDeletedUsers()` instead of `GetUsers()` with callers writing `.Where(u => u.IsActive)`. At ~500-user scale most data fits in RAM; in-memory filtering is cheaper and clearer than predicate-pushed splits. Consolidate to `GetAll`/`GetByX` and let callers project. Architecture: the service holds the data; callers filter.
@@ -377,6 +427,7 @@ Stryker is **a signal, not an authority**. Treat results as a triage queue. The 
 3. DI lifetimes: <findings>
 4. Repository pattern: <findings>
 5. ViewComponent presence + reuse: <findings>
+5a. Redundancy vs system-level shared components: <duplicates with disposition; user-display family checked first>
 6. Interface budget + segregation: <conflicts and trims>
 7. Architecture test coverage: <missing tests>
 
@@ -546,6 +597,7 @@ Common targets:
 - View-component caches (`feedback_viewcomponent_no_cache`).
 - **Interface trimming** — methods on the section's main service that exist only for one in-section consumer; move private or to the consumer.
 - **Read-shape consolidation** — if Service and ViewerService both expose the same read names with different return shapes, move all UI reads to ViewerService and trim Service.
+- **Swap reinvented UI for shared components (A2.5a)** — replace section-local user/profile/role/search markup with the canonical `<vc:human>` / `<vc:profile-card>` / `_RoleBadge` / `_HumanSearchInput` etc. State the swap in the commit message ("Replace inline user-row markup in `Views/<Section>/Index.cshtml` with `<vc:human>` — collapses N call sites onto the shared component"). If a shared component needs a small parameter add to fit the section's case, do the parameter add as a Phase 2 producer-side fix and the call-site swap here.
 - **Test pruning** — delete redundant/over-tested cases flagged in A3.3, brittleness flagged in A3.5, and high-confidence test-debt candidates from the Stryker utility report (A3.6). Prefer deletion over refactoring: if a test isn't asserting something a reviewer would catch in code review, it's pulling its weight only if its absence would let a real regression slip. State the deletion rationale in the commit message ("redundant with X test; mock-graph assertion not behavior; Stryker survived no mutant"). Respect the test-attribute gate (`docs/testing/mutation-testing.md`): the net delta should trend down across Phase 3 commits.
 
 Push at end of phase. Bot-review sub-loop until clean.
