@@ -45,9 +45,9 @@ public interface ICampService : IApplicationService
         CancellationToken cancellationToken = default);
 
     // Queries
-    Task<Camp?> GetCampBySlugAsync(string slug, CancellationToken cancellationToken = default);
-    Task<CampDetailData?> BuildCampDetailDataAsync(
-        Camp camp,
+    Task<CampLookup?> GetCampBySlugAsync(string slug, CancellationToken cancellationToken = default);
+    Task<CampDetailData?> BuildCampDetailDataBySlugAsync(
+        string slug,
         int? preferredYear = null,
         bool fallbackToLatestSeason = true,
         CancellationToken cancellationToken = default);
@@ -70,7 +70,7 @@ public interface ICampService : IApplicationService
     Task<IReadOnlyList<CampInfo>> GetCampsForYearAsync(int year, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CampPublicSummary>> GetCampPublicSummariesForYearAsync(int year, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CampPlacementSummary>> GetCampPlacementSummariesForYearAsync(int year, CancellationToken cancellationToken = default);
-    Task<CampSettings> GetSettingsAsync(CancellationToken cancellationToken = default);
+    Task<CampSettingsInfo> GetSettingsAsync(CancellationToken cancellationToken = default);
     /// <summary>
     /// Gets camps with their active leads (and lead user data) for a given year.
     /// Optionally filters to specific season statuses.
@@ -121,7 +121,7 @@ public interface ICampService : IApplicationService
     Task RemoveHistoricalNameAsync(Guid historicalNameId, CancellationToken cancellationToken = default);
 
     // Cross-service queries (used by CityPlanningService)
-    Task<CampSeason?> GetCampSeasonByIdAsync(Guid campSeasonId, CancellationToken cancellationToken = default);
+    Task<CampSeasonLookup?> GetCampSeasonByIdAsync(Guid campSeasonId, CancellationToken cancellationToken = default);
     Task<IReadOnlyDictionary<Guid, CampSeasonDisplayData>> GetCampSeasonDisplayDataForYearAsync(int year, CancellationToken cancellationToken = default);
     Task<Guid?> GetCampLeadSeasonIdForYearAsync(Guid userId, int year, CancellationToken cancellationToken = default);
 
@@ -196,7 +196,7 @@ public interface ICampService : IApplicationService
         Guid campSeasonId, CancellationToken cancellationToken = default);
 
     /// <summary>Raw rows (no display-name stitching, no lead union). Privileged — caller must authorize.</summary>
-    Task<IReadOnlyList<CampMember>> GetSeasonMembersAsync(
+    Task<IReadOnlyList<CampSeasonMemberInfo>> GetSeasonMembersAsync(
         Guid campSeasonId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<CampMembershipSummary>> GetCampMembershipsForUserAsync(
@@ -247,6 +247,25 @@ public interface ICampService : IApplicationService
 
 public sealed record CampMemberLookup(Guid CampSeasonId, Guid UserId, CampMemberStatus Status);
 
+public sealed record CampLookup(
+    Guid Id,
+    string Slug,
+    string ContactEmail,
+    IReadOnlyList<CampSeasonInfo> Seasons,
+    IReadOnlyList<CampLeadInfo> Leads);
+
+public sealed record CampSettingsInfo(
+    int PublicYear,
+    IReadOnlyList<int> OpenSeasons,
+    LocalDate? EeStartDate);
+
+public sealed record CampSeasonLookup(
+    Guid Id,
+    Guid CampId,
+    int Year,
+    string Name,
+    SoundZone? SoundZone);
+
 public sealed record CampInfo(
     Guid Id,
     string Slug,
@@ -267,6 +286,7 @@ public sealed record CampSeasonInfo(
     Guid CampId,
     string CampSlug,
     int Year,
+    LocalDate? NameLockDate,
     string Name,
     string BlurbShort,
     string Languages,
@@ -288,6 +308,14 @@ public sealed record CampSeasonInfo(
 // every CampLeadInfo in scope is active. An IsActive field here would be
 // invariantly true and misleading — leave it out.
 public sealed record CampLeadInfo(Guid Id, Guid UserId);
+
+public sealed record CampSeasonMemberInfo(
+    Guid Id,
+    Guid UserId,
+    CampMemberStatus Status,
+    Instant RequestedAt,
+    Instant? ConfirmedAt,
+    bool HasEarlyEntry);
 
 /// <summary>
 /// Result of a camp membership request action.
