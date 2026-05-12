@@ -164,4 +164,5 @@ public enum AuditAction
     OAuthRenameCollisionBlocked,
     UserEmailDisplacedByOAuthRename,
     MailerLiteReconciliationCompleted,
+    GoogleSyncRetryScheduled,
 }

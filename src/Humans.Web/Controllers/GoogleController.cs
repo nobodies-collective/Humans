@@ -10,6 +10,7 @@ using Humans.Web.Authorization;
 using Humans.Web.Constants;
 using Humans.Web.Models;
 using Humans.Web.Models.Google;
+using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Teams;
@@ -21,6 +22,8 @@ namespace Humans.Web.Controllers;
 public class GoogleController : HumansControllerBase
 {
     private readonly IGoogleSyncService _googleSyncService;
+    private readonly IGoogleGroupSync _googleGroupSync;
+    private readonly IAuditViewerService _auditViewer;
     private readonly ITeamResourceService _teamResourceService;
     private readonly IEmailProvisioningService _emailProvisioningService;
     private readonly IGoogleAdminService _googleAdminService;
@@ -30,6 +33,8 @@ public class GoogleController : HumansControllerBase
     public GoogleController(
         UserManager<User> userManager,
         IGoogleSyncService googleSyncService,
+        IGoogleGroupSync googleGroupSync,
+        IAuditViewerService auditViewer,
         ITeamResourceService teamResourceService,
         IEmailProvisioningService emailProvisioningService,
         IGoogleAdminService googleAdminService,
@@ -38,6 +43,8 @@ public class GoogleController : HumansControllerBase
         : base(userManager)
     {
         _googleSyncService = googleSyncService;
+        _googleGroupSync = googleGroupSync;
+        _auditViewer = auditViewer;
         _teamResourceService = teamResourceService;
         _emailProvisioningService = emailProvisioningService;
         _googleAdminService = googleAdminService;
@@ -318,7 +325,9 @@ public class GoogleController : HumansControllerBase
     [Authorize(Policy = PolicyNames.TeamsAdminBoardOrAdmin)]
     public async Task<IActionResult> SyncPreview(GoogleResourceType resourceType)
     {
-        var result = await _googleSyncService.SyncResourcesByTypeAsync(resourceType, SyncAction.Preview);
+        var result = resourceType == GoogleResourceType.Group
+            ? await _googleGroupSync.ReconcileAllAsync(SyncAction.Preview, HttpContext.RequestAborted)
+            : await _googleSyncService.SyncResourcesByTypeAsync(resourceType, SyncAction.Preview, HttpContext.RequestAborted);
 
         // Sort resources alphabetically
         result.Diffs.Sort((a, b) =>
@@ -354,7 +363,10 @@ public class GoogleController : HumansControllerBase
     {
         try
         {
-            var result = await _googleSyncService.SyncSingleResourceAsync(resourceId, SyncAction.Execute);
+            var result = await _googleSyncService.SyncSingleResourceAsync(
+                resourceId,
+                SyncAction.Execute,
+                HttpContext.RequestAborted);
             return Json(result);
         }
         catch (Exception ex)
@@ -371,7 +383,9 @@ public class GoogleController : HumansControllerBase
     {
         try
         {
-            var result = await _googleSyncService.SyncResourcesByTypeAsync(resourceType, SyncAction.Execute);
+            var result = resourceType == GoogleResourceType.Group
+                ? await _googleGroupSync.ReconcileAllAsync(SyncAction.Execute, HttpContext.RequestAborted)
+                : await _googleSyncService.SyncResourcesByTypeAsync(resourceType, SyncAction.Execute, HttpContext.RequestAborted);
             return Json(result);
         }
         catch (Exception ex)
