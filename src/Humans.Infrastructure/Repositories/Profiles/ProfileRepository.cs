@@ -148,10 +148,21 @@ public sealed class ProfileRepository : IProfileRepository
 
     public async Task<IReadOnlyList<Profile>> GetReviewableAsync(CancellationToken ct = default)
     {
+        // Exclude Stub profiles (null legal name) from the Consent Coordinator's
+        // queue. Profile.State is nullable during the §15i rollout (legacy rows
+        // are backfilled lazily), so we also include null-state rows whose
+        // identity fields are complete — those are Active-equivalent and would
+        // otherwise disappear from the queue until backfill runs.
         await using var ctx = await _factory.CreateDbContextAsync(ct);
         return await ctx.Profiles
             .AsNoTracking()
-            .Where(p => !p.IsApproved && p.RejectedAt == null)
+            .Where(p => !p.IsApproved
+                && p.RejectedAt == null
+                && (p.State == ProfileState.Active
+                    || (p.State == null
+                        && !string.IsNullOrWhiteSpace(p.BurnerName)
+                        && !string.IsNullOrWhiteSpace(p.FirstName)
+                        && !string.IsNullOrWhiteSpace(p.LastName))))
             .OrderBy(p => p.CreatedAt)
             .ToListAsync(ct);
     }
@@ -160,7 +171,13 @@ public sealed class ProfileRepository : IProfileRepository
     {
         await using var ctx = await _factory.CreateDbContextAsync(ct);
         return await ctx.Profiles
-            .CountAsync(p => !p.IsApproved && p.RejectedAt == null, ct);
+            .CountAsync(p => !p.IsApproved
+                && p.RejectedAt == null
+                && (p.State == ProfileState.Active
+                    || (p.State == null
+                        && !string.IsNullOrWhiteSpace(p.BurnerName)
+                        && !string.IsNullOrWhiteSpace(p.FirstName)
+                        && !string.IsNullOrWhiteSpace(p.LastName))), ct);
     }
 
     public async Task<IReadOnlyList<Guid>> GetApprovedUserIdsAsync(CancellationToken ct = default)
