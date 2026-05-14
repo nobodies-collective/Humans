@@ -54,6 +54,7 @@ public sealed class CachingUserService : IUserService, IUserMerge, IUserInfoInva
     private readonly IUserEmailRepository _userEmailRepository;
     private readonly IProfileRepository _profileRepository;
     private readonly IContactFieldRepository _contactFieldRepository;
+    private readonly ICommunicationPreferenceRepository _communicationPreferenceRepository;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<CachingUserService> _logger;
 
@@ -64,6 +65,7 @@ public sealed class CachingUserService : IUserService, IUserMerge, IUserInfoInva
         IUserEmailRepository userEmailRepository,
         IProfileRepository profileRepository,
         IContactFieldRepository contactFieldRepository,
+        ICommunicationPreferenceRepository communicationPreferenceRepository,
         IServiceScopeFactory scopeFactory,
         ILogger<CachingUserService> logger)
     {
@@ -71,6 +73,7 @@ public sealed class CachingUserService : IUserService, IUserMerge, IUserInfoInva
         _userEmailRepository = userEmailRepository;
         _profileRepository = profileRepository;
         _contactFieldRepository = contactFieldRepository;
+        _communicationPreferenceRepository = communicationPreferenceRepository;
         _scopeFactory = scopeFactory;
         _logger = logger;
     }
@@ -96,6 +99,9 @@ public sealed class CachingUserService : IUserService, IUserMerge, IUserInfoInva
             _byUserId[userId] = result;
         return result;
     }
+
+    /// <inheritdoc cref="IUserService.GetAllUserInfos" />
+    public IReadOnlyCollection<UserInfo> GetAllUserInfos() => _byUserId.Values.ToArray();
 
     /// <summary>
     /// Rebuilds the cache entry for <paramref name="userId"/> directly from
@@ -128,9 +134,13 @@ public sealed class CachingUserService : IUserService, IUserMerge, IUserInfoInva
             volunteerHistory = profile.VolunteerHistory.ToList();
         }
 
+        var communicationPreferences = await _communicationPreferenceRepository
+            .GetByUserIdReadOnlyAsync(userId, ct);
+
         _byUserId[userId] = UserInfo.Create(
             user, userEmails, participations, externalLogins,
-            profile, contactFields, languages, volunteerHistory);
+            profile, contactFields, languages, volunteerHistory,
+            communicationPreferences);
     }
 
     /// <summary>
@@ -164,6 +174,11 @@ public sealed class CachingUserService : IUserService, IUserMerge, IUserInfoInva
         var participationsByUser = await _userRepository
             .GetEventParticipationsByUserIdsAsync(userIds, ct);
 
+        var allPreferences = await _communicationPreferenceRepository.GetAllAsync(ct);
+        var preferencesByUser = allPreferences
+            .GroupBy(p => p.UserId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<CommunicationPreference>)g.ToList());
+
         foreach (var user in users)
         {
             var emails = emailsByUser.TryGetValue(user.Id, out var es)
@@ -185,9 +200,13 @@ public sealed class CachingUserService : IUserService, IUserMerge, IUserInfoInva
                 volunteerHistory = profile.VolunteerHistory.ToList();
             }
 
+            var preferences = preferencesByUser.TryGetValue(user.Id, out var pp)
+                ? pp : Array.Empty<CommunicationPreference>();
+
             _byUserId[user.Id] = UserInfo.Create(
                 user, emails, participations, logins,
-                profile, contactFields, languages, volunteerHistory);
+                profile, contactFields, languages, volunteerHistory,
+                preferences);
         }
     }
 
