@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
-using Humans.Domain.Entities;
 using Humans.Web.Models;
 using Humans.Application.Interfaces.Consent;
 using Humans.Application.Interfaces.Onboarding;
@@ -20,13 +18,12 @@ public class ConsentController : HumansControllerBase
     private readonly ILogger<ConsentController> _logger;
 
     public ConsentController(
-        UserManager<User> userManager,
+        IUserService userService,
         IConsentService consentService,
         IOnboardingService onboardingService,
-        IUserService userService,
         IStringLocalizer<SharedResource> localizer,
         ILogger<ConsentController> logger)
-        : base(userManager)
+        : base(userService)
     {
         _consentService = consentService;
         _onboardingService = onboardingService;
@@ -37,7 +34,7 @@ public class ConsentController : HumansControllerBase
 
     public async Task<IActionResult> Index()
     {
-        var user = await GetCurrentUserAsync();
+        var user = await GetCurrentUserInfoAsync();
         if (user is null)
             return NotFound();
 
@@ -90,7 +87,7 @@ public class ConsentController : HumansControllerBase
     [HttpGet]
     public async Task<IActionResult> Review(Guid id)
     {
-        var user = await GetCurrentUserAsync();
+        var user = await GetCurrentUserInfoAsync();
         if (user is null)
             return NotFound();
 
@@ -111,7 +108,7 @@ public class ConsentController : HumansControllerBase
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Submit(ConsentSubmitModel model)
     {
-        var user = await GetCurrentUserAsync();
+        var user = await GetCurrentUserInfoAsync();
         if (user is null)
             return NotFound();
 
