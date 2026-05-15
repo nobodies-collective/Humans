@@ -50,7 +50,7 @@ public class ProfileServiceTests : IDisposable
         _clock = new FakeClock(Instant.FromUtc(2026, 3, 1, 12, 0));
 
         // Real repositories backed by an IDbContextFactory wrapping the in-memory store.
-        var factory = new Infrastructure.TestDbContextFactory(options);
+        var factory = new TestDbContextFactory(options);
         _profileRepository = new ProfileRepository(factory, _clock);
         _userEmailRepository = new UserEmailRepository(factory);
         _contactFieldRepository = new ContactFieldRepository(factory);
@@ -240,7 +240,7 @@ public class ProfileServiceTests : IDisposable
         // Pre-seed the filesystem side at the same content-type the seeded
         // profile uses (image/png — see SeedUserWithProfileAsync) so we can
         // assert deletion.
-        await _fileStorage.SaveAsync(PicKey(profileId, "image/png"), new byte[] { 1 });
+        await _fileStorage.SaveAsync(PicKey(profileId, "image/png"), [1]);
 
         var request = MakeRequest(removeProfilePicture: true);
         await _service.SaveProfileAsync(userId, "Test", request, "en");
@@ -385,7 +385,7 @@ public class ProfileServiceTests : IDisposable
         var profile = await _dbContext.Profiles.FirstAsync(p => p.UserId == userId);
 
         // Seed a stale on-disk file as if a prior anonymization left it behind.
-        await _fileStorage.SaveAsync(PicKey(profile.Id, "image/png"), new byte[] { 7, 7, 7 });
+        await _fileStorage.SaveAsync(PicKey(profile.Id, "image/png"), [7, 7, 7]);
 
         // Now anonymize via the service and force the FS delete to fail by
         // pre-removing the entry, then re-add it AFTER the anonymize call.
@@ -420,7 +420,7 @@ public class ProfileServiceTests : IDisposable
         await SeedUserWithProfileAsync(u2, isApproved: true, withPicture: true);
         await SeedUserWithProfileAsync(u3, isApproved: true, withPicture: false);
 
-        var result = await _service.GetCustomPictureInfoByUserIdsAsync(new[] { u1, u2, u3 });
+        var result = await _service.GetCustomPictureInfoByUserIdsAsync([u1, u2, u3]);
 
         result.Should().HaveCount(2);
     }
@@ -428,7 +428,7 @@ public class ProfileServiceTests : IDisposable
     [HumansFact]
     public async Task GetCustomPictureInfoByUserIdsAsync_EmptyInput_ReturnsEmpty()
     {
-        var result = await _service.GetCustomPictureInfoByUserIdsAsync(Array.Empty<Guid>());
+        var result = await _service.GetCustomPictureInfoByUserIdsAsync([]);
 
         result.Should().BeEmpty();
     }
@@ -616,7 +616,7 @@ public class ProfileServiceTests : IDisposable
         };
         if (withPicture)
         {
-            profile.ProfilePictureData = new byte[] { 1, 2, 3 };
+            profile.ProfilePictureData = [1, 2, 3];
             profile.ProfilePictureContentType = "image/png";
         }
         _dbContext.Profiles.Add(profile);
@@ -691,7 +691,7 @@ public class ProfileServiceTests : IDisposable
         var slices = await _service.ContributeForUserAsync(userId, CancellationToken.None);
 
         var userEmailsSlice = slices.Single(s =>
-            string.Equals(s.SectionName, Humans.Application.Interfaces.Gdpr.GdprExportSections.UserEmails, StringComparison.Ordinal));
+            string.Equals(s.SectionName, Interfaces.Gdpr.GdprExportSections.UserEmails, StringComparison.Ordinal));
         var json = System.Text.Json.JsonSerializer.Serialize(userEmailsSlice.Data);
         json.Should().Contain("\"IsOAuth\":true");
         // Legacy JSON key preserved for the C# IsPrimary rename

@@ -74,7 +74,7 @@ public class ConsentServiceTests : IDisposable
             {
                 var teamIds = callInfo.ArgAt<IReadOnlyCollection<Guid>>(0);
                 if (teamIds.Count == 0)
-                    return (IReadOnlyList<ActiveRequiredLegalDocumentSnapshot>)Array.Empty<ActiveRequiredLegalDocumentSnapshot>();
+                    return (IReadOnlyList<ActiveRequiredLegalDocumentSnapshot>)[];
 
                 var documents = await _dbContext.LegalDocuments
                     .AsNoTracking()
@@ -139,14 +139,14 @@ public class ConsentServiceTests : IDisposable
             CreatedAt = profile.CreatedAt,
             GoogleEmailStatus = GoogleEmailStatus.Unknown,
         },
-        userEmails: Array.Empty<UserEmail>(),
-        eventParticipations: Array.Empty<EventParticipation>(),
-        externalLogins: Array.Empty<(string, string)>(),
+        userEmails: [],
+        eventParticipations: [],
+        externalLogins: [],
         profile: profile,
-        contactFields: Array.Empty<ContactField>(),
-        profileLanguages: Array.Empty<ProfileLanguage>(),
-        volunteerHistory: Array.Empty<VolunteerHistoryEntry>(),
-        communicationPreferences: Array.Empty<CommunicationPreference>());
+        contactFields: [],
+        profileLanguages: [],
+        volunteerHistory: [],
+        communicationPreferences: []);
 
     [HumansFact]
     public async Task SubmitConsentAsync_ValidConsent_CreatesRecord()
@@ -669,7 +669,7 @@ public class ConsentServiceTests : IDisposable
             .Returns((IReadOnlySet<Guid>)new HashSet<Guid>());
 
         // Input contains both source and target — duplicate-id risk path.
-        var result = await _service.GetConsentMapForUsersAsync(new[] { sourceId, targetId, unrelatedId });
+        var result = await _service.GetConsentMapForUsersAsync([sourceId, targetId, unrelatedId]);
 
         result.Should().ContainKey(targetId);
         result[targetId].Should().Contain(versionId, "target's chain-follow includes the source's explicit consent");

@@ -52,7 +52,7 @@ public sealed class TeamRepository : ITeamRepository
     public async Task<Team?> FindForMutationAsync(Guid teamId, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
-        return await db.Teams.FindAsync(new object[] { teamId }, ct);
+        return await db.Teams.FindAsync([teamId], ct);
     }
 
     public async Task<Team?> GetBySlugWithRelationsAsync(string normalizedSlug, CancellationToken ct = default)
@@ -105,7 +105,7 @@ public sealed class TeamRepository : ITeamRepository
         string query, bool includeHidden, int max, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query) || max <= 0)
-            return Array.Empty<Team>();
+            return [];
 
         var pattern = "%" + EscapeLikePattern(query.Trim()) + "%";
 
@@ -168,7 +168,7 @@ public sealed class TeamRepository : ITeamRepository
             .ToList();
 
         var parents = parentIds.Count == 0
-            ? new List<Team>()
+            ? []
             : await db.Teams
                 .AsNoTracking()
                 .Where(t => parentIds.Contains(t.Id))
@@ -253,7 +253,7 @@ public sealed class TeamRepository : ITeamRepository
     public async Task<int> DeactivateTeamAsync(Guid teamId, Instant now, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
-        var team = await db.Teams.FindAsync(new object[] { teamId }, ct)
+        var team = await db.Teams.FindAsync([teamId], ct)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         var activeMembers = await db.TeamMembers
@@ -274,7 +274,7 @@ public sealed class TeamRepository : ITeamRepository
         Guid teamId, string? prefix, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
-        var team = await db.Teams.FindAsync(new object[] { teamId }, ct);
+        var team = await db.Teams.FindAsync([teamId], ct);
         if (team is null)
             return (false, null);
 
@@ -1062,11 +1062,11 @@ public sealed class TeamRepository : ITeamRepository
 
         foreach (var membership in memberships)
         {
-            var dedupeKey = $"{membership.Id}:{Humans.Domain.Constants.GoogleSyncOutboxEventTypes.AddUserToTeamResources}:resync:{now}";
+            var dedupeKey = $"{membership.Id}:{Domain.Constants.GoogleSyncOutboxEventTypes.AddUserToTeamResources}:resync:{now}";
             db.GoogleSyncOutboxEvents.Add(new GoogleSyncOutboxEvent
             {
                 Id = Guid.NewGuid(),
-                EventType = Humans.Domain.Constants.GoogleSyncOutboxEventTypes.AddUserToTeamResources,
+                EventType = Domain.Constants.GoogleSyncOutboxEventTypes.AddUserToTeamResources,
                 TeamId = membership.TeamId,
                 UserId = userId,
                 OccurredAt = now,

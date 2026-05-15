@@ -137,7 +137,7 @@ public class CalendarController : HumansControllerBase
             Month: ym,
             Occurrences: occ,
             FilterTeamId: teamId,
-            TeamOptions: Array.Empty<TeamOption>(),
+            TeamOptions: [],
             ViewerTimezoneLabel: zone.Id));
     }
 
