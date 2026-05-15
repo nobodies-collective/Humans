@@ -1,7 +1,6 @@
 using Humans.Application;
 using Humans.Application.Interfaces.Teams;
 using Humans.Application.Interfaces.Users;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Web.Authorization.Requirements;
 using Microsoft.AspNetCore.Authorization;
@@ -24,7 +23,7 @@ public abstract class HumansTeamControllerBase : HumansControllerBase
         _authorizationService = authorizationService;
     }
 
-    protected async Task<(IActionResult? ErrorResult, UserInfo User, Team Team)> ResolveTeamManagementAsync(string slug)
+    protected async Task<(IActionResult? ErrorResult, UserInfo User, TeamInfo Team)> ResolveTeamManagementAsync(string slug)
     {
         return await ResolveTeamAccessAsync(
             slug,
@@ -37,9 +36,9 @@ public abstract class HumansTeamControllerBase : HumansControllerBase
             });
     }
 
-    protected Task<(IActionResult? ErrorResult, UserInfo User, Team Team)> ResolveDepartmentAccessAsync(
+    protected Task<(IActionResult? ErrorResult, UserInfo User, TeamInfo Team)> ResolveDepartmentAccessAsync(
         string slug,
-        Func<Team, UserInfo, Task<bool>> canAccessAsync)
+        Func<TeamInfo, UserInfo, Task<bool>> canAccessAsync)
     {
         return ResolveTeamAccessAsync(
             slug,
@@ -47,10 +46,10 @@ public abstract class HumansTeamControllerBase : HumansControllerBase
             canAccessAsync);
     }
 
-    private async Task<(IActionResult? ErrorResult, UserInfo User, Team Team)> ResolveTeamAccessAsync(
+    private async Task<(IActionResult? ErrorResult, UserInfo User, TeamInfo Team)> ResolveTeamAccessAsync(
         string slug,
-        Func<Team, bool> teamFilter,
-        Func<Team, UserInfo, Task<bool>> canAccessAsync)
+        Func<TeamInfo, bool> teamFilter,
+        Func<TeamInfo, UserInfo, Task<bool>> canAccessAsync)
     {
         var (errorResult, user) = await RequireCurrentUserAsync();
         if (errorResult is not null)
@@ -58,7 +57,11 @@ public abstract class HumansTeamControllerBase : HumansControllerBase
             return (errorResult, null!, null!);
         }
 
-        var team = await _teamService.GetTeamBySlugAsync(slug);
+        var normalizedSlug = slug.ToLowerInvariant();
+        var teamsById = await _teamService.GetTeamsAsync();
+        var team = teamsById.Values.FirstOrDefault(
+            t => string.Equals(t.Slug, normalizedSlug, StringComparison.Ordinal)
+                 || string.Equals(t.CustomSlug, normalizedSlug, StringComparison.Ordinal));
         if (team is null || !teamFilter(team))
         {
             return (NotFound(), user, null!);
