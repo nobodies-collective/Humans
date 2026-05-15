@@ -168,16 +168,16 @@ public sealed class TicketTransferService : ITicketTransferService
         if (attendee.Status != TicketAttendeeStatus.Valid)
             throw new InvalidOperationException("Only Valid tickets can be transferred.");
 
-        var receiverUser = await _userService.GetByIdAsync(dto.ReceiverUserId, ct)
+        var receiverInfo = await _userService.GetUserInfoAsync(dto.ReceiverUserId, ct)
             ?? throw new InvalidOperationException("Receiver user not found.");
-        var receiverProfile = await _profileService.GetProfileAsync(dto.ReceiverUserId, ct);
-        // Defense-in-depth: BuildReceiverCardAsync filters suspended/unapproved at
-        // the lookup layer, but Submit accepts a direct POST with a crafted
-        // ReceiverUserId. Mirror the lookup behaviour (treat as not-found) so this
-        // path can't bypass the security gate. Wording matches the not-found case
-        // above so a tampered POST learns nothing about why the recipient was rejected.
-        if (receiverProfile is not null && (receiverProfile.IsSuspended || !receiverProfile.IsApproved))
+        // Defense-in-depth: BuildReceiverCardAsync filters at the lookup layer, but
+        // Submit accepts a direct POST with a crafted ReceiverUserId. Receivers
+        // MUST have a legal name on file — the transfer snapshot records it onto
+        // the reissued ticket. Wording matches the not-found case above so a
+        // tampered POST learns nothing about why the recipient was rejected.
+        if (!receiverInfo.HasRequiredIdentityFields)
             throw new InvalidOperationException("Receiver user not found.");
+        var receiverProfile = receiverInfo.Profile!;
         // No double-submits: refuse if there's already a pending transfer from this
         // sender for this attendee. ToDictionary in GetMyAttendeesAsync would crash
         // on duplicates, and the legitimate UX hides the Send button while pending.
@@ -186,9 +186,7 @@ public sealed class TicketTransferService : ITicketTransferService
                 && r.Status == TicketTransferStatus.Pending);
         if (existingPending)
             throw new InvalidOperationException("There is already a pending transfer request for this ticket.");
-        var receiverLegalName = receiverProfile?.FullName is { Length: > 0 } legal
-            ? legal
-            : receiverUser.DisplayName;
+        var receiverLegalName = receiverProfile.FullName;
         var receiverEmail = await _userEmailService.GetPrimaryEmailAsync(dto.ReceiverUserId, ct)
             ?? throw new InvalidOperationException("Receiver has no primary email on file.");
 
@@ -646,23 +644,21 @@ public sealed class TicketTransferService : ITicketTransferService
 
     private async Task<ReceiverLookupResultDto?> BuildReceiverCardAsync(Guid userId, CancellationToken ct)
     {
-        var user = await _userService.GetByIdAsync(userId, ct);
-        if (user is null) return null;
-        var profile = await _profileService.GetProfileAsync(userId, ct);
-        // Security gate: filter suspended or unapproved profiles at the lookup layer
-        // (per docs/features/tickets/ticket-transfer.md — Receiver Lookup Contract). Gates
-        // both lookup paths (exact-email + burner-name) and the detail-fetch used by
-        // the confirm-card render.
-        if (profile is not null && (profile.IsSuspended || !profile.IsApproved))
-            return null;
+        var info = await _userService.GetUserInfoAsync(userId, ct);
+        // Receiver Lookup Contract (docs/features/tickets/ticket-transfer.md):
+        // recipients must have a legal name on file — the transfer snapshot records
+        // it onto the reissued ticket. Suspension/approval state isn't relevant
+        // to a transfer recipient.
+        if (info is null || !info.HasRequiredIdentityFields) return null;
+        var profile = info.Profile!;
         var primary = await _userEmailService.GetPrimaryEmailAsync(userId, ct);
         return new ReceiverLookupResultDto(
             UserId: userId,
-            DisplayName: user.DisplayName,
-            BurnerName: profile?.BurnerName,
+            DisplayName: info.DisplayName,
+            BurnerName: profile.BurnerName,
             PreferredEmail: primary,
-            HasCustomProfilePicture: profile?.HasCustomProfilePicture ?? false,
-            ProfilePictureUrl: user.ProfilePictureUrl);
+            HasCustomProfilePicture: profile.HasCustomPicture,
+            ProfilePictureUrl: info.ProfilePictureUrl);
     }
 
     private async Task<TicketTransferRowDto> BuildRowDtoAsync(TicketTransferRequest r, CancellationToken ct)

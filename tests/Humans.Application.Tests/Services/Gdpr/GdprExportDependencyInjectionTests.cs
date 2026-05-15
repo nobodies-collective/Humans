@@ -11,11 +11,12 @@ using ApplicationDecisionService = Humans.Application.Services.Governance.Applic
 using BudgetService = Humans.Application.Services.Budget.BudgetService;
 using ExpenseReportService = Humans.Application.Services.Expenses.ExpenseReportService;
 using CampaignService = Humans.Application.Services.Campaigns.CampaignService;
-using ProfilesProfileService = Humans.Application.Services.Profile.ProfileService;
-using ProfilesAccountMergeService = Humans.Application.Services.Profile.AccountMergeService;
+using ProfilesProfileService = Humans.Application.Services.Profiles.ProfileService;
+using ProfilesAccountMergeService = Humans.Application.Services.Profiles.AccountMergeService;
 using UsersUserService = Humans.Application.Services.Users.UserService;
 using AuditLogService = Humans.Application.Services.AuditLog.AuditLogService;
 using CampService = Humans.Application.Services.Camps.CampService;
+using EventService = Humans.Application.Services.Events.EventService;
 using FeedbackService = Humans.Application.Services.Feedback.FeedbackService;
 using IssuesService = Humans.Application.Services.Issues.IssuesService;
 using RoleAssignmentService = Humans.Application.Services.Auth.RoleAssignmentService;
@@ -87,6 +88,7 @@ public class GdprExportDependencyInjectionTests
         typeof(TicketsTicketQueryService),
         typeof(CampaignService),
         typeof(CampService),
+        typeof(EventService),
         typeof(AuditLogService),
         typeof(BudgetService),
         typeof(Humans.Application.Services.Agent.AgentService),

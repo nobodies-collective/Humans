@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using AwesomeAssertions;
+using Humans.Application;
 using Humans.Application.Configuration;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces.AuditLog;
@@ -121,7 +122,7 @@ public class ProfileControllerPopoverTests
     public async Task Popover_UnknownUser_Returns404()
     {
         var id = Guid.NewGuid();
-        _userService.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((User?)null);
+        _userService.GetUserInfoAsync(id, Arg.Any<CancellationToken>()).Returns((UserInfo?)null);
 
         var result = await _controller.Popover(id, CancellationToken.None);
 
@@ -129,30 +130,26 @@ public class ProfileControllerPopoverTests
     }
 
     [HumansFact]
-    public async Task Popover_UserWithoutProfile_RendersFallbackWithVerifiedPrimaryEmail()
+    public async Task Popover_UserWithoutProfile_RendersFallbackWithoutEmail()
     {
+        // The popover is reachable by any authenticated user. Surfacing email
+        // (verified or not) for the imported-no-profile path is a GDPR PII leak.
+        // Admins who need email use /Profile/{id}/Admin.
         var id = Guid.NewGuid();
         var user = new User
         {
             Id = id,
             DisplayName = "Imported Human",
-            Email = null,
+            Email = "stale-legacy@example.com",
             PreferredLanguage = "es",
             ProfilePictureUrl = null,
         };
-        _userService.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(user);
-        _profileService.GetProfileAsync(id, Arg.Any<CancellationToken>()).Returns((Profile?)null);
-
-        var emails = new List<UserEmailEditDto>
+        var userEmails = new List<UserEmail>
         {
-            new(Guid.NewGuid(), "secondary@example.com", IsVerified: true, IsGoogle: false,
-                Provider: null, ProviderKey: null, IsPrimary: false, Visibility: null,
-                IsPendingVerification: false),
-            new(Guid.NewGuid(), "primary@example.com", IsVerified: true, IsGoogle: false,
-                Provider: null, ProviderKey: null, IsPrimary: true, Visibility: null,
-                IsPendingVerification: false),
+            new() { Id = Guid.NewGuid(), UserId = id, Email = "primary@example.com", IsVerified = true, IsPrimary = true },
         };
-        _userEmailService.GetUserEmailsAsync(id, Arg.Any<CancellationToken>()).Returns(emails);
+        _userService.GetUserInfoAsync(id, Arg.Any<CancellationToken>())
+            .Returns(BuildUserInfo(user, profile: null, userEmails));
 
         var result = await _controller.Popover(id, CancellationToken.None);
 
@@ -161,46 +158,13 @@ public class ProfileControllerPopoverTests
         var vm = partial.Model.Should().BeOfType<ProfileSummaryViewModel>().Subject;
         vm.HasProfile.Should().BeFalse();
         vm.DisplayName.Should().Be("Imported Human");
-        vm.Email.Should().Be("primary@example.com");
+        vm.Email.Should().BeNull();
         vm.PreferredLanguage.Should().Be("es");
         vm.MembershipTier.Should().BeNull();
         vm.MembershipStatus.Should().BeNull();
         vm.City.Should().BeNull();
         vm.Teams.Should().BeEmpty();
         vm.Languages.Should().BeEmpty();
-    }
-
-    [HumansFact]
-    public async Task Popover_UserWithoutProfile_DoesNotSeedFromLegacyUserEmail()
-    {
-        // Regression: User.Email falls back to the legacy Identity column when
-        // UserEmails isn't loaded (see User.cs SILENT-FALLBACK FOOTGUN), so the
-        // fallback popover must always derive from verified UserEmail rows
-        // regardless of what popoverUser.Email returns.
-        var id = Guid.NewGuid();
-        var user = new User
-        {
-            Id = id,
-            DisplayName = "Imported Human",
-            Email = "stale-legacy@example.com",
-            PreferredLanguage = "en",
-        };
-        _userService.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(user);
-        _profileService.GetProfileAsync(id, Arg.Any<CancellationToken>()).Returns((Profile?)null);
-
-        var emails = new List<UserEmailEditDto>
-        {
-            new(Guid.NewGuid(), "canonical@example.com", IsVerified: true, IsGoogle: false,
-                Provider: null, ProviderKey: null, IsPrimary: true, Visibility: null,
-                IsPendingVerification: false),
-        };
-        _userEmailService.GetUserEmailsAsync(id, Arg.Any<CancellationToken>()).Returns(emails);
-
-        var result = await _controller.Popover(id, CancellationToken.None);
-
-        var partial = result.Should().BeOfType<PartialViewResult>().Subject;
-        var vm = partial.Model.Should().BeOfType<ProfileSummaryViewModel>().Subject;
-        vm.Email.Should().Be("canonical@example.com");
     }
 
     [HumansFact]
@@ -214,8 +178,6 @@ public class ProfileControllerPopoverTests
             Email = "active@example.com",
             PreferredLanguage = "en",
         };
-        _userService.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(user);
-
         var profile = new Profile
         {
             Id = Guid.NewGuid(),
@@ -223,12 +185,12 @@ public class ProfileControllerPopoverTests
             MembershipTier = MembershipTier.Volunteer,
             IsApproved = true,
             IsSuspended = false,
+            State = ProfileState.Active,
             City = "Madrid",
             CountryCode = "ES",
         };
-        _profileService.GetProfileAsync(id, Arg.Any<CancellationToken>()).Returns(profile);
-        _profileService.GetProfileLanguagesAsync(profile.Id, Arg.Any<CancellationToken>())
-            .Returns(new List<ProfileLanguage>());
+        _userService.GetUserInfoAsync(id, Arg.Any<CancellationToken>())
+            .Returns(BuildUserInfo(user, profile, userEmails: null));
         _teamService.GetActiveTeamMembershipsForUserAsync(id, Arg.Any<CancellationToken>())
             .Returns(new List<Humans.Application.Models.TeamMembership>());
 
@@ -244,4 +206,16 @@ public class ProfileControllerPopoverTests
         vm.City.Should().Be("Madrid");
         vm.CountryCode.Should().Be("ES");
     }
+
+    private static UserInfo BuildUserInfo(User user, Profile? profile, IReadOnlyList<UserEmail>? userEmails) =>
+        UserInfo.Create(
+            user: user,
+            userEmails: userEmails ?? Array.Empty<UserEmail>(),
+            eventParticipations: Array.Empty<EventParticipation>(),
+            externalLogins: Array.Empty<(string, string)>(),
+            profile: profile,
+            contactFields: Array.Empty<ContactField>(),
+            profileLanguages: Array.Empty<ProfileLanguage>(),
+            volunteerHistory: Array.Empty<VolunteerHistoryEntry>(),
+            communicationPreferences: Array.Empty<CommunicationPreference>());
 }

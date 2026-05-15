@@ -23,9 +23,9 @@ using Humans.Application.Configuration;
 using Humans.Application.Interfaces;
 using Humans.Domain.Entities;
 using Humans.Web.Extensions;
+using Humans.Web.Extensions.Sections;
 using Microsoft.Extensions.Caching.Memory;
 using Humans.Infrastructure.Data;
-using Humans.Infrastructure.Identity;
 using Humans.Infrastructure.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Health;
@@ -85,6 +85,7 @@ builder.Services.AddSingleton<IClock>(SystemClock.Instance);
 if (!builder.Environment.IsProduction())
 {
     builder.Services.AddScoped<DevelopmentBudgetSeeder>();
+    builder.Services.AddScoped<DevelopmentCampRoleSeeder>();
     builder.Services.AddScoped<DevelopmentDashboardSeeder>();
     builder.Services.AddScoped<DevPersonaSeeder>();
 }
@@ -188,13 +189,6 @@ builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
     .AddEntityFrameworkStores<HumansDbContext>()
     .AddDefaultTokenProviders()
     .AddClaimsPrincipalFactory<HumansUserClaimsPrincipalFactory>();
-
-// Issue #635 (§15i, Phase 6 alt): replace the default EF UserStore<User>
-// registration with the LoggingUserStoreDecorator subclass. Behavior is
-// unchanged; the override emits a warning log on every FindByEmailAsync /
-// FindByNameAsync call so we can observe whether Identity itself ever
-// internally triggers those lookups in production. See class docstring.
-builder.Services.AddScoped<IUserStore<User>, LoggingUserStoreDecorator>();
 
 // Magic link tokens use DataProtection with explicit 15-minute lifetime (not Identity token providers).
 
@@ -473,7 +467,8 @@ builder.Services.AddLocalization();
 
 // CORS — allow the public nobodies.team website to fetch /api/barrios.
 // Localhost / 127.0.0.1 (any port) are allowed so devs working on the
-// public site locally can hit the deployed barrios API.
+// public site locally can hit the deployed barrios API. GuideApi remains
+// open so the PWA can fetch /api/events.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("BarriosPublic", policy =>
@@ -486,6 +481,12 @@ builder.Services.AddCors(options =>
                 origin.StartsWith("http://127.0.0.1:", StringComparison.Ordinal) ||
                 string.Equals(origin, "https://nobodies.team", StringComparison.Ordinal) ||
                 string.Equals(origin, "https://www.nobodies.team", StringComparison.Ordinal))
+            .WithMethods("GET")
+            .WithHeaders("Content-Type", "Accept");
+    });
+    options.AddPolicy("EventsApi", policy =>
+    {
+        policy.AllowAnyOrigin()
             .WithMethods("GET")
             .WithHeaders("Content-Type", "Accept");
     });

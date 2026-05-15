@@ -115,10 +115,18 @@ public sealed class OnboardingService : IOnboardingService
             .GetSubmittedApplicationForUserAsync(userId, ct);
 
         return new ReviewDetailData(
-            profile,
+            new ReviewProfileDetail(
+                profile.FirstName,
+                profile.LastName,
+                profile.City,
+                profile.CountryCode,
+                profile.MembershipTier,
+                profile.ConsentCheckStatus,
+                profile.ConsentCheckNotes,
+                profile.CreatedAt),
             snapshot.RequiredConsentCount - snapshot.PendingConsentCount,
             snapshot.RequiredConsentCount,
-            pendingApp);
+            pendingApp?.Motivation);
     }
 
     // ==========================================================================
@@ -291,8 +299,8 @@ public sealed class OnboardingService : IOnboardingService
     public async Task<bool> SetConsentCheckPendingIfEligibleAsync(
         Guid userId, CancellationToken ct = default)
     {
-        var profile = await _profileService.GetProfileAsync(userId, ct);
-        if (profile is null || profile.IsApproved || profile.ConsentCheckStatus is not null)
+        var info = await _userService.GetUserInfoAsync(userId, ct);
+        if (info is null || !info.NeedsConsentReview || info.Profile!.ConsentCheckStatus is not null)
             return false;
 
         var hasAllConsents = await _membershipCalculator.HasAllRequiredConsentsForTeamAsync(

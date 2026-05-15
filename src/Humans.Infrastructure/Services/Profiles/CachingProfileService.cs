@@ -7,7 +7,7 @@ using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
-using ProfilesProfileService = Humans.Application.Services.Profile.ProfileService;
+using ProfilesProfileService = Humans.Application.Services.Profiles.ProfileService;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Governance;
@@ -393,7 +393,7 @@ public sealed class CachingProfileService : TrackedCache<Guid, FullProfile>, IPr
         return PersonSearchMatcher.Match(snapshot, query, fields, contactFieldsByProfileId, limit);
     }
 
-    public async Task<IReadOnlyList<ProfileLanguage>> GetProfileLanguagesAsync(
+    public async Task<IReadOnlyList<ProfileLanguageSnapshot>> GetProfileLanguagesAsync(
         Guid profileId, CancellationToken ct = default)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
