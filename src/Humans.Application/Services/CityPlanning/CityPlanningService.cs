@@ -68,11 +68,13 @@ public sealed class CityPlanningService : ICityPlanningService
         var polygons = await _repo.GetPolygonsByCampSeasonIdsAsync(seasonIds, cancellationToken);
 
         return polygons
+            .Where(p => displayData.ContainsKey(p.CampSeasonId))
             .Select(p =>
             {
                 var data = displayData[p.CampSeasonId];
                 return new CampPolygonDto(
                     p.CampSeasonId,
+                    data.CampId,
                     data.Name,
                     data.CampSlug,
                     p.GeoJson,
@@ -138,6 +140,9 @@ public sealed class CityPlanningService : ICityPlanningService
         settings.RegistrationInfo,
         settings.LimitZoneGeoJson,
         settings.OfficialZonesGeoJson,
+        settings.IsContainerPlacementOpen,
+        settings.ContainerPlacementOpenedAt,
+        settings.ContainerPlacementClosedAt,
         settings.UpdatedAt);
 
     public async Task<List<CampPolygonHistoryEntryDto>> GetCampPolygonHistoryAsync(
@@ -145,7 +150,9 @@ public sealed class CityPlanningService : ICityPlanningService
     {
         var rows = await _repo.GetHistoryForCampSeasonAsync(campSeasonId, cancellationToken);
         if (rows.Count == 0)
+        {
             return [];
+        }
 
         // Resolve display names through IUserService — no cross-domain .Include().
         var userIds = rows.Select(r => r.ModifiedByUserId).Distinct().ToList();
@@ -262,6 +269,36 @@ public sealed class CityPlanningService : ICityPlanningService
             {
                 s.IsPlacementOpen = false;
                 s.ClosedAt = now;
+            },
+            now,
+            cancellationToken);
+    }
+
+    public async Task OpenContainerPlacementAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var campSettings = await _campService.GetSettingsAsync(cancellationToken);
+        var now = _clock.GetCurrentInstant();
+        await _repo.MutateSettingsAsync(
+            campSettings.PublicYear,
+            s =>
+            {
+                s.IsContainerPlacementOpen = true;
+                s.ContainerPlacementOpenedAt = now;
+            },
+            now,
+            cancellationToken);
+    }
+
+    public async Task CloseContainerPlacementAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var campSettings = await _campService.GetSettingsAsync(cancellationToken);
+        var now = _clock.GetCurrentInstant();
+        await _repo.MutateSettingsAsync(
+            campSettings.PublicYear,
+            s =>
+            {
+                s.IsContainerPlacementOpen = false;
+                s.ContainerPlacementClosedAt = now;
             },
             now,
             cancellationToken);
