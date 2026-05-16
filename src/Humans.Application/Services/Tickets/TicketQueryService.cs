@@ -514,7 +514,7 @@ public sealed class TicketQueryService : ITicketQueryService, IUserDataContribut
                     PaymentStatus = r.PaymentStatus,
                     VendorDashboardUrl = r.VendorDashboardUrl,
                     MatchedUserId = r.MatchedUserId,
-                    MatchedUserName = user.DisplayName,
+                    MatchedUserName = user.BurnerName,
                 };
             }
             return r;
@@ -545,7 +545,7 @@ public sealed class TicketQueryService : ITicketQueryService, IUserDataContribut
                     Price = r.Price,
                     Status = r.Status,
                     MatchedUserId = r.MatchedUserId,
-                    MatchedUserName = user.DisplayName,
+                    MatchedUserName = user.BurnerName,
                     VendorOrderId = r.VendorOrderId,
                 };
             }
@@ -630,7 +630,7 @@ public sealed class TicketQueryService : ITicketQueryService, IUserDataContribut
                 {
                     UserId = id,
                     HasTicket = matchedUserIds.Contains(id),
-                    Name = user.DisplayName,
+                    Name = user.BurnerName,
                     Email = email ?? string.Empty,
                     TeamNames = teamNames ?? [],
                     Tier = user.Profile!.MembershipTier,
