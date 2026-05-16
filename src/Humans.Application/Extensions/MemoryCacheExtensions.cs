@@ -62,12 +62,12 @@ public static class MemoryCacheExtensions
         cache.Remove(CacheKeys.ActiveTeams);
     }
 
-    public static void InvalidateCampSeasonsByYear(this IMemoryCache cache, int year) =>
-        cache.Remove(CacheKeys.CampSeasonsByYear(year));
-
-    public static void InvalidateCampSettings(this IMemoryCache cache) =>
-        cache.Remove(CacheKeys.CampSettings);
-
+    // Camp-cache invalidation extensions were retired in T-06 — eviction
+    // is now owned by CachingCampService (Infrastructure decorator) and
+    // reached through ICampInfoInvalidator. The CampSeasonsByYear /
+    // CampSettings keys are gone from CacheKeys as well (snapshot lives on
+    // the decorator).
+    //
     // Ticket-cache invalidation extensions were retired in T-07 — eviction
     // is now owned by CachingTicketQueryService (Infrastructure decorator)
     // and reached through ITicketCacheInvalidator. The cache keys themselves
