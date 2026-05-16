@@ -72,6 +72,8 @@ public class ShiftsController : HumansControllerBase
             return currentUserNotFound;
         }
 
+        if (RedirectIfNameMissing(user) is { } nameGate) return nameGate;
+
         var es = await _shiftMgmt.GetActiveAsync();
         if (es is null) return View("NoActiveEvent");
 
@@ -111,6 +113,17 @@ public class ShiftsController : HumansControllerBase
     private static bool CanBrowseShifts(EventSettings eventSettings, bool isPrivileged, bool hasSignups) =>
         eventSettings.IsShiftBrowsingOpen || isPrivileged || hasSignups;
 
+    // Users without a legal name on file cannot browse or sign up for shifts —
+    // the signup record would lack the name the rota report needs. Bounce them
+    // into the onboarding widget with an info message; the widget dispatcher
+    // will land them on the Names step.
+    private IActionResult? RedirectIfNameMissing(UserInfo user)
+    {
+        if (user.HasRequiredNameFields) return null;
+        SetInfo(_localizer["Onboarding_NameRequiredBeforeShifts"].Value);
+        return RedirectToAction(nameof(OnboardingWidgetController.Index), "OnboardingWidget");
+    }
+
     [HttpPost("SignUp")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SignUp(Guid shiftId, Guid? departmentId, string? fromDate, string? toDate, string? period, [FromForm(Name = "tags")] List<Guid>? tagIds, [FromForm(Name = "periods")] List<string>? periods = null, string? sort = null)
@@ -120,6 +133,8 @@ public class ShiftsController : HumansControllerBase
         {
             return currentUserNotFound;
         }
+
+        if (RedirectIfNameMissing(user) is { } nameGate) return nameGate;
 
         var privileged = ShiftRoleChecks.IsPrivilegedSignupApprover(User);
         var result = await _signupService.SignUpAsync(user.Id, shiftId, isPrivileged: privileged);
@@ -147,6 +162,8 @@ public class ShiftsController : HumansControllerBase
         {
             return currentUserNotFound;
         }
+
+        if (RedirectIfNameMissing(user) is { } nameGate) return nameGate;
 
         var privileged = ShiftRoleChecks.IsPrivilegedSignupApprover(User);
         var result = await _signupService.SignUpRangeAsync(user.Id, rotaId, startDayOffset, endDayOffset, isPrivileged: privileged, skipConflicts: true);
