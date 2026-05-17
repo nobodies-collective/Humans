@@ -46,6 +46,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
     private readonly ISystemTeamSync _systemTeamSyncJob;
     private readonly INavBadgeCacheInvalidator _navBadge;
     private readonly IRoleAssignmentClaimsCacheInvalidator _claimsInvalidator;
+    private readonly IRoleAssignmentCacheInvalidator _roleAssignmentCacheInvalidator;
     private readonly IClock _clock;
     private readonly ILogger<RoleAssignmentService> _logger;
 
@@ -57,6 +58,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         ISystemTeamSync systemTeamSyncJob,
         INavBadgeCacheInvalidator navBadge,
         IRoleAssignmentClaimsCacheInvalidator claimsInvalidator,
+        IRoleAssignmentCacheInvalidator roleAssignmentCacheInvalidator,
         IClock clock,
         ILogger<RoleAssignmentService> logger)
     {
@@ -67,6 +69,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         _systemTeamSyncJob = systemTeamSyncJob;
         _navBadge = navBadge;
         _claimsInvalidator = claimsInvalidator;
+        _roleAssignmentCacheInvalidator = roleAssignmentCacheInvalidator;
         _clock = clock;
         _logger = logger;
     }
@@ -164,6 +167,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         };
 
         await _repository.AddAsync(roleAssignment, ct);
+        _roleAssignmentCacheInvalidator.InvalidateAll();
 
         await _auditLogService.LogAsync(
             AuditAction.RoleAssigned, nameof(User), userId,
@@ -227,6 +231,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         }
 
         await _repository.UpdateAsync(roleAssignment, ct);
+        _roleAssignmentCacheInvalidator.InvalidateAll();
 
         await _auditLogService.LogAsync(
             AuditAction.RoleEnded, nameof(User), roleAssignment.UserId,
@@ -299,6 +304,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         }
 
         await _repository.UpdateManyAsync(activeRoles, ct);
+        _roleAssignmentCacheInvalidator.InvalidateAll();
         _claimsInvalidator.Invalidate(userId);
 
         return activeRoles.Count;
@@ -321,6 +327,8 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
 
     public void InvalidateNavBadgeCache() => _navBadge.Invalidate();
 
+    public void InvalidateRoleAssignmentCache() => _roleAssignmentCacheInvalidator.InvalidateAll();
+
     public async Task<IReadOnlyList<RoleAssignmentSnapshot>> GetActiveForUserAsync(Guid userId, CancellationToken ct = default)
     {
         var now = _clock.GetCurrentInstant();
@@ -331,6 +339,9 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
             .Select(ra => new RoleAssignmentSnapshot(ra.RoleName, ra.ValidTo))
             .ToList();
     }
+
+    public Task<IReadOnlyDictionary<string, int>> GetActiveCountsByRoleAsync(CancellationToken ct = default) =>
+        _repository.GetActiveCountsByRoleAsync(_clock.GetCurrentInstant(), ct);
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
