@@ -22,24 +22,6 @@ using Humans.Domain.ValueObjects;
 
 namespace Humans.Application.Services.Teams;
 
-/// <summary>
-/// Application-layer implementation of <see cref="ITeamService"/>, migrated
-/// from <c>Humans.Infrastructure.Services.TeamService</c> as §15 Part 1 for
-/// the Teams section (issue #540a). Goes through <see cref="ITeamRepository"/>
-/// for all owned-table access and through public service interfaces
-/// (<see cref="IUserService"/>, <see cref="IRoleAssignmentService"/>,
-/// <see cref="IShiftManagementService"/>, <see cref="ITeamResourceService"/>,
-/// <see cref="IEmailService"/>, <see cref="ISystemTeamSync"/>) for every
-/// cross-section read. Never imports <c>Microsoft.EntityFrameworkCore</c> —
-/// structurally enforced by <c>Humans.Application.csproj</c>.
-///
-/// <para>
-/// Cross-section cache invalidation flows through focused invalidator interfaces
-/// (<see cref="INotificationMeterCacheInvalidator"/>,
-/// <see cref="IShiftAuthorizationInvalidator"/>). Active-team read caching is
-/// owned by the transparent caching decorator, not this scoped inner service.
-/// </para>
-/// </summary>
 public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IUserDataContributor, IUserMerge
 {
     private readonly ITeamRepository _repo;
@@ -53,12 +35,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     private readonly IClock _clock;
     private readonly ILogger<TeamService> _logger;
 
-    // Lazy resolution for services that would form a DI cycle if injected
-    // directly. UserService injects ITeamService (for InvalidateActiveTeamsCache),
-    // and this service needs IUserService for user-slice stitching — classic
-    // circular dependency that we break the same way the pre-migration service
-    // did for RoleAssignmentService, EmailService, SystemTeamSync, and
-    // TeamResourceService.
+    // Lazy resolution — UserService injects ITeamService, closing the cycle.
     private ITeamResourceService TeamResourceService
         => _serviceProvider.GetRequiredService<ITeamResourceService>();
 
@@ -73,9 +50,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
     private IUserService UserService
         => _serviceProvider.GetRequiredService<IUserService>();
-
-    private IGoogleGroupSync GoogleGroupSync
-        => _serviceProvider.GetRequiredService<IGoogleGroupSync>();
 
     public TeamService(
         ITeamRepository repo,
@@ -100,10 +74,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         _clock = clock;
         _logger = logger;
     }
-
-    // ==========================================================================
-    // Create / update
-    // ==========================================================================
 
     public async Task<Team> CreateTeamAsync(
         string name,
@@ -164,8 +134,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
                 return team;
             }
 
-            // Unique-constraint race (slug or custom_slug collided after our pre-check).
-            // The repo translated Npgsql 23505 into `false`; retry with the next suffix.
+            // Slug/custom_slug unique-constraint race (Npgsql 23505 → false). Retry next suffix.
             _logger.LogDebug(
                 "Slug collision for '{Slug}' at persist, retrying (attempt {Attempt})",
                 slug, attempt + 1);
@@ -255,11 +224,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         return await TeamDirectoryBuilder.BuildAsync(teamsById, RoleAssignmentService, userId, cancellationToken);
     }
 
-    // T-01 (cache-migration): production callers route through
-    // CachingTeamService.GetTeamDetailAsync, which projects entirely from the
-    // TeamInfo snapshot. This inner implementation is retained as the
-    // canonical reference for projection semantics and is still exercised by
-    // TeamServiceTests; it is not on the production read path.
+    // Reference implementation; production routes through CachingTeamService.GetTeamDetailAsync (TeamInfo projection).
     public async Task<TeamDetailResult?> GetTeamDetailAsync(
         string slug,
         Guid? userId,
@@ -618,22 +583,14 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
         var now = _clock.GetCurrentInstant();
 
-        // Close out all active memberships + mark team inactive in one transaction.
         var closedCount = await _repo.DeactivateTeamAsync(teamId, now, cancellationToken);
 
-        // NOTE: GoogleResource.IsActive stays true here. The next Google reconciliation
-        // tick sees Team.IsActive == false with every TeamMember.LeftAt set, computes
-        // every current Google permission as an Extra, revokes them, and then flips
-        // GoogleResource.IsActive to false via the owning service.
+        // GoogleResource.IsActive flipped later by Google reconciliation tick (deferred).
 
         _logger.LogInformation(
             "Deactivated team {TeamId} ({TeamName}); closed {MemberCount} memberships",
             teamId, team.Name, closedCount);
     }
-
-    // ==========================================================================
-    // Membership — join / leave / withdraw / approve / reject
-    // ==========================================================================
 
     public async Task<TeamJoinRequest> RequestToJoinTeamAsync(
         Guid teamId,
@@ -734,7 +691,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             userId,
             relatedEntityId: userId, relatedEntityType: nameof(User));
 
-        await RequestGoogleGroupSyncForTeamAsync(team, cancellationToken);
         await SendAddedToTeamEmailAsync(userId, team, cancellationToken);
         await SendTeamMemberAddedNotificationAsync(team, userId, cancellationToken);
 
@@ -818,11 +774,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
     private async Task<bool> TryAddMemberOnlyAsync(TeamMember member, CancellationToken ct)
     {
-        // Pre-check serves as the primary guard; the DB unique constraint
-        // is a secondary safety net. At single-server ~500-user scale the
-        // race window is negligible, but we still bubble repository errors
-        // up as InvalidOperationException so callers get the same duplicate
-        // message regardless of which layer detected the conflict.
+        // DB unique constraint backstops the caller's pre-check.
         await _repo.AddMemberAsync(member, ct);
         return true;
     }
@@ -858,7 +810,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             relatedEntityId: userId, relatedEntityType: nameof(User));
 
         InvalidateShiftAuthorizationIfNeeded(userId, removedAssignments);
-        await RequestGoogleGroupSyncForTeamAsync(team, cancellationToken);
 
         if (wasCoordinator)
         {
@@ -897,7 +848,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (!canApprove)
             throw new InvalidOperationException("User does not have permission to approve requests for this team");
 
-        // Mutate scalar fields that will be persisted inside the bundled repo call.
         if (request.Status != TeamJoinRequestStatus.Pending)
             throw new InvalidOperationException("Can only approve pending requests");
         request.Status = TeamJoinRequestStatus.Approved;
@@ -942,7 +892,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
         _notificationMeterInvalidator.Invalidate();
 
-        await RequestGoogleGroupSyncForTeamIdAsync(request.TeamId, cancellationToken);
         await SendAddedToTeamEmailAsync(request.UserId, request.Team, cancellationToken);
         await SendJoinRequestApprovedNotificationAsync(request.Team, member.UserId, cancellationToken);
 
@@ -1145,7 +1094,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             relatedEntityId: userId, relatedEntityType: nameof(User));
 
         InvalidateShiftAuthorizationIfNeeded(userId, removedAssignments);
-        await RequestGoogleGroupSyncForTeamAsync(team, cancellationToken);
 
         try
         {
@@ -1182,9 +1130,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (isExisting)
             throw new InvalidOperationException("User is already a member of this team");
 
-        // Resolve any pending join request BEFORE adding (single transaction via the
-        // approve-with-member path when a pending request exists). If no request is
-        // pending, fall back to AddMemberWithOutboxAsync.
+        // Resolve any pending request via approve-with-member; otherwise AddMemberWithOutbox.
         var pendingRequest = await _repo.FindUserPendingRequestAsync(teamId, targetUserId, cancellationToken);
         var member = new TeamMember
         {
@@ -1203,8 +1149,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         {
             if (pendingRequest is not null)
             {
-                // The pending request was returned detached (AsNoTracking). Approve
-                // via the full request-path so state history and reviewer fields land.
+                // pendingRequest is AsNoTracking — re-fetch tracked + approve via full request-path.
                 if (pendingRequest.Status == TeamJoinRequestStatus.Pending)
                 {
                     pendingRequest.Status = TeamJoinRequestStatus.Approved;
@@ -1212,7 +1157,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
                     pendingRequest.ReviewNotes = "Added directly by team manager";
                     pendingRequest.ResolvedAt = _clock.GetCurrentInstant();
                 }
-                // Re-fetch by id for mutation tracking in the compound path.
                 var tracked = await _repo.FindRequestForMutationAsync(pendingRequest.Id, cancellationToken);
                 if (tracked is not null)
                 {
@@ -1251,7 +1195,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             actorUserId,
             relatedEntityId: targetUserId, relatedEntityType: nameof(User));
 
-        await RequestGoogleGroupSyncForTeamAsync(team, cancellationToken);
         await SendAddedToTeamEmailAsync(targetUserId, team, cancellationToken);
 
         return member;
@@ -1274,10 +1217,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             actorUserId,
             relatedEntityId: userId, relatedEntityType: nameof(User));
     }
-
-    // ==========================================================================
-    // Team Role Definitions
-    // ==========================================================================
 
     public async Task<TeamRoleDefinition> CreateRoleDefinitionAsync(
         Guid teamId, string name, string? description, int slotCount,
@@ -1597,10 +1536,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             .ToList();
     }
 
-    // ==========================================================================
-    // Team Role Assignments
-    // ==========================================================================
-
     public async Task<TeamRoleAssignment> AssignToRoleAsync(
         Guid roleDefinitionId, Guid targetUserId, Guid actorUserId,
         CancellationToken cancellationToken = default)
@@ -1649,8 +1584,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
                 $"Auto-added to {definition.Team.Name} via role assignment",
                 actorUserId,
                 relatedEntityId: targetUserId, relatedEntityType: nameof(User));
-
-            await RequestGoogleGroupSyncForTeamIdAsync(definition.TeamId, cancellationToken);
         }
 
         await _auditLogService.LogAsync(
@@ -1688,10 +1621,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
     }
 
-    // ==========================================================================
-    // Coordinator / Member queries
-    // ==========================================================================
-
     public Task<IReadOnlyList<Guid>> GetUserCoordinatedTeamIdsAsync(
         Guid userId,
         CancellationToken cancellationToken = default) =>
@@ -1714,8 +1643,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
                 IsHidden = team.IsHidden,
             });
         }
-        // No display sort here — callers sort at the rendering layer
-        // (memory/architecture/display-sort-in-controllers.md).
+        // Display sort happens at rendering layer (memory/architecture/display-sort-in-controllers.md).
         return rows;
     }
 
@@ -1784,9 +1712,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (hasActiveChildren)
             throw new InvalidOperationException("Cannot permanently delete a team that has active sub-teams. Remove or reassign sub-teams first.");
 
-        // GoogleResource → Team is OnDelete(Restrict): any row referencing this
-        // team blocks the delete with an FK violation. Catch it here with a
-        // clear message instead of surfacing a raw DbUpdateException.
+        // GoogleResource → Team is OnDelete(Restrict); pre-check yields a clear message vs raw FK violation.
         var resources = await TeamResourceService.GetTeamResourcesAsync(teamId, cancellationToken);
         if (resources.Count > 0)
             throw new InvalidOperationException("Cannot permanently delete a team that has Google resources linked. Unlink resources first.");
@@ -1831,19 +1757,10 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             totalCount);
     }
 
-    // ==========================================================================
-    // Cache helpers — public surface
-    // ==========================================================================
+    // Cache mutation/invalidation are owned by CachingTeamService.
+    public void RemoveMemberFromAllTeamsCache(Guid userId) { }
 
-    public void RemoveMemberFromAllTeamsCache(Guid userId)
-    {
-        // Cache mutation is owned by CachingTeamService.
-    }
-
-    public void InvalidateActiveTeamsCache()
-    {
-        // Cache invalidation is owned by CachingTeamService.
-    }
+    public void InvalidateActiveTeamsCache() { }
 
     public async Task<int> RevokeAllMembershipsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
@@ -1861,10 +1778,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Instant updatedAt,
         CancellationToken cancellationToken)
     {
-        // 1. TeamMember fold. System teams are reconciled by SystemTeamSyncJob;
-        //    skip them here. Compose AddMemberToTeamAsync / RemoveMemberAsync
-        //    so audit log + Google-sync outbox + cache mutations all fire as
-        //    they would for any normal membership change.
+        // TeamMember fold via AddMemberToTeamAsync/RemoveMemberAsync (system teams skipped — reconciled by SystemTeamSyncJob).
         var sourceMemberships = await GetUserTeamsAsync(sourceUserId, cancellationToken);
         var targetMemberships = await GetUserTeamsAsync(targetUserId, cancellationToken);
         var targetTeamIds = targetMemberships.Select(m => m.TeamId).ToHashSet();
@@ -1882,14 +1796,9 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             await RemoveMemberAsync(membership.TeamId, sourceUserId, actorUserId, cancellationToken);
         }
 
-        // 2. TeamJoinRequest fold. Re-FK source's rows to target except where
-        //    target already has an active pending request for the same team.
+        // TeamJoinRequest fold.
         await _repo.ReassignActiveJoinRequestsAsync(sourceUserId, targetUserId, cancellationToken);
     }
-
-    // ==========================================================================
-    // GDPR export
-    // ==========================================================================
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
@@ -1909,7 +1818,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             })
         }).ToList());
 
-#pragma warning disable CS0618 // TeamJoinRequest.Team is included on this read path; in-section nav read for the GDPR export projection.
+#pragma warning disable CS0618 // TeamJoinRequest.Team — in-section nav read for GDPR export.
         var joinRequestSlice = new UserDataSlice(GdprExportSections.TeamJoinRequests, joinRequests.Select(tjr => new
         {
             TeamName = tjr.Team.Name,
@@ -1922,10 +1831,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
         return [membershipSlice, joinRequestSlice];
     }
-
-    // ==========================================================================
-    // Internal helpers — team projection
-    // ==========================================================================
 
     private async Task<IReadOnlyDictionary<Guid, TeamInfo>> LoadTeamsByIdAsync(CancellationToken ct = default)
     {
@@ -2008,10 +1913,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
                     a.TeamMember?.UserId))
                 .ToList());
 
-    // ==========================================================================
-    // Internal helpers — shift authorization invalidation
-    // ==========================================================================
-
     private void InvalidateShiftAuthorizationIfNeeded(Guid userId, IEnumerable<TeamRoleAssignment> roleAssignments)
     {
         if (roleAssignments.Any(IsShiftAuthorizationAssignment))
@@ -2033,15 +1934,11 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     private static bool IsShiftAuthorizationAssignment(TeamRoleAssignment assignment) =>
         IsShiftAuthorizationDefinition(assignment.TeamRoleDefinition);
 
-#pragma warning disable CS0618 // TeamRoleDefinition.Team is included on this read path; in-section nav read.
+#pragma warning disable CS0618 // TeamRoleDefinition.Team — in-section nav read.
     private static bool IsShiftAuthorizationDefinition(TeamRoleDefinition definition) =>
         definition.IsManagement &&
         definition.Team.SystemTeamType == SystemTeamType.None;
 #pragma warning restore CS0618
-
-    // ==========================================================================
-    // Internal helpers — user stitching
-    // ==========================================================================
 
     private async Task StitchMemberUserSlicesAsync(
         IEnumerable<TeamMember> members, CancellationToken ct)
@@ -2051,16 +1948,13 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             return;
 
         var userIds = list.Select(m => m.UserId).Distinct().ToList();
-        var users = await UserService.GetByIdsWithEmailsAsync(userIds, ct);
+        var users = await UserService.GetByIdsAsync(userIds, ct);
 
         foreach (var member in list)
         {
             if (users.TryGetValue(member.UserId, out var user))
             {
-                // Populate the cross-domain nav property in-memory (§6b in-memory join).
-                // Callers that still use `.User.DisplayName` / `.User.Email` continue
-                // to work; the nav is ObsoleteAttribute-marked to gate new reads.
-#pragma warning disable CS0618
+#pragma warning disable CS0618 // §6b in-memory cross-domain join via Obsolete nav.
                 member.User = user;
 #pragma warning restore CS0618
             }
@@ -2132,10 +2026,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
     }
 
-    // ==========================================================================
-    // Internal helpers — outbox + email
-    // ==========================================================================
-
     private async Task<GoogleSyncOutboxEvent?> BuildOutboxEventAsync(
         Guid teamMemberId,
         Guid teamId,
@@ -2161,51 +2051,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             OccurredAt = _clock.GetCurrentInstant(),
             DeduplicationKey = $"{teamMemberId}:{eventType}"
         };
-    }
-
-    private async Task RequestGoogleGroupSyncForTeamAsync(Team team, CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(team.GoogleGroupEmail))
-        {
-            await RequestGoogleGroupSyncAsync(team.Id, team.GoogleGroupEmail, cancellationToken);
-        }
-
-        if (team.ParentTeamId.HasValue)
-        {
-            var parent = await _repo.GetByIdAsync(team.ParentTeamId.Value, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(parent?.GoogleGroupEmail))
-            {
-                await RequestGoogleGroupSyncAsync(parent.Id, parent.GoogleGroupEmail, cancellationToken);
-            }
-        }
-    }
-
-    private async Task RequestGoogleGroupSyncForTeamIdAsync(Guid teamId, CancellationToken cancellationToken)
-    {
-        var team = await _repo.GetByIdAsync(teamId, cancellationToken);
-        if (team is not null)
-        {
-            await RequestGoogleGroupSyncForTeamAsync(team, cancellationToken);
-        }
-    }
-
-    private async Task RequestGoogleGroupSyncAsync(
-        Guid teamId,
-        string groupEmail,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await GoogleGroupSync.RequestSyncAsync(groupEmail, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to request Google Group sync for team {TeamId} ({GroupEmail})",
-                teamId,
-                groupEmail);
-        }
     }
 
     private async Task SendAddedToTeamEmailAsync(Guid userId, Team team, CancellationToken cancellationToken)
@@ -2257,10 +2102,6 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             _logger.LogError(ex, "Failed to dispatch added-to-team inbox notification for user {UserId} team {TeamId}", userId, team.Id);
         }
     }
-
-    // ==========================================================================
-    // Static projection helpers
-    // ==========================================================================
 
     private static IReadOnlyList<AdminTeamSummary> BuildAdminTeamSummaries(
         IReadOnlyList<Team> teams,
@@ -2355,7 +2196,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Role: member.Role,
         JoinedAt: member.JoinedAt);
 
-#pragma warning disable CS0618 // TeamJoinRequest.Team is included on this read path; in-section nav read for snapshot projections.
+#pragma warning disable CS0618 // TeamJoinRequest.Team — in-section nav read for snapshot projections.
     private static TeamJoinRequestSnapshot ToJoinRequestSnapshot(TeamJoinRequest request) => new(
         request.Id,
         request.TeamId,
@@ -2423,15 +2264,11 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             throw new InvalidOperationException($"Priorities count ({priorities.Count}) must match slot count ({slotCount})");
     }
 
-    // ==========================================================================
-    // System team sync support (issue #570 — §15 Google-writing jobs)
-    // ==========================================================================
-
     public async Task<IReadOnlyList<TeamRoleReconciliationMembership>> GetActiveMembershipsForRoleReconciliationAsync(
         CancellationToken cancellationToken = default)
     {
         var memberships = await _repo.GetActiveMembershipsForRoleReconciliationAsync(cancellationToken);
-#pragma warning disable CS0618 // TeamMember.Team is included on this read path; in-section nav read for the reconciliation snapshot.
+#pragma warning disable CS0618 // TeamMember.Team — in-section nav read for reconciliation snapshot.
         return memberships
             .Select(member => new TeamRoleReconciliationMembership(
                 member.Id,

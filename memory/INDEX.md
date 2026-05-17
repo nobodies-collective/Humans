@@ -11,6 +11,7 @@ Atomic rules. Fetch the body when the description's trigger matches your task. S
 - [`audit-log-as-concurrency-safety-net`](architecture/audit-log-as-concurrency-safety-net.md) — audit log catches admin-clobbers-admin races at this scale; don't reach for `IsConcurrencyToken` / row versioning
 - [`burnername-is-the-display-name`](architecture/burnername-is-the-display-name.md) — HARD RULE. When a Profile exists, `Profile.BurnerName` is the only name we render. `User.DisplayName` / `UserInfo.DisplayName` are legacy fields — fallback only. Use `<vc:human>`, `UserInfo.BurnerName`, or `FullProfile.DisplayName`.
 - [`caching-transparent`](architecture/caching-transparent.md) — no `Cached*` types in domain surface; `Full<Section>` is the §15 stitched-DTO pattern
+- [`cached-reads-no-shape-variants`](architecture/cached-reads-no-shape-variants.md) — once a read serves from an in-memory cache of the canonical DTO, do NOT offer `WithEmails` / `IncludeFoo` shape variants. The cache holds one shape — variants reintroduce EF-shaped thinking into a cache-first surface (PR #625 / issue #744).
 - [`consent-record-immutable`](architecture/consent-record-immutable.md) — `consent_records` table: DB triggers block UPDATE/DELETE, INSERT only
 - [`db-enforcement-minimal`](architecture/db-enforcement-minimal.md) — service is the contract, not the DB; only audit-log immutability is doctrinal
 - [`derived-predicates-on-userinfo`](architecture/derived-predicates-on-userinfo.md) — derived user/profile predicates (IsActive, IsStub, NeedsConsentReview, HasRequiredNameFields, etc.) live on `UserInfo`, NOT on `ProfileInfo` or the `Profile` entity. UserInfo is the canonical read surface; ProfileInfo stays a flat field projection; write paths inline.
@@ -36,12 +37,15 @@ Atomic rules. Fetch the body when the description's trigger matches your task. S
 - [`repository-required-for-db-access`](architecture/repository-required-for-db-access.md) — HARD RULE. Every DB-accessing service goes through a repository interface; no service injects `HumansDbContext` directly, even for singleton-row tables.
 - [`no-leaf-to-director-callbacks`](architecture/no-leaf-to-director-callbacks.md) — HARD RULE. ProfileService/ConsentService/UserService never depend on or call back into OnboardingService/HumanLifecycleService/etc. Narrow-interface band-aids are a symptom; relocate the predicate to the field's owner.
 - [`shared-drives-only`](architecture/shared-drives-only.md) — Drive resources on Shared Drives only; API calls need `SupportsAllDrives` + `permissionDetails`
+- [`slug-routes-fallback-to-guid`](architecture/slug-routes-fallback-to-guid.md) — slug-keyed URLs accept the entity GUID in the same slot and look up by Id when the slug doesn't match; new routes only, pre-existing routes migrate opportunistically
 - [`user-profile-foundational`](architecture/user-profile-foundational.md) — UserService/ProfileService are bottom of the stack; no outbound calls to higher-level sections
 - [Widget Pending → Confirmed promotion](architecture/widget-pending-promotion.md) — how mid-onboarding signups stay Pending until consents land
 
 - [`users-profiles-one-section`](architecture/users-profiles-one-section.md) — HARD RULE. Users, Profiles, and UserEmail are one ownership section: Humans. Do not move code between Users/Profile just to satisfy section-boundary cleanup.
 
 - [`email-mutation-paths`](architecture/email-mutation-paths.md) — HARD RULE. `UserEmail.Email` is written only by the OAuth callback via `(Provider, ProviderKey)` match. `User.Email` is a vestigial Identity field — computed from the verified `IsPrimary` row, never written by application code.
+
+- [`no-identity-email-column-reads`](architecture/no-identity-email-column-reads.md) — HARD RULE. Application/Web code MUST NOT read `User.Email`/`NormalizedEmail`/`UserName`/`NormalizedUserName`. Use `UserInfo.Email` / `IUserEmailService` instead. Enforced by HUM0019.
 
 ## code/
 

@@ -70,7 +70,7 @@ public sealed class CachingConsentService
         IClock clock,
         IServiceScopeFactory scopeFactory,
         ILogger<CachingConsentService> logger)
-        : base("Consent.UserConsentInfo", warmOnStartup: false)
+        : base("Consent.UserConsentInfo", warmOnStartup: false, logger)
     {
         // ILegalDocumentSyncService and IClock are Singletons — inject directly.
         // _scopeFactory is still needed to resolve the keyed Scoped inner
@@ -103,13 +103,51 @@ public sealed class CachingConsentService
         if (userIds.Count == 0)
             return new Dictionary<Guid, IReadOnlySet<Guid>>();
 
+        // Bucket hits from misses up front. Hits come straight from the
+        // dict (no scope, no inner call). Misses are resolved via a SINGLE
+        // bulk inner call — not a per-id loop into LoadRowAsync, which
+        // would open N DI scopes and do N rounds of repo + IUserService
+        // calls. Issue #747.
         var result = new Dictionary<Guid, IReadOnlySet<Guid>>(userIds.Count);
+        // Dedupe misses: duplicate ids in userIds must not redo merge/source
+        // resolution work in the inner bulk call. Tracked via a HashSet
+        // because `result` is only populated after the bulk call, so the
+        // result.ContainsKey check above can't catch a repeat-miss id.
+        HashSet<Guid>? misses = null;
         foreach (var userId in userIds)
         {
             if (result.ContainsKey(userId)) continue;
-            var info = await GetAsync(userId, ct).ConfigureAwait(false);
-            result[userId] = info?.ConsentedVersionIds ?? new HashSet<Guid>();
+            if (TryGet(userId, out var hit))
+            {
+                result[userId] = hit.ConsentedVersionIds;
+            }
+            else
+            {
+                (misses ??= new HashSet<Guid>()).Add(userId);
+            }
         }
+
+        if (misses is { Count: > 0 })
+        {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var inner = scope.ServiceProvider.GetRequiredKeyedService<IConsentService>(InnerServiceKey);
+            var missList = misses.ToList();
+            var bulk = await inner.GetConsentMapForUsersAsync(missList, ct).ConfigureAwait(false);
+
+            foreach (var userId in missList)
+            {
+                // Inner contract: every input id appears in the result
+                // (empty set if no consents). Defensively freeze the set
+                // for cache storage — same invariant LoadRowAsync upholds.
+                var versions = bulk.TryGetValue(userId, out var v)
+                    ? v
+                    : (IReadOnlySet<Guid>)new HashSet<Guid>();
+                var frozen = new HashSet<Guid>(versions);
+                Set(userId, new UserConsentInfo(userId, frozen));
+                result[userId] = frozen;
+            }
+        }
+
         return result;
     }
 

@@ -188,6 +188,47 @@ public sealed class GoogleGroupSyncService : IGoogleGroupSync
         CancellationToken ct)
     {
         var lookup = await _provisioningClient.LookupGroupIdAsync(claim.GroupKey, ct);
+
+        // Provisioning: a claim references a group key that doesn't exist in Google.
+        // Cloud Identity returns HTTP 404 (or sometimes 403) when the group is
+        // not found. Best-effort create-then-retry-lookup; on failure we fall
+        // through to the existing error path.
+        if (lookup.GroupNumericId is null
+            && IsGroupNotFound(lookup.Error)
+            && action == SyncAction.Execute)
+        {
+            try
+            {
+                var create = await _provisioningClient.CreateGroupAsync(
+                    claim.GroupKey,
+                    displayName: claim.GroupKey,
+                    description: $"Auto-provisioned group ({claim.GroupKey}).",
+                    ct);
+                if (create.GroupNumericId is not null)
+                {
+                    _logger.LogInformation(
+                        "Auto-provisioned Google Group for {GroupKey}",
+                        claim.GroupKey);
+                    lookup = await _provisioningClient.LookupGroupIdAsync(claim.GroupKey, ct);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Failed to auto-provision Google Group for {GroupKey}: HTTP {StatusCode} {Message}",
+                        claim.GroupKey,
+                        create.Error?.StatusCode,
+                        create.Error?.RawMessage);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    "Error auto-provisioning Google Group for {GroupKey}; treating as failed lookup: {Error}",
+                    claim.GroupKey,
+                    ex.Message);
+            }
+        }
+
         if (lookup.GroupNumericId is null)
         {
             var error = FormatGoogleError("Google group lookup failed", lookup.Error);
@@ -510,23 +551,30 @@ public sealed class GoogleGroupSyncService : IGoogleGroupSync
         var statusCode = error?.StatusCode ?? 0;
         var rawMessage = error?.RawMessage ?? string.Empty;
 
-        if (statusCode != 403)
+        // Cloud Identity returns HTTP 403 when the target email has no Google
+        // account and HTTP 400 "precondition check failed" / Error(4002) for
+        // the same root cause (issue nobodies-collective/Humans#677). Both
+        // map to a permanent target rejection.
+        if (statusCode != 403 && statusCode != 400)
         {
             return FormatGoogleError($"Google group add failed for {email}", error);
         }
 
-        var isCallerPermissionError = rawMessage.Contains("caller", StringComparison.OrdinalIgnoreCase)
-            || rawMessage.Contains("service account", StringComparison.OrdinalIgnoreCase)
-            || rawMessage.Contains("does not have permission", StringComparison.OrdinalIgnoreCase);
-
-        if (isCallerPermissionError)
+        if (statusCode == 403)
         {
-            _logger.LogWarning(
-                "Service account lacks permission to add members to group {GroupKey} ({GroupId}) - HTTP 403: {ErrorMessage}",
-                groupKey,
-                resource?.GoogleId,
-                rawMessage);
-            return FormatGoogleError($"Google group add failed for {email}", error);
+            var isCallerPermissionError = rawMessage.Contains("caller", StringComparison.OrdinalIgnoreCase)
+                || rawMessage.Contains("service account", StringComparison.OrdinalIgnoreCase)
+                || rawMessage.Contains("does not have permission", StringComparison.OrdinalIgnoreCase);
+
+            if (isCallerPermissionError)
+            {
+                _logger.LogWarning(
+                    "Service account lacks permission to add members to group {GroupKey} ({GroupId}) - HTTP 403: {ErrorMessage}",
+                    groupKey,
+                    resource?.GoogleId,
+                    rawMessage);
+                return FormatGoogleError($"Google group add failed for {email}", error);
+            }
         }
 
         if (IsTargetMemberRejection(rawMessage))
@@ -541,26 +589,33 @@ public sealed class GoogleGroupSyncService : IGoogleGroupSync
             }
 
             _logger.LogWarning(
-                "Google rejected target member email {Email} while adding to Google Group {GroupKey} ({GroupId}) - HTTP 403. " +
+                "Google rejected target member email {Email} while adding to Google Group {GroupKey} ({GroupId}) - HTTP {StatusCode}. " +
                 "Legacy User.GoogleEmailStatus was marked Rejected when a matching user was found. Google error: {ErrorMessage}",
                 email,
                 groupKey,
                 resource?.GoogleId,
+                statusCode,
                 rawMessage);
 
-            return $"Google rejected {email} for group membership - no Google account for this address (HTTP 403)";
+            return $"Google rejected {email} for group membership - no Google account for this address (HTTP {statusCode})";
         }
 
         return FormatGoogleError($"Google group add failed for {email}", error);
     }
 
-    private static bool IsTargetMemberRejection(string rawMessage)
-        => rawMessage.Contains("does not have a google account", StringComparison.OrdinalIgnoreCase)
+    /// <summary>Cloud Identity group-membership "no Google account" detector. Group-specific — Drive path has its own predicate (#677).</summary>
+    internal static bool IsTargetMemberRejection(string rawMessage)
+        => rawMessage.Contains("invalid member", StringComparison.OrdinalIgnoreCase)
+            || rawMessage.Contains("invalid email", StringComparison.OrdinalIgnoreCase)
+            || rawMessage.Contains("invalid user", StringComparison.OrdinalIgnoreCase)
+            || rawMessage.Contains("does not have a google account", StringComparison.OrdinalIgnoreCase)
+            || rawMessage.Contains("no google account", StringComparison.OrdinalIgnoreCase)
             || rawMessage.Contains("not a google account", StringComparison.OrdinalIgnoreCase)
             || rawMessage.Contains("not associated with a google account", StringComparison.OrdinalIgnoreCase)
-            || rawMessage.Contains("invalid member", StringComparison.OrdinalIgnoreCase)
-            || rawMessage.Contains("invalid email", StringComparison.OrdinalIgnoreCase)
-            || rawMessage.Contains("invalid user", StringComparison.OrdinalIgnoreCase);
+            // "precondition check failed" is safe HERE (group path) but NOT on Drive (sharing-policy overlap).
+            || rawMessage.Contains("precondition check failed", StringComparison.OrdinalIgnoreCase)
+            || rawMessage.Contains("error(4002)", StringComparison.OrdinalIgnoreCase)
+            || rawMessage.Contains("membership cannot be created", StringComparison.OrdinalIgnoreCase);
 
     private async Task ScheduleRetryAsync(string groupKey, string error, int retryAttempt)
     {
@@ -625,6 +680,14 @@ public sealed class GoogleGroupSyncService : IGoogleGroupSync
 
     private static string FormatGoogleError(string prefix, GoogleClientError? error) =>
         $"{prefix} (HTTP {error?.StatusCode ?? 0}): {error?.RawMessage}";
+
+    /// <summary>
+    /// Cloud Identity returns HTTP 404 when a Group lookup misses. Other
+    /// status codes (403 caller permission, 5xx backend, etc.) are real
+    /// failures and must not trigger auto-provisioning.
+    /// </summary>
+    private static bool IsGroupNotFound(GoogleClientError? error)
+        => error is { StatusCode: 404 };
 
     private sealed record GroupClaim(string GroupKey, int ClaimCount, string[] SourceNames, Guid[] UserIds)
     {

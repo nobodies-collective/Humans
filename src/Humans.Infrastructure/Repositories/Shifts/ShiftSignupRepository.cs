@@ -23,7 +23,7 @@ namespace Humans.Infrastructure.Repositories.Shifts;
 /// steps participate in a single EF change-tracker, which is simpler than
 /// juggling per-method contexts in the service.
 /// </remarks>
-public sealed class ShiftSignupRepository : IShiftSignupRepository
+internal sealed class ShiftSignupRepository : IShiftSignupRepository
 {
     private readonly HumansDbContext _dbContext;
     private readonly IClock _clock;
@@ -120,6 +120,15 @@ public sealed class ShiftSignupRepository : IShiftSignupRepository
                 .ThenInclude(s => s.Rota)
             .Where(d => d.ShiftId == shiftId)
             .OrderBy(d => d.CreatedAt)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<ShiftSignup>> GetActiveByRotaAsync(
+        Guid rotaId, CancellationToken ct = default) =>
+        await _dbContext.ShiftSignups
+            .AsNoTracking()
+            .Include(d => d.Shift)
+            .Where(d => d.Shift.RotaId == rotaId &&
+                        (d.Status == SignupStatus.Pending || d.Status == SignupStatus.Confirmed))
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<ShiftSignup>> GetNoShowHistoryAsync(

@@ -15,7 +15,7 @@ namespace Humans.Infrastructure.Repositories.Profiles;
 /// Uses <see cref="IDbContextFactory{TContext}"/> so the repository can be
 /// registered as Singleton while <c>HumansDbContext</c> remains Scoped.
 /// </summary>
-public sealed class ProfileRepository : IProfileRepository
+internal sealed class ProfileRepository : IProfileRepository
 {
     private readonly IDbContextFactory<HumansDbContext> _factory;
     private readonly IClock _clock;
@@ -72,23 +72,6 @@ public sealed class ProfileRepository : IProfileRepository
             .Where(p => p.Id == profileId)
             .Select(p => p.ProfilePictureContentType)
             .FirstOrDefaultAsync(ct);
-    }
-
-    public async Task<IReadOnlyList<(Guid ProfileId, Guid UserId, long UpdatedAtTicks)>>
-        GetCustomPictureInfoByUserIdsAsync(IEnumerable<Guid> userIds, CancellationToken ct = default)
-    {
-        var userIdList = userIds.ToList();
-        if (userIdList.Count == 0)
-            return [];
-
-        await using var ctx = await _factory.CreateDbContextAsync(ct);
-        return await ctx.Profiles
-            .AsNoTracking()
-            .Where(p => userIdList.Contains(p.UserId) && p.ProfilePictureContentType != null)
-            .Select(p => new { p.Id, p.UserId, p.UpdatedAt })
-            .AsAsyncEnumerable()
-            .Select(p => (p.Id, p.UserId, p.UpdatedAt.ToUnixTimeTicks()))
-            .ToListAsync(ct);
     }
 
     public async Task<IReadOnlyList<(Guid ProfileId, Guid UserId, string BurnerName, string ContentType, Instant UpdatedAt)>>

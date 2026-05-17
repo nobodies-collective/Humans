@@ -2,16 +2,15 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using NodaTime;
+using Humans.Application;
 using Humans.Application.Interfaces.Issues;
+using Humans.Application.Interfaces.Users;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Web.Filters;
 using Humans.Web.Models;
 
-// Issue cross-domain nav properties (Reporter, Assignee, ResolvedByUser) and
-// IssueComment.SenderUser are [Obsolete] — IssuesService stitches them in memory
-// from IUserService so controllers can continue to read them for response shaping.
-// Nav-strip follow-up tracked in design-rules §15i.
+// Obsolete nav props (Reporter/Assignee/ResolvedByUser/SenderUser) stitched in-memory by IssuesService; see design-rules §15i.
 #pragma warning disable CS0618
 
 namespace Humans.Web.Controllers;
@@ -22,13 +21,16 @@ namespace Humans.Web.Controllers;
 public class IssuesApiController : ControllerBase
 {
     private readonly IIssuesService _issues;
+    private readonly IUserService _users;
     private readonly ILogger<IssuesApiController> _logger;
 
     public IssuesApiController(
         IIssuesService issues,
+        IUserService users,
         ILogger<IssuesApiController> logger)
     {
         _issues = issues;
+        _users = users;
         _logger = logger;
     }
 
@@ -67,7 +69,9 @@ public class IssuesApiController : ControllerBase
         if (issue is null) return NotFound();
 
         var thread = await _issues.GetThreadAsync(id);
-        return Ok(MapDetail(issue, thread));
+        // ReporterEmail sourced from UserInfo (not User.Email) — keeps shape parity with the list endpoint. See PR 618.
+        var reporter = await _users.GetUserInfoAsync(issue.ReporterUserId);
+        return Ok(MapDetail(issue, thread, reporter));
     }
 
     [HttpPost]
@@ -144,9 +148,7 @@ public class IssuesApiController : ControllerBase
         }
         catch (InvalidOperationException)
         {
-            // Service throws InvalidOperationException when the issue id
-            // doesn't resolve to a row — surface as 404. Log at Warning so
-            // the event stays visible in prod (always-log-problems.md).
+            // 404 on missing — log Warning per always-log-problems.
             _logger.LogWarning("Issue {IssueId} not found during API PostComment", id);
             return NotFound();
         }
@@ -168,9 +170,7 @@ public class IssuesApiController : ControllerBase
         }
         catch (InvalidOperationException)
         {
-            // Service throws InvalidOperationException when the issue id
-            // doesn't resolve to a row — surface as 404. Log at Warning so
-            // the event stays visible in prod (always-log-problems.md).
+            // 404 on missing — log Warning per always-log-problems.
             _logger.LogWarning("Issue {IssueId} not found during API UpdateStatus", id);
             return NotFound();
         }
@@ -191,9 +191,7 @@ public class IssuesApiController : ControllerBase
         }
         catch (InvalidOperationException)
         {
-            // Service throws InvalidOperationException when the issue id
-            // doesn't resolve to a row — surface as 404. Log at Warning so
-            // the event stays visible in prod (always-log-problems.md).
+            // 404 on missing — log Warning per always-log-problems.
             _logger.LogWarning("Issue {IssueId} not found during API UpdateAssignee", id);
             return NotFound();
         }
@@ -214,17 +212,13 @@ public class IssuesApiController : ControllerBase
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase))
         {
-            // Log at Warning so the event stays visible in prod
-            // (always-log-problems.md). Exception object dropped — the
-            // race-style "not found" carries no useful stack.
+            // 404 on missing — log Warning per always-log-problems.
             _logger.LogWarning("Issue {IssueId} not found during API UpdateSection: {Reason}", id, ex.Message);
             return NotFound();
         }
         catch (InvalidOperationException ex)
         {
-            // State-machine violation (e.g. issue is terminal) — surface as 422.
-            // Log at Warning per always-log-problems.md so reject events are
-            // visible in the prod log viewer.
+            // State-machine violation (terminal status) → 422.
             _logger.LogWarning("Issue {IssueId} API UpdateSection rejected: {Reason}", id, ex.Message);
             return UnprocessableEntity(new { error = ex.Message });
         }
@@ -245,9 +239,7 @@ public class IssuesApiController : ControllerBase
         }
         catch (InvalidOperationException)
         {
-            // Service throws InvalidOperationException when the issue id
-            // doesn't resolve to a row — surface as 404. Log at Warning so
-            // the event stays visible in prod (always-log-problems.md).
+            // 404 on missing — log Warning per always-log-problems.
             _logger.LogWarning("Issue {IssueId} not found during API SetGitHubIssue", id);
             return NotFound();
         }
@@ -258,7 +250,7 @@ public class IssuesApiController : ControllerBase
         }
     }
 
-    private static object MapList(Issue i) => new
+    private static object MapList(Issue i, UserInfo? reporter = null) => new
     {
         i.Id,
         Status = i.Status.ToString(),
@@ -269,8 +261,9 @@ public class IssuesApiController : ControllerBase
         i.PageUrl,
         i.UserAgent,
         i.AdditionalContext,
-        ReporterName = i.Reporter?.DisplayName,
-        ReporterEmail = i.Reporter?.Email,
+        ReporterName = reporter?.BurnerName ?? i.Reporter?.DisplayName,
+        // ReporterEmail from UserInfo (not User.Email) for shape parity with list endpoint.
+        ReporterEmail = reporter?.Email,
         ReporterUserId = i.ReporterUserId,
         ReporterLanguage = i.Reporter?.PreferredLanguage,
         AssigneeUserId = i.AssigneeUserId,
@@ -310,9 +303,9 @@ public class IssuesApiController : ControllerBase
         i.CommentCount
     };
 
-    private static object MapDetail(Issue i, IReadOnlyList<IssueThreadEvent> thread) => new
+    private static object MapDetail(Issue i, IReadOnlyList<IssueThreadEvent> thread, UserInfo? reporter) => new
     {
-        issue = MapList(i),
+        issue = MapList(i, reporter),
         thread = thread.Select(e => e switch
         {
             IssueCommentEvent c => (object)new

@@ -64,7 +64,7 @@ public sealed class CachingLegalDocumentSyncService
         IServiceScopeFactory scopeFactory,
         IClock clock,
         ILogger<CachingLegalDocumentSyncService> logger)
-        : base("Legal.LegalDocumentInfo", warmOnStartup: true)
+        : base("Legal.LegalDocumentInfo", warmOnStartup: true, logger)
     {
         _repository = repository;
         _scopeFactory = scopeFactory;
@@ -88,6 +88,12 @@ public sealed class CachingLegalDocumentSyncService
             .Where(d => filter.Contains(d.TeamId))
             .Select(ToActiveRequiredSnapshot)
             .ToList();
+    }
+
+    public async Task<int> GetActiveRequiredCountAsync(CancellationToken cancellationToken = default)
+    {
+        var docs = await GetActiveRequiredDocumentsAsync(cancellationToken);
+        return docs.Count;
     }
 
     public async Task<IReadOnlyList<RequiredDocumentVersionSnapshot>> GetRequiredDocumentVersionsForTeamAsync(

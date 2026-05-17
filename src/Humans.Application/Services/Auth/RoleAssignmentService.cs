@@ -16,27 +16,7 @@ using Humans.Application.Interfaces.Auth;
 
 namespace Humans.Application.Services.Auth;
 
-/// <summary>
-/// Application-layer implementation of <see cref="IRoleAssignmentService"/>.
-/// Goes through <see cref="IRoleAssignmentRepository"/> for all data access —
-/// this type never imports <c>Microsoft.EntityFrameworkCore</c>, enforced by
-/// <c>Humans.Application.csproj</c>'s reference graph. Cross-section reads
-/// (reporter / assigner display names) go through <see cref="IUserService"/>.
-/// Cross-cutting cache invalidation is routed through
-/// <see cref="INavBadgeCacheInvalidator"/> and
-/// <see cref="IRoleAssignmentClaimsCacheInvalidator"/> instead of
-/// <c>IMemoryCache</c> directly.
-/// </summary>
-/// <remarks>
-/// Auth writes are rare (handful of admin events per month) and reads are
-/// handful per day, so no caching decorator sits in front of this service —
-/// same rationale as Governance / Feedback. The service stitches display
-/// data in memory onto the <see cref="RoleAssignment"/> entity's (now
-/// <c>[Obsolete]</c>) cross-domain navigation properties so existing
-/// controllers and views can continue to read assignee / creator display
-/// names without change — this is the "in-memory join" from
-/// design-rules §6b.
-/// </remarks>
+// Stitches display data onto obsolete RoleAssignment nav props in memory — design-rules §6b in-memory join.
 public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataContributor, IUserMerge
 {
     private readonly IRoleAssignmentRepository _repository;
@@ -46,6 +26,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
     private readonly ISystemTeamSync _systemTeamSyncJob;
     private readonly INavBadgeCacheInvalidator _navBadge;
     private readonly IRoleAssignmentClaimsCacheInvalidator _claimsInvalidator;
+    private readonly IRoleAssignmentCacheInvalidator _roleAssignmentCacheInvalidator;
     private readonly IClock _clock;
     private readonly ILogger<RoleAssignmentService> _logger;
 
@@ -57,6 +38,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         ISystemTeamSync systemTeamSyncJob,
         INavBadgeCacheInvalidator navBadge,
         IRoleAssignmentClaimsCacheInvalidator claimsInvalidator,
+        IRoleAssignmentCacheInvalidator roleAssignmentCacheInvalidator,
         IClock clock,
         ILogger<RoleAssignmentService> logger)
     {
@@ -67,6 +49,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         _systemTeamSyncJob = systemTeamSyncJob;
         _navBadge = navBadge;
         _claimsInvalidator = claimsInvalidator;
+        _roleAssignmentCacheInvalidator = roleAssignmentCacheInvalidator;
         _clock = clock;
         _logger = logger;
     }
@@ -164,6 +147,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         };
 
         await _repository.AddAsync(roleAssignment, ct);
+        _roleAssignmentCacheInvalidator.InvalidateAll();
 
         await _auditLogService.LogAsync(
             AuditAction.RoleAssigned, nameof(User), userId,
@@ -173,7 +157,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         _navBadge.Invalidate();
         _claimsInvalidator.Invalidate(userId);
 
-        // In-app notification to the user (best-effort)
+        // Best-effort in-app notification.
         try
         {
             await _notificationService.SendAsync(
@@ -190,7 +174,6 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
             _logger.LogError(ex, "Failed to dispatch RoleAssignmentChanged notification for user {UserId} role {Role}", userId, roleName);
         }
 
-        // Trigger sync for Board role changes
         if (string.Equals(roleName, RoleNames.Board, StringComparison.Ordinal))
         {
             await _systemTeamSyncJob.SyncBoardTeamAsync();
@@ -227,6 +210,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         }
 
         await _repository.UpdateAsync(roleAssignment, ct);
+        _roleAssignmentCacheInvalidator.InvalidateAll();
 
         await _auditLogService.LogAsync(
             AuditAction.RoleEnded, nameof(User), roleAssignment.UserId,
@@ -236,7 +220,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         _navBadge.Invalidate();
         _claimsInvalidator.Invalidate(roleAssignment.UserId);
 
-        // In-app notification to the user (best-effort)
+        // Best-effort in-app notification.
         try
         {
             await _notificationService.SendAsync(
@@ -253,7 +237,6 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
             _logger.LogError(ex, "Failed to dispatch RoleAssignmentChanged notification for user {UserId} role {Role}", roleAssignment.UserId, roleAssignment.RoleName);
         }
 
-        // Trigger sync for Board role changes
         if (string.Equals(roleAssignment.RoleName, RoleNames.Board, StringComparison.Ordinal))
         {
             await _systemTeamSyncJob.SyncBoardTeamAsync();
@@ -299,6 +282,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         }
 
         await _repository.UpdateManyAsync(activeRoles, ct);
+        _roleAssignmentCacheInvalidator.InvalidateAll();
         _claimsInvalidator.Invalidate(userId);
 
         return activeRoles.Count;
@@ -307,19 +291,15 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
     public Task ReassignAsync(Guid sourceUserId, Guid targetUserId, Guid actorUserId, Instant updatedAt,
         CancellationToken cancellationToken)
     {
-        // Cache invalidation is the caller's responsibility — must run AFTER
-        // the ambient TransactionScope completes so a rolled-back fold
-        // doesn't strand the claims cache (and per-request roles) seeing
-        // now-uncommitted writes. The orchestrator calls
-        // <see cref="InvalidateClaimsCacheForUser"/> for both users and
-        // <see cref="InvalidateNavBadgeCache"/> globally in its post-commit
-        // block. See AccountMergeService.AcceptAsync.
+        // Caller invalidates caches AFTER the ambient TransactionScope commits — see AccountMergeService.AcceptAsync.
         return _repository.ReassignToUserAsync(sourceUserId, targetUserId, updatedAt, cancellationToken);
     }
 
     public void InvalidateClaimsCacheForUser(Guid userId) => _claimsInvalidator.Invalidate(userId);
 
     public void InvalidateNavBadgeCache() => _navBadge.Invalidate();
+
+    public void InvalidateRoleAssignmentCache() => _roleAssignmentCacheInvalidator.InvalidateAll();
 
     public async Task<IReadOnlyList<RoleAssignmentSnapshot>> GetActiveForUserAsync(Guid userId, CancellationToken ct = default)
     {
@@ -331,6 +311,9 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
             .Select(ra => new RoleAssignmentSnapshot(ra.RoleName, ra.ValidTo))
             .ToList();
     }
+
+    public Task<IReadOnlyDictionary<string, int>> GetActiveCountsByRoleAsync(CancellationToken ct = default) =>
+        _repository.GetActiveCountsByRoleAsync(_clock.GetCurrentInstant(), ct);
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
@@ -346,11 +329,7 @@ public sealed class RoleAssignmentService : IRoleAssignmentService, IUserDataCon
         return [new UserDataSlice(GdprExportSections.RoleAssignments, shaped)];
     }
 
-    // ==========================================================================
-    // Cross-domain nav stitching — populates [Obsolete]-marked nav properties
-    // in memory from IUserService calls so controllers/views do not need to
-    // change. Design-rules §6b "in-memory join" pattern.
-    // ==========================================================================
+    // --- Cross-domain nav stitching (in-memory join, §6b) ---
 #pragma warning disable CS0618 // Obsolete cross-domain nav properties populated in-memory
 
     private async Task StitchCrossDomainNavsAsync(

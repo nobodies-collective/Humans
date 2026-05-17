@@ -4,6 +4,7 @@ using Humans.Application.DTOs.Events;
 using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Events;
 using Humans.Application.Interfaces.Repositories;
+using Humans.Application.Interfaces.Shifts;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,8 +54,7 @@ public sealed class CachingEventService : IEventService, IEventViewInvalidator, 
     // four projections (events + categories + venues + settings) via its own
     // IHostedService surface; per-cache hosted-service kickoff would only see
     // the events dict.
-    private readonly TrackedCache<Guid, ApprovedEventView> _eventCache =
-        new("Event.ApprovedEventView", warmOnStartup: false);
+    private readonly TrackedCache<Guid, ApprovedEventView> _eventCache;
 
     // Flat lookup tables — categories and venues are admin-managed lookups
     // (~10–30 rows each), so a simple immutable snapshot is the natural shape.
@@ -77,6 +77,8 @@ public sealed class CachingEventService : IEventService, IEventViewInvalidator, 
         _repo = repo;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _eventCache = new TrackedCache<Guid, ApprovedEventView>(
+            "Event.ApprovedEventView", warmOnStartup: false, logger);
     }
 
     // ==========================================================================
@@ -115,10 +117,10 @@ public sealed class CachingEventService : IEventService, IEventViewInvalidator, 
         return view.IsSubmissionOpenAt(clock.GetCurrentInstant());
     }
 
-    public Task<IReadOnlyList<EventSettings>> GetEventSettingsOptionsAsync(CancellationToken ct = default) =>
+    public Task<IReadOnlyList<BurnSettingsInfo>> GetEventSettingsOptionsAsync(CancellationToken ct = default) =>
         WithInner(inner => inner.GetEventSettingsOptionsAsync(ct));
 
-    public Task<EventSettings?> GetEventSettingsByIdAsync(Guid id, CancellationToken ct = default) =>
+    public Task<BurnSettingsInfo?> GetEventSettingsByIdAsync(Guid id, CancellationToken ct = default) =>
         WithInner(inner => inner.GetEventSettingsByIdAsync(id, ct));
 
     public async Task SaveGuideSettingsAsync(
@@ -517,20 +519,22 @@ public sealed class CachingEventService : IEventService, IEventViewInvalidator, 
     {
         if (settings is null) return null;
 
-        // Resolve TimeZoneId via the inner IEventService — EventSettings is
-        // owned by the Shifts section and the inner service stitches it in via
-        // IShiftManagementService (peterdrier#719). Cached at warm/refresh time;
-        // stale-on-EventSettings-edit window is documented on EventGuideSettingsView.TimeZoneId.
+        // Resolve TimeZoneId via the inner IEventService — the burn
+        // (event_settings row) is owned by the Shifts section and the inner
+        // service stitches it in via IBurnSettingsService as a
+        // BurnSettingsInfo DTO (nobodies-collective/Humans#719). Cached at
+        // warm/refresh time; stale-on-EventSettings-edit window is
+        // documented on EventGuideSettingsView.TimeZoneId.
         string? timeZoneId = null;
         try
         {
-            var eventSettings = await WithInner(inner => inner.GetEventSettingsByIdAsync(settings.EventSettingsId, ct));
-            timeZoneId = eventSettings?.TimeZoneId;
+            var burn = await WithInner(inner => inner.GetEventSettingsByIdAsync(settings.EventSettingsId, ct));
+            timeZoneId = burn?.TimeZoneId;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex,
-                "CachingEventService: failed to load EventSettings {EventSettingsId} for guide-settings cache; TimeZoneId left null",
+                "CachingEventService: failed to load BurnSettings {EventSettingsId} for guide-settings cache; TimeZoneId left null",
                 settings.EventSettingsId);
         }
 

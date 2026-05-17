@@ -13,7 +13,7 @@ namespace Humans.Infrastructure.Repositories.Profiles;
 /// Uses <see cref="IDbContextFactory{TContext}"/> so the repository can be
 /// registered as Singleton while <c>HumansDbContext</c> remains Scoped.
 /// </summary>
-public sealed class AccountMergeRepository : IAccountMergeRepository
+internal sealed class AccountMergeRepository : IAccountMergeRepository
 {
     private readonly IDbContextFactory<HumansDbContext> _factory;
 
@@ -27,8 +27,6 @@ public sealed class AccountMergeRepository : IAccountMergeRepository
         await using var ctx = await _factory.CreateDbContextAsync(ct);
         return await ctx.AccountMergeRequests
             .AsNoTracking()
-            .Include(r => r.TargetUser)
-            .Include(r => r.SourceUser)
             .Where(r => r.Status == AccountMergeRequestStatus.Pending)
             .OrderBy(r => r.CreatedAt)
             .ToListAsync(ct);
@@ -38,9 +36,6 @@ public sealed class AccountMergeRepository : IAccountMergeRepository
     {
         await using var ctx = await _factory.CreateDbContextAsync(ct);
         return await ctx.AccountMergeRequests
-            .Include(r => r.TargetUser)
-            .Include(r => r.SourceUser)
-            .Include(r => r.ResolvedByUser)
             .FirstOrDefaultAsync(r => r.Id == id, ct);
     }
 

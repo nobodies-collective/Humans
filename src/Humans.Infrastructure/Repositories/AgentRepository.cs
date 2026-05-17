@@ -1,4 +1,5 @@
 using Humans.Application.Interfaces.Repositories;
+using Humans.Application.Models;
 using Humans.Domain.Entities;
 using Humans.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +7,7 @@ using NodaTime;
 
 namespace Humans.Infrastructure.Repositories;
 
-public sealed class AgentRepository : IAgentRepository
+internal sealed class AgentRepository : IAgentRepository
 {
     private readonly HumansDbContext _db;
     private readonly IClock _clock;
@@ -133,4 +134,32 @@ public sealed class AgentRepository : IAgentRepository
         await _db.SaveChangesAsync(cancellationToken);
         return stale.Count;
     }
+
+    // ---- Admin status -----------------------------------------------------
+
+    public async Task<IReadOnlyList<AgentStatusMessageRow>> ListMessagesSinceAsync(
+        Instant since, CancellationToken cancellationToken) =>
+        await _db.AgentMessages
+            .AsNoTracking()
+            .Where(m => m.CreatedAt >= since)
+            // arch:db-sort-ok admin status window, identity-ordered chronology
+            .OrderByDescending(m => m.CreatedAt)
+            .Select(m => new AgentStatusMessageRow(
+                m.ConversationId,
+                m.Conversation.UserId,
+                m.CreatedAt,
+                m.PromptTokens,
+                m.OutputTokens,
+                m.CachedTokens,
+                m.Model,
+                m.DurationMs,
+                m.FetchedDocs,
+                m.RefusalReason))
+            .ToListAsync(cancellationToken);
+
+    public Task<int> CountConversationsInWindowAsync(
+        Instant since, Instant until, CancellationToken cancellationToken) =>
+        _db.AgentConversations
+            .AsNoTracking()
+            .CountAsync(c => c.LastMessageAt >= since && c.LastMessageAt <= until, cancellationToken);
 }

@@ -1149,6 +1149,11 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<int>("SlotCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 

@@ -1,30 +1,31 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using NodaTime;
 using Humans.Application;
+using Humans.Application.Architecture;
+using Humans.Application.Interfaces.Repositories;
+using Humans.Application.Interfaces.Teams;
+using Humans.Application.Interfaces.Users;
 using Humans.Domain.Constants;
-using Humans.Infrastructure.Data;
 
 namespace Humans.Web.Authorization;
 
 /// <summary>
-/// Claims transformation that syncs active RoleAssignment entities to Identity role claims
-/// and adds membership status claims. Runs on every authenticated request.
-/// Results are cached per user for 60 seconds to avoid 2 DB queries per request.
+/// Syncs active RoleAssignment entities to Identity role claims and adds membership status claims.
+/// Runs per authenticated request; cached 60s per user. See HUM0014 / #750.
 /// </summary>
+[Grandfathered(
+    "HUM0014",
+    "Auth claims transformation runs on every authenticated request and reads role_assignments via IRoleAssignmentRepository directly. Routing through IRoleAssignmentService drags in INotificationEmitter / ISystemTeamSync / IGoogleSyncService / Hangfire scheduler — wrong for the request-time auth hot path and unresolvable in the integration-test host. Team membership uses the cache-backed ITeamService. A thin Application-layer read-only interface is the proper home — tracked separately.",
+    "2026-05-17",
+    "nobodies-collective/Humans#750")]
 public class RoleAssignmentClaimsTransformation : IClaimsTransformation
 {
-    /// <summary>
-    /// Claim type indicating the user is an active member of the Volunteers team.
-    /// </summary>
+    /// <summary>Active member of the Volunteers team.</summary>
     public const string ActiveMemberClaimType = "ActiveMember";
 
-    /// <summary>
-    /// Claim type indicating the user has a profile record.
-    /// Used by MembershipRequiredFilter to distinguish profileless accounts from onboarding members.
-    /// </summary>
+    /// <summary>User has a profile record. Lets MembershipRequiredFilter separate profileless accounts from onboarding members.</summary>
     public const string HasProfileClaimType = "HasProfile";
 
     public const string ActiveClaimValue = "true";
@@ -32,13 +33,22 @@ public class RoleAssignmentClaimsTransformation : IClaimsTransformation
 
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
 
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IRoleAssignmentRepository _roleAssignments;
+    private readonly ITeamService _teams;
+    private readonly IUserService _userService;
     private readonly IClock _clock;
     private readonly IMemoryCache _cache;
 
-    public RoleAssignmentClaimsTransformation(IServiceProvider serviceProvider, IClock clock, IMemoryCache cache)
+    public RoleAssignmentClaimsTransformation(
+        IRoleAssignmentRepository roleAssignments,
+        ITeamService teams,
+        IUserService userService,
+        IClock clock,
+        IMemoryCache cache)
     {
-        _serviceProvider = serviceProvider;
+        _roleAssignments = roleAssignments;
+        _teams = teams;
+        _userService = userService;
         _clock = clock;
         _cache = cache;
     }
@@ -56,7 +66,7 @@ public class RoleAssignmentClaimsTransformation : IClaimsTransformation
             return principal;
         }
 
-        // Avoid adding duplicate role claims on subsequent calls within the same request
+        // Skip duplicate claims on repeat calls within the same request.
         if (principal.HasClaim(c => string.Equals(c.Type, ClaimsAddedMarkerType, StringComparison.Ordinal) && string.Equals(c.Value, ActiveClaimValue, StringComparison.Ordinal)))
         {
             return principal;
@@ -65,7 +75,7 @@ public class RoleAssignmentClaimsTransformation : IClaimsTransformation
         var claims = await _cache.GetOrCreateAsync(CacheKeys.RoleAssignmentClaims(userId), async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = CacheDuration;
-            return await LoadClaimsFromDbAsync(userId);
+            return await LoadClaimsAsync(userId);
         }) ?? [];
 
         var identity = new ClaimsIdentity();
@@ -74,7 +84,6 @@ public class RoleAssignmentClaimsTransformation : IClaimsTransformation
             identity.AddClaim(claim);
         }
 
-        // Marker claim to prevent duplicate processing
         identity.AddClaim(new Claim(ClaimsAddedMarkerType, ActiveClaimValue));
 
         principal.AddIdentity(identity);
@@ -82,30 +91,17 @@ public class RoleAssignmentClaimsTransformation : IClaimsTransformation
         return principal;
     }
 
-    private async Task<List<Claim>> LoadClaimsFromDbAsync(Guid userId)
+    private async Task<List<Claim>> LoadClaimsAsync(Guid userId)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<HumansDbContext>();
-
         var now = _clock.GetCurrentInstant();
         var claims = new List<Claim>();
 
-        // Check suspension status — suspended users lose ActiveMember claim
-        // but keep role claims (Admin/Board) so they can manage their own unsuspension
-        var isSuspended = await dbContext.Profiles
-            .AsNoTracking()
-            .AnyAsync(p => p.UserId == userId && p.IsSuspended);
+        // Cached UserInfo read-model avoids hitting profiles on every authenticated request.
+        var userInfo = await _userService.GetUserInfoAsync(userId);
+        var isSuspended = userInfo?.IsSuspended ?? false;
+        var hasProfile = userInfo?.HasProfile ?? false;
 
-        var activeRoles = await dbContext.RoleAssignments
-            .AsNoTracking()
-            .Where(ra =>
-                ra.UserId == userId &&
-                ra.ValidFrom <= now &&
-                (ra.ValidTo == null || ra.ValidTo > now))
-            .Select(ra => ra.RoleName)
-            .Distinct()
-            .ToListAsync();
-
+        var activeRoles = await _roleAssignments.GetActiveRoleNamesAsync(userId, now);
         foreach (var role in activeRoles)
         {
             claims.Add(new Claim(ClaimTypes.Role, role));
@@ -113,22 +109,14 @@ public class RoleAssignmentClaimsTransformation : IClaimsTransformation
 
         if (!isSuspended)
         {
-            var isVolunteerMember = await dbContext.TeamMembers
-                .AsNoTracking()
-                .AnyAsync(tm =>
-                    tm.UserId == userId &&
-                    tm.TeamId == SystemTeamIds.Volunteers &&
-                    !tm.LeftAt.HasValue);
-
+            // Warm CachingTeamService index — no DB round-trip; returns active memberships only.
+            var memberships = await _teams.GetUserTeamsAsync(userId);
+            var isVolunteerMember = memberships.Any(m => m.TeamId == SystemTeamIds.Volunteers);
             if (isVolunteerMember)
             {
                 claims.Add(new Claim(ActiveMemberClaimType, ActiveClaimValue));
             }
         }
-
-        var hasProfile = await dbContext.Profiles
-            .AsNoTracking()
-            .AnyAsync(p => p.UserId == userId);
 
         if (hasProfile)
         {

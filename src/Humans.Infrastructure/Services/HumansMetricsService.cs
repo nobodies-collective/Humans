@@ -1,13 +1,13 @@
 using System.Diagnostics.Metrics;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Users;
-using Humans.Infrastructure.Data;
+using Humans.Application.Interfaces.Auth;
 using Humans.Application.Interfaces.GoogleIntegration;
+using Humans.Application.Interfaces.Legal;
 using Humans.Application.Interfaces.Teams;
 using Humans.Application.Interfaces.Governance;
 
@@ -46,7 +46,6 @@ public sealed class HumansMetricsService : IHumansMetrics, IDisposable
         _scopeFactory = scopeFactory;
         _logger = logger;
 
-        // Counters
         _emailsSent = HumansMeter.CreateCounter<long>(
             "humans.emails_sent_total",
             description: "Total emails sent");
@@ -83,7 +82,6 @@ public sealed class HumansMetricsService : IHumansMetrics, IDisposable
             "humans.email_failed_total",
             description: "Total email send failures");
 
-        // Observable Gauges
         HumansMeter.CreateObservableGauge(
             "humans.humans_total",
             observeValues: ObserveHumansTotal,
@@ -149,19 +147,14 @@ public sealed class HumansMetricsService : IHumansMetrics, IDisposable
             observeValue: () => _snapshot.PendingOutboxEvents,
             description: "Unprocessed Google sync outbox events");
 
-        // humans.email_outbox_pending now lives on IMeters — ProcessEmailOutboxJob
-        // declares it directly and pushes the pending count each run. Same metric
-        // name, same OTel export (both paths publish through Meter("Humans.Metrics")).
+        // humans.email_outbox_pending lives on IMeters via ProcessEmailOutboxJob.
 
-        // Timer: fire immediately, then every 60 seconds
         _refreshTimer = new Timer(
             callback: _ => _ = RefreshSnapshotAsync(),
             state: null,
             dueTime: TimeSpan.Zero,
             period: TimeSpan.FromSeconds(60));
     }
-
-    // --- Counter record methods ---
 
     public void RecordEmailSent(string template)
         => _emailsSent.Add(1, new KeyValuePair<string, object?>("template", template));
@@ -191,8 +184,6 @@ public sealed class HumansMetricsService : IHumansMetrics, IDisposable
 
     public void RecordEmailFailed(string template)
         => _emailsFailed.Add(1, new KeyValuePair<string, object?>("template", template));
-
-    // --- Observable gauge callbacks ---
 
     private IEnumerable<Measurement<int>> ObserveHumansTotal()
     {
@@ -224,14 +215,11 @@ public sealed class HumansMetricsService : IHumansMetrics, IDisposable
         yield return new Measurement<int>(s.ApplicationsSubmitted, new KeyValuePair<string, object?>("status", "submitted"));
     }
 
-    // --- Snapshot refresh ---
-
     private async Task RefreshSnapshotAsync()
     {
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<HumansDbContext>();
             var membershipCalc = scope.ServiceProvider.GetRequiredService<IMembershipCalculator>();
             var applicationDecisionService = scope.ServiceProvider.GetRequiredService<IApplicationDecisionService>();
             var teamService = scope.ServiceProvider.GetRequiredService<ITeamService>();
@@ -239,76 +227,62 @@ public sealed class HumansMetricsService : IHumansMetrics, IDisposable
             var clock = scope.ServiceProvider.GetRequiredService<IClock>();
             var now = clock.GetCurrentInstant();
 
-            // humans_total by status — read off the cached UserInfo snapshot
-            // instead of issuing two table scans against the users table per
-            // refresh tick.
+            // Read off cached UserInfo snapshot — avoids full profile scan per scrape.
             var userInfos = await userService.GetAllUserInfosAsync().ConfigureAwait(false);
             var allUserIds = userInfos.Select(u => u.Id).ToList();
-            var profileData = await db.Profiles
-                .Select(p => new { p.UserId, p.IsApproved, p.IsSuspended })
-                .ToListAsync();
-
-            var profileLookup = profileData.ToDictionary(p => p.UserId);
 
             int activeCount = 0, suspendedCount = 0, pendingCount = 0, inactiveCount = 0;
-            foreach (var userId in allUserIds)
+            foreach (var userInfo in userInfos)
             {
-                if (profileLookup.TryGetValue(userId, out var p))
-                {
-                    if (p.IsSuspended) suspendedCount++;
-                    else if (!p.IsApproved) pendingCount++;
-                    else activeCount++;
-                }
-                else
+                if (userInfo.Profile is null)
                 {
                     inactiveCount++;
                 }
+                else if (userInfo.IsSuspended)
+                {
+                    suspendedCount++;
+                }
+                else if (!userInfo.IsApproved)
+                {
+                    pendingCount++;
+                }
+                else
+                {
+                    activeCount++;
+                }
             }
 
-            // pending_consents
             var usersWithAllConsents = await membershipCalc.GetUsersWithAllRequiredConsentsAsync(allUserIds);
             var pendingConsents = allUserIds.Count - usersWithAllConsents.Count;
 
-            // consent_deadline_approaching
             var usersRequiringUpdate = await membershipCalc.GetUsersRequiringStatusUpdateAsync();
             var consentDeadlineApproaching = usersRequiringUpdate.Count;
 
-            // pending_deletions — same UserInfo snapshot as above.
             var pendingDeletions = userInfos.Count(u => u.DeletionScheduledFor != null);
 
-            // asociados
             var applicationStats = await applicationDecisionService.GetAdminStatsAsync();
             var asociados = applicationStats.Approved;
 
-            // role_assignments_active
-            var roleAssignments = await db.RoleAssignments
-                .Where(ra => ra.ValidFrom <= now && (ra.ValidTo == null || ra.ValidTo > now))
-                .GroupBy(ra => ra.RoleName)
-                .Select(g => new { Role = g.Key, Count = g.Count() })
-                .ToListAsync();
+            // Via IRoleAssignmentService — service does not touch role_assignments directly (design-rules §2c, #749).
+            var roleAssignmentService = scope.ServiceProvider.GetRequiredService<IRoleAssignmentService>();
+            var roleAssignmentCounts = await roleAssignmentService.GetActiveCountsByRoleAsync();
 
-            // teams
             var teams = await teamService.GetTeamsAsync(CancellationToken.None);
             var teamsActive = teams.Values.Count(t => t.IsActive);
             var teamsInactive = teams.Count - teamsActive;
 
-            // team_join_requests_pending
             var teamJoinRequestsPending = await teamService.GetTotalPendingJoinRequestCountAsync();
 
-            // google_resources
             var teamResourceService = scope.ServiceProvider.GetRequiredService<ITeamResourceService>();
             var googleResources = await teamResourceService.GetResourceCountAsync();
 
-            // legal_documents_active
-            var legalDocumentsActive = await db.LegalDocuments
-                .CountAsync(d => d.IsActive && d.IsRequired);
+            // Via ILegalDocumentSyncService cached projection — service does not touch legal_documents directly (design-rules §2c, #749).
+            var legalDocumentSyncService = scope.ServiceProvider.GetRequiredService<ILegalDocumentSyncService>();
+            var legalDocumentsActive = await legalDocumentSyncService.GetActiveRequiredCountAsync();
 
-            // applications_pending
             var applicationsSubmitted = await applicationDecisionService.GetPendingApplicationCountAsync();
 
-            // google_sync_outbox_pending — goes through the repository so this
-            // service doesn't read google_sync_outbox_events directly (issue #554
-            // Part 1, design-rules §2c).
+            // Repository read — service must not touch google_sync_outbox_events directly (#554).
             var outboxRepo = scope.ServiceProvider.GetRequiredService<IGoogleSyncOutboxRepository>();
             var pendingOutboxEvents = await outboxRepo.CountPendingAsync();
 
@@ -323,8 +297,8 @@ public sealed class HumansMetricsService : IHumansMetrics, IDisposable
                 ConsentDeadlineApproaching = consentDeadlineApproaching,
                 PendingDeletions = pendingDeletions,
                 Asociados = asociados,
-                RoleAssignmentsByRole = roleAssignments
-                    .Select(r => (r.Role, r.Count))
+                RoleAssignmentsByRole = roleAssignmentCounts
+                    .Select(kv => (kv.Key, kv.Value))
                     .ToList(),
                 TeamsActive = teamsActive,
                 TeamsInactive = teamsInactive,
@@ -353,27 +327,22 @@ public sealed class HumansMetricsService : IHumansMetrics, IDisposable
     {
         public static readonly GaugeSnapshot Empty = new();
 
-        // humans_total
         public int ActiveCount { get; init; }
         public int SuspendedCount { get; init; }
         public int PendingCount { get; init; }
         public int InactiveCount { get; init; }
 
-        // Simple gauges
         public int PendingVolunteers { get; init; }
         public int PendingConsents { get; init; }
         public int ConsentDeadlineApproaching { get; init; }
         public int PendingDeletions { get; init; }
         public int Asociados { get; init; }
 
-        // Role assignments grouped by role
         public IReadOnlyList<(string Role, int Count)> RoleAssignmentsByRole { get; init; } = [];
 
-        // Teams
         public int TeamsActive { get; init; }
         public int TeamsInactive { get; init; }
 
-        // Other
         public int TeamJoinRequestsPending { get; init; }
         public int GoogleResources { get; init; }
         public int LegalDocumentsActive { get; init; }

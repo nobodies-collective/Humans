@@ -23,6 +23,10 @@ public static class AdminNavTree
             new("Review", "OnboardingReview", "Index",   null, null, "fa-solid fa-clipboard-check",  PolicyNames.ReviewQueueAccess,
                  PillCount: PillCounts.ReviewQueue)
         ]),
+        new("Shifts", [
+            new("Dashboard", "ShiftDashboard", "Index",  null, null, "fa-solid fa-gauge",            PolicyNames.ShiftDepartmentManager),
+            new("Workload",  "ShiftWorkloadAdmin", "Index",   null, null, "fa-solid fa-scale-unbalanced", PolicyNames.ShiftDashboardAccess)
+        ]),
         new("Money", [
             new("Finance",        "Finance",      "Index",   null, null, "fa-solid fa-coins",     PolicyNames.FinanceAdminOrAdmin),
             new("Store catalog",  "StoreAdmin",   "Catalog", null, null, "fa-solid fa-tags",      PolicyNames.StoreCatalogAdmin)
@@ -54,8 +58,9 @@ public static class AdminNavTree
             new("Mailer",                "MailerAdmin", "Index",           null, null, "fa-solid fa-paper-plane",          PolicyNames.AdminOnly)
         ]),
         new("Agent", [
-            new("Agent Config",  "AdminAgent", "Settings",      null, null, "fa-solid fa-robot",    PolicyNames.AdminOnly),
-            new("Agent History", "Agent",      "Conversations", null, null, "fa-solid fa-comments", PolicyNames.AdminOnly)
+            new("Agent Status",  "AdminAgent", "Status",        null, null, "fa-solid fa-gauge-high", PolicyNames.AdminOnly),
+            new("Agent Config",  "AdminAgent", "Settings",      null, null, "fa-solid fa-robot",      PolicyNames.AdminOnly),
+            new("Agent History", "Agent",      "Conversations", null, null, "fa-solid fa-comments",   PolicyNames.AdminOnly)
         ]),
         new("People data", [
             new("Merge requests",        "AdminMerge", "Index",            null, null, "fa-solid fa-code-merge", PolicyNames.AdminOnly),

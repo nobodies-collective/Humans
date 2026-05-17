@@ -379,6 +379,68 @@ public sealed class GoogleGroupSyncServiceTests
     }
 
     [HumansFact]
+    public async Task ReconcileOneAsync_UserRejectedByGoogle400Precondition_MarksGoogleEmailRejected()
+    {
+        // Issue nobodies-collective/Humans#677 — Cloud Identity returns HTTP
+        // 400 / Error(4002) "Membership cannot be created since precondition
+        // check failed" when the target email has no Google identity. Must
+        // be treated as a permanent target rejection, same as the 403 path.
+        var userId = Guid.NewGuid();
+        var service = CreateService(new StaticSource("team@nobodies.team", userId));
+        StubUsers((userId, "Alice", "alice@external.test"));
+        StubGroup("team@nobodies.team", "group-1");
+
+        _membershipClient.CreateMembershipAsync("group-1", "alice@external.test", Arg.Any<CancellationToken>())
+            .Returns(new GroupMembershipMutationResult(
+                GroupMembershipMutationOutcome.Failed,
+                new GoogleClientError(400, "Error(4002): Membership cannot be created since precondition check failed.")));
+        _userService.GetByEmailOrAlternateAsync("alice@external.test", Arg.Any<CancellationToken>())
+            .Returns(new User
+            {
+                Id = userId,
+                DisplayName = "Alice",
+                GoogleEmailStatus = GoogleEmailStatus.Unknown,
+                CreatedAt = _clock.GetCurrentInstant()
+            });
+
+        var diff = await service.ReconcileOneAsync("team@nobodies.team", SyncAction.Execute);
+
+        diff.ErrorMessage.Should().Contain("Google rejected alice@external.test");
+        diff.ErrorMessage.Should().Contain("HTTP 400");
+        await _userService.Received(1).TrySetGoogleEmailStatusFromSyncAsync(
+            userId,
+            GoogleEmailStatus.Rejected,
+            Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task ReconcileOneAsync_GenericGoogle400_DoesNotMarkGoogleEmailRejected()
+    {
+        // Issue nobodies-collective/Humans#677 — make sure the 400 branch only
+        // marks Rejected when the message text matches a target-rejection
+        // pattern. A generic 400 (e.g. malformed payload) must not flip the
+        // user's GoogleEmailStatus.
+        var userId = Guid.NewGuid();
+        var service = CreateService(new StaticSource("team@nobodies.team", userId));
+        StubUsers((userId, "Alice", "alice@nobodies.team"));
+        StubGroup("team@nobodies.team", "group-1");
+
+        _membershipClient.CreateMembershipAsync("group-1", "alice@nobodies.team", Arg.Any<CancellationToken>())
+            .Returns(new GroupMembershipMutationResult(
+                GroupMembershipMutationOutcome.Failed,
+                new GoogleClientError(400, "Bad Request: invalid argument 'roles'")));
+
+        var diff = await service.ReconcileOneAsync("team@nobodies.team", SyncAction.Execute);
+
+        diff.ErrorMessage.Should().Contain("invalid argument 'roles'");
+        await _userService.DidNotReceiveWithAnyArgs()
+            .TrySetGoogleEmailStatusFromSyncAsync(default, default, default);
+        await _userService.DidNotReceiveWithAnyArgs()
+            .GetByEmailOrAlternateAsync(default!, default);
+        _syncScheduler.Scheduled.Should().ContainSingle();
+    }
+
+    [HumansFact]
     public async Task ReconcileOneAsync_GenericGoogle403_DoesNotMarkGoogleEmailRejected()
     {
         var userId = Guid.NewGuid();
@@ -399,6 +461,73 @@ public sealed class GoogleGroupSyncServiceTests
         await _userService.DidNotReceiveWithAnyArgs()
             .GetByEmailOrAlternateAsync(default!, default);
         _syncScheduler.Scheduled.Should().ContainSingle();
+    }
+
+    [HumansFact]
+    public async Task ReconcileOneAsync_GroupNotFound_AutoProvisionsAndReconciles()
+    {
+        // Issue nobodies-collective/Humans#740: when a membership source claims
+        // a group that doesn't exist in Cloud Identity (HTTP 404), the
+        // orchestrator auto-provisions it via CreateGroupAsync then re-runs
+        // the lookup to proceed with the reconcile pass in the same call.
+        var userId = Guid.NewGuid();
+        var service = CreateService(new StaticSource("new-group@nobodies.team", userId));
+        StubUsers((userId, "Alice", "alice@nobodies.team"));
+
+        // First lookup misses (404), then succeeds after create.
+        _provisioningClient.LookupGroupIdAsync("new-group@nobodies.team", Arg.Any<CancellationToken>())
+            .Returns(
+                new GroupLookupIdResult(null, new GoogleClientError(404, "not found")),
+                new GroupLookupIdResult("group-new", null));
+        _provisioningClient.CreateGroupAsync(
+                "new-group@nobodies.team",
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new GroupCreateResult("group-new", null));
+        _membershipClient.ListMembershipsAsync("group-new", Arg.Any<CancellationToken>())
+            .Returns(new GroupMembershipListResult(Array.Empty<GroupMembership>(), null));
+        _membershipClient.CreateMembershipAsync("group-new", "alice@nobodies.team", Arg.Any<CancellationToken>())
+            .Returns(new GroupMembershipMutationResult(GroupMembershipMutationOutcome.Added, null));
+
+        var diff = await service.ReconcileOneAsync("new-group@nobodies.team", SyncAction.Execute);
+
+        diff.ErrorMessage.Should().BeNull();
+        await _provisioningClient.Received(1).CreateGroupAsync(
+            "new-group@nobodies.team",
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
+        await _provisioningClient.Received(2).LookupGroupIdAsync(
+            "new-group@nobodies.team", Arg.Any<CancellationToken>());
+        await _membershipClient.Received(1).CreateMembershipAsync(
+            "group-new", "alice@nobodies.team", Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task ReconcileOneAsync_GroupNotFoundButCreateFails_RecordsErrorAndSchedulesRetry()
+    {
+        // When auto-provisioning fails (e.g. backend 503), the reconcile path
+        // must fall through to the existing error/retry behavior — not silently
+        // succeed and not crash.
+        var userId = Guid.NewGuid();
+        var service = CreateService(new StaticSource("new-group@nobodies.team", userId));
+        StubUsers((userId, "Alice", "alice@nobodies.team"));
+
+        _provisioningClient.LookupGroupIdAsync("new-group@nobodies.team", Arg.Any<CancellationToken>())
+            .Returns(new GroupLookupIdResult(null, new GoogleClientError(404, "not found")));
+        _provisioningClient.CreateGroupAsync(
+                "new-group@nobodies.team",
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new GroupCreateResult(null, new GoogleClientError(503, "backend error")));
+
+        var diff = await service.ReconcileOneAsync("new-group@nobodies.team", SyncAction.Execute);
+
+        diff.ErrorMessage.Should().NotBeNull();
+        _syncScheduler.Scheduled.Should().ContainSingle()
+            .Which.GroupKey.Should().Be("new-group@nobodies.team");
     }
 
     [HumansFact]
