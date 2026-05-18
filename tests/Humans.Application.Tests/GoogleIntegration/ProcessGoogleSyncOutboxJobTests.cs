@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
+using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Teams;
@@ -56,9 +57,7 @@ public class ProcessGoogleSyncOutboxJobTests : IDisposable
             .Returns((IReadOnlyDictionary<Guid, TeamInfo>)new Dictionary<Guid, TeamInfo>());
         _googleSyncService = Substitute.For<IGoogleSyncService>();
         _clock = new FakeClock(Instant.FromUtc(2026, 2, 15, 20, 0));
-        _metrics = new HumansMetricsService(
-            Substitute.For<IServiceScopeFactory>(),
-            Substitute.For<ILogger<HumansMetricsService>>());
+        _metrics = TestMetrics.Create();
         var logger = Substitute.For<ILogger<ProcessGoogleSyncOutboxJob>>();
 
         _job = new ProcessGoogleSyncOutboxJob(
