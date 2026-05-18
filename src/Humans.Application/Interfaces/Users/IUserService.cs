@@ -381,4 +381,4 @@ public record AnonymizedAccountSummary(
 public sealed record OnsiteUserRow(
     Guid UserId,
     string DisplayName,
-    NodaTime.Instant? CheckedInAt);
+    Instant? CheckedInAt);

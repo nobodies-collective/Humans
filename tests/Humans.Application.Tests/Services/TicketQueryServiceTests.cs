@@ -81,7 +81,6 @@ public sealed class TicketQueryServiceTests : IDisposable
     public void Dispose()
     {
         _dbContext.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     [HumansFact]

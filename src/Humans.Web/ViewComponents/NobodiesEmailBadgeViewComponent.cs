@@ -16,15 +16,8 @@ namespace Humans.Web.ViewComponents;
 ///   "provision" — show email or provisioning form (TeamAdmin/Members)
 ///   "detail"    — show email + linked badge, or provisioning form (AdminDetail)
 /// </summary>
-public class NobodiesEmailBadgeViewComponent : ViewComponent
+public class NobodiesEmailBadgeViewComponent(IUserService userService) : ViewComponent
 {
-    private readonly IUserService _userService;
-
-    public NobodiesEmailBadgeViewComponent(IUserService userService)
-    {
-        _userService = userService;
-    }
-
     /// <summary>
     /// Renders a nobodies.team email badge for the given user.
     /// </summary>
@@ -36,7 +29,7 @@ public class NobodiesEmailBadgeViewComponent : ViewComponent
         string mode = "badge",
         string? teamSlug = null)
     {
-        var info = await _userService.GetUserInfoAsync(userId);
+        var info = await userService.GetUserInfoAsync(userId);
         var nobodies = info?.UserEmails.FirstOrDefault(e => e.IsVerified
             && e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase));
 

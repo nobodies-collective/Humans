@@ -85,7 +85,6 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
     public void Dispose()
     {
         _dbContext.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     // --- Submit flow ---

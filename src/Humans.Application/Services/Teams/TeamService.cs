@@ -22,58 +22,33 @@ using Humans.Domain.ValueObjects;
 
 namespace Humans.Application.Services.Teams;
 
-public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IUserDataContributor, IUserMerge
+public sealed class TeamService(
+    ITeamRepository repo,
+    IAuditLogService auditLogService,
+    INotificationEmitter notificationService,
+    IShiftManagementService shiftManagementService,
+    INotificationMeterCacheInvalidator notificationMeterInvalidator,
+    IShiftAuthorizationInvalidator shiftAuthInvalidator,
+    IAdminAuthorizationService adminAuthorization,
+    IServiceProvider serviceProvider,
+    IClock clock,
+    ILogger<TeamService> logger) : ITeamService, IGoogleGroupMembershipSource, IUserDataContributor, IUserMerge
 {
-    private readonly ITeamRepository _repo;
-    private readonly IAuditLogService _auditLogService;
-    private readonly INotificationEmitter _notificationService;
-    private readonly IShiftManagementService _shiftManagementService;
-    private readonly INotificationMeterCacheInvalidator _notificationMeterInvalidator;
-    private readonly IShiftAuthorizationInvalidator _shiftAuthInvalidator;
-    private readonly IAdminAuthorizationService _adminAuthorization;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IClock _clock;
-    private readonly ILogger<TeamService> _logger;
-
     // Lazy resolution — UserService injects ITeamService, closing the cycle.
     private ITeamResourceService TeamResourceService
-        => _serviceProvider.GetRequiredService<ITeamResourceService>();
+        => serviceProvider.GetRequiredService<ITeamResourceService>();
 
     private IRoleAssignmentService RoleAssignmentService
-        => _serviceProvider.GetRequiredService<IRoleAssignmentService>();
+        => serviceProvider.GetRequiredService<IRoleAssignmentService>();
 
     private IEmailService EmailService
-        => _serviceProvider.GetRequiredService<IEmailService>();
+        => serviceProvider.GetRequiredService<IEmailService>();
 
     private ISystemTeamSync SystemTeamSync
-        => _serviceProvider.GetRequiredService<ISystemTeamSync>();
+        => serviceProvider.GetRequiredService<ISystemTeamSync>();
 
     private IUserService UserService
-        => _serviceProvider.GetRequiredService<IUserService>();
-
-    public TeamService(
-        ITeamRepository repo,
-        IAuditLogService auditLogService,
-        INotificationEmitter notificationService,
-        IShiftManagementService shiftManagementService,
-        INotificationMeterCacheInvalidator notificationMeterInvalidator,
-        IShiftAuthorizationInvalidator shiftAuthInvalidator,
-        IAdminAuthorizationService adminAuthorization,
-        IServiceProvider serviceProvider,
-        IClock clock,
-        ILogger<TeamService> logger)
-    {
-        _repo = repo;
-        _auditLogService = auditLogService;
-        _notificationService = notificationService;
-        _shiftManagementService = shiftManagementService;
-        _notificationMeterInvalidator = notificationMeterInvalidator;
-        _shiftAuthInvalidator = shiftAuthInvalidator;
-        _adminAuthorization = adminAuthorization;
-        _serviceProvider = serviceProvider;
-        _clock = clock;
-        _logger = logger;
-    }
+        => serviceProvider.GetRequiredService<IUserService>();
 
     public async Task<Team> CreateTeamAsync(
         string name,
@@ -85,7 +60,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         CancellationToken cancellationToken = default)
     {
         var baseSlug = SlugHelper.GenerateSlug(name);
-        var now = _clock.GetCurrentInstant();
+        var now = clock.GetCurrentInstant();
 
         string[] reservedSlugs = ["roster", "birthdays", "map", "my", "sync", "summary", "create", "search"];
         if (Array.Exists(reservedSlugs, s => string.Equals(baseSlug, s, StringComparison.Ordinal)))
@@ -93,7 +68,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
         if (parentTeamId.HasValue)
         {
-            var parent = await _repo.GetByIdAsync(parentTeamId.Value, cancellationToken)
+            var parent = await repo.GetByIdAsync(parentTeamId.Value, cancellationToken)
                 ?? throw new InvalidOperationException($"Parent team {parentTeamId.Value} not found");
 
             if (parent.IsSystemTeam)
@@ -107,7 +82,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         {
             var slug = attempt == 0 ? baseSlug : $"{baseSlug}-{attempt + 1}";
 
-            var collidesWithExistingSlug = await _repo.SlugExistsAsync(slug, excludingTeamId: null, cancellationToken);
+            var collidesWithExistingSlug = await repo.SlugExistsAsync(slug, excludingTeamId: null, cancellationToken);
             if (collidesWithExistingSlug)
                 continue;
 
@@ -127,15 +102,15 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
                 UpdatedAt = now
             };
 
-            var persisted = await _repo.AddTeamWithRequiresApprovalOverrideAsync(team, requiresApproval, cancellationToken);
+            var persisted = await repo.AddTeamWithRequiresApprovalOverrideAsync(team, requiresApproval, cancellationToken);
             if (persisted)
             {
-                _logger.LogInformation("Created team {TeamName} with slug {Slug}", name, slug);
+                logger.LogInformation("Created team {TeamName} with slug {Slug}", name, slug);
                 return team;
             }
 
             // Slug/custom_slug unique-constraint race (Npgsql 23505 → false). Retry next suffix.
-            _logger.LogDebug(
+            logger.LogDebug(
                 "Slug collision for '{Slug}' at persist, retrying (attempt {Attempt})",
                 slug, attempt + 1);
         }
@@ -146,7 +121,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     public async Task<Team?> GetTeamBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
         var normalizedSlug = slug.ToLowerInvariant();
-        var team = await _repo.GetBySlugWithRelationsAsync(normalizedSlug, cancellationToken);
+        var team = await repo.GetBySlugWithRelationsAsync(normalizedSlug, cancellationToken);
         if (team is null)
             return null;
 
@@ -156,7 +131,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
     public async Task<Team?> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
-        var team = await _repo.GetByIdWithRelationsAsync(teamId, cancellationToken);
+        var team = await repo.GetByIdWithRelationsAsync(teamId, cancellationToken);
         if (team is null)
             return null;
 
@@ -178,7 +153,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
     public async Task<IReadOnlyList<Team>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
     {
-        var teams = await _repo.GetAllActiveAsync(cancellationToken);
+        var teams = await repo.GetAllActiveAsync(cancellationToken);
         return teams.ToList();
     }
 
@@ -188,11 +163,11 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     {
         if (Guid.TryParse(query, out var id))
         {
-            var team = await _repo.GetByIdAsync(id, cancellationToken);
+            var team = await repo.GetByIdAsync(id, cancellationToken);
             return team is null ? [] : [new TeamSearchHit(team.Name, team.Slug)];
         }
 
-        var teams = await _repo.SearchAsync(
+        var teams = await repo.SearchAsync(
             query, includeHidden: false, max, cancellationToken);
         return teams
             .Select(t => new TeamSearchHit(t.Name, t.Slug))
@@ -202,13 +177,13 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     public async Task<IReadOnlyCollection<Guid>> GetEffectiveBudgetCoordinatorTeamIdsAsync(
         Guid userId, CancellationToken cancellationToken = default)
     {
-        var departmentIds = await _repo.GetUserDepartmentCoordinatorTeamIdsAsync(userId, cancellationToken);
+        var departmentIds = await repo.GetUserDepartmentCoordinatorTeamIdsAsync(userId, cancellationToken);
         var teamIds = departmentIds.ToHashSet();
 
         if (teamIds.Count == 0)
             return teamIds;
 
-        var childTeams = await _repo.GetActiveChildIdsByParentsAsync(teamIds.ToList(), cancellationToken);
+        var childTeams = await repo.GetActiveChildIdsByParentsAsync(teamIds.ToList(), cancellationToken);
         foreach (var (childId, _) in childTeams)
             teamIds.Add(childId);
 
@@ -218,7 +193,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     public async Task<(bool Updated, string? PreviousPrefix)> SetGoogleGroupPrefixAsync(
         Guid teamId, string? prefix, CancellationToken cancellationToken = default)
     {
-        var (updated, previous) = await _repo.SetGoogleGroupPrefixAsync(teamId, prefix, cancellationToken);
+        var (updated, previous) = await repo.SetGoogleGroupPrefixAsync(teamId, prefix, cancellationToken);
         return (updated, previous);
     }
 
@@ -301,7 +276,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         var pendingRequestCount = canManage
             ? (await GetPendingRequestsForTeamAsync(team.Id, cancellationToken)).Count
             : 0;
-        var roleDefinitions = await _repo.GetRoleDefinitionsAsync(team.Id, cancellationToken);
+        var roleDefinitions = await repo.GetRoleDefinitionsAsync(team.Id, cancellationToken);
         await StitchRoleAssignmentUserSlicesAsync(roleDefinitions, cancellationToken);
 
         return new TeamDetailResult(
@@ -330,7 +305,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
     public async Task<IReadOnlyList<TeamMember>> GetUserTeamsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var memberships = await _repo.GetActiveByUserIdAsync(userId, cancellationToken);
+        var memberships = await repo.GetActiveByUserIdAsync(userId, cancellationToken);
         await StitchMemberUserSlicesAsync(memberships, cancellationToken);
         return memberships;
     }
@@ -348,7 +323,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             .ToHashSet();
 
         var childTeamsByParent = coordinatorTeamIds.Count > 0
-            ? await _repo.GetActiveChildIdsByParentsAsync(coordinatorTeamIds.ToList(), cancellationToken)
+            ? await repo.GetActiveChildIdsByParentsAsync(coordinatorTeamIds.ToList(), cancellationToken)
             : [];
 
         var allManageableTeamIds = coordinatorTeamIds
@@ -356,7 +331,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             .ToList();
 
         var pendingCounts = allManageableTeamIds.Count > 0
-            ? await _repo.GetPendingCountsByTeamIdsAsync(allManageableTeamIds, cancellationToken)
+            ? await repo.GetPendingCountsByTeamIdsAsync(allManageableTeamIds, cancellationToken)
             : new Dictionary<Guid, int>();
 
         return memberships
@@ -398,15 +373,15 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         bool? isPromotedToDirectory = null,
         CancellationToken cancellationToken = default)
     {
-        var team = await _repo.FindForMutationAsync(teamId, cancellationToken)
+        var team = await repo.FindForMutationAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
         {
             team.Description = description;
             team.GoogleGroupPrefix = googleGroupPrefix;
-            team.UpdatedAt = _clock.GetCurrentInstant();
-            await _repo.UpdateTeamAsync(team, cancellationToken);
+            team.UpdatedAt = clock.GetCurrentInstant();
+            await repo.UpdateTeamAsync(team, cancellationToken);
             return team;
         }
 
@@ -415,11 +390,11 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             if (parentTeamId.Value == teamId)
                 throw new InvalidOperationException("A team cannot be its own parent");
 
-            var hasChildren = await _repo.HasActiveChildrenAsync(teamId, cancellationToken);
+            var hasChildren = await repo.HasActiveChildrenAsync(teamId, cancellationToken);
             if (hasChildren)
                 throw new InvalidOperationException("This team has sub-teams and cannot become a child of another team");
 
-            var parent = await _repo.GetByIdAsync(parentTeamId.Value, cancellationToken)
+            var parent = await repo.GetByIdAsync(parentTeamId.Value, cancellationToken)
                 ?? throw new InvalidOperationException($"Parent team {parentTeamId.Value} not found");
 
             if (parent.IsSystemTeam)
@@ -435,7 +410,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             if (string.IsNullOrEmpty(normalized))
                 throw new InvalidOperationException("Custom slug is not valid. Use lowercase letters, numbers, and hyphens.");
 
-            var customSlugTaken = await _repo.SlugExistsAsync(normalized, excludingTeamId: teamId, cancellationToken);
+            var customSlugTaken = await repo.SlugExistsAsync(normalized, excludingTeamId: teamId, cancellationToken);
             if (customSlugTaken)
                 throw new InvalidOperationException($"The slug '{normalized}' is already in use by another team.");
 
@@ -449,13 +424,13 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         var becomingChild = parentTeamId.HasValue && !team.ParentTeamId.HasValue;
         var parentChanging = parentTeamId != team.ParentTeamId;
         var usersNeedingShiftAuthorizationInvalidation = parentChanging
-            ? await _repo.GetUserIdsWithManagementOnTeamAsync(teamId, cancellationToken)
+            ? await repo.GetUserIdsWithManagementOnTeamAsync(teamId, cancellationToken)
             : (IReadOnlyList<Guid>)[];
 
         if (!string.Equals(team.Name, name, StringComparison.Ordinal))
         {
             var newSlug = SlugHelper.GenerateSlug(name);
-            var slugTaken = await _repo.SlugExistsAsync(newSlug, excludingTeamId: teamId, cancellationToken);
+            var slugTaken = await repo.SlugExistsAsync(newSlug, excludingTeamId: teamId, cancellationToken);
             if (!slugTaken)
                 team.Slug = newSlug;
         }
@@ -480,9 +455,9 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             team.IsPublicPage = false;
             team.ShowCoordinatorsOnPublicPage = false;
         }
-        team.UpdatedAt = _clock.GetCurrentInstant();
+        team.UpdatedAt = clock.GetCurrentInstant();
 
-        await _repo.UpdateTeamAsync(team, cancellationToken);
+        await repo.UpdateTeamAsync(team, cancellationToken);
 
         InvalidateShiftAuthorization(usersNeedingShiftAuthorizationInvalidation);
 
@@ -492,7 +467,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
                 await SystemTeamSync.SyncMembershipForUserAsync(userId, SystemTeamType.Coordinators, cancellationToken);
         }
 
-        _logger.LogInformation("Updated team {TeamId} ({TeamName})", teamId, name);
+        logger.LogInformation("Updated team {TeamId} ({TeamName})", teamId, name);
 
         return team;
     }
@@ -506,7 +481,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid updatedByUserId,
         CancellationToken cancellationToken = default)
     {
-        var team = await _repo.FindForMutationAsync(teamId, cancellationToken)
+        var team = await repo.FindForMutationAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (callsToAction.Count > 3)
@@ -523,7 +498,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         var normalizedShowCoordinatorsOnPublicPage =
             canBePublic && isPublicPage && showCoordinatorsOnPublicPage;
 
-        var now = _clock.GetCurrentInstant();
+        var now = clock.GetCurrentInstant();
         team.PageContent = pageContent;
         team.CallsToAction = callsToAction;
         team.IsPublicPage = isPublicPage;
@@ -532,9 +507,9 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         team.PageContentUpdatedByUserId = updatedByUserId;
         team.UpdatedAt = now;
 
-        await _repo.UpdateTeamAsync(team, cancellationToken);
+        await repo.UpdateTeamAsync(team, cancellationToken);
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamPageContentUpdated, nameof(Team), teamId,
             $"Team page content updated. Public: {isPublicPage}",
             updatedByUserId);
@@ -570,30 +545,30 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Failed to update team page for team {TeamId} by user {UserId}", teamId, updatedByUserId);
+            logger.LogWarning(ex, "Failed to update team page for team {TeamId} by user {UserId}", teamId, updatedByUserId);
             return TeamPageUpdateResult.Failed(ex.Message);
         }
     }
 
     public async Task DeleteTeamAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
-        var team = await _repo.GetByIdAsync(teamId, cancellationToken)
+        var team = await repo.GetByIdAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
             throw new InvalidOperationException("Cannot delete system team");
 
-        var hasActiveChildren = await _repo.HasActiveChildrenAsync(teamId, cancellationToken);
+        var hasActiveChildren = await repo.HasActiveChildrenAsync(teamId, cancellationToken);
         if (hasActiveChildren)
             throw new InvalidOperationException("Cannot deactivate a team that has active sub-teams. Remove or reassign sub-teams first.");
 
-        var now = _clock.GetCurrentInstant();
+        var now = clock.GetCurrentInstant();
 
-        var closedCount = await _repo.DeactivateTeamAsync(teamId, now, cancellationToken);
+        var closedCount = await repo.DeactivateTeamAsync(teamId, now, cancellationToken);
 
         // GoogleResource.IsActive flipped later by Google reconciliation tick (deferred).
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Deactivated team {TeamId} ({TeamName}); closed {MemberCount} memberships",
             teamId, team.Name, closedCount);
     }
@@ -604,7 +579,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         string? message,
         CancellationToken cancellationToken = default)
     {
-        var team = await _repo.GetByIdWithRelationsAsync(teamId, cancellationToken)
+        var team = await repo.GetByIdWithRelationsAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
@@ -616,7 +591,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (!team.RequiresApproval)
             throw new InvalidOperationException("This team does not require approval. Use JoinTeamDirectlyAsync instead.");
 
-        var existingRequest = await _repo.FindUserPendingRequestAsync(teamId, userId, cancellationToken);
+        var existingRequest = await repo.FindUserPendingRequestAsync(teamId, userId, cancellationToken);
         if (existingRequest is not null)
             throw new InvalidOperationException("User already has a pending request for this team");
 
@@ -631,12 +606,12 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             TeamId = teamId,
             UserId = userId,
             Message = message,
-            RequestedAt = _clock.GetCurrentInstant()
+            RequestedAt = clock.GetCurrentInstant()
         };
 
-        await _repo.AddRequestAsync(request, cancellationToken);
+        await repo.AddRequestAsync(request, cancellationToken);
 
-        _logger.LogInformation("User {UserId} requested to join team {TeamId}", userId, teamId);
+        logger.LogInformation("User {UserId} requested to join team {TeamId}", userId, teamId);
         await SendTeamJoinRequestSubmittedNotificationAsync(team, userId, cancellationToken);
 
         return request;
@@ -647,7 +622,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var team = await _repo.GetByIdWithRelationsAsync(teamId, cancellationToken)
+        var team = await repo.GetByIdWithRelationsAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
@@ -659,7 +634,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (team.RequiresApproval)
             throw new InvalidOperationException("This team requires approval. Use RequestToJoinTeamAsync instead.");
 
-        var existingMember = await _repo.IsActiveMemberAsync(teamId, userId, cancellationToken);
+        var existingMember = await repo.IsActiveMemberAsync(teamId, userId, cancellationToken);
         if (existingMember)
             throw new InvalidOperationException("User is already a member of this team");
 
@@ -669,7 +644,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             TeamId = teamId,
             UserId = userId,
             Role = TeamMemberRole.Member,
-            JoinedAt = _clock.GetCurrentInstant()
+            JoinedAt = clock.GetCurrentInstant()
         };
 
         var outboxEvent = await BuildOutboxEventAsync(
@@ -680,18 +655,18 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         {
             success = outboxEvent is null
                 ? await TryAddMemberOnlyAsync(member, cancellationToken)
-                : await _repo.AddMemberWithOutboxAsync(member, outboxEvent, cancellationToken);
+                : await repo.AddMemberWithOutboxAsync(member, outboxEvent, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add user {UserId} to team {TeamId} directly", userId, teamId);
+            logger.LogError(ex, "Failed to add user {UserId} to team {TeamId} directly", userId, teamId);
             throw;
         }
 
         if (!success)
             throw new InvalidOperationException("User is already a member of this team");
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamJoinedDirectly, nameof(Team), teamId,
             $"Joined {team.Name} directly",
             userId,
@@ -717,7 +692,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         var displayName = await GetDisplayNameAsync(userId, cancellationToken);
         try
         {
-            await _notificationService.SendAsync(
+            await notificationService.SendAsync(
                 NotificationSource.TeamJoinRequestSubmitted,
                 NotificationClass.Actionable,
                 NotificationPriority.Normal,
@@ -730,7 +705,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to dispatch TeamJoinRequestSubmitted notification for team {TeamId}", team.Id);
+            logger.LogError(ex, "Failed to dispatch TeamJoinRequestSubmitted notification for team {TeamId}", team.Id);
         }
     }
 
@@ -748,7 +723,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         var displayName = await GetDisplayNameAsync(userId, cancellationToken);
         try
         {
-            await _notificationService.SendAsync(
+            await notificationService.SendAsync(
                 NotificationSource.TeamMemberAdded,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
@@ -761,7 +736,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to dispatch TeamMemberAdded notification for team {TeamId}", team.Id);
+            logger.LogError(ex, "Failed to dispatch TeamMemberAdded notification for team {TeamId}", team.Id);
         }
     }
 
@@ -781,7 +756,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     private async Task<bool> TryAddMemberOnlyAsync(TeamMember member, CancellationToken ct)
     {
         // DB unique constraint backstops the caller's pre-check.
-        await _repo.AddMemberAsync(member, ct);
+        await repo.AddMemberAsync(member, ct);
         return true;
     }
 
@@ -790,13 +765,13 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var team = await _repo.GetByIdAsync(teamId, cancellationToken)
+        var team = await repo.GetByIdAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
             throw new InvalidOperationException("Cannot leave system team manually");
 
-        var member = await _repo.FindActiveMemberForMutationAsync(teamId, userId, cancellationToken);
+        var member = await repo.FindActiveMemberForMutationAsync(teamId, userId, cancellationToken);
         if (member is null)
             throw new InvalidOperationException("User is not a member of this team");
 
@@ -805,11 +780,11 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         var outboxEvent = await BuildOutboxEventAsync(
             member.Id, teamId, userId, GoogleSyncOutboxEventTypes.RemoveUserFromTeamResources, cancellationToken);
 
-        var now = _clock.GetCurrentInstant();
-        var removedAssignments = await _repo.MarkMemberLeftWithOutboxAsync(
+        var now = clock.GetCurrentInstant();
+        var removedAssignments = await repo.MarkMemberLeftWithOutboxAsync(
             member.Id, now, outboxEvent, cancellationToken);
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamLeft, nameof(Team), teamId,
             $"Left {team.Name}",
             userId,
@@ -831,14 +806,14 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var now = _clock.GetCurrentInstant();
-        var withdrew = await _repo.WithdrawRequestAsync(requestId, userId, now, cancellationToken);
+        var now = clock.GetCurrentInstant();
+        var withdrew = await repo.WithdrawRequestAsync(requestId, userId, now, cancellationToken);
         if (!withdrew)
             throw new InvalidOperationException("Join request not found");
 
-        _notificationMeterInvalidator.Invalidate();
+        notificationMeterInvalidator.Invalidate();
 
-        _logger.LogInformation("User {UserId} withdrew join request {RequestId}", userId, requestId);
+        logger.LogInformation("User {UserId} withdrew join request {RequestId}", userId, requestId);
     }
 
     public async Task<TeamMember> ApproveJoinRequestAsync(
@@ -847,7 +822,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         string? notes,
         CancellationToken cancellationToken = default)
     {
-        var request = await _repo.FindRequestWithTeamForMutationAsync(requestId, cancellationToken)
+        var request = await repo.FindRequestWithTeamForMutationAsync(requestId, cancellationToken)
             ?? throw new InvalidOperationException("Join request not found");
 
         var canApprove = await CanUserApproveRequestsForTeamAsync(request.TeamId, approverUserId, cancellationToken);
@@ -859,7 +834,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         request.Status = TeamJoinRequestStatus.Approved;
         request.ReviewedByUserId = approverUserId;
         request.ReviewNotes = notes;
-        var now = _clock.GetCurrentInstant();
+        var now = clock.GetCurrentInstant();
         request.ResolvedAt = now;
 
         var member = new TeamMember
@@ -878,11 +853,11 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         bool success;
         try
         {
-            success = await _repo.ApproveRequestWithMemberAsync(request, member, outboxEvent, cancellationToken);
+            success = await repo.ApproveRequestWithMemberAsync(request, member, outboxEvent, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to approve join request {RequestId} for user {UserId} to team {TeamId}",
+            logger.LogError(ex, "Failed to approve join request {RequestId} for user {UserId} to team {TeamId}",
                 requestId, request.UserId, request.TeamId);
             throw;
         }
@@ -890,13 +865,13 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (!success)
             throw new InvalidOperationException("User is already a member of this team");
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamJoinRequestApproved, nameof(Team), request.TeamId,
             $"Join request for {request.Team.Name} approved",
             approverUserId,
             relatedEntityId: request.UserId, relatedEntityType: nameof(User));
 
-        _notificationMeterInvalidator.Invalidate();
+        notificationMeterInvalidator.Invalidate();
 
         await SendAddedToTeamEmailAsync(request.UserId, request.Team, cancellationToken);
         await SendJoinRequestApprovedNotificationAsync(request.Team, member.UserId, cancellationToken);
@@ -911,7 +886,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     {
         try
         {
-            await _notificationService.SendAsync(
+            await notificationService.SendAsync(
                 NotificationSource.TeamJoinRequestDecided,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
@@ -924,7 +899,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to dispatch TeamJoinRequestDecided notification for team {TeamId}", team.Id);
+            logger.LogError(ex, "Failed to dispatch TeamJoinRequestDecided notification for team {TeamId}", team.Id);
         }
     }
 
@@ -934,25 +909,25 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         string reason,
         CancellationToken cancellationToken = default)
     {
-        var request = await _repo.FindRequestWithTeamForMutationAsync(requestId, cancellationToken)
+        var request = await repo.FindRequestWithTeamForMutationAsync(requestId, cancellationToken)
             ?? throw new InvalidOperationException("Join request not found");
 
         var canApprove = await CanUserApproveRequestsForTeamAsync(request.TeamId, approverUserId, cancellationToken);
         if (!canApprove)
             throw new InvalidOperationException("User does not have permission to reject requests for this team");
 
-        var now = _clock.GetCurrentInstant();
-        var rejected = await _repo.RejectRequestAsync(requestId, approverUserId, reason, now, cancellationToken);
+        var now = clock.GetCurrentInstant();
+        var rejected = await repo.RejectRequestAsync(requestId, approverUserId, reason, now, cancellationToken);
         if (!rejected)
             throw new InvalidOperationException("Can only reject pending requests");
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamJoinRequestRejected, nameof(Team), request.TeamId,
             $"Join request for team rejected: {reason}",
             approverUserId,
             relatedEntityId: request.UserId, relatedEntityType: nameof(User));
 
-        _notificationMeterInvalidator.Invalidate();
+        notificationMeterInvalidator.Invalidate();
         await SendJoinRequestRejectedNotificationAsync(request.Team, request.UserId, cancellationToken);
     }
 
@@ -963,7 +938,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     {
         try
         {
-            await _notificationService.SendAsync(
+            await notificationService.SendAsync(
                 NotificationSource.TeamJoinRequestDecided,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
@@ -976,7 +951,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to dispatch TeamJoinRequestDecided notification for team {TeamId}", team.Id);
+            logger.LogError(ex, "Failed to dispatch TeamJoinRequestDecided notification for team {TeamId}", team.Id);
         }
     }
 
@@ -984,7 +959,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid teamId,
         CancellationToken cancellationToken = default)
     {
-        var requests = await _repo.GetPendingForTeamAsync(teamId, cancellationToken);
+        var requests = await repo.GetPendingForTeamAsync(teamId, cancellationToken);
         var usersById = await GetJoinRequestUsersByIdAsync(requests, cancellationToken);
         return requests
             .Select(request => ToJoinRequestSnapshot(request, usersById))
@@ -996,7 +971,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var request = await _repo.FindUserPendingRequestAsync(teamId, userId, cancellationToken);
+        var request = await repo.FindUserPendingRequestAsync(teamId, userId, cancellationToken);
         return request is null ? null : ToJoinRequestSnapshot(request);
     }
 
@@ -1023,7 +998,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         CancellationToken cancellationToken = default)
     {
         var teamsById = await LoadTeamsByIdAsync(cancellationToken);
-        var coordinatorTeamIds = await _repo.GetUserCoordinatorTeamIdsAsync(userId, cancellationToken);
+        var coordinatorTeamIds = await repo.GetUserCoordinatorTeamIdsAsync(userId, cancellationToken);
         return IsUserCoordinatorOfActiveTeam(teamsById, coordinatorTeamIds, teamId, userId);
     }
 
@@ -1035,32 +1010,32 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     {
         if (!teamsById.TryGetValue(teamId, out var team) || !team.IsActive)
         {
-            _logger.LogDebug("Coordinator check: team {TeamId} not found in cache for user {UserId}", teamId, userId);
+            logger.LogDebug("Coordinator check: team {TeamId} not found in cache for user {UserId}", teamId, userId);
             return false;
         }
 
         if (team.Members.Any(m => m.UserId == userId && m.Role == TeamMemberRole.Coordinator))
         {
-            _logger.LogDebug("Coordinator check: user {UserId} is direct coordinator of team {TeamName} ({TeamId})",
+            logger.LogDebug("Coordinator check: user {UserId} is direct coordinator of team {TeamName} ({TeamId})",
                 userId, team.Name, teamId);
             return true;
         }
 
         if (coordinatorTeamIds.Contains(teamId))
         {
-            _logger.LogDebug("Coordinator check: user {UserId} has IsManagement role on team {TeamName} ({TeamId})",
+            logger.LogDebug("Coordinator check: user {UserId} has IsManagement role on team {TeamName} ({TeamId})",
                 userId, team.Name, teamId);
             return true;
         }
 
         if (team.ParentTeamId.HasValue)
         {
-            _logger.LogDebug("Coordinator check: checking parent team {ParentTeamId} for user {UserId} on team {TeamName} ({TeamId})",
+            logger.LogDebug("Coordinator check: checking parent team {ParentTeamId} for user {UserId} on team {TeamName} ({TeamId})",
                 team.ParentTeamId.Value, userId, team.Name, teamId);
             return IsUserCoordinatorOfActiveTeam(teamsById, coordinatorTeamIds, team.ParentTeamId.Value, userId);
         }
 
-        _logger.LogDebug("Coordinator check: user {UserId} is NOT coordinator of team {TeamName} ({TeamId})",
+        logger.LogDebug("Coordinator check: user {UserId} is NOT coordinator of team {TeamName} ({TeamId})",
             userId, team.Name, teamId);
         return false;
     }
@@ -1071,7 +1046,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var team = await _repo.GetByIdAsync(teamId, cancellationToken)
+        var team = await repo.GetByIdAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
@@ -1081,7 +1056,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (!canApprove)
             throw new InvalidOperationException("User does not have permission to remove members from this team");
 
-        var member = await _repo.FindActiveMemberForMutationAsync(teamId, userId, cancellationToken)
+        var member = await repo.FindActiveMemberForMutationAsync(teamId, userId, cancellationToken)
             ?? throw new InvalidOperationException("User is not a member of this team");
 
         var wasCoordinator = member.Role == TeamMemberRole.Coordinator;
@@ -1089,11 +1064,11 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         var outboxEvent = await BuildOutboxEventAsync(
             member.Id, teamId, userId, GoogleSyncOutboxEventTypes.RemoveUserFromTeamResources, cancellationToken);
 
-        var now = _clock.GetCurrentInstant();
-        var removedAssignments = await _repo.MarkMemberLeftWithOutboxAsync(
+        var now = clock.GetCurrentInstant();
+        var removedAssignments = await repo.MarkMemberLeftWithOutboxAsync(
             member.Id, now, outboxEvent, cancellationToken);
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamMemberRemoved, nameof(Team), teamId,
             $"Member removed from {team.Name}",
             actorUserId,
@@ -1103,7 +1078,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
         try
         {
-            await _notificationService.SendAsync(
+            await notificationService.SendAsync(
                 NotificationSource.TeamMemberRemoved,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
@@ -1114,7 +1089,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to dispatch TeamMemberRemoved notification for user {UserId} team {TeamId}", userId, teamId);
+            logger.LogError(ex, "Failed to dispatch TeamMemberRemoved notification for user {UserId} team {TeamId}", userId, teamId);
         }
 
         return wasCoordinator;
@@ -1126,25 +1101,25 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var team = await _repo.GetByIdAsync(teamId, cancellationToken)
+        var team = await repo.GetByIdAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
             throw new InvalidOperationException("Cannot add members to system teams manually");
 
-        var isExisting = await _repo.IsActiveMemberAsync(teamId, targetUserId, cancellationToken);
+        var isExisting = await repo.IsActiveMemberAsync(teamId, targetUserId, cancellationToken);
         if (isExisting)
             throw new InvalidOperationException("User is already a member of this team");
 
         // Resolve any pending request via approve-with-member; otherwise AddMemberWithOutbox.
-        var pendingRequest = await _repo.FindUserPendingRequestAsync(teamId, targetUserId, cancellationToken);
+        var pendingRequest = await repo.FindUserPendingRequestAsync(teamId, targetUserId, cancellationToken);
         var member = new TeamMember
         {
             Id = Guid.NewGuid(),
             TeamId = teamId,
             UserId = targetUserId,
             Role = TeamMemberRole.Member,
-            JoinedAt = _clock.GetCurrentInstant()
+            JoinedAt = clock.GetCurrentInstant()
         };
 
         var outboxEvent = await BuildOutboxEventAsync(
@@ -1161,41 +1136,41 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
                     pendingRequest.Status = TeamJoinRequestStatus.Approved;
                     pendingRequest.ReviewedByUserId = actorUserId;
                     pendingRequest.ReviewNotes = "Added directly by team manager";
-                    pendingRequest.ResolvedAt = _clock.GetCurrentInstant();
+                    pendingRequest.ResolvedAt = clock.GetCurrentInstant();
                 }
-                var tracked = await _repo.FindRequestForMutationAsync(pendingRequest.Id, cancellationToken);
+                var tracked = await repo.FindRequestForMutationAsync(pendingRequest.Id, cancellationToken);
                 if (tracked is not null)
                 {
                     tracked.Status = pendingRequest.Status;
                     tracked.ReviewedByUserId = pendingRequest.ReviewedByUserId;
                     tracked.ReviewNotes = pendingRequest.ReviewNotes;
                     tracked.ResolvedAt = pendingRequest.ResolvedAt;
-                    success = await _repo.ApproveRequestWithMemberAsync(tracked, member, outboxEvent, cancellationToken);
+                    success = await repo.ApproveRequestWithMemberAsync(tracked, member, outboxEvent, cancellationToken);
                 }
                 else
                 {
                     success = outboxEvent is null
                         ? await TryAddMemberOnlyAsync(member, cancellationToken)
-                        : await _repo.AddMemberWithOutboxAsync(member, outboxEvent, cancellationToken);
+                        : await repo.AddMemberWithOutboxAsync(member, outboxEvent, cancellationToken);
                 }
             }
             else
             {
                 success = outboxEvent is null
                     ? await TryAddMemberOnlyAsync(member, cancellationToken)
-                    : await _repo.AddMemberWithOutboxAsync(member, outboxEvent, cancellationToken);
+                    : await repo.AddMemberWithOutboxAsync(member, outboxEvent, cancellationToken);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to add user {UserId} to team {TeamId}", targetUserId, teamId);
+            logger.LogError(ex, "Failed to add user {UserId} to team {TeamId}", targetUserId, teamId);
             throw;
         }
 
         if (!success)
             throw new InvalidOperationException("User is already a member of this team");
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamMemberAdded, nameof(Team), teamId,
             $"Member added to {team.Name}",
             actorUserId,
@@ -1213,11 +1188,11 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var newRole = await _repo.SetMemberRoleAsync(teamId, userId, role, cancellationToken);
+        var newRole = await repo.SetMemberRoleAsync(teamId, userId, role, cancellationToken);
         if (newRole is null)
             return;
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamMemberRoleChanged, nameof(Team), teamId,
             $"Set member role to {role}",
             actorUserId,
@@ -1230,7 +1205,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         bool isPublic = true,
         CancellationToken cancellationToken = default)
     {
-        var team = await _repo.GetByIdAsync(teamId, cancellationToken)
+        var team = await repo.GetByIdAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
@@ -1240,7 +1215,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         ValidateRoleName(name);
 
         var lowerName = name.ToLowerInvariant();
-        var nameExists = await _repo.RoleDefinitionNameExistsAsync(teamId, lowerName, excludingId: null, cancellationToken);
+        var nameExists = await repo.RoleDefinitionNameExistsAsync(teamId, lowerName, excludingId: null, cancellationToken);
         if (nameExists)
             throw new InvalidOperationException($"A role definition with name '{name}' already exists for this team");
 
@@ -1248,7 +1223,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (!canManage)
             throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
 
-        var now = _clock.GetCurrentInstant();
+        var now = clock.GetCurrentInstant();
         var definition = new TeamRoleDefinition
         {
             Id = Guid.NewGuid(),
@@ -1264,9 +1239,9 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             UpdatedAt = now
         };
 
-        await _repo.AddRoleDefinitionAsync(definition, cancellationToken);
+        await repo.AddRoleDefinitionAsync(definition, cancellationToken);
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamRoleDefinitionCreated, nameof(TeamRoleDefinition), definition.Id,
             $"Role definition '{name}' created for team {team.Name}",
             actorUserId,
@@ -1282,7 +1257,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         bool canToggleManagement = true,
         CancellationToken cancellationToken = default)
     {
-        var definition = await _repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
+        var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
 
         var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
@@ -1302,7 +1277,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         {
             ValidateRoleName(name);
             var lowerName = name.ToLowerInvariant();
-            var nameExists = await _repo.RoleDefinitionNameExistsAsync(definition.TeamId, lowerName, excludingId: roleDefinitionId, cancellationToken);
+            var nameExists = await repo.RoleDefinitionNameExistsAsync(definition.TeamId, lowerName, excludingId: roleDefinitionId, cancellationToken);
             if (nameExists)
                 throw new InvalidOperationException($"A role definition with name '{name}' already exists for this team");
         }
@@ -1327,7 +1302,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
         if (isManagement && !definition.IsManagement)
         {
-            var existingManagement = await _repo.OtherRoleHasIsManagementAsync(
+            var existingManagement = await repo.OtherRoleHasIsManagementAsync(
                 definition.TeamId, roleDefinitionId, cancellationToken);
             if (existingManagement)
                 throw new InvalidOperationException("Another role in this team is already marked as the management role");
@@ -1338,12 +1313,12 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         definition.IsPublic = isPublic;
         definition.IsManagement = isManagement;
         definition.Period = period;
-        definition.UpdatedAt = _clock.GetCurrentInstant();
+        definition.UpdatedAt = clock.GetCurrentInstant();
 
-        var (_, invalidatedActiveTeams) = await _repo.PersistRoleDefinitionUpdateAsync(
+        var (_, invalidatedActiveTeams) = await repo.PersistRoleDefinitionUpdateAsync(
             definition, clearingIsManagement, cancellationToken);
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamRoleDefinitionUpdated, nameof(TeamRoleDefinition), definition.Id,
             $"Role definition '{name}' updated for team {definition.Team.Name}",
             actorUserId,
@@ -1358,7 +1333,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid roleDefinitionId, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var definition = await _repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
+        var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
 
         if (definition.IsManagement && definition.Assignments.Count > 0)
@@ -1368,9 +1343,9 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (!canManage)
             throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
 
-        await _repo.RemoveRoleDefinitionAsync(definition, cancellationToken);
+        await repo.RemoveRoleDefinitionAsync(definition, cancellationToken);
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamRoleDefinitionDeleted, nameof(TeamRoleDefinition), definition.Id,
             $"Role definition '{definition.Name}' deleted from team {definition.Team.Name}",
             actorUserId,
@@ -1381,7 +1356,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid roleDefinitionId, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var definition = await _repo.FindRoleDefinitionWithMembersForMutationAsync(roleDefinitionId, cancellationToken)
+        var definition = await repo.FindRoleDefinitionWithMembersForMutationAsync(roleDefinitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
 
         var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
@@ -1406,7 +1381,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             if (definition.Assignments.Count > 0)
                 throw new InvalidOperationException("Cannot set IsManagement while members are assigned to the role");
 
-            var existingManagement = await _repo.OtherRoleHasIsManagementAsync(
+            var existingManagement = await repo.OtherRoleHasIsManagementAsync(
                 definition.TeamId, roleDefinitionId, cancellationToken);
             if (existingManagement)
                 throw new InvalidOperationException("Another role in this team is already marked as the management role");
@@ -1415,12 +1390,12 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         var clearingIsManagement = definition.IsManagement && !isManagement && definition.Assignments.Count > 0;
 
         definition.IsManagement = isManagement;
-        definition.UpdatedAt = _clock.GetCurrentInstant();
+        definition.UpdatedAt = clock.GetCurrentInstant();
 
-        var demotedMembers = await _repo.PersistRoleIsManagementAsync(
+        var demotedMembers = await repo.PersistRoleIsManagementAsync(
             definition, clearingIsManagement, cancellationToken);
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamRoleDefinitionUpdated, nameof(TeamRoleDefinition), definition.Id,
             $"IsManagement set to {isManagement} on role '{definition.Name}' in {definition.Team.Name}",
             actorUserId,
@@ -1434,14 +1409,14 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     public async Task<IReadOnlyList<TeamRoleDefinitionSnapshot>> GetRoleDefinitionsAsync(
         Guid teamId, CancellationToken cancellationToken = default)
     {
-        var definitions = await _repo.GetRoleDefinitionsAsync(teamId, cancellationToken);
+        var definitions = await repo.GetRoleDefinitionsAsync(teamId, cancellationToken);
         return definitions.Select(definition => ToRoleDefinitionSnapshot(definition)).ToList();
     }
 
     public async Task<IReadOnlyList<TeamRoleDefinitionSnapshot>> GetAllRoleDefinitionsAsync(
         CancellationToken cancellationToken = default)
     {
-        var definitions = await _repo.GetAllRoleDefinitionsAsync(cancellationToken);
+        var definitions = await repo.GetAllRoleDefinitionsAsync(cancellationToken);
         return definitions.Select(definition => ToRoleDefinitionSnapshot(definition)).ToList();
     }
 
@@ -1546,15 +1521,15 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid roleDefinitionId, Guid targetUserId, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var definition = await _repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
+        var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
 
         var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
         if (!canManage)
             throw new InvalidOperationException("User does not have permission to manage role assignments for this team");
 
-        var existingMember = await _repo.FindActiveMemberForMutationAsync(definition.TeamId, targetUserId, cancellationToken);
-        var now = _clock.GetCurrentInstant();
+        var existingMember = await repo.FindActiveMemberForMutationAsync(definition.TeamId, targetUserId, cancellationToken);
+        var now = clock.GetCurrentInstant();
 
         TeamMember? autoAddMember = null;
         GoogleSyncOutboxEvent? outboxEvent = null;
@@ -1573,7 +1548,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
                 GoogleSyncOutboxEventTypes.AddUserToTeamResources, cancellationToken);
         }
 
-        var (assignment, autoAddedToTeam, persistedMember) = await _repo.AssignToRoleAsync(
+        var (assignment, autoAddedToTeam, persistedMember) = await repo.AssignToRoleAsync(
             roleDefinitionId,
             targetUserId,
             actorUserId,
@@ -1585,14 +1560,14 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
         if (autoAddedToTeam)
         {
-            await _auditLogService.LogAsync(
+            await auditLogService.LogAsync(
                 AuditAction.TeamMemberAdded, nameof(Team), definition.TeamId,
                 $"Auto-added to {definition.Team.Name} via role assignment",
                 actorUserId,
                 relatedEntityId: targetUserId, relatedEntityType: nameof(User));
         }
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamRoleAssigned, nameof(TeamRoleDefinition), roleDefinitionId,
             $"Assigned to role '{definition.Name}' in {definition.Team.Name}",
             actorUserId,
@@ -1607,17 +1582,17 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid roleDefinitionId, Guid teamMemberId, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var definition = await _repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
+        var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
 
         var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
         if (!canManage)
             throw new InvalidOperationException("User does not have permission to manage role assignments for this team");
 
-        var (demoted, targetUserId) = await _repo.UnassignFromRoleAsync(
+        var (demoted, targetUserId) = await repo.UnassignFromRoleAsync(
             roleDefinitionId, teamMemberId, cancellationToken);
 
-        await _auditLogService.LogAsync(
+        await auditLogService.LogAsync(
             AuditAction.TeamRoleUnassigned, nameof(TeamRoleDefinition), roleDefinitionId,
             $"Unassigned from role '{definition.Name}' in {definition.Team.Name}",
             actorUserId,
@@ -1630,7 +1605,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     public Task<IReadOnlyList<Guid>> GetUserCoordinatedTeamIdsAsync(
         Guid userId,
         CancellationToken cancellationToken = default) =>
-        _repo.GetUserCoordinatorTeamIdsAsync(userId, cancellationToken);
+        repo.GetUserCoordinatorTeamIdsAsync(userId, cancellationToken);
 
     public async Task<IReadOnlyList<Models.TeamMembership>> GetActiveTeamMembershipsForUserAsync(
         Guid userId, CancellationToken cancellationToken = default)
@@ -1656,11 +1631,11 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     public async Task EnqueueGoogleResyncForUserTeamsAsync(
         Guid userId, CancellationToken cancellationToken = default)
     {
-        var now = _clock.GetCurrentInstant();
-        var count = await _repo.EnqueueResyncEventsForUserAsync(userId, now, cancellationToken);
+        var now = clock.GetCurrentInstant();
+        var count = await repo.EnqueueResyncEventsForUserAsync(userId, now, cancellationToken);
         if (count > 0)
         {
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Enqueued {Count} re-sync events for user {UserId} after Google email change",
                 count, userId);
         }
@@ -1669,7 +1644,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     public Task<IReadOnlyDictionary<Guid, Team>> GetByIdsWithParentsAsync(
         IReadOnlyCollection<Guid> teamIds,
         CancellationToken cancellationToken = default) =>
-        _repo.GetByIdsWithParentsAsync(teamIds, cancellationToken);
+        repo.GetByIdsWithParentsAsync(teamIds, cancellationToken);
 
     public async Task<TeamMember> AddSeededMemberAsync(
         Guid teamId,
@@ -1678,13 +1653,13 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Instant joinedAt,
         CancellationToken cancellationToken = default)
     {
-        var team = await _repo.GetByIdAsync(teamId, cancellationToken)
+        var team = await repo.GetByIdAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
             throw new InvalidOperationException("AddSeededMemberAsync cannot target system teams");
 
-        var existing = await _repo.IsActiveMemberAsync(teamId, userId, cancellationToken);
+        var existing = await repo.IsActiveMemberAsync(teamId, userId, cancellationToken);
         if (existing)
             throw new InvalidOperationException("User is already a member of this team");
 
@@ -1697,7 +1672,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             JoinedAt = joinedAt,
         };
 
-        await _repo.AddMemberAsync(member, cancellationToken);
+        await repo.AddMemberAsync(member, cancellationToken);
 
         return member;
     }
@@ -1706,15 +1681,15 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Guid teamId,
         CancellationToken cancellationToken = default)
     {
-        await _adminAuthorization.RequireCurrentUserIsAdminAsync(cancellationToken);
+        await adminAuthorization.RequireCurrentUserIsAdminAsync(cancellationToken);
 
-        var team = await _repo.GetByIdAsync(teamId, cancellationToken)
+        var team = await repo.GetByIdAsync(teamId, cancellationToken)
             ?? throw new InvalidOperationException($"Team {teamId} not found");
 
         if (team.IsSystemTeam)
             throw new InvalidOperationException("Cannot permanently delete system team");
 
-        var hasActiveChildren = await _repo.HasActiveChildrenAsync(teamId, cancellationToken);
+        var hasActiveChildren = await repo.HasActiveChildrenAsync(teamId, cancellationToken);
         if (hasActiveChildren)
             throw new InvalidOperationException("Cannot permanently delete a team that has active sub-teams. Remove or reassign sub-teams first.");
 
@@ -1723,35 +1698,35 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         if (resources.Count > 0)
             throw new InvalidOperationException("Cannot permanently delete a team that has Google resources linked. Unlink resources first.");
 
-        return await _repo.PermanentlyDeleteTeamAsync(teamId, cancellationToken);
+        return await repo.PermanentlyDeleteTeamAsync(teamId, cancellationToken);
     }
 
     public Task<IReadOnlyDictionary<Guid, int>> GetPendingRequestCountsByTeamIdsAsync(
         IEnumerable<Guid> teamIds,
         CancellationToken cancellationToken = default) =>
-        _repo.GetPendingCountsByTeamIdsAsync(teamIds.ToList(), cancellationToken);
+        repo.GetPendingCountsByTeamIdsAsync(teamIds.ToList(), cancellationToken);
 
     public Task<int> GetTotalPendingJoinRequestCountAsync(CancellationToken cancellationToken = default) =>
-        _repo.GetTotalPendingCountAsync(cancellationToken);
+        repo.GetTotalPendingCountAsync(cancellationToken);
 
     public Task<IReadOnlyDictionary<Guid, string>> GetManagementRoleNamesByTeamIdsAsync(
         IEnumerable<Guid> teamIds,
         CancellationToken cancellationToken = default) =>
-        _repo.GetPublicManagementRoleNamesByTeamIdsAsync(teamIds.ToList(), cancellationToken);
+        repo.GetPublicManagementRoleNamesByTeamIdsAsync(teamIds.ToList(), cancellationToken);
 
     public async Task<AdminTeamListResult> GetAdminTeamListAsync(
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var (items, totalCount) = await _repo.GetAllForAdminAsync(page, pageSize, cancellationToken);
+        var (items, totalCount) = await repo.GetAllForAdminAsync(page, pageSize, cancellationToken);
 
-        var activeEvent = await _shiftManagementService.GetActiveAsync();
+        var activeEvent = await shiftManagementService.GetActiveAsync();
         var activeEventId = activeEvent?.Id ?? Guid.Empty;
 
         var pendingShiftCounts = activeEventId == Guid.Empty
             ? new Dictionary<Guid, int>()
-            : await _shiftManagementService.GetPendingShiftSignupCountsByTeamAsync(
+            : await shiftManagementService.GetPendingShiftSignupCountsByTeamAsync(
                 activeEventId, cancellationToken);
 
         var teamIds = items.Select(t => t.Id).ToList();
@@ -1770,8 +1745,8 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
     public async Task<int> RevokeAllMembershipsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var now = _clock.GetCurrentInstant();
-        var count = await _repo.RevokeAllMembershipsAsync(userId, now, cancellationToken);
+        var now = clock.GetCurrentInstant();
+        var count = await repo.RevokeAllMembershipsAsync(userId, now, cancellationToken);
         if (count > 0)
             RemoveMemberFromAllTeamsCache(userId);
         return count;
@@ -1803,13 +1778,13 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
 
         // TeamJoinRequest fold.
-        await _repo.ReassignActiveJoinRequestsAsync(sourceUserId, targetUserId, cancellationToken);
+        await repo.ReassignActiveJoinRequestsAsync(sourceUserId, targetUserId, cancellationToken);
     }
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
-        var memberships = await _repo.GetAllMembershipsForUserAsync(userId, ct);
-        var joinRequests = await _repo.GetAllJoinRequestsForUserAsync(userId, ct);
+        var memberships = await repo.GetAllMembershipsForUserAsync(userId, ct);
+        var joinRequests = await repo.GetAllJoinRequestsForUserAsync(userId, ct);
 
         var membershipSlice = new UserDataSlice(GdprExportSections.TeamMemberships, memberships.Select(tm => new
         {
@@ -1840,15 +1815,15 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
 
     private async Task<IReadOnlyDictionary<Guid, TeamInfo>> LoadTeamsByIdAsync(CancellationToken ct = default)
     {
-        var teams = await _repo.GetAllWithMembersAsync(ct);
+        var teams = await repo.GetAllWithMembersAsync(ct);
         var allUserIds = teams.SelectMany(t => t.Members.Where(m => m.LeftAt is null).Select(m => m.UserId))
             .Distinct()
             .ToList();
         var users = allUserIds.Count == 0
             ? new Dictionary<Guid, UserInfo>()
             : await UserService.GetUserInfosAsync(allUserIds, ct);
-        var managementHolders = await _repo.GetActiveManagementRoleHolderUserIdsByTeamAsync(ct);
-        var roleDefinitionsByTeam = await _repo.GetAllRoleDefinitionsByTeamAsync(ct);
+        var managementHolders = await repo.GetActiveManagementRoleHolderUserIdsByTeamAsync(ct);
+        var roleDefinitionsByTeam = await repo.GetAllRoleDefinitionsByTeamAsync(ct);
 
         return teams.ToDictionary(t => t.Id, t => BuildTeamInfo(t, users, managementHolders, roleDefinitionsByTeam));
     }
@@ -1922,19 +1897,19 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     private void InvalidateShiftAuthorizationIfNeeded(Guid userId, IEnumerable<TeamRoleAssignment> roleAssignments)
     {
         if (roleAssignments.Any(IsShiftAuthorizationAssignment))
-            _shiftAuthInvalidator.Invalidate(userId);
+            shiftAuthInvalidator.Invalidate(userId);
     }
 
     private void InvalidateShiftAuthorizationIfNeeded(TeamRoleDefinition definition, Guid userId)
     {
         if (IsShiftAuthorizationDefinition(definition))
-            _shiftAuthInvalidator.Invalidate(userId);
+            shiftAuthInvalidator.Invalidate(userId);
     }
 
     private void InvalidateShiftAuthorization(IEnumerable<Guid> userIds)
     {
         foreach (var userId in userIds.Distinct())
-            _shiftAuthInvalidator.Invalidate(userId);
+            shiftAuthInvalidator.Invalidate(userId);
     }
 
     private static bool IsShiftAuthorizationAssignment(TeamRoleAssignment assignment) =>
@@ -2042,7 +2017,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         var user = await UserService.GetUserInfoAsync(userId, ct);
         if (user?.GoogleEmailStatus == GoogleEmailStatus.Rejected)
         {
-            _logger.LogDebug(
+            logger.LogDebug(
                 "Skipping Google sync outbox event {EventType} for user {UserId} — GoogleEmailStatus is Rejected",
                 eventType, userId);
             return null;
@@ -2054,7 +2029,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             EventType = eventType,
             TeamId = teamId,
             UserId = userId,
-            OccurredAt = _clock.GetCurrentInstant(),
+            OccurredAt = clock.GetCurrentInstant(),
             DeduplicationKey = $"{teamMemberId}:{eventType}"
         };
     }
@@ -2072,7 +2047,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             var email = user.Email;
             if (string.IsNullOrEmpty(email))
             {
-                _logger.LogWarning(
+                logger.LogWarning(
                     "Skipping added-to-team email for user {UserId}: no notification-target email",
                     userId);
             }
@@ -2089,12 +2064,12 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send added-to-team email for user {UserId} team {TeamId}", userId, team.Id);
+            logger.LogError(ex, "Failed to send added-to-team email for user {UserId} team {TeamId}", userId, team.Id);
         }
 
         try
         {
-            await _notificationService.SendAsync(
+            await notificationService.SendAsync(
                 NotificationSource.TeamMemberAdded,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
@@ -2105,7 +2080,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to dispatch added-to-team inbox notification for user {UserId} team {TeamId}", userId, team.Id);
+            logger.LogError(ex, "Failed to dispatch added-to-team inbox notification for user {UserId} team {TeamId}", userId, team.Id);
         }
     }
 
@@ -2273,7 +2248,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     public async Task<IReadOnlyList<TeamRoleReconciliationMembership>> GetActiveMembershipsForRoleReconciliationAsync(
         CancellationToken cancellationToken = default)
     {
-        var memberships = await _repo.GetActiveMembershipsForRoleReconciliationAsync(cancellationToken);
+        var memberships = await repo.GetActiveMembershipsForRoleReconciliationAsync(cancellationToken);
 #pragma warning disable CS0618 // TeamMember.Team — in-section nav read for reconciliation snapshot.
         return memberships
             .Select(member => new TeamRoleReconciliationMembership(
@@ -2294,7 +2269,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
     {
         if (changes.Count == 0)
             return 0;
-        return await _repo.ApplyMemberRoleChangesAsync(changes, cancellationToken);
+        return await repo.ApplyMemberRoleChangesAsync(changes, cancellationToken);
     }
 
     public async Task<bool> ApplySystemTeamMembershipDeltaAsync(
@@ -2304,7 +2279,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
         Instant now,
         CancellationToken cancellationToken = default)
     {
-        return await _repo.ApplySystemTeamMembershipDeltaAsync(
+        return await repo.ApplySystemTeamMembershipDeltaAsync(
             teamId, userIdsToAdd, userIdsToRemove, now, cancellationToken);
     }
 
@@ -2316,7 +2291,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             ? null
             : groupKey.Trim();
 
-        var teams = await _repo.GetAllActiveAsync(ct);
+        var teams = await repo.GetAllActiveAsync(ct);
         var groupTeams = teams
             .Where(t => t.GoogleGroupEmail is not null)
             .Where(t => requestedKey is null
@@ -2333,7 +2308,7 @@ public sealed class TeamService : ITeamService, IGoogleGroupMembershipSource, IU
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var duplicateGroupEmail in duplicateGroupEmails)
         {
-            _logger.LogWarning(
+            logger.LogWarning(
                 "Multiple active Teams share Google group {GroupKey}; skipping this group membership claim so Google sync fails closed",
                 duplicateGroupEmail);
         }

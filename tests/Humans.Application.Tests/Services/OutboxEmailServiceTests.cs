@@ -68,7 +68,6 @@ public sealed class OutboxEmailServiceTests : IDisposable
     public void Dispose()
     {
         _dbContext.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     [HumansFact]

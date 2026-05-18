@@ -4,28 +4,17 @@ using Humans.Domain.Enums;
 
 namespace Humans.Web.Models.CampAdmin;
 
-public sealed class CampAdminPageBuilder
+public sealed class CampAdminPageBuilder(ICampService campService, ICityPlanningService cityPlanningService)
 {
-    private readonly ICampService _campService;
-    private readonly ICityPlanningService _cityPlanningService;
-
-    public CampAdminPageBuilder(
-        ICampService campService,
-        ICityPlanningService cityPlanningService)
-    {
-        _campService = campService;
-        _cityPlanningService = cityPlanningService;
-    }
-
     public async Task<CampAdminViewModel> BuildAsync()
     {
-        var settings = await _campService.GetSettingsAsync();
-        var registrationInfo = await _cityPlanningService.GetRegistrationInfoAsync();
-        var allCamps = await _campService.GetCampsForYearAsync(settings.PublicYear);
-        var pendingSeasons = await _campService.GetPendingSeasonsAsync();
+        var settings = await campService.GetSettingsAsync();
+        var registrationInfo = await cityPlanningService.GetRegistrationInfoAsync();
+        var allCamps = await campService.GetCampsForYearAsync(settings.PublicYear);
+        var pendingSeasons = await campService.GetPendingSeasonsAsync();
         var openSeasons = settings.OpenSeasons.ToList();
         var nameLockDates = openSeasons.Count > 0
-            ? await _campService.GetNameLockDatesAsync(openSeasons)
+            ? await campService.GetNameLockDatesAsync(openSeasons)
             : new Dictionary<int, NodaTime.LocalDate?>();
 
         var withdrawnSeasons = allCamps
@@ -45,7 +34,7 @@ public sealed class CampAdminPageBuilder
         // T-06: GetCampsForYearAsync always populates leads; filter by season
         // status in-memory.
         var activeStatuses = new HashSet<CampSeasonStatus> { CampSeasonStatus.Active, CampSeasonStatus.Full };
-        var campsWithLeads = (await _campService.GetCampsForYearAsync(settings.PublicYear))
+        var campsWithLeads = (await campService.GetCampsForYearAsync(settings.PublicYear))
             .Where(c => c.Seasons.Any(s => s.Year == settings.PublicYear && activeStatuses.Contains(s.Status)))
             .ToList();
         var summaries = await BuildSummariesAsync(campsWithLeads);

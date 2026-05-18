@@ -12,29 +12,16 @@ namespace Humans.Application.Services.Search;
 /// Names-only search orchestrator: each section runs its own ILike, this scores hits and returns four buckets (unsorted).
 /// See docs/features/global/global-search.md. Display ordering lives in SearchController.
 /// </summary>
-public sealed class SearchService : ISearchService
+public sealed class SearchService(
+    IUserService userService,
+    ITeamService teamService,
+    ICampService campService,
+    IShiftManagementService shiftService) : ISearchService
 {
-    private readonly IUserService _userService;
-    private readonly ITeamService _teamService;
-    private readonly ICampService _campService;
-    private readonly IShiftManagementService _shiftService;
-
     // Name-match scoring: exact > prefix > contains.
     private const int ScoreExactName = 100;
     private const int ScorePrefixName = 80;
     private const int ScoreContainsName = 60;
-
-    public SearchService(
-        IUserService userService,
-        ITeamService teamService,
-        ICampService campService,
-        IShiftManagementService shiftService)
-    {
-        _userService = userService;
-        _teamService = teamService;
-        _campService = campService;
-        _shiftService = shiftService;
-    }
 
     public async Task<GlobalSearchResults> SearchAsync(
         string query,
@@ -73,14 +60,14 @@ public sealed class SearchService : ISearchService
         string query, int limit, CancellationToken ct)
     {
         // Public surface only — admin fields never reach /Search regardless of role.
-        return await _userService.SearchUsersAsync(
+        return await userService.SearchUsersAsync(
             query, PersonSearchFields.PublicAll, limit, ct);
     }
 
     private async Task<IReadOnlyList<GlobalSearchResult>> SearchTeamsAsync(
         string query, int limit, CancellationToken ct)
     {
-        var hits = await _teamService.SearchAsync(query, limit, ct);
+        var hits = await teamService.SearchAsync(query, limit, ct);
         var isGuidQuery = Guid.TryParse(query, out _);
         return hits
             .Select(t => new GlobalSearchResult(
@@ -96,7 +83,7 @@ public sealed class SearchService : ISearchService
     private async Task<IReadOnlyList<GlobalSearchResult>> SearchCampsAsync(
         string query, int limit, CancellationToken ct)
     {
-        var hits = await _campService.SearchAsync(query, limit, ct);
+        var hits = await campService.SearchAsync(query, limit, ct);
         var isGuidQuery = Guid.TryParse(query, out _);
         return hits
             .Select(c => new GlobalSearchResult(
@@ -113,7 +100,7 @@ public sealed class SearchService : ISearchService
         string query, int limit, CancellationToken ct)
     {
         // Hits are Rotas (named shift groupings), not individual Shift rows (which have no title).
-        var hits = await _shiftService.SearchAsync(query, limit, ct);
+        var hits = await shiftService.SearchAsync(query, limit, ct);
         var isGuidQuery = Guid.TryParse(query, out _);
         return hits
             .Select(r => new GlobalSearchResult(

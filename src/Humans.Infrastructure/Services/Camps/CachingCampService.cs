@@ -19,36 +19,20 @@ namespace Humans.Infrastructure.Services.Camps;
 /// <see cref="CampInfo"/> dict plus a single-slot <see cref="CampSettingsInfo"/>.
 /// Year-keyed reads are filtered snapshots, not separate cache entries.
 /// </summary>
-public sealed class CachingCampService :
-    TrackedCache<Guid, CampInfo>,
-    ICampService,
-    IUserMerge,
-    ICampInfoInvalidator
+public sealed class CachingCampService(
+    ICampRepository repo,
+    IServiceScopeFactory scopeFactory,
+    IClock clock,
+    ILogger<CachingCampService> logger) : TrackedCache<Guid, CampInfo>("Camp.CampInfo", warmOnStartup: true, logger),
+    ICampService, IUserMerge, ICampInfoInvalidator
 {
     /// <summary>DI key for the undecorated inner <see cref="ICampService"/>.</summary>
     public const string InnerServiceKey = "camp-inner";
 
-    private readonly ICampRepository _repo;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IClock _clock;
-    private readonly ILogger<CachingCampService> _logger;
     private readonly SemaphoreSlim _settingsLock = new(1, 1);
     private CampSettingsInfo? _settings;
     // Years populated by warmup; cold-year reads fall back to the inner service.
     private volatile IReadOnlySet<int>? _warmYears;
-
-    public CachingCampService(
-        ICampRepository repo,
-        IServiceScopeFactory scopeFactory,
-        IClock clock,
-        ILogger<CachingCampService> logger)
-        : base("Camp.CampInfo", warmOnStartup: true, logger)
-    {
-        _repo = repo;
-        _scopeFactory = scopeFactory;
-        _clock = clock;
-        _logger = logger;
-    }
 
     // Cached reads
 
@@ -482,7 +466,7 @@ public sealed class CachingCampService :
         [CallerMemberName] string memberName = "",
         [CallerFilePath] string filePath = "")
     {
-        _logger.LogDebug(
+        logger.LogDebug(
             "CampInfo invalidate campId={CampId} caller={CallerMember} file={CallerFile}",
             campId, memberName, Path.GetFileName(filePath));
         return RefreshEntryAsync(campId, ct);
@@ -509,7 +493,7 @@ public sealed class CachingCampService :
     /// </summary>
     protected override async Task WarmAllAsync(CancellationToken ct)
     {
-        var settings = await _repo.GetSettingsReadOnlyAsync(ct);
+        var settings = await repo.GetSettingsReadOnlyAsync(ct);
         var years = new HashSet<int>();
         if (settings is not null)
         {
@@ -521,7 +505,7 @@ public sealed class CachingCampService :
         var byCampId = new Dictionary<Guid, Camp>();
         foreach (var year in years)
         {
-            var camps = await _repo.GetCampsWithLeadsForYearAsync(year, statusFilter: null, ct);
+            var camps = await repo.GetCampsWithLeadsForYearAsync(year, statusFilter: null, ct);
             foreach (var camp in camps)
             {
                 if (byCampId.TryGetValue(camp.Id, out var existing))
@@ -564,13 +548,13 @@ public sealed class CachingCampService :
         }
     }
 
-    private int SystemClockYear() => _clock.GetCurrentInstant().InUtc().Year;
+    private int SystemClockYear() => clock.GetCurrentInstant().InUtc().Year;
 
     private async Task RefreshEntryAsync(Guid campId, CancellationToken ct)
     {
         // Per-row replace; preserves the all-rows invariant. Never Invalidate(key)
         // here — it would flip warmth and force a full re-warm.
-        var camp = await _repo.GetByIdAsync(campId, ct);
+        var camp = await repo.GetByIdAsync(campId, ct);
         if (camp is null)
         {
             DeleteKey(campId);
@@ -593,7 +577,7 @@ public sealed class CachingCampService :
         try
         {
             if (_settings is not null) return _settings;
-            var entity = await _repo.GetSettingsReadOnlyAsync(ct);
+            var entity = await repo.GetSettingsReadOnlyAsync(ct);
             if (entity is null)
                 throw new InvalidOperationException("Camp settings not found.");
             _settings = new CampSettingsInfo(
@@ -619,7 +603,7 @@ public sealed class CachingCampService :
                 return;
             }
         }
-        var season = await _repo.GetSeasonByIdAsync(seasonId, ct);
+        var season = await repo.GetSeasonByIdAsync(seasonId, ct);
         if (season is not null)
             await InvalidateCampAsync(season.CampId, ct);
     }
@@ -681,21 +665,21 @@ public sealed class CachingCampService :
 
     private async Task<T> WithInner<T>(Func<ICampService, Task<T>> work)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = scopeFactory.CreateAsyncScope();
         var inner = scope.ServiceProvider.GetRequiredKeyedService<ICampService>(InnerServiceKey);
         return await work(inner);
     }
 
     private async Task WithInner(Func<ICampService, Task> work)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = scopeFactory.CreateAsyncScope();
         var inner = scope.ServiceProvider.GetRequiredKeyedService<ICampService>(InnerServiceKey);
         await work(inner);
     }
 
     private async Task WithInnerMerge(Func<IUserMerge, Task> work)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = scopeFactory.CreateAsyncScope();
         var inner = scope.ServiceProvider.GetRequiredKeyedService<IUserMerge>(InnerServiceKey);
         await work(inner);
     }

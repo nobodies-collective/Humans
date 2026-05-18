@@ -29,7 +29,8 @@ namespace Humans.Infrastructure.Services.Shifts;
 /// measurements call for it (issue #720, open Q 2).
 /// </para>
 /// </remarks>
-public sealed class CachingShiftViewService : IShiftView, IShiftViewInvalidator, IHostedService
+public sealed class CachingShiftViewService(IServiceScopeFactory scopeFactory, ILogger<CachingShiftViewService> logger)
+    : IShiftView, IShiftViewInvalidator, IHostedService
 {
     /// <summary>
     /// DI service key under which the undecorated (inner) <see cref="IShiftView"/>
@@ -39,24 +40,13 @@ public sealed class CachingShiftViewService : IShiftView, IShiftViewInvalidator,
     /// </summary>
     public const string InnerServiceKey = "shift-view-inner";
 
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<CachingShiftViewService> _logger;
+    private readonly ILogger<CachingShiftViewService> _logger = logger;
 
-    private readonly TrackedCache<Guid, ShiftUserView> _userCache;
-    private readonly TrackedCache<Guid, ShiftRotaView> _rotaCache;
+    private readonly TrackedCache<Guid, ShiftUserView> _userCache = new("ShiftView.UserView", warmOnStartup: false, logger);
+    private readonly TrackedCache<Guid, ShiftRotaView> _rotaCache = new("ShiftView.RotaView", warmOnStartup: false, logger);
 
     public ICacheStats UserCacheStats => _userCache;
     public ICacheStats RotaCacheStats => _rotaCache;
-
-    public CachingShiftViewService(
-        IServiceScopeFactory scopeFactory,
-        ILogger<CachingShiftViewService> logger)
-    {
-        _scopeFactory = scopeFactory;
-        _logger = logger;
-        _userCache = new TrackedCache<Guid, ShiftUserView>("ShiftView.UserView", warmOnStartup: false, logger);
-        _rotaCache = new TrackedCache<Guid, ShiftRotaView>("ShiftView.RotaView", warmOnStartup: false, logger);
-    }
 
     // ==========================================================================
     // Reads — cache lookup + lazy load
@@ -104,7 +94,7 @@ public sealed class CachingShiftViewService : IShiftView, IShiftViewInvalidator,
 
     private async Task<ShiftUserView> LoadAndCacheUserAsync(Guid userId, CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = scopeFactory.CreateAsyncScope();
         var inner = scope.ServiceProvider.GetRequiredKeyedService<IShiftView>(InnerServiceKey);
         var view = await inner.GetUserAsync(userId, ct).ConfigureAwait(false);
         _userCache.Set(userId, view);
@@ -113,7 +103,7 @@ public sealed class CachingShiftViewService : IShiftView, IShiftViewInvalidator,
 
     private async Task<ShiftRotaView> LoadAndCacheRotaAsync(Guid rotaId, CancellationToken ct)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
+        await using var scope = scopeFactory.CreateAsyncScope();
         var inner = scope.ServiceProvider.GetRequiredKeyedService<IShiftView>(InnerServiceKey);
         var view = await inner.GetRotaAsync(rotaId, ct).ConfigureAwait(false);
         _rotaCache.Set(rotaId, view);

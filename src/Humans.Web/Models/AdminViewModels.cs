@@ -122,12 +122,8 @@ public class AdminApplicationActionModel
     public string? Notes { get; set; }
 }
 
-public class AdminRoleAssignmentListViewModel : PagedListViewModel
+public class AdminRoleAssignmentListViewModel() : PagedListViewModel(50)
 {
-    public AdminRoleAssignmentListViewModel() : base(50)
-    {
-    }
-
     public List<AdminRoleAssignmentViewModel> RoleAssignments { get; set; } = [];
     public string? RoleFilter { get; set; }
     public bool ShowInactive { get; set; }
