@@ -38,35 +38,41 @@ public sealed class TeamServiceTests : ServiceTestHarness
     private readonly TeamService _service;
     private readonly RoleAssignmentService _roleAssignmentService;
     private readonly ITeamResourceService _teamResourceService;
-    private readonly IShiftAuthorizationInvalidator _shiftAuthInvalidator;
 
     public TeamServiceTests()
     {
         _roleAssignmentService = new RoleAssignmentService(
             new RoleAssignmentRepository(DbFactory),
             Substitute.For<IUserService>(),
-            Substitute.For<IAuditLogService>(),
-            Substitute.For<INotificationEmitter>(),
+            AuditLog,
+            Notifier,
             Substitute.For<ISystemTeamSync>(),
             Substitute.For<INavBadgeCacheInvalidator>(),
             Substitute.For<IRoleAssignmentClaimsCacheInvalidator>(),
             Substitute.For<IRoleAssignmentCacheInvalidator>(),
             Clock,
             NullLogger<RoleAssignmentService>.Instance);
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(ITeamService)).Returns(Substitute.For<ITeamService>());
-        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(_roleAssignmentService);
-        serviceProvider.GetService(typeof(IEmailService)).Returns(Substitute.For<IEmailService>());
-        serviceProvider.GetService(typeof(ISystemTeamSync)).Returns(Substitute.For<ISystemTeamSync>());
         _teamResourceService = Substitute.For<ITeamResourceService>();
         _teamResourceService
             .GetTeamResourceSummariesAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<Guid, TeamResourceSummary>());
-        serviceProvider.GetService(typeof(ITeamResourceService)).Returns(_teamResourceService);
+
+        // Capture the user service to a local before threading it into the locator
+        // builder — NSubstitute can't attach an outer .Returns() to a factory that
+        // itself configures substitute calls.
+        var userService = NewDbBackedUserService();
+        var serviceProvider = new ServiceLocatorBuilder()
+            .With<ITeamService>()
+            .With<IRoleAssignmentService>(_roleAssignmentService)
+            .With<IEmailService>()
+            .With<ISystemTeamSync>()
+            .With(_teamResourceService)
+            .With(userService)
+            .Build();
         var shiftManagementService = new ShiftManagementService(
             new ShiftManagementRepository(DbFactory),
-            Substitute.For<IAuditLogService>(),
-            Substitute.For<IAdminAuthorizationService>(),
+            AuditLog,
+            AdminAuthorization,
             serviceProvider,
             Cache,
             Substitute.For<IShiftViewInvalidator>(),
@@ -77,24 +83,18 @@ public sealed class TeamServiceTests : ServiceTestHarness
         // (backed by ShiftManagementService in DI). In tests we redirect it to the
         // same IMemoryCache entry so legacy assertions on the ShiftAuthorization
         // cache key keep working.
-        _shiftAuthInvalidator = Substitute.For<IShiftAuthorizationInvalidator>();
-        _shiftAuthInvalidator
+        ShiftAuthInvalidator
             .When(s => s.Invalidate(Arg.Any<Guid>()))
             .Do(ci => Cache.Remove(CacheKeys.ShiftAuthorization(ci.Arg<Guid>())));
 
-        // Build the user service before wiring it into the locator — NSubstitute
-        // can't attach an outer .Returns() to a factory that itself configures
-        // substitute calls.
-        var userService = NewDbBackedUserService();
-        serviceProvider.GetService(typeof(IUserService)).Returns(userService);
         _service = new TeamService(
             new TeamRepository(DbFactory),
-            Substitute.For<IAuditLogService>(),
-            Substitute.For<INotificationEmitter>(),
+            AuditLog,
+            Notifier,
             shiftManagementService,
             Substitute.For<INotificationMeterCacheInvalidator>(),
-            _shiftAuthInvalidator,
-            Substitute.For<IAdminAuthorizationService>(),
+            ShiftAuthInvalidator,
+            AdminAuthorization,
             serviceProvider,
             Clock,
             NullLogger<TeamService>.Instance);

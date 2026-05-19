@@ -21,7 +21,6 @@ namespace Humans.Application.Tests.Services.Shifts;
 
 public sealed class ShiftSignupServiceForcePendingTests : ServiceTestHarness
 {
-    private readonly IAuditLogService _auditLog;
     private readonly IMembershipCalculator _membership;
     private readonly ShiftManagementService _shiftMgmt;
     private readonly ShiftSignupRepository _repo;
@@ -34,21 +33,21 @@ public sealed class ShiftSignupServiceForcePendingTests : ServiceTestHarness
     public ShiftSignupServiceForcePendingTests()
         : base(TestNow)
     {
-        _auditLog = Substitute.For<IAuditLogService>();
         _membership = Substitute.For<IMembershipCalculator>();
 
         var teamService = Substitute.For<ITeamService>();
         var roleAssignmentService = Substitute.For<IRoleAssignmentService>();
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(ITeamService)).Returns(teamService);
-        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(roleAssignmentService);
+        var serviceProvider = new ServiceLocatorBuilder()
+            .With(teamService)
+            .With(roleAssignmentService)
+            .Build();
 
         var shiftRepo = new ShiftManagementRepository(DbFactory);
 
         _shiftMgmt = new ShiftManagementService(
             shiftRepo,
-            _auditLog,
-            Substitute.For<IAdminAuthorizationService>(),
+            AuditLog,
+            AdminAuthorization,
             serviceProvider,
             new MemoryCache(new MemoryCacheOptions()),
             Substitute.For<IShiftViewInvalidator>(),
@@ -60,9 +59,9 @@ public sealed class ShiftSignupServiceForcePendingTests : ServiceTestHarness
             _repo,
             _shiftMgmt,
             _membership,
-            _auditLog,
+            AuditLog,
             Substitute.For<INotificationService>(),
-            Substitute.For<IAdminAuthorizationService>(),
+            AdminAuthorization,
             Substitute.For<IShiftViewInvalidator>(),
             serviceProvider,
             Clock,

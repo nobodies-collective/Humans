@@ -41,18 +41,18 @@ public sealed class ShiftSignupServiceCoverageGapTests : ServiceTestHarness
     {
         _notificationService = Substitute.For<INotificationService>();
         _teamService = Substitute.For<ITeamService>();
-        var auditLog = Substitute.For<IAuditLogService>();
         var roleAssignmentService = Substitute.For<IRoleAssignmentService>();
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(ITeamService)).Returns(_teamService);
-        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(roleAssignmentService);
+        var serviceProvider = new ServiceLocatorBuilder()
+            .With(_teamService)
+            .With(roleAssignmentService)
+            .Build();
 
         var shiftRepo = new ShiftManagementRepository(DbFactory);
         var shiftMgmt = new ShiftManagementService(
             shiftRepo,
-            auditLog,
-            Substitute.For<IAdminAuthorizationService>(),
+            AuditLog,
+            AdminAuthorization,
             serviceProvider,
             new MemoryCache(new MemoryCacheOptions()),
             Substitute.For<IShiftViewInvalidator>(),
@@ -69,9 +69,9 @@ public sealed class ShiftSignupServiceCoverageGapTests : ServiceTestHarness
             signupRepo,
             shiftMgmt,
             membership,
-            auditLog,
+            AuditLog,
             _notificationService,
-            Substitute.For<IAdminAuthorizationService>(),
+            AdminAuthorization,
             Substitute.For<IShiftViewInvalidator>(),
             serviceProvider,
             Clock,

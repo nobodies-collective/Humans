@@ -33,9 +33,10 @@ public sealed class ConsentServiceTests : ServiceTestHarness
 
     public ConsentServiceTests()
     {
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(IMembershipCalculator)).Returns(_membershipCalculator);
-        serviceProvider.GetService(typeof(IShiftSignupService)).Returns(_shiftSignupService);
+        var serviceProvider = new ServiceLocatorBuilder()
+            .With(_membershipCalculator)
+            .With(_shiftSignupService)
+            .Build();
 
         _legalDocumentSyncService
             .GetVersionByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
@@ -654,21 +655,6 @@ public sealed class ConsentServiceTests : ServiceTestHarness
     }
 
     // --- Helpers ---
-
-    private Team SeedTeam(Guid teamId, string name)
-    {
-        var team = new Team
-        {
-            Id = teamId,
-            Name = name,
-            Slug = name.ToLowerInvariant().Replace(' ', '-'),
-            IsActive = true,
-            CreatedAt = Clock.GetCurrentInstant(),
-            UpdatedAt = Clock.GetCurrentInstant()
-        };
-        Db.Teams.Add(team);
-        return team;
-    }
 
     private Guid SeedDocument(Guid teamId, string name, bool isActive = true, bool isRequired = true, Instant? effectiveFrom = null)
     {

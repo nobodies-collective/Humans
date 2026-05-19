@@ -32,20 +32,20 @@ public sealed class ShiftSignupServiceFilterIncompleteOnboardingTests : ServiceT
     public ShiftSignupServiceFilterIncompleteOnboardingTests()
         : base(TestNow)
     {
-        var auditLog = Substitute.For<IAuditLogService>();
         _membership = Substitute.For<IMembershipCalculator>();
 
         var teamService = Substitute.For<ITeamService>();
         var roleAssignmentService = Substitute.For<IRoleAssignmentService>();
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(ITeamService)).Returns(teamService);
-        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(roleAssignmentService);
+        var serviceProvider = new ServiceLocatorBuilder()
+            .With(teamService)
+            .With(roleAssignmentService)
+            .Build();
 
         var shiftRepo = new ShiftManagementRepository(DbFactory);
         var shiftMgmt = new ShiftManagementService(
             shiftRepo,
-            auditLog,
-            Substitute.For<IAdminAuthorizationService>(),
+            AuditLog,
+            AdminAuthorization,
             serviceProvider,
             new MemoryCache(new MemoryCacheOptions()),
             Substitute.For<IShiftViewInvalidator>(),
@@ -57,9 +57,9 @@ public sealed class ShiftSignupServiceFilterIncompleteOnboardingTests : ServiceT
             repo,
             shiftMgmt,
             _membership,
-            auditLog,
+            AuditLog,
             Substitute.For<INotificationService>(),
-            Substitute.For<IAdminAuthorizationService>(),
+            AdminAuthorization,
             Substitute.For<IShiftViewInvalidator>(),
             serviceProvider,
             Clock,

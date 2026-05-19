@@ -28,51 +28,50 @@ namespace Humans.Application.Tests.Services;
 public sealed class TeamRoleServiceTests : ServiceTestHarness
 {
     private readonly TeamService _service;
-    private readonly IShiftAuthorizationInvalidator _shiftAuthInvalidator;
 
     public TeamRoleServiceTests() : base(Instant.FromUtc(2026, 3, 11, 12, 0))
     {
         var roleAssignmentService = new RoleAssignmentService(
             new RoleAssignmentRepository(DbFactory),
             Substitute.For<IUserService>(),
-            Substitute.For<IAuditLogService>(),
-            Substitute.For<INotificationEmitter>(),
+            AuditLog,
+            Notifier,
             Substitute.For<ISystemTeamSync>(),
             Substitute.For<INavBadgeCacheInvalidator>(),
             Substitute.For<IRoleAssignmentClaimsCacheInvalidator>(),
             Substitute.For<IRoleAssignmentCacheInvalidator>(),
             Clock,
             NullLogger<RoleAssignmentService>.Instance);
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(ITeamService)).Returns(Substitute.For<ITeamService>());
-        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(roleAssignmentService);
-        serviceProvider.GetService(typeof(IEmailService)).Returns(Substitute.For<IEmailService>());
-        serviceProvider.GetService(typeof(ISystemTeamSync)).Returns(Substitute.For<ISystemTeamSync>());
         var teamResourceService = Substitute.For<ITeamResourceService>();
         teamResourceService
             .GetTeamResourceSummariesAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<Guid, TeamResourceSummary>());
-        serviceProvider.GetService(typeof(ITeamResourceService)).Returns(teamResourceService);
+        var userService = NewDbBackedUserService();
+        var serviceProvider = new ServiceLocatorBuilder()
+            .With<ITeamService>()
+            .With<IRoleAssignmentService>(roleAssignmentService)
+            .With<IEmailService>()
+            .With<ISystemTeamSync>()
+            .With(teamResourceService)
+            .With(userService)
+            .Build();
         var shiftManagementService = new ShiftManagementService(
             new ShiftManagementRepository(DbFactory),
-            Substitute.For<IAuditLogService>(),
-            Substitute.For<IAdminAuthorizationService>(),
+            AuditLog,
+            AdminAuthorization,
             serviceProvider,
             Cache,
             Substitute.For<IShiftViewInvalidator>(),
             Clock,
             NullLogger<ShiftManagementService>.Instance);
-        var userService = NewDbBackedUserService();
-        serviceProvider.GetService(typeof(IUserService)).Returns(userService);
-        _shiftAuthInvalidator = Substitute.For<IShiftAuthorizationInvalidator>();
         _service = new TeamService(
             new TeamRepository(DbFactory),
-            Substitute.For<IAuditLogService>(),
-            Substitute.For<INotificationEmitter>(),
+            AuditLog,
+            Notifier,
             shiftManagementService,
             Substitute.For<INotificationMeterCacheInvalidator>(),
-            _shiftAuthInvalidator,
-            Substitute.For<IAdminAuthorizationService>(),
+            ShiftAuthInvalidator,
+            AdminAuthorization,
             serviceProvider,
             Clock,
             NullLogger<TeamService>.Instance);
@@ -253,8 +252,8 @@ public sealed class TeamRoleServiceTests : ServiceTestHarness
             [SlotPriority.Critical, SlotPriority.Critical], 0,
             isManagement: true, RolePeriod.YearRound, admin.Id);
 
-        _shiftAuthInvalidator.Received(1).Invalidate(user1.Id);
-        _shiftAuthInvalidator.Received(1).Invalidate(user2.Id);
+        ShiftAuthInvalidator.Received(1).Invalidate(user1.Id);
+        ShiftAuthInvalidator.Received(1).Invalidate(user2.Id);
     }
 
     // ==========================================================================
@@ -502,38 +501,6 @@ public sealed class TeamRoleServiceTests : ServiceTestHarness
     // ==========================================================================
     // Seed Helpers
     // ==========================================================================
-
-    private User SeedUser(string displayName = "Test User")
-    {
-        var userId = Guid.NewGuid();
-        var user = new User
-        {
-            Id = userId,
-            DisplayName = displayName,
-            UserName = $"test-{userId}@test.com",
-            Email = $"test-{userId}@test.com",
-            PreferredLanguage = "en"
-        };
-        Db.Users.Add(user);
-        return user;
-    }
-
-    private Team SeedTeam(string name = "Test Team", SystemTeamType type = SystemTeamType.None)
-    {
-        var team = new Team
-        {
-            Id = Guid.NewGuid(),
-            Name = name,
-            Slug = name.ToLowerInvariant().Replace(" ", "-"),
-            SystemTeamType = type,
-            IsActive = true,
-            RequiresApproval = false,
-            CreatedAt = Clock.GetCurrentInstant(),
-            UpdatedAt = Clock.GetCurrentInstant()
-        };
-        Db.Teams.Add(team);
-        return team;
-    }
 
     private TeamMember SeedMember(Team team, User user, TeamMemberRole role = TeamMemberRole.Member)
     {

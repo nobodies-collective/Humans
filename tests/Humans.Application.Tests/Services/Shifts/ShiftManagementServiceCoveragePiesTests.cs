@@ -44,17 +44,18 @@ public sealed class ShiftManagementServiceCoveragePiesTests : ServiceTestHarness
                 return Task.FromResult<IReadOnlyDictionary<Guid, Team>>(all.ToDictionary(t => t.Id));
             });
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(ITeamService)).Returns(_teamService);
-        serviceProvider.GetService(typeof(IRoleAssignmentService)).Returns(Substitute.For<IRoleAssignmentService>());
-        serviceProvider.GetService(typeof(IUserService)).Returns(Substitute.For<IUserService>());
+        var serviceProvider = new ServiceLocatorBuilder()
+            .With(_teamService)
+            .With<IRoleAssignmentService>()
+            .With<IUserService>()
+            .Build();
 
         var repo = new ShiftManagementRepository(DbFactory);
 
         _service = new ShiftManagementService(
             repo,
-            Substitute.For<IAuditLogService>(),
-            Substitute.For<IAdminAuthorizationService>(),
+            AuditLog,
+            AdminAuthorization,
             serviceProvider,
             Cache,
             Substitute.For<IShiftViewInvalidator>(),
