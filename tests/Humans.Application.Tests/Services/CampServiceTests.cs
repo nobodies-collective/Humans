@@ -261,6 +261,64 @@ public sealed class CampServiceTests : ServiceTestHarness
     }
 
     // ==========================================================================
+    // IsUserCampEventManagerAsync (issue nobodies-collective/Humans#753)
+    // ==========================================================================
+
+    [HumansFact]
+    public async Task IsUserCampEventManagerAsync_LeadAssignment_ReturnsTrue()
+    {
+        await SeedSettingsAsync();
+        var (campId, seasonId) = await SeedCampWithSeasonAsync();
+        var leadDef = await SeedSpecialDefinitionAsync(CampSpecialRole.Lead);
+        var userId = Guid.NewGuid();
+        await SeedRoleAssignmentAsync(seasonId, leadDef.Id, userId);
+
+        var result = await _service.IsUserCampEventManagerAsync(userId, campId);
+
+        result.Should().BeTrue();
+    }
+
+    [HumansFact]
+    public async Task IsUserCampEventManagerAsync_WorkshopAssignment_ReturnsTrue()
+    {
+        await SeedSettingsAsync();
+        var (campId, seasonId) = await SeedCampWithSeasonAsync();
+        var workshopDef = await SeedSpecialDefinitionAsync(CampSpecialRole.Workshop);
+        var userId = Guid.NewGuid();
+        await SeedRoleAssignmentAsync(seasonId, workshopDef.Id, userId);
+
+        var result = await _service.IsUserCampEventManagerAsync(userId, campId);
+
+        result.Should().BeTrue();
+    }
+
+    [HumansFact]
+    public async Task IsUserCampEventManagerAsync_RegularRoleHolder_ReturnsFalse()
+    {
+        await SeedSettingsAsync();
+        var (campId, seasonId) = await SeedCampWithSeasonAsync();
+        var regularDef = await SeedRegularDefinitionAsync();
+        var userId = Guid.NewGuid();
+        await SeedRoleAssignmentAsync(seasonId, regularDef.Id, userId);
+
+        var result = await _service.IsUserCampEventManagerAsync(userId, campId);
+
+        result.Should().BeFalse();
+    }
+
+    [HumansFact]
+    public async Task IsUserCampEventManagerAsync_NonMember_ReturnsFalse()
+    {
+        await SeedSettingsAsync();
+        var (campId, _) = await SeedCampWithSeasonAsync();
+        await SeedSpecialDefinitionAsync(CampSpecialRole.Lead);
+
+        var result = await _service.IsUserCampEventManagerAsync(Guid.NewGuid(), campId);
+
+        result.Should().BeFalse();
+    }
+
+    // ==========================================================================
     // Public projections
     // ==========================================================================
 
@@ -1072,19 +1130,20 @@ public sealed class CampServiceTests : ServiceTestHarness
     }
 
     [HumansFact]
-    public async Task GetCampMembersAsync_IncludesLeadsAsActiveWithLeadBadge()
+    public async Task GetCampMembersAsync_NoLongerSynthesizesLeadRows_AfterCampLeadRetirement()
     {
+        // Issue nobodies-collective/Humans#753: the IsLead union into the
+        // active-members list was removed. Active members come only from
+        // CampMember rows. Leads now show up via the Roles panel.
         await SeedSettingsAsync();
         var leadUserId = Guid.NewGuid();
         await SeedUserAsync(leadUserId, "Lead Larry");
-        // Use the lead as the creator so they're registered as a CampLead.
         var camp = await _service.CreateCampAsync(
             leadUserId, "Lead Camp", "lc@camp.com", "+34600000010",
             null, null, false, 1, MakeSeasonData(), null, 2026);
         await ApproveLatestSeasonAsync(camp.Id);
         var season = await Db.CampSeasons.AsNoTracking().FirstAsync(s => s.CampId == camp.Id);
 
-        // A separate human requests and is approved.
         var memberUserId = Guid.NewGuid();
         await SeedUserAsync(memberUserId, "Member Mary");
         var req = await _service.RequestCampMembershipAsync(camp.Id, memberUserId);
@@ -1092,18 +1151,12 @@ public sealed class CampServiceTests : ServiceTestHarness
 
         var members = await _service.GetCampMembersAsync(season.Id);
 
-        // Lead appears without a CampMember row but with IsLead=true.
-        var leadRow = members.Active.Single(r => r.UserId == leadUserId);
-        leadRow.IsLead.Should().BeTrue();
-        leadRow.CampMemberId.Should().Be(Guid.Empty);
-
-        // Approved member appears normally.
-        var memberRow = members.Active.Single(r => r.UserId == memberUserId);
-        memberRow.IsLead.Should().BeFalse();
-        memberRow.CampMemberId.Should().Be(req.CampMemberId);
-
-        // Leads sort to the top.
-        members.Active[0].IsLead.Should().BeTrue();
+        // Only the approved member appears — the lead (who has no CampMember row)
+        // is no longer synthesized.
+        members.Active.Should().HaveCount(1);
+        members.Active[0].UserId.Should().Be(memberUserId);
+        members.Active[0].CampMemberId.Should().Be(req.CampMemberId);
+        members.Active.Should().NotContain(r => r.UserId == leadUserId);
     }
 
     [HumansFact]
@@ -1184,6 +1237,80 @@ public sealed class CampServiceTests : ServiceTestHarness
             UserName = $"{displayName.Replace(" ", string.Empty, StringComparison.Ordinal)}@example.com",
             Email = $"{displayName.Replace(" ", string.Empty, StringComparison.Ordinal)}@example.com",
             DisplayName = displayName
+        });
+
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task<(Guid CampId, Guid SeasonId)> SeedCampWithSeasonAsync()
+    {
+        var camp = await CreateTestCamp();
+        var season = await Db.CampSeasons
+            .Where(s => s.CampId == camp.Id)
+            .OrderByDescending(s => s.Year)
+            .FirstAsync();
+        return (camp.Id, season.Id);
+    }
+
+    private async Task<CampRoleDefinition> SeedSpecialDefinitionAsync(CampSpecialRole specialRole)
+    {
+        var def = new CampRoleDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = $"{specialRole} Test",
+            Slug = $"{specialRole.ToString().ToLowerInvariant()}-test-{Guid.NewGuid():N}".Substring(0, 30),
+            SlotCount = 2,
+            MinimumRequired = 0,
+            SortOrder = 0,
+            SpecialRole = specialRole,
+            CreatedAt = Clock.GetCurrentInstant(),
+            UpdatedAt = Clock.GetCurrentInstant(),
+        };
+        Db.CampRoleDefinitions.Add(def);
+        await Db.SaveChangesAsync();
+        return def;
+    }
+
+    private async Task<CampRoleDefinition> SeedRegularDefinitionAsync()
+    {
+        var def = new CampRoleDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = $"Regular {Guid.NewGuid():N}".Substring(0, 20),
+            Slug = $"regular-{Guid.NewGuid():N}".Substring(0, 20),
+            SlotCount = 2,
+            MinimumRequired = 0,
+            SortOrder = 100,
+            SpecialRole = CampSpecialRole.None,
+            CreatedAt = Clock.GetCurrentInstant(),
+            UpdatedAt = Clock.GetCurrentInstant(),
+        };
+        Db.CampRoleDefinitions.Add(def);
+        await Db.SaveChangesAsync();
+        return def;
+    }
+
+    private async Task SeedRoleAssignmentAsync(Guid seasonId, Guid roleDefinitionId, Guid userId)
+    {
+        var member = new CampMember
+        {
+            Id = Guid.NewGuid(),
+            CampSeasonId = seasonId,
+            UserId = userId,
+            Status = CampMemberStatus.Active,
+            RequestedAt = Clock.GetCurrentInstant(),
+            ConfirmedAt = Clock.GetCurrentInstant(),
+        };
+        Db.CampMembers.Add(member);
+
+        Db.CampRoleAssignments.Add(new CampRoleAssignment
+        {
+            Id = Guid.NewGuid(),
+            CampSeasonId = seasonId,
+            CampRoleDefinitionId = roleDefinitionId,
+            CampMemberId = member.Id,
+            AssignedAt = Clock.GetCurrentInstant(),
+            AssignedByUserId = userId,
         });
 
         await Db.SaveChangesAsync();

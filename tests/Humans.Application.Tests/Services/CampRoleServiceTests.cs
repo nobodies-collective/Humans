@@ -34,9 +34,11 @@ public sealed class CampRoleServiceTests : ServiceTestHarness
         _campService = Substitute.For<ICampService>();
 
         var repo = new CampRoleRepository(DbFactory);
+        var campRepo = new CampRepository(DbFactory);
 
         _service = new CampRoleService(
             repo,
+            campRepo,
             _campService,
             _userService,
             _userEmailService,
@@ -746,5 +748,124 @@ public sealed class CampRoleServiceTests : ServiceTestHarness
         Db.CampMembers.Add(member);
         await Db.SaveChangesAsync();
         return member;
+    }
+
+    // ==========================================================================
+    // System role immutability + seeding (issue nobodies-collective/Humans#753)
+    // ==========================================================================
+
+    [HumansFact]
+    public async Task UpdateDefinition_rejects_rename_of_system_role()
+    {
+        var def = new CampRoleDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = CampSystemRoles.CampLeadName,
+            Slug = CampSystemRoles.CampLeadSlug,
+            SlotCount = CampSystemRoles.CampLeadSlotCount,
+            MinimumRequired = CampSystemRoles.CampLeadMinimumRequired,
+            SortOrder = CampSystemRoles.CampLeadSortOrder,
+            SpecialRole = CampSpecialRole.Lead,
+            CreatedAt = Clock.GetCurrentInstant(),
+            UpdatedAt = Clock.GetCurrentInstant(),
+        };
+        Db.CampRoleDefinitions.Add(def);
+        await Db.SaveChangesAsync();
+
+        var input = new UpdateCampRoleDefinitionInput(
+            Name: "Renamed", Slug: CampSystemRoles.CampLeadSlug, Description: null,
+            SlotCount: def.SlotCount, MinimumRequired: def.MinimumRequired,
+            SortOrder: def.SortOrder);
+
+        var act = async () => await _service.UpdateDefinitionAsync(def.Id, input, _actorUserId);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*system role*");
+    }
+
+    [HumansFact]
+    public async Task UpdateDefinition_allows_SlotCount_change_on_system_role()
+    {
+        var def = new CampRoleDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = CampSystemRoles.CampLeadName,
+            Slug = CampSystemRoles.CampLeadSlug,
+            SlotCount = 2,
+            MinimumRequired = CampSystemRoles.CampLeadMinimumRequired,
+            SortOrder = CampSystemRoles.CampLeadSortOrder,
+            SpecialRole = CampSpecialRole.Lead,
+            CreatedAt = Clock.GetCurrentInstant(),
+            UpdatedAt = Clock.GetCurrentInstant(),
+        };
+        Db.CampRoleDefinitions.Add(def);
+        await Db.SaveChangesAsync();
+
+        var input = new UpdateCampRoleDefinitionInput(
+            Name: def.Name, Slug: def.Slug, Description: "new description",
+            SlotCount: 5, MinimumRequired: def.MinimumRequired,
+            SortOrder: def.SortOrder);
+
+        var result = await _service.UpdateDefinitionAsync(def.Id, input, _actorUserId);
+
+        result.Status.Should().Be(UpdateCampRoleDefinitionStatus.Updated);
+        var reloaded = await _service.GetDefinitionByIdAsync(def.Id);
+        reloaded!.SlotCount.Should().Be(5);
+    }
+
+    [HumansFact]
+    public async Task DeactivateDefinition_rejects_system_role()
+    {
+        var def = new CampRoleDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = CampSystemRoles.CampLeadName,
+            Slug = CampSystemRoles.CampLeadSlug,
+            SlotCount = CampSystemRoles.CampLeadSlotCount,
+            MinimumRequired = CampSystemRoles.CampLeadMinimumRequired,
+            SortOrder = CampSystemRoles.CampLeadSortOrder,
+            SpecialRole = CampSpecialRole.Lead,
+            CreatedAt = Clock.GetCurrentInstant(),
+            UpdatedAt = Clock.GetCurrentInstant(),
+        };
+        Db.CampRoleDefinitions.Add(def);
+        await Db.SaveChangesAsync();
+
+        var act = async () => await _service.DeactivateDefinitionAsync(def.Id, _actorUserId);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*system role*");
+    }
+
+    [HumansFact]
+    public async Task SeedSystemRolesAndMigrateLeads_creates_both_definitions_when_empty()
+    {
+        _campService.GetCampMemberStatusAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult<CampMemberLookup?>(null));
+
+        var result = await _service.SeedSystemRolesAndMigrateLeadsAsync(_actorUserId);
+
+        result.DefinitionsCreated.Should().Be(2);
+        result.LeadsMigrated.Should().Be(0);
+
+        var defs = await Db.CampRoleDefinitions
+            .Where(d => d.SpecialRole != CampSpecialRole.None)
+            .ToListAsync();
+        defs.Should().HaveCount(2);
+        defs.Should().Contain(d => d.SpecialRole == CampSpecialRole.Lead && d.Name == CampSystemRoles.CampLeadName);
+        defs.Should().Contain(d => d.SpecialRole == CampSpecialRole.Workshop && d.Name == CampSystemRoles.WorkshopLeadName);
+    }
+
+    [HumansFact]
+    public async Task SeedSystemRolesAndMigrateLeads_is_idempotent()
+    {
+        var first = await _service.SeedSystemRolesAndMigrateLeadsAsync(_actorUserId);
+        first.DefinitionsCreated.Should().Be(2);
+
+        var second = await _service.SeedSystemRolesAndMigrateLeadsAsync(_actorUserId);
+        second.DefinitionsCreated.Should().Be(0);
+        second.LeadsMigrated.Should().Be(0);
+        second.LeadsAlreadyMigrated.Should().Be(0);
+
+        (await Db.CampRoleDefinitions.CountAsync(d => d.SpecialRole != CampSpecialRole.None))
+            .Should().Be(2);
     }
 }
