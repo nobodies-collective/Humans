@@ -1,3 +1,5 @@
+using Humans.Application.DTOs.Events;
+using Humans.Application.Events;
 using Humans.Application.Interfaces.Camps;
 using Humans.Application.Interfaces.Email;
 using Humans.Application.Interfaces.Events;
@@ -10,6 +12,7 @@ using Humans.Web.Models.Events;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NodaTime;
+using Humans.Web.Extensions;
 using static Humans.Web.Helpers.EventsLookupHelpers;
 using static Humans.Web.Helpers.EventsTimeHelpers;
 
@@ -74,6 +77,13 @@ public class EventsController(
                     CanWithdraw = e.Status is EventStatus.Pending or EventStatus.Approved
                 }).ToList()
             });
+        }
+
+        foreach (var block in barrioBlocks)
+        {
+            var key = $"BulkErrors_{block.CampSlug}";
+            if (TempData[key] is string json)
+                block.BulkUploadErrors = System.Text.Json.JsonSerializer.Deserialize<List<BulkRowError>>(json) ?? [];
         }
 
         var model = new MySubmissionsViewModel
@@ -284,7 +294,17 @@ public class EventsController(
         guideEvent.IsRecurring = model.IsRecurring;
         guideEvent.RecurrenceDays = model.IsRecurring ? model.RecurrenceDays : null;
 
-        await guide.UpdateAndResubmitAsync(guideEvent);
+        try
+        {
+            await guide.UpdateAndResubmitAsync(guideEvent);
+        }
+        catch (InvalidOperationException ex) when (IsSubmitStateException(ex))
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            model.Id = eventId;
+            await PopulateDropdownsAsync(model, eventSettings);
+            return View("IndividualEventForm", model);
+        }
 
         logger.LogInformation("User {UserId} updated event '{Title}' ({EventId})", user.Id, model.Title, eventId);
 
@@ -747,7 +767,21 @@ public class EventsController(
         guideEvent.RecurrenceDays = model.IsRecurring ? model.RecurrenceDays : null;
         guideEvent.PriorityRank = model.PriorityRank;
 
-        await guide.UpdateAndResubmitAsync(guideEvent);
+        try
+        {
+            await guide.UpdateAndResubmitAsync(guideEvent);
+        }
+        catch (InvalidOperationException ex) when (IsSubmitStateException(ex))
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            model.Id = eventId;
+            model.CampId = camp.Id;
+            model.CampName = ResolveCampDisplayName(camp);
+            model.CampSlug = slug;
+            await PopulateBarrioDropdownsAsync(model, eventSettings);
+            return View("BarrioEventForm", model);
+        }
+
         logger.LogInformation("User {UserId} updated barrio event '{Title}' ({EventId})", user.Id, model.Title, eventId);
 
         SetSuccess($"Event \"{model.Title}\" resubmitted for review.");
@@ -774,6 +808,183 @@ public class EventsController(
         logger.LogInformation("User {UserId} withdrew barrio event '{Title}' ({EventId})", user.Id, guideEvent.Title, eventId);
 
         SetSuccess($"Event \"{guideEvent.Title}\" withdrawn.");
+        return RedirectToAction(nameof(MySubmissions));
+    }
+
+    [HttpGet("Barrio/{slug}/BulkUpload/Template")]
+    public async Task<IActionResult> BulkUploadTemplate(string slug)
+    {
+        var (error, _, camp) = await ResolveCampEventManagementAsync(slug);
+        if (error != null) return error;
+
+        var guideSettings = await guide.GetGuideSettingsAsync();
+        var eventSettings = await LoadBurnSettingsAsync(guideSettings);
+
+        var campEvents = await guide.GetCampSubmissionsAsync(camp.Id);
+        var categories = await guide.GetActiveCategoriesAsync();
+        var campName = ResolveCampDisplayName(camp);
+
+        DateTimeZone? tz = eventSettings != null
+            ? DateTimeZoneProviders.Tzdb.GetZoneOrNull(eventSettings.TimeZoneId)
+            : null;
+        LocalDate? gateDate = eventSettings?.GateOpeningDate;
+
+        var categoryNames = string.Join(", ", categories.Select(c => c.Name));
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("# ─────────────────────────────────────────────────────────────────────────────");
+        sb.AppendLine("# ELSEWHERE EVENT GUIDE — Bulk Upload Template");
+        sb.AppendLine("# ─────────────────────────────────────────────────────────────────────────────");
+        sb.AppendLine("#");
+        sb.AppendLine("# HOW TO USE");
+        sb.AppendLine("#   1. Fill in new rows leaving Id blank — a new event will be created.");
+        sb.AppendLine("#   2. Existing rows already have an Id filled in. You may edit their fields,");
+        sb.AppendLine("#      but DO NOT change or delete the Id — that is how we match the event.");
+        sb.AppendLine("#      Changing an Id will cause the upload to fail.");
+        sb.AppendLine("#   3. To leave an existing event unchanged, keep its row as-is.");
+        sb.AppendLine("#      Events not present in the CSV are left untouched.");
+        sb.AppendLine("#   4. Save as CSV (comma-separated, UTF-8) before uploading.");
+        sb.AppendLine("#      In Excel:   File → Save As → CSV UTF-8 (Comma delimited)");
+        sb.AppendLine("#      In Numbers: File → Export To → CSV");
+        sb.AppendLine("#");
+        sb.AppendLine("# FIELDS");
+        sb.AppendLine("#   Id             Leave empty for new events. Do not edit for existing ones.");
+        sb.AppendLine("#   Barrio         Informational only — shows which camp this file belongs to. Ignored on upload.");
+        sb.AppendLine("#   Status         Informational only — shows the current event status. Ignored on upload.");
+        sb.AppendLine("#                  If you upload a row without changing any fields, the status is kept as-is.");
+        sb.AppendLine("#                  If you edit fields on an existing event, it will be re-queued for moderation.");
+        sb.AppendLine("#   Category       Must match exactly one of the valid categories listed below.");
+        sb.AppendLine("#   Date           Format: yyyy-MM-dd  (e.g. 2026-07-08)");
+        sb.AppendLine("#   StartTime      Format: HH:mm       (e.g. 09:30)");
+        sb.AppendLine("#   DurationMinutes  Integer, 15–480, in 15-minute increments (e.g. 15, 30, 45, 60, 90, 120...).");
+        sb.AppendLine("#   IsRecurring    true or false.");
+        sb.AppendLine("#   RecurrenceDays  Only used when IsRecurring is true.");
+        sb.AppendLine("#                  Space-separated day names: Mon Tue Wed Thu Fri Sat Sun");
+        sb.AppendLine("#                  Example: Mon Wed Fri means the event repeats on those days.");
+        sb.AppendLine("#");
+        sb.AppendLine($"# VALID CATEGORIES");
+        sb.AppendLine($"#   {categoryNames}");
+        sb.AppendLine("#");
+        sb.AppendLine("# ─────────────────────────────────────────────────────────────────────────────");
+
+        sb.AppendLine("\"Id\",\"Barrio\",\"Status\",\"Title\",\"Description\",\"Category\",\"Date\",\"StartTime\",\"DurationMinutes\",\"LocationNote\",\"Host\",\"IsRecurring\",\"RecurrenceDays\",\"PriorityRank\"");
+
+        var nonWithdrawn = campEvents.Where(e => e.Status != Domain.Enums.EventStatus.Withdrawn).ToList();
+        foreach (var e in nonWithdrawn)
+        {
+            var localDt = ToLocalDateTime(e.StartAt, tz);
+            var date = localDt.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            var time = localDt.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+            var recDays = e.IsRecurring && !string.IsNullOrEmpty(e.RecurrenceDays) && gateDate.HasValue
+                ? EventRecurrenceDays.OffsetsToDisplayDays(e.RecurrenceDays, gateDate.Value)
+                : string.Empty;
+
+            sb.AppendCsvRow(
+                e.Id.ToString("D", System.Globalization.CultureInfo.InvariantCulture),
+                campName,
+                e.Status.ToString(),
+                e.Title,
+                e.Description,
+                e.Category.Name,
+                date,
+                time,
+                e.DurationMinutes,
+                e.LocationNote ?? string.Empty,
+                e.Host ?? string.Empty,
+                e.IsRecurring ? "true" : "false",
+                recDays,
+                e.PriorityRank);
+        }
+
+        if (nonWithdrawn.Count == 0)
+        {
+            var exampleDate = gateDate.HasValue
+                ? gateDate.Value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                : clock.GetCurrentInstant().InZone(tz ?? DateTimeZone.Utc).Date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            var firstCategory = categories.FirstOrDefault()?.Name ?? "Workshop";
+            sb.AppendCsvRow(
+                string.Empty,
+                campName,
+                string.Empty,
+                "Example Event",
+                "Describe your event here.",
+                firstCategory,
+                exampleDate,
+                "12:00",
+                60,
+                string.Empty,
+                string.Empty,
+                "false",
+                string.Empty,
+                1);
+        }
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+        return File(bytes, "text/csv", $"{slug}-events.csv");
+    }
+
+    [HttpPost("Barrio/{slug}/BulkUpload")]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(1 * 1024 * 1024)]
+    public async Task<IActionResult> BulkUploadImport(string slug, IFormFile? file)
+    {
+        var (error, user, camp) = await ResolveCampEventManagementAsync(slug);
+        if (error != null) return error;
+
+        var guideSettings = await guide.GetGuideSettingsAsync();
+        if (!IsSubmissionOpen(guideSettings))
+        {
+            SetError("The submission window is not currently open.");
+            return RedirectToAction(nameof(MySubmissions));
+        }
+
+        if (file == null || file.Length == 0)
+        {
+            SetError("Please select a CSV file to upload.");
+            return RedirectToAction(nameof(MySubmissions));
+        }
+
+        var eventSettings = await LoadBurnSettingsAsync(guideSettings)
+            ?? throw new InvalidOperationException("Event settings not configured.");
+        var tz = GetTimeZone(eventSettings)
+            ?? throw new InvalidOperationException("Event timezone not configured.");
+
+        List<BulkCsvRow> rows;
+        try
+        {
+            using var reader = new System.IO.StreamReader(file.OpenReadStream(), System.Text.Encoding.UTF8);
+            rows = BulkEventCsvParser.Parse(await reader.ReadToEndAsync());
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Bulk CSV parse failed for camp slug {Slug}: {Message}", slug, ex.Message);
+            SetError($"Could not parse CSV: {ex.Message}");
+            return RedirectToAction(nameof(MySubmissions));
+        }
+
+        if (rows.Count == 0)
+        {
+            SetError("The CSV had no event rows. Add at least one row below the header and try again.");
+            return RedirectToAction(nameof(MySubmissions));
+        }
+
+        var result = await guide.BulkImportAsync(
+            camp.Id, user.Id, rows,
+            eventSettings.GateOpeningDate, eventSettings.EventEndOffset, tz);
+
+        if (result.HasErrors)
+        {
+            var viewErrors = result.Errors
+                .Select(e => new BulkRowError { RowNumber = e.RowNumber, Title = e.Title, Errors = e.Errors.ToList() })
+                .ToList();
+            TempData[$"BulkErrors_{slug}"] = System.Text.Json.JsonSerializer.Serialize(viewErrors);
+            return RedirectToAction(nameof(MySubmissions));
+        }
+
+        logger.LogInformation(
+            "Bulk upload by user {UserId} for camp {CampId}: {Created} created, {Updated} updated.",
+            user.Id, camp.Id, result.CreatedCount, result.UpdatedCount);
+        SetSuccess($"Bulk upload complete — {result.CreatedCount} created, {result.UpdatedCount} updated.");
         return RedirectToAction(nameof(MySubmissions));
     }
 
@@ -822,5 +1033,8 @@ public class EventsController(
         return await guide.GetEventSettingsByIdAsync(guideSettings.EventSettingsId);
     }
 
+    internal static bool IsSubmitStateException(InvalidOperationException ex) =>
+        ex.Message.StartsWith("Cannot submit event in ", StringComparison.Ordinal)
+        && ex.Message.EndsWith(" state", StringComparison.Ordinal);
 
 }
