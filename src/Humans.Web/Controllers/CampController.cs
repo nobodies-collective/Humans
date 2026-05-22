@@ -107,7 +107,9 @@ public class CampController(
         var membership = await ResolveCurrentUserMembershipStateAsync(campDetail.Id, currentUser);
         await PopulateCityPlanningViewBagAsync(currentUser, ct);
 
-        return View(MapCampDetailViewModel(campDetail, isLead, isCampAdmin, membership));
+        var vm = MapCampDetailViewModel(campDetail, isLead, isCampAdmin, membership);
+        await PopulateDetailCardsAsync(vm, campDetail, currentUser, isCampAdmin, ct);
+        return View(vm);
     }
 
     [AllowAnonymous]
@@ -127,7 +129,9 @@ public class CampController(
         var membership = await ResolveCurrentUserMembershipStateAsync(campDetail.Id, currentUser);
         await PopulateCityPlanningViewBagAsync(currentUser, ct);
 
-        return View(nameof(Details), MapCampDetailViewModel(campDetail, isLead, isCampAdmin, membership));
+        var vm = MapCampDetailViewModel(campDetail, isLead, isCampAdmin, membership);
+        await PopulateDetailCardsAsync(vm, campDetail, currentUser, isCampAdmin, ct);
+        return View(nameof(Details), vm);
     }
 
     private async Task<CampMembershipStateViewModel> ResolveCurrentUserMembershipStateAsync(Guid campId, UserInfo? currentUser)
@@ -190,10 +194,17 @@ public class CampController(
             return View(model);
         }
 
-        var campDisplayName = camp.Seasons
+        var latestSeason = camp.Seasons
             .OrderByDescending(s => s.Year)
-            .FirstOrDefault()?.Name ?? slug;
+            .FirstOrDefault();
+        var campDisplayName = latestSeason?.Name ?? slug;
         var senderEmail = currentUser.Email!;
+
+        // Recipients are sourced from the role system (Camp Lead special role on the
+        // latest season), not the legacy camp_leads table.
+        var leadUserIds = latestSeason is null
+            ? []
+            : await campRoleService.GetSeasonLeadUserIdsAsync(latestSeason.Id);
 
         try
         {
@@ -206,7 +217,7 @@ public class CampController(
                 senderEmail,
                 model.Message,
                 model.IncludeContactInfo,
-                camp.Leads.Select(l => l.UserId).Distinct().ToList(),
+                leadUserIds,
                 $"/Barrios/{slug}");
 
             if (result.RateLimited)
@@ -402,6 +413,7 @@ public class CampController(
             EmptySlotCount = r.EmptySlotCount,
             OverCapacity = r.OverCapacity,
             CurrentCount = r.CurrentCount,
+            IsLeadRole = r.Definition.SpecialRole == CampSpecialRole.Lead,
         }).ToList();
 
         return new CampRolesPanelViewModel
@@ -1075,18 +1087,10 @@ public class CampController(
         var editData = await _campService.GetCampEditDataAsync(model.CampId, model.Year);
         if (editData is null)
         {
-            model.Leads = [];
             model.Images = [];
             return;
         }
 
-        model.Leads = editData.Leads
-            .Select(lead => new CampLeadViewModel
-            {
-                LeadId = lead.LeadId,
-                UserId = lead.UserId
-            })
-            .ToList();
         model.Images = editData.Images
             .Select(image => new CampImageViewModel
             {
@@ -1128,12 +1132,6 @@ public class CampController(
             SpaceRequirement = editData.SpaceRequirement,
             SoundZone = editData.SoundZone,
             ElectricalGrid = editData.ElectricalGrid,
-            Leads = editData.Leads
-                .Select(lead => new CampLeadViewModel
-                {
-                    LeadId = lead.LeadId,
-                    UserId = lead.UserId
-                }).ToList(),
             Images = editData.Images
                 .Select(image => new CampImageViewModel
                 {
@@ -1166,12 +1164,6 @@ public class CampController(
             TimesAtNowhere = campDetail.TimesAtNowhere,
             HistoricalNames = [.. campDetail.HistoricalNames],
             ImageUrls = [.. campDetail.ImageUrls],
-            Leads = campDetail.Leads
-            .Select(lead => new CampLeadViewModel
-            {
-                LeadId = lead.LeadId,
-                UserId = lead.UserId
-            }).ToList(),
             CurrentSeason = campDetail.CurrentSeason is null
             ? null
             : new CampSeasonDetailViewModel
@@ -1201,6 +1193,47 @@ public class CampController(
             IsCurrentUserCampAdmin = isCampAdmin,
             Membership = membership
         };
+
+    /// <summary>
+    /// Fills the read-only Roles panel and (for full-camp viewers) the Roster on the
+    /// detail VM. Sourced from CampRoleAssignment — the same data as /Edit/Members —
+    /// so the detail page never disagrees with the roles panel. No-op for anonymous
+    /// viewers or seasonless camps.
+    /// </summary>
+    private async Task PopulateDetailCardsAsync(
+        CampDetailViewModel vm, CampDetailData campDetail, UserInfo? currentUser, bool isCampAdmin,
+        CancellationToken ct)
+    {
+        if (currentUser is null || campDetail.CurrentSeason is null)
+        {
+            return; // anonymous / no season → no cards
+        }
+
+        // Read-only roles panel (same source as /Edit/Members).
+        vm.RolesPanel = await BuildRolesPanelAsync(
+            campDetail.Slug, campDetail.CurrentSeason.Id, canManage: false, ct);
+
+        // Full-camp access is decided by membership in the *displayed* season, not the
+        // open-season membership VM — that VM is NoOpenSeason for Pending/closed seasons,
+        // which would wrongly hide the roster from real members (e.g. the camp creator).
+        var members = await _campService.GetCampMembersAsync(campDetail.CurrentSeason.Id);
+        vm.CanSeeFullCamp = isCampAdmin || members.Active.Any(m => m.UserId == currentUser.Id);
+
+        if (vm.CanSeeFullCamp)
+        {
+            vm.Roster = members.Active
+                .Select(m => new CampMemberRowViewModel
+                {
+                    CampMemberId = m.CampMemberId,
+                    UserId = m.UserId,
+                    RequestedAt = m.RequestedAt,
+                    ConfirmedAt = m.ConfirmedAt,
+                    HasEarlyEntry = m.HasEarlyEntry,
+                    Status = m.Status,
+                })
+                .ToList();
+        }
+    }
 
     private void ValidatePhoneE164(string? phone, string fieldName)
     {

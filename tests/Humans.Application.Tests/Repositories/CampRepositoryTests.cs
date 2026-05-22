@@ -58,7 +58,25 @@ public sealed class CampRepositoryTests : IDisposable
     {
         var camp = BuildCamp("new-camp");
         var season = BuildSeason(camp.Id, CampSeasonStatus.Pending, 2026);
-        var lead = BuildLead(camp.Id, Guid.NewGuid());
+        var leadDef = await SeedSpecialRoleDefinitionAsync(CampSpecialRole.Lead);
+        var member = new CampMember
+        {
+            Id = Guid.NewGuid(),
+            CampSeasonId = season.Id,
+            UserId = Guid.NewGuid(),
+            Status = CampMemberStatus.Active,
+            RequestedAt = _clock.GetCurrentInstant(),
+            ConfirmedAt = _clock.GetCurrentInstant(),
+        };
+        var assignment = new CampRoleAssignment
+        {
+            Id = Guid.NewGuid(),
+            CampSeasonId = season.Id,
+            CampRoleDefinitionId = leadDef.Id,
+            CampMemberId = member.Id,
+            AssignedAt = _clock.GetCurrentInstant(),
+            AssignedByUserId = member.UserId,
+        };
         var history = new List<CampHistoricalName>
         {
             new()
@@ -71,42 +89,19 @@ public sealed class CampRepositoryTests : IDisposable
             }
         };
 
-        await _repo.CreateCampAsync(camp, season, lead, history);
+        await _repo.CreateCampAsync(camp, season, member, assignment, history);
 
         var persistedCamp = await _dbContext.Camps.AsNoTracking().FirstAsync(c => c.Id == camp.Id);
         persistedCamp.Slug.Should().Be("new-camp");
         (await _dbContext.CampSeasons.AsNoTracking().CountAsync(s => s.CampId == camp.Id)).Should().Be(1);
-        (await _dbContext.CampLeads.AsNoTracking().CountAsync(l => l.CampId == camp.Id)).Should().Be(1);
+        (await _dbContext.CampMembers.AsNoTracking().CountAsync(m => m.CampSeasonId == season.Id)).Should().Be(1);
+        (await _dbContext.CampRoleAssignments.AsNoTracking().CountAsync(a => a.CampSeasonId == season.Id)).Should().Be(1);
         (await _dbContext.CampHistoricalNames.AsNoTracking().CountAsync(h => h.CampId == camp.Id)).Should().Be(1);
     }
 
     // ==========================================================================
-    // IsUserActiveLeadAsync / CountActiveLeadsAsync / GetActiveLeadUserIdsAsync
+    // GetActiveLeadUserIdsAsync (role-backed)
     // ==========================================================================
-
-    [HumansFact]
-    public async Task IsUserActiveLeadAsync_ReturnsTrue_WhenActive()
-    {
-        var userId = Guid.NewGuid();
-        var camp = await SeedCampAsync("active-lead-camp");
-        await SeedLeadAsync(camp.Id, userId, leftAt: null);
-
-        var result = await _repo.IsUserActiveLeadAsync(userId, camp.Id);
-
-        result.Should().BeTrue();
-    }
-
-    [HumansFact]
-    public async Task IsUserActiveLeadAsync_ReturnsFalse_WhenLeft()
-    {
-        var userId = Guid.NewGuid();
-        var camp = await SeedCampAsync("left-lead-camp");
-        await SeedLeadAsync(camp.Id, userId, leftAt: _clock.GetCurrentInstant());
-
-        var result = await _repo.IsUserActiveLeadAsync(userId, camp.Id);
-
-        result.Should().BeFalse();
-    }
 
     [HumansFact]
     public async Task GetActiveLeadUserIdsAsync_ReturnsDistinctActiveLeadUsers()
@@ -293,20 +288,6 @@ public sealed class CampRepositoryTests : IDisposable
         await _dbContext.SaveChangesAsync();
     }
 
-    private async Task SeedLeadAsync(Guid campId, Guid userId, Instant? leftAt)
-    {
-        _dbContext.CampLeads.Add(new CampLead
-        {
-            Id = Guid.NewGuid(),
-            CampId = campId,
-            UserId = userId,
-            Role = CampLeadRole.CoLead,
-            JoinedAt = _clock.GetCurrentInstant(),
-            LeftAt = leftAt
-        });
-        await _dbContext.SaveChangesAsync();
-    }
-
     private async Task SeedSettingsAsync()
     {
         _dbContext.CampSettings.Add(new CampSettings
@@ -348,15 +329,6 @@ public sealed class CampRepositoryTests : IDisposable
         MemberCount = 10,
         CreatedAt = _clock.GetCurrentInstant(),
         UpdatedAt = _clock.GetCurrentInstant()
-    };
-
-    private CampLead BuildLead(Guid campId, Guid userId) => new()
-    {
-        Id = Guid.NewGuid(),
-        CampId = campId,
-        UserId = userId,
-        Role = CampLeadRole.CoLead,
-        JoinedAt = _clock.GetCurrentInstant()
     };
 
     private async Task<CampRoleDefinition> SeedSpecialRoleDefinitionAsync(CampSpecialRole specialRole)

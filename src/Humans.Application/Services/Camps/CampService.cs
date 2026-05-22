@@ -104,14 +104,37 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
 
         var season = CreateSeasonFromData(camp.Id, year, name, seasonData, now);
 
-        var lead = new CampLead
+        var member = new CampMember
         {
             Id = Guid.NewGuid(),
-            CampId = camp.Id,
+            CampSeasonId = season.Id,
             UserId = createdByUserId,
-            Role = CampLeadRole.CoLead,
-            JoinedAt = now
+            Status = CampMemberStatus.Active,
+            RequestedAt = now,
+            ConfirmedAt = now,
+            ConfirmedByUserId = createdByUserId,
         };
+
+        var leadDef = await _roleRepo.GetSpecialDefinitionAsync(CampSpecialRole.Lead, cancellationToken);
+        CampRoleAssignment? leadAssignment = null;
+        if (leadDef is not null)
+        {
+            leadAssignment = new CampRoleAssignment
+            {
+                Id = Guid.NewGuid(),
+                CampSeasonId = season.Id,
+                CampRoleDefinitionId = leadDef.Id,
+                CampMemberId = member.Id,
+                AssignedAt = now,
+                AssignedByUserId = createdByUserId,
+            };
+        }
+        else
+        {
+            _logger.LogWarning(
+                "Camp Lead role definition missing while creating camp {CampId}; creator added as Active member without a lead assignment. Run 'Seed system roles'.",
+                camp.Id);
+        }
 
         List<CampHistoricalName>? historicalNameEntities = null;
         if (historicalNames is { Count: > 0 })
@@ -126,7 +149,7 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             }).ToList();
         }
 
-        await _repo.CreateCampAsync(camp, season, lead, historicalNameEntities, cancellationToken);
+        await _repo.CreateCampAsync(camp, season, member, leadAssignment, historicalNameEntities, cancellationToken);
 
         await _auditLog.LogAsync(
             AuditAction.CampCreated, nameof(Camp), camp.Id,
@@ -189,8 +212,6 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             return null;
         }
 
-        var leadSummaries = await BuildLeadSummariesAsync(camp.Leads, cancellationToken);
-
         return new CampDetailData(
             camp.Id,
             camp.Slug,
@@ -201,7 +222,6 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             camp.HideHistoricalNames,
             camp.HistoricalNames.Select(h => h.Name).ToList(),
             camp.Images.OrderBy(i => i.SortOrder).Select(i => $"/{i.StoragePath}").ToList(),
-            leadSummaries,
             CreateCampSeasonDetailData(season));
     }
 
@@ -236,8 +256,7 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             return null;
         }
 
-        var leadSummaries = await BuildLeadSummariesAsync(camp.Leads, cancellationToken);
-        return CreateCampEditData(camp, season, leadSummaries);
+        return CreateCampEditData(camp, season);
     }
 
     public async Task<CampDirectoryResult> GetCampDirectoryAsync(
@@ -250,12 +269,18 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
         var camps = await GetCampEntitiesForYearAsync(year, cancellationToken);
 
         // Lead camps: pin to top of listing + build "my pending camps" panel.
+        // Lead status comes from the role system (Camp Lead special role on any
+        // season), not the legacy camp_leads table.
         var leadCampIds = new HashSet<Guid>();
         IReadOnlyList<Camp> leadCamps = [];
         if (userId.HasValue)
         {
-            leadCamps = await _repo.GetCampsByLeadUserIdAsync(userId.Value, cancellationToken);
-            leadCampIds = leadCamps.Select(c => c.Id).ToHashSet();
+            var leadCampIdList = await _roleRepo.GetCampIdsBySpecialRolesForUserAsync(
+                userId.Value, LeadOnly, cancellationToken);
+            leadCampIds = leadCampIdList.ToHashSet();
+            // Re-derive from the already-loaded year camps (avoids a second camp load);
+            // MyCamps only needs camps that have a season for this year anyway.
+            leadCamps = camps.Where(c => leadCampIds.Contains(c.Id)).ToList();
         }
 
         var cards = ApplyCampDirectoryFilter(
@@ -441,8 +466,7 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             camp.ContactPhone,
             camp.IsSwissCamp,
             camp.TimesAtNowhere,
-            camp.Seasons.Select(s => CreateCampSeasonInfo(s, camp.Slug, includeEarlyEntryGrantCount: true)).ToList(),
-            camp.Leads.Select(l => new CampLeadInfo(l.Id, l.UserId)).ToList());
+            camp.Seasons.Select(s => CreateCampSeasonInfo(s, camp.Slug, includeEarlyEntryGrantCount: true)).ToList());
     }
 
     private static CampLookup CreateCampLookup(Camp camp) =>
@@ -450,8 +474,7 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             camp.Id,
             camp.Slug,
             camp.ContactEmail,
-            camp.Seasons.Select(s => CreateCampSeasonInfo(s, camp.Slug, includeEarlyEntryGrantCount: false)).ToList(),
-            camp.Leads.Select(l => new CampLeadInfo(l.Id, l.UserId)).ToList());
+            camp.Seasons.Select(s => CreateCampSeasonInfo(s, camp.Slug, includeEarlyEntryGrantCount: false)).ToList());
 
     private static CampSeasonInfo CreateCampSeasonInfo(
         CampSeason season,
@@ -520,27 +543,6 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             : [];
     }
 
-    private async Task<IReadOnlyList<CampLeadSummary>> BuildLeadSummariesAsync(
-        IEnumerable<CampLead> leads,
-        CancellationToken cancellationToken)
-    {
-        var activeLeads = leads.Where(l => l.IsActive).ToList();
-        if (activeLeads.Count == 0)
-        {
-            return [];
-        }
-
-        var userIds = activeLeads.Select(l => l.UserId).Distinct().ToList();
-        var users = await _userService.GetUserInfosAsync(userIds, cancellationToken);
-
-        return activeLeads
-            .Select(l => new CampLeadSummary(
-                l.Id,
-                l.UserId,
-                users.TryGetValue(l.UserId, out var user) ? user.BurnerName : string.Empty))
-            .ToList();
-    }
-
     private CampSeasonDetailData CreateCampSeasonDetailData(CampSeason season)
     {
         var today = _clock.GetCurrentInstant().InUtc().Date;
@@ -568,7 +570,7 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             season.NameLockDate.HasValue && today >= season.NameLockDate.Value);
     }
 
-    private CampEditData CreateCampEditData(Camp camp, CampSeason season, IReadOnlyList<CampLeadSummary> leads)
+    private CampEditData CreateCampEditData(Camp camp, CampSeason season)
     {
         var today = _clock.GetCurrentInstant().InUtc().Date;
 
@@ -604,7 +606,6 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             season.SpaceRequirement,
             season.SoundZone,
             season.ElectricalGrid,
-            leads,
             camp.Images
                 .OrderBy(i => i.SortOrder)
                 .Select(i => new CampImageSummary(i.Id, $"/{i.StoragePath}", i.SortOrder))
@@ -1037,69 +1038,6 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
 
     }
 
-    // --- Lead management ---
-
-    public async Task<CampLead> AddLeadAsync(
-        Guid campId, Guid userId, CancellationToken cancellationToken = default)
-    {
-        if (await _repo.IsUserActiveLeadAsync(userId, campId, cancellationToken))
-        {
-            throw new InvalidOperationException("This user is already an active lead.");
-        }
-
-        var activeCount = await _repo.CountActiveLeadsAsync(campId, cancellationToken);
-        if (activeCount >= 5)
-        {
-            throw new InvalidOperationException("Camp already has the maximum of 5 leads.");
-        }
-
-        var now = _clock.GetCurrentInstant();
-        var lead = new CampLead
-        {
-            Id = Guid.NewGuid(),
-            CampId = campId,
-            UserId = userId,
-            Role = CampLeadRole.CoLead,
-            JoinedAt = now
-        };
-
-        await _repo.AddLeadAsync(lead, cancellationToken);
-
-        await _auditLog.LogAsync(
-            AuditAction.CampLeadAdded, nameof(CampLead), lead.Id,
-            "Added as camp lead",
-            userId,
-            relatedEntityId: campId, relatedEntityType: nameof(Camp));
-
-        await _systemTeamSync.SyncMembershipForUserAsync(userId, SystemTeamType.BarrioLeads, cancellationToken);
-
-        return lead;
-    }
-
-    public async Task RemoveLeadAsync(Guid leadId, CancellationToken cancellationToken = default)
-    {
-        var lead = await _repo.GetLeadForMutationAsync(leadId, cancellationToken)
-            ?? throw new InvalidOperationException("Lead not found.");
-
-        var activeCount = await _repo.CountActiveLeadsAsync(lead.CampId, cancellationToken);
-        if (activeCount <= 1)
-        {
-            throw new InvalidOperationException(
-                "Cannot remove the last lead. A camp must have at least one lead.");
-        }
-
-        lead.LeftAt = _clock.GetCurrentInstant();
-        await _repo.UpdateLeadAsync(lead, cancellationToken);
-
-        await _auditLog.LogAsync(
-            AuditAction.CampLeadRemoved, nameof(CampLead), leadId,
-            "Removed from camp leads",
-            lead.UserId,
-            relatedEntityId: lead.CampId, relatedEntityType: nameof(Camp));
-
-        await _systemTeamSync.SyncMembershipForUserAsync(lead.UserId, SystemTeamType.BarrioLeads, cancellationToken);
-    }
-
     // --- Historical names ---
 
     public async Task AddHistoricalNameAsync(
@@ -1150,19 +1088,11 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
                 kv.Value.CampId));
     }
 
-    public async Task<Guid?> GetCampLeadSeasonIdForYearAsync(
-        Guid userId, int year, CancellationToken cancellationToken = default)
-    {
-        // Post-migration source of truth: CampRoleAssignment against the Camp Lead
-        // special role. Legacy CampLead fallback covers the deploy window before
-        // the "Seed system roles" admin button runs on this env (issue
-        // nobodies-collective/Humans#753). Removed when the legacy table drops in
-        // the follow-up PR.
-        var fromRole = await _roleRepo.GetCampSpecialRoleSeasonIdForYearAsync(
+    public Task<Guid?> GetCampLeadSeasonIdForYearAsync(
+        Guid userId, int year, CancellationToken cancellationToken = default) =>
+        // Source of truth: CampRoleAssignment against the Camp Lead special role.
+        _roleRepo.GetCampSpecialRoleSeasonIdForYearAsync(
             userId, year, CampSpecialRole.Lead, cancellationToken);
-        if (fromRole is not null) return fromRole;
-        return await _repo.GetCampLeadSeasonIdForYearAsync(userId, year, cancellationToken);
-    }
 
     // --- Authorization checks ---
 
@@ -1170,21 +1100,10 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
     private static readonly IReadOnlyCollection<CampSpecialRole> LeadOrWorkshop =
         [CampSpecialRole.Lead, CampSpecialRole.Workshop];
 
-    public async Task<bool> IsUserCampLeadAsync(
-        Guid userId, Guid campId, CancellationToken cancellationToken = default)
-    {
-        // Post-migration source of truth: CampRoleAssignment against the Camp Lead
-        // special role. Legacy CampLead fallback covers the deploy window before
-        // the "Seed system roles" admin button runs on this env (issue
-        // nobodies-collective/Humans#753). Removed when the legacy table drops in
-        // the follow-up PR.
-        if (await _roleRepo.IsUserSpecialRoleHolderForCampAsync(
-            userId, campId, LeadOnly, cancellationToken))
-        {
-            return true;
-        }
-        return await _repo.IsUserActiveLeadAsync(userId, campId, cancellationToken);
-    }
+    public Task<bool> IsUserCampLeadAsync(
+        Guid userId, Guid campId, CancellationToken cancellationToken = default) =>
+        // Source of truth: CampRoleAssignment against the Camp Lead special role.
+        _roleRepo.IsUserSpecialRoleHolderForCampAsync(userId, campId, LeadOnly, cancellationToken);
 
     public async Task<IReadOnlyList<CampLookup>> GetEventManagedCampsAsync(
         Guid userId, int year, CancellationToken cancellationToken = default)
@@ -1193,11 +1112,7 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
         var roleCampIds = await _roleRepo.GetCampIdsBySpecialRolesForUserAsync(
             userId, LeadOrWorkshop, cancellationToken);
 
-        // Legacy fallback: camps where the user is an active lead via the old CampLead table.
-        var legacyCamps = await _repo.GetCampsByLeadUserIdAsync(userId, cancellationToken);
-        var legacyCampIds = legacyCamps.Select(c => c.Id);
-
-        var allCampIds = roleCampIds.Union(legacyCampIds).ToHashSet();
+        var allCampIds = roleCampIds.ToHashSet();
         if (allCampIds.Count == 0) return [];
 
         // Filter the year's full camp list down to the ones the user manages.
@@ -1209,21 +1124,12 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
             .ToList();
     }
 
-    public async Task<bool> IsUserCampEventManagerAsync(
-        Guid userId, Guid campId, CancellationToken cancellationToken = default)
-    {
-        // Authorizes camp-event submission (EventsController). Lead OR
-        // Workshop on the camp's current season. Camp leads inherit Workshop
-        // power because the role set is the OR — no separate "lead-implies-
-        // workshop" logic. Legacy CampLead fallback covers the deploy window
-        // before the "Seed system roles" admin button runs.
-        if (await _roleRepo.IsUserSpecialRoleHolderForCampAsync(
-            userId, campId, LeadOrWorkshop, cancellationToken))
-        {
-            return true;
-        }
-        return await _repo.IsUserActiveLeadAsync(userId, campId, cancellationToken);
-    }
+    public Task<bool> IsUserCampEventManagerAsync(
+        Guid userId, Guid campId, CancellationToken cancellationToken = default) =>
+        // Authorizes camp-event submission (EventsController). Lead OR Workshop on
+        // the camp's current season. Camp leads inherit Workshop power because the
+        // role set is the OR — no separate "lead-implies-workshop" logic.
+        _roleRepo.IsUserSpecialRoleHolderForCampAsync(userId, campId, LeadOrWorkshop, cancellationToken);
 
     public async Task<CampMemberLookup?> GetCampMemberStatusAsync(Guid campMemberId, CancellationToken cancellationToken = default)
     {
@@ -1457,7 +1363,17 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
         {
             return;
         }
-        foreach (var leadUserId in camp.Leads.Where(l => l.LeftAt is null).Select(l => l.UserId).Distinct())
+        // Leads come from the role system (Camp Lead special role on each season).
+        var leadUserIds = new HashSet<Guid>();
+        foreach (var season in camp.Seasons)
+        {
+            foreach (var leadUserId in await _roleRepo.GetSpecialRoleHolderUserIdsForSeasonAsync(
+                season.Id, CampSpecialRole.Lead, cancellationToken))
+            {
+                leadUserIds.Add(leadUserId);
+            }
+        }
+        foreach (var leadUserId in leadUserIds)
         {
             _leadBadgeInvalidator.Invalidate(leadUserId);
         }
@@ -1826,19 +1742,12 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
         return result;
     }
 
-    public async Task<int> GetPendingMembershipCountForLeadAsync(
-        Guid userId, CancellationToken cancellationToken = default)
-    {
-        // Post-migration source of truth: pending-membership count over camps
-        // where the user holds the Camp Lead special role. Falls back to the
-        // legacy CampLead count during the seed-button transition window so
-        // unmigrated leads still see their badge (issue
-        // nobodies-collective/Humans#753).
-        var roleSide = await _roleRepo.CountPendingMembershipsForSpecialRoleHolderAsync(
+    public Task<int> GetPendingMembershipCountForLeadAsync(
+        Guid userId, CancellationToken cancellationToken = default) =>
+        // Source of truth: pending-membership count over camps where the user
+        // holds the Camp Lead special role.
+        _roleRepo.CountPendingMembershipsForSpecialRoleHolderAsync(
             userId, CampSpecialRole.Lead, cancellationToken);
-        if (roleSide > 0) return roleSide;
-        return await _repo.CountPendingMembershipsForLeadAsync(userId, cancellationToken);
-    }
 
     public async Task<IReadOnlyList<CampMembershipSummary>> GetCampMembershipsForUserAsync(
         Guid userId, CancellationToken cancellationToken = default)
@@ -1863,8 +1772,8 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
     public async Task ReassignAsync(Guid sourceUserId, Guid targetUserId, Guid actorUserId, Instant updatedAt,
         CancellationToken ct)
     {
-        // Section ownership splits the tables; AccountMergeService.AcceptAsync wraps both saves in its TransactionScope.
-        await _repo.ReassignLeadsToUserAsync(sourceUserId, targetUserId, updatedAt, ct);
+        // AccountMergeService.AcceptAsync wraps the save in its TransactionScope.
+        // Camp Lead is a CampRoleAssignment now, so the role-side reassignment moves leads too.
         await _roleRepo.ReassignAssignmentsToUserAsync(sourceUserId, targetUserId, updatedAt, ct);
 
         // Lead moves change Barrio Leads team membership + lead-badge cache for both users.
@@ -1878,9 +1787,11 @@ public sealed class CampService : ICampService, IUserDataContributor, IUserMerge
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
-        var leadAssignments = await _repo.GetAllLeadAssignmentsForUserAsync(userId, ct);
-
-        var shapedLeads = leadAssignments.Select(cl => new
+        // Camp Lead is now a CampRoleAssignment. The legacy camp_leads table still
+        // holds per-user rows until #774 drops it, so Article 15 export must keep
+        // including them alongside the role-assignment slice (design-rules §8a).
+        var legacyLeads = await _repo.GetAllLeadAssignmentsForUserAsync(userId, ct);
+        var shapedLeads = legacyLeads.Select(cl => new
         {
             CampSlug = cl.Camp.Slug,
             cl.Role,
