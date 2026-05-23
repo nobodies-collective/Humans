@@ -23,3 +23,7 @@ public enum UserProfileOnboardingMutation
     SetSuspension,
     SetConsentCheckPending,
 }
+
+public sealed record UserProfileLanguagesSaveResult(
+    bool Saved,
+    Guid? UserId);

@@ -271,6 +271,99 @@ public class CachingUserServiceTests
     }
 
     [HumansFact]
+    public async Task SaveProfileVolunteerHistoryAsync_RefreshesVolunteerHistorySlice()
+    {
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId));
+
+        _inner.SaveProfileVolunteerHistoryAsync(
+                userId,
+                Arg.Any<IReadOnlyList<CVEntry>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        var profile = new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            BurnerName = "Alice",
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        };
+        profile.VolunteerHistory.Add(new VolunteerHistoryEntry
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            Date = new LocalDate(2025, 3, 1),
+            EventName = "Nowhere 2025",
+            Description = "Sound crew",
+        });
+        StubRefreshEntry(userId, profile);
+
+        var saved = await sut.SaveProfileVolunteerHistoryAsync(
+            userId,
+            [new CVEntry(Guid.Empty, new LocalDate(2025, 3, 1), "Nowhere 2025", "Sound crew")]);
+
+        saved.Should().BeTrue();
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.Profile.Should().NotBeNull();
+        refreshed.Profile!.VolunteerHistory.Should().ContainSingle(v =>
+            v.EventName == "Nowhere 2025" && v.Description == "Sound crew");
+    }
+
+    [HumansFact]
+    public async Task SaveProfileLanguagesAsync_RefreshesLanguageSliceForOwner()
+    {
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId));
+
+        _inner.SaveProfileLanguagesAsync(
+                profileId,
+                Arg.Any<IReadOnlyList<ProfileLanguage>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new UserProfileLanguagesSaveResult(true, userId));
+
+        var profile = new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            BurnerName = "Alice",
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        };
+        profile.Languages.Add(new ProfileLanguage
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            LanguageCode = "es",
+            Proficiency = LanguageProficiency.Native,
+        });
+        StubRefreshEntry(userId, profile);
+
+        var result = await sut.SaveProfileLanguagesAsync(
+            profileId,
+            [
+                new ProfileLanguage
+                {
+                    ProfileId = profileId,
+                    LanguageCode = "es",
+                    Proficiency = LanguageProficiency.Native,
+                },
+            ]);
+
+        result.Saved.Should().BeTrue();
+        result.UserId.Should().Be(userId);
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.Profile.Should().NotBeNull();
+        refreshed.Profile!.Languages.Should().ContainSingle(l =>
+            l.LanguageCode == "es" && l.Proficiency == LanguageProficiency.Native);
+    }
+
+    [HumansFact]
     public async Task GetUserInfoAsync_ConcurrentReads_ReturnSameEntryWithoutTearing()
     {
         var userId = Guid.NewGuid();

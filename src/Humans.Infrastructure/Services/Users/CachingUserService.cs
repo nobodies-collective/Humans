@@ -858,6 +858,29 @@ public sealed class CachingUserService(
         return result;
     }
 
+    public async Task<bool> SaveProfileVolunteerHistoryAsync(
+        Guid userId,
+        IReadOnlyList<CVEntry> entries,
+        CancellationToken ct = default)
+    {
+        var saved = await WithInnerAsync(inner =>
+            inner.SaveProfileVolunteerHistoryAsync(userId, entries, ct));
+        if (saved) await RefreshEntryAsync(userId, ct);
+        return saved;
+    }
+
+    public async Task<UserProfileLanguagesSaveResult> SaveProfileLanguagesAsync(
+        Guid profileId,
+        IReadOnlyList<ProfileLanguage> languages,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner =>
+            inner.SaveProfileLanguagesAsync(profileId, languages, ct));
+        if (result.UserId is { } userId)
+            await RefreshEntryAsync(userId, ct);
+        return result;
+    }
+
     public async Task<bool> SetProfileIbanAsync(Guid userId, string? iban, CancellationToken ct = default)
     {
         var updated = await WithInnerAsync(inner => inner.SetProfileIbanAsync(userId, iban, ct));

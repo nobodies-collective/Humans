@@ -298,6 +298,31 @@ public sealed class UserService(
         return new OnboardingResult(true);
     }
 
+    public async Task<bool> SaveProfileVolunteerHistoryAsync(
+        Guid userId,
+        IReadOnlyList<CVEntry> entries,
+        CancellationToken ct = default)
+    {
+        var profile = await profileRepo.GetByUserIdAsync(userId, ct);
+        if (profile is null)
+            return false;
+
+        await profileRepo.ReconcileCVEntriesAsync(profile.Id, entries, ct);
+        return true;
+    }
+
+    public async Task<UserProfileLanguagesSaveResult> SaveProfileLanguagesAsync(
+        Guid profileId,
+        IReadOnlyList<ProfileLanguage> languages,
+        CancellationToken ct = default)
+    {
+        await profileRepo.ReplaceLanguagesAsync(profileId, languages, ct);
+        var ownerUserId = await profileRepo.GetOwnerUserIdAsync(profileId, ct);
+        return new UserProfileLanguagesSaveResult(
+            ownerUserId is not null,
+            ownerUserId);
+    }
+
     public async Task<bool> SetProfileIbanAsync(Guid userId, string? iban, CancellationToken ct = default)
     {
         var profile = await profileRepo.GetByUserIdAsync(userId, ct);

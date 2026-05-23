@@ -304,11 +304,7 @@ public sealed class ProfileService(IProfileRepository profileRepository,
 
     public async Task SaveCVEntriesAsync(Guid userId, IReadOnlyList<CVEntry> entries, CancellationToken ct = default)
     {
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
-        if (profile is null) return;
-
-        await profileRepository.ReconcileCVEntriesAsync(profile.Id, entries, ct);
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
+        await userService.SaveProfileVolunteerHistoryAsync(userId, entries, ct);
     }
 
     public async Task<IReadOnlyList<ProfileLanguageSnapshot>> GetProfileLanguagesAsync(
@@ -324,10 +320,7 @@ public sealed class ProfileService(IProfileRepository profileRepository,
 
     public async Task SaveProfileLanguagesAsync(Guid profileId, IReadOnlyList<ProfileLanguage> languages, CancellationToken ct = default)
     {
-        await profileRepository.ReplaceLanguagesAsync(profileId, languages, ct);
-        var ownerUserId = await profileRepository.GetOwnerUserIdAsync(profileId, ct);
-        if (ownerUserId is { } userId)
-            await userInfoInvalidator.InvalidateAsync(userId, ct);
+        await userService.SaveProfileLanguagesAsync(profileId, languages, ct);
     }
 
     // --- GDPR Export — Profile-section slices ---

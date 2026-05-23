@@ -80,6 +80,22 @@ public sealed class ProfileServiceTests : ServiceTestHarness
                 call.ArgAt<Guid>(0),
                 call.ArgAt<UserProfileOnboardingCommand>(1),
                 call.ArgAt<CancellationToken>(2)));
+        _userService.SaveProfileVolunteerHistoryAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<IReadOnlyList<CVEntry>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.SaveProfileVolunteerHistoryAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<IReadOnlyList<CVEntry>>(1),
+                call.ArgAt<CancellationToken>(2)));
+        _userService.SaveProfileLanguagesAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<IReadOnlyList<ProfileLanguage>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.SaveProfileLanguagesAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<IReadOnlyList<ProfileLanguage>>(1),
+                call.ArgAt<CancellationToken>(2)));
         _userService.SetProfileIbanAsync(
                 Arg.Any<Guid>(),
                 Arg.Any<string?>(),
@@ -443,10 +459,10 @@ public sealed class ProfileServiceTests : ServiceTestHarness
     // FullProfile delete. The search surface lives on IUserService.SearchUsersAsync
     // and is covered by CachingUserServiceTests.
 
-    // --- SaveCVEntriesAsync ---
+    // --- SaveProfileVolunteerHistoryAsync ---
 
     [HumansFact]
-    public async Task SaveCVEntriesAsync_DelegatesToRepository()
+    public async Task SaveProfileVolunteerHistoryAsync_DelegatesToRepository()
     {
         // Arrange: mock repository that knows about a seeded profile
         var userId = Guid.NewGuid();
@@ -462,7 +478,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         };
         mockRepo.GetByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(profile);
 
-        var service = BuildServiceWith(mockRepo);
+        var service = BuildUserServiceWith(mockRepo);
 
         var entries = new List<CVEntry>
         {
@@ -470,15 +486,16 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         };
 
         // Act
-        await service.SaveCVEntriesAsync(userId, entries);
+        var saved = await service.SaveProfileVolunteerHistoryAsync(userId, entries);
 
         // Assert: delegates to the repository with the profile's Id
+        saved.Should().BeTrue();
         await mockRepo.Received(1)
             .ReconcileCVEntriesAsync(profileId, entries, Arg.Any<CancellationToken>());
     }
 
     [HumansFact]
-    public async Task SaveCVEntriesAsync_NoOp_WhenUserHasNoProfile()
+    public async Task SaveProfileVolunteerHistoryAsync_ReturnsFalse_WhenUserHasNoProfile()
     {
         // Arrange: mock repository that returns null (no profile)
         var userId = Guid.NewGuid();
@@ -487,29 +504,30 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         mockRepo.GetByUserIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns((Profile?)null);
 
-        var service = BuildServiceWith(mockRepo);
+        var service = BuildUserServiceWith(mockRepo);
 
         // Act
-        await service.SaveCVEntriesAsync(userId, new List<CVEntry>());
+        var saved = await service.SaveProfileVolunteerHistoryAsync(userId, new List<CVEntry>());
 
         // Assert: reconcile is never called
+        saved.Should().BeFalse();
         await mockRepo.DidNotReceive()
             .ReconcileCVEntriesAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyList<CVEntry>>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
-    /// Builds a <see cref="ProfileService"/> with a custom <see cref="IProfileRepository"/>
+    /// Builds a <see cref="UserService"/> with a custom <see cref="IProfileRepository"/>
     /// while keeping all other dependencies wired to the same test-class fields.
     /// </summary>
-    private ProfileService BuildServiceWith(IProfileRepository profileRepository) => new(
-        profileRepository, _userService,
+    private UserService BuildUserServiceWith(IProfileRepository profileRepository) => new(
+        new UserRepository(DbFactory),
         _userEmailRepository,
-        _contactFieldRepository, _communicationPreferenceRepository,
-        AuditLog,
-        _fileStorage,
-        Substitute.For<IUserInfoInvalidator>(),
+        profileRepository,
+        _contactFieldRepository,
+        _communicationPreferenceRepository,
+        AdminAuthorization,
         Clock,
-        NullLogger<ProfileService>.Instance);
+        NullLogger<UserService>.Instance);
 
     // --- Helpers ---
 

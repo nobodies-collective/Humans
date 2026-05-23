@@ -1,3 +1,4 @@
+using Humans.Application;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Onboarding;
 using Humans.Domain.Entities;
@@ -194,6 +195,24 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
     Task<OnboardingResult> ApplyProfileOnboardingMutationAsync(
         Guid userId,
         UserProfileOnboardingCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Reconciles the profile's volunteer-history rows. Returns false when no
+    /// profile exists for the user.
+    /// </summary>
+    Task<bool> SaveProfileVolunteerHistoryAsync(
+        Guid userId,
+        IReadOnlyList<CVEntry> entries,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Replaces a profile's language rows and returns the owning user id so
+    /// cache decorators can refresh the affected UserInfo entry.
+    /// </summary>
+    Task<UserProfileLanguagesSaveResult> SaveProfileLanguagesAsync(
+        Guid profileId,
+        IReadOnlyList<ProfileLanguage> languages,
         CancellationToken ct = default);
 
     /// <summary>
