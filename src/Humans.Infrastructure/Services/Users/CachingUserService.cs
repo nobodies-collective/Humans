@@ -869,6 +869,17 @@ public sealed class CachingUserService(
         return result;
     }
 
+    public async Task<UserProfilePictureContentTypeResult> SetProfilePictureContentTypeAsync(
+        Guid userId,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner =>
+            inner.SetProfilePictureContentTypeAsync(userId, contentType, ct));
+        if (result.Saved) await RefreshEntryAsync(userId, ct);
+        return result;
+    }
+
     public async Task<bool> SaveProfileVolunteerHistoryAsync(
         Guid userId,
         IReadOnlyList<CVEntry> entries,

@@ -88,6 +88,14 @@ public sealed class ProfileServiceTests : ServiceTestHarness
                 call.ArgAt<Guid>(0),
                 call.ArgAt<UserProfileSaveCommand>(1),
                 call.ArgAt<CancellationToken>(2)));
+        _userService.SetProfilePictureContentTypeAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.SetProfilePictureContentTypeAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<string>(1),
+                call.ArgAt<CancellationToken>(2)));
         _userService.SaveProfileVolunteerHistoryAsync(
                 Arg.Any<Guid>(),
                 Arg.Any<IReadOnlyList<CVEntry>>(),

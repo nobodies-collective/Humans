@@ -348,6 +348,37 @@ public class CachingUserServiceTests
     }
 
     [HumansFact]
+    public async Task SetProfilePictureContentTypeAsync_RefreshesProfilePictureSlice()
+    {
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId));
+
+        _inner.SetProfilePictureContentTypeAsync(userId, "image/webp", Arg.Any<CancellationToken>())
+            .Returns(new UserProfilePictureContentTypeResult(true, profileId, "image/png", "image/webp"));
+
+        var profile = new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            BurnerName = "Alice",
+            ProfilePictureContentType = "image/webp",
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        };
+        StubRefreshEntry(userId, profile);
+
+        var result = await sut.SetProfilePictureContentTypeAsync(userId, "image/webp");
+
+        result.Saved.Should().BeTrue();
+        result.PreviousProfilePictureContentType.Should().Be("image/png");
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.Profile.Should().NotBeNull();
+        refreshed.Profile!.ProfilePictureContentType.Should().Be("image/webp");
+    }
+
+    [HumansFact]
     public async Task SaveProfileVolunteerHistoryAsync_RefreshesVolunteerHistorySlice()
     {
         var userId = Guid.NewGuid();

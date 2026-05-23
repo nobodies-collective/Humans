@@ -60,36 +60,30 @@ public sealed class ProfileService(IProfileRepository profileRepository,
             throw new ArgumentException("Content type must not be empty", nameof(contentType));
         }
 
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
-        if (profile is null)
+        var storageResult = await userService.SetProfilePictureContentTypeAsync(userId, contentType, ct);
+        if (!storageResult.Saved || storageResult.ProfileId is null)
         {
             logger.LogWarning(
-                "Cannot set profile picture for user {UserId} — no profile exists", userId);
+                "Cannot set profile picture for user {UserId} - no profile exists", userId);
             return;
         }
-
-        var oldContentType = profile.ProfilePictureContentType;
-        profile.ProfilePictureContentType = contentType;
-        profile.UpdatedAt = clock.GetCurrentInstant();
-        await profileRepository.UpdateAsync(profile, ct);
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
 
         try
         {
             // Remove old file if content-type/extension changed.
-            if (oldContentType is not null &&
-                !string.Equals(oldContentType, contentType, StringComparison.Ordinal))
+            if (storageResult.PreviousProfilePictureContentType is not null &&
+                !string.Equals(storageResult.PreviousProfilePictureContentType, contentType, StringComparison.Ordinal))
             {
                 await fileStorage.DeleteAsync(
-                    ProfilePictureKey(profile.Id, oldContentType), ct);
+                    ProfilePictureKey(storageResult.ProfileId.Value, storageResult.PreviousProfilePictureContentType), ct);
             }
-            await fileStorage.SaveAsync(ProfilePictureKey(profile.Id, contentType), pictureData, ct);
+            await fileStorage.SaveAsync(ProfilePictureKey(storageResult.ProfileId.Value, contentType), pictureData, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex,
-                "Failed to write profile picture to filesystem for {ProfileId}; content-type column is set but the file is missing — picture will not render",
-                profile.Id);
+                "Failed to write profile picture to filesystem for {ProfileId}; content-type column is set but the file is missing - picture will not render",
+                storageResult.ProfileId.Value);
         }
 
     }

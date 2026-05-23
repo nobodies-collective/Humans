@@ -387,6 +387,27 @@ public sealed class UserService(
         }
     }
 
+    public async Task<UserProfilePictureContentTypeResult> SetProfilePictureContentTypeAsync(
+        Guid userId,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        var profile = await profileRepo.GetByUserIdAsync(userId, ct);
+        if (profile is null)
+            return new UserProfilePictureContentTypeResult(false, null, null, null);
+
+        var previousContentType = profile.ProfilePictureContentType;
+        profile.ProfilePictureContentType = contentType;
+        profile.UpdatedAt = clock.GetCurrentInstant();
+        await profileRepo.UpdateAsync(profile, ct);
+
+        return new UserProfilePictureContentTypeResult(
+            true,
+            profile.Id,
+            previousContentType,
+            contentType);
+    }
+
     public async Task<bool> SaveProfileVolunteerHistoryAsync(
         Guid userId,
         IReadOnlyList<CVEntry> entries,

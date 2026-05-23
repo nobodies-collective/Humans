@@ -59,6 +59,12 @@ public sealed record UserProfileSaveResult(
     string? PreviousProfilePictureContentType,
     string? CurrentProfilePictureContentType);
 
+public sealed record UserProfilePictureContentTypeResult(
+    bool Saved,
+    Guid? ProfileId,
+    string? PreviousProfilePictureContentType,
+    string? CurrentProfilePictureContentType);
+
 public sealed record UserProfileLanguagesSaveResult(
     bool Saved,
     Guid? UserId);
