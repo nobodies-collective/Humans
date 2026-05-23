@@ -858,6 +858,17 @@ public sealed class CachingUserService(
         return result;
     }
 
+    public async Task<UserProfileSaveResult> SaveProfileAsync(
+        Guid userId,
+        UserProfileSaveCommand command,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner =>
+            inner.SaveProfileAsync(userId, command, ct));
+        await RefreshEntryAsync(userId, ct);
+        return result;
+    }
+
     public async Task<bool> SaveProfileVolunteerHistoryAsync(
         Guid userId,
         IReadOnlyList<CVEntry> entries,

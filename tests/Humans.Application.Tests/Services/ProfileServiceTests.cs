@@ -80,6 +80,14 @@ public sealed class ProfileServiceTests : ServiceTestHarness
                 call.ArgAt<Guid>(0),
                 call.ArgAt<UserProfileOnboardingCommand>(1),
                 call.ArgAt<CancellationToken>(2)));
+        _userService.SaveProfileAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<UserProfileSaveCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.SaveProfileAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<UserProfileSaveCommand>(1),
+                call.ArgAt<CancellationToken>(2)));
         _userService.SaveProfileVolunteerHistoryAsync(
                 Arg.Any<Guid>(),
                 Arg.Any<IReadOnlyList<CVEntry>>(),
@@ -204,7 +212,8 @@ public sealed class ProfileServiceTests : ServiceTestHarness
 
         await _service.SaveProfileAsync(userId, "New Display Name", request, "en");
 
-        await _userService.Received().UpdateDisplayNameAsync(userId, "New Display Name", Arg.Any<CancellationToken>());
+        var user = await Db.Users.AsNoTracking().SingleAsync(u => u.Id == userId);
+        user.DisplayName.Should().Be("New Display Name");
     }
 
     [HumansFact]

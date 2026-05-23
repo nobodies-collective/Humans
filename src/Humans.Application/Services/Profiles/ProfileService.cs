@@ -146,7 +146,7 @@ public sealed class ProfileService(IProfileRepository profileRepository,
         Guid userId, string displayName, ProfileSaveRequest request, string language,
         CancellationToken ct = default)
     {
-        // Per-user lock: two concurrent first-time saves would race on the profiles.UserId unique index.
+        // Serialize full save orchestration so DB picture metadata and file writes stay ordered per user.
         var gate = LockFor(userId);
         await gate.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -163,124 +163,102 @@ public sealed class ProfileService(IProfileRepository profileRepository,
         Guid userId, string displayName, ProfileSaveRequest request, string language,
         CancellationToken ct)
     {
-        var now = clock.GetCurrentInstant();
+        var storageResult = await userService.SaveProfileAsync(
+            userId,
+            ToUserProfileSaveCommand(displayName, request),
+            ct);
 
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
+        await ApplyProfilePictureFileMutationAsync(storageResult, request, ct);
 
-        if (profile is null)
-        {
-            // see #635 (§15i) — start Stub, promote to Active below when names populated.
-            profile = new Profile
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                CreatedAt = now,
-                UpdatedAt = now,
-                State = ProfileState.Stub,
-            };
-            await profileRepository.AddAsync(profile, ct);
-        }
+        logger.LogInformation("User {UserId} updated their profile", userId);
 
-        profile.BurnerName = request.BurnerName;
-        profile.FirstName = request.FirstName;
-        profile.LastName = request.LastName;
-        profile.City = request.City;
-        profile.CountryCode = request.CountryCode;
-        profile.Latitude = request.Latitude;
-        profile.Longitude = request.Longitude;
-        profile.PlaceId = request.PlaceId;
-        profile.Bio = request.Bio?.TrimEnd();
-        profile.Pronouns = request.Pronouns;
-        profile.ContributionInterests = request.ContributionInterests?.TrimEnd();
-        profile.BoardNotes = request.BoardNotes?.TrimEnd();
-        profile.EmergencyContactName = request.EmergencyContactName;
-        profile.EmergencyContactPhone = request.EmergencyContactPhone;
-        profile.EmergencyContactRelationship = request.EmergencyContactRelationship;
-        profile.NoPriorBurnExperience = request.NoPriorBurnExperience;
-        profile.UpdatedAt = now;
+        return storageResult.ProfileId;
+    }
 
-        // LocalDate year=4 lets Feb 29 validate.
-        if (request.BirthdayMonth is >= 1 and <= 12 && request.BirthdayDay is >= 1 and <= 31)
-        {
-            try
-            {
-                profile.DateOfBirth = new LocalDate(4, request.BirthdayMonth.Value, request.BirthdayDay.Value);
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                profile.DateOfBirth = null;
-            }
-        }
-        else
-        {
-            profile.DateOfBirth = null;
-        }
+    private static UserProfileSaveCommand ToUserProfileSaveCommand(
+        string displayName,
+        ProfileSaveRequest request)
+    {
+        var pictureMutation = request.RemoveProfilePicture
+            ? UserProfilePictureMutation.Remove
+            : request.ProfilePictureData is not null && request.ProfilePictureContentType is not null
+                ? UserProfilePictureMutation.Set
+                : UserProfilePictureMutation.None;
 
-        // Pictures live on file share; DB stores only content-type as the GDPR gate. Bytea column is dead (column-drop follow-up).
+        return new UserProfileSaveCommand(
+            DisplayName: displayName,
+            BurnerName: request.BurnerName,
+            FirstName: request.FirstName,
+            LastName: request.LastName,
+            City: request.City,
+            CountryCode: request.CountryCode,
+            Latitude: request.Latitude,
+            Longitude: request.Longitude,
+            PlaceId: request.PlaceId,
+            Bio: request.Bio,
+            Pronouns: request.Pronouns,
+            ContributionInterests: request.ContributionInterests,
+            BoardNotes: request.BoardNotes,
+            BirthdayMonth: request.BirthdayMonth,
+            BirthdayDay: request.BirthdayDay,
+            EmergencyContactName: request.EmergencyContactName,
+            EmergencyContactPhone: request.EmergencyContactPhone,
+            EmergencyContactRelationship: request.EmergencyContactRelationship,
+            NoPriorBurnExperience: request.NoPriorBurnExperience,
+            PictureMutation: pictureMutation,
+            ProfilePictureContentType: request.ProfilePictureContentType);
+    }
+
+    private async Task ApplyProfilePictureFileMutationAsync(
+        UserProfileSaveResult storageResult,
+        ProfileSaveRequest request,
+        CancellationToken ct)
+    {
         if (request.RemoveProfilePicture)
         {
-            var oldContentType = profile.ProfilePictureContentType;
-            profile.ProfilePictureContentType = null;
-            if (oldContentType is not null)
+            if (storageResult.PreviousProfilePictureContentType is not null)
             {
                 try
                 {
-                    await fileStorage.DeleteAsync(ProfilePictureKey(profile.Id, oldContentType), ct);
+                    await fileStorage.DeleteAsync(
+                        ProfilePictureKey(storageResult.ProfileId, storageResult.PreviousProfilePictureContentType),
+                        ct);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     logger.LogWarning(ex,
                         "Failed to delete profile picture from filesystem for {ProfileId}; content-type column has been cleared so the file will not be served",
-                        profile.Id);
+                        storageResult.ProfileId);
                 }
             }
+
+            return;
         }
-        else if (request.ProfilePictureData is not null && request.ProfilePictureContentType is not null)
+
+        if (request.ProfilePictureData is null || request.ProfilePictureContentType is null)
+            return;
+
+        try
         {
-            var oldContentType = profile.ProfilePictureContentType;
-            profile.ProfilePictureContentType = request.ProfilePictureContentType;
-            try
+            if (storageResult.PreviousProfilePictureContentType is not null &&
+                !string.Equals(storageResult.PreviousProfilePictureContentType, request.ProfilePictureContentType, StringComparison.Ordinal))
             {
-                // If the previous picture used a different content type (and
-                // therefore a different on-disk extension), remove the old
-                // file so it doesn't linger orphaned.
-                if (oldContentType is not null &&
-                    !string.Equals(oldContentType, request.ProfilePictureContentType, StringComparison.Ordinal))
-                {
-                    await fileStorage.DeleteAsync(ProfilePictureKey(profile.Id, oldContentType), ct);
-                }
-                await fileStorage.SaveAsync(
-                    ProfilePictureKey(profile.Id, request.ProfilePictureContentType),
-                    request.ProfilePictureData,
+                await fileStorage.DeleteAsync(
+                    ProfilePictureKey(storageResult.ProfileId, storageResult.PreviousProfilePictureContentType),
                     ct);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogWarning(ex,
-                    "Failed to write profile picture to filesystem for {ProfileId}; content-type column is set but the file is missing — picture will not render",
-                    profile.Id);
-            }
-        }
 
-        // see #635 (§15i) — Stub→Active promotion (mirrors UserInfo.HasRequiredNameFields).
-        if (profile.State != ProfileState.Suspended)
+            await fileStorage.SaveAsync(
+                ProfilePictureKey(storageResult.ProfileId, request.ProfilePictureContentType),
+                request.ProfilePictureData,
+                ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            var hasNames =
-                !string.IsNullOrWhiteSpace(profile.BurnerName)
-                && !string.IsNullOrWhiteSpace(profile.FirstName)
-                && !string.IsNullOrWhiteSpace(profile.LastName);
-            profile.State = hasNames ? ProfileState.Active : ProfileState.Stub;
+            logger.LogWarning(ex,
+                "Failed to write profile picture to filesystem for {ProfileId}; content-type column is set but the file is missing - picture will not render",
+                storageResult.ProfileId);
         }
-
-        await profileRepository.UpdateAsync(profile, ct);
-
-        await userService.UpdateDisplayNameAsync(userId, displayName, ct);
-
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
-
-        logger.LogInformation("User {UserId} updated their profile", userId);
-
-        return profile.Id;
     }
 
     public async Task<(bool CanAdd, int MinutesUntilResend, Guid? PendingEmailId)>

@@ -271,6 +271,83 @@ public class CachingUserServiceTests
     }
 
     [HumansFact]
+    public async Task SaveProfileAsync_RefreshesProfileAndDisplayNameSlice()
+    {
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId, "Before"));
+
+        _inner.SaveProfileAsync(
+                userId,
+                Arg.Any<UserProfileSaveCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new UserProfileSaveResult(profileId, null, "image/png"));
+
+        var freshUser = SampleUser(userId);
+        freshUser.DisplayName = "After";
+        var profile = new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            BurnerName = "New Burner",
+            FirstName = "New",
+            LastName = "Human",
+            ProfilePictureContentType = "image/png",
+            State = ProfileState.Active,
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        };
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(freshUser);
+        _userEmailRepo.GetByUserIdReadOnlyAsync(userId, Arg.Any<CancellationToken>())
+            .Returns([]);
+        _userRepo.GetEventParticipationsByUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns([]);
+        _userRepo.GetExternalLoginsByUserIdsAsync(
+                Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<Guid, IReadOnlyList<(string Provider, string ProviderKey)>>());
+        _profileRepo.GetByUserIdReadOnlyAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(profile);
+        _contactFieldRepo.GetByProfileIdReadOnlyAsync(profileId, Arg.Any<CancellationToken>())
+            .Returns([]);
+        _communicationPreferenceRepo.GetByUserIdReadOnlyAsync(userId, Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await sut.SaveProfileAsync(
+            userId,
+            new UserProfileSaveCommand(
+                DisplayName: "After",
+                BurnerName: "New Burner",
+                FirstName: "New",
+                LastName: "Human",
+                City: null,
+                CountryCode: null,
+                Latitude: null,
+                Longitude: null,
+                PlaceId: null,
+                Bio: null,
+                Pronouns: null,
+                ContributionInterests: null,
+                BoardNotes: null,
+                BirthdayMonth: null,
+                BirthdayDay: null,
+                EmergencyContactName: null,
+                EmergencyContactPhone: null,
+                EmergencyContactRelationship: null,
+                NoPriorBurnExperience: false,
+                PictureMutation: UserProfilePictureMutation.Set,
+                ProfilePictureContentType: "image/png"));
+
+        result.ProfileId.Should().Be(profileId);
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.DisplayName.Should().Be("After");
+        refreshed.Profile.Should().NotBeNull();
+        refreshed.Profile!.BurnerName.Should().Be("New Burner");
+        refreshed.Profile.ProfilePictureContentType.Should().Be("image/png");
+    }
+
+    [HumansFact]
     public async Task SaveProfileVolunteerHistoryAsync_RefreshesVolunteerHistorySlice()
     {
         var userId = Guid.NewGuid();

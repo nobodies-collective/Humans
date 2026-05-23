@@ -198,6 +198,17 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
         CancellationToken ct = default);
 
     /// <summary>
+    /// Saves the profile fields projected into UserInfo and updates the user's
+    /// display label in the same storage operation. Filesystem writes remain
+    /// outside this service; picture metadata changes are returned to the
+    /// orchestrator as old/current content types.
+    /// </summary>
+    Task<UserProfileSaveResult> SaveProfileAsync(
+        Guid userId,
+        UserProfileSaveCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Reconciles the profile's volunteer-history rows. Returns false when no
     /// profile exists for the user.
     /// </summary>

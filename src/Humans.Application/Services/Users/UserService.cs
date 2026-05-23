@@ -298,6 +298,95 @@ public sealed class UserService(
         return new OnboardingResult(true);
     }
 
+    public async Task<UserProfileSaveResult> SaveProfileAsync(
+        Guid userId,
+        UserProfileSaveCommand command,
+        CancellationToken ct = default)
+    {
+        var gate = ProfileStubLockFor(userId);
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var now = clock.GetCurrentInstant();
+            var profile = await profileRepo.GetByUserIdAsync(userId, ct);
+
+            if (profile is null)
+            {
+                profile = new Profile
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                    State = ProfileState.Stub,
+                };
+                await profileRepo.AddAsync(profile, ct);
+            }
+
+            var previousPictureContentType = profile.ProfilePictureContentType;
+
+            profile.BurnerName = command.BurnerName;
+            profile.FirstName = command.FirstName;
+            profile.LastName = command.LastName;
+            profile.City = command.City;
+            profile.CountryCode = command.CountryCode;
+            profile.Latitude = command.Latitude;
+            profile.Longitude = command.Longitude;
+            profile.PlaceId = command.PlaceId;
+            profile.Bio = command.Bio?.TrimEnd();
+            profile.Pronouns = command.Pronouns;
+            profile.ContributionInterests = command.ContributionInterests?.TrimEnd();
+            profile.BoardNotes = command.BoardNotes?.TrimEnd();
+            profile.EmergencyContactName = command.EmergencyContactName;
+            profile.EmergencyContactPhone = command.EmergencyContactPhone;
+            profile.EmergencyContactRelationship = command.EmergencyContactRelationship;
+            profile.NoPriorBurnExperience = command.NoPriorBurnExperience;
+            profile.UpdatedAt = now;
+
+            // LocalDate year=4 lets Feb 29 validate.
+            if (command.BirthdayMonth is >= 1 and <= 12 && command.BirthdayDay is >= 1 and <= 31)
+            {
+                try
+                {
+                    profile.DateOfBirth = new LocalDate(4, command.BirthdayMonth.Value, command.BirthdayDay.Value);
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    profile.DateOfBirth = null;
+                }
+            }
+            else
+            {
+                profile.DateOfBirth = null;
+            }
+
+            profile.ProfilePictureContentType = command.PictureMutation switch
+            {
+                UserProfilePictureMutation.Remove => null,
+                UserProfilePictureMutation.Set => command.ProfilePictureContentType,
+                _ => profile.ProfilePictureContentType,
+            };
+
+            // see #635 (section 15i) - Stub->Active promotion (mirrors UserInfo.HasRequiredNameFields).
+            if (profile.State != ProfileState.Suspended)
+            {
+                profile.State = HasRequiredNameFields(profile) ? ProfileState.Active : ProfileState.Stub;
+            }
+
+            await profileRepo.UpdateAsync(profile, ct);
+            await repo.UpdateDisplayNameAsync(userId, command.DisplayName, ct);
+
+            return new UserProfileSaveResult(
+                profile.Id,
+                previousPictureContentType,
+                profile.ProfilePictureContentType);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     public async Task<bool> SaveProfileVolunteerHistoryAsync(
         Guid userId,
         IReadOnlyList<CVEntry> entries,
