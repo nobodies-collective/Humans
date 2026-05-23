@@ -688,7 +688,6 @@ public sealed class ExpensesController(
         return result;
     }
 
-    /// <summary>Submitter id → display name (BurnerName → DisplayName → sentinel).</summary>
     private async Task<IReadOnlyDictionary<Guid, string>> ResolveSubmitterNamesAsync(
         IReadOnlyCollection<ExpenseReportDto> reports)
     {
