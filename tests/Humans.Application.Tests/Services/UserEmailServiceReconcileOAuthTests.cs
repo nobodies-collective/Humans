@@ -12,7 +12,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
-using NSubstitute.ReceivedExtensions;
 
 namespace Humans.Application.Tests.Services;
 
@@ -29,7 +28,6 @@ public class UserEmailServiceReconcileOAuthTests
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly UserManager<User> _userManager;
     private readonly FakeClock _clock = new(Instant.FromUtc(2026, 5, 11, 12, 0));
-    private readonly IUserInfoInvalidator _userInfoInvalidator = Substitute.For<IUserInfoInvalidator>();
     private readonly IAuditLogService _auditLogService = Substitute.For<IAuditLogService>();
     private readonly IServiceProvider _serviceProvider;
     private readonly UserEmailService _service;
@@ -49,10 +47,37 @@ public class UserEmailServiceReconcileOAuthTests
             _userService,
             _userManager,
             _clock,
-            _userInfoInvalidator,
             _auditLogService,
             _serviceProvider,
             NullLogger<UserEmailService>.Instance);
+
+        _userService.ApplyUserEmailReconcilePlanAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<UserEmailReconcilePlanCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => ApplyReconcilePlanThroughRepositoryAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<UserEmailReconcilePlanCommand>(1),
+                call.ArgAt<CancellationToken>(2)));
+    }
+
+    private async Task<UserEmailReconcilePlanResult> ApplyReconcilePlanThroughRepositoryAsync(
+        Guid userId,
+        UserEmailReconcilePlanCommand command,
+        CancellationToken ct)
+    {
+        await _repository.ApplyReconcilePlanAsync(
+            command.DisplacedRowToDelete,
+            command.RowToDelete,
+            command.RowToUpdate,
+            command.RowToInsert,
+            ct);
+
+        var mutatedUserIds = new HashSet<Guid> { userId };
+        if (command.DisplacedRowToDelete is not null)
+            mutatedUserIds.Add(command.DisplacedRowToDelete.UserId);
+
+        return new UserEmailReconcilePlanResult(mutatedUserIds);
     }
 
     // ─── NoChange ────────────────────────────────────────────────────────────
@@ -126,10 +151,6 @@ public class UserEmailServiceReconcileOAuthTests
             rowToUpdate: Arg.Is<UserEmail?>(r => r != null && r.Id == rowId),
             rowToInsert: Arg.Is<UserEmail?>(r => r == null),
             Arg.Any<CancellationToken>());
-        await _userInfoInvalidator
-            .Received(Quantity.AtLeastOne())
-            .InvalidateAsync(userId, Arg.Any<CancellationToken>(),
-                Arg.Any<string>(), Arg.Any<string>());
         await _auditLogService.Received(1).LogAsync(
             AuditAction.GoogleEmailRenamed,
             Arg.Any<string>(), userId,
@@ -279,10 +300,6 @@ public class UserEmailServiceReconcileOAuthTests
             Arg.Any<string>(), userId,
             Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<Guid?>(), Arg.Any<string?>());
-        await _userInfoInvalidator
-            .Received(Quantity.AtLeastOne())
-            .InvalidateAsync(userId, Arg.Any<CancellationToken>(),
-                Arg.Any<string>(), Arg.Any<string>());
     }
 
     // ─── CrossUserDisplaced ──────────────────────────────────────────────────
@@ -350,15 +367,6 @@ public class UserEmailServiceReconcileOAuthTests
             Arg.Any<string>(), displacedUserId,
             Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<Guid?>(), Arg.Any<string?>());
-        // Both affected users get their cache invalidated.
-        await _userInfoInvalidator
-            .Received(Quantity.AtLeastOne())
-            .InvalidateAsync(signingUserId, Arg.Any<CancellationToken>(),
-                Arg.Any<string>(), Arg.Any<string>());
-        await _userInfoInvalidator
-            .Received(Quantity.AtLeastOne())
-            .InvalidateAsync(displacedUserId, Arg.Any<CancellationToken>(),
-                Arg.Any<string>(), Arg.Any<string>());
     }
 
     [HumansFact]

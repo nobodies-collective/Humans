@@ -202,6 +202,16 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
         UserEmailRemoveCommand command,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Applies an OAuth reconcile row plan and repairs UserEmail invariants for
+    /// every affected user. OAuth policy, external login state, and audit rows
+    /// remain outside this storage command.
+    /// </summary>
+    Task<UserEmailReconcilePlanResult> ApplyUserEmailReconcilePlanAsync(
+        Guid userId,
+        UserEmailReconcilePlanCommand command,
+        CancellationToken ct = default);
+
     // ---- Methods added for ContactService migration ----
 
     /// <summary>

@@ -19,7 +19,6 @@ public sealed class UserEmailService(
     IUserService userService,
     UserManager<User> userManager,
     IClock clock,
-    IUserInfoInvalidator userInfoInvalidator,
     IAuditLogService auditLogService,
     IServiceProvider serviceProvider,
     ILogger<UserEmailService> logger) : IUserEmailService, IUserMerge
@@ -562,84 +561,6 @@ public sealed class UserEmailService(
         return null;
     }
 
-    // Invariant: exactly one IsPrimary=true verified row per user. Winner: @nobodies.team > existing primary > most-recent.
-    private async Task EnsurePrimaryInvariantAsync(
-        Guid userId, CancellationToken cancellationToken)
-    {
-        var emails = (await repository.GetByUserIdForMutationAsync(userId, cancellationToken)).ToList();
-        var verified = emails.Where(e => e.IsVerified).ToList();
-        if (verified.Count == 0)
-            return;
-
-        var currentPrimaries = verified.Where(e => e.IsPrimary).ToList();
-
-        var winner =
-            verified.FirstOrDefault(e => e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
-            ?? currentPrimaries.OrderBy(e => e.Id).FirstOrDefault()
-            ?? verified.OrderByDescending(e => e.UpdatedAt).ThenBy(e => e.Id).First();
-
-        if (currentPrimaries.Count == 1 && currentPrimaries[0].Id == winner.Id)
-            return;
-
-        var now = clock.GetCurrentInstant();
-        var changed = new List<UserEmail>();
-        foreach (var row in verified)
-        {
-            var shouldBePrimary = row.Id == winner.Id;
-            if (row.IsPrimary != shouldBePrimary)
-            {
-                row.IsPrimary = shouldBePrimary;
-                row.UpdatedAt = now;
-                changed.Add(row);
-            }
-        }
-
-        if (changed.Count == 0)
-            return;
-
-        await repository.UpdateBatchAsync(changed, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
-    }
-
-    // Invariant: at most one IsGoogle=true verified row per user (see nobodies-collective/Humans#687). Same precedence as EnsurePrimaryInvariantAsync.
-    private async Task EnsureGoogleInvariantAsync(
-        Guid userId, CancellationToken cancellationToken)
-    {
-        var emails = (await repository.GetByUserIdForMutationAsync(userId, cancellationToken)).ToList();
-        var verified = emails.Where(e => e.IsVerified).ToList();
-        if (verified.Count == 0)
-            return;
-
-        var currentGoogles = verified.Where(e => e.IsGoogle).ToList();
-
-        var winner =
-            verified.FirstOrDefault(e => e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
-            ?? currentGoogles.OrderBy(e => e.Id).FirstOrDefault()
-            ?? verified.OrderByDescending(e => e.UpdatedAt).ThenBy(e => e.Id).First();
-
-        if (currentGoogles.Count == 1 && currentGoogles[0].Id == winner.Id)
-            return;
-
-        var now = clock.GetCurrentInstant();
-        var changed = new List<UserEmail>();
-        foreach (var row in verified)
-        {
-            var shouldBeGoogle = row.Id == winner.Id;
-            if (row.IsGoogle != shouldBeGoogle)
-            {
-                row.IsGoogle = shouldBeGoogle;
-                row.UpdatedAt = now;
-                changed.Add(row);
-            }
-        }
-
-        if (changed.Count == 0)
-            return;
-
-        await repository.UpdateBatchAsync(changed, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
-    }
-
     /// <inheritdoc />
     public async Task AddProvisionedEmailAsync(
         Guid userId, string email, CancellationToken cancellationToken = default)
@@ -1084,26 +1005,17 @@ public sealed class UserEmailService(
                 $"(provider={provider}, sub={providerKey}, email={claimEmail}).";
         }
 
-        // 5. Apply displacement + signing-user mutation atomically — one transaction.
-        await repository.ApplyReconcilePlanAsync(
-            displacedRowToDelete: displaced ? blocker : null,
-            rowToDelete: rowToDelete,
-            rowToUpdate: rowToUpdate,
-            rowToInsert: rowToInsert,
+        // 5. Apply displacement + signing-user mutation atomically and repair UserEmail invariants.
+        await userService.ApplyUserEmailReconcilePlanAsync(
+            userId,
+            new UserEmailReconcilePlanCommand(
+                DisplacedRowToDelete: displaced ? blocker : null,
+                RowToDelete: rowToDelete,
+                RowToUpdate: rowToUpdate,
+                RowToInsert: rowToInsert),
             cancellationToken);
 
-        // 6. Invariants + cache invalidation (idempotent; re-runs on next sign-in if process crashes here).
-        if (displaced)
-        {
-            await EnsurePrimaryInvariantAsync(blocker!.UserId, cancellationToken);
-            await EnsureGoogleInvariantAsync(blocker.UserId, cancellationToken);
-            await userInfoInvalidator.InvalidateAsync(blocker.UserId, cancellationToken);
-        }
-        await EnsurePrimaryInvariantAsync(userId, cancellationToken);
-        await EnsureGoogleInvariantAsync(userId, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
-
-        // 7. Audit. Displaced path writes the OAuthRenameCollision pair instead of GoogleEmailRenamed/UserEmailLinked.
+        // 6. Audit. Displaced path writes the OAuthRenameCollision pair instead of GoogleEmailRenamed/UserEmailLinked.
         if (displaced)
         {
             logger.LogError(

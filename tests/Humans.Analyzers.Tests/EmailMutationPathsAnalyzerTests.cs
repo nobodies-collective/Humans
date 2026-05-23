@@ -133,6 +133,32 @@ public class EmailMutationPathsAnalyzerTests
     }
 
     [HumansFact]
+    public async Task Does_not_fire_when_repository_called_from_UserService()
+    {
+        var source = InterfaceStubs + """
+
+            namespace Humans.Application.Services.Users
+            {
+                public class UserService
+                {
+                    public async System.Threading.Tasks.Task Run(
+                        Humans.Application.Interfaces.Repositories.IUserEmailRepository repo)
+                    {
+                        await repo.ApplyReconcilePlanAsync(null, null, null, null);
+                    }
+                }
+            }
+            """;
+
+        var diagnostics = await AnalyzerTestHarness.RunAsync(
+            new EmailMutationPathsAnalyzer(),
+            "Humans.Application",
+            source);
+
+        diagnostics.Where(IsHum0006).Should().BeEmpty();
+    }
+
+    [HumansFact]
     public async Task Fires_HUM0005_when_concrete_service_class_called_from_non_AccountController()
     {
         // Codex P2: a caller holding the concrete UserEmailService (rather than the

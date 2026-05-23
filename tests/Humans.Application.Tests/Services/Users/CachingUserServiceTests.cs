@@ -178,6 +178,61 @@ public class CachingUserServiceTests
     }
 
     [HumansFact]
+    public async Task ApplyUserEmailReconcilePlanAsync_RefreshesEveryMutatedUsersEmailSlice()
+    {
+        var signingUserId = Guid.NewGuid();
+        var displacedUserId = Guid.NewGuid();
+        var sut = CreateSut();
+
+        await PrimeAsync(sut, SampleUserInfo(signingUserId));
+        await PrimeAsync(sut, SampleUserInfo(displacedUserId));
+
+        _inner.ApplyUserEmailReconcilePlanAsync(
+                signingUserId,
+                Arg.Any<UserEmailReconcilePlanCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new UserEmailReconcilePlanResult(
+                new HashSet<Guid> { signingUserId, displacedUserId }));
+
+        _userEmailRepo.GetByUserIdReadOnlyAsync(signingUserId, Arg.Any<CancellationToken>())
+            .Returns([
+                new UserEmail
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = signingUserId,
+                    Email = "signing@example.com",
+                    IsVerified = true,
+                    IsPrimary = true,
+                    CreatedAt = Instant.MinValue,
+                    UpdatedAt = Instant.MinValue,
+                }
+            ]);
+        _userEmailRepo.GetByUserIdReadOnlyAsync(displacedUserId, Arg.Any<CancellationToken>())
+            .Returns([
+                new UserEmail
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = displacedUserId,
+                    Email = "survivor@example.com",
+                    IsVerified = true,
+                    IsPrimary = true,
+                    CreatedAt = Instant.MinValue,
+                    UpdatedAt = Instant.MinValue,
+                }
+            ]);
+
+        await sut.ApplyUserEmailReconcilePlanAsync(
+            signingUserId,
+            new UserEmailReconcilePlanCommand(null, null, null, null));
+
+        var signing = await sut.GetUserInfoAsync(signingUserId);
+        var displaced = await sut.GetUserInfoAsync(displacedUserId);
+
+        signing!.UserEmails.Should().ContainSingle(e => e.Email == "signing@example.com");
+        displaced!.UserEmails.Should().ContainSingle(e => e.Email == "survivor@example.com");
+    }
+
+    [HumansFact]
     public async Task GetUserInfoAsync_ConcurrentReads_ReturnSameEntryWithoutTearing()
     {
         var userId = Guid.NewGuid();

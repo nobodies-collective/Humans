@@ -40,7 +40,6 @@ public class UserEmailServiceTests
             _userService,
             _userManager,
             _clock,
-            _userInfoInvalidator,
             _auditLogService,
             _serviceProvider,
             NullLogger<UserEmailService>.Instance);

@@ -1,3 +1,4 @@
+using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;
 
@@ -60,3 +61,16 @@ public sealed record UserEmailRemoveCommand(
     bool PreserveLastVerifiedEmail = true,
     bool RepairInvariants = true);
 
+/// <summary>
+/// Storage-level OAuth reconcile mutation plan. The caller decides OAuth
+/// policy, conflict handling, and audit text; Users applies the row mutation
+/// atomically and repairs UserInfo-visible email invariants.
+/// </summary>
+public sealed record UserEmailReconcilePlanCommand(
+    UserEmail? DisplacedRowToDelete,
+    UserEmail? RowToDelete,
+    UserEmail? RowToUpdate,
+    UserEmail? RowToInsert);
+
+public sealed record UserEmailReconcilePlanResult(
+    IReadOnlySet<Guid> MutatedUserIds);

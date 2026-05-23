@@ -26,11 +26,10 @@ namespace Humans.Infrastructure.Services.Users;
 /// synchronously, cache miss refills via the inner Scoped
 /// <see cref="IUserService"/>, every write through this surface delegates and
 /// then refreshes the affected entry. Identity-machinery write paths
-/// (<c>UserManager.UpdateAsync</c>, sign-in <c>LastLoginAt</c> bumps, OAuth
-/// callback <c>UserEmail</c> writes) are caught by
-/// <c>UserInfoSaveChangesInterceptor</c> in Infrastructure, which invokes
-/// <see cref="IUserInfoInvalidator.InvalidateAsync"/> for every userId
-/// touched by the affected entity set.
+/// (<c>UserManager.UpdateAsync</c>, sign-in <c>LastLoginAt</c> bumps) are
+/// caught by <c>UserInfoSaveChangesInterceptor</c> in Infrastructure, which
+/// invokes <see cref="IUserInfoInvalidator.InvalidateAsync"/> for every
+/// touched userId.
 /// </para>
 /// <para>
 /// Registered as Singleton so the dict persists across requests. Scoped
@@ -860,6 +859,17 @@ public sealed class CachingUserService(
         var removed = await WithInnerAsync(inner => inner.RemoveUserEmailAsync(userId, emailId, command, ct));
         if (removed) await RefreshUserEmailsAsync(userId, ct);
         return removed;
+    }
+
+    public async Task<UserEmailReconcilePlanResult> ApplyUserEmailReconcilePlanAsync(
+        Guid userId,
+        UserEmailReconcilePlanCommand command,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner => inner.ApplyUserEmailReconcilePlanAsync(userId, command, ct));
+        foreach (var mutatedUserId in result.MutatedUserIds)
+            await RefreshUserEmailsAsync(mutatedUserId, ct);
+        return result;
     }
 
     public Task SetLastConsentReminderSentAsync(

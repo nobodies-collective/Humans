@@ -324,6 +324,31 @@ public sealed class UserService(
         return true;
     }
 
+    public async Task<UserEmailReconcilePlanResult> ApplyUserEmailReconcilePlanAsync(
+        Guid userId,
+        UserEmailReconcilePlanCommand command,
+        CancellationToken ct = default)
+    {
+        await userEmailRepo.ApplyReconcilePlanAsync(
+            displacedRowToDelete: command.DisplacedRowToDelete,
+            rowToDelete: command.RowToDelete,
+            rowToUpdate: command.RowToUpdate,
+            rowToInsert: command.RowToInsert,
+            ct);
+
+        var mutatedUserIds = new HashSet<Guid> { userId };
+        if (command.DisplacedRowToDelete is not null)
+            mutatedUserIds.Add(command.DisplacedRowToDelete.UserId);
+
+        foreach (var mutatedUserId in mutatedUserIds)
+        {
+            await EnsurePrimaryInvariantAsync(mutatedUserId, ct);
+            await EnsureGoogleInvariantAsync(mutatedUserId, ct);
+        }
+
+        return new UserEmailReconcilePlanResult(mutatedUserIds);
+    }
+
     public Task SetLastConsentReminderSentAsync(
         Guid userId, Instant sentAt, CancellationToken ct = default) =>
         repo.SetLastConsentReminderSentAsync(userId, sentAt, ct);
