@@ -10,8 +10,10 @@ using Humans.Domain.Enums;
 using Xunit;
 using ProfileService = Humans.Application.Services.Profiles.ProfileService;
 using Humans.Application.Interfaces.Users;
+using Humans.Application.Services.Users;
 using Humans.Application.Tests.Infrastructure;
 using Humans.Infrastructure.Repositories.Profiles;
+using Humans.Infrastructure.Repositories.Users;
 
 namespace Humans.Application.Tests.Services;
 
@@ -36,6 +38,15 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         _profileRepository = new ProfileRepository(DbFactory, Clock);
         _userEmailRepository = new UserEmailRepository(DbFactory);
         _contactFieldRepository = new ContactFieldRepository(DbFactory);
+        var storageUserService = new UserService(
+            new UserRepository(DbFactory),
+            _userEmailRepository,
+            _profileRepository,
+            _contactFieldRepository,
+            _communicationPreferenceRepository,
+            AdminAuthorization,
+            Clock,
+            NullLogger<UserService>.Instance);
 
         _service = new ProfileService(
             _profileRepository, _userService,
@@ -49,6 +60,54 @@ public sealed class ProfileServiceTests : ServiceTestHarness
 
         _userService.StubGetUserInfosFromContext(Db);
         _userService.StubGetUserInfoFromContext(Db);
+        _userService.EnsureStubProfileAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.EnsureStubProfileAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<CancellationToken>(1)));
+        _userService.SetMembershipTierAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<MembershipTier>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.SetMembershipTierAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<MembershipTier>(1),
+                call.ArgAt<CancellationToken>(2)));
+        _userService.ApplyProfileOnboardingMutationAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<UserProfileOnboardingCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.ApplyProfileOnboardingMutationAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<UserProfileOnboardingCommand>(1),
+                call.ArgAt<CancellationToken>(2)));
+        _userService.SetProfileIbanAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<string?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.SetProfileIbanAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<string?>(1),
+                call.ArgAt<CancellationToken>(2)));
+        _userService.SuspendProfilesForMissingConsentAsync(
+                Arg.Any<IReadOnlyCollection<Guid>>(),
+                Arg.Any<Instant>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.SuspendProfilesForMissingConsentAsync(
+                call.ArgAt<IReadOnlyCollection<Guid>>(0),
+                call.ArgAt<Instant>(1),
+                call.ArgAt<CancellationToken>(2)));
+        _userService.DowngradeMembershipTierForExpiredAsync(
+                Arg.Any<MembershipTier>(),
+                Arg.Any<IReadOnlyCollection<Guid>>(),
+                Arg.Any<IReadOnlyDictionary<Guid, MembershipTier>>(),
+                Arg.Any<Instant>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.DowngradeMembershipTierForExpiredAsync(
+                call.ArgAt<MembershipTier>(0),
+                call.ArgAt<IReadOnlyCollection<Guid>>(1),
+                call.ArgAt<IReadOnlyDictionary<Guid, MembershipTier>>(2),
+                call.ArgAt<Instant>(3),
+                call.ArgAt<CancellationToken>(4)));
     }
 
     // --- Profile save flow ---
@@ -576,7 +635,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         json.Should().NotContain("\"IsPrimary\":");
     }
 
-    // Smoke test for the per-userId service-side lock that replaced the
+    // Smoke test for the per-userId user-storage lock that replaced the
     // AddIfNotExistsByUserIdAsync 23505-translating repo method. Asserts the
     // lock serializes two concurrent EnsureStubProfileAsync callers so that
     // only one AddAsync fires for a given userId.
@@ -584,6 +643,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
     public async Task EnsureStubProfileAsync_TwoConcurrentCallers_OnlyOneAddAsync()
     {
         var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
 
         var fakeRepo = Substitute.For<IProfileRepository>();
         Profile? stored = null;
@@ -592,15 +652,15 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         fakeRepo.When(r => r.AddAsync(Arg.Any<Profile>(), Arg.Any<CancellationToken>()))
             .Do(call => stored = call.Arg<Profile>());
 
-        var service = new ProfileService(
-            fakeRepo, _userService,
+        var service = new UserService(
+            new UserRepository(DbFactory),
             _userEmailRepository,
-            _contactFieldRepository, _communicationPreferenceRepository,
-            AuditLog,
-            _fileStorage,
-            Substitute.For<IUserInfoInvalidator>(),
+            fakeRepo,
+            _contactFieldRepository,
+            _communicationPreferenceRepository,
+            AdminAuthorization,
             Clock,
-            NullLogger<ProfileService>.Instance);
+            NullLogger<UserService>.Instance);
 
 #pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         await Task.WhenAll(

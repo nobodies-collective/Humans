@@ -1,4 +1,5 @@
 using Humans.Application.Interfaces.Repositories;
+using Humans.Application.Interfaces.Onboarding;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;
@@ -168,6 +169,59 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
     /// Returns false if the user does not exist.
     /// </summary>
     Task<bool> ClearDeletionAsync(Guid userId, CancellationToken ct = default);
+
+    // ---- Profile storage commands ----
+
+    /// <summary>
+    /// Idempotently materializes a stub profile for a live user. Returns true
+    /// only when a profile row was created.
+    /// </summary>
+    Task<bool> EnsureStubProfileAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates <see cref="Profile.MembershipTier"/> on the user's profile.
+    /// Returns false when no profile exists.
+    /// </summary>
+    Task<bool> SetMembershipTierAsync(
+        Guid userId,
+        MembershipTier tier,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Applies a consolidated onboarding/profile-state mutation to the user's
+    /// profile. Audit/logging policy remains with the caller.
+    /// </summary>
+    Task<OnboardingResult> ApplyProfileOnboardingMutationAsync(
+        Guid userId,
+        UserProfileOnboardingCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets or clears the profile IBAN. Returns false when no profile exists.
+    /// The caller owns validation and audit logging.
+    /// </summary>
+    Task<bool> SetProfileIbanAsync(Guid userId, string? iban, CancellationToken ct = default);
+
+    /// <summary>
+    /// Suspends the given profiles for missing consent and returns the user ids
+    /// that were actually mutated.
+    /// </summary>
+    Task<IReadOnlySet<Guid>> SuspendProfilesForMissingConsentAsync(
+        IReadOnlyCollection<Guid> userIds,
+        Instant now,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Downgrades expired membership tiers and returns each user id with the
+    /// tier that was written.
+    /// </summary>
+    Task<IReadOnlyList<(Guid UserId, MembershipTier NewTier)>>
+        DowngradeMembershipTierForExpiredAsync(
+            MembershipTier currentTier,
+            IReadOnlyCollection<Guid> userIdsToKeep,
+            IReadOnlyDictionary<Guid, MembershipTier> fallbackTierByUser,
+            Instant now,
+            CancellationToken ct = default);
 
     // ---- UserEmail storage commands ----
 

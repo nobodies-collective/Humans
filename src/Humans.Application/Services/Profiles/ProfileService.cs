@@ -40,54 +40,12 @@ public sealed class ProfileService(IProfileRepository profileRepository,
     public async Task SetMembershipTierAsync(
         Guid userId, MembershipTier tier, CancellationToken ct = default)
     {
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
-        if (profile is null)
-        {
-            logger.LogWarning(
-                "Cannot set membership tier for user {UserId} — no profile exists", userId);
-            return;
-        }
-
-        profile.MembershipTier = tier;
-        profile.UpdatedAt = clock.GetCurrentInstant();
-        await profileRepository.UpdateAsync(profile, ct);
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
+        await userService.SetMembershipTierAsync(userId, tier, ct);
     }
 
     public async Task EnsureStubProfileAsync(Guid userId, CancellationToken ct = default)
     {
-        var gate = LockFor(userId);
-        await gate.WaitAsync(ct).ConfigureAwait(false);
-        try
-        {
-            var existing = await profileRepository.GetByUserIdAsync(userId, ct);
-            if (existing is not null) return;
-
-            var info = await userService.GetUserInfoAsync(userId, ct);
-            if (info is { IsTombstone: true })
-            {
-                logger.LogError(
-                    "EnsureStubProfileAsync called for tombstone user {UserId} (MergedAt={MergedAt}) — refusing to create Stub Profile",
-                    userId, info.MergedAt);
-                return;
-            }
-
-            var now = clock.GetCurrentInstant();
-            var profile = new Profile
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                CreatedAt = now,
-                UpdatedAt = now,
-                State = ProfileState.Stub,
-            };
-            await profileRepository.AddAsync(profile, ct);
-            await userInfoInvalidator.InvalidateAsync(userId, ct);
-        }
-        finally
-        {
-            gate.Release();
-        }
+        await userService.EnsureStubProfileAsync(userId, ct);
     }
 
     public async Task SetProfilePictureAsync(
@@ -488,34 +446,19 @@ public sealed class ProfileService(IProfileRepository profileRepository,
         Guid userId, Guid reviewerId, ConsentCheckStatus result, string? notes,
         CancellationToken ct = default)
     {
-        if (result is not ConsentCheckStatus.Cleared and not ConsentCheckStatus.Flagged)
-        {
-            throw new ArgumentException(
-                "RecordConsentCheckAsync only accepts Cleared or Flagged; use SetConsentCheckPendingAsync for the system-driven Pending transition.",
-                nameof(result));
-        }
+        var storageResult = await userService.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(
+                UserProfileOnboardingMutation.RecordConsentCheck,
+                ActorUserId: reviewerId,
+                ConsentCheckStatus: result,
+                Notes: notes),
+            ct);
 
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
-        if (profile is null)
-            return new OnboardingResult(false, "NotFound");
+        if (!storageResult.Success)
+            return storageResult;
 
         var cleared = result == ConsentCheckStatus.Cleared;
-
-        if (cleared && profile.RejectedAt is not null)
-            return new OnboardingResult(false, "AlreadyRejected");
-
-        var now = clock.GetCurrentInstant();
-
-        profile.ConsentCheckStatus = result;
-        profile.ConsentCheckAt = now;
-        profile.ConsentCheckedByUserId = reviewerId;
-        profile.ConsentCheckNotes = notes;
-        profile.IsApproved = cleared;
-        profile.UpdatedAt = now;
-
-        await profileRepository.UpdateAsync(profile, ct);
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
-
         await auditLogService.LogAsync(
             cleared ? AuditAction.ConsentCheckCleared : AuditAction.ConsentCheckFlagged,
             nameof(Profile), userId,
@@ -526,29 +469,22 @@ public sealed class ProfileService(IProfileRepository profileRepository,
             "Consent check {Status} for user {UserId} by {ReviewerId}",
             cleared ? "cleared" : "flagged", userId, reviewerId);
 
-        return new OnboardingResult(true);
+        return storageResult;
     }
 
     public async Task<OnboardingResult> RejectSignupAsync(
         Guid userId, Guid reviewerId, string? reason, CancellationToken ct = default)
     {
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
-        if (profile is null)
-            return new OnboardingResult(false, "NotFound");
+        var storageResult = await userService.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(
+                UserProfileOnboardingMutation.RejectSignup,
+                ActorUserId: reviewerId,
+                RejectionReason: reason),
+            ct);
 
-        if (profile.RejectedAt is not null)
-            return new OnboardingResult(false, "AlreadyRejected");
-
-        var now = clock.GetCurrentInstant();
-
-        profile.RejectionReason = reason;
-        profile.RejectedAt = now;
-        profile.RejectedByUserId = reviewerId;
-        profile.IsApproved = false;
-        profile.UpdatedAt = now;
-
-        await profileRepository.UpdateAsync(profile, ct);
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
+        if (!storageResult.Success)
+            return storageResult;
 
         await auditLogService.LogAsync(
             AuditAction.SignupRejected, nameof(Profile), userId,
@@ -557,23 +493,21 @@ public sealed class ProfileService(IProfileRepository profileRepository,
 
         logger.LogInformation("Signup rejected for user {UserId} by {ReviewerId}", userId, reviewerId);
 
-        return new OnboardingResult(true);
+        return storageResult;
     }
 
     public async Task<OnboardingResult> ApproveVolunteerAsync(
         Guid userId, Guid adminId, CancellationToken ct = default)
     {
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
-        if (profile is null)
-            return new OnboardingResult(false, "NotFound");
+        var storageResult = await userService.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(
+                UserProfileOnboardingMutation.ApproveVolunteer,
+                ActorUserId: adminId),
+            ct);
 
-        var now = clock.GetCurrentInstant();
-
-        profile.IsApproved = true;
-        profile.UpdatedAt = now;
-
-        await profileRepository.UpdateAsync(profile, ct);
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
+        if (!storageResult.Success)
+            return storageResult;
 
         await auditLogService.LogAsync(
             AuditAction.VolunteerApproved, nameof(User), userId,
@@ -582,41 +516,24 @@ public sealed class ProfileService(IProfileRepository profileRepository,
 
         logger.LogInformation("Admin {AdminId} approved human {HumanId}", adminId, userId);
 
-        return new OnboardingResult(true);
+        return storageResult;
     }
 
     public async Task<OnboardingResult> SetSuspendedAsync(
         Guid userId, Guid adminId, bool suspended, string? notes,
         CancellationToken ct = default)
     {
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
-        if (profile is null)
-            return new OnboardingResult(false, "NotFound");
+        var storageResult = await userService.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(
+                UserProfileOnboardingMutation.SetSuspension,
+                ActorUserId: adminId,
+                Notes: notes,
+                Suspended: suspended),
+            ct);
 
-#pragma warning disable HUM_PROFILE_ISSUSPENDED
-        profile.IsSuspended = suspended;
-#pragma warning restore HUM_PROFILE_ISSUSPENDED
-
-        // see #635 (§15i) — dual write to State until IsSuspended column is dropped.
-        if (suspended)
-        {
-            profile.State = ProfileState.Suspended;
-        }
-        else
-        {
-            var hasNames =
-                !string.IsNullOrWhiteSpace(profile.BurnerName)
-                && !string.IsNullOrWhiteSpace(profile.FirstName)
-                && !string.IsNullOrWhiteSpace(profile.LastName);
-            profile.State = hasNames ? ProfileState.Active : ProfileState.Stub;
-        }
-
-        if (suspended)
-            profile.AdminNotes = notes;
-        profile.UpdatedAt = clock.GetCurrentInstant();
-
-        await profileRepository.UpdateAsync(profile, ct);
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
+        if (!storageResult.Success)
+            return storageResult;
 
         await auditLogService.LogAsync(
             suspended ? AuditAction.MemberSuspended : AuditAction.MemberUnsuspended,
@@ -630,19 +547,18 @@ public sealed class ProfileService(IProfileRepository profileRepository,
             "Admin {AdminId} {Verb} human {HumanId}",
             adminId, suspended ? "suspended" : "unsuspended", userId);
 
-        return new OnboardingResult(true);
+        return storageResult;
     }
 
     public async Task<bool> SetConsentCheckPendingAsync(Guid userId, CancellationToken ct = default)
     {
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
-        if (profile is null)
-            return false;
+        var storageResult = await userService.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(UserProfileOnboardingMutation.SetConsentCheckPending),
+            ct);
 
-        profile.ConsentCheckStatus = ConsentCheckStatus.Pending;
-        profile.UpdatedAt = clock.GetCurrentInstant();
-        await profileRepository.UpdateAsync(profile, ct);
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
+        if (!storageResult.Success)
+            return false;
 
         logger.LogInformation(
             "User {UserId} has all consents signed, consent check set to Pending", userId);
@@ -693,10 +609,7 @@ public sealed class ProfileService(IProfileRepository profileRepository,
         Instant now,
         CancellationToken ct = default)
     {
-        var mutated = await profileRepository.SuspendManyAsync(userIds, now, ct);
-        foreach (var id in mutated)
-            await userInfoInvalidator.InvalidateAsync(id, ct);
-        return mutated;
+        return await userService.SuspendProfilesForMissingConsentAsync(userIds, now, ct);
     }
 
     public async Task<IReadOnlyList<(Guid UserId, MembershipTier NewTier)>>
@@ -707,11 +620,8 @@ public sealed class ProfileService(IProfileRepository profileRepository,
             Instant now,
             CancellationToken ct = default)
     {
-        var downgrades = await profileRepository.DowngradeTierForExpiredAsync(
+        return await userService.DowngradeMembershipTierForExpiredAsync(
             currentTier, userIdsToKeep, fallbackTierByUser, now, ct);
-        foreach (var (userId, _) in downgrades)
-            await userInfoInvalidator.InvalidateAsync(userId, ct);
-        return downgrades;
     }
 
     public async Task ReassignAsync(Guid sourceUserId, Guid targetUserId, Guid actorUserId, Instant updatedAt,
@@ -724,18 +634,12 @@ public sealed class ProfileService(IProfileRepository profileRepository,
 
     public async Task<bool> SetIbanAsync(Guid userId, string? iban, CancellationToken ct = default)
     {
-        var profile = await profileRepository.GetByUserIdAsync(userId, ct);
-        if (profile is null)
-            return false;
-
-        // Normalize via the validator — strips U+202F (narrow NBSP from bank-PDF paste) so SEPA/Holded payloads accept it.
         var normalized = string.IsNullOrWhiteSpace(iban) ? null : IbanValidator.Normalize(iban);
         var isClearing = normalized is null;
 
-        profile.Iban = normalized;
-        profile.UpdatedAt = clock.GetCurrentInstant();
-        await profileRepository.UpdateAsync(profile, ct);
-        await userInfoInvalidator.InvalidateAsync(userId, ct);
+        var saved = await userService.SetProfileIbanAsync(userId, normalized, ct);
+        if (!saved)
+            return false;
 
         await auditLogService.LogAsync(
             isClearing ? AuditAction.IbanRemove : AuditAction.IbanSet,

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NodaTime;
 using Humans.Application;
 using Humans.Application.DTOs;
+using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Users;
@@ -827,6 +828,69 @@ public sealed class CachingUserService(
         var updated = await WithInnerAsync(inner => inner.ClearDeletionAsync(userId, ct));
         if (updated) await RefreshEntryAsync(userId, ct);
         return updated;
+    }
+
+    public async Task<bool> EnsureStubProfileAsync(Guid userId, CancellationToken ct = default)
+    {
+        var created = await WithInnerAsync(inner => inner.EnsureStubProfileAsync(userId, ct));
+        if (created) await RefreshEntryAsync(userId, ct);
+        return created;
+    }
+
+    public async Task<bool> SetMembershipTierAsync(
+        Guid userId,
+        MembershipTier tier,
+        CancellationToken ct = default)
+    {
+        var updated = await WithInnerAsync(inner => inner.SetMembershipTierAsync(userId, tier, ct));
+        if (updated) await RefreshEntryAsync(userId, ct);
+        return updated;
+    }
+
+    public async Task<OnboardingResult> ApplyProfileOnboardingMutationAsync(
+        Guid userId,
+        UserProfileOnboardingCommand command,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner =>
+            inner.ApplyProfileOnboardingMutationAsync(userId, command, ct));
+        if (result.Success) await RefreshEntryAsync(userId, ct);
+        return result;
+    }
+
+    public async Task<bool> SetProfileIbanAsync(Guid userId, string? iban, CancellationToken ct = default)
+    {
+        var updated = await WithInnerAsync(inner => inner.SetProfileIbanAsync(userId, iban, ct));
+        if (updated) await RefreshEntryAsync(userId, ct);
+        return updated;
+    }
+
+    public async Task<IReadOnlySet<Guid>> SuspendProfilesForMissingConsentAsync(
+        IReadOnlyCollection<Guid> userIds,
+        Instant now,
+        CancellationToken ct = default)
+    {
+        var mutated = await WithInnerAsync(inner =>
+            inner.SuspendProfilesForMissingConsentAsync(userIds, now, ct));
+        foreach (var userId in mutated)
+            await RefreshEntryAsync(userId, ct);
+        return mutated;
+    }
+
+    public async Task<IReadOnlyList<(Guid UserId, MembershipTier NewTier)>>
+        DowngradeMembershipTierForExpiredAsync(
+            MembershipTier currentTier,
+            IReadOnlyCollection<Guid> userIdsToKeep,
+            IReadOnlyDictionary<Guid, MembershipTier> fallbackTierByUser,
+            Instant now,
+            CancellationToken ct = default)
+    {
+        var downgrades = await WithInnerAsync(inner =>
+            inner.DowngradeMembershipTierForExpiredAsync(
+                currentTier, userIdsToKeep, fallbackTierByUser, now, ct));
+        foreach (var (userId, _) in downgrades)
+            await RefreshEntryAsync(userId, ct);
+        return downgrades;
     }
 
     public async Task<UserEmailAddResult> AddUserEmailAsync(

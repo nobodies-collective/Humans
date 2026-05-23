@@ -3,6 +3,7 @@ using Humans.Application.DTOs;
 using Humans.Application.Extensions;
 using Humans.Application.Interfaces.Auth;
 using Humans.Application.Interfaces.Gdpr;
+using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Profiles;
@@ -24,6 +25,17 @@ public sealed class UserService(
     IClock clock,
     ILogger<UserService> logger) : IUserService, IUserDataContributor, IUserMerge
 {
+    private static readonly SemaphoreSlim[] ProfileStubLocks = CreateProfileStubLocks(32);
+    private static SemaphoreSlim[] CreateProfileStubLocks(int count)
+    {
+        var locks = new SemaphoreSlim[count];
+        for (var i = 0; i < count; i++) locks[i] = new SemaphoreSlim(1, 1);
+        return locks;
+    }
+
+    private static SemaphoreSlim ProfileStubLockFor(Guid userId) =>
+        ProfileStubLocks[(uint)userId.GetHashCode() % (uint)ProfileStubLocks.Length];
+
     // --- User reads ---
 
     public async ValueTask<UserInfo?> GetUserInfoAsync(Guid userId, CancellationToken ct = default)
@@ -174,6 +186,145 @@ public sealed class UserService(
     {
         return await repo.ClearDeletionAsync(userId, ct);
     }
+
+    public async Task<bool> EnsureStubProfileAsync(Guid userId, CancellationToken ct = default)
+    {
+        var gate = ProfileStubLockFor(userId);
+        await gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var existing = await profileRepo.GetByUserIdAsync(userId, ct);
+            if (existing is not null) return false;
+
+            var info = await GetUserInfoAsync(userId, ct);
+            if (info is null)
+                return false;
+
+            if (info.IsTombstone)
+            {
+                logger.LogError(
+                    "EnsureStubProfileAsync called for tombstone user {UserId} (MergedAt={MergedAt}) - refusing to create Stub Profile",
+                    userId, info.MergedAt);
+                return false;
+            }
+
+            var now = clock.GetCurrentInstant();
+            var profile = new Profile
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                CreatedAt = now,
+                UpdatedAt = now,
+                State = ProfileState.Stub,
+            };
+
+            await profileRepo.AddAsync(profile, ct);
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public async Task<bool> SetMembershipTierAsync(
+        Guid userId,
+        MembershipTier tier,
+        CancellationToken ct = default)
+    {
+        var profile = await profileRepo.GetByUserIdAsync(userId, ct);
+        if (profile is null)
+        {
+            logger.LogWarning(
+                "Cannot set membership tier for user {UserId} - no profile exists", userId);
+            return false;
+        }
+
+        profile.MembershipTier = tier;
+        profile.UpdatedAt = clock.GetCurrentInstant();
+        await profileRepo.UpdateAsync(profile, ct);
+        return true;
+    }
+
+    public async Task<OnboardingResult> ApplyProfileOnboardingMutationAsync(
+        Guid userId,
+        UserProfileOnboardingCommand command,
+        CancellationToken ct = default)
+    {
+        ValidateProfileOnboardingCommand(command);
+
+        var profile = await profileRepo.GetByUserIdAsync(userId, ct);
+        if (profile is null)
+            return new OnboardingResult(false, "NotFound");
+
+        var now = clock.GetCurrentInstant();
+        switch (command.Mutation)
+        {
+            case UserProfileOnboardingMutation.RecordConsentCheck:
+                if (command.ConsentCheckStatus == ConsentCheckStatus.Cleared && profile.RejectedAt is not null)
+                    return new OnboardingResult(false, "AlreadyRejected");
+                ApplyConsentCheck(profile, command, now);
+                break;
+
+            case UserProfileOnboardingMutation.RejectSignup:
+                if (profile.RejectedAt is not null)
+                    return new OnboardingResult(false, "AlreadyRejected");
+                profile.RejectionReason = command.RejectionReason;
+                profile.RejectedAt = now;
+                profile.RejectedByUserId = command.ActorUserId;
+                profile.IsApproved = false;
+                profile.UpdatedAt = now;
+                break;
+
+            case UserProfileOnboardingMutation.ApproveVolunteer:
+                profile.IsApproved = true;
+                profile.UpdatedAt = now;
+                break;
+
+            case UserProfileOnboardingMutation.SetSuspension:
+                ApplySuspension(profile, command, now);
+                break;
+
+            case UserProfileOnboardingMutation.SetConsentCheckPending:
+                profile.ConsentCheckStatus = ConsentCheckStatus.Pending;
+                profile.UpdatedAt = now;
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(command), command.Mutation, "Unknown profile onboarding mutation.");
+        }
+
+        await profileRepo.UpdateAsync(profile, ct);
+        return new OnboardingResult(true);
+    }
+
+    public async Task<bool> SetProfileIbanAsync(Guid userId, string? iban, CancellationToken ct = default)
+    {
+        var profile = await profileRepo.GetByUserIdAsync(userId, ct);
+        if (profile is null)
+            return false;
+
+        profile.Iban = string.IsNullOrWhiteSpace(iban) ? null : IbanValidator.Normalize(iban);
+        profile.UpdatedAt = clock.GetCurrentInstant();
+        await profileRepo.UpdateAsync(profile, ct);
+        return true;
+    }
+
+    public Task<IReadOnlySet<Guid>> SuspendProfilesForMissingConsentAsync(
+        IReadOnlyCollection<Guid> userIds,
+        Instant now,
+        CancellationToken ct = default) =>
+        profileRepo.SuspendManyAsync(userIds, now, ct);
+
+    public Task<IReadOnlyList<(Guid UserId, MembershipTier NewTier)>>
+        DowngradeMembershipTierForExpiredAsync(
+            MembershipTier currentTier,
+            IReadOnlyCollection<Guid> userIdsToKeep,
+            IReadOnlyDictionary<Guid, MembershipTier> fallbackTierByUser,
+            Instant now,
+            CancellationToken ct = default) =>
+        profileRepo.DowngradeTierForExpiredAsync(
+            currentTier, userIdsToKeep, fallbackTierByUser, now, ct);
 
     public async Task<UserEmailAddResult> AddUserEmailAsync(
         Guid userId,
@@ -630,6 +781,63 @@ public sealed class UserService(
         await userEmailRepo.AddAsync(row, ct);
         await EnsurePrimaryInvariantAsync(row.UserId, ct);
         await EnsureGoogleInvariantAsync(row.UserId, ct);
+    }
+
+    private static void ApplyConsentCheck(
+        Profile profile,
+        UserProfileOnboardingCommand command,
+        Instant now)
+    {
+        var cleared = command.ConsentCheckStatus == ConsentCheckStatus.Cleared;
+        profile.ConsentCheckStatus = command.ConsentCheckStatus;
+        profile.ConsentCheckAt = now;
+        profile.ConsentCheckedByUserId = command.ActorUserId;
+        profile.ConsentCheckNotes = command.Notes;
+        profile.IsApproved = cleared;
+        profile.UpdatedAt = now;
+    }
+
+    private static void ApplySuspension(
+        Profile profile,
+        UserProfileOnboardingCommand command,
+        Instant now)
+    {
+        var suspended = command.Suspended!.Value;
+
+#pragma warning disable HUM_PROFILE_ISSUSPENDED
+        profile.IsSuspended = suspended;
+#pragma warning restore HUM_PROFILE_ISSUSPENDED
+
+        // Dual-write until IsSuspended is dropped. State is the canonical shape
+        // exposed through UserInfo.
+        profile.State = suspended
+            ? ProfileState.Suspended
+            : HasRequiredNameFields(profile) ? ProfileState.Active : ProfileState.Stub;
+
+        if (suspended)
+            profile.AdminNotes = command.Notes;
+
+        profile.UpdatedAt = now;
+    }
+
+    private static bool HasRequiredNameFields(Profile profile) =>
+        !string.IsNullOrWhiteSpace(profile.BurnerName)
+        && !string.IsNullOrWhiteSpace(profile.FirstName)
+        && !string.IsNullOrWhiteSpace(profile.LastName);
+
+    private static void ValidateProfileOnboardingCommand(UserProfileOnboardingCommand command)
+    {
+        switch (command.Mutation)
+        {
+            case UserProfileOnboardingMutation.RecordConsentCheck
+                when command.ConsentCheckStatus is not ConsentCheckStatus.Cleared and not ConsentCheckStatus.Flagged:
+                throw new ArgumentException(
+                    "RecordConsentCheck only accepts Cleared or Flagged; use SetConsentCheckPending for the system-driven Pending transition.",
+                    nameof(command));
+
+            case UserProfileOnboardingMutation.SetSuspension when command.Suspended is null:
+                throw new ArgumentException("SetSuspension requires Suspended.", nameof(command));
+        }
     }
 
     private static string? GetAlternateEmail(string normalizedEmail)

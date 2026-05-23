@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
 using Humans.Application.Interfaces.Repositories;
+using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Profiles;
 using Humans.Domain.Entities;
@@ -230,6 +231,43 @@ public class CachingUserServiceTests
 
         signing!.UserEmails.Should().ContainSingle(e => e.Email == "signing@example.com");
         displaced!.UserEmails.Should().ContainSingle(e => e.Email == "survivor@example.com");
+    }
+
+    [HumansFact]
+    public async Task ApplyProfileOnboardingMutationAsync_RefreshesProfileSlice()
+    {
+        var userId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId));
+
+        _inner.ApplyProfileOnboardingMutationAsync(
+                userId,
+                Arg.Any<UserProfileOnboardingCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new OnboardingResult(true));
+
+        var profile = new Profile
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            BurnerName = "Alice",
+            FirstName = "Alice",
+            LastName = "Example",
+            IsApproved = true,
+            State = ProfileState.Active,
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        };
+        StubRefreshEntry(userId, profile);
+
+        await sut.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(UserProfileOnboardingMutation.ApproveVolunteer));
+
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.Profile.Should().NotBeNull();
+        refreshed.Profile!.IsApproved.Should().BeTrue();
+        refreshed.Profile.State.Should().Be(ProfileState.Active);
     }
 
     [HumansFact]
@@ -855,6 +893,26 @@ public class CachingUserServiceTests
         // a single entry directly via GetUserInfoAsync instead of driving a
         // full WarmAllAsync, so flip the flag manually here.
         sut.MarkWarmedForTesting();
+    }
+
+    private void StubRefreshEntry(Guid userId, Profile? profile)
+    {
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(SampleUser(userId));
+        _userEmailRepo.GetByUserIdReadOnlyAsync(userId, Arg.Any<CancellationToken>())
+            .Returns([]);
+        _userRepo.GetEventParticipationsByUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns([]);
+        _userRepo.GetExternalLoginsByUserIdsAsync(
+                Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<Guid, IReadOnlyList<(string Provider, string ProviderKey)>>());
+        _profileRepo.GetByUserIdReadOnlyAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(profile);
+        _contactFieldRepo.GetByProfileIdReadOnlyAsync(
+                Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        _communicationPreferenceRepo.GetByUserIdReadOnlyAsync(userId, Arg.Any<CancellationToken>())
+            .Returns([]);
     }
 
     [HumansFact]
