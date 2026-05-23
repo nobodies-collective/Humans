@@ -136,7 +136,6 @@ public class ProfileArchitectureTests
 
         var allowed = new[]
         {
-            typeof(IProfileService),
             typeof(IUserEmailService),
             typeof(IUserService),
             typeof(IClock)

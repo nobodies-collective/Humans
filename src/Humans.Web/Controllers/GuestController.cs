@@ -21,7 +21,6 @@ namespace Humans.Web.Controllers;
 public class GuestController(
     IUserService userService,
     ICommunicationPreferenceService commPrefService,
-    IProfileService profileService,
     ITicketQueryService ticketQueryService,
     IGdprExportService gdprExportService,
     IOnboardingWidgetState widgetState,
@@ -29,8 +28,6 @@ public class GuestController(
     IClock clock,
     ILogger<GuestController> logger) : HumansControllerBase(userService)
 {
-    private readonly IProfileService _profileService = profileService;
-
     private static readonly System.Text.Json.JsonSerializerOptions ExportJsonOptions = new()
     {
         WriteIndented = true,

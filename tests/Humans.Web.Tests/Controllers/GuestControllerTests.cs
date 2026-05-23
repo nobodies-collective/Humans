@@ -30,7 +30,6 @@ public class GuestControllerTests
 {
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly ICommunicationPreferenceService _commPrefService = Substitute.For<ICommunicationPreferenceService>();
-    private readonly IProfileService _profileService = Substitute.For<IProfileService>();
     private readonly ITicketQueryService _ticketQueryService = Substitute.For<ITicketQueryService>();
     private readonly IGdprExportService _gdprExportService = Substitute.For<IGdprExportService>();
     private readonly IOnboardingWidgetState _widgetState = Substitute.For<IOnboardingWidgetState>();
@@ -54,7 +53,6 @@ public class GuestControllerTests
         var ctrl = new GuestController(
             _userService,
             _commPrefService,
-            _profileService,
             _ticketQueryService,
             _gdprExportService,
             _widgetState,

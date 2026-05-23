@@ -81,13 +81,12 @@ public class NotificationsArchitectureTests
     public void NotificationMeterProvider_TakesCrossSectionInterfaces()
     {
         // The meter provider computes badge counts by calling into each owning
-        // section service (IProfileService, IUserService, IGoogleSyncService,
-        // ITeamServiceRead, ITicketSyncService, IApplicationDecisionService,
+        // section service (IUserService, IGoogleSyncService, ITeamServiceRead,
+        // ITicketSyncService, IApplicationDecisionService,
         // ICampService) — never reading the underlying tables directly.
         var ctor = typeof(NotificationMeterProvider).GetConstructors().Single();
         var paramTypeNames = ctor.GetParameters().Select(p => p.ParameterType.Name).ToList();
 
-        paramTypeNames.Should().Contain("IProfileService");
         paramTypeNames.Should().Contain("IUserServiceRead");
         paramTypeNames.Should().Contain("IGoogleSyncService");
         paramTypeNames.Should().Contain("ITeamServiceRead");

@@ -33,14 +33,13 @@ public sealed class TicketTransferService_RetryIssueTests
     private readonly ITicketQueryService _ticketQueryService = Substitute.For<ITicketQueryService>();
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IUserEmailService _userEmailService = Substitute.For<IUserEmailService>();
-    private readonly IProfileService _profileService = Substitute.For<IProfileService>();
     private readonly IAuditLogService _auditLog = Substitute.For<IAuditLogService>();
     private readonly TicketTransferService _service;
 
     public TicketTransferService_RetryIssueTests()
     {
         _service = new TicketTransferService(_transferRepo, _ticketRepo, _vendor,
-            _ticketQueryService, _userService, _userEmailService, _profileService,
+            _ticketQueryService, _userService, _userEmailService,
             _auditLog, _clock, NullLogger<TicketTransferService>.Instance);
         var sender = new User { Id = SenderId, DisplayName = "Sender" };
         _userService.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())

@@ -42,7 +42,6 @@ public sealed class TicketTransferServiceTests
     private readonly ITicketQueryService _ticketQueryService = Substitute.For<ITicketQueryService>();
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IUserEmailService _userEmailService = Substitute.For<IUserEmailService>();
-    private readonly IProfileService _profileService = Substitute.For<IProfileService>();
     private readonly IAuditLogService _auditLog = Substitute.For<IAuditLogService>();
 
     private readonly TicketTransferService _service;
@@ -56,7 +55,6 @@ public sealed class TicketTransferServiceTests
             _ticketQueryService,
             _userService,
             _userEmailService,
-            _profileService,
             _auditLog,
             _clock,
             NullLogger<TicketTransferService>.Instance);

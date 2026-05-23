@@ -26,13 +26,10 @@ public sealed class TicketTransferService(
     ITicketQueryService ticketQueryService,
     IUserServiceRead userService,
     IUserEmailService userEmailService,
-    IProfileService profileService,
     IAuditLogService auditLog,
     IClock clock,
     ILogger<TicketTransferService> logger) : ITicketTransferService
 {
-    private readonly IProfileService _profileService = profileService;
-
     private const int MaxBurnerNameMatches = 10;
 
     private static readonly JsonSerializerOptions VendorStepsJsonOptions =

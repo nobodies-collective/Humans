@@ -23,12 +23,9 @@ public class ProfileAdminController(
     IUserService users,
     IAuditLogService audit,
     ILogger<ProfileAdminController> logger,
-    IProfileService profileService,
     ITeamServiceRead teamService,
     IRoleAssignmentService roleAssignmentService) : HumansControllerBase(userService)
 {
-    private readonly IProfileService _profileService = profileService;
-
     [HttpGet("EmailProblems")]
     public async Task<IActionResult> EmailProblems(CancellationToken ct)
     {
