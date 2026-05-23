@@ -52,7 +52,6 @@ public sealed class ProfileServiceTests : ServiceTestHarness
             _profileRepository, _userService,
             _userEmailRepository,
             _contactFieldRepository, _communicationPreferenceRepository,
-            AuditLog,
             _fileStorage,
             Clock,
             NullLogger<ProfileService>.Instance);
@@ -91,14 +90,6 @@ public sealed class ProfileServiceTests : ServiceTestHarness
                 call.ArgAt<Guid>(1),
                 call.ArgAt<Instant>(2),
                 call.ArgAt<CancellationToken>(3)));
-        _userService.SetProfileIbanAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<string?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(call => storageUserService.SetProfileIbanAsync(
-                call.ArgAt<Guid>(0),
-                call.ArgAt<string?>(1),
-                call.ArgAt<CancellationToken>(2)));
     }
 
     // --- Profile save flow ---

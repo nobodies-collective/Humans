@@ -7,7 +7,6 @@ using Humans.Application.Interfaces.Repositories;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Domain.Helpers;
-using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Profiles;
@@ -19,7 +18,6 @@ public sealed class ProfileService(IProfileRepository profileRepository,
     IUserEmailRepository userEmailRepository,
     IContactFieldRepository contactFieldRepository,
     ICommunicationPreferenceRepository communicationPreferenceRepository,
-    IAuditLogService auditLogService,
     IFileStorage fileStorage,
     IClock clock,
     ILogger<ProfileService> logger) : IProfileService, IUserDataContributor, IUserMerge
@@ -415,27 +413,6 @@ public sealed class ProfileService(IProfileRepository profileRepository,
         CancellationToken ct)
     {
         await userService.ReassignProfileSubAggregatesAsync(sourceUserId, targetUserId, updatedAt, ct);
-    }
-
-    public async Task<bool> SetIbanAsync(Guid userId, string? iban, CancellationToken ct = default)
-    {
-        var normalized = string.IsNullOrWhiteSpace(iban) ? null : IbanValidator.Normalize(iban);
-        var isClearing = normalized is null;
-
-        var saved = await userService.SetProfileIbanAsync(userId, normalized, ct);
-        if (!saved)
-            return false;
-
-        await auditLogService.LogAsync(
-            isClearing ? AuditAction.IbanRemove : AuditAction.IbanSet,
-            nameof(Profile), userId,
-            isClearing ? "IBAN removed" : "IBAN set",
-            userId);
-
-        logger.LogInformation(
-            "IBAN {Action} for user {UserId}", isClearing ? "removed" : "set", userId);
-
-        return true;
     }
 
 }
