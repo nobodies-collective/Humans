@@ -1,6 +1,4 @@
-using Humans.Application.DTOs;
 using Humans.Application.Interfaces.Repositories;
-using Humans.Application.Services.Profiles;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;

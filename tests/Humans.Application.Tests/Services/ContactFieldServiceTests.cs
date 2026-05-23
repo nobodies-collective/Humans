@@ -2,7 +2,6 @@ using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NSubstitute;
-using Humans.Application;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Tests.Infrastructure;
