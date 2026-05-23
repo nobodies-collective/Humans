@@ -169,6 +169,39 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
     /// </summary>
     Task<bool> ClearDeletionAsync(Guid userId, CancellationToken ct = default);
 
+    // ---- UserEmail storage commands ----
+
+    /// <summary>
+    /// Adds a Users-owned email row and applies the primary / Google row
+    /// invariants. Does not generate verification tokens, send email, create
+    /// account-merge requests, or touch external-login rows.
+    /// </summary>
+    Task<UserEmailAddResult> AddUserEmailAsync(
+        Guid userId,
+        UserEmailAddCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates mutable UserEmail row state through one invariant-aware command
+    /// instead of one public method per flag transition.
+    /// </summary>
+    Task<bool> UpdateUserEmailAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailUpdateCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes a Users-owned email row and optionally repairs primary / Google
+    /// invariants. External login removal is orchestrated by callers before
+    /// invoking this storage command.
+    /// </summary>
+    Task<bool> RemoveUserEmailAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailRemoveCommand command,
+        CancellationToken ct = default);
+
     // ---- Methods added for ContactService migration ----
 
     /// <summary>

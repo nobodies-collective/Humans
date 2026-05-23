@@ -1064,6 +1064,9 @@ public sealed class ShiftDashboardMetricsTests : ServiceTestHarness
         public Task SetICalTokenAsync(Guid userId, Guid token, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<bool> SetDeletionPendingAsync(Guid userId, Instant requestedAt, Instant scheduledFor, Instant? eligibleAfter, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<bool> ClearDeletionAsync(Guid userId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<UserEmailAddResult> AddUserEmailAsync(Guid userId, UserEmailAddCommand command, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> UpdateUserEmailAsync(Guid userId, Guid emailId, UserEmailUpdateCommand command, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> RemoveUserEmailAsync(Guid userId, Guid emailId, UserEmailRemoveCommand command, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<User?> GetByEmailOrAlternateAsync(string email, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<User>> GetContactUsersAsync(string? search, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<Guid?> GetOtherUserIdHavingGoogleEmailAsync(string email, Guid excludeUserId, CancellationToken ct = default) => throw new NotSupportedException();

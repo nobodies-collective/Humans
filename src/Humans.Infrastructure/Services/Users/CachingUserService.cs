@@ -830,6 +830,38 @@ public sealed class CachingUserService(
         return updated;
     }
 
+    public async Task<UserEmailAddResult> AddUserEmailAsync(
+        Guid userId,
+        UserEmailAddCommand command,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner => inner.AddUserEmailAsync(userId, command, ct));
+        if (result.Added) await RefreshUserEmailsAsync(userId, ct);
+        return result;
+    }
+
+    public async Task<bool> UpdateUserEmailAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailUpdateCommand command,
+        CancellationToken ct = default)
+    {
+        var updated = await WithInnerAsync(inner => inner.UpdateUserEmailAsync(userId, emailId, command, ct));
+        if (updated) await RefreshUserEmailsAsync(userId, ct);
+        return updated;
+    }
+
+    public async Task<bool> RemoveUserEmailAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailRemoveCommand command,
+        CancellationToken ct = default)
+    {
+        var removed = await WithInnerAsync(inner => inner.RemoveUserEmailAsync(userId, emailId, command, ct));
+        if (removed) await RefreshUserEmailsAsync(userId, ct);
+        return removed;
+    }
+
     public Task SetLastConsentReminderSentAsync(
         Guid userId, Instant sentAt, CancellationToken ct = default) =>
         WithInnerAsync(async inner =>
@@ -881,9 +913,8 @@ public sealed class CachingUserService(
     public async Task<string?> PurgeOwnDataAsync(Guid userId, CancellationToken ct = default)
     {
         var result = await WithInnerAsync(inner => inner.PurgeOwnDataAsync(userId, ct));
-        // Inner already invoked IUserInfoInvalidator on success; we refresh
-        // our own dict whether or not the row existed (RefreshEntryAsync removes
-        // the entry when the user is gone).
+        // Refresh whether or not the row existed; RefreshEntryAsync removes
+        // the entry when the user is gone.
         await RefreshEntryAsync(userId, ct);
         return result;
     }
