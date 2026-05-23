@@ -1,15 +1,16 @@
 using Microsoft.Extensions.Logging;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces;
+using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.Governance;
 using Humans.Domain.Constants;
+using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Application.Interfaces.Email;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Notifications;
 using Humans.Application.Interfaces.GoogleIntegration;
-using Humans.Application.Interfaces.Profiles;
 
 namespace Humans.Application.Services.Onboarding;
 
@@ -17,13 +18,13 @@ namespace Humans.Application.Services.Onboarding;
 // Out of scope: suspend/unsuspend (IHumanLifecycleService), board voting (IApplicationDecisionService),
 // admin dashboard (IAdminDashboardService), account deletion (future IAccountDeletionService).
 public sealed class OnboardingService(
-    IProfileService profileService,
-    IUserServiceRead userService,
+    IUserService userService,
     IApplicationDecisionService applicationDecisionService,
     IEmailService emailService,
     INotificationService notificationService,
     ISystemTeamSync syncJob,
     IMembershipCalculator membershipCalculator,
+    IAuditLogService auditLogService,
     IHumansMetrics metrics,
     ILogger<OnboardingService> logger) : IOnboardingService
 {
@@ -93,7 +94,7 @@ public sealed class OnboardingService(
     public async Task<OnboardingResult> ClearConsentCheckAsync(
         Guid userId, Guid reviewerId, string? notes, CancellationToken ct = default)
     {
-        var result = await profileService.RecordConsentCheckAsync(
+        var result = await RecordConsentCheckAsync(
             userId, reviewerId, ConsentCheckStatus.Cleared, notes, ct);
         if (!result.Success)
             return result;
@@ -150,7 +151,7 @@ public sealed class OnboardingService(
     public async Task<OnboardingResult> FlagConsentCheckAsync(
         Guid userId, Guid reviewerId, string? notes, CancellationToken ct = default)
     {
-        var result = await profileService.RecordConsentCheckAsync(
+        var result = await RecordConsentCheckAsync(
             userId, reviewerId, ConsentCheckStatus.Flagged, notes, ct);
         if (!result.Success)
             return result;
@@ -164,9 +165,24 @@ public sealed class OnboardingService(
     public async Task<OnboardingResult> RejectSignupAsync(
         Guid userId, Guid reviewerId, string? reason, CancellationToken ct = default)
     {
-        var result = await profileService.RejectSignupAsync(userId, reviewerId, reason, ct);
+        var result = await userService.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(
+                UserProfileOnboardingMutation.RejectSignup,
+                ActorUserId: reviewerId,
+                RejectionReason: reason),
+            ct);
         if (!result.Success)
             return result;
+
+        await auditLogService.LogAsync(
+            AuditAction.SignupRejected,
+            nameof(Profile),
+            userId,
+            $"Signup rejected{(string.IsNullOrWhiteSpace(reason) ? "" : $": {reason}")}",
+            reviewerId);
+
+        logger.LogInformation("Signup rejected for user {UserId} by {ReviewerId}", userId, reviewerId);
 
         await DeprovisionApprovalGatedSystemTeamsAsync(userId);
 
@@ -211,10 +227,23 @@ public sealed class OnboardingService(
     public async Task<OnboardingResult> ApproveVolunteerAsync(
         Guid userId, Guid adminId, CancellationToken ct = default)
     {
-        // Preserves historical "NotFound" error-key contract via ProfileService.
-        var result = await profileService.ApproveVolunteerAsync(userId, adminId, ct);
+        var result = await userService.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(
+                UserProfileOnboardingMutation.ApproveVolunteer,
+                ActorUserId: adminId),
+            ct);
         if (!result.Success)
             return result;
+
+        await auditLogService.LogAsync(
+            AuditAction.VolunteerApproved,
+            nameof(User),
+            userId,
+            "Approved as volunteer",
+            adminId);
+
+        logger.LogInformation("Admin {AdminId} approved human {HumanId}", adminId, userId);
 
         await syncJob.SyncMembershipForUserAsync(userId, SystemTeamType.Volunteers, ct);
 
@@ -255,14 +284,55 @@ public sealed class OnboardingService(
         if (!hasAllConsents)
             return false;
 
-        var set = await profileService.SetConsentCheckPendingAsync(userId, ct);
-        if (!set)
+        var result = await userService.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(UserProfileOnboardingMutation.SetConsentCheckPending),
+            ct);
+        if (!result.Success)
             return false;
+
+        logger.LogInformation(
+            "User {UserId} has all consents signed, consent check set to Pending", userId);
 
         return true;
     }
 
     // --- Helpers ---
+
+    private async Task<OnboardingResult> RecordConsentCheckAsync(
+        Guid userId,
+        Guid reviewerId,
+        ConsentCheckStatus status,
+        string? notes,
+        CancellationToken ct)
+    {
+        var result = await userService.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(
+                UserProfileOnboardingMutation.RecordConsentCheck,
+                ActorUserId: reviewerId,
+                ConsentCheckStatus: status,
+                Notes: notes),
+            ct);
+        if (!result.Success)
+            return result;
+
+        var cleared = status == ConsentCheckStatus.Cleared;
+        await auditLogService.LogAsync(
+            cleared ? AuditAction.ConsentCheckCleared : AuditAction.ConsentCheckFlagged,
+            nameof(Profile),
+            userId,
+            cleared ? "Consent check cleared" : $"Consent check flagged: {notes}",
+            reviewerId);
+
+        logger.LogInformation(
+            "Consent check {Status} for user {UserId} by {ReviewerId}",
+            cleared ? "cleared" : "flagged",
+            userId,
+            reviewerId);
+
+        return result;
+    }
 
     private async Task DeprovisionApprovalGatedSystemTeamsAsync(Guid userId)
     {
