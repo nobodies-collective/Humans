@@ -15,7 +15,7 @@ namespace Humans.Web.Controllers;
 [Route("Store")]
 public class StoreController(
     IStoreService storeService,
-    ICampService campService,
+    ICampServiceRead campService,
     IAuthorizationService authService,
     IUserServiceRead userService,
     ILogger<StoreController> logger) : HumansControllerBase(userService)
