@@ -117,10 +117,10 @@ public class ProfileArchitectureTests
         // unified read-model (UserInfo) instead. Re-adding GetByUserIdsAsync to
         // either surface would resurrect the parallel-read-path divergence the
         // unified read-model was built to eliminate — pin it.
-        typeof(IProfileService)
+        typeof(IProfilePictureService)
             .GetMethod("GetByUserIdsAsync")
             .Should().BeNull(
-                because: "callers read UserInfo.Profile via IUserService.GetUserInfoAsync / GetUserInfosAsync");
+                because: "picture service callers read UserInfo.Profile via IUserService.GetUserInfoAsync / GetUserInfosAsync");
 
         typeof(IProfileRepository)
             .GetMethod("GetByUserIdsAsync")

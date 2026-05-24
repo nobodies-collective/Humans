@@ -47,7 +47,7 @@ namespace Humans.Web.Controllers;
 public class ProfileController(
     IUserService userService,
     UserManager<User> userManager,
-    IProfileService profileService,
+    IProfilePictureService profilePictureService,
     IProfileEditorService profileEditorService,
     IContactFieldService contactFieldService,
     IEmailService emailService,
@@ -1642,8 +1642,8 @@ public class ProfileController(
     [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Client)]
     public async Task<IActionResult> Picture(Guid id, CancellationToken ct)
     {
-        // §2: controller routes through IProfileService (owns FS-first/DB-fallback + GDPR gate, see #527).
-        var result = await profileService.GetProfilePictureAsync(id, ct);
+        // §2: controller routes through the profile-picture service (owns FS read path + GDPR gate, see #527).
+        var result = await profilePictureService.GetProfilePictureAsync(id, ct);
         if (result is null)
         {
             return NotFound();
@@ -1700,7 +1700,7 @@ public class ProfileController(
             return RedirectToAction(nameof(Edit));
         }
 
-        await profileService.SetProfilePictureAsync(user.Id, resized.Value.Data, resized.Value.ContentType, ct);
+        await profilePictureService.SetProfilePictureAsync(user.Id, resized.Value.Data, resized.Value.ContentType, ct);
 
         logger.LogInformation("Imported Google avatar for user {UserId}", user.Id);
         SetSuccess(localizer["Profile_ImportGooglePhoto_Success"].Value);
@@ -2518,5 +2518,4 @@ public class ProfileController(
     }
 
 }
-
 

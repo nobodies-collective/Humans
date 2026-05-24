@@ -19,7 +19,7 @@ public sealed class ProfileService(IProfileRepository profileRepository,
     IContactFieldRepository contactFieldRepository,
     ICommunicationPreferenceRepository communicationPreferenceRepository,
     IFileStorage fileStorage,
-    ILogger<ProfileService> logger) : IProfileService, IUserDataContributor, IUserMerge
+    ILogger<ProfileService> logger) : IProfilePictureService, IUserDataContributor, IUserMerge
 {
     public async Task SetProfilePictureAsync(
         Guid userId, byte[] pictureData, string contentType, CancellationToken ct = default)

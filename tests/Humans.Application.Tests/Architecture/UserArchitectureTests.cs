@@ -118,7 +118,7 @@ public class UserArchitectureTests
         paramTypes.Should().NotContain(typeof(IRoleAssignmentService));
         paramTypes.Should().NotContain(typeof(IShiftSignupService));
         paramTypes.Should().NotContain(typeof(IShiftManagementService));
-        paramTypes.Should().NotContain(typeof(IProfileService));
+        paramTypes.Should().NotContain(typeof(IProfilePictureService));
     }
 
     [HumansFact]

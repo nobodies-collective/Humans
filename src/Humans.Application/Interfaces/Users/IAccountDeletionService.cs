@@ -8,7 +8,7 @@ namespace Humans.Application.Interfaces.Users;
 /// cross-section write order for every deletion path — user-requested
 /// (30-day-scheduled), admin-initiated (immediate purge), and expiry-triggered
 /// (scheduled anonymization job). Foundational services (<see cref="IUserService"/>,
-/// <see cref="Profiles.IProfileService"/>) keep only own-data deletion; this
+/// Profile-section services keep only own-data deletion; this
 /// service invokes them as part of the cascade so the call graph flows in one
 /// direction (higher-level → foundational).
 /// </summary>

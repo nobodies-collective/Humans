@@ -52,7 +52,7 @@ namespace Humans.Application.Tests.Controllers;
 /// </summary>
 public class ProfileControllerEditTests
 {
-    private readonly IProfileService _profileService = Substitute.For<IProfileService>();
+    private readonly IProfilePictureService _profilePictureService = Substitute.For<IProfilePictureService>();
     private readonly IProfileEditorService _profileEditorService = Substitute.For<IProfileEditorService>();
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IApplicationDecisionService _applicationDecisionService =
@@ -88,7 +88,7 @@ public class ProfileControllerEditTests
         _controller = new ProfileController(
             _userService,
             userManager,
-            _profileService,
+            _profilePictureService,
             _profileEditorService,
             Substitute.For<IContactFieldService>(),
             Substitute.For<IEmailService>(),

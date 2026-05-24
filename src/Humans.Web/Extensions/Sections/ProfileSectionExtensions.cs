@@ -59,7 +59,7 @@ internal static class ProfileSectionExtensions
 
         // FullProfile cache retired — denormalized reads go through IUserService.GetUserInfoAsync.
         services.AddScoped<ProfilesProfileService>();
-        services.AddScoped<IProfileService>(sp => sp.GetRequiredService<ProfilesProfileService>());
+        services.AddScoped<IProfilePictureService>(sp => sp.GetRequiredService<ProfilesProfileService>());
         services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<ProfilesProfileService>());
         services.AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<ProfilesProfileService>());
 
