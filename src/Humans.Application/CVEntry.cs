@@ -4,7 +4,7 @@ namespace Humans.Application;
 
 /// <summary>
 /// Slim projection of a volunteer-history entry passed to
-/// <see cref="Interfaces.Profiles.IProfileService.SaveCVEntriesAsync"/>.
+/// <see cref="Interfaces.Users.IUserService.SaveProfileVolunteerHistoryAsync"/>.
 /// Date is rendered as "MMM'yy" in the UI.
 /// </summary>
 /// <remarks>

@@ -19,7 +19,6 @@ public sealed class UserEmailService(
     IUserService userService,
     UserManager<User> userManager,
     IClock clock,
-    IUserInfoInvalidator userInfoInvalidator,
     IAuditLogService auditLogService,
     IServiceProvider serviceProvider,
     ILogger<UserEmailService> logger) : IUserEmailService, IUserMerge
@@ -55,6 +54,25 @@ public sealed class UserEmailService(
             IsPendingVerification: !e.IsVerified && e.VerificationSentAt.HasValue,
             IsMergePending: mergePendingSet.Contains(e.Id)
         )).ToList();
+    }
+
+    public async Task<(bool CanAdd, int MinutesUntilResend, Guid? PendingEmailId)>
+        GetEmailCooldownInfoAsync(Guid pendingEmailId, CancellationToken ct = default)
+    {
+        var pendingRecord = await repository.GetByIdReadOnlyAsync(pendingEmailId, ct);
+
+        if (pendingRecord?.VerificationSentAt.HasValue == true)
+        {
+            var now = clock.GetCurrentInstant();
+            var cooldownEnd = pendingRecord.VerificationSentAt.Value.Plus(Duration.FromMinutes(5));
+            if (now < cooldownEnd)
+            {
+                var minutesUntilResend = (int)Math.Ceiling((cooldownEnd - now).TotalMinutes);
+                return (false, minutesUntilResend, pendingEmailId);
+            }
+        }
+
+        return (true, 0, null);
     }
 
     public async Task<IReadOnlyList<UserEmailDto>> GetVisibleEmailsAsync(
@@ -98,48 +116,25 @@ public sealed class UserEmailService(
                 userId, normalizedEmail, alternateEmail, cancellationToken))
             throw new ValidationException("A merge request is already pending for this email address.");
 
-        var isConflict = await repository.ExistsVerifiedForOtherUserAsync(
-            userId, normalizedEmail, alternateEmail, cancellationToken);
-
         // FindByIdAsync, not cache: UserManager token APIs read SecurityStamp directly and cache-rehydrated Users lack it.
         var user = await userManager.FindByIdAsync(userId.ToString())
             ?? throw new InvalidOperationException("User not found.");
 
-        // see nobodies-collective/Humans#758 — reject only when the address is held as a
-        // VERIFIED UserEmail row (the real sign-in target). The prior check used
-        // GetPrimaryEmailAsync, which falls back to the legacy User.Email column when no
-        // verified row exists — so a user who removed their primary row by mistake could not
-        // re-add the same address ("This is already your sign-in email"). Existing rows
-        // (verified or not) are already rejected above by ExistsForUserAsync.
-        var info = await userService.GetUserInfoAsync(userId, cancellationToken);
-        var hasVerifiedRowAtAddress = info?.UserEmails
-            .Any(e => e.IsVerified && EmailNormalization.EmailsMatch(email, e.Email)) ?? false;
-        if (hasVerifiedRowAtAddress)
-            throw new ValidationException("This is already your sign-in email.");
-
-        var now = clock.GetCurrentInstant();
-
-        var userEmail = new UserEmail
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Email = email,
-            IsVerified = false,
-            IsPrimary = false,
-            VerificationSentAt = now,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-
-        // see nobodies-collective/Humans#687 — every UserEmail-add path routes through AddRowWithInvariantsAsync.
-        await AddRowWithInvariantsAsync(userEmail, cancellationToken);
+        // Storage mutation is owned by IUserService so its caching decorator can refresh UserInfo.
+        var addResult = await userService.AddUserEmailAsync(
+            userId,
+            new UserEmailAddCommand(
+                email,
+                IsVerified: false,
+                VerificationSentAt: clock.GetCurrentInstant()),
+            cancellationToken);
 
         var token = await userManager.GenerateUserTokenAsync(
             user,
             TokenOptions.DefaultEmailProvider,
-            $"{EmailVerificationTokenPurpose}:{userEmail.Id}");
+            $"{EmailVerificationTokenPurpose}:{addResult.EmailId}");
 
-        return new AddEmailResult(userEmail.Id, token, isConflict);
+        return new AddEmailResult(addResult.EmailId, token, addResult.IsConflict);
     }
 
     public async Task<VerifyEmailResult> VerifyEmailAsync(
@@ -197,13 +192,12 @@ public sealed class UserEmailService(
             return new VerifyEmailResult(pendingEmail.Email, MergeRequestCreated: true);
         }
 
-        pendingEmail.IsVerified = true;
-        pendingEmail.UpdatedAt = clock.GetCurrentInstant();
-        await repository.UpdateAsync(pendingEmail, cancellationToken);
-
         // see nobodies-collective/Humans#687 — flipping unverified→verified may newly satisfy the Google invariant.
-        await EnsureGoogleInvariantAsync(userId, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
+        await userService.UpdateUserEmailAsync(
+            userId,
+            pendingEmail.Id,
+            new UserEmailUpdateCommand(MarkVerified: true),
+            cancellationToken);
 
         return new VerifyEmailResult(pendingEmail.Email, MergeRequestCreated: false);
     }
@@ -246,13 +240,12 @@ public sealed class UserEmailService(
             return new VerifyEmailResult(pendingEmail.Email, MergeRequestCreated: true);
         }
 
-        pendingEmail.IsVerified = true;
-        pendingEmail.UpdatedAt = clock.GetCurrentInstant();
-        await repository.UpdateAsync(pendingEmail, cancellationToken);
-
         // see nobodies-collective/Humans#687
-        await EnsureGoogleInvariantAsync(userId, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
+        await userService.UpdateUserEmailAsync(
+            userId,
+            pendingEmail.Id,
+            new UserEmailUpdateCommand(MarkVerified: true),
+            cancellationToken);
 
         await auditLogService.LogAsync(
             AuditAction.UserEmailManuallyVerified,
@@ -267,46 +260,22 @@ public sealed class UserEmailService(
     public async Task SetPrimaryAsync(
         Guid userId, Guid emailId, CancellationToken cancellationToken = default)
     {
-        var emails = (await repository.GetByUserIdForMutationAsync(userId, cancellationToken)).ToList();
-
-        var target = emails.FirstOrDefault(e => e.Id == emailId)
-            ?? throw new InvalidOperationException("Email not found.");
-
-        if (!target.IsVerified)
-            throw new ValidationException("Only verified emails can be the notification target.");
-
-        var now = clock.GetCurrentInstant();
-        var changed = new List<UserEmail>();
-        foreach (var email in emails)
-        {
-            var shouldBePrimary = email.Id == emailId;
-            if (email.IsPrimary != shouldBePrimary)
-            {
-                email.IsPrimary = shouldBePrimary;
-                email.UpdatedAt = now;
-                changed.Add(email);
-            }
-        }
-
-        if (changed.Count == 0)
-            return;
-
-        await repository.UpdateBatchAsync(changed, cancellationToken);
-
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
+        await userService.UpdateUserEmailAsync(
+            userId,
+            emailId,
+            new UserEmailUpdateCommand(Primary: UserEmailPrimaryChange.MakePrimary),
+            cancellationToken);
     }
 
     public async Task SetVisibilityAsync(
         Guid userId, Guid emailId, ContactFieldVisibility? visibility,
         CancellationToken cancellationToken = default)
     {
-        var email = await repository.GetByIdAndUserIdAsync(emailId, userId, cancellationToken)
-            ?? throw new InvalidOperationException("Email not found.");
-
-        email.Visibility = visibility;
-        email.UpdatedAt = clock.GetCurrentInstant();
-        await repository.UpdateAsync(email, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
+        await userService.UpdateUserEmailAsync(
+            userId,
+            emailId,
+            new UserEmailUpdateCommand(ChangeVisibility: true, Visibility: visibility),
+            cancellationToken);
     }
 
     public async Task<bool> DeleteEmailAsync(
@@ -355,13 +324,11 @@ public sealed class UserEmailService(
                 "Removing it could disconnect your ticket. Contact an admin if you need to change it.");
         }
 
-        await repository.RemoveAsync(email, cancellationToken);
-
-        await EnsurePrimaryInvariantAsync(userId, cancellationToken);
-        await EnsureGoogleInvariantAsync(userId, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
-
-        return true;
+        return await userService.RemoveUserEmailAsync(
+            userId,
+            emailId,
+            new UserEmailRemoveCommand(UserEmailRemovalMode.PlainEmail),
+            cancellationToken);
     }
 
     public Task RemoveAllEmailsAsync(
@@ -380,30 +347,16 @@ public sealed class UserEmailService(
     public async Task<bool> AddVerifiedEmailAsync(
         Guid userId, string email, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = EmailNormalization.NormalizeForComparison(email);
-        var alternateEmail = GetAlternateComparableEmail(normalizedEmail);
+        var result = await userService.AddUserEmailAsync(
+            userId,
+            new UserEmailAddCommand(
+                email,
+                IsVerified: true,
+                Visibility: ContactFieldVisibility.BoardOnly,
+                IgnoreExisting: true),
+            cancellationToken);
 
-        if (await repository.ExistsForUserAsync(userId, normalizedEmail, alternateEmail, cancellationToken))
-            return false;
-
-        var now = clock.GetCurrentInstant();
-
-        var userEmail = new UserEmail
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Email = email,
-            IsVerified = true,
-            // IsPrimary / IsGoogle set below by AddRowWithInvariantsAsync.
-            IsPrimary = false,
-            Visibility = ContactFieldVisibility.BoardOnly,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-
-        // see nobodies-collective/Humans#687
-        await AddRowWithInvariantsAsync(userEmail, cancellationToken);
-        return true;
+        return result.Added;
     }
 
     [Obsolete("Issue nobodies-collective/Humans#687: User.GoogleEmail is being deprecated. UserEmailService.EnsureGoogleInvariantAsync now stamps IsGoogle on the canonical row whenever a UserEmail is added; no separate backfill is needed. Method body is now a no-op.")]
@@ -695,120 +648,18 @@ public sealed class UserEmailService(
 
         return false;
     }
-
-    // Invariant: exactly one IsPrimary=true verified row per user. Winner: @nobodies.team > existing primary > most-recent.
-    private async Task EnsurePrimaryInvariantAsync(
-        Guid userId, CancellationToken cancellationToken)
-    {
-        var emails = (await repository.GetByUserIdForMutationAsync(userId, cancellationToken)).ToList();
-        var verified = emails.Where(e => e.IsVerified).ToList();
-        if (verified.Count == 0)
-            return;
-
-        var currentPrimaries = verified.Where(e => e.IsPrimary).ToList();
-
-        var winner =
-            verified.FirstOrDefault(e => e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
-            ?? currentPrimaries.OrderBy(e => e.Id).FirstOrDefault()
-            ?? verified.OrderByDescending(e => e.UpdatedAt).ThenBy(e => e.Id).First();
-
-        if (currentPrimaries.Count == 1 && currentPrimaries[0].Id == winner.Id)
-            return;
-
-        var now = clock.GetCurrentInstant();
-        var changed = new List<UserEmail>();
-        foreach (var row in verified)
-        {
-            var shouldBePrimary = row.Id == winner.Id;
-            if (row.IsPrimary != shouldBePrimary)
-            {
-                row.IsPrimary = shouldBePrimary;
-                row.UpdatedAt = now;
-                changed.Add(row);
-            }
-        }
-
-        if (changed.Count == 0)
-            return;
-
-        await repository.UpdateBatchAsync(changed, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
-    }
-
-    // Invariant: at most one IsGoogle=true verified row per user (see nobodies-collective/Humans#687). Same precedence as EnsurePrimaryInvariantAsync.
-    private async Task EnsureGoogleInvariantAsync(
-        Guid userId, CancellationToken cancellationToken)
-    {
-        var emails = (await repository.GetByUserIdForMutationAsync(userId, cancellationToken)).ToList();
-        var verified = emails.Where(e => e.IsVerified).ToList();
-        if (verified.Count == 0)
-            return;
-
-        var currentGoogles = verified.Where(e => e.IsGoogle).ToList();
-
-        var winner =
-            verified.FirstOrDefault(e => e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
-            ?? currentGoogles.OrderBy(e => e.Id).FirstOrDefault()
-            ?? verified.OrderByDescending(e => e.UpdatedAt).ThenBy(e => e.Id).First();
-
-        if (currentGoogles.Count == 1 && currentGoogles[0].Id == winner.Id)
-            return;
-
-        var now = clock.GetCurrentInstant();
-        var changed = new List<UserEmail>();
-        foreach (var row in verified)
-        {
-            var shouldBeGoogle = row.Id == winner.Id;
-            if (row.IsGoogle != shouldBeGoogle)
-            {
-                row.IsGoogle = shouldBeGoogle;
-                row.UpdatedAt = now;
-                changed.Add(row);
-            }
-        }
-
-        if (changed.Count == 0)
-            return;
-
-        await repository.UpdateBatchAsync(changed, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
-    }
-
-    // Single orchestrator for every UserEmail-add path — see nobodies-collective/Humans#687.
-    private async Task AddRowWithInvariantsAsync(
-        UserEmail row, CancellationToken cancellationToken)
-    {
-        await repository.AddAsync(row, cancellationToken);
-        await EnsurePrimaryInvariantAsync(row.UserId, cancellationToken);
-        await EnsureGoogleInvariantAsync(row.UserId, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(row.UserId, cancellationToken);
-    }
-
     /// <inheritdoc />
     public async Task AddProvisionedEmailAsync(
         Guid userId, string email, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = EmailNormalization.NormalizeForComparison(email);
-        var alternateEmail = GetAlternateComparableEmail(normalizedEmail);
-
         // Idempotent — retried imports must not re-add the row.
-        if (await repository.ExistsForUserAsync(userId, normalizedEmail, alternateEmail, cancellationToken))
-            return;
-
-        var now = clock.GetCurrentInstant();
-        var row = new UserEmail
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Email = email,
-            IsVerified = true,
-            IsPrimary = false,
-            Visibility = null,
-            CreatedAt = now,
-            UpdatedAt = now,
-        };
-
-        await AddRowWithInvariantsAsync(row, cancellationToken);
+        await userService.AddUserEmailAsync(
+            userId,
+            new UserEmailAddCommand(
+                email,
+                IsVerified: true,
+                IgnoreExisting: true),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -846,9 +697,12 @@ public sealed class UserEmailService(
         var allEmails = await repository.GetByUserIdReadOnlyAsync(userId, cancellationToken);
         var previousGoogle = allEmails.FirstOrDefault(e => e.IsGoogle && e.Id != row.Id);
 
-        var now = clock.GetCurrentInstant();
-        await repository.SetGoogleExclusiveAsync(userId, row.Id, now, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
+        var updated = await userService.UpdateUserEmailAsync(
+            userId,
+            row.Id,
+            new UserEmailUpdateCommand(Google: UserEmailGoogleChange.MakeGoogle),
+            cancellationToken);
+        if (!updated) return false;
 
         var description = previousGoogle is null
             ? $"Set Google identity to {row.Email}"
@@ -876,10 +730,12 @@ public sealed class UserEmailService(
         var allEmails = await repository.GetByUserIdReadOnlyAsync(userId, cancellationToken);
         if (allEmails.Count(e => e.IsGoogle) <= 1) return false;
 
-        row.IsGoogle = false;
-        row.UpdatedAt = clock.GetCurrentInstant();
-        await repository.UpdateAsync(row, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
+        var updated = await userService.UpdateUserEmailAsync(
+            userId,
+            row.Id,
+            new UserEmailUpdateCommand(Google: UserEmailGoogleChange.ClearDuplicateGoogle),
+            cancellationToken);
+        if (!updated) return false;
 
         await auditLogService.LogAsync(
             AuditAction.UserEmailGoogleCleared,
@@ -903,12 +759,13 @@ public sealed class UserEmailService(
         var allEmails = await repository.GetByUserIdReadOnlyAsync(userId, cancellationToken);
         if (allEmails.Count(e => e.IsPrimary && e.IsVerified) <= 1) return false;
 
-        row.IsPrimary = false;
-        row.UpdatedAt = clock.GetCurrentInstant();
-        await repository.UpdateAsync(row, cancellationToken);
+        var updated = await userService.UpdateUserEmailAsync(
+            userId,
+            row.Id,
+            new UserEmailUpdateCommand(Primary: UserEmailPrimaryChange.ClearDuplicatePrimary),
+            cancellationToken);
+        if (!updated) return false;
         // No auto-promote — admin is resolving a duplicate and picks the new primary deliberately.
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
-
         await auditLogService.LogAsync(
             AuditAction.UserEmailPrimaryCleared,
             nameof(User), userId,
@@ -977,10 +834,13 @@ public sealed class UserEmailService(
         var row = await repository.GetByIdReadOnlyAsync(emailId, ct);
         if (row is null) return false;
 
-        var deleted = await repository.RemoveByIdAsync(emailId, ct);
-        if (deleted)
-            await userInfoInvalidator.InvalidateAsync(row.UserId, ct);
-        return deleted;
+        return await userService.RemoveUserEmailAsync(
+            row.UserId,
+            emailId,
+            new UserEmailRemoveCommand(
+                UserEmailRemovalMode.AnyEmail,
+                PreserveLastVerifiedEmail: false),
+            ct);
     }
 
     /// <inheritdoc />
@@ -1012,12 +872,14 @@ public sealed class UserEmailService(
             return false;
         }
 
-        await repository.RemoveAsync(row, cancellationToken);
-
-        await EnsurePrimaryInvariantAsync(userId, cancellationToken);
-        await EnsureGoogleInvariantAsync(userId, cancellationToken);
-
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
+        var removed = await userService.RemoveUserEmailAsync(
+            userId,
+            userEmailId,
+            new UserEmailRemoveCommand(
+                UserEmailRemovalMode.ProviderLinkedEmail,
+                PreserveLastVerifiedEmail: false),
+            cancellationToken);
+        if (!removed) return false;
 
         await auditLogService.LogAsync(
             AuditAction.UserEmailUnlinked,
@@ -1229,26 +1091,17 @@ public sealed class UserEmailService(
                 $"(provider={provider}, sub={providerKey}, email={claimEmail}).";
         }
 
-        // 5. Apply displacement + signing-user mutation atomically — one transaction.
-        await repository.ApplyReconcilePlanAsync(
-            displacedRowToDelete: displaced ? blocker : null,
-            rowToDelete: rowToDelete,
-            rowToUpdate: rowToUpdate,
-            rowToInsert: rowToInsert,
+        // 5. Apply displacement + signing-user mutation atomically and repair UserEmail invariants.
+        await userService.ApplyUserEmailReconcilePlanAsync(
+            userId,
+            new UserEmailReconcilePlanCommand(
+                DisplacedRowToDelete: displaced ? blocker : null,
+                RowToDelete: rowToDelete,
+                RowToUpdate: rowToUpdate,
+                RowToInsert: rowToInsert),
             cancellationToken);
 
-        // 6. Invariants + cache invalidation (idempotent; re-runs on next sign-in if process crashes here).
-        if (displaced)
-        {
-            await EnsurePrimaryInvariantAsync(blocker!.UserId, cancellationToken);
-            await EnsureGoogleInvariantAsync(blocker.UserId, cancellationToken);
-            await userInfoInvalidator.InvalidateAsync(blocker.UserId, cancellationToken);
-        }
-        await EnsurePrimaryInvariantAsync(userId, cancellationToken);
-        await EnsureGoogleInvariantAsync(userId, cancellationToken);
-        await userInfoInvalidator.InvalidateAsync(userId, cancellationToken);
-
-        // 7. Audit. Displaced path writes the OAuthRenameCollision pair instead of GoogleEmailRenamed/UserEmailLinked.
+        // 6. Audit. Displaced path writes the OAuthRenameCollision pair instead of GoogleEmailRenamed/UserEmailLinked.
         if (displaced)
         {
             logger.LogError(

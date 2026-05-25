@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
+using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Profiles;
 using Humans.Domain.Entities;
@@ -905,5 +906,386 @@ public class CachingUserServiceTests
         results.Should().HaveCount(1);
         results[0].MatchField.Should().Be("Email");
         results[0].MatchedEmail.Should().Be("alice@example.com");
+    }
+
+    // --- Profile-storage consolidation: decorator delegates to inner and
+    // refreshes the cached UserInfo slice. RefreshEntryAsync reloads via
+    // _inner.GetUserInfoAsync, so StubRefreshEntry overrides that return.
+
+    private static UserInfo UserInfoFor(Guid userId, Profile? profile) =>
+        UserInfo.Create(
+            new User { Id = userId, PreferredLanguage = "en" },
+            userEmails: [],
+            eventParticipations: [],
+            externalLogins: [],
+            profile: profile,
+            contactFields: [],
+            profileLanguages: profile?.Languages.ToList() ?? [],
+            volunteerHistory: profile?.VolunteerHistory.ToList() ?? [],
+            communicationPreferences: []);
+
+    private static UserInfo UserInfoWithEmail(Guid userId, string email) =>
+        UserInfo.Create(
+            new User { Id = userId, PreferredLanguage = "en" },
+            userEmails:
+            [
+                new UserEmail
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Email = email,
+                    IsVerified = true,
+                    IsPrimary = true,
+                    CreatedAt = Instant.MinValue,
+                    UpdatedAt = Instant.MinValue,
+                }
+            ],
+            eventParticipations: [],
+            externalLogins: [],
+            profile: SampleProfile(userId, "Alice"),
+            contactFields: [],
+            profileLanguages: [],
+            volunteerHistory: [],
+            communicationPreferences: []);
+
+    private void StubRefreshEntry(Guid userId, Profile? profile) =>
+        _inner.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<UserInfo?>(UserInfoFor(userId, profile)));
+
+    [HumansFact]
+    public async Task SaveProfileAsync_RefreshesProfileAndDisplayNameSlice()
+    {
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId, "Before"));
+
+        _inner.SaveProfileAsync(
+                userId,
+                Arg.Any<UserProfileSaveCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new UserProfileSaveResult(profileId, null, "image/png"));
+
+        StubRefreshEntry(userId, new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            BurnerName = "New Burner",
+            FirstName = "New",
+            LastName = "Human",
+            ProfilePictureContentType = "image/png",
+            State = ProfileState.Active,
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        });
+
+        var result = await sut.SaveProfileAsync(
+            userId,
+            new UserProfileSaveCommand(
+                DisplayName: "After",
+                BurnerName: "New Burner",
+                FirstName: "New",
+                LastName: "Human",
+                City: null,
+                CountryCode: null,
+                Latitude: null,
+                Longitude: null,
+                PlaceId: null,
+                Bio: null,
+                Pronouns: null,
+                ContributionInterests: null,
+                BoardNotes: null,
+                BirthdayMonth: null,
+                BirthdayDay: null,
+                EmergencyContactName: null,
+                EmergencyContactPhone: null,
+                EmergencyContactRelationship: null,
+                NoPriorBurnExperience: false,
+                PictureMutation: UserProfilePictureMutation.Set,
+                ProfilePictureContentType: "image/png"));
+
+        result.ProfileId.Should().Be(profileId);
+        await _inner.Received(1).SaveProfileAsync(
+            userId, Arg.Any<UserProfileSaveCommand>(), Arg.Any<CancellationToken>());
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed.Should().NotBeNull();
+        refreshed!.BurnerName.Should().Be("New Burner");
+        refreshed.Profile.Should().NotBeNull();
+        refreshed.Profile!.BurnerName.Should().Be("New Burner");
+        refreshed.Profile.ProfilePictureContentType.Should().Be("image/png");
+    }
+
+    [HumansFact]
+    public async Task SetProfilePictureContentTypeAsync_RefreshesProfilePictureSlice()
+    {
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId));
+
+        _inner.SetProfilePictureContentTypeAsync(userId, "image/webp", Arg.Any<CancellationToken>())
+            .Returns(new UserProfilePictureContentTypeResult(true, profileId, "image/png", "image/webp"));
+
+        StubRefreshEntry(userId, new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            BurnerName = "Alice",
+            ProfilePictureContentType = "image/webp",
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        });
+
+        var result = await sut.SetProfilePictureContentTypeAsync(userId, "image/webp");
+
+        result.Saved.Should().BeTrue();
+        result.PreviousProfilePictureContentType.Should().Be("image/png");
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.Profile.Should().NotBeNull();
+        refreshed.Profile!.ProfilePictureContentType.Should().Be("image/webp");
+    }
+
+    [HumansFact]
+    public async Task AnonymizeProfileForDeletionAsync_RefreshesAnonymizedProfileSlice()
+    {
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId));
+
+        _inner.AnonymizeProfileForDeletionAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new UserProfileAnonymizeResult(true, profileId, "image/png"));
+
+        StubRefreshEntry(userId, new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            BurnerName = "",
+            FirstName = "Deleted",
+            LastName = "User",
+            ProfilePictureContentType = null,
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        });
+
+        var result = await sut.AnonymizeProfileForDeletionAsync(userId);
+
+        result.Anonymized.Should().BeTrue();
+        result.PreviousProfilePictureContentType.Should().Be("image/png");
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.Profile.Should().NotBeNull();
+        refreshed.Profile!.FirstName.Should().Be("Deleted");
+        refreshed.Profile.ProfilePictureContentType.Should().BeNull();
+    }
+
+    [HumansFact]
+    public async Task ApplyProfileOnboardingMutationAsync_RefreshesProfileSlice()
+    {
+        var userId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId));
+
+        _inner.ApplyProfileOnboardingMutationAsync(
+                userId,
+                Arg.Any<UserProfileOnboardingCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new OnboardingResult(true));
+
+        StubRefreshEntry(userId, new Profile
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            BurnerName = "Alice",
+            FirstName = "Alice",
+            LastName = "Example",
+            IsApproved = true,
+            State = ProfileState.Active,
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        });
+
+        await sut.ApplyProfileOnboardingMutationAsync(
+            userId,
+            new UserProfileOnboardingCommand(UserProfileOnboardingMutation.ApproveVolunteer));
+
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.Profile.Should().NotBeNull();
+        refreshed.Profile!.IsApproved.Should().BeTrue();
+        refreshed.Profile.State.Should().Be(ProfileState.Active);
+    }
+
+    [HumansFact]
+    public async Task SaveProfileLanguagesAsync_RefreshesLanguageSliceForOwner()
+    {
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId));
+
+        _inner.SaveProfileLanguagesAsync(
+                profileId,
+                Arg.Any<IReadOnlyList<ProfileLanguage>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new UserProfileLanguagesSaveResult(true, userId));
+
+        var profile = new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            BurnerName = "Alice",
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        };
+        profile.Languages.Add(new ProfileLanguage
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            LanguageCode = "es",
+            Proficiency = LanguageProficiency.Native,
+        });
+        StubRefreshEntry(userId, profile);
+
+        var result = await sut.SaveProfileLanguagesAsync(
+            profileId,
+            [
+                new ProfileLanguage
+                {
+                    ProfileId = profileId,
+                    LanguageCode = "es",
+                    Proficiency = LanguageProficiency.Native,
+                },
+            ]);
+
+        result.Saved.Should().BeTrue();
+        result.UserId.Should().Be(userId);
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.Profile.Should().NotBeNull();
+        refreshed.Profile!.Languages.Should().ContainSingle(l =>
+            l.LanguageCode == "es" && l.Proficiency == LanguageProficiency.Native);
+    }
+
+    [HumansFact]
+    public async Task SaveProfileVolunteerHistoryAsync_RefreshesVolunteerHistorySlice()
+    {
+        var userId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(userId));
+
+        _inner.SaveProfileVolunteerHistoryAsync(
+                userId,
+                Arg.Any<IReadOnlyList<CVEntry>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        var profile = new Profile
+        {
+            Id = profileId,
+            UserId = userId,
+            BurnerName = "Alice",
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = Instant.FromUtc(2026, 1, 2, 0, 0),
+        };
+        profile.VolunteerHistory.Add(new VolunteerHistoryEntry
+        {
+            Id = Guid.NewGuid(),
+            ProfileId = profileId,
+            Date = new LocalDate(2025, 3, 1),
+            EventName = "Nowhere 2025",
+            Description = "Sound crew",
+        });
+        StubRefreshEntry(userId, profile);
+
+        var saved = await sut.SaveProfileVolunteerHistoryAsync(
+            userId,
+            [new CVEntry(Guid.Empty, new LocalDate(2025, 3, 1), "Nowhere 2025", "Sound crew")]);
+
+        saved.Should().BeTrue();
+        var refreshed = await sut.GetUserInfoAsync(userId);
+        refreshed!.Profile.Should().NotBeNull();
+        refreshed.Profile!.VolunteerHistory.Should().ContainSingle(v =>
+            v.EventName == "Nowhere 2025" && v.Description == "Sound crew");
+    }
+
+    [HumansFact]
+    public async Task ApplyUserEmailReconcilePlanAsync_RefreshesEveryMutatedUsersEmailSlice()
+    {
+        var signingUserId = Guid.NewGuid();
+        var displacedUserId = Guid.NewGuid();
+        var sut = CreateSut();
+
+        await PrimeAsync(sut, SampleUserInfo(signingUserId));
+        await PrimeAsync(sut, SampleUserInfo(displacedUserId));
+
+        _inner.ApplyUserEmailReconcilePlanAsync(
+                signingUserId,
+                Arg.Any<UserEmailReconcilePlanCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new UserEmailReconcilePlanResult(
+                new HashSet<Guid> { signingUserId, displacedUserId }));
+
+        _inner.GetUserInfoAsync(signingUserId, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<UserInfo?>(UserInfoWithEmail(signingUserId, "signing@example.com")));
+        _inner.GetUserInfoAsync(displacedUserId, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<UserInfo?>(UserInfoWithEmail(displacedUserId, "survivor@example.com")));
+
+        await sut.ApplyUserEmailReconcilePlanAsync(
+            signingUserId,
+            new UserEmailReconcilePlanCommand(null, null, null, null));
+
+        var signing = await sut.GetUserInfoAsync(signingUserId);
+        var displaced = await sut.GetUserInfoAsync(displacedUserId);
+
+        signing!.UserEmails.Should().ContainSingle(e => e.Email == "signing@example.com");
+        displaced!.UserEmails.Should().ContainSingle(e => e.Email == "survivor@example.com");
+    }
+
+    [HumansFact]
+    public async Task ReassignAsync_RefreshesBothAffectedUsers()
+    {
+        var sourceUserId = Guid.NewGuid();
+        var targetUserId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, SampleUserInfo(sourceUserId, "Source"));
+        await PrimeAsync(sut, SampleUserInfo(targetUserId, "Target"));
+
+        var updatedAt = Instant.FromUtc(2026, 1, 2, 0, 0);
+        _inner.ReassignAsync(
+                sourceUserId,
+                targetUserId,
+                Arg.Any<Guid>(),
+                updatedAt,
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        StubRefreshEntry(sourceUserId, new Profile
+        {
+            Id = Guid.NewGuid(),
+            UserId = sourceUserId,
+            BurnerName = "",
+            FirstName = "Merged",
+            LastName = "User",
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = updatedAt,
+        });
+        StubRefreshEntry(targetUserId, new Profile
+        {
+            Id = Guid.NewGuid(),
+            UserId = targetUserId,
+            BurnerName = "Target Burner",
+            FirstName = "Target",
+            LastName = "Human",
+            CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+            UpdatedAt = updatedAt,
+        });
+
+        await sut.ReassignAsync(sourceUserId, targetUserId, Guid.NewGuid(), updatedAt, CancellationToken.None);
+
+        var source = await sut.GetUserInfoAsync(sourceUserId);
+        var target = await sut.GetUserInfoAsync(targetUserId);
+        source!.Profile.Should().NotBeNull();
+        source.Profile!.FirstName.Should().Be("Merged");
+        target!.Profile.Should().NotBeNull();
+        target.Profile!.BurnerName.Should().Be("Target Burner");
     }
 }

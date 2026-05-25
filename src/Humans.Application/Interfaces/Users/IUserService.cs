@@ -1,4 +1,6 @@
+using Humans.Application;
 using Humans.Application.Interfaces.Repositories;
+using Humans.Application.Interfaces.Onboarding;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;
@@ -168,6 +170,150 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
     /// Returns false if the user does not exist.
     /// </summary>
     Task<bool> ClearDeletionAsync(Guid userId, CancellationToken ct = default);
+
+    // ---- Profile storage commands ----
+
+    /// <summary>
+    /// Idempotently materializes a stub profile for a live user. Returns true
+    /// only when a profile row was created.
+    /// </summary>
+    Task<bool> EnsureStubProfileAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates <see cref="Profile.MembershipTier"/> on the user's profile.
+    /// Returns false when no profile exists.
+    /// </summary>
+    Task<bool> SetMembershipTierAsync(
+        Guid userId,
+        MembershipTier tier,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Applies a consolidated onboarding/profile-state mutation to the user's
+    /// profile. Audit/logging policy remains with the caller.
+    /// </summary>
+    Task<OnboardingResult> ApplyProfileOnboardingMutationAsync(
+        Guid userId,
+        UserProfileOnboardingCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Saves the profile fields projected into UserInfo and updates the user's
+    /// display label in the same storage operation. Filesystem writes remain
+    /// outside this service; picture metadata changes are returned to the
+    /// orchestrator as old/current content types.
+    /// </summary>
+    Task<UserProfileSaveResult> SaveProfileAsync(
+        Guid userId,
+        UserProfileSaveCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets the profile-picture content-type column that gates UserInfo custom
+    /// picture rendering. The caller owns filesystem writes and uses the old
+    /// content type returned here to remove stale files.
+    /// </summary>
+    Task<UserProfilePictureContentTypeResult> SetProfilePictureContentTypeAsync(
+        Guid userId,
+        string contentType,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Anonymizes profile-owned personal data for GDPR deletion and returns the
+    /// previous picture metadata so the orchestrator can remove filesystem
+    /// bytes after the DB read gate has been cleared.
+    /// </summary>
+    Task<UserProfileAnonymizeResult> AnonymizeProfileForDeletionAsync(
+        Guid userId,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Reconciles the profile's volunteer-history rows. Returns false when no
+    /// profile exists for the user.
+    /// </summary>
+    Task<bool> SaveProfileVolunteerHistoryAsync(
+        Guid userId,
+        IReadOnlyList<CVEntry> entries,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Replaces a profile's language rows and returns the owning user id so
+    /// cache decorators can refresh the affected UserInfo entry.
+    /// </summary>
+    Task<UserProfileLanguagesSaveResult> SaveProfileLanguagesAsync(
+        Guid profileId,
+        IReadOnlyList<ProfileLanguage> languages,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets or clears the profile IBAN. Returns false when no profile exists.
+    /// The caller owns validation and audit logging.
+    /// </summary>
+    Task<bool> SetProfileIbanAsync(Guid userId, string? iban, CancellationToken ct = default);
+
+    /// <summary>
+    /// Suspends the given profiles for missing consent and returns the user ids
+    /// that were actually mutated.
+    /// </summary>
+    Task<IReadOnlySet<Guid>> SuspendProfilesForMissingConsentAsync(
+        IReadOnlyCollection<Guid> userIds,
+        Instant now,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Downgrades expired membership tiers and returns each user id with the
+    /// tier that was written.
+    /// </summary>
+    Task<IReadOnlyList<(Guid UserId, MembershipTier NewTier)>>
+        DowngradeMembershipTierForExpiredAsync(
+            MembershipTier currentTier,
+            IReadOnlyCollection<Guid> userIdsToKeep,
+            IReadOnlyDictionary<Guid, MembershipTier> fallbackTierByUser,
+            Instant now,
+            CancellationToken ct = default);
+
+    // ---- UserEmail storage commands ----
+
+    /// <summary>
+    /// Adds a Users-owned email row and applies the primary / Google row
+    /// invariants. Does not generate verification tokens, send email, create
+    /// account-merge requests, or touch external-login rows.
+    /// </summary>
+    Task<UserEmailAddResult> AddUserEmailAsync(
+        Guid userId,
+        UserEmailAddCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates mutable UserEmail row state through one invariant-aware command
+    /// instead of one public method per flag transition.
+    /// </summary>
+    Task<bool> UpdateUserEmailAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailUpdateCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes a Users-owned email row and optionally repairs primary / Google
+    /// invariants. External login removal is orchestrated by callers before
+    /// invoking this storage command.
+    /// </summary>
+    Task<bool> RemoveUserEmailAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailRemoveCommand command,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Applies an OAuth reconcile row plan and repairs UserEmail invariants for
+    /// every affected user. OAuth policy, external login state, and audit rows
+    /// remain outside this storage command.
+    /// </summary>
+    Task<UserEmailReconcilePlanResult> ApplyUserEmailReconcilePlanAsync(
+        Guid userId,
+        UserEmailReconcilePlanCommand command,
+        CancellationToken ct = default);
 
     // ---- Methods added for ContactService migration ----
 

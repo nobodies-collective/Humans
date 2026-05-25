@@ -11,8 +11,8 @@ internal static class OnboardingSectionExtensions
     {
         // Onboarding — orchestrator only (owns no tables). Lives in Humans.Application
         // per design-rules §2b; routes all reads/writes through owning-section
-        // service interfaces (IProfileService, IUserService, IApplicationDecisionService,
-        // ISystemTeamSync, etc.). Takes no DbContext dependency.
+        // service interfaces (IUserService, IApplicationDecisionService,
+        // ISystemTeamSync, IAuditLogService, etc.). Takes no DbContext dependency.
         //
         // No back-call from leaf services into this director: ProfileService and
         // ConsentService do not inject IOnboardingService. The consent-check

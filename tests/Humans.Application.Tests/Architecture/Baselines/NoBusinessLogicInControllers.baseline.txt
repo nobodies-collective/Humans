@@ -83,7 +83,6 @@ src/Humans.Web/Controllers/ProfileController.cs:AdminAddEmail/3
 src/Humans.Web/Controllers/ProfileController.cs:DeleteEmail/1
 src/Humans.Web/Controllers/ProfileController.cs:Edit/1
 src/Humans.Web/Controllers/ProfileController.cs:EndRole/3
-src/Humans.Web/Controllers/ProfileController.cs:ImportGooglePhoto/1
 src/Humans.Web/Controllers/ProfileController.cs:SendMessage/2
 src/Humans.Web/Controllers/ProfileController.cs:VerifyEmail/3
 src/Humans.Web/Controllers/ProfilePictureMigrationAdminController.cs:Run/1

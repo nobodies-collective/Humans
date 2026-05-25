@@ -2312,33 +2312,6 @@
   <data name="ProfileEdit_RemovePicture" xml:space="preserve">
     <value>Benutzerdefiniertes Bild entfernen</value>
   </data>
-  <data name="ProfileEdit_ImportGooglePhoto" xml:space="preserve">
-    <value>Mein Google-Foto importieren</value>
-  </data>
-  <data name="ProfileEdit_ImportGooglePhotoHelp" xml:space="preserve">
-    <value>Kopiert das Foto aus deinem Google-Konto als Profilbild. Du kannst es später durch ein neues Bild ersetzen.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_Success" xml:space="preserve">
-    <value>Dein Google-Foto wurde als Profilbild importiert.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_Unavailable" xml:space="preserve">
-    <value>Google-Foto kann nicht importiert werden: Dein Konto ist nicht mit Google verknüpft oder es wurde kein Avatar bei der Anmeldung erfasst.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_NoProfile" xml:space="preserve">
-    <value>Schließe zuerst die Einrichtung deines Profils ab, dann kannst du dein Google-Foto importieren.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_AlreadyHasCustom" xml:space="preserve">
-    <value>Du hast bereits ein benutzerdefiniertes Profilbild. Entferne es zuerst, um dein Google-Foto zu importieren.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_FetchFailed" xml:space="preserve">
-    <value>Dein Google-Foto konnte nicht abgerufen werden. Versuche es später erneut oder lade direkt eines hoch.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_InvalidFormat" xml:space="preserve">
-    <value>Dein Google-Foto konnte nicht verarbeitet werden: Nicht unterstütztes Format oder fehlerhafte Antwort von Google.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_NotGoogleUrl" xml:space="preserve">
-    <value>Dein Google-Foto konnte nicht importiert werden: Die gespeicherte Avatar-URL sieht nicht nach einer Google-Adresse aus. Bitte lade direkt ein Foto hoch.</value>
-  </data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve">
     <value>Nur für Sie und den Vorstand sichtbar. Wird für den Geburtstagskalender verwendet.</value>
   </data>

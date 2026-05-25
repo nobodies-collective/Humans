@@ -2312,33 +2312,6 @@
   <data name="ProfileEdit_RemovePicture" xml:space="preserve">
     <value>Supprimer la photo personnalisée</value>
   </data>
-  <data name="ProfileEdit_ImportGooglePhoto" xml:space="preserve">
-    <value>Importer ma photo Google</value>
-  </data>
-  <data name="ProfileEdit_ImportGooglePhotoHelp" xml:space="preserve">
-    <value>Copie la photo de ton compte Google comme photo de profil. Tu pourras la remplacer plus tard en en téléchargeant une nouvelle.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_Success" xml:space="preserve">
-    <value>Ta photo Google a été importée comme photo de profil.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_Unavailable" xml:space="preserve">
-    <value>Nous ne pouvons pas importer une photo Google : ton compte n'est pas lié à Google ou aucun avatar n'a été capturé à la connexion.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_NoProfile" xml:space="preserve">
-    <value>Termine d'abord la configuration de ton profil, ensuite tu pourras importer ta photo Google.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_AlreadyHasCustom" xml:space="preserve">
-    <value>Tu as déjà une photo de profil personnalisée. Supprime-la d'abord pour importer ta photo Google.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_FetchFailed" xml:space="preserve">
-    <value>Impossible de récupérer ta photo Google. Réessaie plus tard ou télécharge-en une directement.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_InvalidFormat" xml:space="preserve">
-    <value>Ta photo Google n'a pas pu être traitée : format non pris en charge ou mauvaise réponse de Google.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_NotGoogleUrl" xml:space="preserve">
-    <value>Impossible d'importer ta photo Google : l'URL de l'avatar enregistrée ne ressemble pas à une adresse Google. Télécharge-en une directement.</value>
-  </data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve">
     <value>Visible uniquement par vous et le conseil d'administration. Utilisé pour le calendrier des anniversaires.</value>
   </data>

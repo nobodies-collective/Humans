@@ -21,7 +21,6 @@ namespace Humans.Application.Tests.Notifications;
 
 public class NotificationMeterProviderTests : IDisposable
 {
-    private readonly IProfileService _profileService = Substitute.For<IProfileService>();
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IGoogleSyncService _googleSyncService = Substitute.For<IGoogleSyncService>();
     private readonly ITeamService _teamService = Substitute.For<ITeamService>();
@@ -35,7 +34,6 @@ public class NotificationMeterProviderTests : IDisposable
     {
         _cache = new MemoryCache(new MemoryCacheOptions());
         _provider = new NotificationMeterProvider(
-            _profileService,
             _userService,
             _googleSyncService,
             _teamService,

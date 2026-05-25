@@ -7,6 +7,7 @@ using Humans.Application.Services.Profiles;
 using Humans.Application.Tests.Infrastructure;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Humans.Domain.Helpers;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
@@ -49,10 +50,316 @@ public class UserEmailServiceTests
             _userService,
             _userManager,
             _clock,
-            _userInfoInvalidator,
             _auditLogService,
             _serviceProvider,
             NullLogger<UserEmailService>.Instance);
+
+        StubUserServiceEmailMutations();
+    }
+
+    private void StubUserServiceEmailMutations()
+    {
+        _userService.AddUserEmailAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<UserEmailAddCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => AddUserEmailThroughRepositoryAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<UserEmailAddCommand>(1),
+                call.ArgAt<CancellationToken>(2)));
+
+        _userService.UpdateUserEmailAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<Guid>(),
+                Arg.Any<UserEmailUpdateCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => UpdateUserEmailThroughRepositoryAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<Guid>(1),
+                call.ArgAt<UserEmailUpdateCommand>(2),
+                call.ArgAt<CancellationToken>(3)));
+
+        _userService.RemoveUserEmailAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<Guid>(),
+                Arg.Any<UserEmailRemoveCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => RemoveUserEmailThroughRepositoryAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<Guid>(1),
+                call.ArgAt<UserEmailRemoveCommand>(2),
+                call.ArgAt<CancellationToken>(3)));
+    }
+
+    [HumansFact]
+    public async Task GetEmailCooldownInfoAsync_WithinCooldown_ReturnsFalse()
+    {
+        var userId = Guid.NewGuid();
+        var emailId = Guid.NewGuid();
+        _repository.GetByIdReadOnlyAsync(emailId, Arg.Any<CancellationToken>())
+            .Returns(new UserEmail
+            {
+                Id = emailId,
+                UserId = userId,
+                Email = "test@test.com",
+                VerificationSentAt = _clock.GetCurrentInstant() - Duration.FromMinutes(2),
+            });
+
+        var (canAdd, minutesUntilResend, pendingEmailId) =
+            await _service.GetEmailCooldownInfoAsync(emailId);
+
+        canAdd.Should().BeFalse();
+        minutesUntilResend.Should().BeGreaterThan(0);
+        pendingEmailId.Should().Be(emailId);
+    }
+
+    [HumansFact]
+    public async Task GetEmailCooldownInfoAsync_AfterCooldown_ReturnsTrue()
+    {
+        var userId = Guid.NewGuid();
+        var emailId = Guid.NewGuid();
+        _repository.GetByIdReadOnlyAsync(emailId, Arg.Any<CancellationToken>())
+            .Returns(new UserEmail
+            {
+                Id = emailId,
+                UserId = userId,
+                Email = "test@test.com",
+                VerificationSentAt = _clock.GetCurrentInstant() - Duration.FromMinutes(6),
+            });
+
+        var (canAdd, minutesUntilResend, pendingEmailId) =
+            await _service.GetEmailCooldownInfoAsync(emailId);
+
+        canAdd.Should().BeTrue();
+        minutesUntilResend.Should().Be(0);
+        pendingEmailId.Should().BeNull();
+    }
+
+    [HumansFact]
+    public async Task GetEmailCooldownInfoAsync_NoVerificationSent_ReturnsTrue()
+    {
+        var userId = Guid.NewGuid();
+        var emailId = Guid.NewGuid();
+        _repository.GetByIdReadOnlyAsync(emailId, Arg.Any<CancellationToken>())
+            .Returns(new UserEmail
+            {
+                Id = emailId,
+                UserId = userId,
+                Email = "test@test.com",
+                VerificationSentAt = null,
+            });
+
+        var (canAdd, minutesUntilResend, pendingEmailId) =
+            await _service.GetEmailCooldownInfoAsync(emailId);
+
+        canAdd.Should().BeTrue();
+        minutesUntilResend.Should().Be(0);
+        pendingEmailId.Should().BeNull();
+    }
+
+    private async Task<UserEmailAddResult> AddUserEmailThroughRepositoryAsync(
+        Guid userId,
+        UserEmailAddCommand command,
+        CancellationToken ct)
+    {
+        var email = command.Email.Trim();
+        var normalized = EmailNormalization.NormalizeForComparison(email);
+        var alternate = GetAlternateComparableEmail(normalized);
+
+        if (await _repository.ExistsForUserAsync(userId, normalized, alternate, ct))
+            return new UserEmailAddResult(Guid.Empty, Added: false, IsConflict: false);
+
+        var now = _clock.GetCurrentInstant();
+        var row = new UserEmail
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Email = email,
+            IsVerified = command.IsVerified,
+            IsPrimary = false,
+            IsGoogle = false,
+            Visibility = command.Visibility,
+            Provider = command.Provider,
+            ProviderKey = command.ProviderKey,
+            VerificationSentAt = command.VerificationSentAt,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        await _repository.AddAsync(row, ct);
+        await EnsurePrimaryInvariantForTestAsync(userId, ct);
+        await EnsureGoogleInvariantForTestAsync(userId, ct);
+        await _userInfoInvalidator.InvalidateAsync(userId, ct);
+        return new UserEmailAddResult(row.Id, Added: true, IsConflict: false);
+    }
+
+    private async Task<bool> UpdateUserEmailThroughRepositoryAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailUpdateCommand command,
+        CancellationToken ct)
+    {
+        var changed = false;
+
+        if (command.MarkVerified)
+        {
+            var row = await _repository.GetByIdAndUserIdAsync(emailId, userId, ct)
+                ?? throw new InvalidOperationException("Email not found.");
+            if (row.IsVerified || row.Provider is not null)
+                throw new System.ComponentModel.DataAnnotations.ValidationException("No email pending verification.");
+
+            row.IsVerified = true;
+            row.UpdatedAt = _clock.GetCurrentInstant();
+            await _repository.UpdateAsync(row, ct);
+            await EnsurePrimaryInvariantForTestAsync(userId, ct);
+            await EnsureGoogleInvariantForTestAsync(userId, ct);
+            changed = true;
+        }
+
+        if (command.Primary == UserEmailPrimaryChange.MakePrimary)
+        {
+            var rows = (await _repository.GetByUserIdForMutationAsync(userId, ct)).ToList();
+            var target = rows.FirstOrDefault(e => e.Id == emailId)
+                ?? throw new InvalidOperationException("Email not found.");
+            if (!target.IsVerified)
+                throw new System.ComponentModel.DataAnnotations.ValidationException("Only verified emails can be the notification target.");
+
+            var now = _clock.GetCurrentInstant();
+            var changedRows = rows.Where(e => e.IsPrimary != (e.Id == emailId)).ToList();
+            foreach (var row in changedRows)
+            {
+                row.IsPrimary = row.Id == emailId;
+                row.UpdatedAt = now;
+            }
+            if (changedRows.Count > 0)
+                await _repository.UpdateBatchAsync(changedRows, ct);
+            changed |= changedRows.Count > 0;
+        }
+        else if (command.Primary == UserEmailPrimaryChange.ClearDuplicatePrimary)
+        {
+            var row = await _repository.GetByIdAndUserIdAsync(emailId, userId, ct);
+            if (row is null || !row.IsPrimary) return false;
+            var rows = await _repository.GetByUserIdReadOnlyAsync(userId, ct);
+            if (rows.Count(e => e.IsPrimary && e.IsVerified) <= 1) return false;
+            row.IsPrimary = false;
+            row.UpdatedAt = _clock.GetCurrentInstant();
+            await _repository.UpdateAsync(row, ct);
+            changed = true;
+        }
+
+        if (command.Google == UserEmailGoogleChange.MakeGoogle)
+        {
+            var row = await _repository.GetByIdAndUserIdAsync(emailId, userId, ct);
+            if (row is null || !row.IsVerified) return false;
+            await _repository.SetGoogleExclusiveAsync(userId, emailId, _clock.GetCurrentInstant(), ct);
+            changed = true;
+        }
+        else if (command.Google == UserEmailGoogleChange.ClearDuplicateGoogle)
+        {
+            var row = await _repository.GetByIdAndUserIdAsync(emailId, userId, ct);
+            if (row is null || !row.IsGoogle) return false;
+            var rows = await _repository.GetByUserIdReadOnlyAsync(userId, ct);
+            if (rows.Count(e => e.IsGoogle) <= 1) return false;
+            row.IsGoogle = false;
+            row.UpdatedAt = _clock.GetCurrentInstant();
+            await _repository.UpdateAsync(row, ct);
+            changed = true;
+        }
+
+        if (command.ChangeVisibility)
+        {
+            var row = await _repository.GetByIdAndUserIdAsync(emailId, userId, ct)
+                ?? throw new InvalidOperationException("Email not found.");
+            row.Visibility = command.Visibility;
+            row.UpdatedAt = _clock.GetCurrentInstant();
+            await _repository.UpdateAsync(row, ct);
+            changed = true;
+        }
+
+        if (changed)
+            await _userInfoInvalidator.InvalidateAsync(userId, ct);
+        return changed;
+    }
+
+    private async Task<bool> RemoveUserEmailThroughRepositoryAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailRemoveCommand command,
+        CancellationToken ct)
+    {
+        var row = await _repository.GetByIdAndUserIdAsync(emailId, userId, ct)
+            ?? throw new InvalidOperationException("Email not found.");
+        var hasProvider = !string.IsNullOrEmpty(row.Provider);
+        if (command.Mode == UserEmailRemovalMode.PlainEmail && hasProvider) return false;
+        if (command.Mode == UserEmailRemovalMode.ProviderLinkedEmail && !hasProvider) return false;
+
+        if (command.PreserveLastVerifiedEmail && row.IsVerified)
+        {
+            var rows = await _repository.GetByUserIdForMutationAsync(userId, ct);
+            if (rows.Count(e => e.IsVerified && e.Id != emailId) == 0)
+                throw new System.ComponentModel.DataAnnotations.ValidationException(
+                    "Cannot remove your last verified email. Add another verified email first so you can still receive system notifications.");
+        }
+
+        await _repository.RemoveAsync(row, ct);
+        if (command.RepairInvariants)
+        {
+            await EnsurePrimaryInvariantForTestAsync(userId, ct);
+            await EnsureGoogleInvariantForTestAsync(userId, ct);
+        }
+        await _userInfoInvalidator.InvalidateAsync(userId, ct);
+        return true;
+    }
+
+    private async Task EnsurePrimaryInvariantForTestAsync(Guid userId, CancellationToken ct)
+    {
+        var rows = (await _repository.GetByUserIdForMutationAsync(userId, ct)).ToList();
+        var verified = rows.Where(e => e.IsVerified).ToList();
+        if (verified.Count == 0) return;
+        var current = verified.Where(e => e.IsPrimary).ToList();
+        var winner = verified.FirstOrDefault(e => e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
+            ?? current.OrderBy(e => e.Id).FirstOrDefault()
+            ?? verified.OrderByDescending(e => e.UpdatedAt).ThenBy(e => e.Id).First();
+        if (current.Count == 1 && current[0].Id == winner.Id) return;
+        var now = _clock.GetCurrentInstant();
+        var changed = verified.Where(e => e.IsPrimary != (e.Id == winner.Id)).ToList();
+        foreach (var row in changed)
+        {
+            row.IsPrimary = row.Id == winner.Id;
+            row.UpdatedAt = now;
+        }
+        if (changed.Count > 0)
+            await _repository.UpdateBatchAsync(changed, ct);
+    }
+
+    private async Task EnsureGoogleInvariantForTestAsync(Guid userId, CancellationToken ct)
+    {
+        var rows = (await _repository.GetByUserIdForMutationAsync(userId, ct)).ToList();
+        var verified = rows.Where(e => e.IsVerified).ToList();
+        if (verified.Count == 0) return;
+        var current = verified.Where(e => e.IsGoogle).ToList();
+        var winner = verified.FirstOrDefault(e => e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
+            ?? current.OrderBy(e => e.Id).FirstOrDefault()
+            ?? verified.OrderByDescending(e => e.UpdatedAt).ThenBy(e => e.Id).First();
+        if (current.Count == 1 && current[0].Id == winner.Id) return;
+        var now = _clock.GetCurrentInstant();
+        var changed = verified.Where(e => e.IsGoogle != (e.Id == winner.Id)).ToList();
+        foreach (var row in changed)
+        {
+            row.IsGoogle = row.Id == winner.Id;
+            row.UpdatedAt = now;
+        }
+        if (changed.Count > 0)
+            await _repository.UpdateBatchAsync(changed, ct);
+    }
+
+    private static string? GetAlternateComparableEmail(string normalizedEmail)
+    {
+        if (normalizedEmail.EndsWith("@gmail.com", StringComparison.Ordinal))
+            return $"{normalizedEmail[..^"@gmail.com".Length]}@googlemail.com";
+        if (normalizedEmail.EndsWith("@googlemail.com", StringComparison.Ordinal))
+            return $"{normalizedEmail[..^"@googlemail.com".Length]}@gmail.com";
+        return null;
     }
 
     private static UserInfo BuildStubUserInfo(Guid userId, IReadOnlyList<UserEmail> emails) =>
@@ -1032,34 +1339,20 @@ public class UserEmailServiceTests
     }
 
     [HumansFact]
-    public async Task AddEmailAsync_AddressAlreadyHeldAsVerifiedRow_ThrowsValidationException()
+    public async Task AddEmailAsync_AddressAlreadyHeldAsUserEmailRow_ThrowsValidationException()
     {
-        // The "already your sign-in email" guard still fires when a VERIFIED UserEmail row at
-        // the address exists. (ExistsForUserAsync is stubbed false here to isolate the
-        // verified-row branch from the duplicate-row branch.)
         var userId = Guid.NewGuid();
-        var user = new User { Id = userId };
-        _userManager.FindByIdAsync(userId.ToString()).Returns(user);
         _repository.ExistsForUserAsync(
                 userId, Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(false);
-        _userService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
-            .Returns(BuildStubUserInfo(userId, new List<UserEmail>
-            {
-                new()
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    Email = "katja@gmail.com",
-                    IsVerified = true,
-                    IsPrimary = true,
-                }
-            }));
+            .Returns(true);
 
         var act = async () => await _service.AddEmailAsync(userId, "katja@gmail.com");
 
         await act.Should().ThrowAsync<System.ComponentModel.DataAnnotations.ValidationException>();
-        await _repository.DidNotReceive().AddAsync(Arg.Any<UserEmail>(), Arg.Any<CancellationToken>());
+        await _userService.DidNotReceive().AddUserEmailAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<UserEmailAddCommand>(),
+            Arg.Any<CancellationToken>());
     }
 
     [HumansFact]

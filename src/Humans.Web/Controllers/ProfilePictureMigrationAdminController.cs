@@ -13,13 +13,13 @@ namespace Humans.Web.Controllers;
 [Route("Profile/Admin/PictureMigration")]
 public sealed class ProfilePictureMigrationAdminController(
     IUserServiceRead userService,
-    IProfileService profileService,
+    IProfilePictureService profilePictureService,
     ILogger<ProfilePictureMigrationAdminController> logger) : HumansControllerBase(userService)
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(CancellationToken ct = default)
     {
-        var snapshot = await profileService.GetProfilePictureMigrationSnapshotAsync(ct);
+        var snapshot = await profilePictureService.GetProfilePictureMigrationSnapshotAsync(ct);
         return View(new ProfilePictureMigrationViewModel(snapshot));
     }
 
@@ -27,7 +27,7 @@ public sealed class ProfilePictureMigrationAdminController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Run(CancellationToken ct = default)
     {
-        var snapshot = await profileService.GetProfilePictureMigrationSnapshotAsync(ct);
+        var snapshot = await profilePictureService.GetProfilePictureMigrationSnapshotAsync(ct);
         if (snapshot.DbOnlyCount == 0)
         {
             SetSuccess("All DB-stored profile pictures are already on the filesystem — nothing to migrate.");
@@ -38,7 +38,7 @@ public sealed class ProfilePictureMigrationAdminController(
         var migrated = 0;
         foreach (var row in snapshot.DbOnlyRows)
         {
-            var result = await profileService.GetProfilePictureAsync(row.ProfileId, ct);
+            var result = await profilePictureService.GetProfilePictureAsync(row.ProfileId, ct);
             if (result is not null)
             {
                 migrated++;

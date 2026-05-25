@@ -18,6 +18,13 @@ public interface IUserEmailService : IApplicationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns whether the verification resend cooldown has elapsed for a
+    /// pending UserEmail row.
+    /// </summary>
+    Task<(bool CanAdd, int MinutesUntilResend, Guid? PendingEmailId)>
+        GetEmailCooldownInfoAsync(Guid pendingEmailId, CancellationToken ct = default);
+
+    /// <summary>
     /// Gets emails visible on a user's profile based on viewer access level.
     /// </summary>
     Task<IReadOnlyList<UserEmailDto>> GetVisibleEmailsAsync(

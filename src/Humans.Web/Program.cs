@@ -201,12 +201,6 @@ builder.Services.AddHumansAuthorizationPolicies();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation, RoleAssignmentClaimsTransformation>();
 
-// /Profile/Me/ImportGooglePhoto avatar fetch — short timeout, surface errors instead of hanging.
-builder.Services.AddHttpClient("GoogleAvatar", client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
-
 // Skip Hangfire entirely in Testing — AddHangfire registers IBackgroundJobClient
 // with a factory that reads JobStorage.Current at resolution time. Without storage
 // configured, every DI-graph build that transitively touches IBackgroundJobClient

@@ -18,7 +18,7 @@ namespace Humans.Application.Services.Notifications;
 /// Application-layer implementation of <see cref="INotificationMeterProvider"/>.
 /// Provides live counter meters for admin/coordinator work queues. Counts
 /// are computed by calling into each owning section service
-/// (<see cref="IProfileService"/>, <see cref="IUserService"/>,
+/// (<see cref="IUserService"/>,
 /// <see cref="IGoogleSyncService"/>, <see cref="ITeamService"/>,
 /// <see cref="ITicketSyncService"/>, <see cref="IApplicationDecisionService"/>)
 /// and cached for ~2 minutes. No direct DB access.
@@ -33,7 +33,6 @@ namespace Humans.Application.Services.Notifications;
 /// <see cref="INotificationMeterCacheInvalidator"/>.
 /// </remarks>
 public sealed class NotificationMeterProvider(
-    IProfileService profileService,
     IUserServiceRead userService,
     IGoogleSyncService googleSyncService,
     ITeamServiceRead teamService,
@@ -44,8 +43,6 @@ public sealed class NotificationMeterProvider(
     ILogger<NotificationMeterProvider> logger) : INotificationMeterProvider
 {
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(2);
-
-    private readonly IProfileService _profileService = profileService;
 
     public async Task<IReadOnlyList<NotificationMeter>> GetMetersForUserAsync(
         ClaimsPrincipal user, CancellationToken cancellationToken = default)

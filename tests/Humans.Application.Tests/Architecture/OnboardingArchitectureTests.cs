@@ -61,7 +61,7 @@ public class OnboardingArchitectureTests
             .Where(p => p.ParameterType != typeof(NodaTime.IClock))
             .Where(p =>
                 // Services are interfaces under Humans.Application.Interfaces.*
-                // (IProfileService, IUserService, IApplicationDecisionService, ...)
+                // (IUserService, IApplicationDecisionService, IAuditLogService, ...)
                 // plus well-known cross-cuts (ILogger, IMetrics, ...).
                 !p.ParameterType.IsInterface)
             .ToList();

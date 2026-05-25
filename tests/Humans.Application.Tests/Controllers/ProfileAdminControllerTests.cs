@@ -31,7 +31,6 @@ public class ProfileAdminControllerTests
     private readonly IAccountMergeService _accountMerge = Substitute.For<IAccountMergeService>();
     private readonly IUserEmailService _userEmails = Substitute.For<IUserEmailService>();
     private readonly IUserService _users = Substitute.For<IUserService>();
-    private readonly IProfileService _profileService = Substitute.For<IProfileService>();
     private readonly ITeamService _teamService = Substitute.For<ITeamService>();
     private readonly IRoleAssignmentService _roleAssignmentService = Substitute.For<IRoleAssignmentService>();
     private readonly IAuditLogService _audit = Substitute.For<IAuditLogService>();
@@ -58,7 +57,6 @@ public class ProfileAdminControllerTests
             _users,
             _audit,
             NullLogger<ProfileAdminController>.Instance,
-            _profileService,
             _teamService,
             _roleAssignmentService);
 

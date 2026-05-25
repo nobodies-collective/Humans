@@ -23,13 +23,11 @@ namespace Humans.Web.Controllers;
 public class IssuesController(
     IIssuesService issues,
     IAuthorizationService authorization,
-    IProfileService profiles,
     IUserServiceRead users,
     IUserServiceRead userService,
     IStringLocalizer<SharedResource> localizer,
     ILogger<IssuesController> logger) : HumansControllerBase(userService)
 {
-    private readonly IProfileService _profiles = profiles;
     private readonly IStringLocalizer<SharedResource> _localizer = localizer;
 
     // Roles from claims (RoleAssignment → claims-transformation), NOT UserManager.GetRolesAsync (misses CampAdmin etc.).

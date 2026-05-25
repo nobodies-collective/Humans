@@ -10,14 +10,19 @@ using Humans.Domain.Enums;
 using Xunit;
 using ProfileService = Humans.Application.Services.Profiles.ProfileService;
 using Humans.Application.Interfaces.Users;
+using Humans.Application.Services.Users;
 using Humans.Application.Tests.Infrastructure;
 using Humans.Infrastructure.Repositories.Profiles;
+using Humans.Infrastructure.Repositories.Users;
+using ProfileEditorService = Humans.Application.Services.Profiles.ProfileEditorService;
+using ProfilePictureStorageKeys = Humans.Application.Services.Profiles.ProfilePictureStorageKeys;
 
 namespace Humans.Application.Tests.Services;
 
 public sealed class ProfileServiceTests : ServiceTestHarness
 {
     private readonly ProfileService _service;
+    private readonly ProfileEditorService _editor;
     private readonly IProfileRepository _profileRepository;
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IUserEmailRepository _userEmailRepository;
@@ -28,7 +33,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
     // Delegate to the production helper (made internal for test access)
     // so the test can't drift from the real key construction.
     private static string PicKey(Guid profileId, string contentType) =>
-        ProfileService.ProfilePictureKey(profileId, contentType);
+        ProfilePictureStorageKeys.ProfilePictureKey(profileId, contentType);
 
     public ProfileServiceTests()
     {
@@ -36,22 +41,46 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         _profileRepository = new ProfileRepository(DbFactory, Clock);
         _userEmailRepository = new UserEmailRepository(DbFactory);
         _contactFieldRepository = new ContactFieldRepository(DbFactory);
+        var storageUserService = new UserService(
+            new UserRepository(DbFactory),
+            _userEmailRepository,
+            _profileRepository,
+            _contactFieldRepository,
+            _communicationPreferenceRepository,
+            AdminAuthorization,
+            Clock,
+            NullLogger<UserService>.Instance);
 
         _service = new ProfileService(
             _profileRepository, _userService,
-            _userEmailRepository,
-            _contactFieldRepository, _communicationPreferenceRepository,
-            AuditLog,
             _fileStorage,
-            Substitute.For<IUserInfoInvalidator>(),
-            Clock,
             NullLogger<ProfileService>.Instance);
+        _editor = new ProfileEditorService(
+            _userService,
+            _fileStorage,
+            NullLogger<ProfileEditorService>.Instance);
 
         _userService.StubGetUserInfosFromContext(Db);
         _userService.StubGetUserInfoFromContext(Db);
+        _userService.SaveProfileAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<UserProfileSaveCommand>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.SaveProfileAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<UserProfileSaveCommand>(1),
+                call.ArgAt<CancellationToken>(2)));
+        _userService.SetProfilePictureContentTypeAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => storageUserService.SetProfilePictureContentTypeAsync(
+                call.ArgAt<Guid>(0),
+                call.ArgAt<string>(1),
+                call.ArgAt<CancellationToken>(2)));
     }
 
-    // --- Profile save flow ---
+    // --- Profile editor save flow ---
 
     [HumansFact(Timeout = 10000)]
     public async Task SaveProfileAsync_NewProfile_CreatesProfile()
@@ -60,7 +89,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserAsync(userId);
         var request = MakeRequest(burnerName: "Flame", firstName: "Jane", lastName: "Doe");
 
-        var profileId = await _service.SaveProfileAsync(userId, "Jane Doe", request, "en");
+        var profileId = await _editor.SaveProfileAsync(userId, "Jane Doe", request);
 
         profileId.Should().NotBe(Guid.Empty);
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
@@ -76,13 +105,13 @@ public sealed class ProfileServiceTests : ServiceTestHarness
     /// <see cref="ProfileState.Active"/>.
     /// </summary>
     [HumansFact(Timeout = 10000)]
-    public async Task ProfileService_UpdateProfileAsync_TransitionsStubToActive_WhenAllRequiredFieldsPopulated()
+    public async Task ProfileEditorService_SaveProfileAsync_TransitionsStubToActive_WhenAllRequiredFieldsPopulated()
     {
         var userId = Guid.NewGuid();
         await SeedUserAsync(userId);
         var request = MakeRequest(burnerName: "Flame", firstName: "Jane", lastName: "Doe");
 
-        await _service.SaveProfileAsync(userId, "Jane Doe", request, "en");
+        await _editor.SaveProfileAsync(userId, "Jane Doe", request);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
         profile.State.Should().Be(ProfileState.Active);
@@ -92,14 +121,14 @@ public sealed class ProfileServiceTests : ServiceTestHarness
     /// Issue #635 (§15i): missing required fields keeps the Profile in Stub.
     /// </summary>
     [HumansFact(Timeout = 10000)]
-    public async Task ProfileService_UpdateProfileAsync_StaysStub_WhenRequiredFieldsBlank()
+    public async Task ProfileEditorService_SaveProfileAsync_StaysStub_WhenRequiredFieldsBlank()
     {
         var userId = Guid.NewGuid();
         await SeedUserAsync(userId);
         // BurnerName/FirstName/LastName all empty — Stub state.
         var request = MakeRequest(burnerName: "", firstName: "", lastName: "");
 
-        await _service.SaveProfileAsync(userId, "Stub", request, "en");
+        await _editor.SaveProfileAsync(userId, "Stub", request);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
         profile.State.Should().Be(ProfileState.Stub);
@@ -112,7 +141,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserWithProfileAsync(userId);
         var request = MakeRequest(burnerName: "NewName", firstName: "Updated", lastName: "Person");
 
-        await _service.SaveProfileAsync(userId, "Updated Person", request, "en");
+        await _editor.SaveProfileAsync(userId, "Updated Person", request);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
         profile.BurnerName.Should().Be("NewName");
@@ -127,9 +156,10 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserWithProfileAsync(userId);
         var request = MakeRequest();
 
-        await _service.SaveProfileAsync(userId, "New Display Name", request, "en");
+        await _editor.SaveProfileAsync(userId, "New Display Name", request);
 
-        await _userService.Received().UpdateDisplayNameAsync(userId, "New Display Name", Arg.Any<CancellationToken>());
+        var user = await Db.Users.AsNoTracking().SingleAsync(u => u.Id == userId);
+        user.DisplayName.Should().Be("New Display Name");
     }
 
     [HumansFact]
@@ -139,7 +169,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserWithProfileAsync(userId);
         var request = MakeRequest(birthdayMonth: 2, birthdayDay: 14);
 
-        await _service.SaveProfileAsync(userId, "Test", request, "en");
+        await _editor.SaveProfileAsync(userId, "Test", request);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
         profile.DateOfBirth.Should().Be(new LocalDate(4, 2, 14));
@@ -152,7 +182,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserWithProfileAsync(userId);
         var request = MakeRequest(birthdayMonth: 2, birthdayDay: 30);
 
-        await _service.SaveProfileAsync(userId, "Test", request, "en");
+        await _editor.SaveProfileAsync(userId, "Test", request);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
         profile.DateOfBirth.Should().BeNull();
@@ -169,7 +199,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         var payload = new byte[] { 0x10, 0x20, 0x30 };
         var request = MakeRequest(pictureData: payload, pictureContentType: "image/jpeg");
 
-        await _service.SaveProfileAsync(userId, "Test", request, "en");
+        await _editor.SaveProfileAsync(userId, "Test", request);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
         // Content-type column is the "has picture" marker + extension source.
@@ -187,12 +217,13 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         var profileId = await SeedUserWithProfileAsync(userId, withPicture: true);
 
         var request = MakeRequest(removeProfilePicture: true);
-        await _service.SaveProfileAsync(userId, "Test", request, "en");
+        await _editor.SaveProfileAsync(userId, "Test", request);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
         profile.ProfilePictureContentType.Should().BeNull();
         _fileStorage.Files.Should().NotContainKey(PicKey(profileId, "image/png"));
     }
+
 
     // Threshold check (formerly SaveProfileAsync_CallsSetConsentCheckPending)
     // moved out of ProfileService entirely — it's a director method on
@@ -314,80 +345,14 @@ public sealed class ProfileServiceTests : ServiceTestHarness
 
     // --- Cooldown and export ---
 
-    [HumansFact]
-    public async Task GetEmailCooldownInfoAsync_WithinCooldown_ReturnsFalse()
-    {
-        var userId = Guid.NewGuid();
-        await SeedUserAsync(userId);
-        var emailId = Guid.NewGuid();
-        Db.UserEmails.Add(new UserEmail
-        {
-            Id = emailId,
-            UserId = userId,
-            Email = "test@test.com",
-            VerificationSentAt = Clock.GetCurrentInstant() - Duration.FromMinutes(2),
-        });
-        await Db.SaveChangesAsync();
-
-        var (canAdd, minutesUntilResend, pendingEmailId) = await _service.GetEmailCooldownInfoAsync(emailId);
-
-        canAdd.Should().BeFalse();
-        minutesUntilResend.Should().BeGreaterThan(0);
-        pendingEmailId.Should().Be(emailId);
-    }
-
-    [HumansFact]
-    public async Task GetEmailCooldownInfoAsync_AfterCooldown_ReturnsTrue()
-    {
-        var userId = Guid.NewGuid();
-        await SeedUserAsync(userId);
-        var emailId = Guid.NewGuid();
-        Db.UserEmails.Add(new UserEmail
-        {
-            Id = emailId,
-            UserId = userId,
-            Email = "test@test.com",
-            VerificationSentAt = Clock.GetCurrentInstant() - Duration.FromMinutes(6),
-        });
-        await Db.SaveChangesAsync();
-
-        var (canAdd, minutesUntilResend, pendingEmailId) = await _service.GetEmailCooldownInfoAsync(emailId);
-
-        canAdd.Should().BeTrue();
-        minutesUntilResend.Should().Be(0);
-        pendingEmailId.Should().BeNull();
-    }
-
-    [HumansFact]
-    public async Task GetEmailCooldownInfoAsync_NoVerificationSent_ReturnsTrue()
-    {
-        var userId = Guid.NewGuid();
-        await SeedUserAsync(userId);
-        var emailId = Guid.NewGuid();
-        Db.UserEmails.Add(new UserEmail
-        {
-            Id = emailId,
-            UserId = userId,
-            Email = "test@test.com",
-            VerificationSentAt = null,
-        });
-        await Db.SaveChangesAsync();
-
-        var (canAdd, minutesUntilResend, pendingEmailId) = await _service.GetEmailCooldownInfoAsync(emailId);
-
-        canAdd.Should().BeTrue();
-        minutesUntilResend.Should().Be(0);
-        pendingEmailId.Should().BeNull();
-    }
-
     // SearchProfilesAsync + GetFullProfileAsync tests removed alongside the
     // FullProfile delete. The search surface lives on IUserService.SearchUsersAsync
     // and is covered by CachingUserServiceTests.
 
-    // --- SaveCVEntriesAsync ---
+    // --- SaveProfileVolunteerHistoryAsync ---
 
     [HumansFact]
-    public async Task SaveCVEntriesAsync_DelegatesToRepository()
+    public async Task SaveProfileVolunteerHistoryAsync_DelegatesToRepository()
     {
         // Arrange: mock repository that knows about a seeded profile
         var userId = Guid.NewGuid();
@@ -403,7 +368,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         };
         mockRepo.GetByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(profile);
 
-        var service = BuildServiceWith(mockRepo);
+        var service = BuildUserServiceWith(mockRepo);
 
         var entries = new List<CVEntry>
         {
@@ -411,15 +376,16 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         };
 
         // Act
-        await service.SaveCVEntriesAsync(userId, entries);
+        var saved = await service.SaveProfileVolunteerHistoryAsync(userId, entries);
 
         // Assert: delegates to the repository with the profile's Id
+        saved.Should().BeTrue();
         await mockRepo.Received(1)
             .ReconcileCVEntriesAsync(profileId, entries, Arg.Any<CancellationToken>());
     }
 
     [HumansFact]
-    public async Task SaveCVEntriesAsync_NoOp_WhenUserHasNoProfile()
+    public async Task SaveProfileVolunteerHistoryAsync_ReturnsFalse_WhenUserHasNoProfile()
     {
         // Arrange: mock repository that returns null (no profile)
         var userId = Guid.NewGuid();
@@ -428,29 +394,30 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         mockRepo.GetByUserIdAsync(userId, Arg.Any<CancellationToken>())
             .Returns((Profile?)null);
 
-        var service = BuildServiceWith(mockRepo);
+        var service = BuildUserServiceWith(mockRepo);
 
         // Act
-        await service.SaveCVEntriesAsync(userId, new List<CVEntry>());
+        var saved = await service.SaveProfileVolunteerHistoryAsync(userId, new List<CVEntry>());
 
         // Assert: reconcile is never called
+        saved.Should().BeFalse();
         await mockRepo.DidNotReceive()
             .ReconcileCVEntriesAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyList<CVEntry>>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
-    /// Builds a <see cref="ProfileService"/> with a custom <see cref="IProfileRepository"/>
+    /// Builds a <see cref="UserService"/> with a custom <see cref="IProfileRepository"/>
     /// while keeping all other dependencies wired to the same test-class fields.
     /// </summary>
-    private ProfileService BuildServiceWith(IProfileRepository profileRepository) => new(
-        profileRepository, _userService,
+    private UserService BuildUserServiceWith(IProfileRepository profileRepository) => new(
+        new UserRepository(DbFactory),
         _userEmailRepository,
-        _contactFieldRepository, _communicationPreferenceRepository,
-        AuditLog,
-        _fileStorage,
-        Substitute.For<IUserInfoInvalidator>(),
+        profileRepository,
+        _contactFieldRepository,
+        _communicationPreferenceRepository,
+        AdminAuthorization,
         Clock,
-        NullLogger<ProfileService>.Instance);
+        NullLogger<UserService>.Instance);
 
     // --- Helpers ---
 
@@ -535,375 +502,4 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         };
     }
 
-    [HumansFact]
-    public async Task ContributeForUserAsync_EmitsIsOAuthKey_SourcedFromProviderColumn()
-    {
-        // The JSON key stays "IsOAuth" per memory/code/no-rename-serialized-fields.md
-        // (exports are JSON files users download). The value sources from
-        // (Provider != null) — pre-PR-4 semantics meaning "this row has an OAuth
-        // login attached". The PR 4 spec's Task 17 swapped both the JSON key and
-        // the value source (e.IsGoogle); both have been reverted so the export
-        // emits identical bytes for the same row data as before PR 4.
-        //
-        // This row has Provider="Google" and IsGoogle=false to pin the source:
-        // under the reverted (Provider != null) projection it emits IsOAuth=true,
-        // which proves the source is Provider, not IsGoogle.
-        var userId = Guid.NewGuid();
-        await SeedUserAsync(userId);
-        Db.UserEmails.Add(new UserEmail
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Email = "g@example.com",
-            IsVerified = true,
-            IsPrimary = true,
-            Provider = "Google",
-            ProviderKey = "sub-1",
-            IsGoogle = false,
-        });
-        await Db.SaveChangesAsync();
-
-        var slices = await _service.ContributeForUserAsync(userId, CancellationToken.None);
-
-        var userEmailsSlice = slices.Single(s =>
-            string.Equals(s.SectionName, Interfaces.Gdpr.GdprExportSections.UserEmails, StringComparison.Ordinal));
-        var json = System.Text.Json.JsonSerializer.Serialize(userEmailsSlice.Data);
-        json.Should().Contain("\"IsOAuth\":true");
-        // Legacy JSON key preserved for the C# IsPrimary rename
-        // (memory/code/no-rename-serialized-fields.md). Mirrors EF's HasColumnName pin on the
-        // renamed property — the GDPR export must keep emitting "IsNotificationTarget".
-        json.Should().Contain("\"IsNotificationTarget\":true");
-        json.Should().NotContain("\"IsPrimary\":");
-    }
-
-    // Smoke test for the per-userId service-side lock that replaced the
-    // AddIfNotExistsByUserIdAsync 23505-translating repo method. Asserts the
-    // lock serializes two concurrent EnsureStubProfileAsync callers so that
-    // only one AddAsync fires for a given userId.
-    [HumansFact(Timeout = 5000)]
-    public async Task EnsureStubProfileAsync_TwoConcurrentCallers_OnlyOneAddAsync()
-    {
-        var userId = Guid.NewGuid();
-
-        var fakeRepo = Substitute.For<IProfileRepository>();
-        Profile? stored = null;
-        fakeRepo.GetByUserIdAsync(userId, Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(stored));
-        fakeRepo.When(r => r.AddAsync(Arg.Any<Profile>(), Arg.Any<CancellationToken>()))
-            .Do(call => stored = call.Arg<Profile>());
-
-        var service = new ProfileService(
-            fakeRepo, _userService,
-            _userEmailRepository,
-            _contactFieldRepository, _communicationPreferenceRepository,
-            AuditLog,
-            _fileStorage,
-            Substitute.For<IUserInfoInvalidator>(),
-            Clock,
-            NullLogger<ProfileService>.Instance);
-
-#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
-        await Task.WhenAll(
-            Task.Run(() => service.EnsureStubProfileAsync(userId)),
-            Task.Run(() => service.EnsureStubProfileAsync(userId)));
-#pragma warning restore VSTHRD003
-
-        await fakeRepo.Received(1).AddAsync(Arg.Any<Profile>(), Arg.Any<CancellationToken>());
-    }
-
-    [HumansFact]
-    public async Task EnsureStubProfileAsync_MergedTombstone_NoOps()
-    {
-        var userId = Guid.NewGuid();
-        var user = await SeedUserAsync(userId);
-        user.MergedAt = Clock.GetCurrentInstant();
-        await Db.SaveChangesAsync();
-
-        await _service.EnsureStubProfileAsync(userId);
-
-        (await Db.Profiles.AnyAsync(p => p.UserId == userId)).Should().BeFalse();
-    }
-
-    [HumansFact]
-    public async Task EnsureStubProfileAsync_DeletedTombstone_NoOps()
-    {
-        var userId = Guid.NewGuid();
-        var user = await SeedUserAsync(userId);
-        user.DisplayName = "Deleted User";
-        await Db.SaveChangesAsync();
-
-        await _service.EnsureStubProfileAsync(userId);
-
-        (await Db.Profiles.AnyAsync(p => p.UserId == userId)).Should().BeFalse();
-    }
-
-    [HumansFact]
-    public async Task EnsureStubProfileAsync_LegacyMergedLocalEmail_NoOps()
-    {
-        var userId = Guid.NewGuid();
-        var user = await SeedUserAsync(userId);
-        user.Email = $"legacy-{userId}@merged.local";
-        await Db.SaveChangesAsync();
-
-        await _service.EnsureStubProfileAsync(userId);
-
-        (await Db.Profiles.AnyAsync(p => p.UserId == userId)).Should().BeFalse();
-    }
-
-    [HumansFact]
-    public async Task EnsureStubProfileAsync_LegacyDeletedLocalEmail_NoOps()
-    {
-        var userId = Guid.NewGuid();
-        var user = await SeedUserAsync(userId);
-        user.Email = $"purged-{userId}@deleted.local";
-        await Db.SaveChangesAsync();
-
-        await _service.EnsureStubProfileAsync(userId);
-
-        (await Db.Profiles.AnyAsync(p => p.UserId == userId)).Should().BeFalse();
-    }
-
-    // ==========================================================================
-    // Issue #474 — phase 5 service-ownership: every profile state mutation now
-    // routes through ProfileService so the §15 caching decorator can keep the
-    // FullProfile dict in sync atomically with the DB write. These tests pin
-    // the contracts the decorator relies on (return values, field updates,
-    // error keys) so future refactors can't drift the behaviour.
-    // ==========================================================================
-
-    [HumansFact]
-    public async Task SetMembershipTierAsync_UpdatesTierAndUpdatedAt()
-    {
-        var userId = Guid.NewGuid();
-        await SeedUserWithProfileAsync(userId);
-        Clock.Advance(Duration.FromHours(1));
-
-        await _service.SetMembershipTierAsync(userId, MembershipTier.Colaborador);
-
-        var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
-        profile.MembershipTier.Should().Be(MembershipTier.Colaborador);
-        profile.UpdatedAt.Should().Be(Clock.GetCurrentInstant());
-    }
-
-    [HumansFact]
-    public async Task SetMembershipTierAsync_UnknownUser_NoOp()
-    {
-        var unknownUserId = Guid.NewGuid();
-
-        // No throw, no profile created — just a logged warning.
-        await _service.SetMembershipTierAsync(unknownUserId, MembershipTier.Asociado);
-
-        var profileExists = await Db.Profiles.AsNoTracking().AnyAsync(p => p.UserId == unknownUserId);
-        profileExists.Should().BeFalse();
-    }
-
-    [HumansFact]
-    public async Task RecordConsentCheckAsync_Cleared_FlipsIsApprovedAndStamps()
-    {
-        var userId = Guid.NewGuid();
-        var reviewerId = Guid.NewGuid();
-        await SeedUserWithProfileAsync(userId);
-
-        var result = await _service.RecordConsentCheckAsync(
-            userId, reviewerId, ConsentCheckStatus.Cleared, "Looks good");
-
-        result.Success.Should().BeTrue();
-        var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
-        profile.ConsentCheckStatus.Should().Be(ConsentCheckStatus.Cleared);
-        profile.IsApproved.Should().BeTrue();
-        profile.ConsentCheckAt.Should().Be(Clock.GetCurrentInstant());
-        profile.ConsentCheckedByUserId.Should().Be(reviewerId);
-        profile.ConsentCheckNotes.Should().Be("Looks good");
-    }
-
-    [HumansFact]
-    public async Task RecordConsentCheckAsync_Flagged_KeepsIsApprovedFalse()
-    {
-        var userId = Guid.NewGuid();
-        var reviewerId = Guid.NewGuid();
-        await SeedUserWithProfileAsync(userId);
-
-        var result = await _service.RecordConsentCheckAsync(
-            userId, reviewerId, ConsentCheckStatus.Flagged, "Concern X");
-
-        result.Success.Should().BeTrue();
-        var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
-        profile.ConsentCheckStatus.Should().Be(ConsentCheckStatus.Flagged);
-        profile.IsApproved.Should().BeFalse();
-    }
-
-    [HumansFact]
-    public async Task RecordConsentCheckAsync_NoProfile_ReturnsNotFound()
-    {
-        var unknownUserId = Guid.NewGuid();
-
-        var result = await _service.RecordConsentCheckAsync(
-            unknownUserId, Guid.NewGuid(), ConsentCheckStatus.Cleared, null);
-
-        result.Success.Should().BeFalse();
-        result.ErrorKey.Should().Be("NotFound");
-    }
-
-    [HumansFact]
-    public async Task RecordConsentCheckAsync_AlreadyRejected_BlocksClear()
-    {
-        var userId = Guid.NewGuid();
-        var profileId = await SeedUserWithProfileAsync(userId);
-        var profile = await Db.Profiles.FirstAsync(p => p.Id == profileId);
-        profile.RejectedAt = Clock.GetCurrentInstant();
-        await Db.SaveChangesAsync();
-
-        var result = await _service.RecordConsentCheckAsync(
-            userId, Guid.NewGuid(), ConsentCheckStatus.Cleared, null);
-
-        result.Success.Should().BeFalse();
-        result.ErrorKey.Should().Be("AlreadyRejected");
-    }
-
-    [HumansFact]
-    public async Task RecordConsentCheckAsync_PendingValue_Throws()
-    {
-        var userId = Guid.NewGuid();
-        await SeedUserWithProfileAsync(userId);
-
-        // Pending is the system-driven transition — must use SetConsentCheckPendingAsync.
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            _service.RecordConsentCheckAsync(
-                userId, Guid.NewGuid(), ConsentCheckStatus.Pending, null));
-    }
-
-    [HumansFact]
-    public async Task RejectSignupAsync_StampsRejectionFields()
-    {
-        var userId = Guid.NewGuid();
-        var reviewerId = Guid.NewGuid();
-        await SeedUserWithProfileAsync(userId);
-
-        var result = await _service.RejectSignupAsync(userId, reviewerId, "Spam account");
-
-        result.Success.Should().BeTrue();
-        var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
-        profile.RejectedAt.Should().Be(Clock.GetCurrentInstant());
-        profile.RejectedByUserId.Should().Be(reviewerId);
-        profile.RejectionReason.Should().Be("Spam account");
-        profile.IsApproved.Should().BeFalse();
-    }
-
-    [HumansFact]
-    public async Task RejectSignupAsync_AlreadyRejected_ReturnsErrorKey()
-    {
-        var userId = Guid.NewGuid();
-        var profileId = await SeedUserWithProfileAsync(userId);
-        var profile = await Db.Profiles.FirstAsync(p => p.Id == profileId);
-        profile.RejectedAt = Clock.GetCurrentInstant();
-        await Db.SaveChangesAsync();
-
-        var result = await _service.RejectSignupAsync(userId, Guid.NewGuid(), null);
-
-        result.Success.Should().BeFalse();
-        result.ErrorKey.Should().Be("AlreadyRejected");
-    }
-
-    [HumansFact]
-    public async Task RejectSignupAsync_NoProfile_ReturnsNotFound()
-    {
-        var result = await _service.RejectSignupAsync(Guid.NewGuid(), Guid.NewGuid(), null);
-
-        result.Success.Should().BeFalse();
-        result.ErrorKey.Should().Be("NotFound");
-    }
-
-    [HumansFact]
-    public async Task ApproveVolunteerAsync_FlipsIsApprovedTrue()
-    {
-        var userId = Guid.NewGuid();
-        await SeedUserWithProfileAsync(userId, isApproved: false);
-
-        var result = await _service.ApproveVolunteerAsync(userId, Guid.NewGuid());
-
-        result.Success.Should().BeTrue();
-        var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
-        profile.IsApproved.Should().BeTrue();
-        profile.UpdatedAt.Should().Be(Clock.GetCurrentInstant());
-    }
-
-    [HumansFact]
-    public async Task ApproveVolunteerAsync_NoProfile_ReturnsNotFound()
-    {
-        var result = await _service.ApproveVolunteerAsync(Guid.NewGuid(), Guid.NewGuid());
-
-        result.Success.Should().BeFalse();
-        result.ErrorKey.Should().Be("NotFound");
-    }
-
-    [HumansFact]
-    public async Task SetSuspendedAsync_True_SetsSuspendedAndState()
-    {
-        var userId = Guid.NewGuid();
-        await SeedUserWithProfileAsync(userId);
-
-        var result = await _service.SetSuspendedAsync(userId, Guid.NewGuid(), suspended: true, "Disruptive");
-
-        result.Success.Should().BeTrue();
-        var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
-#pragma warning disable HUM_PROFILE_ISSUSPENDED
-        profile.IsSuspended.Should().BeTrue();
-#pragma warning restore HUM_PROFILE_ISSUSPENDED
-        profile.State.Should().Be(ProfileState.Suspended);
-        profile.AdminNotes.Should().Be("Disruptive");
-    }
-
-    [HumansFact]
-    public async Task SetSuspendedAsync_FalseRestoresActiveWhenIdentityComplete()
-    {
-        var userId = Guid.NewGuid();
-        var profileId = await SeedUserWithProfileAsync(userId);
-        var profile = await Db.Profiles.FirstAsync(p => p.Id == profileId);
-#pragma warning disable HUM_PROFILE_ISSUSPENDED
-        profile.IsSuspended = true;
-#pragma warning restore HUM_PROFILE_ISSUSPENDED
-        profile.State = ProfileState.Suspended;
-        // SeedUserWithProfileAsync seeds BurnerName/FirstName/LastName, so identity is complete.
-        await Db.SaveChangesAsync();
-
-        var result = await _service.SetSuspendedAsync(userId, Guid.NewGuid(), suspended: false, notes: null);
-
-        result.Success.Should().BeTrue();
-        var fresh = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
-#pragma warning disable HUM_PROFILE_ISSUSPENDED
-        fresh.IsSuspended.Should().BeFalse();
-#pragma warning restore HUM_PROFILE_ISSUSPENDED
-        fresh.State.Should().Be(ProfileState.Active);
-    }
-
-    [HumansFact]
-    public async Task SetSuspendedAsync_NoProfile_ReturnsNotFound()
-    {
-        var result = await _service.SetSuspendedAsync(
-            Guid.NewGuid(), Guid.NewGuid(), suspended: true, notes: null);
-
-        result.Success.Should().BeFalse();
-        result.ErrorKey.Should().Be("NotFound");
-    }
-
-    [HumansFact]
-    public async Task SetConsentCheckPendingAsync_FlipsToPending()
-    {
-        var userId = Guid.NewGuid();
-        await SeedUserWithProfileAsync(userId);
-
-        var set = await _service.SetConsentCheckPendingAsync(userId);
-
-        set.Should().BeTrue();
-        var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId);
-        profile.ConsentCheckStatus.Should().Be(ConsentCheckStatus.Pending);
-    }
-
-    [HumansFact]
-    public async Task SetConsentCheckPendingAsync_NoProfile_ReturnsFalse()
-    {
-        var set = await _service.SetConsentCheckPendingAsync(Guid.NewGuid());
-
-        set.Should().BeFalse();
-    }
 }

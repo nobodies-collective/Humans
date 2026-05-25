@@ -97,8 +97,8 @@ public class UserArchitectureTests
 
         cachingParam.Should().BeNull(
             because: "canonical User data is not IMemoryCache-backed");
-        paramTypes.Should().Contain(typeof(IUserInfoInvalidator),
-            because: "User writes that change UserInfo-visible fields must invalidate the UserInfo cache");
+        paramTypes.Should().NotContain(typeof(IUserInfoInvalidator),
+            because: "cache repair belongs to the CachingUserService decorator, not the storage service");
     }
 
     [HumansFact]
@@ -118,7 +118,7 @@ public class UserArchitectureTests
         paramTypes.Should().NotContain(typeof(IRoleAssignmentService));
         paramTypes.Should().NotContain(typeof(IShiftSignupService));
         paramTypes.Should().NotContain(typeof(IShiftManagementService));
-        paramTypes.Should().NotContain(typeof(IProfileService));
+        paramTypes.Should().NotContain(typeof(IProfilePictureService));
     }
 
     [HumansFact]

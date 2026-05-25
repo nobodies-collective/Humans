@@ -63,6 +63,28 @@ public class ProfileIsSuspendedWriteAnalyzerTests
     }
 
     [HumansFact]
+    public async Task Does_not_fire_in_allowlisted_UserService()
+    {
+        var source = DomainStub + """
+
+            namespace Humans.Application.Services.Users
+            {
+                public class UserService
+                {
+                    public void Suspend(Humans.Domain.Entities.Profile p) => p.IsSuspended = true;
+                }
+            }
+            """;
+
+        var diagnostics = await AnalyzerTestHarness.RunAsync(
+            new ProfileIsSuspendedWriteAnalyzer(),
+            "Humans.Application",
+            source);
+
+        diagnostics.Should().BeEmpty();
+    }
+
+    [HumansFact]
     public async Task Does_not_fire_in_allowlisted_ProfileRepository_in_Infrastructure()
     {
         var source = DomainStub + """

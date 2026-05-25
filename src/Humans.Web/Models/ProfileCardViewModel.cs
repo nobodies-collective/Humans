@@ -46,7 +46,7 @@ public class ProfileCardViewModel
     public bool IsOwnProfile => ViewMode == ProfileCardViewMode.Self;
 
     /// <summary>
-    /// The effective profile picture URL (custom upload takes priority over Google avatar).
+    /// The effective profile picture URL.
     /// </summary>
     public string? EffectiveProfilePictureUrl => HasCustomProfilePicture
         ? CustomProfilePictureUrl

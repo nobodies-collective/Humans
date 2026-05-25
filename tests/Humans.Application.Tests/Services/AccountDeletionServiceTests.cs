@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.Auth;
 using Humans.Application.Interfaces.Caching;
@@ -34,7 +35,7 @@ public class AccountDeletionServiceTests
     private readonly IRoleAssignmentService _roleAssignmentService = Substitute.For<IRoleAssignmentService>();
     private readonly IShiftSignupService _shiftSignupService = Substitute.For<IShiftSignupService>();
     private readonly IShiftManagementService _shiftManagementService = Substitute.For<IShiftManagementService>();
-    private readonly IProfileService _profileService = Substitute.For<IProfileService>();
+    private readonly IFileStorage _fileStorage = Substitute.For<IFileStorage>();
     private readonly ITicketService _ticketQueryService = Substitute.For<ITicketService>();
     private readonly IRoleAssignmentClaimsCacheInvalidator _roleAssignmentClaimsInvalidator =
         Substitute.For<IRoleAssignmentClaimsCacheInvalidator>();
@@ -49,6 +50,8 @@ public class AccountDeletionServiceTests
 
     public AccountDeletionServiceTests()
     {
+        _userService.AnonymizeProfileForDeletionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new UserProfileAnonymizeResult(false, null, null));
         _ticketQueryService.GetUserTicketHoldingsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new UserTicketHoldings(0, []));
 
@@ -59,7 +62,7 @@ public class AccountDeletionServiceTests
             _roleAssignmentService,
             _shiftSignupService,
             _shiftManagementService,
-            _profileService,
+            _fileStorage,
             _ticketQueryService,
             _roleAssignmentClaimsInvalidator,
             _shiftAuthorizationInvalidator,
@@ -317,8 +320,11 @@ public class AccountDeletionServiceTests
         var user = MakeUser(userId, email: "expired@example.com");
         var signupId = Guid.NewGuid();
         var shiftId = Guid.NewGuid();
+        var profileId = Guid.NewGuid();
 
         _userService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
+        _userService.AnonymizeProfileForDeletionAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new UserProfileAnonymizeResult(true, profileId, "image/png"));
         _shiftSignupService.CancelActiveSignupsForUserAsync(
             userId, Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns([(signupId, shiftId)]);
@@ -339,7 +345,10 @@ public class AccountDeletionServiceTests
 
         await _teamService.Received(1).RevokeAllMembershipsAsync(userId, Arg.Any<CancellationToken>());
         await _roleAssignmentService.Received(1).RevokeAllActiveAsync(userId, Arg.Any<CancellationToken>());
-        await _profileService.Received(1).AnonymizeExpiredProfileAsync(userId, Arg.Any<CancellationToken>());
+        await _userService.Received(1).AnonymizeProfileForDeletionAsync(userId, Arg.Any<CancellationToken>());
+        await _fileStorage.Received(1).DeleteAsync(
+            $"uploads/profile-pictures/{profileId}.png",
+            Arg.Any<CancellationToken>());
         await _shiftSignupService.Received(1).CancelActiveSignupsForUserAsync(
             userId, Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _shiftManagementService.Received(1).DeleteShiftProfilesForUserAsync(userId, Arg.Any<CancellationToken>());

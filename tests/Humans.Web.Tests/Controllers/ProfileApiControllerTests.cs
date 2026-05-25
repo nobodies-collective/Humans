@@ -45,7 +45,6 @@ namespace Humans.Web.Tests.Controllers;
 /// </summary>
 public class ProfileApiControllerTests
 {
-    private readonly IProfileService _profileService = Substitute.For<IProfileService>();
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IContactFieldService _contactFieldService = Substitute.For<IContactFieldService>();
     private readonly IUserEmailService _userEmailService = Substitute.For<IUserEmailService>();
@@ -68,7 +67,7 @@ public class ProfileApiControllerTests
         }
 
         var ctrl = new ProfileApiController(
-            _profileService, _userService, _contactFieldService, _userEmailService);
+            _userService, _contactFieldService, _userEmailService);
 
         var http = new DefaultHttpContext();
         if (currentUser is not null)

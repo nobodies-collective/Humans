@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NodaTime;
 using Humans.Application;
 using Humans.Application.DTOs;
+using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Profiles;
@@ -25,11 +26,10 @@ namespace Humans.Infrastructure.Services.Users;
 /// synchronously, cache miss refills via the inner Scoped
 /// <see cref="IUserService"/>, every write through this surface delegates and
 /// then refreshes the affected entry. Identity-machinery write paths
-/// (<c>UserManager.UpdateAsync</c>, sign-in <c>LastLoginAt</c> bumps, OAuth
-/// callback <c>UserEmail</c> writes) are caught by
-/// <c>UserInfoSaveChangesInterceptor</c> in Infrastructure, which invokes
-/// <see cref="IUserInfoInvalidator.InvalidateAsync"/> for every userId
-/// touched by the affected entity set.
+/// (<c>UserManager.UpdateAsync</c>, sign-in <c>LastLoginAt</c> bumps) are
+/// caught by <c>UserInfoSaveChangesInterceptor</c> in Infrastructure, which
+/// invokes <see cref="IUserInfoInvalidator.InvalidateAsync"/> for every
+/// touched userId.
 /// </para>
 /// <para>
 /// Registered as Singleton so the dict persists across requests. Scoped
@@ -719,6 +719,167 @@ public sealed class CachingUserService(
         return updated;
     }
 
+    public async Task<bool> EnsureStubProfileAsync(Guid userId, CancellationToken ct = default)
+    {
+        var created = await WithInnerAsync(inner => inner.EnsureStubProfileAsync(userId, ct));
+        if (created) await RefreshEntryAsync(userId, ct);
+        return created;
+    }
+
+    public async Task<bool> SetMembershipTierAsync(
+        Guid userId,
+        MembershipTier tier,
+        CancellationToken ct = default)
+    {
+        var updated = await WithInnerAsync(inner => inner.SetMembershipTierAsync(userId, tier, ct));
+        if (updated) await RefreshEntryAsync(userId, ct);
+        return updated;
+    }
+
+    public async Task<OnboardingResult> ApplyProfileOnboardingMutationAsync(
+        Guid userId,
+        UserProfileOnboardingCommand command,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner =>
+            inner.ApplyProfileOnboardingMutationAsync(userId, command, ct));
+        if (result.Success) await RefreshEntryAsync(userId, ct);
+        return result;
+    }
+
+    public async Task<UserProfileSaveResult> SaveProfileAsync(
+        Guid userId,
+        UserProfileSaveCommand command,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner =>
+            inner.SaveProfileAsync(userId, command, ct));
+        await RefreshEntryAsync(userId, ct);
+        return result;
+    }
+
+    public async Task<UserProfilePictureContentTypeResult> SetProfilePictureContentTypeAsync(
+        Guid userId,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner =>
+            inner.SetProfilePictureContentTypeAsync(userId, contentType, ct));
+        if (result.Saved) await RefreshEntryAsync(userId, ct);
+        return result;
+    }
+
+    public async Task<UserProfileAnonymizeResult> AnonymizeProfileForDeletionAsync(
+        Guid userId,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner =>
+            inner.AnonymizeProfileForDeletionAsync(userId, ct));
+        if (result.Anonymized) await RefreshEntryAsync(userId, ct);
+        return result;
+    }
+
+    public async Task<bool> SaveProfileVolunteerHistoryAsync(
+        Guid userId,
+        IReadOnlyList<CVEntry> entries,
+        CancellationToken ct = default)
+    {
+        var saved = await WithInnerAsync(inner =>
+            inner.SaveProfileVolunteerHistoryAsync(userId, entries, ct));
+        if (saved) await RefreshEntryAsync(userId, ct);
+        return saved;
+    }
+
+    public async Task<UserProfileLanguagesSaveResult> SaveProfileLanguagesAsync(
+        Guid profileId,
+        IReadOnlyList<ProfileLanguage> languages,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner =>
+            inner.SaveProfileLanguagesAsync(profileId, languages, ct));
+        if (result.UserId is { } userId)
+            await RefreshEntryAsync(userId, ct);
+        return result;
+    }
+
+    public async Task<bool> SetProfileIbanAsync(Guid userId, string? iban, CancellationToken ct = default)
+    {
+        var updated = await WithInnerAsync(inner => inner.SetProfileIbanAsync(userId, iban, ct));
+        if (updated) await RefreshEntryAsync(userId, ct);
+        return updated;
+    }
+
+    public async Task<IReadOnlySet<Guid>> SuspendProfilesForMissingConsentAsync(
+        IReadOnlyCollection<Guid> userIds,
+        Instant now,
+        CancellationToken ct = default)
+    {
+        var mutated = await WithInnerAsync(inner =>
+            inner.SuspendProfilesForMissingConsentAsync(userIds, now, ct));
+        foreach (var userId in mutated)
+            await RefreshEntryAsync(userId, ct);
+        return mutated;
+    }
+
+    public async Task<IReadOnlyList<(Guid UserId, MembershipTier NewTier)>>
+        DowngradeMembershipTierForExpiredAsync(
+            MembershipTier currentTier,
+            IReadOnlyCollection<Guid> userIdsToKeep,
+            IReadOnlyDictionary<Guid, MembershipTier> fallbackTierByUser,
+            Instant now,
+            CancellationToken ct = default)
+    {
+        var downgrades = await WithInnerAsync(inner =>
+            inner.DowngradeMembershipTierForExpiredAsync(
+                currentTier, userIdsToKeep, fallbackTierByUser, now, ct));
+        foreach (var (userId, _) in downgrades)
+            await RefreshEntryAsync(userId, ct);
+        return downgrades;
+    }
+
+    public async Task<UserEmailAddResult> AddUserEmailAsync(
+        Guid userId,
+        UserEmailAddCommand command,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner => inner.AddUserEmailAsync(userId, command, ct));
+        if (result.Added) await RefreshUserEmailsAsync(userId, ct);
+        return result;
+    }
+
+    public async Task<bool> UpdateUserEmailAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailUpdateCommand command,
+        CancellationToken ct = default)
+    {
+        var updated = await WithInnerAsync(inner => inner.UpdateUserEmailAsync(userId, emailId, command, ct));
+        if (updated) await RefreshUserEmailsAsync(userId, ct);
+        return updated;
+    }
+
+    public async Task<bool> RemoveUserEmailAsync(
+        Guid userId,
+        Guid emailId,
+        UserEmailRemoveCommand command,
+        CancellationToken ct = default)
+    {
+        var removed = await WithInnerAsync(inner => inner.RemoveUserEmailAsync(userId, emailId, command, ct));
+        if (removed) await RefreshUserEmailsAsync(userId, ct);
+        return removed;
+    }
+
+    public async Task<UserEmailReconcilePlanResult> ApplyUserEmailReconcilePlanAsync(
+        Guid userId,
+        UserEmailReconcilePlanCommand command,
+        CancellationToken ct = default)
+    {
+        var result = await WithInnerAsync(inner => inner.ApplyUserEmailReconcilePlanAsync(userId, command, ct));
+        foreach (var mutatedUserId in result.MutatedUserIds)
+            await RefreshUserEmailsAsync(mutatedUserId, ct);
+        return result;
+    }
+
     public Task SetLastConsentReminderSentAsync(
         Guid userId, Instant sentAt, CancellationToken ct = default) =>
         WithInnerAsync(async inner =>
@@ -770,9 +931,8 @@ public sealed class CachingUserService(
     public async Task<string?> PurgeOwnDataAsync(Guid userId, CancellationToken ct = default)
     {
         var result = await WithInnerAsync(inner => inner.PurgeOwnDataAsync(userId, ct));
-        // Inner already invoked IUserInfoInvalidator on success; we refresh
-        // our own dict whether or not the row existed (RefreshEntryAsync removes
-        // the entry when the user is gone).
+        // Refresh whether or not the row existed; RefreshEntryAsync removes
+        // the entry when the user is gone.
         await RefreshEntryAsync(userId, ct);
         return result;
     }

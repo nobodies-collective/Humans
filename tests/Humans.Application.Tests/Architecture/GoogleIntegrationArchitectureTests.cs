@@ -50,8 +50,8 @@ public class GoogleIntegrationArchitectureTests
 
         paramTypes.Should().Contain(typeof(IUserServiceRead),
             because: "User and Profile reads (including FirstName/LastName) go through the cached UserInfo read-model on IUserServiceRead.GetUserInfoAsync per design-rules §9");
-        paramTypes.Should().NotContain(typeof(IProfileService),
-            because: "Profile reads moved off IProfileService onto IUserService.GetUserInfoAsync — IProfileService is being retired in the IUserService consolidation");
+        paramTypes.Should().NotContain(typeof(IProfilePictureService),
+            because: "profile reads moved onto IUserService.GetUserInfoAsync; the picture service is only for profile-picture bytes");
         paramTypes.Should().Contain(typeof(IUserEmailService),
             because: "UserEmail reads/writes go through IUserEmailService per design-rules §9");
         paramTypes.Should().Contain(typeof(IGoogleWorkspaceUserService),

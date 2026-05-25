@@ -11,6 +11,7 @@ using CommunicationPreferenceService = Humans.Application.Services.Profiles.Comm
 using ContactFieldService = Humans.Application.Services.Profiles.ContactFieldService;
 using DuplicateAccountService = Humans.Application.Services.Profiles.DuplicateAccountService;
 using EmailProblemsService = Humans.Application.Services.Profiles.EmailProblemsService;
+using ProfileEditorService = Humans.Application.Services.Profiles.ProfileEditorService;
 using ProfileService = Humans.Application.Services.Profiles.ProfileService;
 using UserEmailService = Humans.Application.Services.Profiles.UserEmailService;
 
@@ -29,7 +30,8 @@ public class ProfileArchitectureTests
         typeof(UserEmailService),
         typeof(CommunicationPreferenceService),
         typeof(AccountMergeService),
-        typeof(DuplicateAccountService)
+        typeof(DuplicateAccountService),
+        typeof(ProfileEditorService)
     ];
 
     public static TheoryData<Type> ServicesWithoutMemoryCache =>
@@ -37,7 +39,8 @@ public class ProfileArchitectureTests
         typeof(ProfileService),
         typeof(ContactFieldService),
         typeof(UserEmailService),
-        typeof(CommunicationPreferenceService)
+        typeof(CommunicationPreferenceService),
+        typeof(ProfileEditorService)
     ];
 
     public static TheoryData<Type, Type> RequiredRepositoryEdges => new()
@@ -114,10 +117,10 @@ public class ProfileArchitectureTests
         // unified read-model (UserInfo) instead. Re-adding GetByUserIdsAsync to
         // either surface would resurrect the parallel-read-path divergence the
         // unified read-model was built to eliminate — pin it.
-        typeof(IProfileService)
+        typeof(IProfilePictureService)
             .GetMethod("GetByUserIdsAsync")
             .Should().BeNull(
-                because: "callers read UserInfo.Profile via IUserService.GetUserInfoAsync / GetUserInfosAsync");
+                because: "picture service callers read UserInfo.Profile via IUserService.GetUserInfoAsync / GetUserInfosAsync");
 
         typeof(IProfileRepository)
             .GetMethod("GetByUserIdsAsync")
@@ -133,7 +136,6 @@ public class ProfileArchitectureTests
 
         var allowed = new[]
         {
-            typeof(IProfileService),
             typeof(IUserEmailService),
             typeof(IUserService),
             typeof(IClock)

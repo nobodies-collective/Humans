@@ -6,7 +6,6 @@ using Humans.Application.Interfaces.Budget;
 using Humans.Application.Interfaces.Expenses;
 using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.Holded;
-using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Teams;
 using Humans.Application.Interfaces.Users;
@@ -29,8 +28,7 @@ public sealed class ExpenseReportService(
     IFileStorage fileStorage,
     IBudgetService budgetService,
     ITeamService teamService,
-    IUserServiceRead userService,
-    IProfileService profileService,
+    IUserService userService,
     IAuditLogService auditLogService,
     IHoldedClient holdedClient,
     IClock clock,
@@ -531,9 +529,22 @@ public sealed class ExpenseReportService(
         var normalized = ibanValue is null ? null : IbanValidator.Normalize(ibanValue);
         try
         {
-            var saved = await profileService.SetIbanAsync(submitterUserId, normalized, ct);
+            var saved = await userService.SetProfileIbanAsync(submitterUserId, normalized, ct);
             if (!saved)
                 return IbanFailure("Failed to save IBAN.", isValidationError: false, existingIban);
+
+            var isClearing = normalized is null;
+            await auditLogService.LogAsync(
+                isClearing ? AuditAction.IbanRemove : AuditAction.IbanSet,
+                nameof(Profile),
+                submitterUserId,
+                isClearing ? "IBAN removed" : "IBAN set",
+                submitterUserId);
+
+            logger.LogInformation(
+                "IBAN {Action} for user {UserId}",
+                isClearing ? "removed" : "set",
+                submitterUserId);
 
             return new ExpenseIbanSaveResult(
                 Succeeded: true,

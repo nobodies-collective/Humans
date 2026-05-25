@@ -24,7 +24,6 @@ public class TeamAdminController(
     ITeamService teamService,
     ITeamResourceService teamResourceService,
     IGoogleSyncService googleSyncService,
-    IProfileService profileService,
     IUserService userService,
     IEmailProvisioningService emailProvisioningService,
     INotificationService notificationService,
@@ -35,7 +34,6 @@ public class TeamAdminController(
     : HumansTeamControllerBase(userService, teamService, authorizationService)
 {
     private readonly ITeamService _teamService = teamService;
-    private readonly IProfileService _profileService = profileService;
     private readonly IUserService _userService = userService;
     private readonly INotificationService _notificationService = notificationService;
 

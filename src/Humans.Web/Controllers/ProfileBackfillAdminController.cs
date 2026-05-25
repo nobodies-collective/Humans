@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Users;
 using Humans.Domain.Enums;
 using Humans.Web.Authorization;
@@ -12,12 +11,9 @@ namespace Humans.Web.Controllers;
 [Authorize(Policy = PolicyNames.AdminOnly)]
 [Route("Profile/Admin/Backfill")]
 public sealed class ProfileBackfillAdminController(
-    IUserServiceRead userService,
-    IProfileService profileService,
+    IUserService userService,
     ILogger<ProfileBackfillAdminController> logger) : HumansControllerBase(userService)
 {
-    private readonly IUserServiceRead _userService = userService;
-
     [HttpGet("")]
     public async Task<IActionResult> Index(CancellationToken ct = default)
     {
@@ -38,8 +34,8 @@ public sealed class ProfileBackfillAdminController(
 
         foreach (var row in missing)
         {
-            // Idempotent — ProfileService takes a per-userId lock around the get/add pair.
-            await profileService.EnsureStubProfileAsync(row.UserId, ct);
+            // Idempotent — UserService takes a per-userId lock around the get/add pair.
+            await userService.EnsureStubProfileAsync(row.UserId, ct);
         }
 
         logger.LogInformation(
@@ -50,7 +46,7 @@ public sealed class ProfileBackfillAdminController(
 
     private async Task<IReadOnlyList<MissingProfileRow>> GetUsersMissingProfileAsync(CancellationToken ct)
     {
-        IReadOnlyList<MissingProfileRow> rows = (await _userService.GetAllUserInfosAsync(ct).ConfigureAwait(false))
+        IReadOnlyList<MissingProfileRow> rows = (await userService.GetAllUserInfosAsync(ct).ConfigureAwait(false))
             .Where(u => u.Profile is null && !u.IsTombstone)
             .Select(u => new MissingProfileRow(
                 u.Id,

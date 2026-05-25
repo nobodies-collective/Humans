@@ -52,20 +52,6 @@
                             </div>
                         }
                     </div>
-                    @if (Model.CanImportGooglePicture)
-                    {
-                        @* Targets sibling form via HTML5 form attribute (no nested forms) *@
-                        <div class="mb-3">
-                            <button type="submit"
-                                    form="importGooglePhotoForm"
-                                    class="btn btn-outline-secondary btn-sm">
-                                <i class="fa-brands fa-google me-1"></i>
-                                @Localizer["ProfileEdit_ImportGooglePhoto"]
-                            </button>
-                            <div class="form-text">@Localizer["ProfileEdit_ImportGooglePhotoHelp"]</div>
-                        </div>
-                    }
-
                     <hr />
 
                     <div class="mb-3">
@@ -518,12 +504,6 @@
                 <button type="submit" class="btn btn-primary">@Localizer["Common_Save"]</button>
             </div>
         </form>
-
-        @* Sibling form targeted via HTML5 form attribute — avoids nesting and ships no profile fields *@
-        @if (Model.CanImportGooglePicture)
-        {
-            <form id="importGooglePhotoForm" asp-action="ImportGooglePhoto" method="post"></form>
-        }
     </div>
 </div>
 

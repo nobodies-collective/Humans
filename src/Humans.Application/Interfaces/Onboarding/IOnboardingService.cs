@@ -30,7 +30,7 @@ public interface IOnboardingService : IApplicationService
     /// consent-grant. If the user has a profile, is not approved or rejected,
     /// has no existing consent-check status, and has all required consents for
     /// the Volunteers team, flips <c>Profile.ConsentCheckStatus</c> to
-    /// <c>Pending</c> via <c>IProfileService.SetConsentCheckPendingAsync</c>
+    /// <c>Pending</c> via <c>IUserService.ApplyProfileOnboardingMutationAsync</c>
     /// and dispatches a review notification to Consent Coordinators. Returns
     /// true if the status was set.
     ///

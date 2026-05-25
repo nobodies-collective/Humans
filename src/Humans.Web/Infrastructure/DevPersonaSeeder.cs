@@ -3,6 +3,7 @@ using System.Text;
 using Humans.Application.DTOs;
 using Humans.Application.Extensions;
 using Humans.Application.Interfaces.Auth;
+using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.Camps;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Interfaces.Profiles;
@@ -27,22 +28,23 @@ namespace Humans.Web.Infrastructure;
 ///
 /// Cross-section writes (User, Profile, UserEmail) flow through the owning
 /// section's services per design-rules §2c
-/// (<see cref="UserManager{TUser}"/> / <see cref="IProfileService"/> /
-/// <see cref="IUserEmailService"/>). All dev fixtures (system-team
+/// (<see cref="UserManager{TUser}"/> / <see cref="IUserService"/> /
+/// <see cref="IProfileEditorService"/> / <see cref="IUserEmailService"/>). All dev fixtures (system-team
 /// memberships, dev test department, dev barrio camp/season/lead, city-planning
 /// team, role assignments, sample contact fields) also go through section
 /// ownership services, so this seeder no longer depends on DbContext writes.
 /// </summary>
 public sealed class DevPersonaSeeder(
     UserManager<User> userManager,
-    IProfileService profileService,
+    IProfileEditorService profileEditorService,
     IUserEmailService userEmailService,
     IContactFieldService contactFieldService,
     IRoleAssignmentService roleAssignmentService,
     IUserInfoInvalidator userInfoInvalidator,
     ITeamService teamService,
     ISystemTeamSync systemTeamSync,
-    IUserServiceRead userService,
+    IUserService userService,
+    IAuditLogService auditLogService,
     ICampService campService,
     ICampRoleService campRoleService,
     IClock clock,
@@ -137,20 +139,34 @@ public sealed class DevPersonaSeeder(
             ProfilePictureContentType: null,
             RemoveProfilePicture: false);
 
-        var profileId = await profileService.SaveProfileAsync(id, displayName, saveRequest, "en");
+        var profileId = await profileEditorService.SaveProfileAsync(id, displayName, saveRequest);
 
         // Mark approved + cleared so the dev persona skips the consent gate
-        // and lands on the dashboard. Routes through ProfileService so the
-        // CachingUserService decorator handles the UserInfo cache
-        // refresh atomically with the DB write (issue #474 â€” Profiles is the
-        // single writer to the profile state fields).
-        var consentCheckResult = await profileService.RecordConsentCheckAsync(
-            id, reviewerId: id, ConsentCheckStatus.Cleared,
-            notes: "Dev persona — auto-seeded");
+        // and lands on the dashboard. The CachingUserService decorator handles
+        // the UserInfo profile-slice refresh after the storage write.
+        const string consentNotes = "Dev persona - auto-seeded";
+        var consentCheckResult = await userService.ApplyProfileOnboardingMutationAsync(
+            id,
+            new UserProfileOnboardingCommand(
+                UserProfileOnboardingMutation.RecordConsentCheck,
+                ActorUserId: id,
+                ConsentCheckStatus: ConsentCheckStatus.Cleared,
+                Notes: consentNotes));
         if (!consentCheckResult.Success)
+        {
             logger.LogWarning(
                 "DEV: consent-check approval failed for persona {UserId}: {ErrorKey}",
                 id, consentCheckResult.ErrorKey);
+        }
+        else
+        {
+            await auditLogService.LogAsync(
+                AuditAction.ConsentCheckCleared,
+                nameof(Profile),
+                id,
+                "Consent check cleared",
+                id);
+        }
 
         // Seed sample contact fields through the profile service.
         await contactFieldService.SaveContactFieldsAsync(

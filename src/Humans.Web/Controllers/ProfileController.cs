@@ -47,7 +47,8 @@ namespace Humans.Web.Controllers;
 public class ProfileController(
     IUserService userService,
     UserManager<User> userManager,
-    IProfileService profileService,
+    IProfilePictureService profilePictureService,
+    IProfileEditorService profileEditorService,
     IContactFieldService contactFieldService,
     IEmailService emailService,
     IUserEmailService userEmailService,
@@ -74,7 +75,6 @@ public class ProfileController(
     IApplicationDecisionService applicationDecisionService,
     IAccountDeletionService accountDeletionService,
     IMembershipCalculator membershipCalculator,
-    IHttpClientFactory httpClientFactory,
     SignInManager<User> signInManager,
     IOptions<GoogleWorkspaceOptions> googleWorkspaceOptions) : HumansControllerBase(userService)
 {
@@ -83,8 +83,6 @@ public class ProfileController(
     private readonly GoogleWorkspaceOptions _googleWorkspaceOptions = googleWorkspaceOptions.Value;
 
     private const int MaxProfilePictureUploadBytes = 20 * 1024 * 1024; // 20MB upload limit
-    private const int MaxGooglePhotoDownloadBytes = 20 * 1024 * 1024; // 20MB hard ceiling for Google avatar fetch
-    private const string GoogleAvatarHttpClientName = "GoogleAvatar";
     private static readonly HashSet<string> AllowedImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
@@ -221,15 +219,12 @@ public class ProfileController(
         var preferredShiftTags = userShiftView.TagPreferences
             .Select(p => new ShiftTagPreferenceSummary(p.ShiftTagId, p.ShiftTag?.Name ?? string.Empty))
             .ToList();
-        var externalLogins = await userManager.GetLoginsAsync(user);
-
         var viewModel = ProfileEditViewModelBuilder.Build(
             info,
             applications,
             allShiftTags,
             preferredShiftTags,
             preview,
-            externalLogins.Any(l => string.Equals(l.LoginProvider, "Google", StringComparison.OrdinalIgnoreCase)),
             p => Url.Action(nameof(Picture), new { id = p.Id, v = p.UpdatedAt.ToUnixTimeTicks() }));
 
         ViewData["GoogleMapsApiKey"] = configuration.GetRequiredSetting(configRegistry, "GoogleMaps:ApiKey", "Google Maps", isSensitive: true);
@@ -365,9 +360,8 @@ public class ProfileController(
             ProfilePictureContentType: pictureUpload.ContentType,
             RemoveProfilePicture: model.RemoveProfilePicture);
 
-        var profileId = await profileService.SaveProfileAsync(
-            user.Id, model.BurnerName, saveRequest,
-            CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+        var profileId = await profileEditorService.SaveProfileAsync(
+            user.Id, model.BurnerName, saveRequest);
 
         // Peer-call into Onboarding; ProfileService doesn't.
         await onboardingService.SetConsentCheckPendingIfEligibleAsync(user.Id);
@@ -447,7 +441,7 @@ public class ProfileController(
             ))
             .ToList();
 
-        await profileService.SaveCVEntriesAsync(user.Id, cvEntries);
+        await _userService.SaveProfileVolunteerHistoryAsync(user.Id, cvEntries);
 
         // Languages: remove-and-replace.
         var newLanguages = model.EditableLanguages
@@ -461,7 +455,7 @@ public class ProfileController(
             })
             .ToList();
 
-        await profileService.SaveProfileLanguagesAsync(profileId, newLanguages);
+        await _userService.SaveProfileLanguagesAsync(profileId, newLanguages);
 
         await shiftMgmt.SetVolunteerTagPreferencesAsync(user.Id, model.EditableShiftTagIds);
 
@@ -1642,8 +1636,8 @@ public class ProfileController(
     [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Client)]
     public async Task<IActionResult> Picture(Guid id, CancellationToken ct)
     {
-        // §2: controller routes through IProfileService (owns FS-first/DB-fallback + GDPR gate, see #527).
-        var result = await profileService.GetProfilePictureAsync(id, ct);
+        // §2: controller routes through the profile-picture service (owns FS read path + GDPR gate, see #527).
+        var result = await profilePictureService.GetProfilePictureAsync(id, ct);
         if (result is null)
         {
             return NotFound();
@@ -1652,130 +1646,6 @@ public class ProfileController(
         return File(result.Value.Data, result.Value.ContentType);
     }
 
-    [HttpPost("Me/ImportGooglePhoto")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ImportGooglePhoto(CancellationToken ct)
-    {
-        var user = await userManager.GetUserAsync(User);
-        if (user is null)
-        {
-            return NotFound();
-        }
-
-        var externalLogins = await userManager.GetLoginsAsync(user);
-        if (!HasGoogleAvatarSource(user, externalLogins))
-        {
-            SetError(localizer["Profile_ImportGooglePhoto_Unavailable"].Value);
-            return RedirectToAction(nameof(Edit));
-        }
-
-        var info = await _userService.GetUserInfoAsync(user.Id, ct);
-        if (info?.Profile is null)
-        {
-            SetError(localizer["Profile_ImportGooglePhoto_NoProfile"].Value);
-            return RedirectToAction(nameof(Edit));
-        }
-        if (info.Profile.HasCustomPicture)
-        {
-            SetError(localizer["Profile_ImportGooglePhoto_AlreadyHasCustom"].Value);
-            return RedirectToAction(nameof(Edit));
-        }
-
-        if (!TryGetTrustedGoogleAvatarUri(user, out var pictureUri))
-        {
-            SetError(localizer["Profile_ImportGooglePhoto_NotGoogleUrl"].Value);
-            return RedirectToAction(nameof(Edit));
-        }
-
-        var rawBytes = await FetchGoogleAvatarBytesAsync(pictureUri, user.Id, ct);
-        if (rawBytes is null)
-        {
-            return RedirectToAction(nameof(Edit));
-        }
-
-        var resized = Helpers.ProfilePictureProcessor.ResizeProfilePicture(rawBytes, logger);
-        if (resized is null)
-        {
-            SetError(localizer["Profile_ImportGooglePhoto_InvalidFormat"].Value);
-            return RedirectToAction(nameof(Edit));
-        }
-
-        await profileService.SetProfilePictureAsync(user.Id, resized.Value.Data, resized.Value.ContentType, ct);
-
-        logger.LogInformation("Imported Google avatar for user {UserId}", user.Id);
-        SetSuccess(localizer["Profile_ImportGooglePhoto_Success"].Value);
-        return RedirectToAction(nameof(Edit));
-    }
-
-
-    private static bool HasGoogleAvatarSource(User user, IEnumerable<UserLoginInfo> externalLogins) =>
-        !string.IsNullOrEmpty(user.ProfilePictureUrl)
-        && externalLogins.Any(l => string.Equals(l.LoginProvider, "Google", StringComparison.OrdinalIgnoreCase));
-
-    private bool TryGetTrustedGoogleAvatarUri(User user, out Uri pictureUri)
-    {
-        if (Uri.TryCreate(user.ProfilePictureUrl, UriKind.Absolute, out pictureUri!)
-            && string.Equals(pictureUri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal)
-            && pictureUri.Host.EndsWith(".googleusercontent.com", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        logger.LogWarning(
-            "Refusing to import Google photo for user {UserId}: URL is not a trusted Google host",
-            user.Id);
-        return false;
-    }
-
-    private async Task<byte[]?> FetchGoogleAvatarBytesAsync(Uri pictureUri, Guid userId, CancellationToken ct)
-    {
-        try
-        {
-            var httpClient = httpClientFactory.CreateClient(GoogleAvatarHttpClientName);
-            using var response = await httpClient.GetAsync(pictureUri, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning(
-                    "Google avatar fetch for user {UserId} returned {StatusCode}",
-                    userId, (int)response.StatusCode);
-                SetError(localizer["Profile_ImportGooglePhoto_FetchFailed"].Value);
-                return null;
-            }
-
-            var fetchedContentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
-            if (!AllowedImageContentTypes.Contains(fetchedContentType))
-            {
-                logger.LogWarning(
-                    "Google avatar for user {UserId} returned unsupported content type {ContentType}",
-                    userId, fetchedContentType);
-                SetError(localizer["Profile_ImportGooglePhoto_InvalidFormat"].Value);
-                return null;
-            }
-
-            var rawBytes = await response.Content.ReadAsByteArrayAsync(ct);
-            if (rawBytes.Length == 0 || rawBytes.Length > MaxGooglePhotoDownloadBytes)
-            {
-                logger.LogWarning(
-                    "Google avatar for user {UserId} had invalid size {Bytes}", userId, rawBytes.Length);
-                SetError(localizer["Profile_ImportGooglePhoto_FetchFailed"].Value);
-                return null;
-            }
-
-            return rawBytes;
-        }
-        catch (HttpRequestException ex)
-        {
-            logger.LogWarning(ex, "Google avatar fetch failed for user {UserId}", userId);
-            SetError(localizer["Profile_ImportGooglePhoto_FetchFailed"].Value);
-            return null;
-        }
-        catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
-        {
-            logger.LogWarning(ex, "Google avatar fetch timed out for user {UserId}", userId);
-            SetError(localizer["Profile_ImportGooglePhoto_FetchFailed"].Value);
-            return null;
-        }
-    }
     // ─── View Another Profile ────────────────────────────────────────
 
     [HttpGet("{id:guid}")]
@@ -2378,7 +2248,7 @@ public class ProfileController(
         if (pendingEmail is not null)
         {
             var (cooldownCanAdd, cooldownMinutes, _) =
-                await profileService.GetEmailCooldownInfoAsync(pendingEmail.Id, ct);
+                await userEmailService.GetEmailCooldownInfoAsync(pendingEmail.Id, ct);
             canAdd = cooldownCanAdd;
             minutesUntilResend = cooldownMinutes;
         }
@@ -2534,6 +2404,3 @@ public class ProfileController(
     }
 
 }
-
-
-

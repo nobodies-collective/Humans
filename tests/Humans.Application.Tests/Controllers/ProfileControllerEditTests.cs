@@ -39,7 +39,7 @@ namespace Humans.Application.Tests.Controllers;
 
 /// <summary>
 /// Coverage for the initial-setup tier-application orchestration that moved
-/// from <c>ProfileService.SaveProfileAsync</c> into <c>ProfileController.Edit</c>
+/// from the profile save coordinator into <c>ProfileController.Edit</c>
 /// POST under issue nobodies-collective/Humans#685. The four removed
 /// <c>ProfileServiceTests</c> tests that exercised the old service-layer
 /// dispatch are replaced here at the controller layer:
@@ -52,7 +52,8 @@ namespace Humans.Application.Tests.Controllers;
 /// </summary>
 public class ProfileControllerEditTests
 {
-    private readonly IProfileService _profileService = Substitute.For<IProfileService>();
+    private readonly IProfilePictureService _profilePictureService = Substitute.For<IProfilePictureService>();
+    private readonly IProfileEditorService _profileEditorService = Substitute.For<IProfileEditorService>();
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IApplicationDecisionService _applicationDecisionService =
         Substitute.For<IApplicationDecisionService>();
@@ -60,6 +61,7 @@ public class ProfileControllerEditTests
     private readonly IShiftManagementService _shiftMgmt = Substitute.For<IShiftManagementService>();
     private readonly ProfileController _controller;
     private readonly Guid _userId = Guid.NewGuid();
+    private readonly Guid _profileId = Guid.NewGuid();
 
     public ProfileControllerEditTests()
     {
@@ -86,7 +88,8 @@ public class ProfileControllerEditTests
         _controller = new ProfileController(
             _userService,
             userManager,
-            _profileService,
+            _profilePictureService,
+            _profileEditorService,
             Substitute.For<IContactFieldService>(),
             Substitute.For<IEmailService>(),
             Substitute.For<IUserEmailService>(),
@@ -113,7 +116,6 @@ public class ProfileControllerEditTests
             _applicationDecisionService,
             Substitute.For<IAccountDeletionService>(),
             Substitute.For<IMembershipCalculator>(),
-            Substitute.For<IHttpClientFactory>(),
             Substitute.For<SignInManager<User>>(
                 userManager,
                 Substitute.For<IHttpContextAccessor>(),
@@ -146,10 +148,16 @@ public class ProfileControllerEditTests
                     .ToUserInfo()));
 
         // SaveProfileAsync is invoked unconditionally by the happy path.
-        _profileService.SaveProfileAsync(
+        _profileEditorService.SaveProfileAsync(
                 Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<ProfileSaveRequest>(),
-                Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Guid.NewGuid());
+                Arg.Any<CancellationToken>())
+            .Returns(_profileId);
+        _userService.SaveProfileVolunteerHistoryAsync(
+                Arg.Any<Guid>(), Arg.Any<IReadOnlyList<CVEntry>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(true));
+        _userService.SaveProfileLanguagesAsync(
+                Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ProfileLanguage>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new UserProfileLanguagesSaveResult(true, _userId)));
     }
 
     [HumansFact]
@@ -164,6 +172,10 @@ public class ProfileControllerEditTests
             .SubmitAsync(Guid.Empty, default, null!, null, null, null, null!, CancellationToken.None);
         await _applicationDecisionService.DidNotReceiveWithAnyArgs()
             .UpdateDraftApplicationAsync(Guid.Empty, default, null!, null, null, null, CancellationToken.None);
+        await _userService.Received(1).SaveProfileVolunteerHistoryAsync(
+            _userId, Arg.Any<IReadOnlyList<CVEntry>>(), Arg.Any<CancellationToken>());
+        await _userService.Received(1).SaveProfileLanguagesAsync(
+            _profileId, Arg.Any<IReadOnlyList<ProfileLanguage>>(), Arg.Any<CancellationToken>());
     }
 
     [HumansFact]

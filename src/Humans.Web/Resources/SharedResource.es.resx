@@ -2312,33 +2312,6 @@
   <data name="ProfileEdit_RemovePicture" xml:space="preserve">
     <value>Eliminar foto personalizada</value>
   </data>
-  <data name="ProfileEdit_ImportGooglePhoto" xml:space="preserve">
-    <value>Importar mi foto de Google</value>
-  </data>
-  <data name="ProfileEdit_ImportGooglePhotoHelp" xml:space="preserve">
-    <value>Copia la foto de tu cuenta de Google como foto de perfil. Podrás reemplazarla más tarde subiendo una nueva.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_Success" xml:space="preserve">
-    <value>Tu foto de Google se ha importado como foto de perfil.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_Unavailable" xml:space="preserve">
-    <value>No podemos importar una foto de Google: tu cuenta no está vinculada a Google o no se capturó un avatar al iniciar sesión.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_NoProfile" xml:space="preserve">
-    <value>Termina de configurar tu perfil primero y luego podrás importar tu foto de Google.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_AlreadyHasCustom" xml:space="preserve">
-    <value>Ya tienes una foto de perfil personalizada. Elimínala primero para importar tu foto de Google.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_FetchFailed" xml:space="preserve">
-    <value>No pudimos obtener tu foto de Google. Inténtalo más tarde o sube una directamente.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_InvalidFormat" xml:space="preserve">
-    <value>No se pudo procesar tu foto de Google: formato no admitido o respuesta errónea.</value>
-  </data>
-  <data name="Profile_ImportGooglePhoto_NotGoogleUrl" xml:space="preserve">
-    <value>No pudimos importar tu foto de Google: la URL del avatar guardado no parece ser una dirección de Google. Sube una directamente.</value>
-  </data>
   <data name="ProfileEdit_DateOfBirthHelp" xml:space="preserve">
     <value>Solo visible para usted y la junta directiva. Se usa para el calendario de cumpleaños.</value>
   </data>

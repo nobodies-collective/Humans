@@ -14,7 +14,6 @@ public static class ProfileEditViewModelBuilder
         IReadOnlyList<ShiftTagSummary> allShiftTags,
         IReadOnlyList<ShiftTagPreferenceSummary> preferredShiftTags,
         bool preview,
-        bool hasGoogleLogin,
         Func<ProfileInfo, string?> customPictureUrl)
     {
         ArgumentNullException.ThrowIfNull(info);
@@ -32,9 +31,6 @@ public static class ProfileEditViewModelBuilder
             : null;
         var hasCustomPicture = profile?.HasCustomPicture == true;
         var isInitialSetup = profile is null || !profile.IsApproved || preview;
-        var canImportGooglePicture = hasGoogleLogin
-            && !hasCustomPicture
-            && !string.IsNullOrEmpty(info.ProfilePictureUrl);
 
         return new ProfileViewModel
         {
@@ -47,7 +43,6 @@ public static class ProfileEditViewModelBuilder
             CustomProfilePictureUrl = hasCustomPicture && profile is not null
                 ? customPictureUrl(profile)
                 : null,
-            CanImportGooglePicture = canImportGooglePicture,
             BurnerName = profile?.BurnerName ?? info.BurnerName,
             FirstName = profile?.FirstName ?? string.Empty,
             LastName = profile?.LastName ?? string.Empty,

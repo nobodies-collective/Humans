@@ -77,7 +77,8 @@ public class ProfileControllerEmailGridTests
         _controller = new ProfileController(
             _userService,
             _userManager,
-            Substitute.For<IProfileService>(),
+            Substitute.For<IProfilePictureService>(),
+            Substitute.For<IProfileEditorService>(),
             Substitute.For<IContactFieldService>(),
             _emailService,
             _userEmailService,
@@ -104,7 +105,6 @@ public class ProfileControllerEmailGridTests
             Substitute.For<IApplicationDecisionService>(),
             Substitute.For<IAccountDeletionService>(),
             Substitute.For<IMembershipCalculator>(),
-            Substitute.For<IHttpClientFactory>(),
             _signInManager,
             Options.Create(new GoogleWorkspaceOptions()));
 
