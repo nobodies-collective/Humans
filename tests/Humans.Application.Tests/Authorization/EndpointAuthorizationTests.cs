@@ -233,6 +233,7 @@ public class EndpointAuthorizationTests
             "AdminController.DbVersion",
             "ProfileController.VerifyEmail",
             "ProfileController.Picture",
+            "ProfileController.PublicPopover",
         };
 
         var controllerTypes = typeof(HumansControllerBase).Assembly.GetTypes()
