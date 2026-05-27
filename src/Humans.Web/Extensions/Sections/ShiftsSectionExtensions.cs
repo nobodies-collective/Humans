@@ -56,7 +56,9 @@ internal static class ShiftsSectionExtensions
 
         // VolunteerTracking - scoped user-oriented repository for build status and availability mutations.
         services.AddScoped<IVolunteerTrackingRepository, VolunteerTrackingRepository>();
-        services.AddScoped<IVolunteerTrackingService, ShiftsVolunteerTrackingService>();
+        services.AddScoped<ShiftsVolunteerTrackingService>();
+        services.AddScoped<IVolunteerTrackingService>(sp => sp.GetRequiredService<ShiftsVolunteerTrackingService>());
+        services.AddScoped<IVolunteerTrackingServiceRead>(sp => sp.GetRequiredService<ShiftsVolunteerTrackingService>());
         services.AddScoped<Humans.Application.Services.Shifts.VolunteerTrackingExportService>();
         services.AddScoped<IVolunteerTrackingExportService>(sp =>
             sp.GetRequiredService<Humans.Application.Services.Shifts.VolunteerTrackingExportService>());
