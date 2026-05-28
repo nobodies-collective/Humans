@@ -137,11 +137,6 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
         Guid userId, GoogleEmailStatus status, CancellationToken ct = default);
 
     /// <summary>
-    /// Updates <c>User.DisplayName</c>. No-op if the user does not exist.
-    /// </summary>
-    Task UpdateDisplayNameAsync(Guid userId, string displayName, CancellationToken ct = default);
-
-    /// <summary>
     /// Sets <c>User.PreferredLanguage</c>. Invalidates the UserInfo cache on
     /// success. No-op if the user does not exist.
     /// </summary>
@@ -175,9 +170,16 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
 
     /// <summary>
     /// Idempotently materializes a stub profile for a live user. Returns true
-    /// only when a profile row was created.
+    /// only when a profile row was created. When provided, seeds the stub with
+    /// the member's burner and legal names (the magic-link signup path); import
+    /// callers omit them and create an empty stub.
     /// </summary>
-    Task<bool> EnsureStubProfileAsync(Guid userId, CancellationToken ct = default);
+    Task<bool> EnsureStubProfileAsync(
+        Guid userId,
+        string? burnerName = null,
+        string? firstName = null,
+        string? lastName = null,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Updates <see cref="Profile.MembershipTier"/> on the user's profile.

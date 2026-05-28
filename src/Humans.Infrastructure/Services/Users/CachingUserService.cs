@@ -686,12 +686,6 @@ public sealed class CachingUserService(
         return result;
     }
 
-    public async Task UpdateDisplayNameAsync(Guid userId, string displayName, CancellationToken ct = default)
-    {
-        await WithInnerAsync(inner => inner.UpdateDisplayNameAsync(userId, displayName, ct));
-        await RefreshEntryAsync(userId, ct);
-    }
-
     public async Task SetPreferredLanguageAsync(Guid userId, string preferredLanguage, CancellationToken ct = default)
     {
         await WithInnerAsync(inner => inner.SetPreferredLanguageAsync(userId, preferredLanguage, ct));
@@ -721,9 +715,15 @@ public sealed class CachingUserService(
         return updated;
     }
 
-    public async Task<bool> EnsureStubProfileAsync(Guid userId, CancellationToken ct = default)
+    public async Task<bool> EnsureStubProfileAsync(
+        Guid userId,
+        string? burnerName = null,
+        string? firstName = null,
+        string? lastName = null,
+        CancellationToken ct = default)
     {
-        var created = await WithInnerAsync(inner => inner.EnsureStubProfileAsync(userId, ct));
+        var created = await WithInnerAsync(inner =>
+            inner.EnsureStubProfileAsync(userId, burnerName, firstName, lastName, ct));
         if (created) await RefreshEntryAsync(userId, ct);
         return created;
     }
