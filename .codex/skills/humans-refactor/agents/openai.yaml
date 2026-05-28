@@ -1,0 +1,4 @@
+interface:
+  display_name: "Humans Refactor"
+  short_description: "Reforge-guided Humans refactor loop"
+  default_prompt: "Run a Humans refactor pass for the target section: create a worktree and branch from origin/main, improve the best architecture issues, run Reforge before and after each stage, use the architecture-review gate, commit accepted stages with score and verdict details, push progress, and open a draft PR at stasis."
