@@ -19,16 +19,6 @@ namespace Humans.Application.Interfaces.Users;
 public interface IUserService : IUserServiceRead, IApplicationService, IUserMerge
 {
     /// <summary>
-    /// Fetches a single user by id with the <see cref="User.UserEmails"/>
-    /// collection populated. Returns null if the user does not exist. Served
-    /// from the caching decorator's <see cref="UserInfo"/> dict for warm-cache
-    /// callers — the cache holds the full user payload, so there is no
-    /// "without emails" variant.
-    /// </summary>
-    [Obsolete("Callers must migrate to IUserService.GetUserInfoAsync()", false, DiagnosticId = "HUM_USER_GetById")]
-    Task<User?> GetByIdAsync(Guid userId, CancellationToken ct = default);
-
-    /// <summary>
     /// Fetches a batched set of users keyed by id with each user's
     /// <see cref="User.UserEmails"/> collection populated. Missing users are
     /// absent from the returned dictionary. Used for in-memory stitching
@@ -41,14 +31,19 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
         CancellationToken ct = default);
 
     /// <summary>
-    /// Get all participation records for a given year.
+    /// Get all participation records for a given year, projected to the slim
+    /// <see cref="UserParticipationRow"/> shape (no EF entity leaves the
+    /// section). Served from the caching decorator's <see cref="UserInfo"/>
+    /// snapshot.
     /// </summary>
-    Task<List<EventParticipation>> GetAllParticipationsForYearAsync(int year, CancellationToken ct = default);
+    Task<IReadOnlyList<UserParticipationRow>> GetAllParticipationsForYearAsync(int year, CancellationToken ct = default);
 
     /// <summary>
-    /// Declare that the user is not attending this year's event.
+    /// Declare that the user is not attending this year's event. Upserts a
+    /// UserDeclared NotAttending row unless the user is already Attended (in
+    /// which case the declaration is logged and ignored).
     /// </summary>
-    Task<EventParticipation> DeclareNotAttendingAsync(Guid userId, int year, CancellationToken ct = default);
+    Task DeclareNotAttendingAsync(Guid userId, int year, CancellationToken ct = default);
 
     /// <summary>
     /// Undo a "not attending" declaration. Removes the record.
@@ -87,12 +82,6 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
     /// Bulk import historical participation data (admin backfill).
     /// </summary>
     Task<int> BackfillParticipationsAsync(int year, List<(Guid UserId, ParticipationStatus Status)> entries, CancellationToken ct = default);
-
-    /// <summary>
-    /// Returns all users, read-only. At ~500 users this is cheap to load in full.
-    /// Used by admin list views that must include profileless users.
-    /// </summary>
-    Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Purges a human at the User aggregate — removes all UserEmail rows
@@ -330,22 +319,14 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
     // ---- Methods added for ContactService migration ----
 
     /// <summary>
-    /// Finds a user whose <c>Email</c> or <c>GoogleEmail</c> matches the given
-    /// address (case-insensitive). Also checks the gmail/googlemail alternate
-    /// when applicable. Returns null if no match.
+    /// Finds the user whose <c>Email</c> or <c>GoogleEmail</c> matches the given
+    /// address (case-insensitive) and returns the cached <see cref="UserInfo"/>
+    /// read-model for them. Also checks the gmail/googlemail alternate when
+    /// applicable, and falls back to the legacy <c>User.GoogleEmail</c> shadow
+    /// column for pre-issue-687 users whose <c>UserEmail.IsGoogle</c> rows are
+    /// unset. Returns null if no match.
     /// </summary>
-    Task<User?> GetByEmailOrAlternateAsync(string email, CancellationToken ct = default);
-
-    /// <summary>
-    /// Returns the id of any user, other than <paramref name="excludeUserId"/>,
-    /// whose legacy <c>User.GoogleEmail</c> shadow column matches <paramref name="email"/>
-    /// (case-insensitive), or null if no such user exists.
-    /// </summary>
-    [Obsolete("Issue nobodies-collective/Humans#687: User.GoogleEmail is being deprecated. Use IUserEmailService.GetOtherUserIdHavingEmailAsync — once UserEmail.IsGoogle is sole source of truth a Google identity always has a matching user_emails row, so any other user already owning the address is detected by the user_emails check.")]
-    Task<Guid?> GetOtherUserIdHavingGoogleEmailAsync(
-        string email,
-        Guid excludeUserId,
-        CancellationToken ct = default);
+    Task<UserInfo?> GetByEmailOrAlternateAsync(string email, CancellationToken ct = default);
 
     /// <summary>
     /// Sets <c>User.LastConsentReminderSentAt</c> to <paramref name="sentAt"/>.
@@ -451,4 +432,16 @@ public record AnonymizedAccountSummary(
 public sealed record OnsiteUserRow(
     Guid UserId,
     string DisplayName,
+    Instant? CheckedInAt);
+
+/// <summary>
+/// Slim cross-section projection of an <see cref="EventParticipation"/> row for
+/// a given year, returned by <see cref="IUserService.GetAllParticipationsForYearAsync"/>.
+/// Carries only the facts consumers diff against (status, source, check-in
+/// instant) keyed by user — no EF entity crosses the section boundary.
+/// </summary>
+public sealed record UserParticipationRow(
+    Guid UserId,
+    ParticipationStatus Status,
+    ParticipationSource Source,
     Instant? CheckedInAt);

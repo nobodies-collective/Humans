@@ -148,16 +148,6 @@ public sealed class UserService(
             "it indicates a DI registration mistake — IUserService should resolve " +
             "to CachingUserService.");
 
-    public async Task<User?> GetByIdAsync(Guid userId, CancellationToken ct = default)
-    {
-        var user = await repo.GetByIdAsync(userId, ct);
-        if (user is null)
-            return null;
-
-        await HydrateUserEmailsAsync(user, ct);
-        return user;
-    }
-
     public async Task<IReadOnlyDictionary<Guid, User>> GetByIdsAsync(
         IReadOnlyCollection<Guid> userIds, CancellationToken ct = default)
     {
@@ -166,13 +156,6 @@ public sealed class UserService(
             return users;
 
         await HydrateUserEmailsAsync(users.Values, ct);
-        return users;
-    }
-
-    public async Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken ct = default)
-    {
-        var users = await repo.GetAllAsync(ct);
-        await HydrateUserEmailsAsync(users, ct);
         return users;
     }
 
@@ -202,32 +185,20 @@ public sealed class UserService(
         return await repo.ApplyExpiredDeletionAnonymizationAsync(userId, ct);
     }
 
-    public async Task<User?> GetByEmailOrAlternateAsync(string email, CancellationToken ct = default)
+    public async Task<UserInfo?> GetByEmailOrAlternateAsync(string email, CancellationToken ct = default)
     {
         var normalized = EmailNormalization.NormalizeForComparison(email);
         var alternate = GetAlternateEmail(normalized);
 
         var matchingUserIds = await repo.GetDistinctVerifiedUserEmailUserIdsAsync(normalized, alternate, ct);
         if (matchingUserIds.Count > 0)
-            return await GetByIdAsync(matchingUserIds[0], ct);
+            return await GetUserInfoAsync(matchingUserIds[0], ct);
 
         var legacyUser = await repo.GetByEmailOrAlternateAsync(normalized, alternate, ct);
         if (legacyUser is null)
             return null;
 
-        await HydrateUserEmailsAsync(legacyUser, ct);
-        return legacyUser;
-    }
-
-    [Obsolete("Issue nobodies-collective/Humans#687: User.GoogleEmail is being deprecated. Use IUserEmailService.GetOtherUserIdHavingEmailAsync.")]
-    public Task<Guid?> GetOtherUserIdHavingGoogleEmailAsync(
-        string email, Guid excludeUserId, CancellationToken ct = default) =>
-        repo.GetOtherUserIdHavingGoogleEmailAsync(email, excludeUserId, ct);
-
-    private async Task HydrateUserEmailsAsync(User user, CancellationToken ct)
-    {
-        var emails = await repo.GetUserEmailsByUserIdReadOnlyAsync(user.Id, ct);
-        AttachUserEmails(user, emails);
+        return await GetUserInfoAsync(legacyUser.Id, ct);
     }
 
     private async Task HydrateUserEmailsAsync(IEnumerable<User> users, CancellationToken ct)
@@ -834,7 +805,7 @@ public sealed class UserService(
 
     // --- EventParticipation reads ---
 
-    public Task<List<EventParticipation>> GetAllParticipationsForYearAsync(int year, CancellationToken ct = default) =>
+    public Task<IReadOnlyList<UserParticipationRow>> GetAllParticipationsForYearAsync(int year, CancellationToken ct = default) =>
         throw new NotSupportedException(
             "GetAllParticipationsForYearAsync is only meaningful through CachingUserService — " +
             "projects the year's participations from the cached UserInfo snapshot. If this is " +
@@ -842,7 +813,7 @@ public sealed class UserService(
 
     // --- EventParticipation writes ---
 
-    public async Task<EventParticipation> DeclareNotAttendingAsync(Guid userId, int year, CancellationToken ct = default)
+    public async Task DeclareNotAttendingAsync(Guid userId, int year, CancellationToken ct = default)
     {
         var now = clock.GetCurrentInstant();
         var persisted = await repo.UpsertParticipationAsync(
@@ -855,14 +826,12 @@ public sealed class UserService(
             logger.LogWarning(
                 "Cannot declare NotAttending for user {UserId} year {Year} — already Attended",
                 userId, year);
-            // Re-read because upsert returned null.
-            return (await repo.GetParticipationAsync(userId, year, ct))!;
+            return;
         }
 
         logger.LogInformation(
             "User {UserId} declared NotAttending for year {Year}",
             userId, year);
-        return persisted;
     }
 
     public async Task<bool> UndoNotAttendingAsync(Guid userId, int year, CancellationToken ct = default)

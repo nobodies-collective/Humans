@@ -495,24 +495,13 @@ public sealed class CachingUserService(
         await work(inner);
     }
 
-    // GetByIdAsync / GetByIdsAsync — issue #744: serve from the in-memory
-    // UserInfo dict for cache hits, falling back to the inner UserService only
-    // for ids missing from the cache. The cached payload already carries every
-    // User-side column AND the UserEmails collection, so rehydration is
-    // mechanical and zero-DB for warm-cache callers. There is no
-    // "without emails" variant because there is nothing else the cache could
-    // serve — UserInfo is the whole person.
+    // GetByIdsAsync — issue #744: serve from the in-memory UserInfo dict for
+    // cache hits, falling back to the inner UserService only for ids missing
+    // from the cache. The cached payload already carries every User-side column
+    // AND the UserEmails collection, so rehydration is mechanical and zero-DB
+    // for warm-cache callers.
     // Callers consume the returned User as read-only (the repo emits the
     // entity AsNoTracking) so rehydrated instances are safe to share.
-
-    public async Task<User?> GetByIdAsync(Guid userId, CancellationToken ct = default)
-    {
-        if (TryGet(userId, out var info))
-            return RehydrateUser(info);
-
-        var users = await WithInnerAsync(inner => inner.GetByIdsAsync([userId], ct));
-        return users.TryGetValue(userId, out var user) ? user : null;
-    }
 
     public async Task<IReadOnlyDictionary<Guid, User>> GetByIdsAsync(
         IReadOnlyCollection<Guid> userIds, CancellationToken ct = default)
@@ -599,26 +588,17 @@ public sealed class CachingUserService(
         return user;
     }
 
-    public async Task<List<EventParticipation>> GetAllParticipationsForYearAsync(int year, CancellationToken ct = default)
+    public async Task<IReadOnlyList<UserParticipationRow>> GetAllParticipationsForYearAsync(int year, CancellationToken ct = default)
     {
         await EnsureWarmedAsync(ct).ConfigureAwait(false);
         var snapshot = Values;
-        var result = new List<EventParticipation>();
+        var result = new List<UserParticipationRow>();
         foreach (var u in snapshot)
         {
             foreach (var p in u.EventParticipations)
             {
                 if (p.Year != year) continue;
-                result.Add(new EventParticipation
-                {
-                    Id = p.Id,
-                    UserId = u.Id,
-                    Year = p.Year,
-                    Status = p.Status,
-                    Source = p.Source,
-                    DeclaredAt = p.DeclaredAt,
-                    CheckedInAt = p.CheckedInAt,
-                });
+                result.Add(new UserParticipationRow(u.Id, p.Status, p.Source, p.CheckedInAt));
             }
         }
         return result;
@@ -638,17 +618,8 @@ public sealed class CachingUserService(
         return result;
     }
 
-    public Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken ct = default) =>
-        WithInnerAsync(inner => inner.GetAllUsersAsync(ct));
-
-    public Task<User?> GetByEmailOrAlternateAsync(string email, CancellationToken ct = default) =>
+    public Task<UserInfo?> GetByEmailOrAlternateAsync(string email, CancellationToken ct = default) =>
         WithInnerAsync(inner => inner.GetByEmailOrAlternateAsync(email, ct));
-
-#pragma warning disable CS0618
-    public Task<Guid?> GetOtherUserIdHavingGoogleEmailAsync(
-        string email, Guid excludeUserId, CancellationToken ct = default) =>
-        WithInnerAsync(inner => inner.GetOtherUserIdHavingGoogleEmailAsync(email, excludeUserId, ct));
-#pragma warning restore CS0618
 
     public Task<IReadOnlyList<Guid>> GetAccountsDueForAnonymizationAsync(
         Instant now, CancellationToken ct = default) =>
@@ -903,12 +874,11 @@ public sealed class CachingUserService(
             await RefreshEntryAsync(userId, ct);
         });
 
-    public async Task<EventParticipation> DeclareNotAttendingAsync(
+    public async Task DeclareNotAttendingAsync(
         Guid userId, int year, CancellationToken ct = default)
     {
-        var result = await WithInnerAsync(inner => inner.DeclareNotAttendingAsync(userId, year, ct));
+        await WithInnerAsync(inner => inner.DeclareNotAttendingAsync(userId, year, ct));
         await RefreshEntryAsync(userId, ct);
-        return result;
     }
 
     public async Task<bool> UndoNotAttendingAsync(Guid userId, int year, CancellationToken ct = default)
