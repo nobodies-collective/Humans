@@ -131,7 +131,7 @@ public sealed class BudgetService(
         return new CoordinatorBudgetViewData(activeYear, coordinatorTeamIds, isFinanceAdmin, ShouldRedirectToSummary: false);
     }
 
-    public async Task<BudgetYear> CreateYearAsync(string year, string name, Guid actorUserId)
+    public async Task<BudgetYearDetail> CreateYearAsync(string year, string name, Guid actorUserId)
     {
         var now = clock.GetCurrentInstant();
 
@@ -157,15 +157,13 @@ public sealed class BudgetService(
             "Created budget year {Year} ({Name}) with {TeamCount} department categories",
             year, name, teamRefs.Count);
 
-        return new BudgetYear
-        {
-            Id = draft.Id,
-            Year = year,
-            Name = name,
-            Status = BudgetYearStatus.Draft,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
+        return new BudgetYearDetail(
+            draft.Id,
+            year,
+            name,
+            BudgetYearStatus.Draft,
+            IsDeleted: false,
+            Groups: []);
     }
 
     public async Task UpdateYearStatusAsync(Guid yearId, BudgetYearStatus status, Guid actorUserId)
@@ -248,7 +246,7 @@ public sealed class BudgetService(
                 : "Ticketing group already exists for this budget year.");
     }
 
-    public async Task<BudgetGroup> CreateGroupAsync(
+    public async Task<BudgetGroupDetail> CreateGroupAsync(
         Guid budgetYearId, string name, bool isRestricted, Guid actorUserId)
     {
         var now = clock.GetCurrentInstant();
@@ -259,7 +257,7 @@ public sealed class BudgetService(
         logger.LogInformation(
             "Created budget group '{Name}' in year {YearId}", name, budgetYearId);
 
-        return group;
+        return ToGroupDetail(group);
     }
 
     public async Task UpdateGroupAsync(
@@ -375,7 +373,7 @@ public sealed class BudgetService(
                     item.SortOrder))
                 .ToList());
 
-    public async Task<BudgetCategory> CreateCategoryAsync(
+    public async Task<BudgetCategoryDetail> CreateCategoryAsync(
         Guid budgetGroupId, string name, decimal allocatedAmount,
         ExpenditureType expenditureType, Guid? teamId, Guid actorUserId)
     {
@@ -387,7 +385,7 @@ public sealed class BudgetService(
         logger.LogInformation(
             "Created budget category '{Name}' in group {GroupId}", name, budgetGroupId);
 
-        return category;
+        return ToCategoryDetail(category);
     }
 
     public async Task UpdateCategoryAsync(
@@ -433,7 +431,7 @@ public sealed class BudgetService(
             lineItem.IsCashflowOnly,
             lineItem.SortOrder);
 
-    public async Task<BudgetLineItem> CreateLineItemAsync(
+    public async Task<BudgetLineItemSnapshot> CreateLineItemAsync(
         Guid budgetCategoryId, string description, decimal amount,
         Guid? responsibleTeamId, string? notes, LocalDate? expectedDate,
         int vatRate, Guid actorUserId)
@@ -457,25 +455,7 @@ public sealed class BudgetService(
             "Created line item '{Description}' in category {CategoryId}",
             description, budgetCategoryId);
 
-        return lineItem;
-    }
-
-    public async Task<BudgetMutationResult> CreateLineItemWithResultAsync(
-        Guid budgetCategoryId, string description, decimal amount,
-        Guid? responsibleTeamId, string? notes, LocalDate? expectedDate,
-        int vatRate, Guid actorUserId)
-    {
-        try
-        {
-            await CreateLineItemAsync(
-                budgetCategoryId, description, amount, responsibleTeamId, notes, expectedDate, vatRate, actorUserId);
-            return BudgetMutationResult.Success;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error creating line item in category {CategoryId}", budgetCategoryId);
-            return BudgetMutationResult.Failure(ex.Message);
-        }
+        return ToLineItemSnapshot(lineItem);
     }
 
     public async Task UpdateLineItemAsync(
@@ -501,24 +481,6 @@ public sealed class BudgetService(
             throw new InvalidOperationException($"Budget line item {lineItemId} not found");
     }
 
-    public async Task<BudgetMutationResult> UpdateLineItemWithResultAsync(
-        Guid lineItemId, string description, decimal amount,
-        Guid? responsibleTeamId, string? notes, LocalDate? expectedDate,
-        int vatRate, Guid actorUserId)
-    {
-        try
-        {
-            await UpdateLineItemAsync(
-                lineItemId, description, amount, responsibleTeamId, notes, expectedDate, vatRate, actorUserId);
-            return BudgetMutationResult.Success;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error updating line item {LineItemId}", lineItemId);
-            return BudgetMutationResult.Failure(ex.Message);
-        }
-    }
-
     private static void ValidateVatRate(int vatRate)
     {
         if (vatRate is < 0 or > 21)
@@ -534,25 +496,6 @@ public sealed class BudgetService(
             throw new InvalidOperationException($"Budget line item {lineItemId} not found");
 
         logger.LogInformation("Deleted line item {LineItemId}", lineItemId);
-    }
-
-    public async Task<TicketingProjectionSnapshot?> GetTicketingProjectionAsync(Guid budgetGroupId)
-    {
-        var projection = await repository.GetTicketingProjectionAsync(budgetGroupId);
-        return projection is null ? null : new TicketingProjectionSnapshot(
-            projection.Id,
-            projection.BudgetGroupId,
-            projection.StartDate,
-            projection.EventDate,
-            projection.InitialSalesCount,
-            projection.DailySalesRate,
-            projection.AverageTicketPrice,
-            projection.VatRate,
-            projection.StripeFeePercent,
-            projection.StripeFeeFixed,
-            projection.TicketTailorFeePercent,
-            projection.CreatedAt,
-            projection.UpdatedAt);
     }
 
     public async Task UpdateTicketingProjectionAsync(
@@ -761,7 +704,7 @@ public sealed class BudgetService(
             .ToList();
     }
 
-    public LocalDate ComputeVatSettlementDate(LocalDate expectedDate)
+    private static LocalDate ComputeVatSettlementDate(LocalDate expectedDate)
     {
         var quarterEnd = expectedDate.Month switch
         {
@@ -890,17 +833,6 @@ public sealed class BudgetService(
         }
 
         return projections;
-    }
-
-    public int GetActualTicketsSold(BudgetGroup ticketingGroup)
-    {
-        var revenueCategory = ticketingGroup.Categories
-            .FirstOrDefault(c => string.Equals(c.Name, "Ticket Revenue", StringComparison.Ordinal));
-
-        if (revenueCategory is null) return 0;
-
-        return SumActualTicketsSold(revenueCategory.LineItems
-            .Select(item => (item.IsAutoGenerated, item.Description, item.Notes)));
     }
 
     public int GetActualTicketsSold(BudgetGroupDetail ticketingGroup)

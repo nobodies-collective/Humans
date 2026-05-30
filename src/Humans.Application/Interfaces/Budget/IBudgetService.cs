@@ -1,6 +1,5 @@
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces.Teams;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;
 
@@ -16,7 +15,7 @@ public interface IBudgetService : IApplicationService
     Task<BudgetYearDetail?> GetYearByIdAsync(Guid id);
     Task<BudgetYearDetail?> GetActiveYearAsync();
     Task<CoordinatorBudgetViewData> GetCoordinatorBudgetViewDataAsync(Guid userId, bool isFinanceAdmin);
-    Task<BudgetYear> CreateYearAsync(string year, string name, Guid actorUserId);
+    Task<BudgetYearDetail> CreateYearAsync(string year, string name, Guid actorUserId);
     Task UpdateYearStatusAsync(Guid yearId, BudgetYearStatus status, Guid actorUserId);
     Task UpdateYearAsync(Guid yearId, string year, string name, Guid actorUserId);
     Task DeleteYearAsync(Guid yearId, Guid actorUserId);
@@ -26,7 +25,6 @@ public interface IBudgetService : IApplicationService
     Task<EnsureTicketingGroupResult> EnsureTicketingGroupAsync(Guid budgetYearId, Guid actorUserId);
 
     // Ticketing Projection
-    Task<TicketingProjectionSnapshot?> GetTicketingProjectionAsync(Guid budgetGroupId);
     Task UpdateTicketingProjectionAsync(Guid budgetGroupId, LocalDate? startDate, LocalDate? eventDate,
         int initialSalesCount, decimal dailySalesRate, decimal averageTicketPrice, int vatRate,
         decimal stripeFeePercent, decimal stripeFeeFixed, decimal ticketTailorFeePercent, Guid actorUserId);
@@ -62,32 +60,24 @@ public interface IBudgetService : IApplicationService
     /// Compute the total number of tickets sold through completed weeks, derived
     /// from the revenue line item notes on an already-loaded ticketing group.
     /// </summary>
-    int GetActualTicketsSold(BudgetGroup ticketingGroup);
-
-    /// <summary>
-    /// DTO overload of <see cref="GetActualTicketsSold(BudgetGroup)"/> for callers
-    /// holding a projected <see cref="BudgetGroupDetail"/> rather than the EF entity.
-    /// </summary>
     int GetActualTicketsSold(BudgetGroupDetail ticketingGroup);
 
     // Budget Groups
-    Task<BudgetGroup> CreateGroupAsync(Guid budgetYearId, string name, bool isRestricted, Guid actorUserId);
+    Task<BudgetGroupDetail> CreateGroupAsync(Guid budgetYearId, string name, bool isRestricted, Guid actorUserId);
     Task UpdateGroupAsync(Guid groupId, string name, int sortOrder, bool isRestricted, Guid actorUserId);
     Task DeleteGroupAsync(Guid groupId, Guid actorUserId);
 
     // Budget Categories
     Task<BudgetCategorySnapshot?> GetCategoryByIdAsync(Guid id);
     Task<CoordinatorCategoryDetailViewData> GetCoordinatorCategoryDetailViewDataAsync(Guid categoryId, Guid userId, bool isFinanceAdmin);
-    Task<BudgetCategory> CreateCategoryAsync(Guid budgetGroupId, string name, decimal allocatedAmount, ExpenditureType expenditureType, Guid? teamId, Guid actorUserId);
+    Task<BudgetCategoryDetail> CreateCategoryAsync(Guid budgetGroupId, string name, decimal allocatedAmount, ExpenditureType expenditureType, Guid? teamId, Guid actorUserId);
     Task UpdateCategoryAsync(Guid categoryId, string name, decimal allocatedAmount, ExpenditureType expenditureType, Guid actorUserId);
     Task DeleteCategoryAsync(Guid categoryId, Guid actorUserId);
 
     // Budget Line Items
     Task<BudgetLineItemSnapshot?> GetLineItemByIdAsync(Guid id);
-    Task<BudgetLineItem> CreateLineItemAsync(Guid budgetCategoryId, string description, decimal amount, Guid? responsibleTeamId, string? notes, LocalDate? expectedDate, int vatRate, Guid actorUserId);
-    Task<BudgetMutationResult> CreateLineItemWithResultAsync(Guid budgetCategoryId, string description, decimal amount, Guid? responsibleTeamId, string? notes, LocalDate? expectedDate, int vatRate, Guid actorUserId);
+    Task<BudgetLineItemSnapshot> CreateLineItemAsync(Guid budgetCategoryId, string description, decimal amount, Guid? responsibleTeamId, string? notes, LocalDate? expectedDate, int vatRate, Guid actorUserId);
     Task UpdateLineItemAsync(Guid lineItemId, string description, decimal amount, Guid? responsibleTeamId, string? notes, LocalDate? expectedDate, int vatRate, Guid actorUserId);
-    Task<BudgetMutationResult> UpdateLineItemWithResultAsync(Guid lineItemId, string description, decimal amount, Guid? responsibleTeamId, string? notes, LocalDate? expectedDate, int vatRate, Guid actorUserId);
     Task DeleteLineItemAsync(Guid lineItemId, Guid actorUserId);
 
     // Coordinator
@@ -100,7 +90,6 @@ public interface IBudgetService : IApplicationService
     BudgetSummaryResult ComputeBudgetSummary(IReadOnlyList<BudgetGroupDetail> groups);
     BudgetSummaryResult ComputeBudgetSummaryWithBuffers(IReadOnlyList<BudgetGroupDetail> groups);
     IReadOnlyList<VatCashFlowEntry> ComputeVatCashFlowEntries(IReadOnlyList<BudgetGroupDetail> groups);
-    LocalDate ComputeVatSettlementDate(LocalDate expectedDate);
 }
 
 public sealed record TicketingProjectionSnapshot(
@@ -131,13 +120,6 @@ public sealed record BudgetAuditLogSnapshot(
     string Description,
     Guid ActorUserId,
     Instant OccurredAt);
-
-public sealed record BudgetMutationResult(bool Succeeded, string? ErrorMessage)
-{
-    public static BudgetMutationResult Success { get; } = new(true, null);
-
-    public static BudgetMutationResult Failure(string message) => new(false, message);
-}
 
 public sealed record CoordinatorBudgetViewData(
     BudgetYearDetail? Year,
