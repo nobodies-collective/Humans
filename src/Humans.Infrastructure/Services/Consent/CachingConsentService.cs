@@ -39,7 +39,6 @@ namespace Humans.Infrastructure.Services.Consent;
 /// cache. Other reads
 /// (<see cref="GetConsentDashboardAsync"/>,
 /// <see cref="GetConsentReviewDetailAsync"/>,
-/// <see cref="GetUserConsentRecordsAsync"/>,
 /// <see cref="GetConsentRecordCountAsync"/>,
 /// <see cref="GetPendingDocumentNamesAsync"/>)
 /// either need richer record data (history view) or are off the hot
@@ -142,32 +141,13 @@ public sealed class CachingConsentService(
         // required-document list (served by CachingLegalDocumentSyncService,
         // injected directly as a Singleton). Both halves are cache hits in
         // the warm path; we never re-enter the inner ConsentService here so
-        // the repo isn't touched.
+        // the repo isn't touched. The shaping/ordering itself is the shared
+        // RequiredConsentRow.BuildOrdered so the decorator and the inner
+        // ConsentService produce an identical widget by construction.
         var documents = await legalDocumentSync.GetActiveRequiredDocumentsForTeamsAsync([teamId], ct);
         var consentedVersionIds = await GetConsentedVersionIdsAsync(userId, ct);
-        var now = clock.GetCurrentInstant();
 
-        var rows = new List<RequiredConsentRow>(documents.Count);
-        foreach (var doc in documents)
-        {
-            var currentVersion = doc.Versions
-                .Where(v => v.EffectiveFrom <= now)
-                .MaxBy(v => v.EffectiveFrom);
-
-            if (currentVersion is null) continue;
-
-            rows.Add(new RequiredConsentRow(
-                DocumentVersionId: currentVersion.Id,
-                Title: doc.Name,
-                Signed: consentedVersionIds.Contains(currentVersion.Id)));
-        }
-
-        // Unsigned-first ordering matches the inner ConsentService impl so
-        // the widget renders the same way through the decorator.
-        return rows
-            .OrderBy(r => r.Signed)
-            .ThenBy(r => r.Title, StringComparer.Ordinal)
-            .ToList();
+        return RequiredConsentRow.BuildOrdered(documents, consentedVersionIds, clock.GetCurrentInstant());
     }
 
     // ==========================================================================
@@ -183,12 +163,6 @@ public sealed class CachingConsentService(
     public Task<ConsentReviewDetail?> GetConsentReviewDetailAsync(
         Guid documentVersionId, Guid userId, CancellationToken ct = default) =>
         WithInner(inner => inner.GetConsentReviewDetailAsync(documentVersionId, userId, ct));
-
-#pragma warning disable CS0618 // GetUserConsentRecordsAsync is obsolete; passthrough retained until delete sweep
-    public Task<IReadOnlyList<ConsentRecordSnapshot>> GetUserConsentRecordsAsync(
-        Guid userId, CancellationToken ct = default) =>
-        WithInner(inner => inner.GetUserConsentRecordsAsync(userId, ct));
-#pragma warning restore CS0618
 
     public Task<int> GetConsentRecordCountAsync(Guid userId, CancellationToken ct = default) =>
         WithInner(inner => inner.GetConsentRecordCountAsync(userId, ct));
