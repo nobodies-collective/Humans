@@ -122,14 +122,6 @@ public interface IApplicationRepository : IRepository
     Task<bool> HasBoardVotesAsync(Guid applicationId, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns the existing board vote for (applicationId, boardMemberUserId),
-    /// or null if none. Read-only for callers that will mutate via
-    /// <see cref="UpsertBoardVoteAsync"/>.
-    /// </summary>
-    Task<BoardVote?> GetBoardVoteAsync(
-        Guid applicationId, Guid boardMemberUserId, CancellationToken ct = default);
-
-    /// <summary>
     /// Upserts a board vote: if a vote row exists for the
     /// (applicationId, boardMemberUserId) pair, updates its
     /// <see cref="BoardVote.Vote"/>/<see cref="BoardVote.Note"/>/
@@ -172,33 +164,6 @@ public interface IApplicationRepository : IRepository
     /// to suppress renewals for users who already have a pending application.
     /// </summary>
     Task<IReadOnlySet<(Guid UserId, MembershipTier Tier)>> GetPendingApplicationUserTiersAsync(
-        CancellationToken ct = default);
-
-    /// <summary>
-    /// Returns Approved applications that have been resolved within
-    /// the half-open window <c>[windowStart, windowEnd)</c>, ordered by
-    /// <see cref="MembershipTier"/> then <c>ResolvedAt</c>. Used by the
-    /// Board daily digest.
-    /// </summary>
-    Task<IReadOnlyList<MemberApplication>> GetApprovedInWindowAsync(
-        Instant windowStart, Instant windowEnd, CancellationToken ct = default);
-
-    /// <summary>
-    /// Returns every Submitted application id. Used by the Board daily
-    /// digest to compute per-member unvoted counts without re-loading the
-    /// full application set.
-    /// </summary>
-    Task<IReadOnlyList<Guid>> GetSubmittedApplicationIdsAsync(
-        CancellationToken ct = default);
-
-    /// <summary>
-    /// Returns the number of applications from <paramref name="applicationIds"/>
-    /// that the given board member has NOT yet voted on. Used by the Board
-    /// daily digest to render the per-member queue size.
-    /// </summary>
-    Task<int> GetUnvotedCountForBoardMemberAmongApplicationsAsync(
-        Guid boardMemberUserId,
-        IReadOnlyCollection<Guid> applicationIds,
         CancellationToken ct = default);
 
     /// <summary>

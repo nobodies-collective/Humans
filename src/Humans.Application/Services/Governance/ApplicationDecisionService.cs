@@ -405,28 +405,8 @@ public sealed class ApplicationDecisionService(
         if (application is null)
             return null;
 
-        var userIds = new HashSet<Guid> { application.UserId };
-        if (application.ReviewedByUserId is { } reviewerId)
-            userIds.Add(reviewerId);
-        foreach (var row in application.StateHistory)
-            userIds.Add(row.ChangedByUserId);
-
-        var users = await userService.GetUserInfosAsync(userIds, ct);
-
-        var applicant = users.GetValueOrDefault(application.UserId);
-        var reviewer = application.ReviewedByUserId is { } rid
-            ? users.GetValueOrDefault(rid)
-            : null;
-
-        var history = application.StateHistory
-            .OrderByDescending(h => h.ChangedAt)
-            .Select(h => new ApplicationStateHistoryDto(
-                Status: h.Status,
-                ChangedAt: h.ChangedAt,
-                ChangedByUserId: h.ChangedByUserId,
-                ChangedByDisplayName: users.GetValueOrDefault(h.ChangedByUserId)?.BurnerName,
-                Notes: h.Notes))
-            .ToList();
+        var applicant = await userService.GetUserInfoAsync(application.UserId, ct);
+        var (reviewerName, history) = await StitchHistoryAsync(application, ct);
 
         return new ApplicationAdminDetailDto(
             Id: application.Id,
@@ -444,7 +424,7 @@ public sealed class ApplicationDecisionService(
             SubmittedAt: application.SubmittedAt,
             ReviewStartedAt: application.ReviewStartedAt,
             ResolvedAt: application.ResolvedAt,
-            ReviewerName: reviewer?.BurnerName,
+            ReviewerName: reviewerName,
             ReviewNotes: application.ReviewNotes,
             History: history);
     }
@@ -475,30 +455,21 @@ public sealed class ApplicationDecisionService(
     {
         var applications = await repository.GetAllSubmittedWithVotesAsync(ct);
 
-        var applicantIds = applications.Select(a => a.UserId).Distinct().ToList();
-        var applicantsById = await userService.GetUserInfosAsync(applicantIds, ct);
-
-        var rows = applications.Select(a =>
-        {
-            var applicant = applicantsById.GetValueOrDefault(a.UserId);
-            return new BoardVotingDashboardRow(
-                ApplicationId: a.Id,
-                UserId: a.UserId,
-                UserDisplayName: applicant?.BurnerName ?? string.Empty,
-                UserProfilePictureUrl: applicant?.ProfilePictureUrl,
-                MembershipTier: a.MembershipTier,
-                ApplicationMotivation: a.Motivation,
-                SubmittedAt: a.SubmittedAt,
-                Status: a.Status,
-                Votes: a.BoardVotes
-                    .Select(v => new BoardVoteRow(
-                        BoardMemberUserId: v.BoardMemberUserId,
-                        BoardMemberDisplayName: null,
-                        Vote: v.Vote,
-                        Note: v.Note,
-                        VotedAt: v.VotedAt))
-                    .ToList());
-        }).ToList();
+        var rows = applications.Select(a => new BoardVotingDashboardRow(
+            ApplicationId: a.Id,
+            UserId: a.UserId,
+            MembershipTier: a.MembershipTier,
+            ApplicationMotivation: a.Motivation,
+            SubmittedAt: a.SubmittedAt,
+            Status: a.Status,
+            Votes: a.BoardVotes
+                .Select(v => new BoardVoteRow(
+                    BoardMemberUserId: v.BoardMemberUserId,
+                    BoardMemberDisplayName: null,
+                    Vote: v.Vote,
+                    Note: v.Note,
+                    VotedAt: v.VotedAt))
+                .ToList())).ToList();
 
         var boardMemberIds = await roleAssignmentService.GetActiveUserIdsInRoleAsync(
             RoleNames.Board, ct);
@@ -618,26 +589,6 @@ public sealed class ApplicationDecisionService(
     public Task MarkRenewalReminderSentAsync(
         Guid applicationId, Instant sentAt, CancellationToken ct = default) =>
         repository.MarkRenewalReminderSentAsync(applicationId, sentAt, ct);
-
-    public async Task<IReadOnlyList<ApprovedApplicationDigestEntry>> GetApprovedInWindowAsync(
-        Instant windowStart, Instant windowEnd, CancellationToken ct = default)
-    {
-        var applications = await repository.GetApprovedInWindowAsync(windowStart, windowEnd, ct);
-        return applications
-            .Select(a => new ApprovedApplicationDigestEntry(a.UserId, a.MembershipTier))
-            .ToList();
-    }
-
-    public Task<IReadOnlyList<Guid>> GetSubmittedApplicationIdsAsync(
-        CancellationToken ct = default) =>
-        repository.GetSubmittedApplicationIdsAsync(ct);
-
-    public Task<int> GetUnvotedCountForBoardMemberAmongApplicationsAsync(
-        Guid boardMemberUserId,
-        IReadOnlyCollection<Guid> applicationIds,
-        CancellationToken ct = default) =>
-        repository.GetUnvotedCountForBoardMemberAmongApplicationsAsync(
-            boardMemberUserId, applicationIds, ct);
 
     public Task<IReadOnlyList<Guid>> GetActiveApprovedTierUserIdsAsync(
         MembershipTier tier, LocalDate today, CancellationToken ct = default) =>

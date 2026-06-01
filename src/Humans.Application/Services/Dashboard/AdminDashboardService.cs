@@ -9,8 +9,8 @@ namespace Humans.Application.Services.Dashboard;
 /// <summary>Admin dashboard aggregator: membership partition, tier-application stats, language distribution, 4-set Venn/UpSet membership. Owns no tables.</summary>
 public sealed class AdminDashboardService(
     IUserServiceRead userService,
-    IMembershipCalculator membershipCalculator,
-    IApplicationDecisionService applicationDecisionService,
+    IMembershipCalculatorRead membershipCalculator,
+    IApplicationServiceRead applicationDecisionService,
     IShiftManagementService shiftManagement,
     IShiftView shiftView) : IAdminDashboardService
 {

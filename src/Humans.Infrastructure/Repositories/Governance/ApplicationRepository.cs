@@ -158,14 +158,6 @@ internal sealed class ApplicationRepository(IDbContextFactory<HumansDbContext> f
     public async Task<bool> HasBoardVotesAsync(Guid applicationId, CancellationToken ct = default) =>
         await WithContextAsync(ctx => ctx.BoardVotes.AnyAsync(v => v.ApplicationId == applicationId, ct), ct);
 
-    public async Task<BoardVote?> GetBoardVoteAsync(
-        Guid applicationId, Guid boardMemberUserId, CancellationToken ct = default) =>
-        await WithContextAsync(ctx => ctx.BoardVotes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                v => v.ApplicationId == applicationId && v.BoardMemberUserId == boardMemberUserId,
-                ct), ct);
-
     public async Task UpsertBoardVoteAsync(
         Guid applicationId,
         Guid boardMemberUserId,
@@ -257,41 +249,6 @@ internal sealed class ApplicationRepository(IDbContextFactory<HumansDbContext> f
         return pairs
             .Select(p => (p.UserId, p.MembershipTier))
             .ToHashSet();
-    }
-
-    public async Task<IReadOnlyList<MemberApplication>> GetApprovedInWindowAsync(
-        Instant windowStart, Instant windowEnd, CancellationToken ct = default) =>
-        await WithContextAsync(async ctx => await ctx.Applications
-            .AsNoTracking()
-            .Where(a => a.Status == ApplicationStatus.Approved
-                && a.ResolvedAt != null
-                && a.ResolvedAt.Value >= windowStart
-                && a.ResolvedAt.Value < windowEnd)
-            .ToListAsync(ct), ct);
-
-    public async Task<IReadOnlyList<Guid>> GetSubmittedApplicationIdsAsync(
-        CancellationToken ct = default) =>
-        await WithContextAsync(async ctx => await ctx.Applications
-            .AsNoTracking()
-            .Where(a => a.Status == ApplicationStatus.Submitted)
-            .Select(a => a.Id)
-            .ToListAsync(ct), ct);
-
-    public async Task<int> GetUnvotedCountForBoardMemberAmongApplicationsAsync(
-        Guid boardMemberUserId,
-        IReadOnlyCollection<Guid> applicationIds,
-        CancellationToken ct = default)
-    {
-        if (applicationIds.Count == 0)
-            return 0;
-
-        await using var ctx = await factory.CreateDbContextAsync(ct);
-        var votedCount = await ctx.BoardVotes
-            .AsNoTracking()
-            .CountAsync(v => v.BoardMemberUserId == boardMemberUserId
-                && applicationIds.Contains(v.ApplicationId), ct);
-
-        return applicationIds.Count - votedCount;
     }
 
     public async Task MarkRenewalReminderSentAsync(
