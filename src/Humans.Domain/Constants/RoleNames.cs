@@ -89,6 +89,15 @@ public static class RoleNames
     public const string CantinaAdmin = "CantinaAdmin";
 
     /// <summary>
+    /// Early-Entry Team Administrator — a cross-team role that can grant, edit, and
+    /// revoke early-entry grants on ANY team that has EarlyEntryEnabled. Coordinators
+    /// manage early entry for their own team without this role; this role exists for
+    /// mid-level admins who manage EE across teams. Confers nothing beyond EE
+    /// management; granted individually via the existing role-assignment flow.
+    /// </summary>
+    public const string EETeamAdmin = "EETeamAdmin";
+
+    /// <summary>
     /// Every role name defined above, in display order. The single source of truth
     /// for UI that enumerates roles (e.g. the role-assignment filter bar) so new
     /// roles surface automatically. Completeness is enforced by
@@ -109,7 +118,8 @@ public static class RoleNames
         FeedbackAdmin,
         FinanceAdmin,
         StoreAdmin,
-        CantinaAdmin
+        CantinaAdmin,
+        EETeamAdmin
     ];
 
     /// <summary>
@@ -129,6 +139,7 @@ public static class RoleNames
         EventsAdmin,
         StoreAdmin,
         CantinaAdmin,
+        EETeamAdmin,
         ConsentCoordinator,
         VolunteerCoordinator
     };

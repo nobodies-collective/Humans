@@ -7,6 +7,7 @@ using Microsoft.Extensions.Localization;
 using Humans.Application.Configuration;
 using Humans.Domain.Enums;
 using Humans.Web.Authorization;
+using Humans.Web.Authorization.Requirements;
 using Humans.Web.Extensions;
 using Humans.Web.Models;
 using NodaTime;
@@ -30,6 +31,7 @@ public class TeamController(
     IConfiguration configuration,
     ConfigurationRegistry configRegistry,
     IClock clock,
+    IAuthorizationService authorizationService,
     ILogger<TeamController> logger) : HumansControllerBase(userService)
 {
     private readonly IUserServiceRead _userService = userService;
@@ -158,8 +160,15 @@ public class TeamController(
             ShiftsSummary = MapShiftsSummary(teamPage.ShiftsSummary, slug),
             CanOpenStore = (teamPage.IsCurrentUserCoordinator && team.ParentTeam is null && team.IsActive)
                 || RoleChecks.IsAdmin(User)
-                || RoleChecks.IsTeamsAdmin(User)
+                || RoleChecks.IsTeamsAdmin(User),
         };
+
+        // Surface the per-team Early Entry link when EE is enabled and the viewer can
+        // manage it (coordinator / cross-team EETeamAdmin / TeamsAdmin / Board / Admin).
+        var teamInfo = await teamService.GetTeamAsync(team.Id, ct);
+        viewModel.CanManageEarlyEntry = teamInfo is { EarlyEntryEnabled: true }
+            && (await authorizationService.AuthorizeAsync(
+                User, teamInfo, TeamOperationRequirement.ManageEarlyEntry)).Succeeded;
 
         // Subteam member rollup: for departments, show child team members not already direct members
         if (teamPage.IsAuthenticated && teamPage.ChildTeams.Any())
@@ -694,6 +703,7 @@ public class TeamController(
             IsHidden = team.IsHidden,
             IsSensitive = team.IsSensitive,
             IsPromotedToDirectory = team.IsPromotedToDirectory,
+            EarlyEntryEnabled = team.EarlyEntryEnabled,
             ParentTeamId = team.ParentTeamId,
             EligibleParents = await GetEligibleParentTeamsAsync(excludeTeamId: id, cancellationToken)
         };
@@ -719,7 +729,7 @@ public class TeamController(
 
         try
         {
-            await teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive, model.ParentTeamId, model.GoogleGroupPrefix, model.CustomSlug, model.HasBudget, model.IsHidden, model.IsSensitive, model.IsPromotedToDirectory);
+            await teamService.UpdateTeamAsync(id, model.Name, model.Description, model.RequiresApproval, model.IsActive, model.ParentTeamId, model.GoogleGroupPrefix, model.CustomSlug, model.HasBudget, model.IsHidden, model.IsSensitive, model.IsPromotedToDirectory, earlyEntryEnabled: model.EarlyEntryEnabled);
             var currentUser = await GetCurrentUserInfoAsync();
             logger.LogInformation("Admin {AdminId} updated team {TeamId}", currentUser?.Id, id);
 

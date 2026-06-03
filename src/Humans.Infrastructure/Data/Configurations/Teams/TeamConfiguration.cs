@@ -79,6 +79,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
         builder.Property(t => t.IsPromotedToDirectory)
             .IsRequired();
 
+        builder.Property(t => t.EarlyEntryEnabled).IsRequired();
+
         builder.Property(t => t.PageContent)
             .HasMaxLength(50000);
 
@@ -156,7 +158,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 HasBudget = false,
                 IsHidden = false,
                 IsSensitive = false,
-                IsPromotedToDirectory = false
+                IsPromotedToDirectory = false,
+                EarlyEntryEnabled = false
             },
             new
             {
@@ -181,7 +184,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 HasBudget = false,
                 IsHidden = false,
                 IsSensitive = false,
-                IsPromotedToDirectory = false
+                IsPromotedToDirectory = false,
+                EarlyEntryEnabled = false
             },
             new
             {
@@ -206,7 +210,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 HasBudget = false,
                 IsHidden = false,
                 IsSensitive = false,
-                IsPromotedToDirectory = false
+                IsPromotedToDirectory = false,
+                EarlyEntryEnabled = false
             },
             new
             {
@@ -231,7 +236,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 HasBudget = false,
                 IsHidden = false,
                 IsSensitive = false,
-                IsPromotedToDirectory = false
+                IsPromotedToDirectory = false,
+                EarlyEntryEnabled = false
             },
             new
             {
@@ -256,7 +262,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 HasBudget = false,
                 IsHidden = false,
                 IsSensitive = false,
-                IsPromotedToDirectory = false
+                IsPromotedToDirectory = false,
+                EarlyEntryEnabled = false
             },
             new
             {
@@ -281,7 +288,8 @@ public class TeamConfiguration : IEntityTypeConfiguration<Team>
                 HasBudget = false,
                 IsHidden = false,
                 IsSensitive = false,
-                IsPromotedToDirectory = false
+                IsPromotedToDirectory = false,
+                EarlyEntryEnabled = false
             });
     }
 }

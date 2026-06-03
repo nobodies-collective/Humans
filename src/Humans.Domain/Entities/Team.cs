@@ -129,6 +129,13 @@ public class Team
     /// </summary>
     public bool IsSensitive { get; set; }
 
+    /// <summary>Per-team early-entry gate: when true this team contributes early-entry
+    /// grants (see <see cref="TeamEarlyEntryGrant"/>) and exposes the per-team EE
+    /// management page to the team's coordinators and the cross-team EETeamAdmin role.
+    /// Multiple teams may have this enabled. Default false. Toggling it never deletes
+    /// existing grants.</summary>
+    public bool EarlyEntryEnabled { get; set; }
+
     /// <summary>
     /// Optional parent team ID for one-level hierarchy (departments).
     /// A team with a parent cannot itself be a parent.
@@ -149,6 +156,11 @@ public class Team
     /// Navigation property to team members.
     /// </summary>
     public ICollection<TeamMember> Members { get; } = new List<TeamMember>();
+
+    /// <summary>
+    /// Navigation property to early-entry grants owned by this team.
+    /// </summary>
+    public ICollection<TeamEarlyEntryGrant> EarlyEntryGrants { get; } = new List<TeamEarlyEntryGrant>();
 
     /// <summary>
     /// Navigation property to join requests.
