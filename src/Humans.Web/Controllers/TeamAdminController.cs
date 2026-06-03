@@ -11,10 +11,10 @@ using Humans.Web.Extensions;
 using Humans.Web.Models;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Interfaces.Teams;
-using Humans.Application.Interfaces.Notifications;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Profiles;
+using NodaTime.Text;
 
 namespace Humans.Web.Controllers;
 
@@ -26,7 +26,6 @@ public class TeamAdminController(
     IGoogleSyncService googleSyncService,
     IUserServiceRead userService,
     IEmailProvisioningService emailProvisioningService,
-    INotificationService notificationService,
     IAuthorizationService authorizationService,
     ISystemTeamSync systemTeamSyncJob,
     ILogger<TeamAdminController> logger,
@@ -35,7 +34,6 @@ public class TeamAdminController(
 {
     private readonly ITeamService _teamService = teamService;
     private readonly IUserServiceRead _userService = userService;
-    private readonly INotificationService _notificationService = notificationService;
 
     [HttpPost("Requests/{requestId}/Approve")]
     [ValidateAntiForgeryToken]
@@ -969,6 +967,156 @@ public class TeamAdminController(
             return NotFound();
         PopulateEditTeamPageModel(model, teamEntityAfterFailure);
         return View(model);
+    }
+
+    [HttpGet("EarlyEntry")]
+    public async Task<IActionResult> EarlyEntry(string slug, CancellationToken ct)
+    {
+        var (teamError, _, team) = await ResolveEarlyEntryManagementAsync(slug);
+        if (teamError is not null)
+        {
+            return teamError;
+        }
+
+        if (!team.EarlyEntryEnabled)
+        {
+            return NotFound();
+        }
+
+        var vm = await BuildEarlyEntryPageAsync(team, ct);
+        return View(vm);
+    }
+
+    [HttpPost("EarlyEntry/Add")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddEarlyEntry(string slug, AddTeamEarlyEntryInput input, CancellationToken ct)
+    {
+        var (teamError, user, team) = await ResolveEarlyEntryManagementAsync(slug);
+        if (teamError is not null)
+        {
+            return teamError;
+        }
+
+        if (!team.EarlyEntryEnabled)
+        {
+            return NotFound();
+        }
+
+        var parsed = LocalDatePattern.Iso.Parse(input.EntryDate);
+        if (!ModelState.IsValid || !parsed.Success)
+        {
+            if (!parsed.Success)
+                ModelState.AddModelError(nameof(input.EntryDate), "Enter a valid date (yyyy-MM-dd).");
+            return View(nameof(EarlyEntry), await BuildEarlyEntryPageAsync(team, ct));
+        }
+
+        try
+        {
+            await _teamService.AddEarlyEntryGrantAsync(
+                team.Id, input.UserId, parsed.Value, input.ProjectName, user.Id, ct);
+            SetSuccess("Early entry granted.");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
+        {
+            logger.LogWarning(ex, "Failed to grant early entry for team {TeamId} by user {UserId}", team.Id, user.Id);
+            SetError(ex.Message);
+        }
+
+        return RedirectToAction(nameof(EarlyEntry), new { slug });
+    }
+
+    [HttpPost("EarlyEntry/Edit")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditEarlyEntry(string slug, EditTeamEarlyEntryInput input, CancellationToken ct)
+    {
+        var (teamError, user, team) = await ResolveEarlyEntryManagementAsync(slug);
+        if (teamError is not null)
+        {
+            return teamError;
+        }
+
+        if (!team.EarlyEntryEnabled)
+        {
+            return NotFound();
+        }
+
+        var parsed = LocalDatePattern.Iso.Parse(input.EntryDate);
+        if (!ModelState.IsValid || !parsed.Success)
+        {
+            if (!parsed.Success)
+                ModelState.AddModelError(nameof(input.EntryDate), "Enter a valid date (yyyy-MM-dd).");
+            return View(nameof(EarlyEntry), await BuildEarlyEntryPageAsync(team, ct));
+        }
+
+        try
+        {
+            await _teamService.EditEarlyEntryGrantAsync(
+                team.Id, input.GrantId, parsed.Value, input.ProjectName, user.Id, ct);
+            SetSuccess("Early entry updated.");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
+        {
+            logger.LogWarning(ex, "Failed to update early entry grant {GrantId} for team {TeamId} by user {UserId}", input.GrantId, team.Id, user.Id);
+            SetError(ex.Message);
+        }
+
+        return RedirectToAction(nameof(EarlyEntry), new { slug });
+    }
+
+    [HttpPost("EarlyEntry/Remove")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveEarlyEntry(string slug, Guid grantId, CancellationToken ct)
+    {
+        var (teamError, user, team) = await ResolveEarlyEntryManagementAsync(slug);
+        if (teamError is not null)
+        {
+            return teamError;
+        }
+
+        if (!team.EarlyEntryEnabled)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            await _teamService.RemoveEarlyEntryGrantAsync(team.Id, grantId, user.Id, ct);
+            SetSuccess("Early entry revoked.");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
+        {
+            logger.LogWarning(ex, "Failed to revoke early entry grant {GrantId} for team {TeamId} by user {UserId}", grantId, team.Id, user.Id);
+            SetError(ex.Message);
+        }
+
+        return RedirectToAction(nameof(EarlyEntry), new { slug });
+    }
+
+    private async Task<TeamEarlyEntryPageViewModel> BuildEarlyEntryPageAsync(TeamInfo team, CancellationToken ct)
+    {
+        var grants = await _teamService.GetEarlyEntryGrantsForTeamAsync(team.Id, ct);
+        var humans = await _userService.GetUserInfosAsync(
+            grants.Select(g => g.UserId).Distinct().ToList(), ct);
+
+        // Display sort is a presentation concern (peters-hard-rules: controllers sort).
+        var rows = grants
+            .Select(g => new TeamEarlyEntryRowViewModel
+            {
+                GrantId = g.Id,
+                HumanName = humans.GetValueOrDefault(g.UserId)?.BurnerName ?? "",
+                EntryDate = g.EntryDate,
+                ProjectName = g.ProjectName,
+            })
+            .OrderBy(r => r.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.EntryDate)
+            .ToList();
+
+        return new TeamEarlyEntryPageViewModel
+        {
+            Slug = team.Slug,
+            TeamName = team.Name,
+            Grants = rows,
+        };
     }
 
     [HttpGet("Roles/SearchMembers")]

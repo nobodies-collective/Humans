@@ -30,17 +30,17 @@ public sealed class ConsentService(
     IClock clock,
     ILogger<ConsentService> logger) : IConsentService, IUserDataContributor
 {
-    // Chain-follow: returns {merged-source-ids ∪ userId} if userId is a fold target, else null.
-    private async Task<IReadOnlyCollection<Guid>?> GetChainFollowIdsAsync(
+    // Chain-follow read ids: always {userId ∪ merged-source-ids}. When userId is not a
+    // fold target the set is just [userId], so every consent read runs through the
+    // multi-id repository methods uniformly (the single-id repo overloads are exactly
+    // these called with one id).
+    private async Task<IReadOnlyCollection<Guid>> GetChainFollowIdsAsync(
         Guid userId, CancellationToken ct)
     {
         var sourceIds = await userService.GetMergedSourceIdsAsync(userId, ct);
-        if (sourceIds.Count == 0)
-            return null;
 
-        var allIds = new List<Guid>(sourceIds.Count + 1);
+        var allIds = new List<Guid>(sourceIds.Count + 1) { userId };
         allIds.AddRange(sourceIds);
-        allIds.Add(userId);
         return allIds;
     }
 
@@ -48,16 +48,14 @@ public sealed class ConsentService(
     {
         var now = clock.GetCurrentInstant();
 
-        var membershipCalculator = serviceProvider.GetRequiredService<IMembershipCalculator>();
+        var membershipCalculator = serviceProvider.GetRequiredService<IMembershipCalculatorRead>();
         var userTeamIds = await membershipCalculator.GetRequiredTeamIdsForUserAsync(userId, ct);
 
         // Doc listing still goes through ILegalDocumentSyncService (#547a not yet done).
         var documents = await legalDocumentSyncService.GetActiveRequiredDocumentsForTeamsAsync(userTeamIds, ct);
 
         var chainIds = await GetChainFollowIdsAsync(userId, ct);
-        var userConsents = chainIds is null
-            ? await repo.GetAllForUserAsync(userId, ct)
-            : await repo.GetAllForUserIdsAsync(chainIds, ct);
+        var userConsents = await repo.GetAllForUserIdsAsync(chainIds, ct);
 
         var groups = documents
             .GroupBy(d => d.TeamId)
@@ -110,9 +108,7 @@ public sealed class ConsentService(
             return null;
 
         var chainIds = await GetChainFollowIdsAsync(userId, ct);
-        var consentRecord = chainIds is null
-            ? await repo.GetByUserAndVersionAsync(userId, documentVersionId, ct)
-            : await repo.GetByUserIdsAndVersionAsync(chainIds, documentVersionId, ct);
+        var consentRecord = await repo.GetByUserIdsAndVersionAsync(chainIds, documentVersionId, ct);
 
         // Profile is owned by Profiles section — go through UserInfo cache, not the DbSet.
         var profile = (await userService.GetUserInfoAsync(userId, ct))?.Profile;
@@ -144,9 +140,7 @@ public sealed class ConsentService(
             return new ConsentSubmitResult(false, ErrorKey: "NotFound");
 
         var chainIds = await GetChainFollowIdsAsync(userId, ct);
-        var alreadyConsented = chainIds is null
-            ? await repo.ExistsForUserAndVersionAsync(userId, documentVersionId, ct)
-            : await repo.ExistsForUserIdsAndVersionAsync(chainIds, documentVersionId, ct);
+        var alreadyConsented = await repo.ExistsForUserIdsAndVersionAsync(chainIds, documentVersionId, ct);
 
         if (alreadyConsented)
             return new ConsentSubmitResult(false, ErrorKey: "AlreadyConsented");
@@ -181,7 +175,7 @@ public sealed class ConsentService(
         // Auto-resolve AccessSuspended notifications only after ALL required consents complete.
         try
         {
-            var membershipCalc = serviceProvider.GetRequiredService<IMembershipCalculator>();
+            var membershipCalc = serviceProvider.GetRequiredService<IMembershipCalculatorRead>();
             if (await membershipCalc.HasAllRequiredConsentsAsync(userId, ct))
             {
                 await notificationInboxService.ResolveBySourceAsync(userId, NotificationSource.AccessSuspended, ct);
@@ -195,39 +189,17 @@ public sealed class ConsentService(
         return new ConsentSubmitResult(true, DocumentName: version.LegalDocumentName);
     }
 
-    public async Task<IReadOnlyList<ConsentRecordSnapshot>> GetUserConsentRecordsAsync(
-        Guid userId, CancellationToken ct = default)
-    {
-        var chainIds = await GetChainFollowIdsAsync(userId, ct);
-        var records = chainIds is null
-            ? await repo.GetAllForUserAsync(userId, ct)
-            : await repo.GetAllForUserIdsAsync(chainIds, ct);
-
-        return records
-            .Select(c => new ConsentRecordSnapshot(
-                c.UserId,
-                c.DocumentVersionId,
-                c.DocumentVersion.LegalDocument.Name,
-                c.DocumentVersion.VersionNumber,
-                c.ConsentedAt))
-            .ToList();
-    }
-
     public async Task<int> GetConsentRecordCountAsync(Guid userId, CancellationToken ct = default)
     {
         var chainIds = await GetChainFollowIdsAsync(userId, ct);
-        return chainIds is null
-            ? await repo.GetCountForUserAsync(userId, ct)
-            : await repo.GetCountForUserIdsAsync(chainIds, ct);
+        return await repo.GetCountForUserIdsAsync(chainIds, ct);
     }
 
     public async Task<IReadOnlySet<Guid>> GetConsentedVersionIdsAsync(
         Guid userId, CancellationToken ct = default)
     {
         var chainIds = await GetChainFollowIdsAsync(userId, ct);
-        return chainIds is null
-            ? await repo.GetExplicitlyConsentedVersionIdsAsync(userId, ct)
-            : await repo.GetExplicitlyConsentedVersionIdsForUserIdsAsync(chainIds, ct);
+        return await repo.GetExplicitlyConsentedVersionIdsForUserIdsAsync(chainIds, ct);
     }
 
     public async Task<IReadOnlyDictionary<Guid, IReadOnlySet<Guid>>> GetConsentMapForUsersAsync(
@@ -288,39 +260,17 @@ public sealed class ConsentService(
     public async Task<IReadOnlyList<RequiredConsentRow>> GetRequiredConsentRowsForUserAsync(
         Guid userId, Guid teamId, CancellationToken ct = default)
     {
-        var now = clock.GetCurrentInstant();
-
         var documents = await legalDocumentSyncService
             .GetActiveRequiredDocumentsForTeamsAsync([teamId], ct);
 
         var consentedVersionIds = await GetConsentedVersionIdsAsync(userId, ct);
 
-        var rows = new List<RequiredConsentRow>(documents.Count);
-        foreach (var doc in documents)
-        {
-            var currentVersion = doc.Versions
-                .Where(v => v.EffectiveFrom <= now)
-                .MaxBy(v => v.EffectiveFrom);
-
-            if (currentVersion is null)
-                continue;
-
-            rows.Add(new RequiredConsentRow(
-                DocumentVersionId: currentVersion.Id,
-                Title: doc.Name,
-                Signed: consentedVersionIds.Contains(currentVersion.Id)));
-        }
-
-        // Unsigned-first: outstanding work bubbles to top of widget.
-        return rows
-            .OrderBy(r => r.Signed)
-            .ThenBy(r => r.Title, StringComparer.Ordinal)
-            .ToList();
+        return RequiredConsentRow.BuildOrdered(documents, consentedVersionIds, clock.GetCurrentInstant());
     }
 
     public async Task<IReadOnlyList<string>> GetPendingDocumentNamesAsync(Guid userId, CancellationToken ct = default)
     {
-        var membershipCalculator = serviceProvider.GetRequiredService<IMembershipCalculator>();
+        var membershipCalculator = serviceProvider.GetRequiredService<IMembershipCalculatorRead>();
         var missingVersionIds = await membershipCalculator.GetMissingConsentVersionsAsync(userId, ct);
 
         if (missingVersionIds.Count == 0)
@@ -347,9 +297,7 @@ public sealed class ConsentService(
     {
         // Chain-follow for GDPR export. Source User rows are anonymized by AnonymizeForMergeAsync.
         var chainIds = await GetChainFollowIdsAsync(userId, ct);
-        var consents = chainIds is null
-            ? await repo.GetAllForUserAsync(userId, ct)
-            : await repo.GetAllForUserIdsAsync(chainIds, ct);
+        var consents = await repo.GetAllForUserIdsAsync(chainIds, ct);
 
         var shaped = consents.Select(c => new
         {

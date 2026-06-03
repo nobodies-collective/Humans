@@ -31,6 +31,7 @@ internal static class GovernanceSectionExtensions
 
         services.AddScoped<GovernanceApplicationDecisionService>();
         services.AddScoped<IApplicationDecisionService>(sp => sp.GetRequiredService<GovernanceApplicationDecisionService>());
+        services.AddScoped<IApplicationServiceRead>(sp => sp.GetRequiredService<GovernanceApplicationDecisionService>());
         services.AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<GovernanceApplicationDecisionService>());
         services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<GovernanceApplicationDecisionService>());
 
@@ -41,7 +42,9 @@ internal static class GovernanceSectionExtensions
         // ISystemTeamSync, whose implementation injects IMembershipCalculator back).
         // Only MembershipCalculator depends on the query adapter.
         services.AddScoped<IMembershipQuery, GovernanceMembershipQuery>();
-        services.AddScoped<IMembershipCalculator, GovernanceMembershipCalculator>();
+        services.AddScoped<GovernanceMembershipCalculator>();
+        services.AddScoped<IMembershipCalculator>(sp => sp.GetRequiredService<GovernanceMembershipCalculator>());
+        services.AddScoped<IMembershipCalculatorRead>(sp => sp.GetRequiredService<GovernanceMembershipCalculator>());
 
         // Human lifecycle — state-machine on already-onboarded humans
         // (suspend / unsuspend; future re-consent suspensions, term-renewal,

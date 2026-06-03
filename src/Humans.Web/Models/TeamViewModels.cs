@@ -82,6 +82,13 @@ public class TeamDetailViewModel
     public bool CanCurrentUserLeave { get; set; }
     public bool CanCurrentUserManage { get; set; }
     public bool CanCurrentUserEditTeam { get; set; }
+
+    /// <summary>
+    /// Whether to surface the per-team Early Entry management link: the team has
+    /// early entry enabled AND the viewer can manage it (coordinator, or the
+    /// cross-team EETeamAdmin role, or TeamsAdmin/Board/Admin).
+    /// </summary>
+    public bool CanManageEarlyEntry { get; set; }
     public Guid? CurrentUserPendingRequestId { get; set; }
     public int PendingRequestCount { get; set; }
     public ShiftsSummaryCardViewModel? ShiftsSummary { get; set; }
@@ -213,6 +220,9 @@ public class EditTeamViewModel : TeamFormViewModelBase
     public bool HasBudget { get; set; }
     public bool IsSensitive { get; set; }
     public bool IsPromotedToDirectory { get; set; }
+
+    [Display(Name = "Enable Early Entry")]
+    public bool EarlyEntryEnabled { get; set; }
 }
 
 public class EditTeamPageViewModel

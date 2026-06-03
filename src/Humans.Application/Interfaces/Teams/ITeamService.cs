@@ -38,7 +38,8 @@ public record TeamInfo(
     IReadOnlyList<CallToAction>? CallsToAction = null,
     Instant? PageContentUpdatedAt = null,
     Guid? PageContentUpdatedByUserId = null,
-    int PendingRequestCount = 0)
+    int PendingRequestCount = 0,
+    bool EarlyEntryEnabled = false)
 {
     /// <summary>
     /// Full Google Group email address, or null if no prefix is set. Mirrors
@@ -212,6 +213,18 @@ public record TeamActiveMemberSnapshot(
     Instant JoinedAt);
 
 /// <summary>
+/// Persistence-free read model for a team early-entry grant, returned by the
+/// Teams-internal management read so the service boundary does not expose the
+/// <see cref="TeamEarlyEntryGrant"/> entity. The human display name is resolved
+/// by the caller via <c>IUserServiceRead</c> from <see cref="UserId"/>.
+/// </summary>
+public sealed record TeamEarlyEntryGrantInfo(
+    Guid Id,
+    Guid UserId,
+    LocalDate EntryDate,
+    string ProjectName);
+
+/// <summary>
 /// Service for managing teams and team membership.
 /// </summary>
 public interface ITeamService : ITeamServiceRead, IApplicationService
@@ -284,6 +297,7 @@ public interface ITeamService : ITeamServiceRead, IApplicationService
         bool? isHidden = null,
         bool? isSensitive = null,
         bool? isPromotedToDirectory = null,
+        bool? earlyEntryEnabled = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -667,6 +681,44 @@ public interface ITeamService : ITeamServiceRead, IApplicationService
         IReadOnlyCollection<Guid> userIdsToRemove,
         Instant now,
         CancellationToken cancellationToken = default);
+
+    // ==========================================================================
+    // Early-Entry Grants (Teams-internal; called by TeamAdminController for the
+    // per-team management page, plus AccountDeletionService for erasure and
+    // IUserMerge for merge). Not exposed on ITeamServiceRead — cross-section reads
+    // go through IEarlyEntryProvider.
+    // ==========================================================================
+
+    /// <summary>
+    /// Gets the early-entry grants for a single team (management view) as a
+    /// persistence-free read model. Display ordering is the caller's
+    /// responsibility (rendering layer).
+    /// </summary>
+    Task<IReadOnlyList<TeamEarlyEntryGrantInfo>> GetEarlyEntryGrantsForTeamAsync(Guid teamId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Grants early entry to a user for a team. Throws if the team does not have
+    /// <see cref="Team.EarlyEntryEnabled"/> set. Records an audit entry and evicts
+    /// the user's EE cache.
+    /// </summary>
+    Task AddEarlyEntryGrantAsync(Guid teamId, Guid userId, LocalDate entryDate, string projectName, Guid actorUserId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates the entry date and project label of an existing grant. The grant
+    /// must belong to <paramref name="teamId"/>; a grant on another team is
+    /// treated the same as not found.
+    /// </summary>
+    Task EditEarlyEntryGrantAsync(Guid teamId, Guid grantId, LocalDate entryDate, string projectName, Guid actorUserId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Revokes an early-entry grant. Idempotent (no-op if already gone). The
+    /// grant must belong to <paramref name="teamId"/>; a grant on another team
+    /// is treated the same as not found (no-op).
+    /// </summary>
+    Task RemoveEarlyEntryGrantAsync(Guid teamId, Guid grantId, Guid actorUserId, CancellationToken ct = default);
+
+    /// <summary>Deletes every early-entry grant belonging to a user (right-to-erasure).</summary>
+    Task DeleteEarlyEntryGrantsForUserAsync(Guid userId, CancellationToken ct = default);
 }
 
 public sealed record TeamRoleDefinitionSnapshot(

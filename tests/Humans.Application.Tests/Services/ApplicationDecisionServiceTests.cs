@@ -27,7 +27,7 @@ public sealed class ApplicationDecisionServiceTests : ServiceTestHarness
     private readonly IUserService _userService;
     private readonly IEmailService _emailService = Substitute.For<IEmailService>();
     private readonly IEmailMessageFactory _emailMessages = Substitute.For<IEmailMessageFactory>();
-    private readonly INotificationService _notificationService = Substitute.For<INotificationService>();
+    private readonly INotificationEmitter _notificationService = Substitute.For<INotificationEmitter>();
     private readonly ISystemTeamSync _syncJob = Substitute.For<ISystemTeamSync>();
     private readonly IHumansMetrics _metrics = Substitute.For<IHumansMetrics>();
     private readonly INavBadgeCacheInvalidator _navBadge = Substitute.For<INavBadgeCacheInvalidator>();
@@ -769,15 +769,8 @@ public sealed class ApplicationDecisionServiceTests : ServiceTestHarness
             UserName = "r@t.com",
             Email = "r@t.com"
         };
-        _userService.GetByIdsAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyDictionary<Guid, User>>(
-                new Dictionary<Guid, User>
-                {
-                    [applicantId] = applicant,
-                    [reviewerId] = reviewer
-                }));
+        _userService.GetUserInfoAsync(applicantId, Arg.Any<CancellationToken>())
+            .Returns(applicant.ToUserInfo());
         _userService.GetUserInfosAsync(
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>())

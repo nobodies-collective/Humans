@@ -4141,6 +4141,9 @@ namespace Humans.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<bool>("EarlyEntryEnabled")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("GoogleGroupPrefix")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -4231,6 +4234,7 @@ namespace Humans.Infrastructure.Migrations
                             Id = new Guid("00000000-0000-0000-0001-000000000001"),
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17702491570000000L),
                             Description = "All active volunteers with signed required documents",
+                            EarlyEntryEnabled = false,
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
@@ -4249,6 +4253,7 @@ namespace Humans.Infrastructure.Migrations
                             Id = new Guid("00000000-0000-0000-0001-000000000002"),
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17702491570000000L),
                             Description = "All team coordinators",
+                            EarlyEntryEnabled = false,
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
@@ -4267,6 +4272,7 @@ namespace Humans.Infrastructure.Migrations
                             Id = new Guid("00000000-0000-0000-0001-000000000003"),
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17702491570000000L),
                             Description = "Board members with active role assignments",
+                            EarlyEntryEnabled = false,
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
@@ -4285,6 +4291,7 @@ namespace Humans.Infrastructure.Migrations
                             Id = new Guid("00000000-0000-0000-0001-000000000004"),
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17702491570000000L),
                             Description = "Voting members with approved asociado applications",
+                            EarlyEntryEnabled = false,
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
@@ -4303,6 +4310,7 @@ namespace Humans.Infrastructure.Migrations
                             Id = new Guid("00000000-0000-0000-0001-000000000005"),
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17702491570000000L),
                             Description = "Active contributors with approved colaborador applications",
+                            EarlyEntryEnabled = false,
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
@@ -4321,6 +4329,7 @@ namespace Humans.Infrastructure.Migrations
                             Id = new Guid("00000000-0000-0000-0001-000000000006"),
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17702491570000000L),
                             Description = "All active camp leads across all camps",
+                            EarlyEntryEnabled = false,
                             HasBudget = false,
                             IsActive = true,
                             IsHidden = false,
@@ -4334,6 +4343,44 @@ namespace Humans.Infrastructure.Migrations
                             SystemTeamType = "BarrioLeads",
                             UpdatedAt = NodaTime.Instant.FromUnixTimeTicks(17702491570000000L)
                         });
+                });
+
+            modelBuilder.Entity("Humans.Domain.Entities.TeamEarlyEntryGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<LocalDate>("EntryDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ProjectName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TeamId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("team_early_entry_grants", (string)null);
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.TeamJoinRequest", b =>
@@ -6275,6 +6322,17 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("ParentTeam");
                 });
 
+            modelBuilder.Entity("Humans.Domain.Entities.TeamEarlyEntryGrant", b =>
+                {
+                    b.HasOne("Humans.Domain.Entities.Team", "Team")
+                        .WithMany("EarlyEntryGrants")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Team");
+                });
+
             modelBuilder.Entity("Humans.Domain.Entities.TeamJoinRequest", b =>
                 {
                     b.HasOne("Humans.Domain.Entities.User", "ReviewedByUser")
@@ -6716,6 +6774,8 @@ namespace Humans.Infrastructure.Migrations
             modelBuilder.Entity("Humans.Domain.Entities.Team", b =>
                 {
                     b.Navigation("ChildTeams");
+
+                    b.Navigation("EarlyEntryGrants");
 
                     b.Navigation("JoinRequests");
 
