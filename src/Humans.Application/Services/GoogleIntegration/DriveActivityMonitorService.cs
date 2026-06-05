@@ -61,7 +61,7 @@ public sealed class DriveActivityMonitorService(
         var now = clock.GetCurrentInstant();
         var lookbackTime = await GetLastRunTimestampAsync(cancellationToken)
             ?? now.Minus(Duration.FromHours(24));
-        var filterTime = lookbackTime.ToInvariantInstantString();
+        var filterTime = lookbackTime.ToIso8601();
 
         logger.LogDebug("Drive activity monitor checking events since {LookbackTime}", filterTime);
 
@@ -244,7 +244,7 @@ public sealed class DriveActivityMonitorService(
             ? Task.CompletedTask
             : systemSettings.SetValueAsync(
                 SystemSettingKeys.DriveActivityMonitorLastRunAt,
-                newLastRunAt.Value.ToInvariantInstantString(),
+                newLastRunAt.Value.ToIso8601(),
                 cancellationToken);
     }
 
