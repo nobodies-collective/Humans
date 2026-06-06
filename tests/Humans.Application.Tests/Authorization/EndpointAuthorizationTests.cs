@@ -21,7 +21,7 @@ public class EndpointAuthorizationTests
         { typeof(DebugController), "DbStats", "AdminOnly" },
         { typeof(DebugController), "CacheStats", "AdminOnly" },
         { typeof(UsersAdminController), "Audience", "AdminOnly" },
-        { typeof(AdminMergeController), null, "AdminOnly" },
+        { typeof(UsersAdminAccountMergesController), null, "AdminOnly" },
         { typeof(EmailController), null, "AdminOnly" },
         { typeof(AdminController), "Index", "AnyAdminRole" },
         { typeof(AuditLogController), "Index", "BoardOrAdmin" },

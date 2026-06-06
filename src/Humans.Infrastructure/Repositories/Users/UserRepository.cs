@@ -280,6 +280,20 @@ internal sealed partial class UserRepository : IUserRepository
 #pragma warning disable HUM_USER_DISPLAYNAME // Merge tombstone label is an allowed legacy column write.
         user.DisplayName = "Merged User";
 #pragma warning restore HUM_USER_DISPLAYNAME
+
+        // Scrub the legacy Identity email/username PII from the tombstone. The address
+        // already moved to the survivor's UserEmail rows during the fan-out, so keeping
+        // it here is redundant PII that would otherwise live on the tombstone forever
+        // (GDPR). A unique @merged.local sentinel removes the PII while keeping Identity
+        // uniqueness satisfied and marking the row as a merge tombstone.
+        var tombstoneAddress = $"merged-{sourceUserId:N}@merged.local";
+        user.Email = tombstoneAddress;
+        user.UserName = tombstoneAddress;
+        user.NormalizedUserName = tombstoneAddress.ToUpperInvariant();
+        // NormalizedEmail is a being-removed Identity shadow column (HUM0010 forbids the
+        // C# property); scrub the underlying column via the EF property accessor.
+        ctx.Entry(user).Property("NormalizedEmail").CurrentValue = tombstoneAddress.ToUpperInvariant();
+
         user.ProfilePictureUrl = null;
         user.PhoneNumber = null;
         user.PhoneNumberConfirmed = false;
@@ -534,6 +548,19 @@ internal sealed partial class UserRepository : IUserRepository
 
         user.DisplayName = UserInfo.GdprAnonymizedBurnerName;
 #pragma warning restore HUM_USER_DISPLAYNAME
+
+        // Scrub the legacy Identity email/username PII. The address was already removed
+        // from UserEmail rows (RemoveAllUserEmailsForUserAndSaveAsync runs first), but the
+        // legacy Identity columns lingered. Mirrors the merge tombstone scrub; original
+        // email is captured above for the deletion record.
+        var tombstoneAddress = $"deleted-{userId:N}@deleted.local";
+        user.Email = tombstoneAddress;
+        user.UserName = tombstoneAddress;
+        user.NormalizedUserName = tombstoneAddress.ToUpperInvariant();
+        // NormalizedEmail is a being-removed Identity shadow column (HUM0010 forbids the
+        // C# property); scrub the underlying column via the EF property accessor.
+        ctx.Entry(user).Property("NormalizedEmail").CurrentValue = tombstoneAddress.ToUpperInvariant();
+
         user.ProfilePictureUrl = null;
         user.PhoneNumber = null;
         user.PhoneNumberConfirmed = false;

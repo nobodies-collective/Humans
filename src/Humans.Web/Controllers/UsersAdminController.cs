@@ -127,6 +127,11 @@ public sealed class UsersAdminController(
             ? value
             : null;
 
+        // If this is a merge tombstone, resolve the survivor's name for the banner.
+        var mergedToName = info.MergedToUserId is Guid mergedTo
+            ? (await _userService.GetUserInfoAsync(mergedTo, ct))?.BurnerName
+            : null;
+
         var viewModel = AdminHumanDetailViewModelBuilder.Build(
             info,
             applications,
@@ -138,7 +143,8 @@ public sealed class UsersAdminController(
             outboxCount,
             clock.GetCurrentInstant(),
             await GetRejectedByNameAsync(info.Profile, ct),
-            revealedIban);
+            revealedIban,
+            mergedToName);
 
         return View(viewModel);
     }
