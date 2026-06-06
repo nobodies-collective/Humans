@@ -19,8 +19,8 @@ public static class AdminNavTree
             new("Scanner",            "Scanner",        "Index", null, null, "fa-solid fa-qrcode",      PolicyNames.TicketAdminBoardOrAdmin)
         ]),
         new("Members", [
-            new("Humans", "Profile", "AdminList",       null, null, "fa-solid fa-users",            PolicyNames.HumanAdminBoardOrAdmin),
-            new("Roles",  "Profile", "Roles",           null, null, "fa-solid fa-id-badge",         PolicyNames.HumanAdminBoardOrAdmin),
+            new("Humans", "UsersAdmin", "AdminList",    null, null, "fa-solid fa-users",            PolicyNames.HumanAdminBoardOrAdmin),
+            new("Roles",  "UsersAdmin", "Roles",        null, null, "fa-solid fa-id-badge",         PolicyNames.HumanAdminBoardOrAdmin),
             new("Review", "OnboardingReview", "Index",   null, null, "fa-solid fa-clipboard-check",  PolicyNames.ReviewQueueAccess,
                  PillCount: PillCounts.ReviewQueue),
             new("Merge requests",      "AdminMerge", "Index",             null, null, "fa-solid fa-code-merge", PolicyNames.AdminOnly),
@@ -43,8 +43,8 @@ public static class AdminNavTree
             new("Roster", "Cantina", "Roster", null, null, "fa-solid fa-utensils", PolicyNames.CantinaAdminOrAdmin)
         ]),
         new("Expenses", [
-            new("Expenses",          "Expenses", "Index",       null, null, "fa-solid fa-receipt",        PolicyNames.IsActiveMember),
-            new("Coordinator Queue", "Expenses", "Coordinator", null, null, "fa-solid fa-list-check",     PolicyNames.IsActiveMember),
+            new("Expenses",          "Expenses", "Index",       null, null, "fa-solid fa-receipt",        PolicyNames.AppAccess),
+            new("Coordinator Queue", "Expenses", "Coordinator", null, null, "fa-solid fa-list-check",     PolicyNames.AppAccess),
             new("Expense Review",    "Expenses", "Review",      null, null, "fa-solid fa-magnifying-glass-dollar", PolicyNames.FinanceAdminOrAdmin)
         ]),
         new("Finance", [
