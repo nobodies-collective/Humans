@@ -17,7 +17,8 @@ public class ExpenseLineConfiguration : IEntityTypeConfiguration<ExpenseLine>
 
         b.Property(x => x.LineType)
             .HasConversion<string>()
-            .HasMaxLength(20);
+            .HasMaxLength(20)
+            .HasDefaultValue(ExpenseLineType.Receipt);
 
         b.HasOne(x => x.Attachment)
             .WithMany()
