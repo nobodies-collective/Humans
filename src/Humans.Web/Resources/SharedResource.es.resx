@@ -3286,6 +3286,28 @@
   <data name="Login_MagicLink_Submit" xml:space="preserve">
     <value>Enviarme un enlace de inicio de sesión</value>
   </data>
+  <data name="GateLogin_Title" xml:space="preserve">
+    <value>Terminal de puerta</value>
+  </data>
+  <data name="GateLogin_Description" xml:space="preserve">
+    <value>Inicia sesión en el portátil compartido de puerta para consultar entradas. Pide las credenciales al equipo de entradas.</value>
+  </data>
+  <data name="GateLogin_Username" xml:space="preserve">
+    <value>Nombre de usuario</value>
+  </data>
+  <data name="GateLogin_Password" xml:space="preserve">
+    <value>Contraseña</value>
+  </data>
+  <data name="GateLogin_SignIn" xml:space="preserve">
+    <value>Iniciar sesión</value>
+  </data>
+  <data name="GateLogin_Invalid" xml:space="preserve">
+    <value>Nombre de usuario o contraseña incorrectos. El nombre de usuario es "gate"; la contraseña la establece el equipo de entradas — pídeles la actual.</value>
+  </data>
+  <data name="GateLogin_Throttled" xml:space="preserve">
+    <value>El inicio de sesión desde esta red está pausado durante {0} segundos: se hicieron demasiados intentos con contraseña incorrecta desde aquí. Si no fuiste tú, alguien que comparte esta conexión está probando contraseñas en esta página. Espera, y luego introduce la contraseña correcta — pregunta al equipo de entradas si no estás seguro. La cuenta NO está bloqueada; los administradores de entradas pueden comprobar o cambiar la contraseña en Tickets → Gate terminal.</value>
+    <comment>{0}=seconds remaining</comment>
+  </data>
   <data name="MagicLinkSent_Title" xml:space="preserve">
     <value>Revisa tu correo</value>
   </data>

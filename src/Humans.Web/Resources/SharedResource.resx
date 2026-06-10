@@ -1394,6 +1394,13 @@
   <data name="Login_MagicLink_Title" xml:space="preserve"><value>Or sign in with email</value></data>
   <data name="Login_MagicLink_Placeholder" xml:space="preserve"><value>your@email.com</value></data>
   <data name="Login_MagicLink_Submit" xml:space="preserve"><value>Send me a login link</value></data>
+  <data name="GateLogin_Title" xml:space="preserve"><value>Gate terminal</value></data>
+  <data name="GateLogin_Description" xml:space="preserve"><value>Sign in the shared gate laptop to look up tickets. Ask the ticket team for the credentials.</value></data>
+  <data name="GateLogin_Username" xml:space="preserve"><value>Username</value></data>
+  <data name="GateLogin_Password" xml:space="preserve"><value>Password</value></data>
+  <data name="GateLogin_SignIn" xml:space="preserve"><value>Sign in</value></data>
+  <data name="GateLogin_Invalid" xml:space="preserve"><value>Wrong username or password. The username is "gate"; the password is set by the ticket team — ask them for the current one.</value></data>
+  <data name="GateLogin_Throttled" xml:space="preserve"><value>Sign-in from this network is paused for {0} seconds: too many wrong-password attempts came from here. If that wasn't you, someone sharing this internet connection is trying passwords on this page. Wait it out, then enter the correct password — ask the ticket team if you're not sure of it. The account itself is NOT locked; ticket admins can check or change the password under Tickets → Gate terminal.</value><comment>{0}=seconds remaining</comment></data>
   <data name="MagicLinkSent_Title" xml:space="preserve"><value>Check your email</value></data>
   <data name="MagicLinkSent_Message" xml:space="preserve"><value>We've sent a link to that email address from humans@nobodies.team. Check your inbox (and spam folder).</value></data>
   <data name="MagicLinkError_Title" xml:space="preserve"><value>Link expired or invalid</value></data>
