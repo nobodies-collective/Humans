@@ -449,10 +449,10 @@ public class StoreService(
             throw new InvalidOperationException(
                 $"Product '{product.Name}' has been deactivated and is no longer orderable");
 
+        // OrderableUntil is gated by StoreOrderAuthorizationHandler (Store admins exempt,
+        // everyone else denied) — the auth-free service only annotates the audit entry.
         var today = await TodayInEventZoneAsync();
-        if (today > product.OrderableUntil)
-            throw new InvalidOperationException(
-                $"Product '{product.Name}' order deadline ({product.OrderableUntil}) has passed");
+        var deadlinePassed = today > product.OrderableUntil;
 
         var line = new StoreOrderLine
         {
@@ -482,7 +482,8 @@ public class StoreService(
 
         await audit.LogAsync(
             AuditAction.StoreLineAdded, nameof(StoreOrderLine), line.Id,
-            $"Added {qty} × '{product.Name}' to order {order.Id}",
+            $"Added {qty} × '{product.Name}' to order {order.Id}"
+                + (deadlinePassed ? $" (past order deadline {product.OrderableUntil})" : string.Empty),
             actorUserId, order.Id, nameof(StoreOrder));
     }
 
@@ -521,15 +522,16 @@ public class StoreService(
         if (ctx.OrderState != StoreOrderState.Open)
             throw new InvalidOperationException("Cannot remove lines from an issued order");
 
+        // OrderableUntil is gated by StoreOrderAuthorizationHandler (Store admins exempt,
+        // everyone else denied) — the auth-free service only annotates the audit entry.
         var today = await TodayInEventZoneAsync();
-        if (today > ctx.ProductOrderableUntil)
-            throw new InvalidOperationException(
-                $"Line's product order deadline ({ctx.ProductOrderableUntil}) has passed");
+        var deadlinePassed = today > ctx.ProductOrderableUntil;
 
         await repo.RemoveLineAsync(lineId, ct);
         await audit.LogAsync(
             AuditAction.StoreLineRemoved, nameof(StoreOrderLine), lineId,
-            $"Removed line {lineId} from order {ctx.OrderId}",
+            $"Removed line {lineId} from order {ctx.OrderId}"
+                + (deadlinePassed ? $" (past order deadline {ctx.ProductOrderableUntil})" : string.Empty),
             actorUserId, ctx.OrderId, nameof(StoreOrder));
     }
 
