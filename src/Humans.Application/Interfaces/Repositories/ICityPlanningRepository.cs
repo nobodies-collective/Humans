@@ -66,9 +66,10 @@ public interface ICityPlanningRepository : IRepository
     /// <summary>
     /// Upserts the <see cref="CampPolygon"/> for the given camp season and appends
     /// a new <see cref="CampPolygonHistory"/> row in the same unit of work.
-    /// Returns the persisted polygon and history entities (detached).
+    /// Returns the persisted polygon (detached); the appended history row is a side
+    /// effect, readable via <see cref="GetHistoryForCampSeasonAsync"/>.
     /// </summary>
-    Task<(CampPolygon polygon, CampPolygonHistory history)> SavePolygonAndAppendHistoryAsync(
+    Task<CampPolygon> SavePolygonAndAppendHistoryAsync(
         Guid campSeasonId,
         string geoJson,
         double areaSqm,
@@ -80,12 +81,6 @@ public interface ICityPlanningRepository : IRepository
     // ==========================================================================
     // Reads / Writes — CityPlanningSettings
     // ==========================================================================
-
-    /// <summary>
-    /// Returns the <see cref="CityPlanningSettings"/> row for the given year,
-    /// or <c>null</c> if none exists. Read-only (AsNoTracking).
-    /// </summary>
-    Task<CityPlanningSettings?> GetSettingsByYearAsync(int year, CancellationToken ct = default);
 
     /// <summary>
     /// Returns the <see cref="CityPlanningSettings"/> row for the given year,

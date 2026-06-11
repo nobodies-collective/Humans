@@ -1,4 +1,3 @@
-using Humans.Application.Extensions;
 using Humans.Application.Interfaces.Camps;
 using Humans.Application.Interfaces.CityPlanning;
 using Humans.Application.Interfaces.Containers;
@@ -6,7 +5,6 @@ using Humans.Web.Authorization;
 using Humans.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NodaTime;
 
 using Humans.Application;
 using Humans.Application.Interfaces.Users;
@@ -144,12 +142,12 @@ public class CityPlanningController(
     [HttpPost("BarrioMap/Admin/UploadLimitZone")]
     [ValidateAntiForgeryToken]
     public Task<IActionResult> UploadLimitZone(IFormFile? file, CancellationToken cancellationToken) =>
-        UploadGeoJsonAsync(file, "Limit zone", cityPlanningService.UpdateLimitZoneAsync, cancellationToken);
+        UploadGeoJsonAsync(file, "Limit zone", cityPlanningService.UpdateLimitZoneFromUploadAsync, cancellationToken);
 
     [HttpPost("BarrioMap/Admin/UploadOfficialZones")]
     [ValidateAntiForgeryToken]
     public Task<IActionResult> UploadOfficialZones(IFormFile? file, CancellationToken cancellationToken) =>
-        UploadGeoJsonAsync(file, "Official zones", cityPlanningService.UpdateOfficialZonesAsync, cancellationToken);
+        UploadGeoJsonAsync(file, "Official zones", cityPlanningService.UpdateOfficialZonesFromUploadAsync, cancellationToken);
 
     [HttpGet("BarrioMap/Admin/DownloadLimitZone")]
     public Task<IActionResult> DownloadLimitZone(CancellationToken cancellationToken) =>
@@ -176,60 +174,52 @@ public class CityPlanningController(
         var (error, _) = await RequireMapAdminAsync(cancellationToken);
         if (error is not null) return error;
 
-        var pattern = DateFormattingExtensions.PlacementDateTimePattern;
-
-        LocalDateTime? opens = null;
-        if (opensAt is { Length: > 0 })
+        var result = await cityPlanningService.UpdatePlacementDatesAsync(opensAt, closesAt, cancellationToken);
+        if (!result.Success)
         {
-            var result = pattern.Parse(opensAt);
-            if (!result.Success) { SetError("Invalid opens-at date format."); return RedirectToAction(nameof(Admin)); }
-            opens = result.Value;
+            SetError(PlacementDateErrorMessage(result.ErrorKey));
+            return RedirectToAction(nameof(Admin));
         }
 
-        LocalDateTime? closes = null;
-        if (closesAt is { Length: > 0 })
-        {
-            var result = pattern.Parse(closesAt);
-            if (!result.Success) { SetError("Invalid closes-at date format."); return RedirectToAction(nameof(Admin)); }
-            closes = result.Value;
-        }
-
-        await cityPlanningService.UpdatePlacementDatesAsync(opens, closes, cancellationToken);
         SetSuccess("Placement dates updated.");
         return RedirectToAction(nameof(Admin));
     }
 
-    /// <summary>Shared GeoJSON upload (LimitZone / OfficialZones); callers differ only by label and service method.</summary>
+    private static string PlacementDateErrorMessage(string? errorKey) => errorKey switch
+    {
+        "InvalidOpensAt" => "Invalid opens-at date format.",
+        "InvalidClosesAt" => "Invalid closes-at date format.",
+        _ => "Invalid placement date format.",
+    };
+
+    /// <summary>Shared GeoJSON upload (LimitZone / OfficialZones); callers differ only by label and service method.
+    /// File read, size limit, and JSON validation are owned by the service's *FromUploadAsync method.</summary>
     private async Task<IActionResult> UploadGeoJsonAsync(
         IFormFile? file,
         string namePretty,
-        Func<string, Guid, CancellationToken, Task> updateAsync,
+        Func<IFormFile?, Guid, CancellationToken, Task<GeoJsonUploadResult>> updateFromUploadAsync,
         CancellationToken ct)
     {
         var (error, user) = await RequireMapAdminAsync(ct);
         if (error is not null) return error;
 
-        if (file is null || file.Length == 0)
+        var result = await updateFromUploadAsync(file, user!.Id, ct);
+        if (!result.Success)
         {
-            SetError("Please select a GeoJSON file to upload.");
+            SetError(UploadErrorMessage(result.ErrorKey));
             return RedirectToAction(nameof(Admin));
         }
-        if (file.Length > 10 * 1024 * 1024)
-        {
-            SetError("File too large. Maximum size is 10 MB.");
-            return RedirectToAction(nameof(Admin));
-        }
-        using var reader = new StreamReader(file.OpenReadStream());
-        var geoJson = await reader.ReadToEndAsync(ct);
-        if (!IsValidJson(geoJson))
-        {
-            SetError("Invalid GeoJSON file. Please upload a valid JSON file.");
-            return RedirectToAction(nameof(Admin));
-        }
-        await updateAsync(geoJson, user!.Id, ct);
+
         SetSuccess($"{namePretty} uploaded.");
         return RedirectToAction(nameof(Admin));
     }
+
+    private static string UploadErrorMessage(string? errorKey) => errorKey switch
+    {
+        "MissingFile" => "Please select a GeoJSON file to upload.",
+        "FileTooLarge" => "File too large. Maximum size is 10 MB.",
+        _ => "Invalid GeoJSON file. Please upload a valid JSON file.",
+    };
 
     private async Task<IActionResult> DownloadGeoJsonAsync(
         Func<CityPlanningSettingsDto, string?> selector,
@@ -458,18 +448,5 @@ public class CityPlanningController(
         await containerService.DeleteAsync(id, user!.Id, cancellationToken);
         SetSuccess("Container deleted.");
         return RedirectToAction(nameof(Containers), new { year = settings.Year });
-    }
-
-    private static bool IsValidJson(string value)
-    {
-        try
-        {
-            System.Text.Json.JsonDocument.Parse(value).Dispose();
-            return true;
-        }
-        catch (System.Text.Json.JsonException)
-        {
-            return false;
-        }
     }
 }

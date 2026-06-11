@@ -41,13 +41,16 @@ public sealed class CityPlanningRepositoryTests : IDisposable
         var userId = Guid.NewGuid();
         var now = _clock.GetCurrentInstant();
 
-        var (polygon, history) = await _repo.SavePolygonAndAppendHistoryAsync(
+        var polygon = await _repo.SavePolygonAndAppendHistoryAsync(
             campSeasonId, """{"type":"Feature"}""", 100.0, userId, "Saved", now, Xunit.TestContext.Current.CancellationToken);
 
         polygon.CampSeasonId.Should().Be(campSeasonId);
         polygon.AreaSqm.Should().Be(100.0);
-        history.Note.Should().Be("Saved");
-        history.CampSeasonId.Should().Be(campSeasonId);
+
+        var history = await _repo.GetHistoryForCampSeasonAsync(campSeasonId, Xunit.TestContext.Current.CancellationToken);
+        history.Should().ContainSingle();
+        history[0].Note.Should().Be("Saved");
+        history[0].CampSeasonId.Should().Be(campSeasonId);
 
         (await _dbContext.CampPolygons.AsNoTracking().CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(1);
         (await _dbContext.CampPolygonHistories.AsNoTracking().CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(1);
@@ -154,8 +157,9 @@ public sealed class CityPlanningRepositoryTests : IDisposable
         var b = Guid.NewGuid();
         var userId = Guid.NewGuid();
 
-        var (_, historyA) = await _repo.SavePolygonAndAppendHistoryAsync(
+        await _repo.SavePolygonAndAppendHistoryAsync(
             a, """{}""", 100.0, userId, "Saved", _clock.GetCurrentInstant(), Xunit.TestContext.Current.CancellationToken);
+        var historyA = (await _repo.GetHistoryForCampSeasonAsync(a, Xunit.TestContext.Current.CancellationToken)).Single();
 
         // Wrong campSeasonId should not return the row.
         var result = await _repo.GetHistoryEntryAsync(b, historyA.Id, Xunit.TestContext.Current.CancellationToken);
@@ -166,13 +170,6 @@ public sealed class CityPlanningRepositoryTests : IDisposable
     // ==========================================================================
     // CityPlanningSettings operations
     // ==========================================================================
-
-    [HumansFact]
-    public async Task GetSettingsByYearAsync_ReturnsNull_WhenNotFound()
-    {
-        var result = await _repo.GetSettingsByYearAsync(2030, Xunit.TestContext.Current.CancellationToken);
-        result.Should().BeNull();
-    }
 
     [HumansFact]
     public async Task GetOrCreateSettingsAsync_CreatesRow_WhenNotFound()
