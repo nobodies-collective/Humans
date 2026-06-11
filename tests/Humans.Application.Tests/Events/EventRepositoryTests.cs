@@ -39,9 +39,9 @@ public sealed class EventRepositoryTests : IDisposable
         var inactive = SeedCategory("Inactive", "inactive", 0, isActive: false);
         var second = SeedCategory("Second", "second", 2);
         var first = SeedCategory("First", "first", 1);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        var result = await _repo.GetActiveCategoriesAsync();
+        var result = await _repo.GetActiveCategoriesAsync(Xunit.TestContext.Current.CancellationToken);
 
         result.Select(c => c.Id).Should().BeEquivalentTo([first.Id, second.Id]);
         result.Should().NotContain(c => c.Id == inactive.Id);
@@ -51,10 +51,10 @@ public sealed class EventRepositoryTests : IDisposable
     public async Task CategorySlugExistsAsync_HonoursExcludeId()
     {
         var category = SeedCategory("Music", "music", 1);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        (await _repo.CategorySlugExistsAsync("music", excludeId: null)).Should().BeTrue();
-        (await _repo.CategorySlugExistsAsync("music", excludeId: category.Id)).Should().BeFalse();
+        (await _repo.CategorySlugExistsAsync("music", excludeId: null, ct: Xunit.TestContext.Current.CancellationToken)).Should().BeTrue();
+        (await _repo.CategorySlugExistsAsync("music", excludeId: category.Id, ct: Xunit.TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
     [HumansFact]
@@ -69,9 +69,9 @@ public sealed class EventRepositoryTests : IDisposable
         var newer = SeedEvent(category.Id, userId, EventStatus.Approved, submittedAt: Instant.FromUtc(2026, 5, 2, 12, 0));
         SeedEvent(category.Id, otherUserId, EventStatus.Pending, submittedAt: Instant.FromUtc(2026, 5, 3, 12, 0));
         SeedEvent(category.Id, userId, EventStatus.Pending, submittedAt: Instant.FromUtc(2026, 5, 4, 12, 0), campId: Guid.NewGuid());
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        var result = await _repo.GetUserSubmissionsAsync(userId);
+        var result = await _repo.GetUserSubmissionsAsync(userId, Xunit.TestContext.Current.CancellationToken);
 
         result.Select(e => e.Id).Should().BeEquivalentTo([newer.Id, older.Id]);
     }
@@ -94,14 +94,14 @@ public sealed class EventRepositoryTests : IDisposable
         SeedEvent(includedCategory.Id, Guid.NewGuid(), EventStatus.Pending, submittedAt: _clock.GetCurrentInstant(), campId: campId, venueId: venue.Id);
         SeedEvent(excludedCategory.Id, Guid.NewGuid(), EventStatus.Approved, submittedAt: _clock.GetCurrentInstant(), campId: campId, venueId: venue.Id);
         SeedEvent(includedCategory.Id, Guid.NewGuid(), EventStatus.Approved, submittedAt: _clock.GetCurrentInstant(), campId: Guid.NewGuid(), venueId: venue.Id);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
         var result = await _repo.GetApprovedEventsAsync(
             campId,
             venue.Id,
             includedCategory.Id,
             q: null,
-            excludedSlugs: ["adult"]);
+            excludedSlugs: ["adult"], ct: Xunit.TestContext.Current.CancellationToken);
 
         result.Should().ContainSingle();
         result[0].Id.Should().Be(matching.Id);
@@ -116,9 +116,9 @@ public sealed class EventRepositoryTests : IDisposable
         SeedEvent(category.Id, Guid.NewGuid(), EventStatus.Approved, _clock.GetCurrentInstant());
         SeedEvent(category.Id, Guid.NewGuid(), EventStatus.Draft, _clock.GetCurrentInstant());
         SeedEvent(category.Id, Guid.NewGuid(), EventStatus.Withdrawn, _clock.GetCurrentInstant());
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        var result = await _repo.GetModerationStatusCountsAsync();
+        var result = await _repo.GetModerationStatusCountsAsync(Xunit.TestContext.Current.CancellationToken);
 
         result.Should().ContainKey(EventStatus.Pending).WhoseValue.Should().Be(2);
         result.Should().ContainKey(EventStatus.Approved).WhoseValue.Should().Be(1);
@@ -135,9 +135,9 @@ public sealed class EventRepositoryTests : IDisposable
         var category = SeedCategory("Workshop", "workshop", 1);
         var older = SeedEvent(category.Id, Guid.NewGuid(), EventStatus.Pending, Instant.FromUtc(2026, 5, 1, 12, 0));
         var newer = SeedEvent(category.Id, Guid.NewGuid(), EventStatus.Pending, Instant.FromUtc(2026, 5, 2, 12, 0));
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        var result = await _repo.GetEventsByStatusAsync(EventStatus.Pending);
+        var result = await _repo.GetEventsByStatusAsync(EventStatus.Pending, Xunit.TestContext.Current.CancellationToken);
 
         result.Select(e => e.Id).Should().BeEquivalentTo([older.Id, newer.Id]);
     }
@@ -157,11 +157,72 @@ public sealed class EventRepositoryTests : IDisposable
             BuildFavourite(userId, later.Id),
             BuildFavourite(userId, earlier.Id),
             BuildFavourite(userId, pending.Id));
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        var result = await _repo.GetFavouritesWithEventsAsync(userId);
+        var result = await _repo.GetFavouritesWithEventsAsync(userId, Xunit.TestContext.Current.CancellationToken);
 
         result.Select(f => f.GuideEventId).Should().BeEquivalentTo([earlier.Id, later.Id]);
+    }
+
+    [HumansFact]
+    public async Task ToggleFavouriteAsync_DayToggle_RemovesWholeEventRow()
+    {
+        var userId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        await _db.EventFavourites.AddAsync(BuildFavourite(userId, eventId), Xunit.TestContext.Current.CancellationToken);
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var nowFavourited = await _repo.ToggleFavouriteAsync(
+            userId, eventId, BuildFavourite(userId, eventId, dayOffset: 2), Xunit.TestContext.Current.CancellationToken);
+
+        nowFavourited.Should().BeFalse();
+        (await _repo.GetFavouriteEventIdsAsync(userId, Xunit.TestContext.Current.CancellationToken)).Should().BeEmpty();
+    }
+
+    [HumansFact]
+    public async Task ToggleFavouriteAsync_DifferentDays_CoexistAsSeparateRows()
+    {
+        var userId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+
+        (await _repo.ToggleFavouriteAsync(userId, eventId, BuildFavourite(userId, eventId, dayOffset: 2), Xunit.TestContext.Current.CancellationToken)).Should().BeTrue();
+        (await _repo.ToggleFavouriteAsync(userId, eventId, BuildFavourite(userId, eventId, dayOffset: 4), Xunit.TestContext.Current.CancellationToken)).Should().BeTrue();
+
+        var favourites = await _repo.GetFavouritesForContributorAsync(userId, Xunit.TestContext.Current.CancellationToken);
+        favourites.Select(f => f.DayOffset).Should().BeEquivalentTo([2, 4]);
+    }
+
+    [HumansFact]
+    public async Task RemoveFavouriteAsync_NullDay_RemovesAllRowsForEvent()
+    {
+        var userId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        await _db.EventFavourites.AddRangeAsync(
+            BuildFavourite(userId, eventId, dayOffset: 2),
+            BuildFavourite(userId, eventId, dayOffset: 4));
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var removed = await _repo.RemoveFavouriteAsync(userId, eventId, dayOffset: null, Xunit.TestContext.Current.CancellationToken);
+
+        removed.Should().BeTrue();
+        (await _repo.GetFavouritesForContributorAsync(userId, Xunit.TestContext.Current.CancellationToken)).Should().BeEmpty();
+    }
+
+    [HumansFact]
+    public async Task RemoveFavouriteAsync_SpecificDay_KeepsOtherDays()
+    {
+        var userId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        await _db.EventFavourites.AddRangeAsync(
+            BuildFavourite(userId, eventId, dayOffset: 2),
+            BuildFavourite(userId, eventId, dayOffset: 4));
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var removed = await _repo.RemoveFavouriteAsync(userId, eventId, dayOffset: 2, Xunit.TestContext.Current.CancellationToken);
+
+        removed.Should().BeTrue();
+        (await _repo.GetFavouritesForContributorAsync(userId, Xunit.TestContext.Current.CancellationToken))
+            .Should().ContainSingle(f => f.DayOffset == 4);
     }
 
     [HumansFact]
@@ -172,9 +233,9 @@ public sealed class EventRepositoryTests : IDisposable
         var approvedCamp = SeedEvent(category.Id, Guid.NewGuid(), EventStatus.Approved, _clock.GetCurrentInstant(), campId: Guid.NewGuid());
         SeedEvent(category.Id, Guid.NewGuid(), EventStatus.Rejected, _clock.GetCurrentInstant(), campId: Guid.NewGuid());
         SeedEvent(category.Id, Guid.NewGuid(), EventStatus.Pending, _clock.GetCurrentInstant());
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        var result = await _repo.GetActiveCampEventsAsync();
+        var result = await _repo.GetActiveCampEventsAsync(Xunit.TestContext.Current.CancellationToken);
 
         result.Select(e => e.Id).Should().BeEquivalentTo([pendingCamp.Id, approvedCamp.Id]);
         result.Should().OnlyContain(e => e.CampId.HasValue);
@@ -275,12 +336,13 @@ public sealed class EventRepositoryTests : IDisposable
         });
     }
 
-    private EventFavourite BuildFavourite(Guid userId, Guid guideEventId)
+    private EventFavourite BuildFavourite(Guid userId, Guid guideEventId, int? dayOffset = null)
         => new()
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             GuideEventId = guideEventId,
+            DayOffset = dayOffset,
             CreatedAt = _clock.GetCurrentInstant()
         };
 }

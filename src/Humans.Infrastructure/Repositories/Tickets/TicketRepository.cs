@@ -24,8 +24,6 @@ namespace Humans.Infrastructure.Repositories.Tickets;
 /// </remarks>
 internal sealed class TicketRepository(IDbContextFactory<HumansDbContext> factory) : ITicketRepository
 {
-    // ── TicketSyncState ──────────────────────────────────────────────────────
-
     public async Task<TicketSyncState?> GetSyncStateAsync(CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
@@ -57,9 +55,6 @@ internal sealed class TicketRepository(IDbContextFactory<HumansDbContext> factor
         syncState.LastSyncAt = null;
         await ctx.SaveChangesAsync(ct);
     }
-
-
-    // ── TicketOrder reads (detached) ─────────────────────────────────────────
 
     public async Task<IReadOnlyDictionary<string, TicketOrder>> GetOrdersByVendorIdsAsync(
         IReadOnlyCollection<string> vendorOrderIds,
@@ -142,8 +137,6 @@ internal sealed class TicketRepository(IDbContextFactory<HumansDbContext> factor
             .ToListAsync(ct);
     }
 
-    // ── TicketAttendee reads (detached) ──────────────────────────────────────
-
     public async Task<TicketAttendee?> GetAttendeeByIdAsync(Guid attendeeId, CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
@@ -175,8 +168,6 @@ internal sealed class TicketRepository(IDbContextFactory<HumansDbContext> factor
             .Select(a => new MatchedAttendeeRow(a.VendorTicketId, a.MatchedUserId!.Value, a.Status))
             .ToListAsync(ct);
     }
-
-    // ── TicketOrder / TicketAttendee writes ──────────────────────────────────
 
     public async Task UpsertOrdersAsync(
         IReadOnlyList<TicketOrder> orders,
@@ -444,11 +435,13 @@ internal sealed class TicketRepository(IDbContextFactory<HumansDbContext> factor
     public async Task<IReadOnlyList<TicketAttendee>> GetAttendeesVisibleToUserAsync(
         Guid userId, CancellationToken ct = default)
     {
+        // Buyer-visibility arm (a.TicketOrder.MatchedUserId == userId) removed in
+        // nobodies-collective/Humans#856: it returned attendees owned by other accounts
+        // to the buyer, leaking cross-account ticket data. Ownership is attendee-only.
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.TicketAttendees
             .AsNoTracking()
-            .Include(a => a.TicketOrder)
-            .Where(a => a.TicketOrder.MatchedUserId == userId || a.MatchedUserId == userId)
+            .Where(a => a.MatchedUserId == userId)
             .ToListAsync(ct);
     }
 
@@ -800,14 +793,6 @@ internal sealed class TicketRepository(IDbContextFactory<HumansDbContext> factor
         }).ToList();
     }
 
-    // ==========================================================================
-    // Reads — TicketSyncState
-    // ==========================================================================
-
-    // ==========================================================================
-    // Writes — TicketSyncState (crash-recovery reset)
-    // ==========================================================================
-
     public async Task<TicketSyncState?> ResetStaleRunningStateAsync(
         Instant olderThan,
         Instant now,
@@ -833,10 +818,6 @@ internal sealed class TicketRepository(IDbContextFactory<HumansDbContext> factor
         return state;
     }
 
-    // ==========================================================================
-    // Admin diagnostics
-    // ==========================================================================
-
     public async Task<IReadOnlyList<OrderDriftRow>> GetOrderDriftAsync(CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
@@ -861,10 +842,6 @@ internal sealed class TicketRepository(IDbContextFactory<HumansDbContext> factor
                 o.VendorDashboardUrl))
             .ToListAsync(ct);
     }
-
-    // ==========================================================================
-    // Account-merge fold
-    // ==========================================================================
 
     public async Task<int> ReassignToUserAsync(
         Guid sourceUserId, Guid targetUserId, Instant updatedAt,
@@ -900,10 +877,6 @@ internal sealed class TicketRepository(IDbContextFactory<HumansDbContext> factor
         return await ctx.TicketAttendees
             .CountAsync(a => a.MatchedUserId == targetUserId, ct);
     }
-
-    // ==========================================================================
-    // Helpers
-    // ==========================================================================
 
     private static bool HasSearchTerm(
         [NotNullWhen(true)] string? value, int minLength = 2) =>

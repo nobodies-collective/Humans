@@ -3,6 +3,7 @@ using System.Text;
 using AwesomeAssertions;
 using Humans.Application.Interfaces.Holded;
 using Humans.Infrastructure.Services.Holded;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NodaTime;
 
@@ -13,7 +14,8 @@ public class HoldedClientTests
     private static HoldedClient Make(StubHandler handler) =>
         new(
             new HttpClient(handler) { BaseAddress = new Uri("https://api.holded.com") },
-            Options.Create(new HoldedClientOptions { ApiKey = "test-key" }));
+            Options.Create(new HoldedClientOptions { ApiKey = "test-key" }),
+            NullLogger<HoldedClient>.Instance);
 
     [HumansFact]
     public async Task CreatePurchaseDocumentAsync_PostsExpectedJson_AndReturnsId()
@@ -32,7 +34,7 @@ public class HoldedClientTests
             ContactName = "Alice",
             Date = Instant.FromUtc(2026, 5, 10, 0, 0),
             Lines = [new() { Description = "Train", Amount = 19.52m }]
-        });
+        }, Xunit.TestContext.Current.CancellationToken);
 
         id.Should().Be("doc-123");
     }
@@ -58,7 +60,7 @@ public class HoldedClientTests
         });
 
         var client = Make(handler);
-        var doc = await client.GetPurchaseDocumentAsync("doc-123");
+        var doc = await client.GetPurchaseDocumentAsync("doc-123", Xunit.TestContext.Current.CancellationToken);
 
         doc.Id.Should().Be("doc-123");
         doc.PaymentsPending.Should().Be(0);
@@ -72,7 +74,7 @@ public class HoldedClientTests
         var handler = new StubHandler(_ => Respond(HttpStatusCode.NotFound, "{}"));
         var client = Make(handler);
 
-        var act = async () => await client.GetPurchaseDocumentAsync("missing");
+        var act = async () => await client.GetPurchaseDocumentAsync("missing", Xunit.TestContext.Current.CancellationToken);
 
         var ex = await act.Should().ThrowAsync<HoldedPermanentException>();
         ex.Which.StatusCode.Should().Be(404);
@@ -84,7 +86,7 @@ public class HoldedClientTests
         var handler = new StubHandler(_ => Respond(HttpStatusCode.ServiceUnavailable, ""));
         var client = Make(handler);
 
-        var act = async () => await client.GetPurchaseDocumentAsync("doc-123");
+        var act = async () => await client.GetPurchaseDocumentAsync("doc-123", Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<HoldedTransientException>();
     }

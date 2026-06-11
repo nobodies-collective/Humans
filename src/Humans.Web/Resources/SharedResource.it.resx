@@ -914,7 +914,7 @@
     <value>Unire account?</value>
   </data>
   <data name="Emails_MergeWarningBody" xml:space="preserve">
-    <value>L'unione degli account serve a combinare due account che appartengono alla stessa persona (per esempio, una vecchia e una nuova e-mail, entrambe tue). Non è un modo per condividere o trasferire biglietti, prenotazioni o altri elementi tra due persone diverse. Il trasferimento di biglietti tra umani è una funzionalità separata, in arrivo a breve.</value>
+    <value>L'unione degli account serve a combinare due account che appartengono alla stessa persona (per esempio, una vecchia e una nuova e-mail, entrambe tue). Non è un modo per condividere o trasferire biglietti, prenotazioni o altri elementi tra due persone diverse. Per trasferire un biglietto a un altro umano, usa la funzione di trasferimento biglietti su /Tickets/Transfers.</value>
   </data>
   <data name="Emails_VerificationWillBeSent" xml:space="preserve">
     <value>Verrà inviata un'e-mail di verifica a questo indirizzo.</value>
@@ -2946,6 +2946,24 @@
   <data name="Scanner_Tickets_TransferredOn" xml:space="preserve">
     <value>Trasferito il</value>
   </data>
+  <data name="Scanner_Tickets_CheckedInAt" xml:space="preserve">
+    <value>Check-in effettuato il</value>
+  </data>
+  <data name="Scanner_Tickets_EarlyEntryVia" xml:space="preserve">
+    <value>Ingresso anticipato tramite</value>
+  </data>
+  <data name="Scanner_Tickets_ConsentsOk" xml:space="preserve">
+    <value>Tutti i consensi firmati</value>
+  </data>
+  <data name="Scanner_Tickets_ConsentsMissing" xml:space="preserve">
+    <value>Consensi mancanti</value>
+  </data>
+  <data name="Scanner_Tickets_Provides" xml:space="preserve">
+    <value>Si è impegnato a fornire</value>
+  </data>
+  <data name="Scanner_Tickets_ProvidesNone" xml:space="preserve">
+    <value>Nessun turno o evento</value>
+  </data>
   <data name="TeamAdmin_AddMember" xml:space="preserve">
     <value>Aggiungi membro</value>
   </data>
@@ -2963,6 +2981,10 @@
   </data>
   <data name="TeamAdmin_Add" xml:space="preserve">
     <value>Aggiungi</value>
+  </data>
+  <data name="TeamAdmin_TicketLabel" xml:space="preserve">
+    <value>Biglietto #{0}</value>
+    <comment>{0} = ticket barcode; shown as the detail line on a ticket-resolved person-picker result</comment>
   </data>
   <data name="Email_FacilitatedMessage_Subject" xml:space="preserve">
     <value>Messaggio Humans da: {0}</value>
@@ -4587,6 +4609,9 @@
   </data>
   <data name="Nav_Staff" xml:space="preserve">
     <value>Staff</value>
+  </data>
+  <data name="Nav_Guide" xml:space="preserve">
+    <value>Aiuto</value>
   </data>
   <data name="ProfileCard_Suspended" xml:space="preserve">
     <value>Sospeso</value>

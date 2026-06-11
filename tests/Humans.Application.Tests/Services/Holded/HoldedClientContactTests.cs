@@ -3,6 +3,7 @@ using System.Text;
 using AwesomeAssertions;
 using Humans.Application.Interfaces.Holded;
 using Humans.Infrastructure.Services.Holded;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NodaTime;
 
@@ -12,7 +13,8 @@ public class HoldedClientContactTests
 {
     private static HoldedClient Make(StubHandler handler) =>
         new(new HttpClient(handler) { BaseAddress = new Uri("https://api.holded.com") },
-            Options.Create(new HoldedClientOptions { ApiKey = "test-key" }));
+            Options.Create(new HoldedClientOptions { ApiKey = "test-key" }),
+            NullLogger<HoldedClient>.Instance);
 
     [HumansFact]
     public async Task GetContact_parses_supplierRecord_num()
@@ -20,7 +22,7 @@ public class HoldedClientContactTests
         var json = """{"id":"c1","name":"Daniela Real","supplierRecord":{"num":40000001}}""";
         var client = Make(new StubHandler(_ => Respond(HttpStatusCode.OK, json)));
 
-        var contact = await client.GetContactAsync("c1");
+        var contact = await client.GetContactAsync("c1", Xunit.TestContext.Current.CancellationToken);
 
         contact.Id.Should().Be("c1");
         contact.SupplierAccountNum.Should().Be(40000001);
@@ -30,7 +32,7 @@ public class HoldedClientContactTests
     public async Task GetContact_supplierAccountNum_null_when_absent()
     {
         var client = Make(new StubHandler(_ => Respond(HttpStatusCode.OK, """{"id":"c1","name":"X"}""")));
-        var contact = await client.GetContactAsync("c1");
+        var contact = await client.GetContactAsync("c1", Xunit.TestContext.Current.CancellationToken);
         contact.SupplierAccountNum.Should().BeNull();
     }
 
@@ -44,7 +46,7 @@ public class HoldedClientContactTests
             return Respond(HttpStatusCode.OK, """{"id":"new-c"}""");
         }));
 
-        var id = await client.UpsertContactAsync(new HoldedContactInput { Name = "Legal", CustomId = "u1" });
+        var id = await client.UpsertContactAsync(new HoldedContactInput { Name = "Legal", CustomId = "u1" }, Xunit.TestContext.Current.CancellationToken);
 
         method.Should().Be("POST");
         id.Should().Be("new-c");
@@ -67,7 +69,7 @@ public class HoldedClientContactTests
             Name = "Legal",
             TradeName = "Burner",
             ExistingContactId = "c-exist",
-        });
+        }, Xunit.TestContext.Current.CancellationToken);
 
         method.Should().Be("PUT");
         path.Should().EndWith("/contacts/c-exist");
@@ -80,7 +82,7 @@ public class HoldedClientContactTests
         var json = """[{"id":"a","num":40000001,"name":"Daniela","balance":-3180.0},{"id":"b","num":62900000,"name":"Otros","balance":12.0}]""";
         var client = Make(new StubHandler(_ => Respond(HttpStatusCode.OK, json)));
 
-        var rows = await client.ListChartOfAccountsAsync();
+        var rows = await client.ListChartOfAccountsAsync(Xunit.TestContext.Current.CancellationToken);
 
         rows.Should().HaveCount(2);
         rows.Single(r => r.Num == 40000001).Balance.Should().Be(-3180.0m);
@@ -92,7 +94,7 @@ public class HoldedClientContactTests
         var json = """[{"id":"p1","contactId":"c1","amount":50.0,"date":1779141600,"documentType":"purchase"}]""";
         var client = Make(new StubHandler(_ => Respond(HttpStatusCode.OK, json)));
 
-        var rows = await client.ListPaymentsAsync();
+        var rows = await client.ListPaymentsAsync(Xunit.TestContext.Current.CancellationToken);
 
         rows.Should().ContainSingle();
         rows[0].ContactId.Should().Be("c1");

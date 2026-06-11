@@ -56,7 +56,7 @@ public class StoreServiceTests
                 MakeProduct(name: "Blanket")
             ]);
 
-        var result = await _service.GetIndexDataAsync(Guid.NewGuid(), isPrivilegedReader: false);
+        var result = await _service.GetIndexDataAsync(Guid.NewGuid(), isPrivilegedReader: false, ct: TestContext.Current.CancellationToken);
 
         result.Year.Should().Be(2026);
         result.Catalog.Select(p => p.Name).Should().Equal("Blanket", "Tent");
@@ -80,7 +80,7 @@ public class StoreServiceTests
         _repo.GetActiveProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns(new List<StoreProduct>());
 
-        var result = await _service.GetIndexDataAsync(userId, isPrivilegedReader: false);
+        var result = await _service.GetIndexDataAsync(userId, isPrivilegedReader: false, ct: TestContext.Current.CancellationToken);
 
         result.Counterparties.Should().ContainSingle().Which.Should().Match<StoreCounterpartyOrders>(counterparty =>
             counterparty.CounterpartyType == StoreOrderCounterpartyType.Camp &&
@@ -122,7 +122,7 @@ public class StoreServiceTests
             ]);
         _stripeService.IsStoreCheckoutConfigured.Returns(true);
 
-        var result = await _service.GetOrderPageDataAsync(order, canEdit: true, canPayAuthorized: true);
+        var result = await _service.GetOrderPageDataAsync(order, canEdit: true, canPayAuthorized: true, ct: TestContext.Current.CancellationToken);
 
         result.CounterpartyDisplayName.Should().Be("Camp Test");
         result.Catalog.Select(p => p.Name).Should().Equal("Blanket", "Tent");
@@ -155,7 +155,7 @@ public class StoreServiceTests
                 PriceChangeEntry(productId, orderStart.Plus(Duration.FromDays(2)), "Price for Ice changed from 1.23 to 2.34"),
             });
 
-        var pageData = await _service.GetOrderPageDataAsync(order, canEdit: false, canPayAuthorized: false);
+        var pageData = await _service.GetOrderPageDataAsync(order, canEdit: false, canPayAuthorized: false, ct: TestContext.Current.CancellationToken);
 
         // Only the change after the order started is shown.
         pageData.PriceChanges.Should().ContainSingle()
@@ -168,7 +168,7 @@ public class StoreServiceTests
         _repo.GetActiveProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns([]);
 
-        var result = await _service.GetActiveCatalogAsync(2026);
+        var result = await _service.GetActiveCatalogAsync(2026, TestContext.Current.CancellationToken);
 
         result.Should().BeEmpty();
     }
@@ -180,7 +180,7 @@ public class StoreServiceTests
         _repo.GetActiveProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns([p]);
 
-        var result = await _service.GetActiveCatalogAsync(2026);
+        var result = await _service.GetActiveCatalogAsync(2026, TestContext.Current.CancellationToken);
 
         result.Should().HaveCount(1);
         result[0].Name.Should().Be("Tent");
@@ -199,7 +199,7 @@ public class StoreServiceTests
                 MakeProduct(name: "Blanket")
             ]);
 
-        var result = await _service.GetActiveCatalogAsync(2026);
+        var result = await _service.GetActiveCatalogAsync(2026, TestContext.Current.CancellationToken);
 
         result.Select(p => p.Name).Should().Equal("Tent", "Cup", "Blanket");
     }
@@ -217,7 +217,7 @@ public class StoreServiceTests
         _repo.GetAllProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns([activeTent, inactiveBag, activeCup]);
 
-        var result = await _service.GetAllProductsForYearAsync(2026);
+        var result = await _service.GetAllProductsForYearAsync(2026, TestContext.Current.CancellationToken);
 
         result.Select(p => p.Name).Should().Equal("Tent", "Bag", "Cup");
     }
@@ -244,7 +244,7 @@ public class StoreServiceTests
         _repo.GetProductNamesByIdsAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<Guid, string> { [product.Id] = product.Name });
 
-        var result = await _service.GetOrdersForCampSeasonAsync(campSeasonId);
+        var result = await _service.GetOrdersForCampSeasonAsync(campSeasonId, TestContext.Current.CancellationToken);
 
         result.Should().HaveCount(1);
         result[0].LinesSubtotalEur.Should().Be(100m);
@@ -259,7 +259,7 @@ public class StoreServiceTests
         _repo.GetOrderWithLinesAndPaymentsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns((StoreOrder?)null);
 
-        var result = await _service.GetOrderAsync(Guid.NewGuid());
+        var result = await _service.GetOrderAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         result.Should().BeNull();
     }
@@ -284,7 +284,7 @@ public class StoreServiceTests
         _repo.GetProductNamesByIdsAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<Guid, string> { [product.Id] = product.Name });
 
-        var result = await _service.GetOrderAsync(orderId);
+        var result = await _service.GetOrderAsync(orderId, TestContext.Current.CancellationToken);
 
         result.Should().NotBeNull();
         result.BalanceEur.Should().Be(60.50m);
@@ -317,7 +317,7 @@ public class StoreServiceTests
         _repo.GetAllProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns(new List<StoreProduct> { repriced });
 
-        var result = await _service.GetOrderAsync(orderId);
+        var result = await _service.GetOrderAsync(orderId, TestContext.Current.CancellationToken);
 
         result!.Lines[0].EffectiveUnitPrice.Should().Be(40m);
         result.Lines[0].EffectiveVatRate.Should().Be(10m);
@@ -350,7 +350,7 @@ public class StoreServiceTests
         _repo.GetAllProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns(new List<StoreProduct> { repriced });
 
-        var result = await _service.GetOrderAsync(orderId);
+        var result = await _service.GetOrderAsync(orderId, TestContext.Current.CancellationToken);
 
         result!.Lines[0].EffectiveUnitPrice.Should().Be(50m); // snapshot, not current 40
         result.BalanceEur.Should().Be(60.50m);
@@ -372,7 +372,7 @@ public class StoreServiceTests
                 "Camp X", string.Empty, string.Empty, [], CampSeasonStatus.Pending,
                 YesNoMaybe.No, YesNoMaybe.No, AdultPlayspacePolicy.No, 0, null, null, null, 0, null, null));
 
-        var orderId = await _service.CreateOrderAsync(campSeasonId, "First order", actor);
+        var orderId = await _service.CreateOrderAsync(campSeasonId, "First order", actor, TestContext.Current.CancellationToken);
 
         captured.Should().NotBeNull();
         captured!.Id.Should().Be(orderId);
@@ -391,9 +391,9 @@ public class StoreServiceTests
     public async Task AddLineAsync_rejects_non_positive_qty()
     {
         await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.AddLineAsync(Guid.NewGuid(), Guid.NewGuid(), 0, Guid.NewGuid()));
+            () => _service.AddLineAsync(Guid.NewGuid(), Guid.NewGuid(), 0, Guid.NewGuid(), TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.AddLineAsync(Guid.NewGuid(), Guid.NewGuid(), -3, Guid.NewGuid()));
+            () => _service.AddLineAsync(Guid.NewGuid(), Guid.NewGuid(), -3, Guid.NewGuid(), TestContext.Current.CancellationToken));
     }
 
     [HumansFact]
@@ -405,22 +405,31 @@ public class StoreServiceTests
             .Returns(new StoreOrder { Id = orderId, State = StoreOrderState.InvoiceIssued });
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.AddLineAsync(orderId, productId, 1, Guid.NewGuid()));
+            () => _service.AddLineAsync(orderId, productId, 1, Guid.NewGuid(), TestContext.Current.CancellationToken));
     }
 
     [HumansFact]
-    public async Task AddLineAsync_rejects_after_orderable_until()
+    public async Task AddLineAsync_allows_past_deadline_and_notes_it_in_audit()
     {
+        // The deadline gate is authorization (StoreOrderAuthorizationHandler) — the
+        // service is auth-free and only annotates the audit trail.
         var orderId = Guid.NewGuid();
+        var actor = Guid.NewGuid();
         var product = MakeProduct(orderableUntil: new LocalDate(2026, 1, 1));
         _repo.GetOrderByIdAsync(orderId, Arg.Any<CancellationToken>())
             .Returns(new StoreOrder { Id = orderId, State = StoreOrderState.Open });
         _repo.GetProductByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
         // _clock = 2026-03-14, so 2026-01-01 is past.
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.AddLineAsync(orderId, product.Id, 1, Guid.NewGuid()));
-        ex.Message.Should().Contain("deadline");
+        await _service.AddLineAsync(orderId, product.Id, 1, actor, TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).AddLineAsync(
+            Arg.Is<StoreOrderLine>(l => l.OrderId == orderId && l.ProductId == product.Id),
+            Arg.Any<CancellationToken>());
+        await _audit.Received(1).LogAsync(
+            AuditAction.StoreLineAdded, nameof(StoreOrderLine), Arg.Any<Guid>(),
+            Arg.Is<string>(d => d.Contains("past order deadline")), actor,
+            Arg.Any<Guid?>(), Arg.Any<string?>());
     }
 
     [HumansFact]
@@ -437,7 +446,7 @@ public class StoreServiceTests
         StoreOrderLine? captured = null;
         await _repo.AddLineAsync(Arg.Do<StoreOrderLine>(l => captured = l), Arg.Any<CancellationToken>());
 
-        await _service.AddLineAsync(orderId, product.Id, 3, actor);
+        await _service.AddLineAsync(orderId, product.Id, 3, actor, TestContext.Current.CancellationToken);
 
         captured.Should().NotBeNull();
         captured!.OrderId.Should().Be(orderId);
@@ -459,7 +468,7 @@ public class StoreServiceTests
     public async Task AddLineWithResultAsync_returns_failure_for_expected_validation()
     {
         var result = await _service.AddLineWithResultAsync(
-            Guid.NewGuid(), Guid.NewGuid(), 0, Guid.NewGuid());
+            Guid.NewGuid(), Guid.NewGuid(), 0, Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
         result.ErrorMessage.Should().Contain("Qty must be positive");
@@ -475,7 +484,7 @@ public class StoreServiceTests
             .Returns(new StoreOrder { Id = orderId, State = StoreOrderState.Open });
         _repo.GetProductByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
 
-        var result = await _service.AddLineWithResultAsync(orderId, product.Id, 2, actor);
+        var result = await _service.AddLineWithResultAsync(orderId, product.Id, 2, actor, TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeTrue();
         result.ErrorMessage.Should().BeNull();
@@ -496,7 +505,7 @@ public class StoreServiceTests
                 StoreOrderState.Open, new LocalDate(2026, 12, 31)));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.RemoveLineAsync(routeOrderId, lineId, Guid.NewGuid()));
+            () => _service.RemoveLineAsync(routeOrderId, lineId, Guid.NewGuid(), TestContext.Current.CancellationToken));
         await _repo.DidNotReceive().RemoveLineAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
@@ -511,21 +520,29 @@ public class StoreServiceTests
                 StoreOrderState.InvoiceIssued, new LocalDate(2026, 12, 31)));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.RemoveLineAsync(orderId, lineId, Guid.NewGuid()));
+            () => _service.RemoveLineAsync(orderId, lineId, Guid.NewGuid(), TestContext.Current.CancellationToken));
     }
 
     [HumansFact]
-    public async Task RemoveLineAsync_rejects_after_orderable_until()
+    public async Task RemoveLineAsync_allows_past_deadline_and_notes_it_in_audit()
     {
+        // The deadline gate is authorization (StoreOrderAuthorizationHandler) — the
+        // service is auth-free and only annotates the audit trail.
         var lineId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
+        var actor = Guid.NewGuid();
         _repo.GetLineWithOrderAndProductAsync(lineId, Arg.Any<CancellationToken>())
             .Returns(new StoreLineContext(
                 lineId, orderId, Guid.NewGuid(),
                 StoreOrderState.Open, new LocalDate(2026, 1, 1)));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.RemoveLineAsync(orderId, lineId, Guid.NewGuid()));
+        await _service.RemoveLineAsync(orderId, lineId, actor, TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).RemoveLineAsync(lineId, Arg.Any<CancellationToken>());
+        await _audit.Received(1).LogAsync(
+            AuditAction.StoreLineRemoved, nameof(StoreOrderLine), lineId,
+            Arg.Is<string>(d => d.Contains("past order deadline")), actor,
+            Arg.Any<Guid?>(), Arg.Any<string?>());
     }
 
     [HumansFact]
@@ -539,7 +556,7 @@ public class StoreServiceTests
                 lineId, orderId, Guid.NewGuid(),
                 StoreOrderState.Open, new LocalDate(2026, 12, 31)));
 
-        await _service.RemoveLineAsync(orderId, lineId, actor);
+        await _service.RemoveLineAsync(orderId, lineId, actor, TestContext.Current.CancellationToken);
 
         await _repo.Received(1).RemoveLineAsync(lineId, Arg.Any<CancellationToken>());
         await _audit.Received(1).LogAsync(
@@ -556,7 +573,7 @@ public class StoreServiceTests
         _repo.GetLineWithOrderAndProductAsync(lineId, Arg.Any<CancellationToken>())
             .Returns((StoreLineContext?)null);
 
-        var result = await _service.RemoveLineWithResultAsync(orderId, lineId, Guid.NewGuid());
+        var result = await _service.RemoveLineWithResultAsync(orderId, lineId, Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
         result.ErrorMessage.Should().Contain("not found");
@@ -573,7 +590,7 @@ public class StoreServiceTests
                 lineId, orderId, Guid.NewGuid(),
                 StoreOrderState.Open, new LocalDate(2026, 12, 31)));
 
-        var result = await _service.RemoveLineWithResultAsync(orderId, lineId, actor);
+        var result = await _service.RemoveLineWithResultAsync(orderId, lineId, actor, TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeTrue();
         result.ErrorMessage.Should().BeNull();
@@ -594,7 +611,7 @@ public class StoreServiceTests
         await _service.UpdateCounterpartyAsync(
             orderId,
             new OrderCounterpartyInput("Acme", null, null, null, null),
-            actor);
+            actor, TestContext.Current.CancellationToken);
 
         order.CounterpartyName.Should().Be("Acme");
         await _repo.Received(1).UpdateOrderAsync(order, Arg.Any<CancellationToken>());
@@ -611,7 +628,7 @@ public class StoreServiceTests
         await _service.UpdateCounterpartyAsync(
             orderId,
             new OrderCounterpartyInput("Acme", "ESB12345678", "1 St", "ES", "ops@acme.test"),
-            actor);
+            actor, TestContext.Current.CancellationToken);
 
         order.CounterpartyName.Should().Be("Acme");
         order.CounterpartyVatId.Should().Be("ESB12345678");
@@ -637,7 +654,7 @@ public class StoreServiceTests
         var result = await _service.UpdateCounterpartyWithResultAsync(
             orderId,
             new OrderCounterpartyInput("Acme", null, null, null, null),
-            Guid.NewGuid());
+            Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
         result.ErrorMessage.Should().Contain("not found");
@@ -654,7 +671,7 @@ public class StoreServiceTests
         var result = await _service.UpdateCounterpartyWithResultAsync(
             orderId,
             new OrderCounterpartyInput("Acme", null, null, null, null),
-            actor);
+            actor, TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeTrue();
         result.ErrorMessage.Should().BeNull();
@@ -677,7 +694,7 @@ public class StoreServiceTests
             Guid.Empty, 2026, "Tent", "Big tent", 50m, 21m, 100m,
             new LocalDate(2026, 8, 1), IsActive: true);
 
-        var newId = await _service.CreateProductAsync(draft, actor);
+        var newId = await _service.CreateProductAsync(draft, actor, TestContext.Current.CancellationToken);
 
         captured.Should().NotBeNull();
         captured!.Id.Should().Be(newId);
@@ -706,7 +723,7 @@ public class StoreServiceTests
             new LocalDate(2026, 8, 1), IsActive: true);
 
         await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.CreateProductAsync(draft, Guid.NewGuid()));
+            () => _service.CreateProductAsync(draft, Guid.NewGuid(), TestContext.Current.CancellationToken));
     }
 
     [HumansFact]
@@ -717,7 +734,7 @@ public class StoreServiceTests
             new LocalDate(2026, 8, 1), IsActive: true);
 
         await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.CreateProductAsync(draft, Guid.NewGuid()));
+            () => _service.CreateProductAsync(draft, Guid.NewGuid(), TestContext.Current.CancellationToken));
     }
 
     [HumansFact]
@@ -728,7 +745,7 @@ public class StoreServiceTests
             new LocalDate(2026, 8, 1), IsActive: true);
 
         await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.CreateProductAsync(draft, Guid.NewGuid()));
+            () => _service.CreateProductAsync(draft, Guid.NewGuid(), TestContext.Current.CancellationToken));
     }
 
     [HumansFact]
@@ -747,7 +764,7 @@ public class StoreServiceTests
             existing.Id, 2026, "New", "New desc", 99m, 10m, 25m,
             new LocalDate(2026, 9, 1), IsActive: true);
 
-        await _service.UpdateProductAsync(draft, actor);
+        await _service.UpdateProductAsync(draft, actor, TestContext.Current.CancellationToken);
 
         captured.Should().NotBeNull();
         captured!.Id.Should().Be(existing.Id);
@@ -783,7 +800,7 @@ public class StoreServiceTests
             UnitPriceEur: 2.34m, VatRatePercent: 21m, DepositAmountEur: null,
             existing.OrderableUntil, IsActive: true);
 
-        await _service.UpdateProductAsync(draft, Guid.NewGuid());
+        await _service.UpdateProductAsync(draft, Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         priceDescription.Should().Be("Price for Ice changed from 1.23 to 2.34");
     }
@@ -800,7 +817,7 @@ public class StoreServiceTests
             UnitPriceEur: 1.23m, VatRatePercent: 30m, DepositAmountEur: 5m,
             existing.OrderableUntil, IsActive: true);
 
-        await _service.UpdateProductAsync(draft, Guid.NewGuid());
+        await _service.UpdateProductAsync(draft, Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         await _audit.DidNotReceive().LogAsync(
             AuditAction.StoreProductPriceChanged, Arg.Any<string>(), Arg.Any<Guid>(),
@@ -818,7 +835,7 @@ public class StoreServiceTests
             new LocalDate(2026, 8, 1), IsActive: true);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.UpdateProductAsync(draft, Guid.NewGuid()));
+            () => _service.UpdateProductAsync(draft, Guid.NewGuid(), TestContext.Current.CancellationToken));
     }
 
     [HumansFact]
@@ -835,7 +852,7 @@ public class StoreServiceTests
         StoreOrderLine? capturedLine = null;
         await _repo.AddLineAsync(Arg.Do<StoreOrderLine>(l => capturedLine = l), Arg.Any<CancellationToken>());
 
-        await _service.AddLineAsync(orderId, product.Id, 2, Guid.NewGuid());
+        await _service.AddLineAsync(orderId, product.Id, 2, Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         capturedLine.Should().NotBeNull();
         capturedLine!.UnitPriceSnapshot.Should().Be(50m);
@@ -847,7 +864,7 @@ public class StoreServiceTests
             UnitPriceEur: 999m, VatRatePercent: 30m, DepositAmountEur: 500m,
             product.OrderableUntil, IsActive: true);
 
-        await _service.UpdateProductAsync(draft, Guid.NewGuid());
+        await _service.UpdateProductAsync(draft, Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         // Line snapshot is set at write-time; updating the product after the fact
         // does NOT mutate the line's snapshot fields.
@@ -874,7 +891,7 @@ public class StoreServiceTests
                 DepositAmountEur: 100m,
                 OrderableUntil: "2026-08-01",
                 IsActive: true),
-            actor);
+            actor, TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeTrue();
         result.Created.Should().BeTrue();
@@ -896,7 +913,7 @@ public class StoreServiceTests
                 DepositAmountEur: null,
                 OrderableUntil: "not-a-date",
                 IsActive: true),
-            Guid.NewGuid());
+            Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
         result.ErrorField.Should().Be(nameof(StoreProductSaveRequest.OrderableUntil));
@@ -915,7 +932,7 @@ public class StoreServiceTests
         await _repo.UpdateProductAsync(Arg.Do<StoreProduct>(p => captured = p), Arg.Any<CancellationToken>());
 
         var actor = Guid.NewGuid();
-        await _service.DeactivateProductAsync(existing.Id, actor);
+        await _service.DeactivateProductAsync(existing.Id, actor, TestContext.Current.CancellationToken);
 
         captured.Should().NotBeNull();
         captured!.IsActive.Should().BeFalse();
@@ -934,7 +951,7 @@ public class StoreServiceTests
             .Returns((StoreProduct?)null);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.DeactivateProductAsync(Guid.NewGuid(), Guid.NewGuid()));
+            () => _service.DeactivateProductAsync(Guid.NewGuid(), Guid.NewGuid(), TestContext.Current.CancellationToken));
     }
 
     [HumansFact]
@@ -946,7 +963,7 @@ public class StoreServiceTests
         _repo.GetActiveProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns([]);
 
-        var result = await _service.GetActiveCatalogAsync(2026);
+        var result = await _service.GetActiveCatalogAsync(2026, TestContext.Current.CancellationToken);
 
         result.Should().BeEmpty();
     }
@@ -973,7 +990,7 @@ public class StoreServiceTests
         var url = await _service.CreateStripeCheckoutSessionAsync(
             order,
             42.50m,
-            "https://humans.test/Store/Order/1");
+            "https://humans.test/Store/Order/1", TestContext.Current.CancellationToken);
 
         url.Should().Be("https://stripe.test/session");
     }
@@ -984,7 +1001,7 @@ public class StoreServiceTests
         var order = MakeOrderDto(balanceEur: 10m);
         _stripeService.IsStoreCheckoutConfigured.Returns(true);
 
-        var act = () => _service.CreateStripeCheckoutSessionAsync(order, 10.01m, "https://humans.test/order");
+        var act = () => _service.CreateStripeCheckoutSessionAsync(order, 10.01m, "https://humans.test/order", TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("Payment amount cannot exceed the outstanding balance*");
@@ -1004,7 +1021,7 @@ public class StoreServiceTests
         var order = MakeOrderDto(balanceEur: 10m);
         _stripeService.IsStoreCheckoutConfigured.Returns(false);
 
-        var act = () => _service.CreateStripeCheckoutSessionAsync(order, 5m, "https://humans.test/order");
+        var act = () => _service.CreateStripeCheckoutSessionAsync(order, 5m, "https://humans.test/order", TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("Stripe is not configured*");
@@ -1018,7 +1035,7 @@ public class StoreServiceTests
         _repo.StripePaymentIntentExistsAsync(paymentIntentId, Arg.Any<CancellationToken>())
             .Returns(false);
 
-        await _service.RecordStripePaymentAsync(orderId, paymentIntentId, 42.50m);
+        await _service.RecordStripePaymentAsync(orderId, paymentIntentId, 42.50m, ct: TestContext.Current.CancellationToken);
 
         await _repo.Received(1).AddPaymentAsync(
             Arg.Is<StorePayment>(p =>
@@ -1038,7 +1055,7 @@ public class StoreServiceTests
         _repo.StripePaymentIntentExistsAsync(paymentIntentId, Arg.Any<CancellationToken>())
             .Returns(true);
 
-        await _service.RecordStripePaymentAsync(orderId, paymentIntentId, 42.50m);
+        await _service.RecordStripePaymentAsync(orderId, paymentIntentId, 42.50m, ct: TestContext.Current.CancellationToken);
 
         await _repo.DidNotReceive().AddPaymentAsync(Arg.Any<StorePayment>(), Arg.Any<CancellationToken>());
         await _audit.DidNotReceive().LogAsync(
@@ -1054,7 +1071,7 @@ public class StoreServiceTests
         _repo.StripePaymentIntentExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(false);
 
-        await _service.RecordStripePaymentAsync(orderId, "pi_x", 10m);
+        await _service.RecordStripePaymentAsync(orderId, "pi_x", 10m, ct: TestContext.Current.CancellationToken);
 
         await _audit.Received(1).LogAsync(
             AuditAction.StorePaymentRecorded,
@@ -1073,12 +1090,12 @@ public class StoreServiceTests
         _repo.StripePaymentIntentExistsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(false);
 
-        Func<Task> act = () => _service.RecordStripePaymentAsync(orderId, "pi_x", 0m);
+        Func<Task> act = () => _service.RecordStripePaymentAsync(orderId, "pi_x", 0m, ct: TestContext.Current.CancellationToken);
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
     }
 
     [HumansFact]
-    public async Task HandleStripeCheckoutWebhookEventAsync_records_completed_checkout_payment()
+    public async Task HandleStripeCheckoutWebhookEventAsync_records_completed_paid_session_as_paid()
     {
         var orderId = Guid.NewGuid();
         _repo.StripePaymentIntentExistsAsync("pi_checkout", Arg.Any<CancellationToken>())
@@ -1087,13 +1104,37 @@ public class StoreServiceTests
         await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
             "evt_checkout",
             StoreCheckoutEventKind.CheckoutSessionCompleted,
-            new StoreCheckoutSessionData("cs_checkout", orderId, "pi_checkout", 42.50m)));
+            new StoreCheckoutSessionData("cs_checkout", orderId, "pi_checkout", 42.50m, PaymentStatus: "paid")), TestContext.Current.CancellationToken);
 
         await _repo.Received(1).AddPaymentAsync(
             Arg.Is<StorePayment>(p =>
                 p.OrderId == orderId &&
                 p.StripePaymentIntentId == "pi_checkout" &&
-                p.AmountEur == 42.50m),
+                p.AmountEur == 42.50m &&
+                p.Status == StorePaymentStatus.Paid),
+            Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task HandleStripeCheckoutWebhookEventAsync_records_completed_unpaid_session_as_pending()
+    {
+        // SEPA / async Bizum: completed fires with payment_status "unpaid" — only the mandate is
+        // captured. We record Pending so the order balance does NOT count it as paid.
+        var orderId = Guid.NewGuid();
+        _repo.StripePaymentIntentExistsAsync("pi_sepa", Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_sepa",
+            StoreCheckoutEventKind.CheckoutSessionCompleted,
+            new StoreCheckoutSessionData("cs_sepa", orderId, "pi_sepa", 50m, PaymentStatus: "unpaid")), TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).AddPaymentAsync(
+            Arg.Is<StorePayment>(p =>
+                p.OrderId == orderId &&
+                p.StripePaymentIntentId == "pi_sepa" &&
+                p.AmountEur == 50m &&
+                p.Status == StorePaymentStatus.Pending),
             Arg.Any<CancellationToken>());
     }
 
@@ -1103,9 +1144,234 @@ public class StoreServiceTests
         await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
             "evt_checkout",
             StoreCheckoutEventKind.CheckoutSessionCompleted,
-            new StoreCheckoutSessionData("cs_checkout", null, "pi_checkout", 42.50m)));
+            new StoreCheckoutSessionData("cs_checkout", null, "pi_checkout", 42.50m, PaymentStatus: "paid")), TestContext.Current.CancellationToken);
 
         await _repo.DidNotReceive().AddPaymentAsync(Arg.Any<StorePayment>(), Arg.Any<CancellationToken>());
+    }
+
+    // ── async-payment state machine (nobodies-collective/Humans#638) ────────────
+
+    [HumansFact]
+    public async Task AsyncPaymentSucceeded_transitions_matching_pending_to_paid()
+    {
+        var orderId = Guid.NewGuid();
+        var pending = new StorePayment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            AmountEur = 50m,
+            Method = StorePaymentMethod.Stripe,
+            Status = StorePaymentStatus.Pending,
+            StripePaymentIntentId = "pi_sepa"
+        };
+        _repo.GetPaymentByStripePaymentIntentIdAsync("pi_sepa", Arg.Any<CancellationToken>())
+            .Returns(pending);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_succeeded",
+            StoreCheckoutEventKind.CheckoutSessionAsyncPaymentSucceeded,
+            new StoreCheckoutSessionData("cs_sepa", orderId, "pi_sepa", 50m)), TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).UpdatePaymentStatusAsync(pending.Id, StorePaymentStatus.Paid, Arg.Any<CancellationToken>());
+        await _audit.Received(1).LogAsync(
+            AuditAction.StorePaymentSettled, nameof(StorePayment), pending.Id,
+            Arg.Any<string>(), "StripeWebhook", orderId, nameof(StoreOrder));
+    }
+
+    [HumansFact]
+    public async Task AsyncPaymentSucceeded_is_idempotent_when_already_paid()
+    {
+        var orderId = Guid.NewGuid();
+        var paid = new StorePayment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            AmountEur = 50m,
+            Method = StorePaymentMethod.Stripe,
+            Status = StorePaymentStatus.Paid,
+            StripePaymentIntentId = "pi_sepa"
+        };
+        _repo.GetPaymentByStripePaymentIntentIdAsync("pi_sepa", Arg.Any<CancellationToken>())
+            .Returns(paid);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_succeeded_redeliver",
+            StoreCheckoutEventKind.CheckoutSessionAsyncPaymentSucceeded,
+            new StoreCheckoutSessionData("cs_sepa", orderId, "pi_sepa", 50m)), TestContext.Current.CancellationToken);
+
+        await _repo.DidNotReceive().UpdatePaymentStatusAsync(Arg.Any<Guid>(), Arg.Any<StorePaymentStatus>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task AsyncPaymentSucceeded_out_of_order_records_paid_when_no_row_yet()
+    {
+        // Stripe delivered async_payment_succeeded before completed: no payment row exists yet.
+        // Record the settled money directly so it isn't lost; the later completed no-ops on the PI.
+        var orderId = Guid.NewGuid();
+        _repo.GetPaymentByStripePaymentIntentIdAsync("pi_ooo", Arg.Any<CancellationToken>())
+            .Returns((StorePayment?)null);
+        _repo.StripePaymentIntentExistsAsync("pi_ooo", Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_ooo",
+            StoreCheckoutEventKind.CheckoutSessionAsyncPaymentSucceeded,
+            new StoreCheckoutSessionData("cs_ooo", orderId, "pi_ooo", 75m)), TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).AddPaymentAsync(
+            Arg.Is<StorePayment>(p =>
+                p.OrderId == orderId &&
+                p.StripePaymentIntentId == "pi_ooo" &&
+                p.AmountEur == 75m &&
+                p.Status == StorePaymentStatus.Paid),
+            Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task AsyncPaymentFailed_transitions_matching_pending_to_failed()
+    {
+        // SEPA bounces after completed: the order returns to unpaid, NOT paid-then-reversed.
+        var orderId = Guid.NewGuid();
+        var pending = new StorePayment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            AmountEur = 50m,
+            Method = StorePaymentMethod.Stripe,
+            Status = StorePaymentStatus.Pending,
+            StripePaymentIntentId = "pi_bounce"
+        };
+        _repo.GetPaymentByStripePaymentIntentIdAsync("pi_bounce", Arg.Any<CancellationToken>())
+            .Returns(pending);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_failed",
+            StoreCheckoutEventKind.CheckoutSessionAsyncPaymentFailed,
+            new StoreCheckoutSessionData("cs_bounce", orderId, "pi_bounce", 50m)), TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).UpdatePaymentStatusAsync(pending.Id, StorePaymentStatus.Failed, Arg.Any<CancellationToken>());
+        await _audit.Received(1).LogAsync(
+            AuditAction.StorePaymentFailed, nameof(StorePayment), pending.Id,
+            Arg.Any<string>(), "StripeWebhook", orderId, nameof(StoreOrder));
+    }
+
+    [HumansFact]
+    public async Task AsyncPaymentFailed_is_idempotent_when_already_failed()
+    {
+        var orderId = Guid.NewGuid();
+        var failed = new StorePayment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            AmountEur = 50m,
+            Method = StorePaymentMethod.Stripe,
+            Status = StorePaymentStatus.Failed,
+            StripePaymentIntentId = "pi_bounce"
+        };
+        _repo.GetPaymentByStripePaymentIntentIdAsync("pi_bounce", Arg.Any<CancellationToken>())
+            .Returns(failed);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_failed_redeliver",
+            StoreCheckoutEventKind.CheckoutSessionAsyncPaymentFailed,
+            new StoreCheckoutSessionData("cs_bounce", orderId, "pi_bounce", 50m)), TestContext.Current.CancellationToken);
+
+        await _repo.DidNotReceive().UpdatePaymentStatusAsync(Arg.Any<Guid>(), Arg.Any<StorePaymentStatus>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task AsyncPaymentFailed_with_no_row_is_a_noop()
+    {
+        // A failure with nothing pending means no money was ever owed here — do not create a row.
+        _repo.GetPaymentByStripePaymentIntentIdAsync("pi_nothing", Arg.Any<CancellationToken>())
+            .Returns((StorePayment?)null);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_failed_orphan",
+            StoreCheckoutEventKind.CheckoutSessionAsyncPaymentFailed,
+            new StoreCheckoutSessionData("cs_nothing", Guid.NewGuid(), "pi_nothing", 50m)), TestContext.Current.CancellationToken);
+
+        await _repo.DidNotReceive().AddPaymentAsync(Arg.Any<StorePayment>(), Arg.Any<CancellationToken>());
+        await _repo.DidNotReceive().UpdatePaymentStatusAsync(Arg.Any<Guid>(), Arg.Any<StorePaymentStatus>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task CompletedThenFailed_leaves_order_unpaid_not_reversed()
+    {
+        // End-to-end of the SEPA-bounce path through the public handler: completed(unpaid) records
+        // Pending, then async_payment_failed flips it to Failed. The order is never marked paid.
+        var orderId = Guid.NewGuid();
+        StorePayment? recorded = null;
+        _repo.StripePaymentIntentExistsAsync("pi_seq", Arg.Any<CancellationToken>())
+            .Returns(_ => recorded is not null);
+        await _repo.AddPaymentAsync(Arg.Do<StorePayment>(p => recorded = p), Arg.Any<CancellationToken>());
+        _repo.GetPaymentByStripePaymentIntentIdAsync("pi_seq", Arg.Any<CancellationToken>())
+            .Returns(_ => recorded);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_seq_completed",
+            StoreCheckoutEventKind.CheckoutSessionCompleted,
+            new StoreCheckoutSessionData("cs_seq", orderId, "pi_seq", 50m, PaymentStatus: "unpaid")), TestContext.Current.CancellationToken);
+
+        recorded.Should().NotBeNull();
+        recorded!.Status.Should().Be(StorePaymentStatus.Pending);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_seq_failed",
+            StoreCheckoutEventKind.CheckoutSessionAsyncPaymentFailed,
+            new StoreCheckoutSessionData("cs_seq", orderId, "pi_seq", 50m)), TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).UpdatePaymentStatusAsync(recorded.Id, StorePaymentStatus.Failed, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task CheckoutSessionExpired_removes_orphan_pending_payment()
+    {
+        var orderId = Guid.NewGuid();
+        var pending = new StorePayment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            AmountEur = 50m,
+            Method = StorePaymentMethod.Stripe,
+            Status = StorePaymentStatus.Pending,
+            StripePaymentIntentId = "pi_expired"
+        };
+        _repo.GetPaymentByStripePaymentIntentIdAsync("pi_expired", Arg.Any<CancellationToken>())
+            .Returns(pending);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_expired",
+            StoreCheckoutEventKind.CheckoutSessionExpired,
+            new StoreCheckoutSessionData("cs_expired", orderId, "pi_expired", 50m)), TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).DeletePaymentAsync(pending.Id, Arg.Any<CancellationToken>());
+        await _audit.Received(1).LogAsync(
+            AuditAction.StorePaymentExpired, nameof(StorePayment), pending.Id,
+            Arg.Any<string>(), "StripeWebhook", orderId, nameof(StoreOrder));
+    }
+
+    [HumansFact]
+    public async Task CheckoutSessionExpired_does_not_touch_a_settled_payment()
+    {
+        var paid = new StorePayment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = Guid.NewGuid(),
+            AmountEur = 50m,
+            Method = StorePaymentMethod.Stripe,
+            Status = StorePaymentStatus.Paid,
+            StripePaymentIntentId = "pi_expired_paid"
+        };
+        _repo.GetPaymentByStripePaymentIntentIdAsync("pi_expired_paid", Arg.Any<CancellationToken>())
+            .Returns(paid);
+
+        await _service.HandleStripeCheckoutWebhookEventAsync(new StoreCheckoutWebhookEvent(
+            "evt_expired_paid",
+            StoreCheckoutEventKind.CheckoutSessionExpired,
+            new StoreCheckoutSessionData("cs_expired_paid", paid.OrderId, "pi_expired_paid", 50m)), TestContext.Current.CancellationToken);
+
+        await _repo.DidNotReceive().DeletePaymentAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     // ==========================================================================

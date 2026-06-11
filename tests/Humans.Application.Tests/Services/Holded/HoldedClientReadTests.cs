@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using AwesomeAssertions;
 using Humans.Infrastructure.Services.Holded;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NodaTime;
 
@@ -12,7 +13,8 @@ public class HoldedClientReadTests
     private static HoldedClient Make(StubHandler handler) =>
         new(
             new HttpClient(handler) { BaseAddress = new Uri("https://api.holded.com") },
-            Options.Create(new HoldedClientOptions { ApiKey = "test-key" }));
+            Options.Create(new HoldedClientOptions { ApiKey = "test-key" }),
+            NullLogger<HoldedClient>.Instance);
 
     [HumansFact]
     public async Task ListExpenseAccounts_parses_num_and_name()
@@ -21,7 +23,7 @@ public class HoldedClientReadTests
         var handler = new StubHandler(_ => Respond(HttpStatusCode.OK, json));
 
         var client = Make(handler);
-        var accounts = await client.ListExpenseAccountsAsync();
+        var accounts = await client.ListExpenseAccountsAsync(Xunit.TestContext.Current.CancellationToken);
 
         accounts.Should().HaveCount(1);
         accounts[0].Id.Should().Be("a1");
@@ -48,7 +50,7 @@ public class HoldedClientReadTests
         var handler = new StubHandler(_ => Respond(HttpStatusCode.OK, json));
 
         var client = Make(handler);
-        var docs = await client.ListPurchaseDocumentsPageAsync(1, 10);
+        var docs = await client.ListPurchaseDocumentsPageAsync(1, 10, Xunit.TestContext.Current.CancellationToken);
 
         docs.Should().HaveCount(1);
         var doc = docs[0];
@@ -75,7 +77,7 @@ public class HoldedClientReadTests
         });
 
         var client = Make(handler);
-        await client.ListPurchaseDocumentsPageAsync(page: 3, limit: 50);
+        await client.ListPurchaseDocumentsPageAsync(page: 3, limit: 50, ct: Xunit.TestContext.Current.CancellationToken);
 
         capturedQuery.Should().Contain("page=3");
         capturedQuery.Should().Contain("limit=50");
@@ -92,7 +94,7 @@ public class HoldedClientReadTests
         });
 
         var client = Make(handler);
-        var id = await client.CreateExpenseAccountAsync(62900000, "Otros servicios");
+        var id = await client.CreateExpenseAccountAsync(62900000, "Otros servicios", Xunit.TestContext.Current.CancellationToken);
 
         capturedMethod.Should().Be("POST");
         id.Should().Be("new1");

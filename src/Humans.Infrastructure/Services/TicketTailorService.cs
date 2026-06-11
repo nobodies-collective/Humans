@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using Humans.Application;
 using Humans.Application.Configuration;
 using Humans.Application.DTOs;
+using Humans.Application.Extensions;
 using Humans.Application.Interfaces.Tickets;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -42,10 +43,9 @@ public class TicketTailorService : ITicketVendorService
     {
         _httpClient = httpClient;
         _cache = cache;
-        var settings1 = settings.Value;
         _logger = logger;
 
-        var apiKey = settings1.ApiKey;
+        var apiKey = settings.Value.ApiKey;
         if (!string.IsNullOrEmpty(apiKey))
         {
             var authBytes = Encoding.ASCII.GetBytes($"{apiKey}:");
@@ -57,6 +57,7 @@ public class TicketTailorService : ITicketVendorService
     public async Task<IReadOnlyList<VendorOrderDto>> GetOrdersAsync(
         Instant? since, string eventId, CancellationToken ct = default)
     {
+        using var _ = _logger.TimeOperation();
         var orders = new List<VendorOrderDto>();
         string? cursor = null;
 
@@ -114,6 +115,7 @@ public class TicketTailorService : ITicketVendorService
     public async Task<IReadOnlyList<VendorTicketDto>> GetIssuedTicketsAsync(
         Instant? since, string eventId, CancellationToken ct = default)
     {
+        using var _ = _logger.TimeOperation();
         var tickets = new List<VendorTicketDto>();
         string? cursor = null;
 
@@ -160,6 +162,7 @@ public class TicketTailorService : ITicketVendorService
     public async Task<VendorEventSummaryDto> GetEventSummaryAsync(
         string eventId, CancellationToken ct = default)
     {
+        using var _ = _logger.TimeOperation();
         var cacheKey = CacheKeys.TicketEventSummary(eventId);
         if (_cache.TryGetValue<VendorEventSummaryDto>(cacheKey, out var cachedSummary) &&
             cachedSummary is not null)
@@ -174,9 +177,6 @@ public class TicketTailorService : ITicketVendorService
             _logger.LogWarning(
                 "TicketTailor event summary API returned {StatusCode} for event {EventId}",
                 (int)response.StatusCode, eventId);
-
-            if ((int)response.StatusCode >= 500)
-                return new VendorEventSummaryDto(eventId, "Unknown", 0, 0, 0);
 
             response.EnsureSuccessStatusCode();
         }
@@ -205,6 +205,7 @@ public class TicketTailorService : ITicketVendorService
     public async Task<IReadOnlyList<string>> GenerateDiscountCodesAsync(
         DiscountCodeSpec spec, CancellationToken ct = default)
     {
+        using var _ = _logger.TimeOperation();
         var codes = new List<string>();
         for (var i = 0; i < spec.Count; i++)
         {
@@ -233,6 +234,7 @@ public class TicketTailorService : ITicketVendorService
     public async Task<IReadOnlyList<DiscountCodeStatusDto>> GetDiscountCodeUsageAsync(
         IEnumerable<string> codes, CancellationToken ct = default)
     {
+        using var _ = _logger.TimeOperation();
         var results = new List<DiscountCodeStatusDto>();
 
         foreach (var code in codes)
@@ -309,7 +311,6 @@ public class TicketTailorService : ITicketVendorService
         return donationCents > 0 ? donationCents / 100m : 0m;
     }
 
-    // --- TicketTailor API response models ---
     // Must be internal (not private) for System.Text.Json deserialization
 
     internal sealed record TtPaginatedResponse<T>(

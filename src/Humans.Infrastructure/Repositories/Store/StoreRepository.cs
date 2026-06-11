@@ -1,5 +1,6 @@
 using Humans.Application.Interfaces.Repositories;
 using Humans.Domain.Entities;
+using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -224,13 +225,38 @@ internal sealed class StoreRepository(IDbContextFactory<HumansDbContext> factory
         return await ctx.StorePayments.AnyAsync(p => p.StripePaymentIntentId == paymentIntentId, ct);
     }
 
+    public async Task<StorePayment?> GetPaymentByStripePaymentIntentIdAsync(string paymentIntentId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        return await ctx.StorePayments.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.StripePaymentIntentId == paymentIntentId, ct);
+    }
+
+    public async Task UpdatePaymentStatusAsync(Guid paymentId, StorePaymentStatus status, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var payment = await ctx.StorePayments.FirstOrDefaultAsync(p => p.Id == paymentId, ct);
+        if (payment is null) return;
+        payment.Status = status;
+        await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task DeletePaymentAsync(Guid paymentId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var payment = await ctx.StorePayments.FirstOrDefaultAsync(p => p.Id == paymentId, ct);
+        if (payment is null) return;
+        ctx.StorePayments.Remove(payment);
+        await ctx.SaveChangesAsync(ct);
+    }
+
     public async Task<IReadOnlyList<StoreRecordedStripePayment>> GetRecordedStripePaymentsAsync(CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.StorePayments.AsNoTracking()
             .Where(p => p.StripePaymentIntentId != null)
             .Select(p => new StoreRecordedStripePayment(
-                p.StripePaymentIntentId!, p.OrderId, p.AmountEur, p.ReceivedAt))
+                p.StripePaymentIntentId!, p.OrderId, p.AmountEur, p.ReceivedAt, p.Status))
             .ToListAsync(ct);
     }
 

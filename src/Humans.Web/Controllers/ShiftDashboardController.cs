@@ -70,6 +70,34 @@ public class ShiftDashboardController(
         return View(model);
     }
 
+    [Authorize(Policy = PolicyNames.ShiftDashboardAccess)]
+    [HttpGet("PostEventStats")]
+    public async Task<IActionResult> PostEventStats()
+    {
+        var es = await shiftMgmt.GetActiveAsync();
+        if (es is null)
+        {
+            SetError("No active event settings configured.");
+            return RedirectToAction(nameof(HomeController.Index), "Home");
+        }
+
+        var stats = await shiftMgmt.GetPostEventStatsAsync(es.Id);
+        if (stats is null)
+        {
+            SetError("Could not load post-event statistics.");
+            return RedirectToAction(nameof(Index));
+        }
+
+        ViewData["Title"] = "Post-Event Stats";
+        var ordered = stats with
+        {
+            Departments = stats.Departments
+                .OrderBy(r => r.DepartmentName, StringComparer.Ordinal)
+                .ToList()
+        };
+        return View(ordered);
+    }
+
     // Auth: narrow policy overrides controller-level wider one (subteam managers can't reach directly).
     [Authorize(Policy = PolicyNames.ShiftDashboardAccess)]
     [HttpGet("SearchVolunteers")]
@@ -81,7 +109,13 @@ public class ShiftDashboardController(
                 await shiftMgmt.GetShiftByIdAsync(shiftId),
                 query,
                 ShiftRoleChecks.CanViewMedical(User));
-            return ToVolunteerSearchActionResult(result);
+            return result.Status switch
+            {
+                VolunteerSearchBuildStatus.EmptyQuery => Json(Array.Empty<VolunteerSearchResult>()),
+                VolunteerSearchBuildStatus.NotFound => NotFound(),
+                VolunteerSearchBuildStatus.Success => Json(result.Results),
+                _ => throw new InvalidOperationException($"Unexpected volunteer search status '{result.Status}'.")
+            };
         }
         catch (Exception ex)
         {
@@ -89,15 +123,6 @@ public class ShiftDashboardController(
             return StatusCode(500, new { error = "Search failed." });
         }
     }
-
-    private IActionResult ToVolunteerSearchActionResult(VolunteerSearchBuildResult result) =>
-        result.Status switch
-        {
-            VolunteerSearchBuildStatus.EmptyQuery => Json(Array.Empty<VolunteerSearchResult>()),
-            VolunteerSearchBuildStatus.NotFound => NotFound(),
-            VolunteerSearchBuildStatus.Success => Json(result.Results),
-            _ => throw new InvalidOperationException($"Unexpected volunteer search status '{result.Status}'.")
-        };
 
     // Auth: narrow policy overrides controller-level wider one — only ShiftDashboardAccess can assign.
     [Authorize(Policy = PolicyNames.ShiftDashboardAccess)]

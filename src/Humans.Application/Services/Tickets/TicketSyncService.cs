@@ -40,7 +40,7 @@ public sealed class TicketSyncService(
     {
         if (!_settings.IsConfigured)
         {
-            logger.LogDebug("Ticket vendor not configured (missing EventId or API key), skipping sync");
+            logger.LogWarning("Ticket vendor not configured (missing EventId or API key), skipping sync");
             return new TicketSyncResult(0, 0, 0, 0, 0);
         }
 
@@ -138,7 +138,6 @@ public sealed class TicketSyncService(
             syncState.LastError = null;
             await ticketRepository.PersistSyncStateAsync(syncState, ct);
 
-            // invalidate ticket caches via seam (§15c)
             ticketCache.InvalidateVendorEventSummary(eventId);
             ticketCache.InvalidateAll();
 
@@ -380,7 +379,7 @@ public sealed class TicketSyncService(
 
         foreach (var attendee in order.Attendees)
         {
-            if (!IsRevenueAttendee(attendee))
+            if (attendee.Status is not (TicketAttendeeStatus.Valid or TicketAttendeeStatus.CheckedIn))
                 continue;
 
             var taxableAmount = Math.Min(attendee.Price, TicketConstants.VipThresholdEuros);
@@ -392,9 +391,6 @@ public sealed class TicketSyncService(
 
         return Math.Round(totalVat, 2);
     }
-
-    private static bool IsRevenueAttendee(TicketAttendee attendee) =>
-        attendee.Status == TicketAttendeeStatus.Valid || attendee.Status == TicketAttendeeStatus.CheckedIn;
 
     public async Task<bool> IsInErrorStateAsync(CancellationToken ct = default)
     {

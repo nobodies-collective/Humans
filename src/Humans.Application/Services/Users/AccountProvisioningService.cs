@@ -55,7 +55,6 @@ public sealed class AccountProvisioningService(
             }
         }
 
-        // Create new User + UserEmail.
         var resolvedDisplayName = string.IsNullOrWhiteSpace(displayName)
             ? email.Split('@')[0]
             : displayName;
@@ -63,7 +62,6 @@ public sealed class AccountProvisioningService(
         var now = clock.GetCurrentInstant();
 
         var newUserId = Guid.NewGuid();
-#pragma warning disable HUM_USER_DISPLAYNAME // Account provisioning seeds the legacy Identity fallback column.
         var newUser = new User
         {
             Id = newUserId,
@@ -71,7 +69,6 @@ public sealed class AccountProvisioningService(
             ContactSource = source,
             CreatedAt = now,
         };
-#pragma warning restore HUM_USER_DISPLAYNAME
 
         var result = await userManager.CreateAsync(newUser);
         if (!result.Succeeded)
@@ -134,7 +131,6 @@ public sealed class AccountProvisioningService(
         }
 
         var now = clock.GetCurrentInstant();
-#pragma warning disable HUM_USER_DISPLAYNAME // Sanctioned creation-time BurnerName fallback (memory/architecture/burnername-is-the-display-name.md).
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -142,7 +138,6 @@ public sealed class AccountProvisioningService(
             CreatedAt = now,
             LastLoginAt = now
         };
-#pragma warning restore HUM_USER_DISPLAYNAME
 
         var createResult = await userManager.CreateAsync(user);
         if (!createResult.Succeeded)
@@ -165,7 +160,16 @@ public sealed class AccountProvisioningService(
             logger.LogError(ex,
                 "Failed to create UserEmail for magic-link signup {UserId} ({Email}); rolling back user",
                 user.Id, email);
-            await TryDeleteOrphanUserAsync(user);
+            try
+            {
+                await userManager.DeleteAsync(user);
+            }
+            catch (Exception deleteEx)
+            {
+                logger.LogError(deleteEx,
+                    "Failed to clean up orphan user {UserId} after AddVerifiedEmailAsync failure",
+                    user.Id);
+            }
             return new MagicLinkSignupCompletionResult(
                 MagicLinkSignupCompletionOutcome.Failed,
                 User: null);
@@ -181,19 +185,5 @@ public sealed class AccountProvisioningService(
         return new MagicLinkSignupCompletionResult(
             MagicLinkSignupCompletionOutcome.Created,
             user);
-    }
-
-    private async Task TryDeleteOrphanUserAsync(User user)
-    {
-        try
-        {
-            await userManager.DeleteAsync(user);
-        }
-        catch (Exception deleteEx)
-        {
-            logger.LogError(deleteEx,
-                "Failed to clean up orphan user {UserId} after AddVerifiedEmailAsync failure",
-                user.Id);
-        }
     }
 }

@@ -7,6 +7,7 @@ using Humans.Web.Authorization;
 using Humans.Web.Constants;
 using Humans.Web.Models;
 using Humans.Web.Models.Google;
+using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Teams;
@@ -24,8 +25,6 @@ public class GoogleController(
     IGoogleAdminService googleAdminService,
     ILogger<GoogleController> logger) : HumansControllerBase(userService)
 {
-    // --- Sync Settings ---
-
     [HttpGet("SyncSettings")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
     public async Task<IActionResult> SyncSettings(
@@ -84,8 +83,6 @@ public class GoogleController(
         return RedirectToAction(nameof(SyncSettings));
     }
 
-    // --- System Team Sync ---
-
     [HttpPost("SyncSystemTeams")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
     [ValidateAntiForgeryToken]
@@ -125,8 +122,6 @@ public class GoogleController(
 
         return View(report);
     }
-
-    // --- Google Group Settings ---
 
     [HttpPost("CheckGroupSettings")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
@@ -226,8 +221,6 @@ public class GoogleController(
         return RedirectToAction(nameof(AllGroups));
     }
 
-    // --- All Domain Groups ---
-
     [HttpGet("AllGroups")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
     public async Task<IActionResult> AllGroups()
@@ -272,8 +265,6 @@ public class GoogleController(
 
         return RedirectToAction(nameof(AllGroups));
     }
-
-    // --- Resource Sync Dashboard ---
 
     [HttpGet("Sync")]
     [Authorize(Policy = PolicyNames.TeamsAdminBoardOrAdmin)]
@@ -352,8 +343,6 @@ public class GoogleController(
         }
     }
 
-    // --- Human Email Provisioning ---
-
     [HttpPost("Human/{id:guid}/ProvisionEmail")]
     [Authorize(Policy = PolicyNames.HumanAdminOrAdmin)]
     [ValidateAntiForgeryToken]
@@ -390,8 +379,6 @@ public class GoogleController(
 
         return RedirectToAction(nameof(UsersAdminController.AdminDetail), "UsersAdmin", new { id });
     }
-
-    // --- Workspace Accounts ---
 
     [HttpGet("Accounts")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
@@ -610,8 +597,6 @@ public class GoogleController(
         return RedirectToAction(nameof(Accounts));
     }
 
-    // --- Sync Outbox ---
-
     [HttpGet("SyncOutbox")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
     public async Task<IActionResult> SyncOutbox(
@@ -647,7 +632,82 @@ public class GoogleController(
         return View(events);
     }
 
-    // --- Email Rename Detection ---
+    [HttpPost("SyncOutbox/{id:guid}/Requeue")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RequeueOutboxEvent(
+        Guid id,
+        [FromServices] IAuditLogService auditLogService)
+    {
+        var currentUser = await GetCurrentUserInfoAsync();
+        if (currentUser is null) return Unauthorized();
+
+        var requeued = await googleSyncService.RequeueOutboxEventAsync(id);
+        if (!requeued)
+        {
+            SetError("Event not found or not in a failed state.");
+            return RedirectToAction(nameof(SyncOutbox));
+        }
+
+        await auditLogService.LogAsync(
+            AuditAction.GoogleSyncRetryScheduled,
+            "GoogleSyncOutboxEvent",
+            id,
+            $"Admin manually requeued Google sync outbox event {id}",
+            currentUser.Id);
+
+        SetSuccess("Event requeued for retry.");
+        return RedirectToAction(nameof(SyncOutbox));
+    }
+
+    [HttpPost("SyncOutbox/RequeueAll")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RequeueAllFailedOutboxEvents(
+        [FromServices] IAuditLogService auditLogService)
+    {
+        var currentUser = await GetCurrentUserInfoAsync();
+        if (currentUser is null) return Unauthorized();
+
+        var count = await googleSyncService.RequeueAllFailedOutboxEventsAsync();
+
+        await auditLogService.LogAsync(
+            AuditAction.GoogleSyncRetryScheduled,
+            "GoogleSyncOutbox",
+            Guid.Empty,
+            $"Admin requeued all {count} permanently-failed Google sync outbox event(s)",
+            currentUser.Id);
+
+        SetSuccess(count == 0
+            ? "No permanently-failed events to requeue."
+            : $"Requeued {count} event(s) for retry.");
+        return RedirectToAction(nameof(SyncOutbox));
+    }
+
+    [HttpPost("Human/{id:guid}/RerunSync")]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RerunGoogleSync(
+        Guid id,
+        [FromServices] IAuditLogService auditLogService)
+    {
+        var currentUser = await GetCurrentUserInfoAsync();
+        if (currentUser is null) return Unauthorized();
+
+        var count = await googleSyncService.EnqueueUserSyncAsync(id);
+
+        await auditLogService.LogAsync(
+            AuditAction.GoogleSyncRetryScheduled,
+            "User",
+            id,
+            $"Admin enqueued Google sync re-run for user {id} ({count} team event(s))",
+            currentUser.Id);
+
+        SetSuccess(count == 0
+            ? "User is not a member of any teams — no sync events enqueued."
+            : $"Enqueued sync for {count} team(s). The job will process them shortly.");
+        return RedirectToAction(nameof(UsersAdminController.AdminDetail), "UsersAdmin", new { id });
+    }
 
     [HttpPost("CheckEmailRenames")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
@@ -688,8 +748,6 @@ public class GoogleController(
         return View(result);
     }
 
-    // --- Email Flag Violations (admin remediation) ---
-
     [HttpGet("EmailFlagViolations")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
     public async Task<IActionResult> EmailFlagViolations(
@@ -700,16 +758,12 @@ public class GoogleController(
         return View(violations);
     }
 
-    // --- Index ---
-
     [HttpGet("")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
     public IActionResult Index()
     {
         return View();
     }
-
-    // --- Helpers ---
 
     private static string FormatServiceName(SyncServiceType type) => type switch
     {

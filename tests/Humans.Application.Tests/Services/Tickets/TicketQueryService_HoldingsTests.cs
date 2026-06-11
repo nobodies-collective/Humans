@@ -55,7 +55,7 @@ public sealed class TicketQueryService_HoldingsTests
     [HumansFact]
     public async Task ReturnsEmpty_WhenUserHasNoOrdersAndNoAttendees()
     {
-        var result = await Service.GetUserTicketHoldingsAsync(UserA);
+        var result = await Service.GetUserTicketHoldingsAsync(UserA, Xunit.TestContext.Current.CancellationToken);
         result.OrderCount.Should().Be(0);
         result.Tickets.Should().BeEmpty();
     }
@@ -75,8 +75,10 @@ public sealed class TicketQueryService_HoldingsTests
         _ticketRepo.GetOrdersMatchedToUserAsync(UserA, Arg.Any<CancellationToken>())
             .Returns([order1, order2]);
 
-        // Order 1: attendee matched to UserA (counts), attendee unmatched (cascades to order buyer = UserA, counts)
-        // Order 2: attendee matched to UserB (does NOT count for UserA)
+        // GetAttendeesVisibleToUserAsync now returns only attendees where MatchedUserId == userId
+        // (buyer-fallback removed in nobodies-collective/Humans#856).
+        // Order 1: attendee matched to UserA (counts); unmatched attendee not returned by repo
+        // Order 2: attendee matched to UserB (not returned for UserA)
         // Order 3 (UserB's order): attendee matched to UserA via MatchedUserId (counts for UserA)
         var attendeeMatchedA_Order1 = new TicketAttendee
         {
@@ -85,22 +87,6 @@ public sealed class TicketQueryService_HoldingsTests
             MatchedUserId = UserA,
             TicketOrder = order1,
             TicketOrderId = order1Id,
-        };
-        var attendeeUnmatched_Order1 = new TicketAttendee
-        {
-            Id = Guid.NewGuid(),
-            AttendeeName = "Unmatched-Order1",
-            MatchedUserId = null,
-            TicketOrder = order1,
-            TicketOrderId = order1Id,
-        };
-        var attendeeMatchedB_Order2 = new TicketAttendee
-        {
-            Id = Guid.NewGuid(),
-            AttendeeName = "Matched-B-Order2",
-            MatchedUserId = UserB,
-            TicketOrder = order2,
-            TicketOrderId = order2Id,
         };
         var attendeeMatchedA_Order3 = new TicketAttendee
         {
@@ -114,15 +100,13 @@ public sealed class TicketQueryService_HoldingsTests
         _ticketRepo.GetAttendeesVisibleToUserAsync(UserA, Arg.Any<CancellationToken>())
             .Returns([
                 attendeeMatchedA_Order1,
-                attendeeUnmatched_Order1,
-                attendeeMatchedB_Order2,
                 attendeeMatchedA_Order3
             ]);
 
-        var result = await Service.GetUserTicketHoldingsAsync(UserA);
+        var result = await Service.GetUserTicketHoldingsAsync(UserA, Xunit.TestContext.Current.CancellationToken);
 
         result.OrderCount.Should().Be(2);
-        result.Tickets.Should().HaveCount(3);
+        result.Tickets.Should().HaveCount(2);
     }
 
     [HumansFact]
@@ -153,7 +137,7 @@ public sealed class TicketQueryService_HoldingsTests
         _ticketRepo.GetAttendeesVisibleToUserAsync(UserA, Arg.Any<CancellationToken>())
             .Returns([voided, active]);
 
-        var result = await Service.GetUserTicketHoldingsAsync(UserA);
+        var result = await Service.GetUserTicketHoldingsAsync(UserA, Xunit.TestContext.Current.CancellationToken);
 
         result.Tickets.Should().HaveCount(2);
         result.Tickets[0].Status.Should().Be(TicketAttendeeStatus.Valid);
@@ -203,7 +187,7 @@ public sealed class TicketQueryService_HoldingsTests
                 },
             ]);
 
-        var result = await Service.GetUserTicketHoldingsAsync(UserA);
+        var result = await Service.GetUserTicketHoldingsAsync(UserA, Xunit.TestContext.Current.CancellationToken);
 
         var pendingRow = result.Tickets.Single(t => t.AttendeeId == inTransfer.Id);
         pendingRow.HasPendingOutgoingTransfer.Should().BeTrue();

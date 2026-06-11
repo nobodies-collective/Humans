@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Humans.Application;
 using Humans.Application.Architecture;
 using Humans.Application.DTOs;
+using Humans.Application.Interfaces.Tickets;
 using Humans.Web.Authorization;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
@@ -29,11 +31,13 @@ public class TeamAdminController(
     IAuthorizationService authorizationService,
     ISystemTeamSync systemTeamSyncJob,
     ILogger<TeamAdminController> logger,
-    IStringLocalizer<SharedResource> localizer)
+    IStringLocalizer<SharedResource> localizer,
+    ITicketServiceRead tickets)
     : HumansTeamControllerBase(userService, teamService, authorizationService)
 {
     private readonly ITeamService _teamService = teamService;
     private readonly IUserServiceRead _userService = userService;
+    private readonly ITicketServiceRead _tickets = tickets;
 
     [HttpPost("Requests/{requestId}/Approve")]
     [ValidateAntiForgeryToken]
@@ -429,7 +433,10 @@ public class TeamAdminController(
         }
 
         var result = await teamResourceService.LinkDriveResourceAsync(team.Id, model.ResourceUrl, model.PermissionLevel);
-        SetDriveResourceLinkResult(result);
+        if (result.Success)
+            SetSuccess($"Drive resource '{result.Resource!.Name}' linked successfully.");
+        else
+            SetError(BuildResourceLinkError(result, "Failed to link Drive resource."));
 
         return RedirectToAction(nameof(Resources), new { slug });
     }
@@ -462,7 +469,10 @@ public class TeamAdminController(
         }
 
         var result = await teamResourceService.LinkGroupAsync(team.Id, model.GroupEmail);
-        SetGroupResourceLinkResult(result);
+        if (result.Success)
+            SetSuccess(string.Format(localizer["TeamAdmin_GroupLinked"].Value, result.Resource!.Name));
+        else
+            SetError(BuildResourceLinkError(result, localizer["TeamAdmin_GroupLinkFailed"].Value));
 
         return RedirectToAction(nameof(Resources), new { slug });
     }
@@ -568,9 +578,6 @@ public class TeamAdminController(
     [HttpPost("Resources/{resourceId}/Sync")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SyncResource(string slug, Guid resourceId)
-        => await SyncResourceCoreAsync(slug, resourceId);
-
-    private async Task<IActionResult> SyncResourceCoreAsync(string slug, Guid resourceId)
     {
         var (currentUserNotFound, user) = await RequireCurrentUserAsync();
         if (currentUserNotFound is not null)
@@ -595,7 +602,10 @@ public class TeamAdminController(
                 resourceId,
                 SyncAction.Execute,
                 HttpContext.RequestAborted);
-            SetResourceSyncResult(diff.ErrorMessage);
+            if (diff.ErrorMessage is not null)
+                SetError(string.Format(localizer["TeamAdmin_ResourceSyncFailed"].Value, diff.ErrorMessage));
+            else
+                SetSuccess(localizer["TeamAdmin_ResourceSynced"].Value);
         }
         catch (Exception ex)
         {
@@ -604,36 +614,6 @@ public class TeamAdminController(
         }
 
         return RedirectToAction(nameof(Resources), new { slug });
-    }
-
-    private void SetResourceSyncResult(string? syncError)
-    {
-        if (syncError is not null)
-            SetError(string.Format(localizer["TeamAdmin_ResourceSyncFailed"].Value, syncError));
-        else
-            SetSuccess(localizer["TeamAdmin_ResourceSynced"].Value);
-    }
-
-    private void SetDriveResourceLinkResult(LinkResourceResult result)
-    {
-        if (result.Success)
-        {
-            SetSuccess($"Drive resource '{result.Resource!.Name}' linked successfully.");
-            return;
-        }
-
-        SetError(BuildResourceLinkError(result, "Failed to link Drive resource."));
-    }
-
-    private void SetGroupResourceLinkResult(LinkResourceResult result)
-    {
-        if (result.Success)
-        {
-            SetSuccess(string.Format(localizer["TeamAdmin_GroupLinked"].Value, result.Resource!.Name));
-            return;
-        }
-
-        SetError(BuildResourceLinkError(result, localizer["TeamAdmin_GroupLinkFailed"].Value));
     }
 
     private string BuildResourceLinkError(LinkResourceResult result, string defaultMessage)
@@ -744,7 +724,7 @@ public class TeamAdminController(
         var (teamError, user, team) = await ResolveTeamManagementAsync(slug);
         if (teamError is not null)
         {
-            return RoleEditTeamError(isAjax, teamError);
+            return isAjax ? Unauthorized() : teamError;
         }
 
         try
@@ -759,30 +739,21 @@ public class TeamAdminController(
                 priorities, model.SortOrder, model.IsManagement, model.Period, user.Id,
                 model.IsPublic, canToggleManagement, model.EstimatedHours);
 
-            return RoleEditSuccess(isAjax, slug, $"Role '{model.Name}' updated.");
+            if (isAjax)
+                return Json(new { success = true, message = $"Role '{model.Name}' updated." });
+
+            SetSuccess($"Role '{model.Name}' updated.");
+            return RedirectToAction(nameof(Roles), new { slug });
         }
         catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
         {
             logger.LogWarning(ex, "Failed to update role {RoleId} for team {TeamId} by user {UserId}", roleId, team.Id, user.Id);
-            return RoleEditError(isAjax, slug, ex.Message);
+            if (isAjax)
+                return Json(new { success = false, message = ex.Message });
+
+            SetError(ex.Message);
+            return RedirectToAction(nameof(Roles), new { slug });
         }
-    }
-
-    private IActionResult RoleEditTeamError(bool isAjax, IActionResult teamError) =>
-        isAjax ? Unauthorized() : teamError;
-
-    private IActionResult RoleEditSuccess(bool isAjax, string slug, string message)
-    {
-        if (isAjax) return Json(new { success = true, message });
-        SetSuccess(message);
-        return RedirectToAction(nameof(Roles), new { slug });
-    }
-
-    private IActionResult RoleEditError(bool isAjax, string slug, string message)
-    {
-        if (isAjax) return Json(new { success = false, message });
-        SetError(message);
-        return RedirectToAction(nameof(Roles), new { slug });
     }
 
     [HttpPost("Roles/{roleId}/Delete")]
@@ -912,7 +883,6 @@ public class TeamAdminController(
 
         var canBePublic = !teamEntity.IsSystemTeam && !teamEntity.ParentTeamId.HasValue;
 
-        // Ensure we always show 3 CTA slots
         var ctas = (teamEntity.CallsToAction ?? [])
             .Select(c => new CallToActionViewModel { Text = c.Text, Url = c.Url, Style = c.Style })
             .ToList();
@@ -1098,6 +1068,31 @@ public class TeamAdminController(
         return RedirectToAction(nameof(EarlyEntry), new { slug });
     }
 
+    [HttpGet("EarlyEntry/LookupTicket")]
+    public async Task<IActionResult> LookupTicket(string slug, string? q, CancellationToken ct)
+    {
+        var (teamError, _, team) = await ResolveEarlyEntryManagementAsync(slug);
+        if (teamError is not null)
+        {
+            return teamError;
+        }
+
+        if (!team.EarlyEntryEnabled)
+        {
+            return NotFound();
+        }
+
+        var orders = await _tickets.GetTicketOrdersAsync(ct);
+        var hit = FindCurrentEventAttendeeByBarcode(orders, q);
+
+        var matched = hit?.MatchedUserId is { } id
+            ? await _userService.GetUserInfoAsync(id, ct)
+            : null;
+
+        var detailLabel = localizer["TeamAdmin_TicketLabel", hit?.Barcode ?? string.Empty].Value;
+        return Json(BuildTicketLookupRows(hit, matched, detailLabel));
+    }
+
     private async Task<TeamEarlyEntryPageViewModel> BuildEarlyEntryPageAsync(TeamInfo team, CancellationToken ct)
     {
         var grants = await _teamService.GetEarlyEntryGrantsForTeamAsync(team.Id, ct);
@@ -1123,6 +1118,48 @@ public class TeamAdminController(
             TeamName = team.Name,
             Grants = rows,
         };
+    }
+
+    /// <summary>
+    /// Resolve a ticket barcode to its issued attendee within the current event only
+    /// (the gate-scanner admissibility scope, see <see cref="ScannerController"/> / #916).
+    /// Exact, case-sensitive (<see cref="StringComparison.Ordinal"/>) — barcodes are codes,
+    /// not names. Returns null for empty/whitespace input or no match.
+    /// </summary>
+    internal static TicketAttendeeInfo? FindCurrentEventAttendeeByBarcode(
+        IReadOnlyList<TicketOrderInfo> orders, string? barcode)
+    {
+        var code = barcode?.Trim() ?? string.Empty;
+        if (code.Length == 0)
+        {
+            return null;
+        }
+
+        return orders
+            .Where(o => o.IsCurrentEvent)
+            .SelectMany(o => o.Attendees)
+            .FirstOrDefault(a => string.Equals(a.Barcode, code, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Build the 0-or-1 picker row for a barcode hit. A row is emitted only when the
+    /// attendee is personally paired to a human (<see cref="TicketAttendeeInfo.MatchedUserId"/>)
+    /// who still resolves and is active. Otherwise empty — the picker stays silent (it just
+    /// shows name matches), matching the type-ahead "no result" convention.
+    /// </summary>
+    internal static List<HumanLookupSearchResult> BuildTicketLookupRows(
+        TicketAttendeeInfo? hit, UserInfo? matchedUser, string detailLabel)
+    {
+        if (hit?.MatchedUserId is null || matchedUser is null || !matchedUser.IsActive)
+        {
+            return [];
+        }
+
+        return
+        [
+            new HumanLookupSearchResult(
+                matchedUser.Id, matchedUser.BurnerName, detailLabel, matchedUser.ProfilePictureUrl),
+        ];
     }
 
     [HttpGet("Roles/SearchMembers")]

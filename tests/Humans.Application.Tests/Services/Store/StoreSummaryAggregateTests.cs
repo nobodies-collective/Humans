@@ -41,7 +41,7 @@ public class StoreSummaryAggregateTests
         _repo.GetAllProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns([]);
 
-        var result = await _service.GetStoreSummaryAsync(2026);
+        var result = await _service.GetStoreSummaryAsync(2026, Xunit.TestContext.Current.CancellationToken);
 
         result.Year.Should().Be(2026);
         result.ByCounterparty.Should().BeEmpty();
@@ -110,7 +110,7 @@ public class StoreSummaryAggregateTests
                 Arg.Any<CancellationToken>())
             .Returns([order]);
 
-        var result = await _service.GetStoreSummaryAsync(2026);
+        var result = await _service.GetStoreSummaryAsync(2026, Xunit.TestContext.Current.CancellationToken);
 
         // By-counterparty
         result.ByCounterparty.Should().HaveCount(1);
@@ -181,7 +181,7 @@ public class StoreSummaryAggregateTests
                 Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns([orderA, orderB]);
 
-        var result = await _service.GetStoreSummaryAsync(2026);
+        var result = await _service.GetStoreSummaryAsync(2026, Xunit.TestContext.Current.CancellationToken);
 
         // By-item totals
         result.ByItem.Single(i => i.ProductId == productX).TotalQty.Should().Be(6);
@@ -233,7 +233,7 @@ public class StoreSummaryAggregateTests
                 }
             ]);
 
-        var result = await _service.GetStoreSummaryAsync(2026);
+        var result = await _service.GetStoreSummaryAsync(2026, Xunit.TestContext.Current.CancellationToken);
 
         result.ByItem.Should().ContainSingle(i => i.ProductId == deadProductId && i.TotalQty == 2);
         result.CrossTab.Products.Should().ContainSingle(p => p.ProductId == deadProductId);
@@ -289,7 +289,7 @@ public class StoreSummaryAggregateTests
                 Order(orderUnpaid, seasonUnpaid, qty: 1, paid: 0m)    // due 10, paid  0  → balance 10  (unpaid)
             ]);
 
-        var result = await _service.GetStoreSummaryAsync(2026);
+        var result = await _service.GetStoreSummaryAsync(2026, Xunit.TestContext.Current.CancellationToken);
 
         var paidRow = result.ByCounterparty.Single(r => r.OrderId == orderPaid);
         paidRow.TotalDueEur.Should().Be(20m);
@@ -305,6 +305,50 @@ public class StoreSummaryAggregateTests
         unpaidRow.TotalDueEur.Should().Be(10m);
         unpaidRow.PaymentsTotalEur.Should().Be(0m);
         unpaidRow.BalanceEur.Should().Be(10m);
+    }
+
+    [HumansFact]
+    public async Task Open_order_reprices_to_current_catalog_like_the_order_page()
+    {
+        var seasonId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+
+        _camps.GetCampsForYearAsync(2026, Arg.Any<CancellationToken>())
+            .Returns([MakeCampInfo(seasonId, "Camp Alpha", "alpha")]);
+
+        // Catalog price dropped to 8 after the line was added at 10.
+        _repo.GetAllProductsForYearAsync(2026, Arg.Any<CancellationToken>()).Returns([
+            new StoreProduct { Id = productId, Year = 2026, Name = "Tent", Description = "x",
+                UnitPriceEur = 8m, VatRatePercent = 21m, OrderableUntil = new LocalDate(2026,12,31), IsActive = true }
+        ]);
+
+        var order = new StoreOrder
+        {
+            Id = orderId,
+            CampSeasonId = seasonId,
+            State = StoreOrderState.Open,
+            Lines =
+            {
+                new StoreOrderLine
+                {
+                    Id = Guid.NewGuid(), OrderId = orderId, ProductId = productId,
+                    Qty = 3, UnitPriceSnapshot = 10m, VatRateSnapshot = 21m
+                }
+            }
+        };
+        _repo.GetOrdersForCampSeasonsWithLinesAndPaymentsAsync(
+                Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns([order]);
+
+        var result = await _service.GetStoreSummaryAsync(2026, Xunit.TestContext.Current.CancellationToken);
+
+        // 3 × 8 = 24.00 + 21% VAT 5.04 = 29.04 — the live total the order page
+        // shows for an Open order, not the 36.30 the add-time snapshot would give.
+        var row = result.ByCounterparty.Single();
+        row.TotalDueEur.Should().Be(29.04m);
+        row.BalanceEur.Should().Be(29.04m);
+        result.ByItem.Single().TotalRevenueEur.Should().Be(29.04m);
     }
 
     [HumansFact]
@@ -324,7 +368,7 @@ public class StoreSummaryAggregateTests
                 new StoreOrder { Id = Guid.NewGuid(), CampSeasonId = outOfYear, State = StoreOrderState.Open }
             ]);
 
-        var result = await _service.GetStoreSummaryAsync(2026);
+        var result = await _service.GetStoreSummaryAsync(2026, Xunit.TestContext.Current.CancellationToken);
 
         result.ByCounterparty.Should().BeEmpty();
         result.CrossTab.Counterparties.Should().BeEmpty();

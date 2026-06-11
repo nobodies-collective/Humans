@@ -83,7 +83,7 @@ Append-only per design-rules §12. The repository exposes no `UpdateAsync` / `Re
 | ModifiedAt | Instant | When this version was saved |
 | Note | string (512) | "Saved" or "Restored from {timestamp}" |
 
-Cross-domain navs (`CampPolygon.CampSeason`, `CampPolygon.LastModifiedByUser`, `CampPolygonHistory.CampSeason`, `CampPolygonHistory.ModifiedByUser`) remain declared on the entities but are no longer read from this section's code. Stripping them at the entity boundary is a follow-up item consistent with §15i — new code must use `ICampService` / `IUserService` instead.
+Cross-domain User navs `CampPolygon.LastModifiedByUser` and `CampPolygonHistory.ModifiedByUser` have been stripped from the entities (nobodies-collective/Humans#934); the FK scalars remain. The intra-section `CampSeason` navs (`CampPolygon.CampSeason`, `CampPolygonHistory.CampSeason`) remain declared. New code must use `ICampService` / `IUserService` instead of cross-domain navs.
 
 ## Routing
 
@@ -194,6 +194,6 @@ Broadcasts `CampPolygonUpdated(campSeasonId, geoJson, areaSqm, soundZone, campNa
 - Polygon reads by camp season ids (`GetPolygonsByCampSeasonIdsAsync`, `GetCampSeasonIdsWithPolygonAsync`).
 - Polygon-history reads for a camp season (`GetHistoryForCampSeasonAsync`, `GetHistoryEntryAsync`).
 - Atomic "save polygon + append history" write (`SavePolygonAndAppendHistoryAsync`). Polygon upsert and history insert happen in one unit of work.
-- Settings read/upsert (`GetSettingsByYearAsync`, `GetOrCreateSettingsAsync`, `MutateSettingsAsync`). All field-level mutations (placement open/close, limit zone, official zones, placement dates, registration info) flow through `MutateSettingsAsync` at the service layer.
+- Settings read/upsert (`GetOrCreateSettingsAsync`, `MutateSettingsAsync`). All field-level mutations (placement open/close, limit zone, official zones, placement dates, registration info) flow through `MutateSettingsAsync` at the service layer.
 
 Per §12, `camp_polygon_histories` is append-only — the repository intentionally exposes no `UpdateHistoryAsync` / `RemoveHistoryAsync`.

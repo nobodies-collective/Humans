@@ -3,6 +3,7 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.CloudIdentity.v1;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
+using Humans.Application.Extensions;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
@@ -32,6 +33,7 @@ public sealed class TeamResourceGoogleClient(
         bool expectFolder,
         CancellationToken ct = default)
     {
+        using var timer = logger.TimeOperation();
         _ = expectFolder; // Ignored: the real connector uses the MIME type returned by Drive.
         try
         {
@@ -65,6 +67,7 @@ public sealed class TeamResourceGoogleClient(
 
     public async Task<GroupLookupResult> LookupGroupAsync(string groupEmail, CancellationToken ct = default)
     {
+        using var _ = logger.TimeOperation();
         try
         {
             var cloudIdentity = await GetCloudIdentityServiceAsync(ct);
@@ -97,17 +100,12 @@ public sealed class TeamResourceGoogleClient(
 
     public async Task<string> GetServiceAccountEmailAsync(CancellationToken ct = default)
     {
+        using var _ = logger.TimeOperation();
         if (_serviceAccountEmail is not null)
         {
             return _serviceAccountEmail;
         }
 
-        _serviceAccountEmail = await ExtractServiceAccountEmailAsync(ct);
-        return _serviceAccountEmail;
-    }
-
-    private async Task<string> ExtractServiceAccountEmailAsync(CancellationToken ct)
-    {
         string? json = null;
 
         if (!string.IsNullOrEmpty(_settings.ServiceAccountKeyJson))
@@ -124,11 +122,13 @@ public sealed class TeamResourceGoogleClient(
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.TryGetProperty("client_email", out var emailElement))
             {
-                return emailElement.GetString() ?? "unknown@serviceaccount.iam.gserviceaccount.com";
+                _serviceAccountEmail = emailElement.GetString() ?? "unknown@serviceaccount.iam.gserviceaccount.com";
+                return _serviceAccountEmail;
             }
         }
 
-        return "unknown@serviceaccount.iam.gserviceaccount.com";
+        _serviceAccountEmail = "unknown@serviceaccount.iam.gserviceaccount.com";
+        return _serviceAccountEmail;
     }
 
     /// <summary>

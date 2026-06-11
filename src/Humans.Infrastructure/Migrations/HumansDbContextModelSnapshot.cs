@@ -2059,6 +2059,9 @@ namespace Humans.Infrastructure.Migrations
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("DayOffset")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("GuideEventId")
                         .HasColumnType("uuid");
 
@@ -2069,8 +2072,10 @@ namespace Humans.Infrastructure.Migrations
 
                     b.HasIndex("GuideEventId");
 
-                    b.HasIndex("UserId", "GuideEventId")
+                    b.HasIndex("UserId", "GuideEventId", "DayOffset")
                         .IsUnique();
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("UserId", "GuideEventId", "DayOffset"), false);
 
                     b.ToTable("event_favourites", (string)null);
                 });
@@ -3964,6 +3969,11 @@ namespace Humans.Infrastructure.Migrations
 
                     b.Property<Guid?>("RecordedByUserId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("StripePaymentIntentId")
                         .HasMaxLength(200)

@@ -1,13 +1,12 @@
 using Humans.Application.Interfaces.Budget;
 using Humans.Application.Interfaces.Teams;
+using Humans.Application.Interfaces.Users;
 using Humans.Web.Authorization;
 using Humans.Web.Authorization.Requirements;
 using Humans.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NodaTime;
-
-using Humans.Application.Interfaces.Users;
 
 namespace Humans.Web.Controllers;
 
@@ -158,7 +157,7 @@ public class BudgetController(
         }
         catch (Exception ex)
         {
-            logger.LogWarning("Failed to create line item in category {CategoryId}: {Reason}", budgetCategoryId, ex.Message);
+            logger.LogError(ex, "Failed to create line item in category {CategoryId}", budgetCategoryId);
             SetError($"Failed to create line item: {ex.Message}");
         }
 
@@ -189,7 +188,7 @@ public class BudgetController(
         }
         catch (Exception ex)
         {
-            logger.LogWarning("Failed to update line item {LineItemId}: {Reason}", id, ex.Message);
+            logger.LogError(ex, "Failed to update line item {LineItemId}", id);
             SetError($"Failed to update line item: {ex.Message}");
         }
 
@@ -216,13 +215,12 @@ public class BudgetController(
         }
         catch (Exception ex)
         {
-            logger.LogWarning("Failed to delete line item {LineItemId}: {Reason}", id, ex.Message);
+            logger.LogError(ex, "Failed to delete line item {LineItemId}", id);
             SetError($"Failed to delete line item: {ex.Message}");
         }
         return RedirectToAction(nameof(CategoryDetail), new { id = lineItem.BudgetCategoryId });
     }
 
-    /// <summary>Load category + auth-check Edit; returns IActionResult on deny, null on allow.</summary>
     private async Task<IActionResult?> AuthorizeCategoryEditAsync(Guid categoryId)
     {
         var category = await budgetService.GetCategoryByIdAsync(categoryId);

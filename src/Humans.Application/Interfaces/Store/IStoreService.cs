@@ -47,8 +47,15 @@ public interface IStoreService : IApplicationService
     /// Returns the team's order for the active event year, or null if none exists.
     /// </summary>
     Task<OrderDto?> GetOrderForTeamAsync(Guid teamId, CancellationToken ct = default);
+    /// <summary>
+    /// The product's <c>OrderableUntil</c> deadline is an authorization concern
+    /// (<c>StoreOrderAuthorizationHandler</c> denies non-admin line edits past it); the service
+    /// only annotates the audit entry when a line is edited past the deadline. The Open-state
+    /// requirement is a service invariant: an issued invoice is frozen for everyone.
+    /// </summary>
     Task AddLineAsync(Guid orderId, Guid productId, int qty, Guid actorUserId, CancellationToken ct = default);
     Task<StoreMutationResult> AddLineWithResultAsync(Guid orderId, Guid productId, int qty, Guid actorUserId, CancellationToken ct = default);
+    /// <inheritdoc cref="AddLineAsync"/>
     Task RemoveLineAsync(Guid orderId, Guid lineId, Guid actorUserId, CancellationToken ct = default);
     Task<StoreMutationResult> RemoveLineWithResultAsync(Guid orderId, Guid lineId, Guid actorUserId, CancellationToken ct = default);
 
@@ -68,9 +75,17 @@ public interface IStoreService : IApplicationService
     /// <summary>
     /// Insert a Stripe-method payment from a verified <c>checkout.session.completed</c> webhook.
     /// Idempotent on <paramref name="paymentIntentId"/> — duplicate webhook deliveries are no-ops.
-    /// Audit-logged with job actor "StripeWebhook" (no human actor).
+    /// Audit-logged with job actor "StripeWebhook" (no human actor). <paramref name="status"/> is
+    /// <see cref="StorePaymentStatus.Paid"/> for a settled sync payment (and for reconciliation,
+    /// which only records confirmed-paid sessions) and <see cref="StorePaymentStatus.Pending"/> for
+    /// an async mandate that has not yet cleared — a Pending row does not count toward the balance.
     /// </summary>
-    Task RecordStripePaymentAsync(Guid orderId, string paymentIntentId, decimal amountEur, CancellationToken ct = default);
+    Task RecordStripePaymentAsync(
+        Guid orderId,
+        string paymentIntentId,
+        decimal amountEur,
+        StorePaymentStatus status = StorePaymentStatus.Paid,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Handle a verified Store Stripe Checkout webhook event. The Stripe connector owns

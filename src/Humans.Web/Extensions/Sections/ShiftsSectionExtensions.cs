@@ -26,7 +26,6 @@ internal static class ShiftsSectionExtensions
 {
     internal static IServiceCollection AddShiftsSection(this IServiceCollection services)
     {
-        // ShiftRepository backs both management and signup interfaces; authorization invalidation remains on the management service.
         services.AddScoped<ShiftRepository>();
         services.AddScoped<IShiftManagementRepository>(sp => sp.GetRequiredService<ShiftRepository>());
         services.AddScoped<ShiftsShiftManagementService>();
@@ -43,14 +42,12 @@ internal static class ShiftsSectionExtensions
         // CantinaAdminOrAdmin authorization policy, not a bespoke service.
         services.AddScoped<ICantinaRosterService, CantinaRosterServiceImpl>();
 
-        // ShiftSignup mutations share the scoped ShiftRepository change-tracker.
         services.AddScoped<ShiftsShiftSignupService>();
         services.AddScoped<IShiftSignupService>(sp => sp.GetRequiredService<ShiftsShiftSignupService>());
         services.AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<ShiftsShiftSignupService>());
         services.AddScoped<ICalendarFeedContributor>(sp => sp.GetRequiredService<ShiftsShiftSignupService>());
         services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<ShiftsShiftSignupService>());
 
-        // VolunteerTracking - scoped user-oriented repository for build status and availability mutations.
         services.AddScoped<IVolunteerTrackingRepository, VolunteerTrackingRepository>();
         services.AddScoped<ShiftsVolunteerTrackingService>();
         services.AddScoped<IVolunteerTrackingService>(sp => sp.GetRequiredService<ShiftsVolunteerTrackingService>());
@@ -69,7 +66,6 @@ internal static class ShiftsSectionExtensions
         services.AddSingleton<IShiftView>(sp => sp.GetRequiredService<CachingShiftViewService>());
         services.AddSingleton<IShiftViewInvalidator>(sp => sp.GetRequiredService<CachingShiftViewService>());
 
-        // Surface both ShiftView caches (User + Rota) on /Debug/CacheStats.
         services.AddSingleton<ICacheStats>(sp => sp.GetRequiredService<CachingShiftViewService>().UserCacheStats);
         services.AddSingleton<ICacheStats>(sp => sp.GetRequiredService<CachingShiftViewService>().RotaCacheStats);
 

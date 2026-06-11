@@ -8,6 +8,7 @@ using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Profiles;
+using Humans.Application.Threading;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Domain.Helpers;
@@ -24,15 +25,12 @@ public sealed class UserService(
     IClock clock,
     ILogger<UserService> logger) : IUserService, IUserDataContributor
 {
-    private static readonly SemaphoreSlim[] ProfileStubLocks = CreateProfileStubLocks(32);
-    private static SemaphoreSlim[] CreateProfileStubLocks(int count)
-    {
-        var locks = new SemaphoreSlim[count];
-        for (var i = 0; i < count; i++) locks[i] = new SemaphoreSlim(1, 1);
-        return locks;
-    }
+    private static readonly TrackedLock[] ProfileStubLocks = Enumerable
+        .Range(0, 32)
+        .Select(i => new TrackedLock($"UserService.ProfileStub[{i}]"))
+        .ToArray();
 
-    private static SemaphoreSlim ProfileStubLockFor(Guid userId) =>
+    private static TrackedLock ProfileStubLockFor(Guid userId) =>
         ProfileStubLocks[(uint)userId.GetHashCode() % (uint)ProfileStubLocks.Length];
 
     // --- User reads ---
@@ -226,20 +224,16 @@ public sealed class UserService(
 
         foreach (var user in userList)
         {
+            if (user.UserEmails.Count > 0)
+                continue;
+
             var emails = emailsByUser.TryGetValue(user.Id, out var found)
                 ? found
                 : [];
-            AttachUserEmails(user, emails);
+
+            foreach (var email in emails)
+                user.UserEmails.Add(email);
         }
-    }
-
-    private static void AttachUserEmails(User user, IEnumerable<UserEmail> emails)
-    {
-        if (user.UserEmails.Count > 0)
-            return;
-
-        foreach (var email in emails)
-            user.UserEmails.Add(email);
     }
 
     public Task<IReadOnlyList<Guid>> GetAccountsDueForAnonymizationAsync(
@@ -258,13 +252,6 @@ public sealed class UserService(
                 return false;
         }
 
-        return await SetGoogleEmailStatusInternalAsync(userId, status, ct);
-    }
-
-    // Private write — Try variant is the only external entry point (sync-driven; Rejected is terminal).
-    private async Task<bool> SetGoogleEmailStatusInternalAsync(
-        Guid userId, GoogleEmailStatus status, CancellationToken ct = default)
-    {
         return await repo.SetGoogleEmailStatusAsync(userId, status, ct);
     }
 
@@ -304,49 +291,42 @@ public sealed class UserService(
         string? lastName = null,
         CancellationToken ct = default)
     {
-        var gate = ProfileStubLockFor(userId);
-        await gate.WaitAsync(ct).ConfigureAwait(false);
-        try
+        using var _ = await ProfileStubLockFor(userId).AcquireAsync(logger, ct);
+
+        var existing = await repo.GetByUserIdAsync(userId, ct);
+        if (existing is not null) return false;
+
+        var info = await GetUserInfoAsync(userId, ct);
+        if (info is null)
+            return false;
+
+        if (info.IsTombstone)
         {
-            var existing = await repo.GetByUserIdAsync(userId, ct);
-            if (existing is not null) return false;
-
-            var info = await GetUserInfoAsync(userId, ct);
-            if (info is null)
-                return false;
-
-            if (info.IsTombstone)
-            {
-                logger.LogError(
-                    "EnsureStubProfileAsync called for tombstone user {UserId} (MergedAt={MergedAt}) - refusing to create Stub Profile",
-                    userId, info.MergedAt);
-                return false;
-            }
-
-            var now = clock.GetCurrentInstant();
-            var profile = new Profile
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                CreatedAt = now,
-                UpdatedAt = now,
-                BurnerName = (burnerName ?? string.Empty).Trim(),
-                FirstName = (firstName ?? string.Empty).Trim(),
-                LastName = (lastName ?? string.Empty).Trim(),
-            };
-
-            // Seeded names (magic-link signup) promote straight to Active, mirroring
-            // SaveProfileAsync; import/OAuth paths pass no names and stay Stub. see #635 / #812.
-            profile.State = HasRequiredNameFields(profile) ? ProfileState.Active : ProfileState.Stub;
-
-            await repo.AddAsync(profile, ct);
-            InvalidateClaims(userId);
-            return true;
+            logger.LogError(
+                "EnsureStubProfileAsync called for tombstone user {UserId} (MergedAt={MergedAt}) - refusing to create Stub Profile",
+                userId, info.MergedAt);
+            return false;
         }
-        finally
+
+        var now = clock.GetCurrentInstant();
+        var profile = new Profile
         {
-            gate.Release();
-        }
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            CreatedAt = now,
+            UpdatedAt = now,
+            BurnerName = (burnerName ?? string.Empty).Trim(),
+            FirstName = (firstName ?? string.Empty).Trim(),
+            LastName = (lastName ?? string.Empty).Trim(),
+        };
+
+        // Seeded names (magic-link signup) promote straight to Active, mirroring
+        // SaveProfileAsync; import/OAuth paths pass no names and stay Stub. see #635 / #812.
+        profile.State = HasRequiredNameFields(profile) ? ProfileState.Active : ProfileState.Stub;
+
+        await repo.AddAsync(profile, ct);
+        InvalidateClaims(userId);
+        return true;
     }
 
     public async Task<bool> SetMembershipTierAsync(
@@ -373,7 +353,17 @@ public sealed class UserService(
         UserProfileOnboardingCommand command,
         CancellationToken ct = default)
     {
-        ValidateProfileOnboardingCommand(command);
+        switch (command.Mutation)
+        {
+            case UserProfileOnboardingMutation.RecordConsentCheck
+                when command.ConsentCheckStatus is not ConsentCheckStatus.Cleared and not ConsentCheckStatus.Flagged:
+                throw new ArgumentException(
+                    "RecordConsentCheck only accepts Cleared or Flagged; use SetConsentCheckPending for the system-driven Pending transition.",
+                    nameof(command));
+
+            case UserProfileOnboardingMutation.SetSuspension when command.Suspended is null:
+                throw new ArgumentException("SetSuspension requires Suspended.", nameof(command));
+        }
 
         var profile = await repo.GetByUserIdAsync(userId, ct);
         if (profile is null)
@@ -385,7 +375,13 @@ public sealed class UserService(
             case UserProfileOnboardingMutation.RecordConsentCheck:
                 if (command.ConsentCheckStatus == ConsentCheckStatus.Cleared && profile.RejectedAt is not null)
                     return new OnboardingResult(false, "AlreadyRejected");
-                ApplyConsentCheck(profile, command, now);
+                var cleared = command.ConsentCheckStatus == ConsentCheckStatus.Cleared;
+                profile.ConsentCheckStatus = command.ConsentCheckStatus;
+                profile.ConsentCheckAt = now;
+                profile.ConsentCheckedByUserId = command.ActorUserId;
+                profile.ConsentCheckNotes = command.Notes;
+                profile.IsApproved = cleared;
+                profile.UpdatedAt = now;
                 break;
 
             case UserProfileOnboardingMutation.RejectSignup:
@@ -399,7 +395,16 @@ public sealed class UserService(
                 break;
 
             case UserProfileOnboardingMutation.SetSuspension:
-                ApplySuspension(profile, command, now);
+                var suspended = command.Suspended!.Value;
+                profile.IsSuspended = suspended;
+                profile.State = suspended
+                    ? (command.AdminSuspension ? ProfileState.AdminSuspended : ProfileState.Suspended)
+                    : HasRequiredNameFields(profile) ? ProfileState.Active : ProfileState.Stub;
+
+                if (suspended)
+                    profile.AdminNotes = command.Notes;
+
+                profile.UpdatedAt = now;
                 break;
 
             case UserProfileOnboardingMutation.SetConsentCheckPending:
@@ -421,100 +426,93 @@ public sealed class UserService(
         UserProfileSaveCommand command,
         CancellationToken ct = default)
     {
-        var gate = ProfileStubLockFor(userId);
-        await gate.WaitAsync(ct).ConfigureAwait(false);
-        try
+        using var _ = await ProfileStubLockFor(userId).AcquireAsync(logger, ct);
+
+        var now = clock.GetCurrentInstant();
+        var profile = await repo.GetByUserIdAsync(userId, ct);
+
+        if (profile is null)
         {
-            var now = clock.GetCurrentInstant();
-            var profile = await repo.GetByUserIdAsync(userId, ct);
-
-            if (profile is null)
+            profile = new Profile
             {
-                profile = new Profile
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    CreatedAt = now,
-                    UpdatedAt = now,
-                    State = ProfileState.Stub,
-                };
-                await repo.AddAsync(profile, ct);
-            }
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                CreatedAt = now,
+                UpdatedAt = now,
+                State = ProfileState.Stub,
+            };
+            await repo.AddAsync(profile, ct);
+        }
 
-            var previousPictureContentType = profile.ProfilePictureContentType;
+        var previousPictureContentType = profile.ProfilePictureContentType;
 
-            profile.BurnerName = command.BurnerName;
-            profile.FirstName = command.FirstName;
-            profile.LastName = command.LastName;
-            profile.City = command.City;
-            profile.CountryCode = command.CountryCode;
-            profile.Latitude = command.Latitude;
-            profile.Longitude = command.Longitude;
-            profile.PlaceId = command.PlaceId;
-            profile.Bio = command.Bio?.TrimEnd();
-            profile.Pronouns = command.Pronouns;
-            profile.ContributionInterests = command.ContributionInterests?.TrimEnd();
-            profile.BoardNotes = command.BoardNotes?.TrimEnd();
-            profile.EmergencyContactName = command.EmergencyContactName;
-            profile.EmergencyContactPhone = command.EmergencyContactPhone;
-            profile.EmergencyContactRelationship = command.EmergencyContactRelationship;
-            profile.NoPriorBurnExperience = command.NoPriorBurnExperience;
+        profile.BurnerName = command.BurnerName;
+        profile.FirstName = command.FirstName;
+        profile.LastName = command.LastName;
+        profile.City = command.City;
+        profile.CountryCode = command.CountryCode;
+        profile.Latitude = command.Latitude;
+        profile.Longitude = command.Longitude;
+        profile.PlaceId = command.PlaceId;
+        profile.Bio = command.Bio?.TrimEnd();
+        profile.Pronouns = command.Pronouns;
+        profile.ContributionInterests = command.ContributionInterests?.TrimEnd();
+        profile.BoardNotes = command.BoardNotes?.TrimEnd();
+        profile.EmergencyContactName = command.EmergencyContactName;
+        profile.EmergencyContactPhone = command.EmergencyContactPhone;
+        profile.EmergencyContactRelationship = command.EmergencyContactRelationship;
+        profile.NoPriorBurnExperience = command.NoPriorBurnExperience;
 
-            // Edit page owns meal preference + allergies (not intolerances/medical —
-            // those are written via SaveDietaryMedicalAsync). Only touch these when
-            // the command carries them, so a non-dietary save path can't clobber.
-            if (command.DietaryPreference is not null || command.Allergies is not null || command.AllergyOtherText is not null)
+        // Edit page owns meal preference + allergies (not intolerances/medical —
+        // those are written via SaveDietaryMedicalAsync). Only touch these when
+        // the command carries them, so a non-dietary save path can't clobber.
+        if (command.DietaryPreference is not null || command.Allergies is not null || command.AllergyOtherText is not null)
+        {
+            profile.DietaryPreference = string.IsNullOrWhiteSpace(command.DietaryPreference) ? null : command.DietaryPreference;
+            profile.Allergies = command.Allergies ?? [];
+            profile.AllergyOtherText = command.AllergyOtherText;
+        }
+
+        profile.UpdatedAt = now;
+
+        // LocalDate year=4 lets Feb 29 validate.
+        if (command.BirthdayMonth is >= 1 and <= 12 && command.BirthdayDay is >= 1 and <= 31)
+        {
+            try
             {
-                profile.DietaryPreference = string.IsNullOrWhiteSpace(command.DietaryPreference) ? null : command.DietaryPreference;
-                profile.Allergies = command.Allergies ?? [];
-                profile.AllergyOtherText = command.AllergyOtherText;
+                profile.DateOfBirth = new LocalDate(4, command.BirthdayMonth.Value, command.BirthdayDay.Value);
             }
-
-            profile.UpdatedAt = now;
-
-            // LocalDate year=4 lets Feb 29 validate.
-            if (command.BirthdayMonth is >= 1 and <= 12 && command.BirthdayDay is >= 1 and <= 31)
-            {
-                try
-                {
-                    profile.DateOfBirth = new LocalDate(4, command.BirthdayMonth.Value, command.BirthdayDay.Value);
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    profile.DateOfBirth = null;
-                }
-            }
-            else
+            catch (ArgumentOutOfRangeException)
             {
                 profile.DateOfBirth = null;
             }
-
-            profile.ProfilePictureContentType = command.PictureMutation switch
-            {
-                UserProfilePictureMutation.Remove => null,
-                UserProfilePictureMutation.Set => command.ProfilePictureContentType,
-                _ => profile.ProfilePictureContentType,
-            };
-
-            // see #635 (section 15i) - Stub->Active promotion (mirrors UserInfo.HasRequiredNameFields).
-            if (!IsSuspendedState(profile.State))
-            {
-                profile.State = HasRequiredNameFields(profile) ? ProfileState.Active : ProfileState.Stub;
-            }
-
-            await repo.UpdateAsync(profile, ct);
-            await repo.UpdateDisplayNameAsync(userId, command.DisplayName, ct);
-            InvalidateClaims(userId);
-
-            return new UserProfileSaveResult(
-                profile.Id,
-                previousPictureContentType,
-                profile.ProfilePictureContentType);
         }
-        finally
+        else
         {
-            gate.Release();
+            profile.DateOfBirth = null;
         }
+
+        profile.ProfilePictureContentType = command.PictureMutation switch
+        {
+            UserProfilePictureMutation.Remove => null,
+            UserProfilePictureMutation.Set => command.ProfilePictureContentType,
+            _ => profile.ProfilePictureContentType,
+        };
+
+        // see #635 (section 15i) - Stub->Active promotion (mirrors UserInfo.HasRequiredNameFields).
+        if (profile.State is not (ProfileState.Suspended or ProfileState.AdminSuspended))
+        {
+            profile.State = HasRequiredNameFields(profile) ? ProfileState.Active : ProfileState.Stub;
+        }
+
+        await repo.UpdateAsync(profile, ct);
+        await repo.UpdateDisplayNameAsync(userId, command.DisplayName, ct);
+        InvalidateClaims(userId);
+
+        return new UserProfileSaveResult(
+            profile.Id,
+            previousPictureContentType,
+            profile.ProfilePictureContentType);
     }
 
     public async Task SaveDietaryMedicalAsync(
@@ -522,39 +520,32 @@ public sealed class UserService(
         UserProfileDietaryMedicalCommand command,
         CancellationToken ct = default)
     {
-        var gate = ProfileStubLockFor(userId);
-        await gate.WaitAsync(ct).ConfigureAwait(false);
-        try
+        using var _ = await ProfileStubLockFor(userId).AcquireAsync(logger, ct);
+
+        var now = clock.GetCurrentInstant();
+        var profile = await repo.GetByUserIdAsync(userId, ct);
+        if (profile is null)
         {
-            var now = clock.GetCurrentInstant();
-            var profile = await repo.GetByUserIdAsync(userId, ct);
-            if (profile is null)
+            profile = new Profile
             {
-                profile = new Profile
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    CreatedAt = now,
-                    UpdatedAt = now,
-                    State = ProfileState.Stub,
-                };
-                await repo.AddAsync(profile, ct);
-            }
-
-            profile.DietaryPreference = command.DietaryPreference;
-            profile.Allergies = command.Allergies;
-            profile.AllergyOtherText = command.AllergyOtherText;
-            profile.Intolerances = command.Intolerances;
-            profile.IntoleranceOtherText = command.IntoleranceOtherText;
-            profile.MedicalConditions = command.MedicalConditions;
-            profile.UpdatedAt = now;
-
-            await repo.UpdateAsync(profile, ct);
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                CreatedAt = now,
+                UpdatedAt = now,
+                State = ProfileState.Stub,
+            };
+            await repo.AddAsync(profile, ct);
         }
-        finally
-        {
-            gate.Release();
-        }
+
+        profile.DietaryPreference = command.DietaryPreference;
+        profile.Allergies = command.Allergies;
+        profile.AllergyOtherText = command.AllergyOtherText;
+        profile.Intolerances = command.Intolerances;
+        profile.IntoleranceOtherText = command.IntoleranceOtherText;
+        profile.MedicalConditions = command.MedicalConditions;
+        profile.UpdatedAt = now;
+
+        await repo.UpdateAsync(profile, ct);
     }
 
     public async Task<UserProfilePictureContentTypeResult> SetProfilePictureContentTypeAsync(
@@ -686,7 +677,9 @@ public sealed class UserService(
             UpdatedAt = now,
         };
 
-        await AddRowWithInvariantsAsync(row, ct);
+        await repo.AddUserEmailAsync(row, ct);
+        await EnsurePrimaryInvariantAsync(row.UserId, ct);
+        await EnsureGoogleInvariantAsync(row.UserId, ct);
         return new UserEmailAddResult(row.Id, Added: true, isConflict);
     }
 
@@ -924,9 +917,12 @@ public sealed class UserService(
             .Where(e => e.IsVerified && e.IsGoogle)
             .Select(e => e.Email)
             .FirstOrDefault();
-        var effectiveEmail = SelectEffectiveEmail(userEmails, user.IdentityEmailColumn);
+        var effectiveEmail = userEmails
+            .Where(e => e.IsVerified)
+            .OrderByDescending(e => e.IsPrimary)
+            .Select(e => e.Email)
+            .FirstOrDefault() ?? user.IdentityEmailColumn;
 
-#pragma warning disable HUM_USER_DISPLAYNAME // GDPR export must include the legacy Identity column value.
         var shaped = new
         {
             user.Id,
@@ -942,7 +938,6 @@ public sealed class UserService(
             CreatedAt = user.CreatedAt.ToIso8601(),
             LastLoginAt = user.LastLoginAt.ToIso8601()
         };
-#pragma warning restore HUM_USER_DISPLAYNAME
 
         var participations = await repo.GetEventParticipationsByUserIdAsync(userId, ct);
         var participationsShaped = participations
@@ -1070,15 +1065,6 @@ public sealed class UserService(
         ];
     }
 
-    private static string? SelectEffectiveEmail(
-        IReadOnlyCollection<UserEmail> userEmails,
-        string? fallbackEmail) =>
-        userEmails
-            .Where(e => e.IsVerified)
-            .OrderByDescending(e => e.IsPrimary)
-            .Select(e => e.Email)
-            .FirstOrDefault() ?? fallbackEmail;
-
     private async Task SetPrimaryEmailAsync(Guid userId, Guid emailId, CancellationToken ct)
     {
         var emails = (await repo.GetUserEmailsByUserIdForMutationAsync(userId, ct)).ToList();
@@ -1202,13 +1188,6 @@ public sealed class UserService(
             await repo.UpdateUserEmailsAsync(changed, ct);
     }
 
-    private async Task AddRowWithInvariantsAsync(UserEmail row, CancellationToken ct)
-    {
-        await repo.AddUserEmailAsync(row, ct);
-        await EnsurePrimaryInvariantAsync(row.UserId, ct);
-        await EnsureGoogleInvariantAsync(row.UserId, ct);
-    }
-
     private async Task SeedUserStateIfNullAsync(User user, UserInfo info, CancellationToken ct)
     {
         if (user.State is null && info.State is { } seeded)
@@ -1219,65 +1198,10 @@ public sealed class UserService(
     // profile transitions that can change the stored state (e.g. Bare after a name submit).
     private void InvalidateClaims(Guid userId) => roleAssignmentClaimsInvalidator.Invalidate(userId);
 
-    private static void ApplyConsentCheck(
-        Profile profile,
-        UserProfileOnboardingCommand command,
-        Instant now)
-    {
-        var cleared = command.ConsentCheckStatus == ConsentCheckStatus.Cleared;
-        profile.ConsentCheckStatus = command.ConsentCheckStatus;
-        profile.ConsentCheckAt = now;
-        profile.ConsentCheckedByUserId = command.ActorUserId;
-        profile.ConsentCheckNotes = command.Notes;
-        profile.IsApproved = cleared;
-        profile.UpdatedAt = now;
-    }
-
-    private static void ApplySuspension(
-        Profile profile,
-        UserProfileOnboardingCommand command,
-        Instant now)
-    {
-        var suspended = command.Suspended!.Value;
-
-#pragma warning disable HUM_PROFILE_ISSUSPENDED
-        profile.IsSuspended = suspended;
-#pragma warning restore HUM_PROFILE_ISSUSPENDED
-
-        // Dual-write until IsSuspended is dropped. State is the canonical shape
-        // exposed through UserInfo.
-        profile.State = suspended
-            ? (command.AdminSuspension ? ProfileState.AdminSuspended : ProfileState.Suspended)
-            : HasRequiredNameFields(profile) ? ProfileState.Active : ProfileState.Stub;
-
-        if (suspended)
-            profile.AdminNotes = command.Notes;
-
-        profile.UpdatedAt = now;
-    }
-
     private static bool HasRequiredNameFields(Profile profile) =>
         !string.IsNullOrWhiteSpace(profile.BurnerName)
         && !string.IsNullOrWhiteSpace(profile.FirstName)
         && !string.IsNullOrWhiteSpace(profile.LastName);
-
-    private static bool IsSuspendedState(ProfileState? state) =>
-        state is ProfileState.Suspended or ProfileState.AdminSuspended;
-
-    private static void ValidateProfileOnboardingCommand(UserProfileOnboardingCommand command)
-    {
-        switch (command.Mutation)
-        {
-            case UserProfileOnboardingMutation.RecordConsentCheck
-                when command.ConsentCheckStatus is not ConsentCheckStatus.Cleared and not ConsentCheckStatus.Flagged:
-                throw new ArgumentException(
-                    "RecordConsentCheck only accepts Cleared or Flagged; use SetConsentCheckPending for the system-driven Pending transition.",
-                    nameof(command));
-
-            case UserProfileOnboardingMutation.SetSuspension when command.Suspended is null:
-                throw new ArgumentException("SetSuspension requires Suspended.", nameof(command));
-        }
-    }
 
     private static string? GetAlternateEmail(string normalizedEmail)
     {

@@ -54,13 +54,6 @@ public sealed class CityPlanningService(
             .ToList();
     }
 
-    public async Task<string?> GetUserDisplayNameAsync(
-        Guid userId, CancellationToken cancellationToken = default)
-    {
-        var info = await userService.GetUserInfoAsync(userId, cancellationToken);
-        return info?.Profile?.BurnerName;
-    }
-
     public async Task<List<CampSeasonSummaryDto>> GetCampSeasonsWithoutCampPolygonAsync(
         int year, CancellationToken cancellationToken = default)
     {
@@ -155,7 +148,7 @@ public sealed class CityPlanningService(
 
     // --- Polygon writes ---
 
-    public Task<(CampPolygon polygon, CampPolygonHistory history)> SaveCampPolygonAsync(
+    public async Task<CampPolygonSaveResult> SaveCampPolygonAsync(
         Guid campSeasonId, string geoJson, double areaSqm, Guid modifiedByUserId,
         string note = "Saved", CancellationToken cancellationToken = default)
     {
@@ -163,8 +156,9 @@ public sealed class CityPlanningService(
             throw new ArgumentException("Invalid GeoJSON.", nameof(geoJson));
 
         var now = clock.GetCurrentInstant();
-        return repo.SavePolygonAndAppendHistoryAsync(
+        var polygon = await repo.SavePolygonAndAppendHistoryAsync(
             campSeasonId, geoJson, areaSqm, modifiedByUserId, note, now, cancellationToken);
+        return new CampPolygonSaveResult(polygon.GeoJson, polygon.AreaSqm);
     }
 
     private static bool IsValidJson(string value)
@@ -180,7 +174,7 @@ public sealed class CityPlanningService(
         }
     }
 
-    public async Task<(CampPolygon polygon, CampPolygonHistory history)> RestoreCampPolygonVersionAsync(
+    public async Task<CampPolygonSaveResult> RestoreCampPolygonVersionAsync(
         Guid campSeasonId, Guid historyId, Guid restoredByUserId,
         CancellationToken cancellationToken = default)
     {
@@ -376,7 +370,7 @@ public sealed class CityPlanningService(
             cancellationToken);
     }
 
-    public async Task UpdatePlacementDatesAsync(
+    private async Task UpdatePlacementDatesAsync(
         LocalDateTime? opensAt, LocalDateTime? closesAt, CancellationToken cancellationToken = default)
     {
         var campSettings = await campService.GetSettingsAsync(cancellationToken);

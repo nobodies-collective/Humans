@@ -137,12 +137,17 @@ public class StoreService(
 
         var priceChanges = await LoadOrderPriceChangesAsync(order, ct);
 
+        // A pending async payment (e.g. SEPA mandate captured, not yet cleared) is excluded from
+        // BalanceEur, so without this guard the full balance would stay payable a second time
+        // while the mandate settles — a double-charge window.
+        var hasPendingPayment = order.Payments.Any(p => p.Status == StorePaymentStatus.Pending);
+
         return new StoreOrderPageData(
             order,
             catalog,
             order.CounterpartyDisplayName,
             canEdit,
-            canPayAuthorized && order.BalanceEur > 0 && order.CounterpartyType == StoreOrderCounterpartyType.Camp,
+            canPayAuthorized && order.BalanceEur > 0 && !hasPendingPayment && order.CounterpartyType == StoreOrderCounterpartyType.Camp,
             stripeService.IsStoreCheckoutConfigured,
             priceChanges);
     }
@@ -449,10 +454,10 @@ public class StoreService(
             throw new InvalidOperationException(
                 $"Product '{product.Name}' has been deactivated and is no longer orderable");
 
+        // OrderableUntil is gated by StoreOrderAuthorizationHandler (Store admins exempt,
+        // everyone else denied) — the auth-free service only annotates the audit entry.
         var today = await TodayInEventZoneAsync();
-        if (today > product.OrderableUntil)
-            throw new InvalidOperationException(
-                $"Product '{product.Name}' order deadline ({product.OrderableUntil}) has passed");
+        var deadlinePassed = today > product.OrderableUntil;
 
         var line = new StoreOrderLine
         {
@@ -482,7 +487,8 @@ public class StoreService(
 
         await audit.LogAsync(
             AuditAction.StoreLineAdded, nameof(StoreOrderLine), line.Id,
-            $"Added {qty} × '{product.Name}' to order {order.Id}",
+            $"Added {qty} × '{product.Name}' to order {order.Id}"
+                + (deadlinePassed ? $" (past order deadline {product.OrderableUntil})" : string.Empty),
             actorUserId, order.Id, nameof(StoreOrder));
     }
 
@@ -521,15 +527,16 @@ public class StoreService(
         if (ctx.OrderState != StoreOrderState.Open)
             throw new InvalidOperationException("Cannot remove lines from an issued order");
 
+        // OrderableUntil is gated by StoreOrderAuthorizationHandler (Store admins exempt,
+        // everyone else denied) — the auth-free service only annotates the audit entry.
         var today = await TodayInEventZoneAsync();
-        if (today > ctx.ProductOrderableUntil)
-            throw new InvalidOperationException(
-                $"Line's product order deadline ({ctx.ProductOrderableUntil}) has passed");
+        var deadlinePassed = today > ctx.ProductOrderableUntil;
 
         await repo.RemoveLineAsync(lineId, ct);
         await audit.LogAsync(
             AuditAction.StoreLineRemoved, nameof(StoreOrderLine), lineId,
-            $"Removed line {lineId} from order {ctx.OrderId}",
+            $"Removed line {lineId} from order {ctx.OrderId}"
+                + (deadlinePassed ? $" (past order deadline {ctx.ProductOrderableUntil})" : string.Empty),
             actorUserId, ctx.OrderId, nameof(StoreOrder));
     }
 
@@ -620,6 +627,9 @@ public class StoreService(
         if (amountEur > order.BalanceEur)
             throw new InvalidOperationException($"Payment amount cannot exceed the outstanding balance (EUR {order.BalanceEur:0.00}).");
 
+        if (order.Payments.Any(p => p.Status == StorePaymentStatus.Pending))
+            throw new InvalidOperationException("A payment on this order is pending settlement. Wait for it to clear or fail before paying again.");
+
         var description = $"Nobodies Collective - {order.CounterpartyName ?? "Camp order"}"
             + (string.IsNullOrWhiteSpace(order.Label) ? string.Empty : $" ({order.Label})");
 
@@ -633,7 +643,12 @@ public class StoreService(
             ct: ct);
     }
 
-    public async Task RecordStripePaymentAsync(Guid orderId, string paymentIntentId, decimal amountEur, CancellationToken ct = default)
+    public async Task RecordStripePaymentAsync(
+        Guid orderId,
+        string paymentIntentId,
+        decimal amountEur,
+        StorePaymentStatus status = StorePaymentStatus.Paid,
+        CancellationToken ct = default)
     {
         if (amountEur <= 0)
             throw new ArgumentOutOfRangeException(nameof(amountEur), "Stripe payment amount must be positive.");
@@ -654,14 +669,18 @@ public class StoreService(
             OrderId = orderId,
             AmountEur = amountEur,
             Method = StorePaymentMethod.Stripe,
+            Status = status,
             StripePaymentIntentId = paymentIntentId,
             ReceivedAt = clock.GetCurrentInstant(),
             RecordedByUserId = null,
         };
         await repo.AddPaymentAsync(payment, ct);
+        var settlement = status == StorePaymentStatus.Pending
+            ? "Pending Stripe payment (mandate captured, not yet cleared)"
+            : "Recorded Stripe payment";
         await audit.LogAsync(
             AuditAction.StorePaymentRecorded, nameof(StorePayment), payment.Id,
-            $"Recorded Stripe payment of EUR {amountEur:0.00} on order {orderId} (PI {paymentIntentId})",
+            $"{settlement} of EUR {amountEur:0.00} on order {orderId} (PI {paymentIntentId})",
             "StripeWebhook",
             orderId, nameof(StoreOrder));
     }
@@ -672,7 +691,7 @@ public class StoreService(
         var stripeQueried = sessionsOrNull is not null;
         var sessions = sessionsOrNull ?? [];
         var recorded = await repo.GetRecordedStripePaymentsAsync(ct);
-        var recordedPis = recorded.Select(p => p.PaymentIntentId).ToHashSet(StringComparer.Ordinal);
+        var recordedByPi = recorded.ToDictionary(p => p.PaymentIntentId, p => p.Status, StringComparer.Ordinal);
 
         // Resolve each distinct matched order once (Stripe-side and recorded-side) for its
         // display label and billable check.
@@ -693,7 +712,7 @@ public class StoreService(
             rows.Add(new StripeReconciliationRow(
                 s.SessionId, s.PaymentIntentId, s.AmountEur, s.PaymentStatus, s.CreatedAt,
                 s.OrderId, order?.CounterpartyDisplayName,
-                ClassifyStripeSession(s, order, recordedPis)));
+                ClassifyStripeSession(s, order, recordedByPi)));
         }
 
         // Orphans: recorded Stripe payments whose PI is absent from the Stripe list — but only
@@ -720,12 +739,16 @@ public class StoreService(
     }
 
     private static StripeReconciliationStatus ClassifyStripeSession(
-        StoreCheckoutSessionData s, OrderDto? order, IReadOnlySet<string> recordedPis)
+        StoreCheckoutSessionData s, OrderDto? order, IReadOnlyDictionary<string, StorePaymentStatus> recordedByPi)
     {
         if (!string.Equals(s.PaymentStatus, "paid", StringComparison.Ordinal))
             return StripeReconciliationStatus.Unpaid;
-        if (s.PaymentIntentId is { } pi && recordedPis.Contains(pi))
-            return StripeReconciliationStatus.Recorded;
+        if (s.PaymentIntentId is { } pi && recordedByPi.TryGetValue(pi, out var paymentStatus))
+            // Stripe says paid but the local row hasn't settled — the amount is not in the
+            // balance yet, so it must not present as plain "Recorded".
+            return paymentStatus == StorePaymentStatus.Pending
+                ? StripeReconciliationStatus.RecordedPending
+                : StripeReconciliationStatus.Recorded;
         if (order is null || s.PaymentIntentId is null || order.CounterpartyType == StoreOrderCounterpartyType.Team)
             return StripeReconciliationStatus.Unmatched;
         return StripeReconciliationStatus.Missing;
@@ -750,7 +773,7 @@ public class StoreService(
             var order = await repo.GetOrderByIdAsync(orderId, ct);
             if (order is null || order.TeamId is not null) continue;
 
-            await RecordStripePaymentAsync(orderId, pi, amount, ct); // idempotent on PI id
+            await RecordStripePaymentAsync(orderId, pi, amount, ct: ct); // settled (Paid); idempotent on PI id
             count++;
             total += amount;
         }
@@ -775,11 +798,15 @@ public class StoreService(
                 break;
 
             case StoreCheckoutEventKind.CheckoutSessionAsyncPaymentSucceeded:
+                await TransitionAsyncPaymentAsync(evt, StorePaymentStatus.Paid, ct);
+                break;
+
             case StoreCheckoutEventKind.CheckoutSessionAsyncPaymentFailed:
+                await TransitionAsyncPaymentAsync(evt, StorePaymentStatus.Failed, ct);
+                break;
+
             case StoreCheckoutEventKind.CheckoutSessionExpired:
-                logger.LogWarning(
-                    "Stripe webhook event {Kind} (id={EventId}) received but not yet handled - async-payment state machine pending (nobodies-collective/Humans#638).",
-                    evt.Kind, evt.EventId);
+                await HandleCheckoutSessionExpiredAsync(evt, ct);
                 break;
 
             default:
@@ -820,12 +847,20 @@ public class StoreService(
             return;
         }
 
+        // payment_status distinguishes a settled sync payment (card/wallet → "paid") from an
+        // async method where only the debit mandate has been captured (SEPA, delayed Bizum →
+        // "unpaid"). A mandate is not money: record it Pending so the order balance does NOT count
+        // it until Stripe confirms settlement via async_payment_succeeded. See nobodies-collective/Humans#638.
+        var status = string.Equals(session.PaymentStatus, "paid", StringComparison.Ordinal)
+            ? StorePaymentStatus.Paid
+            : StorePaymentStatus.Pending;
+
         try
         {
-            await RecordStripePaymentAsync(orderId, paymentIntentId, amountEur, ct);
+            await RecordStripePaymentAsync(orderId, paymentIntentId, amountEur, status, ct);
             logger.LogInformation(
-                "Recorded Stripe payment for order {OrderId} (session {SessionId}, PI {PaymentIntentId}, EUR {Amount})",
-                orderId, session.SessionId, paymentIntentId, amountEur);
+                "Recorded Stripe payment ({Status}) for order {OrderId} (session {SessionId}, PI {PaymentIntentId}, EUR {Amount})",
+                status, orderId, session.SessionId, paymentIntentId, amountEur);
         }
         catch (Exception ex)
         {
@@ -833,6 +868,104 @@ public class StoreService(
                 "Failed to record Stripe payment for order {OrderId} (session {SessionId})",
                 orderId, session.SessionId);
         }
+    }
+
+    /// <summary>
+    /// Transitions the <see cref="StorePaymentStatus.Pending"/> payment behind an async Checkout
+    /// event to its settled state — <see cref="StorePaymentStatus.Paid"/> on
+    /// <c>async_payment_succeeded</c>, <see cref="StorePaymentStatus.Failed"/> on
+    /// <c>async_payment_failed</c>. Idempotent: a re-delivered event that finds the row already in
+    /// the target state is a no-op. Out-of-order tolerance: if the success event arrives before
+    /// <c>completed</c> (no row yet), the payment is recorded directly as Paid so settled money is
+    /// never lost; a failure with no row is a no-op (no money was ever pending here).
+    /// </summary>
+    private async Task TransitionAsyncPaymentAsync(StoreCheckoutWebhookEvent evt, StorePaymentStatus target, CancellationToken ct)
+    {
+        if (evt.Session is not { } session)
+        {
+            logger.LogWarning("{Kind} event {EventId} did not contain a Session payload", evt.Kind, evt.EventId);
+            return;
+        }
+
+        if (session.PaymentIntentId is not { } paymentIntentId)
+        {
+            logger.LogWarning("{Kind} session {SessionId} has no PaymentIntentId; skipping.", evt.Kind, session.SessionId);
+            return;
+        }
+
+        var existing = await repo.GetPaymentByStripePaymentIntentIdAsync(paymentIntentId, ct);
+        if (existing is null)
+        {
+            // Out-of-order: the settlement event beat checkout.session.completed. Record the money
+            // now (Paid) so it isn't lost; the later completed event no-ops on the unique PI. A
+            // failure with no pending row means nothing was ever owed here — ignore it.
+            if (target == StorePaymentStatus.Paid
+                && session.OrderId is { } orderId
+                && session.AmountEur is { } amountEur && amountEur > 0)
+            {
+                await RecordStripePaymentAsync(orderId, paymentIntentId, amountEur, StorePaymentStatus.Paid, ct);
+                logger.LogInformation(
+                    "Async {Kind} arrived before completed for order {OrderId} (PI {PaymentIntentId}); recorded settled payment directly.",
+                    evt.Kind, orderId, paymentIntentId);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "{Kind} for PI {PaymentIntentId} found no matching payment; nothing to transition.",
+                    evt.Kind, paymentIntentId);
+            }
+            return;
+        }
+
+        if (existing.Status == target)
+            return; // idempotent: re-delivery of an already-applied transition
+
+        if (existing.Status != StorePaymentStatus.Pending)
+        {
+            // A non-Pending, non-target state (e.g. a Failed row receiving a late success, or vice
+            // versa) is anomalous; log and leave the recorded state untouched rather than guess.
+            logger.LogWarning(
+                "{Kind} for PI {PaymentIntentId} found payment in unexpected state {Status}; leaving unchanged.",
+                evt.Kind, paymentIntentId, existing.Status);
+            return;
+        }
+
+        await repo.UpdatePaymentStatusAsync(existing.Id, target, ct);
+        var action = target == StorePaymentStatus.Paid ? AuditAction.StorePaymentSettled : AuditAction.StorePaymentFailed;
+        var verb = target == StorePaymentStatus.Paid ? "settled" : "failed";
+        await audit.LogAsync(
+            action, nameof(StorePayment), existing.Id,
+            $"Stripe payment of EUR {existing.AmountEur:0.00} {verb} on order {existing.OrderId} (PI {paymentIntentId})",
+            "StripeWebhook",
+            existing.OrderId, nameof(StoreOrder));
+    }
+
+    /// <summary>
+    /// Handles <c>checkout.session.expired</c>: defensively removes an orphan
+    /// <see cref="StorePaymentStatus.Pending"/> row that somehow predates a missing <c>completed</c>
+    /// event. In practice unreachable (a Pending row is created by <c>completed</c>, and an expired
+    /// session never reached <c>completed</c>), so this only cleans up edge-case retries. A settled
+    /// (Paid) or Failed payment is never touched.
+    /// </summary>
+    private async Task HandleCheckoutSessionExpiredAsync(StoreCheckoutWebhookEvent evt, CancellationToken ct)
+    {
+        if (evt.Session is not { PaymentIntentId: { } paymentIntentId })
+        {
+            // No PI on an expired session is the normal case (payment never started); nothing to do.
+            logger.LogDebug("checkout.session.expired event {EventId} has no PaymentIntentId; nothing to clean up.", evt.EventId);
+            return;
+        }
+
+        var existing = await repo.GetPaymentByStripePaymentIntentIdAsync(paymentIntentId, ct);
+        if (existing is null || existing.Status != StorePaymentStatus.Pending)
+            return;
+
+        await repo.DeletePaymentAsync(existing.Id, ct);
+        await audit.LogAsync(
+            AuditAction.StorePaymentExpired, nameof(StorePayment), existing.Id,
+            $"Removed orphan pending Stripe payment of EUR {existing.AmountEur:0.00} on order {existing.OrderId} after session expiry (PI {paymentIntentId})",
+            "StripeWebhook",
+            existing.OrderId, nameof(StoreOrder));
     }
 
     /// <summary>
@@ -874,11 +1007,19 @@ public class StoreService(
 
         var productNames = products.ToDictionary(p => p.Id, p => p.Name);
 
+        // Reprice Open orders to the live catalog, exactly like the order page
+        // (MapOrderAsync) — summing raw snapshots here made summary totals drift
+        // from order totals whenever a catalog price changed after lines were added.
+        var currentPrices = await LoadCurrentPricesAsync(ct);
+        var totalsByOrder = campOrdersInYear
+            .Concat(teamOrders)
+            .ToDictionary(o => o.Id, o => BalanceCalculator.Compute(o, currentPrices));
+
         var byCounterparty = new List<OrderSummaryDto>();
 
         foreach (var o in campOrdersInYear)
         {
-            var totals = BalanceCalculator.Compute(o);
+            var totals = totalsByOrder[o.Id];
             var totalDue = totals.LinesSubtotalEur + totals.VatTotalEur + totals.DepositTotalEur;
             var sid = o.CampSeasonId!.Value;
             var campName = seasonsForYear[sid].Name;
@@ -895,7 +1036,7 @@ public class StoreService(
         }
         foreach (var o in teamOrders)
         {
-            var totals = BalanceCalculator.Compute(o);
+            var totals = totalsByOrder[o.Id];
             var tid = o.TeamId!.Value;
             var teamName = teamNames.TryGetValue(tid, out var n) ? n : "(unknown team)";
             byCounterparty.Add(new OrderSummaryDto(
@@ -915,14 +1056,11 @@ public class StoreService(
         // by-item aggregates lines from BOTH camp and team orders so suppliers see the full demand.
         var allLineProjections = campOrdersInYear
             .Concat(teamOrders)
-            .SelectMany(o => o.Lines.Select(l => new
+            .SelectMany(o =>
             {
-                l.ProductId,
-                l.Qty,
-                Subtotal = l.Qty * l.UnitPriceSnapshot,
-                Vat = Math.Round(l.Qty * l.UnitPriceSnapshot * l.VatRateSnapshot / 100m, 2, MidpointRounding.AwayFromZero),
-                Deposit = l.DepositAmountSnapshot is { } d ? l.Qty * d : 0m
-            }))
+                var lineTotals = totalsByOrder[o.Id].Lines.ToDictionary(t => t.LineId);
+                return o.Lines.Select(l => new { l.ProductId, l.Qty, lineTotals[l.Id].TotalEur });
+            })
             .ToList();
 
         var byItem = allLineProjections
@@ -931,7 +1069,7 @@ public class StoreService(
                 g.Key,
                 productNames.TryGetValue(g.Key, out var n) ? n : "(unknown)",
                 g.Sum(x => x.Qty),
-                g.Sum(x => x.Subtotal + x.Vat + x.Deposit)))
+                g.Sum(x => x.TotalEur)))
             .OrderByDescending(p => p.TotalQty)
             .ThenBy(p => p.ProductName, StringComparer.Ordinal)
             .ToList();
@@ -1023,7 +1161,7 @@ public class StoreService(
 
         var payments = o.Payments
             .Select(p => new OrderPaymentDto(
-                p.AmountEur, p.Method, p.StripePaymentIntentId, p.ExternalRef, p.ReceivedAt, p.Notes))
+                p.AmountEur, p.Method, p.Status, p.StripePaymentIntentId, p.ExternalRef, p.ReceivedAt, p.Notes))
             .ToList();
 
         var counterpartyType = o.TeamId is not null

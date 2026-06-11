@@ -26,7 +26,8 @@ public record StoreRecordedStripePayment(
     string PaymentIntentId,
     Guid OrderId,
     decimal AmountEur,
-    Instant ReceivedAt);
+    Instant ReceivedAt,
+    StorePaymentStatus Status);
 
 /// <summary>
 /// Repository for the Store section's tables: <c>store_products</c>,
@@ -114,6 +115,27 @@ public interface IStoreRepository : IRepository
     // Payments
     Task AddPaymentAsync(StorePayment payment, CancellationToken ct = default);
     Task<bool> StripePaymentIntentExistsAsync(string paymentIntentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the single payment recorded against <paramref name="paymentIntentId"/>, or null if
+    /// none. Used by the async-payment state machine to read a payment's current
+    /// <see cref="StorePayment.Status"/> before transitioning it. The Stripe PI index is unique, so
+    /// at most one row matches.
+    /// </summary>
+    Task<StorePayment?> GetPaymentByStripePaymentIntentIdAsync(string paymentIntentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets <see cref="StorePayment.Status"/> on the payment with the given id. The service owns the
+    /// transition rules (which from-states may move to which to-states); this is the bare write.
+    /// </summary>
+    Task UpdatePaymentStatusAsync(Guid paymentId, StorePaymentStatus status, CancellationToken ct = default);
+
+    /// <summary>
+    /// Hard-deletes the payment with the given id. Used only by the <c>checkout.session.expired</c>
+    /// cleanup of an orphan <see cref="StorePaymentStatus.Pending"/> row; the service enforces the
+    /// status precondition before calling.
+    /// </summary>
+    Task DeletePaymentAsync(Guid paymentId, CancellationToken ct = default);
 
     /// <summary>
     /// Returns every recorded Stripe-method payment (rows with a non-null
