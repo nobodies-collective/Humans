@@ -21,7 +21,7 @@ public static class AdminNavTree
             new("Transfer requests",  "TicketTransferAdmin", "Index", null, null, "fa-solid fa-right-left",  PolicyNames.TicketAdminOrAdmin,
                  PillCount: PillCounts.TransferQueue),
             new("Attendee contacts",  "TicketsContactsAdmin", "Index", null, null, "fa-solid fa-address-book", PolicyNames.TicketAdminOrAdmin),
-            new("Onsite roster",      "TicketsOnsiteAdmin", "Index", null, null, "fa-solid fa-clipboard-list", PolicyNames.TicketAdminBoardOrAdmin),
+            new("Onsite roster",      "TicketsOnsiteAdmin", "Index", null, null, "fa-solid fa-clipboard-list", PolicyNames.ScannerAccess),
             // Campaigns distribute ticket-vendor discount codes (email is just the
             // delivery channel) — Tickets, not Messaging. See docs/sections/Campaigns.md.
             new("Campaigns",          "Campaign",       "Index", null, null, "fa-solid fa-bullhorn",    PolicyNames.AdminOnly),
@@ -123,6 +123,7 @@ public static class AdminNavTree
         ]),
         new("Diagnostics", System: true, Items: [
             new("Logs",            "Debug", "Logs",          null, null, "fa-solid fa-triangle-exclamation", PolicyNames.AdminOnly),
+            new("HTTP errors",     "Debug", "HttpErrors",    null, null, "fa-solid fa-circle-exclamation",  PolicyNames.AdminOnly),
             new("DB stats",        "Debug", "DbStats",       null, null, "fa-solid fa-database",            PolicyNames.AdminOnly),
             new("Cache stats",     "Debug", "CacheStats",    null, null, "fa-solid fa-bolt",                PolicyNames.AdminOnly),
             new("Client stats",    "Debug", "ClientStats",   null, null, "fa-solid fa-display",             PolicyNames.AdminOnly),
@@ -142,7 +143,8 @@ public static class AdminNavTree
         new("Design", System: true, Items: [
             new("Color palette", "ColorPalette",  "Index", null, null, "fa-solid fa-palette", PolicyNames.AdminOnly),
             new("Components",    "WidgetGallery", "Index", null, null, "fa-solid fa-shapes",  PolicyNames.AdminOnly),
-            new("Date formats",  "Debug",         "FormatGallery", null, null, "fa-solid fa-clock", PolicyNames.AdminOnly)
+            new("Date formats",  "Debug",         "FormatGallery", null, null, "fa-solid fa-clock", PolicyNames.AdminOnly),
+            new("Translations",  "Debug",         "Translations",  null, null, "fa-solid fa-language", PolicyNames.AdminOnly)
         ]),
         new("Temp", System: true, Items: [
             new("Picture migration",          "ProfilePictureMigrationAdmin", "Index", null, null, "fa-solid fa-image",     PolicyNames.AdminOnly),

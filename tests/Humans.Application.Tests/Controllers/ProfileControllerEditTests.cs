@@ -56,6 +56,8 @@ public class ProfileControllerEditTests
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IApplicationDecisionService _applicationDecisionService =
         Substitute.For<IApplicationDecisionService>();
+    private readonly IOnboardingService _onboardingService = Substitute.For<IOnboardingService>();
+    private readonly IAccountDeletionService _accountDeletionService = Substitute.For<IAccountDeletionService>();
     private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
     private readonly IShiftManagementService _shiftMgmt = Substitute.For<IShiftManagementService>();
     private readonly IShiftView _shiftView = Substitute.For<IShiftView>();
@@ -96,7 +98,7 @@ public class ProfileControllerEditTests
             Substitute.For<IUserEmailService>(),
             Substitute.For<ICommunicationPreferenceService>(),
             Substitute.For<IAuditLogService>(),
-            Substitute.For<IOnboardingService>(),
+            _onboardingService,
             Substitute.For<IShiftSignupService>(),
             _shiftMgmt,
             _shiftView,
@@ -113,7 +115,7 @@ public class ProfileControllerEditTests
             new FakeClock(Instant.FromUtc(2026, 5, 9, 12, 0)),
             authorizationService,
             _applicationDecisionService,
-            Substitute.For<IAccountDeletionService>(),
+            _accountDeletionService,
             Substitute.For<IMembershipCalculatorRead>(),
             Substitute.For<SignInManager<User>>(
                 userManager,
@@ -183,8 +185,11 @@ public class ProfileControllerEditTests
             .SubmitAsync(Guid.Empty, default, null!, null, null, null, null!, Arg.Any<CancellationToken>());
         await _applicationDecisionService.DidNotReceiveWithAnyArgs()
             .UpdateDraftApplicationAsync(Guid.Empty, default, null!, null, null, null, Arg.Any<CancellationToken>());
-        await _userService.Received(1).SaveProfileVolunteerHistoryAsync(
-            _userId, Arg.Any<IReadOnlyList<CVEntry>>(), Arg.Any<CancellationToken>());
+        // CV rides on the save request — SaveProfileAsync owns persisting it.
+        await _profileEditorService.Received(1).SaveProfileAsync(
+            _userId, Arg.Any<string>(),
+            Arg.Is<ProfileSaveRequest>(r => r.VolunteerHistory != null),
+            Arg.Any<CancellationToken>());
         await _userService.Received(1).SaveProfileLanguagesAsync(
             _profileId, Arg.Any<IReadOnlyList<ProfileLanguage>>(), Arg.Any<CancellationToken>());
     }
@@ -277,6 +282,33 @@ public class ProfileControllerEditTests
             .UpdateDraftApplicationAsync(Guid.Empty, default, null!, null, null, null, Arg.Any<CancellationToken>());
         await _applicationDecisionService.DidNotReceiveWithAnyArgs()
             .GetUserApplicationsAsync(Guid.Empty, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task Edit_InitialSetup_TriggersOnboardingConsentCheck()
+    {
+        var model = MakeValidModel(MembershipTier.Volunteer);
+
+        await _controller.Edit(model);
+
+        await _onboardingService.Received(1)
+            .SetConsentCheckPendingIfEligibleAsync(_userId, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task Edit_InitialSetup_DeletionPending_CancelsDeletion()
+    {
+        // User in pending-deletion state: completing the profile must cancel the deletion.
+        _userService.GetUserInfoAsync(_userId, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<UserInfo?>(
+                new User { Id = _userId, DisplayName = "Test Human", PreferredLanguage = "en", DeletionRequestedAt = SystemClock.Instance.GetCurrentInstant() }
+                    .ToUserInfo()));
+
+        var model = MakeValidModel(MembershipTier.Volunteer);
+
+        await _controller.Edit(model);
+
+        await _accountDeletionService.Received(1).CancelDeletionAsync(_userId, Arg.Any<CancellationToken>());
     }
 
     [HumansFact]
@@ -400,6 +432,30 @@ public class ProfileControllerEditTests
         _controller.ModelState.ContainsKey(nameof(model.AllergyOtherText)).Should().BeTrue();
         await _profileEditorService.DidNotReceiveWithAnyArgs()
             .SaveProfileAsync(default, default!, default!, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task Edit_Post_ServiceValidationFailure_RerendersWithModelError()
+    {
+        // The service-side cross-field backstop (ValidationException from
+        // SaveProfileAsync) is mapped back onto the form; no page-specific
+        // saves run after a refused profile save.
+        _applicationDecisionService.GetUserApplicationsAsync(_userId, Arg.Any<CancellationToken>())
+            .Returns([]);
+        _profileEditorService.SaveProfileAsync(
+                Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<ProfileSaveRequest>(),
+                Arg.Any<CancellationToken>())
+            .Returns<Guid>(_ => throw new System.ComponentModel.DataAnnotations.ValidationException(
+                "Selecting the \"Other\" allergy requires describing it."));
+
+        var model = MakeValidModel(MembershipTier.Volunteer);
+
+        var result = await _controller.Edit(model);
+
+        result.Should().BeOfType<ViewResult>();
+        _controller.ModelState.IsValid.Should().BeFalse();
+        await _userService.DidNotReceiveWithAnyArgs().SaveProfileLanguagesAsync(
+            Guid.Empty, null!, Arg.Any<CancellationToken>());
     }
 
     [HumansFact]

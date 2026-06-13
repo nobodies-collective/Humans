@@ -301,25 +301,56 @@ public interface ITeamService : ITeamServiceRead, IApplicationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Creates a team and — when a Google group prefix is set — provisions its
+    /// Google Group, owning the compensation: if provisioning fails the prefix
+    /// is cleared so the team never points at a group that does not exist.
+    /// <c>GroupWarning</c> carries the operator-facing message in that case.
+    /// </summary>
+    Task<TeamWithGroupResult> CreateTeamWithGoogleGroupAsync(
+        string name,
+        string? description,
+        bool requiresApproval,
+        Guid? parentTeamId = null,
+        string? googleGroupPrefix = null,
+        bool isHidden = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates a team's details, then reconciles its Google Group link.
+    /// <c>GroupWarning</c> carries the operator-facing message when the group
+    /// sync failed or needs reactivation confirmation; the team update itself
+    /// has already succeeded in that case.
+    /// </summary>
+    Task<TeamWithGroupResult> UpdateTeamWithGoogleGroupAsync(
+        Guid teamId,
+        string name,
+        string? description,
+        bool requiresApproval,
+        bool isActive,
+        Guid? parentTeamId = null,
+        string? googleGroupPrefix = null,
+        string? customSlug = null,
+        bool? hasBudget = null,
+        bool? isHidden = null,
+        bool? isSensitive = null,
+        bool? isPromotedToDirectory = null,
+        bool? earlyEntryEnabled = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes (deactivates) a team.
     /// </summary>
     Task DeleteTeamAsync(Guid teamId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Requests to join a team (for teams that require approval).
+    /// Joins a team, dispatching on the team's join policy: approval-required
+    /// teams get a pending <c>TeamJoinRequest</c>, open teams an immediate
+    /// membership. The outcome tells the caller which happened.
     /// </summary>
-    Task<TeamJoinRequest> RequestToJoinTeamAsync(
+    Task<TeamJoinOutcome> JoinTeamAsync(
         Guid teamId,
         Guid userId,
         string? message,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Joins a team directly (for teams that don't require approval).
-    /// </summary>
-    Task<TeamMember> JoinTeamDirectlyAsync(
-        Guid teamId,
-        Guid userId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -380,9 +411,11 @@ public interface ITeamService : ITeamServiceRead, IApplicationService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Removes a member from a team (admin action).
+    /// Removes a member from a team (admin action). When the removed member was a
+    /// coordinator, reconciles their Coordinators system-team membership as part of
+    /// the mutation.
     /// </summary>
-    Task<bool> RemoveMemberAsync(
+    Task RemoveMemberAsync(
         Guid teamId,
         Guid userId,
         Guid actorUserId,
@@ -514,14 +547,17 @@ public interface ITeamService : ITeamServiceRead, IApplicationService
     // ==========================================================================
 
     /// <summary>
-    /// Assigns a team member to the next available slot in a role definition.
+    /// Assigns a team member to the next available slot in a role definition,
+    /// then reconciles the target's Coordinators system-team membership
+    /// (management roles promote).
     /// </summary>
     Task<TeamRoleAssignment> AssignToRoleAsync(
         Guid roleDefinitionId, Guid targetUserId, Guid actorUserId,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Removes a team member's assignment from a role definition.
+    /// Removes a team member's assignment from a role definition, then
+    /// reconciles the target's Coordinators system-team membership.
     /// </summary>
     Task UnassignFromRoleAsync(
         Guid roleDefinitionId, Guid teamMemberId, Guid actorUserId,
@@ -745,3 +781,20 @@ public sealed record TeamRoleAssignmentSnapshot(
     Guid TeamMemberId,
     int SlotIndex,
     Guid? AssignedUserId);
+
+/// <summary>
+/// A team create/update plus the outcome of its Google Group reconciliation.
+/// <see cref="GroupWarning"/> is null when the group is in order; otherwise the
+/// operator-facing message to surface alongside the success flash.
+/// </summary>
+public sealed record TeamWithGroupResult(Team Team, string? GroupWarning);
+
+/// <summary>What <see cref="ITeamService.JoinTeamAsync"/> did, per the team's join policy.</summary>
+public enum TeamJoinOutcome
+{
+    /// <summary>Open team — the user is now an active member.</summary>
+    Joined,
+
+    /// <summary>Approval-required team — a pending join request was created.</summary>
+    RequestSubmitted,
+}

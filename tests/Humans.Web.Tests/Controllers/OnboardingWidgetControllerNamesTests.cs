@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Humans.Application;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces.Consent;
-using Humans.Application.Interfaces.HumanLifecycle;
 using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Shifts;
@@ -31,7 +30,6 @@ public class OnboardingWidgetControllerNamesTests
     private readonly IShiftView _shiftView = Substitute.For<IShiftView>();
     private readonly IConsentService _consents = Substitute.For<IConsentService>();
     private readonly IOnboardingService _onboardingService = Substitute.For<IOnboardingService>();
-    private readonly IHumanLifecycleService _humanLifecycle = Substitute.For<IHumanLifecycleService>();
     private readonly IUserService _userService = Substitute.For<IUserService>();
     private readonly IStringLocalizer<SharedResource> _localizer =
         Substitute.For<IStringLocalizer<SharedResource>>();
@@ -50,7 +48,7 @@ public class OnboardingWidgetControllerNamesTests
         var user = new User { Id = userId };
         _userManager.GetUserAsync(Arg.Any<ClaimsPrincipal>()).Returns(user);
         _state.GetCurrentStepAsync(userId, Arg.Any<CancellationToken>()).Returns(currentStep);
-        var ctrl = new OnboardingWidgetController(_userService, _state, _profileEditor, _signups, _shiftMgmt, _shiftView, _consents, _onboardingService, _humanLifecycle, _localizer);
+        var ctrl = new OnboardingWidgetController(_userService, _state, _profileEditor, _signups, _shiftMgmt, _shiftView, _consents, _onboardingService, _localizer);
         var http = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.ToString())],
@@ -71,7 +69,7 @@ public class OnboardingWidgetControllerNamesTests
         // never the claims.
         var userId = Guid.NewGuid();
         var ctrl = new OnboardingWidgetController(
-            _userService, _state, _profileEditor, _signups, _shiftMgmt, _shiftView, _consents, _onboardingService, _humanLifecycle, _localizer);
+            _userService, _state, _profileEditor, _signups, _shiftMgmt, _shiftView, _consents, _onboardingService, _localizer);
         var http = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(
@@ -138,6 +136,25 @@ public class OnboardingWidgetControllerNamesTests
                 r.LastName == "Last" &&
                 r.BurnerName == "Burner1"),
             Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task Names_Post_TriggersOnboardingConsentCheck_AfterSave()
+    {
+        // The consent-check trigger is a controller peer-call after SaveProfileAsync,
+        // per no-leaf-to-director-callbacks — not inside the service.
+        var userId = Guid.NewGuid();
+        _profileEditor.SaveProfileAsync(
+                userId, Arg.Any<string>(), Arg.Any<ProfileSaveRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Guid.NewGuid());
+
+        var ctrl = BuildSut(userId);
+        var vm = new NamesViewModel { BurnerName = "Burner1", FirstName = "First", LastName = "Last" };
+
+        await ctrl.Names(vm, TestContext.Current.CancellationToken);
+
+        await _onboardingService.Received(1)
+            .SetConsentCheckPendingIfEligibleAsync(userId, Arg.Any<CancellationToken>());
     }
 
     [HumansFact]

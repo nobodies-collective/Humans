@@ -206,7 +206,7 @@ public class ProfileController(
     [ValidateAntiForgeryToken]
     [Grandfathered(
         ruleId: "HUM0031",
-        justification: "Worst-offender at HUM0031 introduction: 78 statements, cc 46.",
+        justification: "Validation invariants (allergy Other, Burner CV) and CV save live in IProfileEditorService as defense-in-depth backstops; the localized field-targeted form guards and the cross-section after-save orchestration (consent-check trigger, tier-application submit/update, pending-deletion cancel) remain controller-side per no-leaf-to-director-callbacks and user-profile-foundational.",
         since: "2026-06-09",
         issueRef: "nobodies-collective/Humans#857")]
     public async Task<IActionResult> Edit(ProfileViewModel model)
@@ -322,6 +322,17 @@ public class ProfileController(
             return View(model);
         }
 
+        // CV: existing rows keep Id/CreatedAt; new rows post Guid.Empty and get fresh Id.
+        var cvEntries = model.EditableVolunteerHistory
+            .Where(vh => !string.IsNullOrWhiteSpace(vh.EventName) && vh.ParsedDate.HasValue)
+            .Select(vh => new CVEntry(
+                vh.Id ?? Guid.Empty,
+                vh.ParsedDate!.Value,
+                vh.EventName,
+                vh.Description
+            ))
+            .ToList();
+
         var saveRequest = new ProfileSaveRequest(
             BurnerName: model.BurnerName,
             FirstName: model.FirstName,
@@ -347,12 +358,27 @@ public class ProfileController(
             // Meal pref + allergies (the DietaryMedical page owns intolerances + medical).
             DietaryPreference: string.IsNullOrWhiteSpace(model.DietaryPreference) ? null : model.DietaryPreference,
             Allergies: [.. model.Allergies.Where(a => DietaryOptions.AllergyOptions.Contains(a, StringComparer.Ordinal))],
-            AllergyOtherText: model.Allergies.Contains(DietaryOptions.OtherOption) ? model.AllergyOtherText?.Trim() : null);
+            AllergyOtherText: model.Allergies.Contains(DietaryOptions.OtherOption) ? model.AllergyOtherText?.Trim() : null,
+            VolunteerHistory: cvEntries);
 
-        var profileId = await profileEditorService.SaveProfileAsync(
-            user.Id, model.BurnerName, saveRequest);
+        Guid profileId;
+        try
+        {
+            profileId = await profileEditorService.SaveProfileAsync(
+                user.Id, model.BurnerName, saveRequest);
+        }
+        catch (ValidationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            model.IsInitialSetup = isInitialSetup;
+            model.ShowPrivateFirst = string.IsNullOrEmpty(model.FirstName)
+                && string.IsNullOrEmpty(model.LastName)
+                && string.IsNullOrEmpty(model.EmergencyContactName);
+            ViewData["GoogleMapsApiKey"] = configuration.GetRequiredSetting(configRegistry, "GoogleMaps:ApiKey", "Google Maps", isSensitive: true);
+            return View(model);
+        }
 
-        // Peer-call into Onboarding; ProfileService doesn't.
+        // Peer-call into Onboarding; ProfileEditorService doesn't.
         await onboardingService.SetConsentCheckPendingIfEligibleAsync(user.Id);
 
         // Initial-setup tier-app: form's `isTierLocked` guard + ApplicationDecisionService AlreadyPending backstop. see #685.
@@ -418,19 +444,6 @@ public class ProfileController(
             ViewData["GoogleMapsApiKey"] = configuration.GetRequiredSetting(configRegistry, "GoogleMaps:ApiKey", "Google Maps", isSensitive: true);
             return View(model);
         }
-
-        // CV: existing rows keep Id/CreatedAt; new rows post Guid.Empty and get fresh Id.
-        var cvEntries = model.EditableVolunteerHistory
-            .Where(vh => !string.IsNullOrWhiteSpace(vh.EventName) && vh.ParsedDate.HasValue)
-            .Select(vh => new CVEntry(
-                vh.Id ?? Guid.Empty,
-                vh.ParsedDate!.Value,
-                vh.EventName,
-                vh.Description
-            ))
-            .ToList();
-
-        await _userService.SaveProfileVolunteerHistoryAsync(user.Id, cvEntries);
 
         // Languages: remove-and-replace.
         var newLanguages = model.EditableLanguages
@@ -953,19 +966,11 @@ public class ProfileController(
         }
 
         // Route via UnlinkAsync to keep AspNetUserLogins + user_emails in sync. Orphan logins fall back to RemoveLoginAsync.
+        // The last-verified-sign-in-method invariant is enforced inside UnlinkAsync (ValidationException).
         var rawRows = await userEmailService.GetEntitiesByUserIdAsync(user.Id, ct);
         var matching = rawRows.FirstOrDefault(r =>
             string.Equals(r.Provider, provider, StringComparison.Ordinal)
             && string.Equals(r.ProviderKey, providerKey, StringComparison.Ordinal));
-
-        // Auth-method invariant: at least one verified UserEmail must remain after unlink (server source-of-truth).
-        var verifiedTotal = rawRows.Count(r => r.IsVerified);
-        var verifiedAfter = verifiedTotal - (matching?.IsVerified == true ? 1 : 0);
-        if (verifiedAfter < 1)
-        {
-            SetError(localizer["LinkedAccounts_UnlinkBlockedLastSignInMethod"].Value);
-            return RedirectToAction(nameof(Emails));
-        }
 
         try
         {
@@ -976,7 +981,15 @@ public class ProfileController(
             }
             else
             {
-                // Orphan login: no UserEmail row — drop directly.
+                // Orphan login: no UserEmail row — drop directly. UnlinkAsync's guard can't
+                // see this branch, so enforce the auth-method invariant here: with zero
+                // verified emails this login may be the user's only sign-in path.
+                if (rawRows.Count(r => r.IsVerified) < 1)
+                {
+                    SetError(localizer["LinkedAccounts_UnlinkBlockedLastSignInMethod"].Value);
+                    return RedirectToAction(nameof(Emails));
+                }
+
                 var removeLogin = await userManager.RemoveLoginAsync(user, provider, providerKey);
                 if (removeLogin.Succeeded)
                 {
@@ -1002,7 +1015,11 @@ public class ProfileController(
             logger.LogWarning(
                 "Failed to unlink provider {Provider} for user {UserId}: {Reason}",
                 provider, user.Id, ex.Message);
-            SetError(ex.Message);
+            // UnlinkAsync's auth-method guard is the only ValidationException source here —
+            // surface it via the localized string instead of the English exception message.
+            SetError(ex is ValidationException
+                ? localizer["LinkedAccounts_UnlinkBlockedLastSignInMethod"].Value
+                : ex.Message);
         }
 
         return RedirectToAction(nameof(Emails));
@@ -1578,8 +1595,9 @@ public class ProfileController(
         if (!ModelState.IsValid)
             return View(model);
 
-        // Server-side validation for the "Other text required iff Other selected" rule
-        // (DataAnnotations can't express the conditional requirement cleanly).
+        // Controller guards are the localized, field-targeted primary path for the
+        // "Other text required iff Other selected" rule. SaveDietaryMedicalAsync
+        // throws ValidationException as a backstop for non-controller callers.
         if (model.Allergies.Contains(DietaryMedicalViewModel.OtherOption) && string.IsNullOrWhiteSpace(model.AllergyOtherText))
         {
             ModelState.AddModelError(nameof(model.AllergyOtherText), localizer["Profile_DietaryMedical_AllergyOther_Required"].Value);
@@ -1657,6 +1675,11 @@ public class ProfileController(
                     SetSuccess(localizer["Profile_DietaryMedical_Saved"].Value);
                     return RedirectToAction("Index", "Home");
             }
+        }
+        catch (ValidationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return View(model);
         }
         catch (Exception ex)
         {

@@ -6,10 +6,12 @@ using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Users;
 using Humans.Infrastructure.Data;
 using Humans.Web.Authorization;
+using Humans.Web.Extensions;
 using Humans.Web.Infrastructure;
 using Humans.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
 using Serilog.Events;
 
 namespace Humans.Web.Controllers;
@@ -51,6 +53,26 @@ public class DebugController(
         ViewBag.TotalEvents = sink.TotalEvents;
         ViewBag.MinLevel = minLevel;
         return View(events);
+    }
+
+    [HttpGet("HttpErrors")]
+    public IActionResult HttpErrors(int count = 1000)
+    {
+        count = count.ClampPageSize(1, 1000);
+
+        var snapshot = clientStats.GetErrorsSnapshot(count);
+
+        var vm = new HttpErrorsViewModel(
+            TotalErrors: snapshot.TotalErrors,
+            LifetimeCounts: snapshot.LifetimeCounts
+                .OrderBy(kv => kv.Key)
+                .Select(kv => new HttpErrorCountRow(kv.Key, kv.Value))
+                .ToList(),
+            Entries: snapshot.Recent.Select(e => new HttpErrorRow(
+                e.Timestamp.ToDateTimeUtc(), e.StatusCode, e.Method, e.Url,
+                e.IpAddress, e.UserId, e.ClientLabel, e.UserAgent)).ToList());
+
+        return View(vm);
     }
 
     [HttpGet("Maintenance")]
@@ -324,6 +346,10 @@ public class DebugController(
 
     [HttpGet("FormatGallery")]
     public IActionResult FormatGallery() => View(FormatGalleryModelBuilder.Build());
+
+    [HttpGet("Translations")]
+    public IActionResult Translations([FromServices] IStringLocalizer<SharedResource> localizer) =>
+        View(TranslationsGalleryModelBuilder.Build(localizer));
 
     private static string StatusCategory(int statusCode) => statusCode switch
     {
