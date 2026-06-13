@@ -1,8 +1,10 @@
+using System.ComponentModel.DataAnnotations;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Threading;
+using Humans.Domain.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace Humans.Application.Services.Profiles;
@@ -31,18 +33,47 @@ public sealed class ProfileEditorService(
         ProfileSaveRequest request,
         CancellationToken ct = default)
     {
-        using var _ = await LockFor(userId).AcquireAsync(logger, ct);
+        ValidateSaveRequest(request);
 
-        var storageResult = await userService.SaveProfileAsync(
-            userId,
-            ToUserProfileSaveCommand(displayName, request),
-            ct);
+        Guid profileId;
+        using (await LockFor(userId).AcquireAsync(logger, ct))
+        {
+            var storageResult = await userService.SaveProfileAsync(
+                userId,
+                ToUserProfileSaveCommand(displayName, request),
+                ct);
 
-        await ApplyProfilePictureFileMutationAsync(storageResult, request, ct);
+            await ApplyProfilePictureFileMutationAsync(storageResult, request, ct);
+            profileId = storageResult.ProfileId;
+        }
+
+        if (request.VolunteerHistory is not null)
+            await userService.SaveProfileVolunteerHistoryAsync(userId, request.VolunteerHistory.ToList(), ct);
 
         logger.LogInformation("User {UserId} updated their profile", userId);
 
-        return storageResult.ProfileId;
+        return profileId;
+    }
+
+    // Cross-field invariants enforced server-side regardless of caller (P1/P2).
+    private static void ValidateSaveRequest(ProfileSaveRequest request)
+    {
+        if (request.Allergies is not null
+            && request.Allergies.Contains(DietaryOptions.OtherOption, StringComparer.Ordinal)
+            && string.IsNullOrWhiteSpace(request.AllergyOtherText))
+        {
+            throw new ValidationException(
+                "Selecting the \"Other\" allergy requires describing it in the accompanying text field.");
+        }
+
+        // Burner CV completeness: entries OR "no prior experience". Only checked
+        // when the request carries a CV payload — name-only saves leave history
+        // untouched and must not be blocked.
+        if (request.VolunteerHistory is { Count: 0 } && !request.NoPriorBurnExperience)
+        {
+            throw new ValidationException(
+                "Add at least one Burner CV entry, or check \"no prior burn experience\".");
+        }
     }
 
     private static UserProfileSaveCommand ToUserProfileSaveCommand(
@@ -85,8 +116,26 @@ public sealed class ProfileEditorService(
     public Task SaveDietaryMedicalAsync(
         Guid userId,
         UserProfileDietaryMedicalCommand command,
-        CancellationToken ct = default) =>
-        userService.SaveDietaryMedicalAsync(userId, command, ct);
+        CancellationToken ct = default)
+    {
+        // "Other" requires the accompanying free text (same invariant as
+        // ValidateSaveRequest's allergy guard, plus the intolerance twin).
+        if (command.Allergies.Contains(DietaryOptions.OtherOption, StringComparer.Ordinal)
+            && string.IsNullOrWhiteSpace(command.AllergyOtherText))
+        {
+            throw new ValidationException(
+                "Selecting the \"Other\" allergy requires describing it in the accompanying text field.");
+        }
+
+        if (command.Intolerances.Contains(DietaryOptions.OtherOption, StringComparer.Ordinal)
+            && string.IsNullOrWhiteSpace(command.IntoleranceOtherText))
+        {
+            throw new ValidationException(
+                "Selecting the \"Other\" intolerance requires describing it in the accompanying text field.");
+        }
+
+        return userService.SaveDietaryMedicalAsync(userId, command, ct);
+    }
 
     private async Task ApplyProfilePictureFileMutationAsync(
         UserProfileSaveResult storageResult,

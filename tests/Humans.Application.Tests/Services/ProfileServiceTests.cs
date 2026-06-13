@@ -82,7 +82,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserAsync(userId);
         var request = MakeRequest(burnerName: "Flame", firstName: "Jane", lastName: "Doe");
 
-        var profileId = await _editor.SaveProfileAsync(userId, "Jane Doe", request, Xunit.TestContext.Current.CancellationToken);
+        var profileId = await _editor.SaveProfileAsync(userId, "Jane Doe", request, ct: Xunit.TestContext.Current.CancellationToken);
 
         profileId.Should().NotBe(Guid.Empty);
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId, Xunit.TestContext.Current.CancellationToken);
@@ -104,7 +104,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserAsync(userId);
         var request = MakeRequest(burnerName: "Flame", firstName: "Jane", lastName: "Doe");
 
-        await _editor.SaveProfileAsync(userId, "Jane Doe", request, Xunit.TestContext.Current.CancellationToken);
+        await _editor.SaveProfileAsync(userId, "Jane Doe", request, ct: Xunit.TestContext.Current.CancellationToken);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId, Xunit.TestContext.Current.CancellationToken);
         profile.State.Should().Be(ProfileState.Active);
@@ -121,7 +121,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         // BurnerName/FirstName/LastName all empty — Stub state.
         var request = MakeRequest(burnerName: "", firstName: "", lastName: "");
 
-        await _editor.SaveProfileAsync(userId, "Stub", request, Xunit.TestContext.Current.CancellationToken);
+        await _editor.SaveProfileAsync(userId, "Stub", request, ct: Xunit.TestContext.Current.CancellationToken);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId, Xunit.TestContext.Current.CancellationToken);
         profile.State.Should().Be(ProfileState.Stub);
@@ -134,7 +134,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserWithProfileAsync(userId);
         var request = MakeRequest(burnerName: "NewName", firstName: "Updated", lastName: "Person");
 
-        await _editor.SaveProfileAsync(userId, "Updated Person", request, Xunit.TestContext.Current.CancellationToken);
+        await _editor.SaveProfileAsync(userId, "Updated Person", request, ct: Xunit.TestContext.Current.CancellationToken);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId, Xunit.TestContext.Current.CancellationToken);
         profile.BurnerName.Should().Be("NewName");
@@ -149,7 +149,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserWithProfileAsync(userId);
         var request = MakeRequest();
 
-        await _editor.SaveProfileAsync(userId, "New Display Name", request, Xunit.TestContext.Current.CancellationToken);
+        await _editor.SaveProfileAsync(userId, "New Display Name", request, ct: Xunit.TestContext.Current.CancellationToken);
 
         var user = await Db.Users.AsNoTracking().SingleAsync(u => u.Id == userId, Xunit.TestContext.Current.CancellationToken);
         user.DisplayName.Should().Be("New Display Name");
@@ -162,7 +162,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserWithProfileAsync(userId);
         var request = MakeRequest(birthdayMonth: 2, birthdayDay: 14);
 
-        await _editor.SaveProfileAsync(userId, "Test", request, Xunit.TestContext.Current.CancellationToken);
+        await _editor.SaveProfileAsync(userId, "Test", request, ct: Xunit.TestContext.Current.CancellationToken);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId, Xunit.TestContext.Current.CancellationToken);
         profile.DateOfBirth.Should().Be(new LocalDate(4, 2, 14));
@@ -175,7 +175,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserWithProfileAsync(userId);
         var request = MakeRequest(birthdayMonth: 2, birthdayDay: 30);
 
-        await _editor.SaveProfileAsync(userId, "Test", request, Xunit.TestContext.Current.CancellationToken);
+        await _editor.SaveProfileAsync(userId, "Test", request, ct: Xunit.TestContext.Current.CancellationToken);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId, Xunit.TestContext.Current.CancellationToken);
         profile.DateOfBirth.Should().BeNull();
@@ -192,7 +192,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         var payload = new byte[] { 0x10, 0x20, 0x30 };
         var request = MakeRequest(pictureData: payload, pictureContentType: "image/jpeg");
 
-        await _editor.SaveProfileAsync(userId, "Test", request, Xunit.TestContext.Current.CancellationToken);
+        await _editor.SaveProfileAsync(userId, "Test", request, ct: Xunit.TestContext.Current.CancellationToken);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId, Xunit.TestContext.Current.CancellationToken);
         // Content-type column is the "has picture" marker + extension source.
@@ -210,24 +210,13 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         var profileId = await SeedUserWithProfileAsync(userId, withPicture: true);
 
         var request = MakeRequest(removeProfilePicture: true);
-        await _editor.SaveProfileAsync(userId, "Test", request, Xunit.TestContext.Current.CancellationToken);
+        await _editor.SaveProfileAsync(userId, "Test", request, ct: Xunit.TestContext.Current.CancellationToken);
 
         var profile = await Db.Profiles.AsNoTracking().FirstAsync(p => p.UserId == userId, Xunit.TestContext.Current.CancellationToken);
         profile.ProfilePictureContentType.Should().BeNull();
         _fileStorage.Files.Should().NotContainKey(PicKey(profileId, "image/png"));
     }
 
-
-    // Threshold check (formerly SaveProfileAsync_CallsSetConsentCheckPending)
-    // moved out of ProfileService entirely — it's a director method on
-    // IOnboardingService now, invoked by controllers as a peer call after
-    // SaveProfileAsync. ProfileService has no dep on Onboarding.
-
-    // --- Profile save flow: tier application during initial setup ---
-
-    // Tier-application orchestration moved to ProfileController.Edit POST in
-    // issue nobodies-collective/Humans#685. Deletion request/cancel moved to
-    // IAccountDeletionService (covered by AccountDeletionServiceTests).
 
     [HumansFact]
     public async Task GetProfilePictureAsync_WithPicture_ReturnsData()
@@ -411,6 +400,69 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         NullLogger<UserService>.Instance);
 
     // --- Helpers ---
+
+    // --- SaveProfileAsync workflow (audit P1-P4) ---
+
+    [HumansFact]
+    public async Task SaveProfileAsync_AllergyOtherWithoutText_Throws()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var request = MakeRequest() with
+        {
+            Allergies = [Humans.Domain.Constants.DietaryOptions.OtherOption],
+            AllergyOtherText = "   ",
+        };
+
+        var act = () => _editor.SaveProfileAsync(userId, "Test", request, ct: Xunit.TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<System.ComponentModel.DataAnnotations.ValidationException>()
+            .WithMessage("*Other*allergy*");
+    }
+
+    [HumansFact]
+    public async Task SaveProfileAsync_EmptyCvWithoutNoPriorExperienceFlag_Throws()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var request = MakeRequest() with { VolunteerHistory = [], NoPriorBurnExperience = false };
+
+        var act = () => _editor.SaveProfileAsync(userId, "Test", request, ct: Xunit.TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<System.ComponentModel.DataAnnotations.ValidationException>()
+            .WithMessage("*Burner CV*");
+    }
+
+    [HumansFact]
+    public async Task SaveProfileAsync_NullCv_SkipsCompletenessCheck_AndLeavesHistoryUntouched()
+    {
+        // Name-only saves (onboarding widget) pass no CV payload — they must not
+        // be blocked by the completeness rule nor overwrite stored history.
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var request = MakeRequest() with { VolunteerHistory = null, NoPriorBurnExperience = false };
+
+        await _editor.SaveProfileAsync(userId, "Test", request, ct: Xunit.TestContext.Current.CancellationToken);
+
+        await _userService.DidNotReceiveWithAnyArgs()
+            .SaveProfileVolunteerHistoryAsync(Guid.Empty, null!, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task SaveProfileAsync_WithCvPayload_SavesVolunteerHistory()
+    {
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId);
+        var entry = new CVEntry(Guid.Empty, new LocalDate(2024, 7, 1), "Nowhere", null);
+        var request = MakeRequest() with { VolunteerHistory = [entry] };
+
+        await _editor.SaveProfileAsync(userId, "Test", request, ct: Xunit.TestContext.Current.CancellationToken);
+
+        await _userService.Received(1).SaveProfileVolunteerHistoryAsync(
+            userId,
+            Arg.Is<List<CVEntry>>(l => l.Count == 1 && l[0].EventName == "Nowhere"),
+            Arg.Any<CancellationToken>());
+    }
 
     private async Task SeedUserAsync(Guid userId,
         string displayName = "Test User", string? profilePictureUrl = null)

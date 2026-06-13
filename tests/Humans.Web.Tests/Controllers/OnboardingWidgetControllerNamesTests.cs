@@ -139,6 +139,25 @@ public class OnboardingWidgetControllerNamesTests
     }
 
     [HumansFact]
+    public async Task Names_Post_TriggersOnboardingConsentCheck_AfterSave()
+    {
+        // The consent-check trigger is a controller peer-call after SaveProfileAsync,
+        // per no-leaf-to-director-callbacks — not inside the service.
+        var userId = Guid.NewGuid();
+        _profileEditor.SaveProfileAsync(
+                userId, Arg.Any<string>(), Arg.Any<ProfileSaveRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Guid.NewGuid());
+
+        var ctrl = BuildSut(userId);
+        var vm = new NamesViewModel { BurnerName = "Burner1", FirstName = "First", LastName = "Last" };
+
+        await ctrl.Names(vm, TestContext.Current.CancellationToken);
+
+        await _onboardingService.Received(1)
+            .SetConsentCheckPendingIfEligibleAsync(userId, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
     public async Task Names_Post_RedirectsToIndex_AndDoesNotSave_WhenUserAlreadyNamed()
     {
         // Names POST is reachable directly. SaveProfileAsync does a full
