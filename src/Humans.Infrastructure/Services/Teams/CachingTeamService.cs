@@ -54,6 +54,45 @@ public sealed class CachingTeamService(
     /// </summary>
     private readonly ConcurrentDictionary<Guid, HashSet<Guid>> _teamIdsByUserId = new();
 
+    public async Task<TeamWithGroupResult> CreateTeamWithGoogleGroupAsync(
+        string name,
+        string? description,
+        bool requiresApproval,
+        Guid? parentTeamId = null,
+        string? googleGroupPrefix = null,
+        bool isHidden = false,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await WithInner(inner => inner.CreateTeamWithGoogleGroupAsync(
+            name, description, requiresApproval, parentTeamId, googleGroupPrefix, isHidden, cancellationToken));
+        InvalidateTeamsCache();
+        return result;
+    }
+
+    public async Task<TeamWithGroupResult> UpdateTeamWithGoogleGroupAsync(
+        Guid teamId,
+        string name,
+        string? description,
+        bool requiresApproval,
+        bool isActive,
+        Guid? parentTeamId = null,
+        string? googleGroupPrefix = null,
+        string? customSlug = null,
+        bool? hasBudget = null,
+        bool? isHidden = null,
+        bool? isSensitive = null,
+        bool? isPromotedToDirectory = null,
+        bool? earlyEntryEnabled = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await WithInner(inner => inner.UpdateTeamWithGoogleGroupAsync(
+            teamId, name, description, requiresApproval, isActive, parentTeamId,
+            googleGroupPrefix, customSlug, hasBudget, isHidden, isSensitive,
+            isPromotedToDirectory, earlyEntryEnabled, cancellationToken));
+        InvalidateTeamsCache();
+        return result;
+    }
+
     public async Task<Team> CreateTeamAsync(
         string name,
         string? description,
@@ -505,25 +544,15 @@ public sealed class CachingTeamService(
         InvalidateTeamsCache();
     }
 
-    public async Task<TeamJoinRequest> RequestToJoinTeamAsync(
+    public async Task<TeamJoinOutcome> JoinTeamAsync(
         Guid teamId,
         Guid userId,
         string? message,
         CancellationToken cancellationToken = default)
     {
-        var result = await WithInner(inner => inner.RequestToJoinTeamAsync(teamId, userId, message, cancellationToken));
-        // Invalidates so the next read of TeamInfo.PendingRequestCount picks up
-        // the new pending row.
-        InvalidateTeamsCache();
-        return result;
-    }
-
-    public async Task<TeamMember> JoinTeamDirectlyAsync(
-        Guid teamId,
-        Guid userId,
-        CancellationToken cancellationToken = default)
-    {
-        var result = await WithInner(inner => inner.JoinTeamDirectlyAsync(teamId, userId, cancellationToken));
+        var result = await WithInner(inner => inner.JoinTeamAsync(teamId, userId, message, cancellationToken));
+        // Invalidates so the next read of TeamInfo picks up the new membership
+        // or pending-request row.
         InvalidateTeamsCache();
         return result;
     }

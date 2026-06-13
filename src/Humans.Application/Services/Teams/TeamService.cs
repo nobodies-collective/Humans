@@ -59,6 +59,9 @@ public sealed class TeamService(
     private IGoogleSyncOutboxService GoogleSyncOutboxService
         => serviceProvider.GetRequiredService<IGoogleSyncOutboxService>();
 
+    private IGoogleSyncService GoogleSyncService
+        => serviceProvider.GetRequiredService<IGoogleSyncService>();
+
     public async Task<Team> CreateTeamAsync(
         string name,
         string? description,
@@ -545,6 +548,80 @@ public sealed class TeamService(
         }
     }
 
+    public async Task<TeamWithGroupResult> CreateTeamWithGoogleGroupAsync(
+        string name,
+        string? description,
+        bool requiresApproval,
+        Guid? parentTeamId = null,
+        string? googleGroupPrefix = null,
+        bool isHidden = false,
+        CancellationToken cancellationToken = default)
+    {
+        var team = await CreateTeamAsync(
+            name, description, requiresApproval, parentTeamId, googleGroupPrefix, isHidden, cancellationToken);
+
+        string? groupWarning = null;
+        if (!string.IsNullOrEmpty(googleGroupPrefix))
+        {
+            try
+            {
+                await GoogleSyncService.EnsureTeamGroupAsync(team.Id, cancellationToken: cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Compensation: clear the prefix so the team never points at a
+                // group that does not exist; the admin can retry from team edit.
+                logger.LogError(ex, "Failed to create Google Group for new team {TeamId}, clearing prefix", team.Id);
+                await UpdateTeamAsync(
+                    team.Id, team.Name, team.Description, team.RequiresApproval, team.IsActive,
+                    team.ParentTeamId, googleGroupPrefix: null, cancellationToken: cancellationToken);
+                groupWarning = $"Team created but Google Group setup failed: {ex.Message}. The group prefix has been cleared.";
+            }
+        }
+
+        return new TeamWithGroupResult(team, groupWarning);
+    }
+
+    public async Task<TeamWithGroupResult> UpdateTeamWithGoogleGroupAsync(
+        Guid teamId,
+        string name,
+        string? description,
+        bool requiresApproval,
+        bool isActive,
+        Guid? parentTeamId = null,
+        string? googleGroupPrefix = null,
+        string? customSlug = null,
+        bool? hasBudget = null,
+        bool? isHidden = null,
+        bool? isSensitive = null,
+        bool? isPromotedToDirectory = null,
+        bool? earlyEntryEnabled = null,
+        CancellationToken cancellationToken = default)
+    {
+        var team = await UpdateTeamAsync(
+            teamId, name, description, requiresApproval, isActive, parentTeamId,
+            googleGroupPrefix, customSlug, hasBudget, isHidden, isSensitive,
+            isPromotedToDirectory, earlyEntryEnabled, cancellationToken);
+
+        string? groupWarning;
+        try
+        {
+            var groupResult = await GoogleSyncService.EnsureTeamGroupAsync(teamId, cancellationToken: cancellationToken);
+            groupWarning = groupResult.Success
+                ? null
+                : groupResult.RequiresConfirmation
+                    ? groupResult.WarningMessage ?? "Confirmation required for group reactivation."
+                    : groupResult.ErrorMessage ?? "Google Group linking failed.";
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to sync Google Group for team {TeamId}", teamId);
+            groupWarning = $"Team updated but Google Group setup failed: {ex.Message}";
+        }
+
+        return new TeamWithGroupResult(team, groupWarning);
+    }
+
     public async Task DeleteTeamAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
         var team = await repo.GetByIdAsync(teamId, cancellationToken)
@@ -566,6 +643,27 @@ public sealed class TeamService(
         logger.LogInformation(
             "Deactivated team {TeamId} ({TeamName}); closed {MemberCount} memberships",
             teamId, team.Name, closedCount);
+    }
+
+    public async Task<TeamJoinOutcome> JoinTeamAsync(
+        Guid teamId,
+        Guid userId,
+        string? message,
+        CancellationToken cancellationToken = default)
+    {
+        var team = await repo.GetByIdWithRelationsAsync(teamId, cancellationToken)
+            ?? throw new InvalidOperationException($"Team {teamId} not found");
+
+        // The join policy is the team's decision, not the caller's: approval-required
+        // teams queue a request, open teams join immediately.
+        if (team.RequiresApproval)
+        {
+            await RequestToJoinTeamAsync(teamId, userId, message, cancellationToken);
+            return TeamJoinOutcome.RequestSubmitted;
+        }
+
+        await JoinTeamDirectlyAsync(teamId, userId, cancellationToken);
+        return TeamJoinOutcome.Joined;
     }
 
     public async Task<TeamJoinRequest> RequestToJoinTeamAsync(

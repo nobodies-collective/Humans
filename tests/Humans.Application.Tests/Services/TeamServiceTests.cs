@@ -24,6 +24,7 @@ using TeamService = Humans.Application.Services.Teams.TeamService;
 using Humans.Application.Interfaces.Email;
 using Humans.Application.Interfaces.Teams;
 using Humans.Application.Interfaces.Users;
+using Humans.Application.DTOs;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Services.GoogleIntegration;
 using Humans.Application.Interfaces.Auth;
@@ -38,6 +39,7 @@ public sealed class TeamServiceTests : ServiceTestHarness
     private readonly TeamService _service;
     private readonly RoleAssignmentService _roleAssignmentService;
     private readonly ITeamResourceService _teamResourceService;
+    private readonly IGoogleSyncService _googleSyncService = Substitute.For<IGoogleSyncService>();
     private readonly ISystemTeamSync _systemTeamSync = Substitute.For<ISystemTeamSync>();
 
     public TeamServiceTests()
@@ -69,6 +71,7 @@ public sealed class TeamServiceTests : ServiceTestHarness
             .With<IRoleAssignmentService>(_roleAssignmentService)
             .With<IEmailService>()
             .With(_systemTeamSync)
+            .With(_googleSyncService)
             .With<IGoogleSyncOutboxService>(googleOutboxService)
             .With(_teamResourceService)
             .With(userService)
@@ -789,6 +792,103 @@ public sealed class TeamServiceTests : ServiceTestHarness
             team.Id, "Alpha", null, false, true, parentTeamId: parentNew.Id, cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
         Cache.TryGetValue(CacheKeys.ShiftAuthorization(manager.Id), out _).Should().BeFalse();
+    }
+
+    // ==========================================================================
+    // Create/Update with Google group (T15 — service-owned compensation)
+    // ==========================================================================
+
+    [HumansFact]
+    public async Task CreateTeamWithGoogleGroup_ProvisioningFails_ClearsPrefixAndWarns()
+    {
+        _googleSyncService.EnsureTeamGroupAsync(Arg.Any<Guid>(), cancellationToken: Arg.Any<CancellationToken>())
+            .Returns<GroupLinkResult>(_ => throw new InvalidOperationException("Workspace down"));
+
+        var result = await _service.CreateTeamWithGoogleGroupAsync(
+            "Gate Crew", null, requiresApproval: false, googleGroupPrefix: "gate-crew",
+            cancellationToken: Xunit.TestContext.Current.CancellationToken);
+
+        result.GroupWarning.Should().Contain("Google Group setup failed")
+            .And.Contain("prefix has been cleared");
+        Db.ChangeTracker.Clear();
+        var reloaded = await Db.Teams.SingleAsync(t => t.Id == result.Team.Id, Xunit.TestContext.Current.CancellationToken);
+        reloaded.GoogleGroupPrefix.Should().BeNull();
+    }
+
+    [HumansFact]
+    public async Task CreateTeamWithGoogleGroup_NoPrefix_SkipsProvisioning()
+    {
+        var result = await _service.CreateTeamWithGoogleGroupAsync(
+            "Quiet Crew", null, requiresApproval: false,
+            cancellationToken: Xunit.TestContext.Current.CancellationToken);
+
+        result.GroupWarning.Should().BeNull();
+        await _googleSyncService.DidNotReceive().EnsureTeamGroupAsync(
+            Arg.Any<Guid>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task UpdateTeamWithGoogleGroup_GroupNeedsConfirmation_ReturnsWarning()
+    {
+        var team = SeedTeam("Alpha");
+        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+        _googleSyncService.EnsureTeamGroupAsync(team.Id, cancellationToken: Arg.Any<CancellationToken>())
+            .Returns(GroupLinkResult.NeedsConfirmation("Group was deactivated.", Guid.NewGuid()));
+
+        var result = await _service.UpdateTeamWithGoogleGroupAsync(
+            team.Id, team.Name, team.Description, team.RequiresApproval, team.IsActive,
+            cancellationToken: Xunit.TestContext.Current.CancellationToken);
+
+        result.GroupWarning.Should().Be("Group was deactivated.");
+    }
+
+    [HumansFact]
+    public async Task UpdateTeamWithGoogleGroup_GroupOk_NoWarning()
+    {
+        var team = SeedTeam("Alpha");
+        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+        _googleSyncService.EnsureTeamGroupAsync(team.Id, cancellationToken: Arg.Any<CancellationToken>())
+            .Returns(GroupLinkResult.Ok());
+
+        var result = await _service.UpdateTeamWithGoogleGroupAsync(
+            team.Id, team.Name, team.Description, team.RequiresApproval, team.IsActive,
+            cancellationToken: Xunit.TestContext.Current.CancellationToken);
+
+        result.GroupWarning.Should().BeNull();
+    }
+
+    // ==========================================================================
+    // JoinTeamAsync (T13 — dispatch on the team's join policy)
+    // ==========================================================================
+
+    [HumansFact]
+    public async Task JoinTeamAsync_ApprovalRequiredTeam_CreatesPendingRequest()
+    {
+        var user = SeedUser();
+        var team = SeedTeam("Gate", requiresApproval: true);
+        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var outcome = await _service.JoinTeamAsync(team.Id, user.Id, "Pick me", Xunit.TestContext.Current.CancellationToken);
+
+        outcome.Should().Be(TeamJoinOutcome.RequestSubmitted);
+        (await Db.TeamJoinRequests.SingleAsync(Xunit.TestContext.Current.CancellationToken))
+            .UserId.Should().Be(user.Id);
+        (await Db.TeamMembers.AnyAsync(Xunit.TestContext.Current.CancellationToken)).Should().BeFalse();
+    }
+
+    [HumansFact]
+    public async Task JoinTeamAsync_OpenTeam_JoinsImmediately()
+    {
+        var user = SeedUser();
+        var team = SeedTeam("Open Crew", requiresApproval: false);
+        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var outcome = await _service.JoinTeamAsync(team.Id, user.Id, message: null, Xunit.TestContext.Current.CancellationToken);
+
+        outcome.Should().Be(TeamJoinOutcome.Joined);
+        (await Db.TeamMembers.SingleAsync(Xunit.TestContext.Current.CancellationToken))
+            .UserId.Should().Be(user.Id);
+        (await Db.TeamJoinRequests.AnyAsync(Xunit.TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
     // ==========================================================================
