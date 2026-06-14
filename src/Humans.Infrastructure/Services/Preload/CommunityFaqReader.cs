@@ -28,7 +28,7 @@ public sealed class CommunityFaqReader(
     private static readonly MemoryCacheEntryOptions HoldForever =
         new() { Priority = CacheItemPriority.NeverRemove };
 
-    public sealed record IndexEntry(string Topic, string Title, string? LastUpdated, string Summary);
+    public sealed record IndexEntry(string Topic, string Title, string? LastUpdated, string Summary, string Keywords);
 
     public async Task<IReadOnlyList<IndexEntry>> ListTopicsAsync(CancellationToken cancellationToken)
     {
@@ -171,7 +171,37 @@ public sealed class CommunityFaqReader(
         }
 
         var summary = ExtractOverview(lines) ?? title;
-        return new IndexEntry(topic, title, ExtractLastUpdated(body), summary);
+        return new IndexEntry(topic, title, ExtractLastUpdated(body), summary, ExtractKeywords(lines));
+    }
+
+    /// <summary>
+    /// Reads the explicit <c>## Keywords</c> routing line a topic file declares, so the preloaded
+    /// index can show what each topic covers — the one-line Overview alone hides terms like
+    /// "urinals", "EE", or "VIPee" that the router needs to recognise a topic is relevant. The app
+    /// deliberately does NOT derive keywords from the prose: real per-file keyword extraction
+    /// (stopwords, proper nouns, EN/ES) is an offline, reviewable concern owned by the KB generator
+    /// pipeline, not the app. Reads from the <c>## Keywords</c> heading until the next <c>##</c>,
+    /// returning that text with newlines collapsed to spaces, or "" when the file declares no
+    /// Keywords section, in which case the index shows the Overview summary alone.
+    /// </summary>
+    internal static string ExtractKeywords(string[] lines)
+    {
+        var inSection = false;
+        var collected = new List<string>();
+        foreach (var raw in lines)
+        {
+            var line = raw.TrimEnd('\r');
+            if (!inSection)
+            {
+                if (line.Trim().Equals("## Keywords", StringComparison.OrdinalIgnoreCase))
+                    inSection = true;
+                continue;
+            }
+            if (line.StartsWith("##", StringComparison.Ordinal)) break; // next heading ends the section
+            var text = line.Trim();
+            if (text.Length > 0) collected.Add(text);
+        }
+        return string.Join(' ', collected).Trim();
     }
 
     private static string? ExtractLastUpdated(string body)

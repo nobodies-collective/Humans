@@ -41,6 +41,37 @@ public class CommunityFaqReaderTests
     }
 
     [HumansFact]
+    public async Task ListTopicsAsync_reads_the_explicit_keywords_section()
+    {
+        // The Overview alone hides terms like "urinals"/"VIPee" the router needs. Coverage is made
+        // legible via an explicit `## Keywords` line the KB generator emits — the app does not
+        // derive keywords from prose. Multi-line sections collapse to one space-joined string.
+        const string body =
+            "# Leave No Trace\nLast updated: 2026-06-14\n\n## Overview\nKeeping the site clean.\n\n" +
+            "## Keywords\ntoilets, TAP, PMS, urinals, vulva urinals, VIPee, Octopee, grey water\n\n" +
+            "## FAQ\n**Q?**\nA.";
+        var source = new FakeSource { Files = { ["lnt"] = body } };
+        var reader = MakeReader(source);
+
+        var entries = await reader.ListTopicsAsync(TestContext.Current.CancellationToken);
+
+        entries[0].Keywords.Should().Be("toilets, TAP, PMS, urinals, vulva urinals, VIPee, Octopee, grey water");
+        // The Overview paragraph remains the Summary, separate from keywords.
+        entries[0].Summary.Should().Be("Keeping the site clean.");
+    }
+
+    [HumansFact]
+    public async Task ListTopicsAsync_yields_no_keywords_when_no_keywords_section()
+    {
+        var source = new FakeSource { Files = { ["bare"] = "# Bare Title\n\n## Overview\nNo keywords here." } };
+        var reader = MakeReader(source);
+
+        var entries = await reader.ListTopicsAsync(TestContext.Current.CancellationToken);
+
+        entries[0].Keywords.Should().BeEmpty();
+    }
+
+    [HumansFact]
     public async Task ReadAsync_returns_body_for_a_discovered_topic()
     {
         var source = new FakeSource { Files = { ["FAQ-general"] = GeneralBody } };
