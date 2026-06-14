@@ -195,6 +195,34 @@ public sealed class AnthropicClient : IAnthropicClient
         }
     }
 
+    public async Task<int> CountTokensAsync(
+        string model, string text, CancellationToken cancellationToken = default)
+    {
+        // Mirror the real request shape: the prompt is sent as the cached System block (see
+        // StreamAsync), so count it there — counting it as a user turn would add user-role
+        // framing and disagree with the actual cached system block. count_tokens still requires
+        // a non-empty messages array, so a minimal placeholder rides along; its handful of
+        // framing tokens are why the figure is ≈, not exact.
+        var request = new MessageCountTokensParams
+        {
+            Model = model,
+            System = new List<TextBlockParam> { new(text) },
+            Messages = new List<MessageParam>
+            {
+                new()
+                {
+                    Role = Role.User,
+                    Content = new MessageParamContent(
+                        new List<ContentBlockParam> { new(new TextBlockParam(".")) }),
+                },
+            },
+        };
+
+        var result = await _sdk.Messages.CountTokens(request, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return ClampToInt(result.InputTokens);
+    }
+
     private static int ClampToInt(long value) => value > int.MaxValue ? int.MaxValue : (int)value;
 
     private static List<MessageParam> MapMessages(IReadOnlyList<AnthropicMessage> messages)
