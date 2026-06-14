@@ -62,7 +62,7 @@ internal sealed class GoogleSyncOutboxRepository(IDbContextFactory<HumansDbConte
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.GoogleSyncOutboxEvents
             .AsNoTracking()
-            .OrderByDescending(e => e.OccurredAt) // arch:db-sort-ok top-N recent-events selector (Take)
+            .OrderByDescending(e => e.OccurredAt)
             .Take(take)
             .ToListAsync(ct);
     }
@@ -76,7 +76,7 @@ internal sealed class GoogleSyncOutboxRepository(IDbContextFactory<HumansDbConte
             .Where(e => e.ProcessedAt == null
                 && !e.FailedPermanently
                 && e.RetryCount < maxRetryCount)
-            .OrderBy(e => e.OccurredAt) // arch:db-sort-ok outbox FIFO processing batch (Take)
+            .OrderBy(e => e.OccurredAt)
             .Take(batchSize)
             .ToListAsync(ct);
     }

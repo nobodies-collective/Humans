@@ -326,6 +326,7 @@ public static class SectionHelpContent
 
             - **Dashboard & stats** — membership counts, recent activity, growth trends
             - **Audit log** — chronological record of all significant system actions
+            - **Member data export** — GDPR-compliant data export for individual humans
 
             ### What Happens Automatically
 

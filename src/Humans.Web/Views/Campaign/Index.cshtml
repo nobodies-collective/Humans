@@ -39,7 +39,7 @@
                     @item.FailedCount
                 }
             </text>;
-            var table = TableModel.For(Model.OrderByDescending(c => c.CreatedAt).ToList())
+            var table = TableModel.For(Model)
                 .Template("Title", titleCell)
                 .Column("Status", r => r.Status, c => c.EnumBadge())
                 .Column("Codes", r => $"{r.AssignedCodes} / {r.TotalCodes}")

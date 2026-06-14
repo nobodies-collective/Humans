@@ -120,7 +120,7 @@ internal sealed class EmailOutboxRepository(IDbContextFactory<HumansDbContext> f
                 && m.RetryCount < maxRetries
                 && (m.NextRetryAt == null || m.NextRetryAt <= now)
                 && (m.PickedUpAt == null || m.PickedUpAt < staleThreshold))
-            .OrderBy(m => m.CreatedAt) // arch:db-sort-ok outbox FIFO claim batch (Take)
+            .OrderBy(m => m.CreatedAt)
             .Take(batchSize)
             .ToListAsync(ct);
     }

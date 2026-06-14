@@ -57,7 +57,7 @@ internal sealed class ConsentRepository(IDbContextFactory<HumansDbContext> facto
         return await ctx.ConsentRecords
             .AsNoTracking()
             .Where(c => userIds.Contains(c.UserId) && c.DocumentVersionId == documentVersionId)
-            .OrderByDescending(c => c.ConsentedAt) // arch:db-sort-ok latest-consent selector (FirstOrDefault)
+            .OrderByDescending(c => c.ConsentedAt)
             .FirstOrDefaultAsync(ct);
     }
 
@@ -73,7 +73,7 @@ internal sealed class ConsentRepository(IDbContextFactory<HumansDbContext> facto
             .Include(c => c.DocumentVersion)
                 .ThenInclude(v => v.LegalDocument)
             .Where(c => userIds.Contains(c.UserId))
-            .OrderByDescending(c => c.ConsentedAt) // arch:db-sort-ok consent records chronological stream
+            .OrderByDescending(c => c.ConsentedAt)
             .ToListAsync(ct);
     }
 

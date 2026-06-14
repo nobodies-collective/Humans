@@ -25,7 +25,7 @@ internal sealed class FeedbackRepository(IDbContextFactory<HumansDbContext> fact
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.FeedbackReports
             .AsNoTracking()
-            .Include(f => f.Messages.OrderBy(m => m.CreatedAt)) // arch:db-sort-ok message thread chronological order
+            .Include(f => f.Messages.OrderBy(m => m.CreatedAt))
             .FirstOrDefaultAsync(f => f.Id == id, ct);
     }
 

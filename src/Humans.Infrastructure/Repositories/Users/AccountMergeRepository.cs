@@ -21,6 +21,7 @@ internal sealed class AccountMergeRepository(IDbContextFactory<HumansDbContext> 
         return await ctx.AccountMergeRequests
             .AsNoTracking()
             .Where(r => r.Status == AccountMergeRequestStatus.Pending)
+            .OrderBy(r => r.CreatedAt)
             .ToListAsync(ct);
     }
 
@@ -46,6 +47,7 @@ internal sealed class AccountMergeRepository(IDbContextFactory<HumansDbContext> 
         return await ctx.AccountMergeRequests
             .AsNoTracking()
             .Where(amr => amr.TargetUserId == userId || amr.SourceUserId == userId)
+            .OrderByDescending(amr => amr.CreatedAt)
             .Select(amr => new AccountMergeRequestGdprRow(
                 amr.Status.ToString(),
                 amr.TargetUserId == userId,

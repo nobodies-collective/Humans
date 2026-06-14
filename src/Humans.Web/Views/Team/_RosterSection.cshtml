@@ -2,8 +2,7 @@
 
 @{
     var canManage = (bool)(ViewData["CanManage"] ?? false);
-    var visibleRoles = (canManage ? Model : Model.Where(r => r.IsPublic))
-        .OrderBy(r => r.SortOrder).ThenBy(r => r.Name).ToList();
+    var visibleRoles = canManage ? Model : Model.Where(r => r.IsPublic).ToList();
 }
 
 @if (visibleRoles.Any())
