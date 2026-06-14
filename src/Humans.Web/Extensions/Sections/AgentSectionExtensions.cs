@@ -4,13 +4,17 @@ using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Stores;
 using Humans.Application.Services.Agent;
+using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Jobs;
 using Humans.Infrastructure.Repositories;
+using Humans.Infrastructure.Services;
 using Humans.Infrastructure.Services.Agent;
 using Humans.Infrastructure.Services.Preload;
 using Humans.Infrastructure.Stores;
 using Humans.Web.Filters;
 using Humans.Web.Services.Agent;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace Humans.Web.Extensions.Sections;
 
@@ -19,6 +23,7 @@ internal static class AgentSectionExtensions
     internal static IServiceCollection AddAgentSection(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SectionName));
+        services.Configure<CommunityKbSettings>(configuration.GetSection(CommunityKbSettings.SectionName));
 
         services.AddSingleton<IAgentSettingsStore, AgentSettingsStore>();
         services.AddSingleton<IAgentRateLimitStore, AgentRateLimitStore>();
@@ -36,6 +41,11 @@ internal static class AgentSectionExtensions
         // so capturing it here is safe.
         services.AddSingleton<AgentSectionDocReader>();
         services.AddSingleton<AgentFeatureSpecReader>();
+        services.AddSingleton<GitHubCommunityKbContentSource>();
+        services.AddSingleton<CommunityFaqReader>(sp => new CommunityFaqReader(
+            sp.GetRequiredService<GitHubCommunityKbContentSource>(),
+            sp.GetRequiredService<IMemoryCache>(),
+            sp.GetRequiredService<ILogger<CommunityFaqReader>>()));
         services.AddSingleton<IAgentPreloadCorpusBuilder, AgentPreloadCorpusBuilder>();
         services.AddSingleton<IAgentPromptAssembler, AgentPromptAssembler>();
         services.AddSingleton<IAgentAbuseDetector, AgentAbuseDetector>();
@@ -50,6 +60,7 @@ internal static class AgentSectionExtensions
 
         services.AddScoped<AgentConversationRetentionJob>();
         services.AddHostedService<AgentSettingsStoreWarmupHostedService>();
+        services.AddHostedService<AgentPreloadWarmupHostedService>();
 
         // Agent API key — gates GET /api/agent (read-only chat-history review).
         // Bound to its own env var so a leaked feedback/log key cannot read transcripts.

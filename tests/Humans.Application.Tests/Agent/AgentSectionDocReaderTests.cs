@@ -1,10 +1,8 @@
 using AwesomeAssertions;
 using Humans.Application.Interfaces;
-using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Services.Preload;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Octokit;
 using Xunit;
 
@@ -82,7 +80,6 @@ public class AgentSectionDocReaderTests
         new(
             source,
             new MemoryCache(new MemoryCacheOptions()),
-            Options.Create(new GuideSettings { CacheTtlHours = 6 }),
             NullLogger<AgentSectionDocReader>.Instance);
 
     private sealed class FakeSource : IGuideContentSource
@@ -103,5 +100,8 @@ public class AgentSectionDocReaderTests
             if (FailWith is not null) throw FailWith;
             return Task.FromResult($"# {fileStem}\n\nBody.");
         }
+
+        public Task<IReadOnlyList<string>> ListMarkdownStemsAsync(string folderPath, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
     }
 }

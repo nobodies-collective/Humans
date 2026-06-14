@@ -1,25 +1,26 @@
 using Humans.Application.Interfaces;
-using Humans.Infrastructure.Configuration;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Octokit;
 
 namespace Humans.Infrastructure.Services.Preload;
 
 /// <summary>
 /// Reads a <c>docs/features/{stem}.md</c> file from the Humans repo on GitHub at runtime
-/// via the shared <see cref="IGuideContentSource"/>. Cached in memory with the Guide TTL.
+/// via the shared <see cref="IGuideContentSource"/>. Held in memory with no expiration
+/// (loaded once at startup or first call, refreshed only on restart).
 /// Returns <c>null</c> on miss (invalid stem, GitHub 404, or transient failure).
 /// </summary>
 public sealed class AgentFeatureSpecReader(
     IGuideContentSource source,
     IMemoryCache cache,
-    IOptions<GuideSettings> settings,
     ILogger<AgentFeatureSpecReader> logger)
 {
     internal const string FolderPath = "docs/features";
     private const string CacheKeyPrefix = "agent:feature:";
+
+    private static readonly MemoryCacheEntryOptions HoldForever =
+        new() { Priority = CacheItemPriority.NeverRemove };
 
     public async Task<string?> ReadAsync(string stem, CancellationToken cancellationToken)
     {
@@ -36,8 +37,7 @@ public sealed class AgentFeatureSpecReader(
         try
         {
             var body = await source.GetMarkdownAsync(FolderPath, stem, cancellationToken);
-            var ttl = TimeSpan.FromHours(Math.Max(1, settings.Value.CacheTtlHours));
-            cache.Set(cacheKey, body, new MemoryCacheEntryOptions { SlidingExpiration = ttl });
+            cache.Set(cacheKey, body, HoldForever);
             return body;
         }
         catch (NotFoundException)
