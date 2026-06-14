@@ -326,6 +326,35 @@ public class AgentToolDispatcherTests
         result.Content.Should().Contain("Proposal queued");
     }
 
+    [HumansFact]
+    public async Task FetchCommunityFaq_returns_wrapped_body_for_known_topic()
+    {
+        var dispatcher = MakeDispatcher();
+
+        var result = await dispatcher.DispatchAsync(
+            new AnthropicToolCall("t1", AgentToolNames.FetchCommunityFaq, """{"topic":"FAQ-general"}"""),
+            userId: Guid.NewGuid(),
+            Xunit.TestContext.Current.CancellationToken);
+
+        result.IsError.Should().BeFalse();
+        result.Content.Should().StartWith("SOURCE: community Discord FAQ");
+        result.Content.Should().Contain("NOT official");
+    }
+
+    [HumansFact]
+    public async Task FetchCommunityFaq_returns_error_for_unknown_topic()
+    {
+        var dispatcher = MakeDispatcher();
+
+        var result = await dispatcher.DispatchAsync(
+            new AnthropicToolCall("t1", AgentToolNames.FetchCommunityFaq, """{"topic":"nope"}"""),
+            userId: Guid.NewGuid(),
+            Xunit.TestContext.Current.CancellationToken);
+
+        result.IsError.Should().BeTrue();
+        result.Content.Should().Contain("Unknown community FAQ topic");
+    }
+
     private static Humans.Infrastructure.Services.Agent.AgentToolDispatcher MakeDispatcher(
         Humans.Application.Interfaces.AuditLog.IAuditViewerService? auditViewer = null,
         Interfaces.Shifts.IShiftView? shiftView = null,
@@ -333,21 +362,24 @@ public class AgentToolDispatcherTests
     {
         var cache = new Microsoft.Extensions.Caching.Memory.MemoryCache(
             new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
-        var guideSettings = Microsoft.Extensions.Options.Options.Create(
-            new Humans.Infrastructure.Configuration.GuideSettings { CacheTtlHours = 6 });
         var source = new StubGuideSource();
         var sections = new Humans.Infrastructure.Services.Preload.AgentSectionDocReader(
-            source, cache, guideSettings,
+            source, cache,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<
                 Humans.Infrastructure.Services.Preload.AgentSectionDocReader>.Instance);
         var features = new Humans.Infrastructure.Services.Preload.AgentFeatureSpecReader(
-            source, cache, guideSettings,
+            source, cache,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<
                 Humans.Infrastructure.Services.Preload.AgentFeatureSpecReader>.Instance);
+        var community = new Humans.Infrastructure.Services.Preload.CommunityFaqReader(
+            source, cache,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<
+                Humans.Infrastructure.Services.Preload.CommunityFaqReader>.Instance);
         var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<Humans.Infrastructure.Services.Agent.AgentToolDispatcher>.Instance;
         return new Humans.Infrastructure.Services.Agent.AgentToolDispatcher(
             sections,
             features,
+            community,
             auditViewer ?? new StubAuditViewer(),
             shiftView ?? Substitute.For<Interfaces.Shifts.IShiftView>(),
             shiftManagement ?? Substitute.For<Interfaces.Shifts.IShiftManagementService>(),
@@ -360,7 +392,13 @@ public class AgentToolDispatcherTests
             Task.FromResult($"# {fileStem}");
 
         public Task<string> GetMarkdownAsync(string folderPath, string fileStem, CancellationToken cancellationToken = default) =>
-            Task.FromResult($"# {fileStem}");
+            Task.FromResult($"# {fileStem}\nLast updated: 2026-02-01\n\n## Overview\nStub.");
+
+        public Task<IReadOnlyList<string>> ListMarkdownStemsAsync(string folderPath, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<string>>(
+                string.Equals(folderPath, Humans.Infrastructure.Services.Preload.CommunityFaqReader.FolderPath, StringComparison.Ordinal)
+                    ? ["FAQ-general"]
+                    : []);
     }
 
     private static Interfaces.Shifts.IShiftView MakeViewFor(
