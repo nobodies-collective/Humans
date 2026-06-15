@@ -119,6 +119,12 @@ internal sealed class HoldedRepository(IDbContextFactory<HumansDbContext> factor
             .FirstOrDefaultAsync(b => b.SupplierAccountNum == accountNum, ct);
     }
 
+    public async Task<IReadOnlyList<HoldedCreditorBalance>> GetCreditorBalancesAsync(CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        return await ctx.HoldedCreditorBalances.AsNoTracking().ToListAsync(ct);
+    }
+
     // ── Payments ──────────────────────────────────────────────────────────────
 
     public async Task UpsertPaymentsAsync(
@@ -156,6 +162,43 @@ internal sealed class HoldedRepository(IDbContextFactory<HumansDbContext> factor
         return await ctx.HoldedPayments.AsNoTracking()
             .Where(p => p.HoldedContactId == holdedContactId)
             .ToListAsync(ct);
+    }
+
+    // ── Creditor contact bindings ─────────────────────────────────────────────
+
+    public async Task<HoldedCreditorContact?> GetCreditorContactByUserAsync(
+        Guid userId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        return await ctx.HoldedCreditorContacts.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.UserId == userId, ct);
+    }
+
+    public async Task<IReadOnlyList<HoldedCreditorContact>> GetCreditorContactsAsync(CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        return await ctx.HoldedCreditorContacts.AsNoTracking().ToListAsync(ct);
+    }
+
+    public async Task UpsertCreditorContactAsync(
+        HoldedCreditorContact row, Instant now, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var existing = await ctx.HoldedCreditorContacts
+            .FirstOrDefaultAsync(c => c.UserId == row.UserId, ct);
+        if (existing is not null)
+        {
+            existing.HoldedContactId = row.HoldedContactId;
+            if (row.SupplierAccountNum is not null) existing.SupplierAccountNum = row.SupplierAccountNum;
+            existing.Source = row.Source;
+            existing.UpdatedAt = now;
+        }
+        else
+        {
+            row.UpdatedAt = now;
+            ctx.HoldedCreditorContacts.Add(row);
+        }
+        await ctx.SaveChangesAsync(ct);
     }
 
     // ── Sync state (singleton, seeded by migration) ──────────────────────────

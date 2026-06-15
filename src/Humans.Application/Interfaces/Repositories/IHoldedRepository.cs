@@ -19,10 +19,16 @@ public interface IHoldedRepository : IRepository
     // Creditor balances (chartofaccounts cache)
     Task UpsertCreditorBalancesAsync(IReadOnlyList<HoldedCreditorBalance> rows, Instant now, CancellationToken ct = default);
     Task<HoldedCreditorBalance?> GetCreditorBalanceByAccountNumAsync(int accountNum, CancellationToken ct = default);
+    Task<IReadOnlyList<HoldedCreditorBalance>> GetCreditorBalancesAsync(CancellationToken ct = default);
 
     // Payments cache
     Task UpsertPaymentsAsync(IReadOnlyList<HoldedPayment> rows, Instant now, CancellationToken ct = default);
     Task<IReadOnlyList<HoldedPayment>> GetPaymentsByContactAsync(string holdedContactId, CancellationToken ct = default);
+
+    // Creditor contact bindings (member -> Holded creditor account)
+    Task<HoldedCreditorContact?> GetCreditorContactByUserAsync(Guid userId, CancellationToken ct = default);
+    Task<IReadOnlyList<HoldedCreditorContact>> GetCreditorContactsAsync(CancellationToken ct = default);
+    Task UpsertCreditorContactAsync(HoldedCreditorContact row, Instant now, CancellationToken ct = default);
 
     // Sync state (singleton, seeded by migration)
     Task<HoldedSyncState> GetSyncStateAsync(CancellationToken ct = default);

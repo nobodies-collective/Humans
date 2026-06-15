@@ -1,5 +1,6 @@
 using Humans.Application.Interfaces.Budget;
 using Humans.Application.Interfaces.Finance;
+using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.Holded;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Services.Finance.Dtos;
@@ -21,7 +22,7 @@ public sealed class HoldedFinanceService(
     // Future: narrow to an IBudgetServiceRead via the section read/write split.
     IBudgetService budget,
     IClock clock,
-    ILogger<HoldedFinanceService> logger) : IHoldedFinanceService
+    ILogger<HoldedFinanceService> logger) : IHoldedFinanceService, IUserDataContributor
 {
     private const int SyncPageSafetyCap = 200;
 
@@ -415,6 +416,177 @@ public sealed class HoldedFinanceService(
             LastPaymentDate: lastPaymentDate,
             TotalPaid: payments.Sum(p => p.Amount),
             Payments: payments.Select(p => new HoldedPaymentInfo(p.Date, p.Amount, p.DocumentType)).ToList());
+    }
+
+    // ─── Creditor bindings + statement ──────────────────────────────────────────
+
+    public async Task<IReadOnlyList<HoldedCreditorAccountRow>> ListCreditorAccountsAsync(
+        CancellationToken ct = default)
+    {
+        var balances = await repo.GetCreditorBalancesAsync(ct);
+        // Group-by-first, not ToDictionary: only UserId is unique in the DB, so two members
+        // could (mis)bind to the same account number — that must not throw the whole list.
+        var bindings = (await repo.GetCreditorContactsAsync(ct))
+            .Where(b => b.SupplierAccountNum is not null)
+            .GroupBy(b => b.SupplierAccountNum!.Value)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        return balances.Select(b =>
+        {
+            bindings.TryGetValue(b.SupplierAccountNum, out var binding);
+            return new HoldedCreditorAccountRow(
+                SupplierAccountNum: b.SupplierAccountNum,
+                Name: b.Name,
+                Balance: b.Balance,
+                OwedToMember: Math.Max(0m, -b.Balance),
+                BoundUserId: binding?.UserId,
+                BindingSource: binding?.Source);
+        }).ToList();
+    }
+
+    public async Task<CreditorContactBinding?> GetCreditorContactByUserAsync(
+        Guid userId, CancellationToken ct = default)
+    {
+        var b = await repo.GetCreditorContactByUserAsync(userId, ct);
+        return b is null
+            ? null
+            : new CreditorContactBinding(b.UserId, b.HoldedContactId, b.SupplierAccountNum, b.Source);
+    }
+
+    public async Task<bool> SetCreditorContactAsync(
+        Guid userId, int supplierAccountNum, CancellationToken ct = default)
+    {
+        var contact = (await client.ListContactsAsync(ct))
+            .FirstOrDefault(c => c.SupplierAccountNum == supplierAccountNum);
+        if (contact is null) return false;
+
+        var now = clock.GetCurrentInstant();
+        await repo.UpsertCreditorContactAsync(new HoldedCreditorContact
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            HoldedContactId = contact.Id,
+            SupplierAccountNum = supplierAccountNum,
+            Source = CreditorContactSource.Manual,
+            CreatedAt = now,
+            UpdatedAt = now,
+        }, now, ct);
+        return true;
+    }
+
+    public async Task<HoldedCreditorLedger?> GetCreditorLedgerAsync(
+        int supplierAccountNum, CancellationToken ct = default)
+    {
+        var now = clock.GetCurrentInstant();
+        // Holded caps a dailyledger window at one year; 364 days stays safely under.
+        var from = now.Minus(Duration.FromDays(364));
+        IReadOnlyList<HoldedLedgerLineDto> lines;
+        try
+        {
+            lines = (await client.ListDailyLedgerAsync(from, now, ct))
+                .Where(l => l.AccountNum == supplierAccountNum)
+                .ToList();
+        }
+        catch (HoldedApiException ex)
+        {
+            // Non-fatal: a Holded outage must not 500 the statement or a member's /Expenses page.
+            // Serve the cached balance with no lines rather than throwing (the live read is the
+            // intentional design — option B — but it is best-effort).
+            logger.LogWarning(ex,
+                "Holded dailyledger unavailable for account {Account}; serving balance without ledger lines",
+                supplierAccountNum);
+            lines = [];
+        }
+
+        var balanceRow = await repo.GetCreditorBalanceByAccountNumAsync(supplierAccountNum, ct);
+        if (balanceRow is null && lines.Count == 0) return null;
+
+        var balance = balanceRow?.Balance;
+        return new HoldedCreditorLedger(
+            SupplierAccountNum: supplierAccountNum,
+            Name: balanceRow?.Name,
+            Balance: balance,
+            OwedToMember: balance is { } b ? Math.Max(0m, -b) : 0m,
+            Lines: lines);
+    }
+
+    public async Task<string> EnsureCreditorContactAsync(
+        Guid userId, string legalName, string? burnerName, string? iban,
+        string? seedContactId, int? seedAccountNum, CancellationToken ct = default)
+    {
+        var binding = await repo.GetCreditorContactByUserAsync(userId, ct);
+        // Reuse the bound contact, else lazy-seed from the report's previously-cached contact id.
+        var existingContactId = !string.IsNullOrEmpty(binding?.HoldedContactId)
+            ? binding!.HoldedContactId
+            : (string.IsNullOrEmpty(seedContactId) ? null : seedContactId);
+
+        // Burner goes in tradeName only — and only when it differs from the official legal name.
+        var tradeName = !string.IsNullOrWhiteSpace(burnerName)
+                        && !string.Equals(burnerName, legalName, StringComparison.Ordinal)
+            ? burnerName
+            : null;
+
+        var contactId = await client.UpsertContactAsync(new HoldedContactInput
+        {
+            Name = legalName,
+            TradeName = tradeName,
+            CustomId = userId.ToString(),
+            Type = "creditor",
+            Iban = string.IsNullOrWhiteSpace(iban) ? null : iban,
+            ExistingContactId = existingContactId,
+        }, ct);
+
+        var now = clock.GetCurrentInstant();
+        await repo.UpsertCreditorContactAsync(new HoldedCreditorContact
+        {
+            Id = Guid.NewGuid(),                                   // ignored on update (keyed by UserId)
+            UserId = userId,
+            HoldedContactId = contactId,
+            SupplierAccountNum = binding?.SupplierAccountNum ?? seedAccountNum,
+            Source = binding?.Source ?? CreditorContactSource.Auto, // preserve a Manual binding
+            CreatedAt = now,
+            UpdatedAt = now,
+        }, now, ct);
+
+        return contactId;
+    }
+
+    public async Task SetCreditorAccountNumAsync(
+        Guid userId, int supplierAccountNum, CancellationToken ct = default)
+    {
+        var binding = await repo.GetCreditorContactByUserAsync(userId, ct);
+        if (binding is null) return;
+
+        var now = clock.GetCurrentInstant();
+        await repo.UpsertCreditorContactAsync(new HoldedCreditorContact
+        {
+            Id = binding.Id,
+            UserId = userId,
+            HoldedContactId = binding.HoldedContactId,
+            SupplierAccountNum = supplierAccountNum,
+            Source = binding.Source,
+            CreatedAt = binding.CreatedAt,
+            UpdatedAt = now,
+        }, now, ct);
+    }
+
+    // ─── GDPR (Article 15 export) ───────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
+    {
+        var binding = await repo.GetCreditorContactByUserAsync(userId, ct);
+        return
+        [
+            new UserDataSlice(GdprExportSections.HoldedCreditorAccount,
+                binding is null
+                    ? null
+                    : new
+                    {
+                        binding.SupplierAccountNum,
+                        binding.HoldedContactId,
+                        Source = binding.Source.ToString(),
+                    }),
+        ];
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────────
