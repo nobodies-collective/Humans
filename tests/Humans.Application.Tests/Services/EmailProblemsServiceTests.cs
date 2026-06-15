@@ -65,7 +65,6 @@ public sealed class EmailProblemsServiceTests : ServiceTestHarness
             DisplayName = "Test User",
             PreferredLanguage = "en",
             CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
-            GoogleEmailStatus = GoogleEmailStatus.Unknown,
             Email = identityEmailColumn,
         };
         Profile? profile = hasProfile
@@ -128,7 +127,6 @@ public sealed class EmailProblemsServiceTests : ServiceTestHarness
             DisplayName = "Test User",
             PreferredLanguage = "en",
             CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
-            GoogleEmailStatus = GoogleEmailStatus.Unknown,
             MergedAt = Instant.FromUtc(2026, 2, 1, 0, 0),
             MergedToUserId = Guid.NewGuid(),
         };
@@ -143,7 +141,6 @@ public sealed class EmailProblemsServiceTests : ServiceTestHarness
             DisplayName = "Deleted User", // GDPR-anonymized sentinel → IsGdprAnonymized → IsTombstone
             PreferredLanguage = "en",
             CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
-            GoogleEmailStatus = GoogleEmailStatus.Unknown,
         };
         AddInfo(deletedUser.ToUserInfo(
             userEmails: [Email(deletedId, "deleted-1@deleted.local", isVerified: false)],
@@ -175,7 +172,6 @@ public sealed class EmailProblemsServiceTests : ServiceTestHarness
             DisplayName = "Test User",
             PreferredLanguage = "en",
             CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
-            GoogleEmailStatus = GoogleEmailStatus.Unknown,
             MergedAt = Instant.FromUtc(2026, 2, 1, 0, 0),
             MergedToUserId = Guid.NewGuid(),
         };
@@ -188,7 +184,6 @@ public sealed class EmailProblemsServiceTests : ServiceTestHarness
             DisplayName = "Test User",
             PreferredLanguage = "en",
             CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
-            GoogleEmailStatus = GoogleEmailStatus.Unknown,
             MergedAt = Instant.FromUtc(2026, 2, 1, 0, 0),
             MergedToUserId = Guid.NewGuid(),
         };

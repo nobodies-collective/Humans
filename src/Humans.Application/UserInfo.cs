@@ -17,7 +17,8 @@ public sealed record UserEmailInfo(
     ContactFieldVisibility? Visibility,
     Instant? VerificationSentAt,
     Instant CreatedAt,
-    Instant UpdatedAt);
+    Instant UpdatedAt,
+    GoogleEmailStatus GoogleEmailStatus);
 
 /// <summary>Compact projection of <see cref="ContactField"/> carried inside <see cref="ProfileInfo"/>.</summary>
 public sealed record ContactFieldInfo(
@@ -148,7 +149,6 @@ public sealed record UserInfo(
     Guid? ICalToken,
     bool SuppressScheduleChangeEmails,
     Instant? MagicLinkSentAt,
-    GoogleEmailStatus GoogleEmailStatus,
     ContactSource? ContactSource,
     string? ExternalSourceId,
     Guid? MergedToUserId,
@@ -242,6 +242,28 @@ public sealed record UserInfo(
         .Where(e => e.IsGoogle && e.IsVerified)
         .Select(e => e.Email)
         .FirstOrDefault();
+
+    /// <summary>
+    /// Effective Google Workspace sync status for this user — the per-address status of the
+    /// address sync actually targets. That target mirrors
+    /// <c>GoogleWorkspaceSyncService.TryGetGoogleEmail</c>: the verified
+    /// <see cref="UserEmailInfo.IsGoogle"/> row, else the verified provider (OAuth) fallback row
+    /// (covers ~pre-#687 users with no IsGoogle row). <see cref="Humans.Domain.Enums.GoogleEmailStatus.Unknown"/>
+    /// when there is no such address. Replaces the deprecated user-level <c>User.GoogleEmailStatus</c>
+    /// column (nobodies-collective/Humans#687); a rejection no longer survives switching Google address.
+    /// </summary>
+    public GoogleEmailStatus GoogleEmailStatus
+    {
+        get
+        {
+            var target = UserEmails.FirstOrDefault(e => e.IsGoogle && e.IsVerified)
+                ?? UserEmails
+                    .Where(e => e.IsVerified && e.Provider != null)
+                    .OrderBy(e => e.Email, StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault();
+            return target?.GoogleEmailStatus ?? GoogleEmailStatus.Unknown;
+        }
+    }
 
     /// <summary>All verified addresses, primary first.</summary>
     public IReadOnlyList<string> AllVerifiedEmails => UserEmails
@@ -345,7 +367,7 @@ public sealed record UserInfo(
             .Select(e => new UserEmailInfo(
                 e.Id, e.Email, e.IsVerified, e.IsPrimary, e.IsGoogle,
                 e.Provider, e.ProviderKey, e.Visibility, e.VerificationSentAt,
-                e.CreatedAt, e.UpdatedAt))
+                e.CreatedAt, e.UpdatedAt, e.GoogleEmailStatus))
             .ToList();
 
         var participationInfos = eventParticipations
@@ -455,7 +477,6 @@ public sealed record UserInfo(
             ICalToken: user.ICalToken,
             SuppressScheduleChangeEmails: user.SuppressScheduleChangeEmails,
             MagicLinkSentAt: user.MagicLinkSentAt,
-            GoogleEmailStatus: user.GoogleEmailStatus,
             ContactSource: user.ContactSource,
             ExternalSourceId: user.ExternalSourceId,
             MergedToUserId: user.MergedToUserId,
