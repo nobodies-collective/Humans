@@ -113,21 +113,12 @@ else
                             <strong>@item.Title</strong>
                             <span class="badge bg-secondary ms-1">@item.CategoryName</span>
                         </div>
-                        <form method="post" asp-action="ToggleFavourite" asp-route-eventId="@item.EventId"
-                              asp-route-day="@item.FavouriteDayOffset"
-                              asp-route-categoryId="@Model.FilterCategoryId"
-                              asp-route-venueId="@Model.FilterVenueId" asp-route-q="@Model.SearchQuery"
-                              asp-route-favouritesOnly="@Model.FavouritesOnly" class="d-inline">
-                            @Html.AntiForgeryToken()
-                            @foreach (var d in Model.FilterDays)
-                            {
-                                <input type="hidden" name="days" value="@d" />
-                            }
-                            <button type="submit" class="btn btn-sm @(item.IsFavourited ? "btn-danger" : "btn-outline-danger")"
-                                    title="@(item.IsFavourited ? Localizer["Events_RemoveFromFavourites"].Value : Localizer["Events_AddToFavourites"].Value)">
-                                <i class="fa-solid fa-heart"></i>
-                            </button>
-                        </form>
+                        @await Html.PartialAsync("_FavouriteButton", new FavouriteButtonModel
+                        {
+                            EventId = item.EventId,
+                            DayOffset = item.FavouriteDayOffset,
+                            IsFavourited = item.IsFavourited
+                        })
                     </div>
                     <div class="mt-1 small text-muted">
                         <i class="fa-solid fa-clock me-1"></i>@item.StartAt.ToTime() — @item.StartAt.AddMinutes(item.DurationMinutes).ToTime()
