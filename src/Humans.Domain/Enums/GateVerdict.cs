@@ -18,6 +18,9 @@ public enum GateVerdict
     /// <summary>Minor admitted accompanied by a named adult; the photo-ID step is waived below the configured age threshold.</summary>
     AdmittedChildWithAdult,
 
+    /// <summary>Admitted by a named supervisor override despite a too-early pre-check (e.g. the holder has an Early Entry grant for a later day). The authorizing supervisor is recorded on <see cref="Humans.Domain.Entities.GateScanEvent.OverrideByUserId"/>.</summary>
+    AdmittedEarlyOverride,
+
     /// <summary>Ticket not found for the current event, or void/refunded/cancelled.</summary>
     RejectedInvalid,
 

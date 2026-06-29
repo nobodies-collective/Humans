@@ -46,6 +46,15 @@ public class GateScanEvent
     public string? Note { get; init; }
 
     /// <summary>
+    /// The supervisor who authorized an override admit (their personal-PIN identity),
+    /// for <see cref="GateVerdict.AdmittedEarlyOverride"/> and the child-with-adult
+    /// waiver. <c>null</c> for ordinary scans. A bare user-id FK (no navigation), per
+    /// the cross-section linkage rule — the supervisor is a Humans user, stitched via
+    /// services. This is the audit trail for "who let this person in early".
+    /// </summary>
+    public Guid? OverrideByUserId { get; init; }
+
+    /// <summary>
     /// Dedupe key: the normalized barcode for an admit verdict, <c>null</c> otherwise.
     /// A unique index on this column (Postgres excludes nulls) makes the very first
     /// admit for a barcode win atomically across all lanes — a concurrent second
