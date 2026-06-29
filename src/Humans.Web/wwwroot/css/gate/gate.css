@@ -9,12 +9,17 @@
 .gate-topbar-link + .gate-topbar-link { margin-left: .75rem; }
 
 /* Loud, persistent warning while the general-entry cutoff is unset (every scan goes AMBER). */
+/* Dark amber CHROME with a bright outline — deliberately not the saturated amber
+   verdict fill (#B26A00), so a persistent warning never reads as (or competes with)
+   an Amber verdict card. The verdict must always be the loudest thing on screen. */
 .gate-config-warning {
     margin-bottom: .75rem; padding: .9rem 1.1rem; border-radius: 12px;
-    background: #B26A00; color: #fff; font-size: 1.15rem; font-weight: 600;
+    background: #2e2206; color: #ffd9a0; border: 2px solid #e0962b;
+    font-size: 1.15rem; font-weight: 600;
     display: flex; align-items: flex-start; gap: .6rem; line-height: 1.4;
 }
-.gate-config-warning > i { margin-top: .15rem; flex: none; }
+.gate-config-warning > i { margin-top: .15rem; flex: none; color: #e0962b; }
+.gate-config-warning strong { color: #fff; }
 
 #gate-scan-input {
     width: 100%; font-size: 1.6rem; padding: .9rem 1.1rem; border-radius: 12px;
@@ -30,10 +35,11 @@
 .gate-icon { font-size: 4.2rem; line-height: 1; }
 .gate-word { font-size: 3.2rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-top: .25rem; }
 .gate-name { font-size: 3.6rem; font-weight: 700; line-height: 1.05; margin-top: .5rem; word-break: break-word; }
-.gate-reason { font-size: 1.5rem; margin-top: .6rem; opacity: .95; }
+/* Full-opacity white — sub-100% opacity is the first thing to wash out in direct sun. */
+.gate-reason { font-size: 1.5rem; margin-top: .6rem; }
 .gate-badge {
     margin-top: .75rem; display: inline-block; font-size: 1.1rem; font-weight: 600;
-    background: rgba(0,0,0,.18); border-radius: 8px; padding: .35rem .8rem;
+    background: rgba(0,0,0,.32); border-radius: 8px; padding: .35rem .8rem;
 }
 
 /* Verdict colours — paired with distinct icons + words so colour is never the only cue. */
@@ -63,6 +69,16 @@
 
 .gate-neutral { background: #11181d !important; }
 
-/* Roster quick-pick on the claim screen — big, wrapping tap targets for gloved/sunlit use. */
-.gate-roster { display: flex; flex-wrap: wrap; gap: .6rem; max-width: 720px; }
-.gate-roster-pick { flex: 1 1 auto; min-width: 180px; font-size: 1.25rem; padding: 1rem 1.25rem; }
+/* Roster quick-pick on the claim screen — big FILLED tap targets (outline buttons
+   wash out in direct sun) for gloved use. Capped height so a large roster scrolls
+   instead of burying the search box below the fold. */
+.gate-roster {
+    display: flex; flex-wrap: wrap; gap: .6rem; max-width: 720px;
+    max-height: 46vh; overflow-y: auto;
+}
+.gate-roster-pick {
+    flex: 1 1 auto; min-width: 180px; font-size: 1.35rem; font-weight: 700;
+    padding: 1.1rem 1.25rem; border: none; border-radius: 12px; cursor: pointer;
+    background: #2b3440; color: #fff;
+}
+.gate-roster-pick:hover, .gate-roster-pick:focus { background: #1e2a33; color: #fff; }

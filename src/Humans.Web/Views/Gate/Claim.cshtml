@@ -3,6 +3,10 @@
     ViewData["Title"] = "Who is scanning?";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="@Url.Content("~/css/gate/gate.css")" asp-append-version="true" />
+}
+
 <h1>Who is scanning?</h1>
 <p class="text-muted">
     Tap your name to claim the gate session, or search below. Your Humans account is
@@ -15,8 +19,7 @@
     <form method="post" asp-action="Claim" class="gate-roster">
         @foreach (var member in Model.Roster)
         {
-            <button type="submit" name="userId" value="@member.UserId"
-                    class="btn btn-outline-primary btn-lg gate-roster-pick">
+            <button type="submit" name="userId" value="@member.UserId" class="gate-roster-pick">
                 @member.DisplayName
             </button>
         }
