@@ -1,5 +1,6 @@
 using Humans.Application.Extensions;
 using Humans.Application.Interfaces;
+using Humans.Application.Interfaces.Auth;
 using Humans.Application.Interfaces.EarlyEntry;
 using Humans.Application.Interfaces.Gate;
 using Humans.Application.Interfaces.Gdpr;
@@ -7,8 +8,10 @@ using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Tickets;
 using Humans.Application.Interfaces.Users;
+using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Microsoft.AspNetCore.Identity;
 using NodaTime;
 
 namespace Humans.Application.Services.Gate;
@@ -27,10 +30,15 @@ public sealed class GateService(
     IEarlyEntryService earlyEntry,
     IBurnSettingsService burnSettings,
     IShiftManagementService shifts,
+    IRoleAssignmentService roles,
+    IPasswordHasher<GateStaffPin> pinHasher,
     IClock clock) : IGateService, IUserMerge, IUserDataContributor
 {
     /// <summary>How far either side of "now" a gate shift may start to count as current.</summary>
     private static readonly Duration RosterWindow = Duration.FromHours(2);
+
+    /// <summary>Roles whose holders may authorize a gate supervisor override (server-verified, never client-asserted).</summary>
+    private static readonly string[] SupervisorRoles = [RoleNames.Admin, RoleNames.Board, RoleNames.TicketAdmin];
 
     public async Task<GateScanResult> EvaluateAsync(string barcode, CancellationToken ct = default)
     {
@@ -178,6 +186,77 @@ public sealed class GateService(
         var start = openingDate.PlusDays(shift.DayOffset).At(shift.StartTime)
             .InZoneLeniently(zone).ToInstant();
         return start >= now - RosterWindow && start <= now + RosterWindow;
+    }
+
+    // ── Personal device PINs ─────────────────────────────────────────────────
+    public async Task<GatePinStatus> GetPinStatusAsync(Guid userId, CancellationToken ct = default) =>
+        new(await repository.GetStaffPinAsync(userId, ct) is not null, await IsSupervisorAsync(userId, ct));
+
+    public async Task<GatePinSetResult> SetOwnPinAsync(Guid userId, string pin, CancellationToken ct = default)
+    {
+        if (!IsValidPin(pin))
+            return GatePinSetResult.InvalidPin;
+        // A supervisor's PIN carries override authority — never let it be minted from the
+        // anonymous kiosk (an attacker could cold-enrol a supervisor and impersonate them).
+        if (await IsSupervisorAsync(userId, ct))
+            return GatePinSetResult.SupervisorMustBeAdminEnrolled;
+        await StorePinAsync(userId, pin, ct);
+        return GatePinSetResult.Ok;
+    }
+
+    public async Task<bool> AdminSetPinAsync(Guid userId, string pin, CancellationToken ct = default)
+    {
+        if (!IsValidPin(pin))
+            return false;
+        await StorePinAsync(userId, pin, ct);
+        return true;
+    }
+
+    public async Task<bool> VerifyPinAsync(Guid userId, string pin, CancellationToken ct = default)
+    {
+        var row = await repository.GetStaffPinAsync(userId, ct);
+        if (row is null)
+            return false;
+        // PasswordHasher does a fixed-time compare internally.
+        return pinHasher.VerifyHashedPassword(row, row.PinHash, pin) != PasswordVerificationResult.Failed;
+    }
+
+    public async Task<bool> AuthorizeOverrideAsync(Guid supervisorUserId, string pin, CancellationToken ct = default)
+    {
+        // Verify-only: enrolled + correct PIN + currently holds a supervisor role. Never enrol here.
+        if (!await VerifyPinAsync(supervisorUserId, pin, ct))
+            return false;
+        return await IsSupervisorAsync(supervisorUserId, ct);
+    }
+
+    public Task ClearPinAsync(Guid userId, CancellationToken ct = default) =>
+        repository.DeleteStaffPinAsync(userId, ct);
+
+    private async Task<bool> IsSupervisorAsync(Guid userId, CancellationToken ct)
+    {
+        foreach (var role in SupervisorRoles)
+            if (await roles.HasActiveRoleAsync(userId, role, ct))
+                return true;
+        return false;
+    }
+
+    private async Task StorePinAsync(Guid userId, string pin, CancellationToken ct)
+    {
+        var now = clock.GetCurrentInstant();
+        var entity = new GateStaffPin { UserId = userId, CreatedAt = now, UpdatedAt = now };
+        entity.PinHash = pinHasher.HashPassword(entity, pin);
+        await repository.UpsertStaffPinAsync(entity, ct);
+    }
+
+    /// <summary>Exactly four digits, and not a trivially-guessable run/repeat (0000, 1234, 4321…).</summary>
+    private static bool IsValidPin(string? pin)
+    {
+        if (pin is null || pin.Length != 4 || !pin.All(char.IsAsciiDigit))
+            return false;
+        if (pin.Distinct().Count() == 1)
+            return false;
+        return !"0123456789".Contains(pin, StringComparison.Ordinal)
+            && !"9876543210".Contains(pin, StringComparison.Ordinal);
     }
 
     // ── IUserMerge ───────────────────────────────────────────────────────────

@@ -45,10 +45,56 @@ public interface IGateService : IApplicationService
     /// active event or no shift starting in that window.
     /// </summary>
     Task<IReadOnlyList<GateRosterEntry>> GetShiftRosterAsync(Guid rosterTeamId, CancellationToken ct = default);
+
+    // ── Personal device PINs ─────────────────────────────────────────────────
+    // Each gate staffer sets a 4-digit PIN once and reuses it to claim the shared
+    // scanner (real attribution) and to authorize supervisor overrides. Hashes only.
+
+    /// <summary>Whether <paramref name="userId"/> has set a PIN, and whether they hold a gate-supervisor role.</summary>
+    Task<GatePinStatus> GetPinStatusAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Kiosk self-enrolment: a staffer sets their own PIN. Refuses to enrol anyone holding a
+    /// supervisor role (their PIN carries override authority — those are admin-enrolled out of
+    /// band, never cold at the anonymous kiosk) and rejects weak/trivial PINs.
+    /// </summary>
+    Task<GatePinSetResult> SetOwnPinAsync(Guid userId, string pin, CancellationToken ct = default);
+
+    /// <summary>Admin sets/initialises any user's PIN (incl. supervisors), from the gate admin page. Returns false if the PIN is invalid.</summary>
+    Task<bool> AdminSetPinAsync(Guid userId, string pin, CancellationToken ct = default);
+
+    /// <summary>Verify a staffer's PIN for claiming the scanner. Timing-safe. False if no PIN set or mismatch.</summary>
+    Task<bool> VerifyPinAsync(Guid userId, string pin, CancellationToken ct = default);
+
+    /// <summary>
+    /// Authorize a supervisor override: true only if the asserted supervisor is enrolled, the
+    /// PIN matches, AND they currently hold a gate-supervisor role — all server-verified in one
+    /// call. Verify-only: an un-enrolled or non-supervisor user is rejected, never enrolled.
+    /// </summary>
+    Task<bool> AuthorizeOverrideAsync(Guid supervisorUserId, string pin, CancellationToken ct = default);
+
+    /// <summary>Clear a user's PIN (admin reset). They re-enrol on next claim.</summary>
+    Task ClearPinAsync(Guid userId, CancellationToken ct = default);
 }
 
 /// <summary>One pre-filled gate-roster pick: a Humans user signed up for a current gate shift.</summary>
 public sealed record GateRosterEntry(Guid UserId, string DisplayName);
+
+/// <summary>Whether a staffer has a device PIN set, and whether they hold a gate-supervisor role.</summary>
+public sealed record GatePinStatus(bool HasPin, bool IsSupervisor);
+
+/// <summary>Outcome of a kiosk self-enrolment attempt.</summary>
+public enum GatePinSetResult
+{
+    /// <summary>PIN set.</summary>
+    Ok,
+
+    /// <summary>The PIN is not exactly four digits or is too easily guessed (e.g. 0000, 1234, repeats).</summary>
+    InvalidPin,
+
+    /// <summary>The user holds a supervisor role — supervisor PINs must be set by an admin, not self-enrolled at the kiosk.</summary>
+    SupervisorMustBeAdminEnrolled,
+}
 
 /// <summary>Write-free result of evaluating a scan, before the agent's ID decision.</summary>
 public sealed record GateScanResult(

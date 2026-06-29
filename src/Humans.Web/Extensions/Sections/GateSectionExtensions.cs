@@ -3,8 +3,10 @@ using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Gate;
+using Humans.Domain.Entities;
 using Humans.Infrastructure.Jobs;
 using Humans.Infrastructure.Repositories.Gate;
+using Microsoft.AspNetCore.Identity;
 
 namespace Humans.Web.Extensions.Sections;
 
@@ -21,6 +23,10 @@ internal static class GateSectionExtensions
         // blocks the wrong person), mirroring the read-through Scanner section.
         // Registered as its concrete type so the GDPR-contributor and account-merge
         // forwarding factories resolve the same section service (§8a / merge fan-out).
+        // Personal staff-PIN hashing reuses ASP.NET Identity's vetted PBKDF2 hasher
+        // (Identity only registers IPasswordHasher<User>, so register the GateStaffPin one).
+        services.AddSingleton<IPasswordHasher<GateStaffPin>, PasswordHasher<GateStaffPin>>();
+
         services.AddScoped<GateService>();
         services.AddScoped<IGateService>(sp => sp.GetRequiredService<GateService>());
         services.AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<GateService>());

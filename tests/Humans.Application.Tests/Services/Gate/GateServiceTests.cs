@@ -5,11 +5,14 @@ using Humans.Application.Interfaces.Gate;
 using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Tickets;
+using Humans.Application.Interfaces.Auth;
 using Humans.Application.Services.Gate;
+using Humans.Domain.Constants;
 using Humans.Application.Tests.Infrastructure;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Repositories.Gate;
+using Microsoft.AspNetCore.Identity;
 using NodaTime;
 using NSubstitute;
 
@@ -31,6 +34,8 @@ public class GateServiceTests : ServiceTestHarness
     private readonly IEarlyEntryService _earlyEntry = Substitute.For<IEarlyEntryService>();
     private readonly IBurnSettingsService _burn = Substitute.For<IBurnSettingsService>();
     private readonly IShiftManagementService _shifts = Substitute.For<IShiftManagementService>();
+    private readonly IRoleAssignmentService _roles = Substitute.For<IRoleAssignmentService>();
+    private readonly IPasswordHasher<GateStaffPin> _pinHasher = new PasswordHasher<GateStaffPin>();
     private readonly GateService _svc;
 
     public GateServiceTests()
@@ -38,7 +43,7 @@ public class GateServiceTests : ServiceTestHarness
         _burn.GetActiveAsync(Arg.Any<CancellationToken>()).Returns((BurnSettingsInfo?)null);
         _earlyEntry.GetForUserAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns((UserEarlyEntry?)null);
-        _svc = new GateService(new GateRepository(DbFactory), _tickets, _earlyEntry, _burn, _shifts, Clock);
+        _svc = new GateService(new GateRepository(DbFactory), _tickets, _earlyEntry, _burn, _shifts, _roles, _pinHasher, Clock);
 
         // Baseline: an admin has set the cutoff in the past, so general entry is open.
         // Seeded directly (sync) since the ctor can't await; Db shares the in-memory
@@ -332,5 +337,56 @@ public class GateServiceTests : ServiceTestHarness
         _shifts.GetActiveAsync().Returns((EventSettings?)null);
 
         (await _svc.GetShiftRosterAsync(Guid.NewGuid())).Should().BeEmpty();
+    }
+
+    // ── Personal device PINs ─────────────────────────────────────────────────
+    [HumansFact]
+    public async Task SetOwnPin_NonSupervisor_SetsAndVerifies()
+    {
+        var user = Guid.NewGuid();
+
+        (await _svc.SetOwnPinAsync(user, "2580")).Should().Be(GatePinSetResult.Ok);
+        (await _svc.VerifyPinAsync(user, "2580")).Should().BeTrue();
+        (await _svc.VerifyPinAsync(user, "1357")).Should().BeFalse();
+    }
+
+    [HumansFact]
+    public async Task SetOwnPin_RejectsTrivialOrMalformedPins()
+    {
+        var user = Guid.NewGuid();
+        foreach (var weak in new[] { "0000", "1111", "1234", "4321", "12", "12a4", "" })
+            (await _svc.SetOwnPinAsync(user, weak)).Should().Be(GatePinSetResult.InvalidPin);
+    }
+
+    [HumansFact]
+    public async Task SetOwnPin_Supervisor_Blocked_ButAdminCanEnrol()
+    {
+        var sup = Guid.NewGuid();
+        _roles.HasActiveRoleAsync(sup, RoleNames.TicketAdmin, Arg.Any<CancellationToken>()).Returns(true);
+
+        (await _svc.SetOwnPinAsync(sup, "2580")).Should().Be(GatePinSetResult.SupervisorMustBeAdminEnrolled);
+        (await _svc.GetPinStatusAsync(sup)).Should().Be(new GatePinStatus(HasPin: false, IsSupervisor: true));
+
+        (await _svc.AdminSetPinAsync(sup, "2580")).Should().BeTrue();
+        (await _svc.VerifyPinAsync(sup, "2580")).Should().BeTrue();
+    }
+
+    [HumansFact]
+    public async Task AuthorizeOverride_RequiresEnrolledSupervisorAndCorrectPin()
+    {
+        var sup = Guid.NewGuid();
+        _roles.HasActiveRoleAsync(sup, RoleNames.Board, Arg.Any<CancellationToken>()).Returns(true);
+        await _svc.AdminSetPinAsync(sup, "2580");
+
+        (await _svc.AuthorizeOverrideAsync(sup, "2580")).Should().BeTrue();
+        (await _svc.AuthorizeOverrideAsync(sup, "1357")).Should().BeFalse();          // wrong PIN
+
+        var staff = Guid.NewGuid();                                                    // enrolled, not a supervisor
+        await _svc.SetOwnPinAsync(staff, "2580");
+        (await _svc.AuthorizeOverrideAsync(staff, "2580")).Should().BeFalse();
+
+        var unenrolledSup = Guid.NewGuid();                                            // supervisor, no PIN
+        _roles.HasActiveRoleAsync(unenrolledSup, RoleNames.Admin, Arg.Any<CancellationToken>()).Returns(true);
+        (await _svc.AuthorizeOverrideAsync(unenrolledSup, "2580")).Should().BeFalse();
     }
 }

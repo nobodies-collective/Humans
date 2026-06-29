@@ -40,6 +40,15 @@ public interface IGateRepository : IRepository
 
     /// <summary>Insert-or-update the singleton gate settings (Id is forced to 1).</summary>
     Task SaveSettingsAsync(GateSettings settings, CancellationToken ct = default);
+
+    /// <summary>The staffer's personal-PIN row, or null if they have not set one.</summary>
+    Task<GateStaffPin?> GetStaffPinAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Insert-or-update a staffer's personal-PIN row (hash already computed by the service).</summary>
+    Task UpsertStaffPinAsync(GateStaffPin pin, CancellationToken ct = default);
+
+    /// <summary>Remove a staffer's personal-PIN row (admin reset / merge). No-op if none exists.</summary>
+    Task DeleteStaffPinAsync(Guid userId, CancellationToken ct = default);
 }
 
 /// <summary>Result of <see cref="IGateRepository.RecordScanAsync"/>.</summary>

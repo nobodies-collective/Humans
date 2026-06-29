@@ -72,10 +72,9 @@ internal sealed class GateRepository(IDbContextFactory<HumansDbContext> factory)
         // EF in-memory test provider. At this scale the affected set is tiny.
         // Idempotent: a re-run after a partial merge failure re-points nothing.
         var rows = await ctx.Set<GateScanEvent>()
-            .Where(e => e.GuestUserId == fromUserId || e.ScannedByUserId == fromUserId)
+            .Where(e => e.GuestUserId == fromUserId || e.ScannedByUserId == fromUserId
+                     || e.OverrideByUserId == fromUserId)
             .ToListAsync(ct);
-        if (rows.Count == 0)
-            return;
 
         foreach (var row in rows)
         {
@@ -83,7 +82,30 @@ internal sealed class GateRepository(IDbContextFactory<HumansDbContext> factory)
                 row.GuestUserId = toUserId;
             if (row.ScannedByUserId == fromUserId)
                 row.ScannedByUserId = toUserId;
+            if (row.OverrideByUserId == fromUserId)
+                row.OverrideByUserId = toUserId;
         }
+
+        // The survivor should keep a working device PIN: if only the merged-away
+        // account had one, carry it over; otherwise the survivor keeps their own.
+        var fromPin = await ctx.Set<GateStaffPin>().FirstOrDefaultAsync(p => p.UserId == fromUserId, ct);
+        if (fromPin is not null)
+        {
+            if (!await ctx.Set<GateStaffPin>().AnyAsync(p => p.UserId == toUserId, ct))
+            {
+                ctx.Set<GateStaffPin>().Add(new GateStaffPin
+                {
+                    UserId = toUserId,
+                    PinHash = fromPin.PinHash,
+                    CreatedAt = fromPin.CreatedAt,
+                    UpdatedAt = fromPin.UpdatedAt,
+                });
+            }
+            ctx.Set<GateStaffPin>().Remove(fromPin);
+        }
+
+        if (rows.Count == 0 && fromPin is null)
+            return;
 
         await ctx.SaveChangesAsync(ct);
     }
@@ -128,6 +150,42 @@ internal sealed class GateRepository(IDbContextFactory<HumansDbContext> factory)
             existing.MinorAgeThresholdYears = settings.MinorAgeThresholdYears;
         }
 
+        await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task<GateStaffPin?> GetStaffPinAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        return await ctx.Set<GateStaffPin>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == userId, ct);
+    }
+
+    public async Task UpsertStaffPinAsync(GateStaffPin pin, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var existing = await ctx.Set<GateStaffPin>().FirstOrDefaultAsync(p => p.UserId == pin.UserId, ct);
+        if (existing is null)
+        {
+            ctx.Set<GateStaffPin>().Add(pin);
+        }
+        else
+        {
+            existing.PinHash = pin.PinHash;
+            existing.UpdatedAt = pin.UpdatedAt;
+        }
+
+        await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task DeleteStaffPinAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        // Load-then-RemoveRange (not ExecuteDelete) so it runs under the EF in-memory provider.
+        var rows = await ctx.Set<GateStaffPin>().Where(p => p.UserId == userId).ToListAsync(ct);
+        if (rows.Count == 0)
+            return;
+        ctx.Set<GateStaffPin>().RemoveRange(rows);
         await ctx.SaveChangesAsync(ct);
     }
 
