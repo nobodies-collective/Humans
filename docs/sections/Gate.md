@@ -54,9 +54,18 @@ admission record. Distinct from the read-only `Scanner` section, which must neve
 - **Vendor check-in mirror** — on an admit the controller enqueues `GateVendorCheckInJob`
   (fire-and-forget) which calls `ITicketVendorService.CreateCheckInAsync` (TicketTailor
   `POST /v1/check_ins`). Best-effort only; `gate_scan_events` remains the dedupe authority.
-  **Gated behind `Gate:VendorMirrorEnabled` (default off)** until the check-in request payload
-  is verified against a live TicketTailor API key — a wrong body 4xx-fails silently and
-  permanently, so the mirror stays off until confirmed.
+  **Gated behind `Gate:VendorMirrorEnabled` (default off).** Payload field names were verified
+  read-only against the live API (2026-06-29): the `check_in` object is
+  `{ issued_ticket_id, check_in_at (unix s), event_id, event_series_id, quantity }`, so the body
+  uses `check_in_at` (not the earlier guess `checked_in_at`) with the id in the body, not the path.
+  Still unverified (needs one live POST): whether create requires `event_id`. The flag stays off
+  until that POST is confirmed — a wrong body 4xx-fails silently and permanently.
+- **Vendor-checked-in dedupe signal is currently dead** (pre-existing Tickets bug, not Gate).
+  The `CheckedInAtVendor` precedence input depends on the Tickets sync detecting check-ins, but
+  that sync parses a nested `check_in` object the live API no longer returns (it returns a
+  top-level `checked_in` string) — see the debt-ledger inbox (2026-06-29). Until Tickets is fixed,
+  cross-device duplicate detection relies solely on the gate's own `gate_scan_events` unique index
+  (which is the authority anyway), so admission correctness is unaffected.
 - **Retention** — `GateRetentionJob` purges `gate_scan_events` older than `Gate:RetentionDays`
   (default 365) daily, because gate scans are attendance/movement data.
 

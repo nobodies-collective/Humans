@@ -267,16 +267,20 @@ public class TicketTailorService : ITicketVendorService
         // TicketTailor records check-ins against an issued ticket. We send the
         // issued-ticket id and the time of admission; the vendor treats repeat
         // check-ins idempotently, so retries are safe.
-        // NOTE: this request body is inferred, not yet verified against a live
-        // POST /v1/check_ins — confirm the exact field names (and whether the id
-        // belongs in the path) against the TicketTailor API before relying on the
-        // mirror. A 4xx here fails fast (the job does not retry 4xx). Until verified,
-        // the caller (GateVendorCheckInJob) is gated behind Gate:VendorMirrorEnabled
-        // (default off); flip that flag on only once this payload is confirmed.
+        // Field names VERIFIED 2026-06-29 (read-only) against a live GET /v1/check_ins:
+        // the check_in object is { issued_ticket_id, check_in_at (unix seconds),
+        // event_id, event_series_id, quantity }. So the collection POST /v1/check_ins
+        // with issued_ticket_id in the BODY (not the path) is the right shape, and the
+        // time field is `check_in_at` (an earlier guess used `checked_in_at`, which the
+        // API would silently ignore). STILL UNVERIFIED (needs one live POST): whether
+        // create REQUIRES event_id and whether check_in_at is writable on create vs
+        // server-set. A 4xx here fails fast (the job does not retry 4xx); the caller
+        // (GateVendorCheckInJob) stays gated behind Gate:VendorMirrorEnabled (default
+        // off) until a live POST confirms create succeeds end-to-end.
         var payload = new
         {
             issued_ticket_id = vendorTicketId,
-            checked_in_at = occurredAt.ToUnixTimeSeconds(),
+            check_in_at = occurredAt.ToUnixTimeSeconds(),
         };
 
         var response = await _httpClient.PostAsJsonAsync(
