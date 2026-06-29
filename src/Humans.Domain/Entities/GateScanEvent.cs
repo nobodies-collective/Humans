@@ -21,8 +21,8 @@ public class GateScanEvent
     /// <summary>Server-clock instant the scan was recorded — authoritative for audit and leaderboards.</summary>
     public Instant OccurredAt { get; init; }
 
-    /// <summary>The gate staffer who held the scanning session (bare cross-section FK to a Humans user).</summary>
-    public Guid ScannedByUserId { get; init; }
+    /// <summary>The gate staffer who held the scanning session (bare cross-section FK to a Humans user). Settable only so account-merge can re-point it.</summary>
+    public Guid ScannedByUserId { get; set; }
 
     /// <summary>The Ticket Tailor issued-ticket barcode that was scanned (normalized).</summary>
     public string Barcode { get; init; } = string.Empty;
@@ -30,8 +30,8 @@ public class GateScanEvent
     /// <summary>The matched local ticket attendee, or null when the barcode matched no current-event ticket. Bare cross-section FK.</summary>
     public Guid? TicketAttendeeId { get; init; }
 
-    /// <summary>The matched Human (ticket holder), or null when the ticket is unmatched. Bare cross-section FK.</summary>
-    public Guid? GuestUserId { get; init; }
+    /// <summary>The matched Human (ticket holder), or null when the ticket is unmatched. Bare cross-section FK. Settable only so account-merge can re-point it.</summary>
+    public Guid? GuestUserId { get; set; }
 
     /// <summary>The recorded outcome of this scan.</summary>
     public GateVerdict Verdict { get; init; }

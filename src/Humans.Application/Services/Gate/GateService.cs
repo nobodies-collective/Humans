@@ -1,9 +1,12 @@
+using Humans.Application.Extensions;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.EarlyEntry;
 using Humans.Application.Interfaces.Gate;
+using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Tickets;
+using Humans.Application.Interfaces.Users;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;
@@ -23,7 +26,7 @@ public sealed class GateService(
     ITicketServiceRead tickets,
     IEarlyEntryService earlyEntry,
     IBurnSettingsService burnSettings,
-    IClock clock) : IGateService
+    IClock clock) : IGateService, IUserMerge, IUserDataContributor
 {
     public async Task<GateScanResult> EvaluateAsync(string barcode, CancellationToken ct = default)
     {
@@ -71,7 +74,8 @@ public sealed class GateService(
             TicketAttendeeId: attendee.Id,
             GuestUserId: attendee.MatchedUserId,
             PreviousAdmitAt: priorAdmit?.OccurredAt,
-            PreviousAdmitByUserId: priorAdmit?.ScannedByUserId);
+            PreviousAdmitByUserId: priorAdmit?.ScannedByUserId,
+            VendorTicketId: attendee.VendorTicketId);
     }
 
     public async Task<GateDecisionResult> RecordDecisionAsync(
@@ -98,7 +102,9 @@ public sealed class GateService(
 
         return new GateDecisionResult(verdict, eval.GuestName, eval.TicketTypeName,
             IsEarly: admit && eval.IsEarly,
-            eval.PreviousAdmitAt, eval.PreviousAdmitByUserId);
+            eval.PreviousAdmitAt, eval.PreviousAdmitByUserId,
+            // Only surface the vendor ticket id when there's an admit to mirror.
+            VendorTicketId: admit ? eval.VendorTicketId : null);
     }
 
     public async Task<GateLeaderboard> GetLeaderboardAsync(Instant since, CancellationToken ct = default)
@@ -130,6 +136,36 @@ public sealed class GateService(
                 MinorAgeThresholdYears = settings.MinorAgeThresholdYears,
             },
             ct);
+
+    public Task<int> PurgeScansBeforeAsync(Instant cutoff, CancellationToken ct = default) =>
+        repository.PurgeScansBeforeAsync(cutoff, ct);
+
+    // ── IUserMerge ───────────────────────────────────────────────────────────
+    // actorUserId/now are intentionally unused: gate_scan_events carries no
+    // UpdatedAt/audit column (it's attribution-by-id only), and the merge itself
+    // is audited by AccountMergeService. Per-row merge provenance would be a
+    // schema change, not a code change. Cache eviction is the orchestrator's job
+    // (Gate has no cache).
+    public Task ReassignAsync(Guid mergedFromUserId, Guid mergedToUserId, Guid actorUserId, Instant now, CancellationToken ct) =>
+        repository.ReassignUserAsync(mergedFromUserId, mergedToUserId, ct);
+
+    // ── IUserDataContributor (GDPR Article 15) ───────────────────────────────
+    public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
+    {
+        var scans = await repository.GetScansForUserAsync(userId, ct);
+
+        // Data-minimized: a person's own gate activity (as guest or as scanner),
+        // without the barcode or any other person's identifiers.
+        var slice = new UserDataSlice(GdprExportSections.GateScans, scans.Select(s => new
+        {
+            OccurredAt = s.OccurredAt.ToIso8601(),
+            Verdict = s.Verdict.ToString(),
+            Role = s.GuestUserId == userId ? "Guest" : "Scanner",
+            s.LaneId,
+        }).ToList());
+
+        return [slice];
+    }
 
     private static GateScanResult NotFound(string code) =>
         new(GatePreCheckOutcome.Invalid, code, null, null, false, null, null, null, null, null);

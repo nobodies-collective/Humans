@@ -1,0 +1,17 @@
+@{
+    ViewData["Title"] = "Who is scanning?";
+}
+
+<h1>Who is scanning?</h1>
+<p class="text-muted">
+    Search and select your name to claim the gate session. Your Humans account is
+    stamped on every scan you record, so anyone on gate — rostered or not — can take over.
+</p>
+
+<form method="post" asp-action="Claim" style="max-width: 480px;">
+    <div class="mb-3">
+        <vc:human-search field-name="userId" scope="Name" allow-email="true"
+                         placeholder="Search your name or email" />
+    </div>
+    <button type="submit" class="btn btn-primary btn-lg">Start scanning</button>
+</form>

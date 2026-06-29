@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Humans.Application;
 using Humans.Application.Interfaces.EarlyEntry;
 using Humans.Application.Interfaces.Gate;
+using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Tickets;
 using Humans.Application.Services.Gate;
@@ -190,5 +191,48 @@ public class GateServiceTests : ServiceTestHarness
         board.TotalAdmitted.Should().Be(1);
         board.TotalScanned.Should().Be(2);
         board.Rows.Should().ContainSingle(r => r.ScannedByUserId == AgentId && r.Admitted == 1 && r.Rejected == 1);
+    }
+
+    private static int SliceCount(IReadOnlyList<UserDataSlice> slices) =>
+        ((System.Collections.ICollection)slices.Single().Data!).Count;
+
+    [HumansFact]
+    public async Task Gdpr_ContributesScansForGuestAndScanner()
+    {
+        StubTicket(matchedUserId: GuestId);
+        await Record(idConfirmed: true);   // GuestUserId = GuestId, ScannedByUserId = AgentId
+
+        var guestExport = await _svc.ContributeForUserAsync(GuestId, default);
+        var scannerExport = await _svc.ContributeForUserAsync(AgentId, default);
+
+        guestExport.Single().SectionName.Should().Be(GdprExportSections.GateScans);
+        SliceCount(guestExport).Should().Be(1);
+        SliceCount(scannerExport).Should().Be(1);
+        SliceCount(await _svc.ContributeForUserAsync(Guid.NewGuid(), default)).Should().Be(0);
+    }
+
+    [HumansFact]
+    public async Task Merge_ReassignsScansToSurvivor()
+    {
+        StubTicket(matchedUserId: GuestId);
+        await Record(idConfirmed: true);
+        var survivor = Guid.NewGuid();
+
+        await _svc.ReassignAsync(GuestId, survivor, actorUserId: Guid.NewGuid(), Clock.GetCurrentInstant(), default);
+
+        SliceCount(await _svc.ContributeForUserAsync(GuestId, default)).Should().Be(0);
+        SliceCount(await _svc.ContributeForUserAsync(survivor, default)).Should().Be(1);
+    }
+
+    [HumansFact]
+    public async Task Retention_PurgesScansBeforeCutoff()
+    {
+        StubTicket(matchedUserId: GuestId);
+        await Record(idConfirmed: true);
+
+        var removed = await _svc.PurgeScansBeforeAsync(Clock.GetCurrentInstant().Plus(Duration.FromMinutes(1)));
+
+        removed.Should().Be(1);
+        SliceCount(await _svc.ContributeForUserAsync(GuestId, default)).Should().Be(0);
     }
 }

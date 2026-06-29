@@ -1,0 +1,56 @@
+/* Gate admissions terminal — glanceable, high-contrast, sized for an 8" tablet. */
+.gate-shell { max-width: 920px; margin: 0 auto; }
+
+.gate-topbar {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    font-size: 1rem; color: #5f6b76; margin-bottom: .75rem;
+}
+.gate-topbar-link { margin-left: auto; font-weight: 600; }
+.gate-topbar-link + .gate-topbar-link { margin-left: .75rem; }
+
+#gate-scan-input {
+    width: 100%; font-size: 1.6rem; padding: .9rem 1.1rem; border-radius: 12px;
+    border: 2px solid #c9d2da;
+}
+#gate-scan-input:focus { outline: none; border-color: #1e2a33; box-shadow: 0 0 0 4px rgba(30,42,51,.15); }
+
+.gate-card {
+    margin-top: 1rem; border-radius: 18px; padding: 2rem 1.5rem; text-align: center;
+    color: #fff; min-height: 340px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; transition: background-color .12s ease;
+}
+.gate-icon { font-size: 4.2rem; line-height: 1; }
+.gate-word { font-size: 3.2rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin-top: .25rem; }
+.gate-name { font-size: 3.6rem; font-weight: 700; line-height: 1.05; margin-top: .5rem; word-break: break-word; }
+.gate-reason { font-size: 1.5rem; margin-top: .6rem; opacity: .95; }
+.gate-badge {
+    margin-top: .75rem; display: inline-block; font-size: 1.1rem; font-weight: 600;
+    background: rgba(0,0,0,.18); border-radius: 8px; padding: .35rem .8rem;
+}
+
+/* Verdict colours — paired with distinct icons + words so colour is never the only cue. */
+.gate-admit { background: #0B7A2F; }
+.gate-stop { background: #B11217; }
+.gate-amber { background: #B26A00; }
+.gate-idconfirm { background: #1E2A33; }
+.gate-ready { background: #2b3440; }
+
+/* ID Yes/No — opposite sides with a wide dead zone; armed after a short delay (JS). */
+.gate-decide { width: 100%; margin-top: 1.5rem; }
+.gate-yesno { display: flex; gap: 18%; justify-content: space-between; }
+.gate-btn {
+    flex: 1; font-size: 1.5rem; font-weight: 700; padding: 1.25rem .5rem; border: none;
+    border-radius: 12px; color: #fff; cursor: pointer; transition: opacity .35s ease;
+}
+.gate-btn[disabled] { opacity: .35; }
+.gate-no { background: #B11217; }
+.gate-yes { background: #0B7A2F; }
+.gate-child {
+    display: block; width: 100%; margin-top: 1rem; background: #3a4753;
+    font-size: 1.05rem; padding: .8rem;
+}
+
+.gate-pin-row { display: flex; align-items: center; gap: .75rem; margin-top: 1rem; max-width: 320px; }
+.gate-pin-row input { font-size: 1.3rem; padding: .5rem .75rem; border-radius: 8px; border: 2px solid #c9d2da; }
+
+.gate-neutral { background: #11181d !important; }

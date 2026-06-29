@@ -56,6 +56,52 @@ internal sealed class GateRepository(IDbContextFactory<HumansDbContext> factory)
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<GateScanEvent>> GetScansForUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        return await ctx.Set<GateScanEvent>()
+            .AsNoTracking()
+            .Where(e => e.GuestUserId == userId || e.ScannedByUserId == userId)
+            .ToListAsync(ct);
+    }
+
+    public async Task ReassignUserAsync(Guid fromUserId, Guid toUserId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        // Load-modify-save (not ExecuteUpdate) so the path also runs under the
+        // EF in-memory test provider. At this scale the affected set is tiny.
+        // Idempotent: a re-run after a partial merge failure re-points nothing.
+        var rows = await ctx.Set<GateScanEvent>()
+            .Where(e => e.GuestUserId == fromUserId || e.ScannedByUserId == fromUserId)
+            .ToListAsync(ct);
+        if (rows.Count == 0)
+            return;
+
+        foreach (var row in rows)
+        {
+            if (row.GuestUserId == fromUserId)
+                row.GuestUserId = toUserId;
+            if (row.ScannedByUserId == fromUserId)
+                row.ScannedByUserId = toUserId;
+        }
+
+        await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task<int> PurgeScansBeforeAsync(Instant cutoff, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var old = await ctx.Set<GateScanEvent>()
+            .Where(e => e.OccurredAt < cutoff)
+            .ToListAsync(ct);
+        if (old.Count == 0)
+            return 0;
+
+        ctx.Set<GateScanEvent>().RemoveRange(old);
+        await ctx.SaveChangesAsync(ct);
+        return old.Count;
+    }
+
     public async Task<GateSettings> GetSettingsAsync(CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);

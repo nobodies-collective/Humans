@@ -1,9 +1,9 @@
 # Gate Admissions — gate ticket scanning that decides entry
 
-> Status: **DRAFT / Phase 1a** — backend vertical slice for review. Opens a new
-> `Gate` section. **Requires Peter's sign-off on a posture change** (see
-> "Architectural decision" below) and on the new public surface before the UI and
-> vendor-writeback follow-ups land.
+> Status: **DRAFT — full feature for design review.** Opens a new `Gate` section
+> (rules + persistence, GDPR/merge/retention, vendor check-in mirror, and the
+> terminal UI). **Requires Peter's sign-off on a posture change** (see
+> "Architectural decision" below) and on the new public surface before merge.
 
 ## Why
 
@@ -44,19 +44,29 @@ but the decision to admit-and-record from inside Humans is yours to bless.
   settings.
 - **Server-authoritative dedupe** — unique index on a per-admit dedupe key plus an
   explicit pre-check.
-- Service + unit tests; a Gate architecture test.
+- **GDPR / data-lifecycle** — `GateService` implements `IUserDataContributor`
+  (data-minimized DSAR export) and `IUserMerge` (re-FKs `GuestUserId`/`ScannedByUserId`
+  on account merge); `GateRetentionJob` purges scans older than `Gate:RetentionDays`.
+- **Vendor check-in mirror** — `ITicketVendorService.CreateCheckInAsync`
+  (+ `TicketTailorService` `POST /v1/check_ins` and `StubTicketVendorService` impls);
+  `GateVendorCheckInJob` enqueued fire-and-forget on admit. `gate_scan_events` stays
+  the dedupe authority; the vendor POST is only a dashboard/offline-app mirror.
+- **Terminal UI + auth** — `GateController` (`/Gate`, `ScannerAccess`; settings
+  `TicketAdminOrAdmin`), tap-to-claim (session-derived `scannedByUserId`), merged
+  ID-confirm (green only on Yes), supervisor-PIN-gated child waiver, leaderboard, and
+  the tablet JS/CSS (colour-blind-safe verdicts, anti-mistap Yes/No, sounds/haptics,
+  neutral flash, keyboard-wedge auto-submit).
+- Service + unit tests; a Gate architecture test; GDPR-contributor wiring tests.
 
-## Deferred (need Peter's approval for the surface they touch)
+## Remaining / open (for Peter)
 
-- **UI** (`GateController` + verdict/claim/ID-confirm/STOP views + tablet JS) — the
-  visual + interaction spec is in the PR description. Green-on-Yes ID confirm,
-  colour-blind-safe verdicts, anti-mistap Yes/No, claim-from-roster + search.
-- **Ticket Tailor check-in writeback mirror** — `POST /v1/check_ins`. Doctrine says
-  it must be a new method on `ITicketVendorService` (+ `TicketTailorService` and
-  `StubTicketVendorService` impls), invoked by the Tickets section and called by
-  Gate through `ITicketService`. New interface surface → Peter's call. Note: our
-  `gate_scan_events` table is the dedupe authority; the TT POST is only a mirror so
-  the TT dashboard / offline TT-app fallback stay consistent.
+- **Posture sign-off** + approval of the new public surface (`ITicketVendorService.CreateCheckInAsync`,
+  the Gate section interfaces).
+- **Runtime smoke test** — built but not run here; the Razor views + JS flow need a live
+  smoke test against a DB before merge.
+- **Localization** — gate views use plain English (staff/ops tool); wire `@Localizer` if wanted.
+- **Hardening to consider** — a dedicated `GateAdmit` policy (stronger than read-only
+  `ScannerAccess`), a chromeless kiosk layout.
 - **Name-mismatch fix link** — on a `RejectedNameMismatch`, auto-email the holder's
   per-attendee email (`TicketAttendee.AttendeeEmail`, the custom-field email, not
   the buyer email) a link into the existing transfer flow (sign-in / create

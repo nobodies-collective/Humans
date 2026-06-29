@@ -28,4 +28,13 @@ public interface ITicketVendorService : IApplicationService
     /// <summary>Check redemption status of discount codes.</summary>
     Task<IReadOnlyList<DiscountCodeStatusDto>> GetDiscountCodeUsageAsync(
         IEnumerable<string> codes, CancellationToken ct = default);
+
+    /// <summary>
+    /// Record a check-in for an issued ticket at the vendor (TicketTailor
+    /// <c>POST /v1/check_ins</c>). A best-effort mirror fired after a gate admit
+    /// so the vendor dashboard / vendor check-in app stays consistent — the Gate
+    /// section's own <c>gate_scan_events</c> remains the dedupe authority. Safe to retry.
+    /// </summary>
+    Task CreateCheckInAsync(
+        string vendorTicketId, Instant occurredAt, CancellationToken ct = default);
 }

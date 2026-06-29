@@ -100,6 +100,10 @@ public sealed class StubTicketVendorService : ITicketVendorService
         return Task.FromResult(result);
     }
 
+    // Dev/preview stub: the gate's check-in mirror is a no-op (no vendor to call).
+    public Task CreateCheckInAsync(string vendorTicketId, Instant occurredAt, CancellationToken ct = default) =>
+        Task.CompletedTask;
+
     private static SampleData BuildSampleData()
     {
         var orders = new List<VendorOrderDto>();

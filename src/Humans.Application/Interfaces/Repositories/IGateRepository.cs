@@ -26,6 +26,15 @@ public interface IGateRepository : IRepository
     /// <summary>All scans at or after <paramref name="since"/>, for audit and leaderboards.</summary>
     Task<IReadOnlyList<GateScanEvent>> GetScansSinceAsync(Instant since, CancellationToken ct = default);
 
+    /// <summary>Every scan involving a user — as the guest admitted (<c>GuestUserId</c>) or as the staffer who scanned (<c>ScannedByUserId</c>) — for the GDPR export.</summary>
+    Task<IReadOnlyList<GateScanEvent>> GetScansForUserAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Re-point <c>GuestUserId</c> and <c>ScannedByUserId</c> from <paramref name="fromUserId"/> to <paramref name="toUserId"/> on account merge. Idempotent.</summary>
+    Task ReassignUserAsync(Guid fromUserId, Guid toUserId, CancellationToken ct = default);
+
+    /// <summary>Delete scan rows older than <paramref name="cutoff"/> (retention purge). Returns the number removed.</summary>
+    Task<int> PurgeScansBeforeAsync(Instant cutoff, CancellationToken ct = default);
+
     /// <summary>The singleton gate settings, or a default instance if none has been saved yet.</summary>
     Task<GateSettings> GetSettingsAsync(CancellationToken ct = default);
 

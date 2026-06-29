@@ -259,6 +259,39 @@ public class TicketTailorService : ITicketVendorService
         return results;
     }
 
+    public async Task CreateCheckInAsync(
+        string vendorTicketId, Instant occurredAt, CancellationToken ct = default)
+    {
+        using var _ = _logger.TimeOperation();
+
+        // TicketTailor records check-ins against an issued ticket. We send the
+        // issued-ticket id and the time of admission; the vendor treats repeat
+        // check-ins idempotently, so retries are safe.
+        // NOTE: this request body is inferred, not yet verified against a live
+        // POST /v1/check_ins — confirm the exact field names (and whether the id
+        // belongs in the path) against the TicketTailor API before relying on the
+        // mirror. A 4xx here fails fast (the job does not retry 4xx).
+        var payload = new
+        {
+            issued_ticket_id = vendorTicketId,
+            checked_in_at = occurredAt.ToUnixTimeSeconds(),
+        };
+
+        var response = await _httpClient.PostAsJsonAsync(
+            $"{BaseUrl}/check_ins", payload, JsonOptions, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "TicketTailor check-in API returned {StatusCode} for issued ticket {VendorTicketId}",
+                (int)response.StatusCode, vendorTicketId);
+            response.EnsureSuccessStatusCode();
+        }
+
+        _logger.LogInformation(
+            "Recorded TicketTailor check-in for issued ticket {VendorTicketId}", vendorTicketId);
+    }
+
     /// <summary>
     /// Extract discount code from line_items. TT puts discount codes in line items
     /// with type "gift_card" and the code in parentheses in the description,

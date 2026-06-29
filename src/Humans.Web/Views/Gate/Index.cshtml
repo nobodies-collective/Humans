@@ -1,0 +1,55 @@
+@using Humans.Web.Models.Gate
+@model GateIndexViewModel
+@{
+    ViewData["Title"] = "Gate";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="@Url.Content("~/css/gate/gate.css")" asp-append-version="true" />
+}
+
+@Html.AntiForgeryToken()
+
+<div class="gate-shell">
+    <div class="gate-topbar">
+        <span>Scanning as <strong>@Model.ScannerName</strong></span>
+        <span class="gate-asof" title="Data freshness">data @Model.DataAsOf</span>
+        <a asp-action="Claim" class="gate-topbar-link">Change</a>
+        <a asp-action="Leaderboard" class="gate-topbar-link">Leaderboard</a>
+    </div>
+
+    <form id="gate-scan-form" autocomplete="off">
+        <input id="gate-scan-input" type="text" inputmode="text" autocomplete="off"
+               autocapitalize="off" spellcheck="false" placeholder="Scan a ticket"
+               aria-label="Scan a ticket" />
+    </form>
+
+    <div id="gate-result">
+        <div class="gate-card gate-ready" role="status">
+            <div class="gate-icon" aria-hidden="true"><i class="fa-solid fa-barcode"></i></div>
+            <div class="gate-word">Ready</div>
+            <div class="gate-reason">Scan a ticket</div>
+        </div>
+    </div>
+
+    <div id="gate-supervisor-pin" class="gate-pin-row d-none">
+        <label for="gate-pin-input">Supervisor PIN</label>
+        <input id="gate-pin-input" type="password" inputmode="numeric" autocomplete="off" />
+    </div>
+</div>
+
+@section Scripts {
+    <script nonce="@Context.Items["CspNonce"]" type="module">
+        import { initGate } from '@Url.Content("~/js/gate/gate.js")';
+        initGate({
+            form: document.getElementById('gate-scan-form'),
+            input: document.getElementById('gate-scan-input'),
+            result: document.getElementById('gate-result'),
+            pinRow: document.getElementById('gate-supervisor-pin'),
+            pinInput: document.getElementById('gate-pin-input'),
+            evaluateUrl: '@Url.Action("Evaluate", "Gate")',
+            decisionUrl: '@Url.Action("Decision", "Gate")',
+            token: document.querySelector('input[name="__RequestVerificationToken"]').value
+        });
+    </script>
+}

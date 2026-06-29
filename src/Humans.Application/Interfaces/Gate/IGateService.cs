@@ -34,6 +34,9 @@ public interface IGateService : IApplicationService
 
     /// <summary>Persist gate settings (admin only; authorized at the controller).</summary>
     Task SaveSettingsAsync(GateSettingsDto settings, CancellationToken ct = default);
+
+    /// <summary>Retention purge: delete scan rows older than <paramref name="cutoff"/>. Returns the count removed.</summary>
+    Task<int> PurgeScansBeforeAsync(Instant cutoff, CancellationToken ct = default);
 }
 
 /// <summary>Write-free result of evaluating a scan, before the agent's ID decision.</summary>
@@ -47,7 +50,8 @@ public sealed record GateScanResult(
     Guid? TicketAttendeeId,
     Guid? GuestUserId,
     Instant? PreviousAdmitAt,
-    Guid? PreviousAdmitByUserId);
+    Guid? PreviousAdmitByUserId,
+    string? VendorTicketId = null);
 
 /// <summary>
 /// The agent's decision for a scan, recorded server-side after re-evaluation.
@@ -69,7 +73,8 @@ public sealed record GateDecisionResult(
     string? TicketTypeName,
     bool IsEarly,
     Instant? PreviousAdmitAt,
-    Guid? PreviousAdmitByUserId);
+    Guid? PreviousAdmitByUserId,
+    string? VendorTicketId = null);
 
 /// <summary>One leaderboard row: a staffer's scan tallies.</summary>
 public sealed record GateLeaderboardRow(Guid ScannedByUserId, int Admitted, int Rejected, int Total);
