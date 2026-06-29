@@ -30,6 +30,7 @@ public class GateServiceTests : ServiceTestHarness
     private readonly ITicketServiceRead _tickets = Substitute.For<ITicketServiceRead>();
     private readonly IEarlyEntryService _earlyEntry = Substitute.For<IEarlyEntryService>();
     private readonly IBurnSettingsService _burn = Substitute.For<IBurnSettingsService>();
+    private readonly IShiftManagementService _shifts = Substitute.For<IShiftManagementService>();
     private readonly GateService _svc;
 
     public GateServiceTests()
@@ -37,7 +38,7 @@ public class GateServiceTests : ServiceTestHarness
         _burn.GetActiveAsync(Arg.Any<CancellationToken>()).Returns((BurnSettingsInfo?)null);
         _earlyEntry.GetForUserAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns((UserEarlyEntry?)null);
-        _svc = new GateService(new GateRepository(DbFactory), _tickets, _earlyEntry, _burn, Clock);
+        _svc = new GateService(new GateRepository(DbFactory), _tickets, _earlyEntry, _burn, _shifts, Clock);
 
         // Baseline: an admin has set the cutoff in the past, so general entry is open.
         // Seeded directly (sync) since the ctor can't await; Db shares the in-memory
@@ -270,5 +271,66 @@ public class GateServiceTests : ServiceTestHarness
 
         removed.Should().Be(1);
         SliceCount(await _svc.ContributeForUserAsync(GuestId, default)).Should().Be(0);
+    }
+
+    // ── Shift roster (claim-screen pre-fill) ─────────────────────────────────
+    // Clock is fixed at 2026-03-01T12:00Z; in Europe/Madrid (CET, UTC+1 on that
+    // date) that's 13:00 local, so a shift starting 13:00 local == now.
+    private static UrgentShift ShiftAt(
+        int dayOffset, LocalTime start, params (Guid Id, string Name, SignupStatus Status)[] signups) =>
+        new(new Shift
+            {
+                Id = Guid.NewGuid(),
+                RotaId = Guid.NewGuid(),
+                DayOffset = dayOffset,
+                StartTime = start,
+                Duration = Duration.FromHours(4),
+                MinVolunteers = 1,
+                MaxVolunteers = 5,
+            },
+            UrgencyScore: 0, ConfirmedCount: 0, RemainingSlots: 0, DepartmentName: "Gate",
+            Signups: signups.Select(s => (s.Id, s.Name, s.Status)).ToList());
+
+    [HumansFact]
+    public async Task GetShiftRoster_ReturnsDistinctSignedUpVolunteers_OnShiftsNearNow()
+    {
+        var teamId = Guid.NewGuid();
+        Guid alice = Guid.NewGuid(), bob = Guid.NewGuid(), carol = Guid.NewGuid(),
+             dave = Guid.NewGuid(), eve = Guid.NewGuid();
+
+        _shifts.GetActiveAsync().Returns(new EventSettings
+        {
+            Id = Guid.NewGuid(),
+            EventName = "Test",
+            TimeZoneId = "Europe/Madrid",
+            GateOpeningDate = new LocalDate(2026, 3, 1),
+        });
+        _shifts.GetBrowseShiftsAsync(Arg.Any<ShiftBrowseQuery>()).Returns(new List<UrgentShift>
+        {
+            // Starts at now: Eve is Refused (excluded), Alice + Bob signed up.
+            ShiftAt(0, new LocalTime(13, 0),
+                (alice, "Alice", SignupStatus.Confirmed),
+                (bob, "Bob", SignupStatus.Confirmed),
+                (eve, "Eve", SignupStatus.Refused)),
+            // Starts now-1h (in window): Alice again (de-duped), Carol pending (still "signed up").
+            ShiftAt(0, new LocalTime(12, 0),
+                (alice, "Alice", SignupStatus.Confirmed),
+                (carol, "Carol", SignupStatus.Pending)),
+            // Starts now+5h (outside ±2h): Dave excluded.
+            ShiftAt(0, new LocalTime(18, 0),
+                (dave, "Dave", SignupStatus.Confirmed)),
+        });
+
+        var roster = await _svc.GetShiftRosterAsync(teamId);
+
+        roster.Select(r => r.DisplayName).Should().Equal("Alice", "Bob", "Carol");
+    }
+
+    [HumansFact]
+    public async Task GetShiftRoster_NoActiveEvent_ReturnsEmpty()
+    {
+        _shifts.GetActiveAsync().Returns((EventSettings?)null);
+
+        (await _svc.GetShiftRosterAsync(Guid.NewGuid())).Should().BeEmpty();
     }
 }

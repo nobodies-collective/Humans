@@ -37,7 +37,18 @@ public interface IGateService : IApplicationService
 
     /// <summary>Retention purge: delete scan rows older than <paramref name="cutoff"/>. Returns the count removed.</summary>
     Task<int> PurgeScansBeforeAsync(Instant cutoff, CancellationToken ct = default);
+
+    /// <summary>
+    /// The de-duplicated volunteers signed up for gate shifts on <paramref name="rosterTeamId"/>
+    /// whose shift starts within ±2 hours of now (event-local time) — the people likely working
+    /// the gate around shift change. Used to pre-fill the claim screen. Empty when there's no
+    /// active event or no shift starting in that window.
+    /// </summary>
+    Task<IReadOnlyList<GateRosterEntry>> GetShiftRosterAsync(Guid rosterTeamId, CancellationToken ct = default);
 }
+
+/// <summary>One pre-filled gate-roster pick: a Humans user signed up for a current gate shift.</summary>
+public sealed record GateRosterEntry(Guid UserId, string DisplayName);
 
 /// <summary>Write-free result of evaluating a scan, before the agent's ID decision.</summary>
 public sealed record GateScanResult(

@@ -134,10 +134,11 @@ throttled per source IP (its own bucket, mirroring `/Account/GateLogin`).
 - `Gate:VendorMirrorEnabled` — default off; gates the TicketTailor check-in mirror (see Vendor
   check-in mirror above).
 - `Gate:RosterTeamId` — **optional** GUID of the Shifts department/team that staffs the gate.
-  When set, `/Gate/Claim` shows that team's signed-up volunteers as one-tap picks at shift start;
-  the name/email search remains for anyone not on the roster. Unset → search only (no behaviour
-  change). De-dupes one pick per human across all gate shifts; excludes refused/bailed/cancelled/
-  no-show signups.
+  When set, `/Gate/Claim` shows that team's signed-up volunteers as one-tap picks; the name/email
+  search remains for anyone not on the roster. Unset → search only (no behaviour change). Only
+  volunteers whose gate **shift starts within ±2 hours of now** (event-local time, from
+  `EventSettings.TimeZoneId`) are shown, so the list tracks shift change rather than the whole
+  event roster. De-dupes one pick per human; excludes refused/bailed/cancelled/no-show signups.
 
 ## Architecture
 

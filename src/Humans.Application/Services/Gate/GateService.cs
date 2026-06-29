@@ -26,8 +26,12 @@ public sealed class GateService(
     ITicketServiceRead tickets,
     IEarlyEntryService earlyEntry,
     IBurnSettingsService burnSettings,
+    IShiftManagementService shifts,
     IClock clock) : IGateService, IUserMerge, IUserDataContributor
 {
+    /// <summary>How far either side of "now" a gate shift may start to count as current.</summary>
+    private static readonly Duration RosterWindow = Duration.FromHours(2);
+
     public async Task<GateScanResult> EvaluateAsync(string barcode, CancellationToken ct = default)
     {
         var code = GateBarcode.Normalize(barcode);
@@ -139,6 +143,42 @@ public sealed class GateService(
 
     public Task<int> PurgeScansBeforeAsync(Instant cutoff, CancellationToken ct = default) =>
         repository.PurgeScansBeforeAsync(cutoff, ct);
+
+    public async Task<IReadOnlyList<GateRosterEntry>> GetShiftRosterAsync(
+        Guid rosterTeamId, CancellationToken ct = default)
+    {
+        var activeEvent = await shifts.GetActiveAsync();
+        if (activeEvent is null)
+            return [];
+
+        // Shift dates are stored as DayOffset from the event's GateOpeningDate; resolve each
+        // shift's start to an instant in the event zone and keep only those starting near now,
+        // so the claim screen shows the crew on around shift change, not the whole event roster.
+        var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(activeEvent.TimeZoneId) ?? DateTimeZone.Utc;
+        var now = clock.GetCurrentInstant();
+        var openingDate = activeEvent.GateOpeningDate;
+
+        var gateShifts = await shifts.GetBrowseShiftsAsync(new ShiftBrowseQuery(
+            activeEvent.Id, DepartmentId: rosterTeamId, Flags: ShiftBrowseQueryFlags.IncludeSignups));
+
+        return gateShifts
+            .Where(s => StartsWithinWindow(openingDate, s.Shift, zone, now))
+            // "Signed up" = not a negative terminal state; one person may hold several shifts,
+            // so de-dupe to one pick per human.
+            .SelectMany(s => s.Signups)
+            .Where(u => u.Status is SignupStatus.Pending or SignupStatus.Confirmed)
+            .DistinctBy(u => u.UserId)
+            .OrderBy(u => u.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .Select(u => new GateRosterEntry(u.UserId, u.DisplayName))
+            .ToList();
+    }
+
+    private static bool StartsWithinWindow(LocalDate openingDate, Shift shift, DateTimeZone zone, Instant now)
+    {
+        var start = openingDate.PlusDays(shift.DayOffset).At(shift.StartTime)
+            .InZoneLeniently(zone).ToInstant();
+        return start >= now - RosterWindow && start <= now + RosterWindow;
+    }
 
     // ── IUserMerge ───────────────────────────────────────────────────────────
     // actorUserId/now are intentionally unused: gate_scan_events carries no
