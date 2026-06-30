@@ -327,6 +327,45 @@ public class TicketTailorService : ITicketVendorService
         return results;
     }
 
+    public async Task CreateCheckInAsync(
+        string vendorTicketId, Instant occurredAt, CancellationToken ct = default)
+    {
+        using var _ = _logger.TimeOperation();
+
+        // TicketTailor records check-ins against an issued ticket. We send the
+        // issued-ticket id and the time of admission; the vendor treats repeat
+        // check-ins idempotently, so retries are safe.
+        // Field names VERIFIED 2026-06-29 (read-only) against a live GET /v1/check_ins:
+        // the check_in object is { issued_ticket_id, check_in_at (unix seconds),
+        // event_id, event_series_id, quantity }. So the collection POST /v1/check_ins
+        // with issued_ticket_id in the BODY (not the path) is the right shape, and the
+        // time field is `check_in_at` (an earlier guess used `checked_in_at`, which the
+        // API would silently ignore). STILL UNVERIFIED (needs one live POST): whether
+        // create REQUIRES event_id and whether check_in_at is writable on create vs
+        // server-set. A 4xx here fails fast (the job does not retry 4xx); the caller
+        // (GateVendorCheckInJob) stays gated behind Gate:VendorMirrorEnabled (default
+        // off) until a live POST confirms create succeeds end-to-end.
+        var payload = new
+        {
+            issued_ticket_id = vendorTicketId,
+            check_in_at = occurredAt.ToUnixTimeSeconds(),
+        };
+
+        var response = await _httpClient.PostAsJsonAsync(
+            $"{BaseUrl}/check_ins", payload, JsonOptions, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "TicketTailor check-in API returned {StatusCode} for issued ticket {VendorTicketId}",
+                (int)response.StatusCode, vendorTicketId);
+            response.EnsureSuccessStatusCode();
+        }
+
+        _logger.LogInformation(
+            "Recorded TicketTailor check-in for issued ticket {VendorTicketId}", vendorTicketId);
+    }
+
     /// <summary>
     /// Extract discount code from line_items. TT puts discount codes in line items
     /// with type "gift_card" and the code in parentheses in the description,
