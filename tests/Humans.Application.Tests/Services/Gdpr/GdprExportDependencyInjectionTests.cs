@@ -23,6 +23,7 @@ using TicketsTicketQueryService = Humans.Application.Services.Tickets.TicketQuer
 using NotificationInboxService = Humans.Application.Services.Notifications.NotificationInboxService;
 using TeamService = Humans.Application.Services.Teams.TeamService;
 using SurveyService = Humans.Application.Services.Surveys.SurveyService;
+using GateService = Humans.Application.Services.Gate.GateService;
 
 namespace Humans.Application.Tests.Services.Gdpr;
 
@@ -91,7 +92,8 @@ public class GdprExportDependencyInjectionTests
         typeof(Humans.Application.Services.Agent.AgentService),
         typeof(ExpenseReportService),
         typeof(HoldedFinanceService),
-        typeof(SurveyService)
+        typeof(SurveyService),
+        typeof(GateService)
     ];
 
     [HumansFact]

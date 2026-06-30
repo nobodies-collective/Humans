@@ -215,7 +215,7 @@ public class AccountControllerGateLoginTests
     }
 
     [HumansFact]
-    public async Task GateLogin_Success_SignsInPersistent_AndRedirectsToScannerTickets()
+    public async Task GateLogin_Success_SignsInPersistent_AndRedirectsToGateTerminal()
     {
         SetupGateUser();
         _signInManager.CheckPasswordSignInAsync(_gateUser, "correct", false)
@@ -224,8 +224,8 @@ public class AccountControllerGateLoginTests
         var result = await _controller.GateLogin(SystemUserIds.GateTerminalLoginName, "correct");
 
         var redirect = result.Should().BeOfType<RedirectToActionResult>().Subject;
-        redirect.ActionName.Should().Be(nameof(ScannerController.Tickets));
-        redirect.ControllerName.Should().Be("Scanner");
+        redirect.ActionName.Should().Be(nameof(GateController.Index));
+        redirect.ControllerName.Should().Be("Gate");
 
         // Persistent session so the laptop survives restarts without an admin.
         await _signInManager.Received(1).SignInAsync(_gateUser, true, Arg.Any<string?>());

@@ -93,6 +93,10 @@ public static class RecurringJobExtensions
             ("survey-reminder", () => RecurringJob.AddOrUpdate<SendSurveyReminderJob>(
                 "survey-reminder", job => job.ExecuteAsync(CancellationToken.None), "0 9 * * *")),
 
+            // Purge gate scan events past the retention window (Gate:RetentionDays) — daily at 03:45 UTC.
+            ("gate-retention", () => RecurringJob.AddOrUpdate<GateRetentionJob>(
+                "gate-retention", job => job.ExecuteAsync(CancellationToken.None), "45 3 * * *")),
+
         };
 
         if (!string.IsNullOrWhiteSpace(mailerAudienceCron))
