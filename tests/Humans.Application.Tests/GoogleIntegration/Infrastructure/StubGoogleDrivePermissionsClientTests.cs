@@ -79,7 +79,7 @@ public class StubGoogleDrivePermissionsClientTests
         perm.Type.Should().Be("user");
         perm.Role.Should().Be("writer");
         perm.EmailAddress.Should().Be("alice@nobodies.team");
-        perm.IsInheritedOnly.Should().BeFalse(
+        perm.HasInheritedComponent.Should().BeFalse(
             because: "stub permissions are treated as direct — tests covering inherited-vs-direct filtering belong to the real-client integration tests");
     }
 
@@ -91,9 +91,10 @@ public class StubGoogleDrivePermissionsClientTests
         var before = await _client.ListPermissionsAsync(folder.Folder.Id!, Xunit.TestContext.Current.CancellationToken);
         var permId = before.Permissions!.Single().Id!;
 
-        var deleteError = await _client.DeletePermissionAsync(folder.Folder.Id!, permId, Xunit.TestContext.Current.CancellationToken);
+        var deleteResult = await _client.DeletePermissionAsync(folder.Folder.Id!, permId, Xunit.TestContext.Current.CancellationToken);
 
-        deleteError.Should().BeNull();
+        deleteResult.Outcome.Should().Be(DrivePermissionDeleteOutcome.Deleted);
+        deleteResult.Error.Should().BeNull();
         var after = await _client.ListPermissionsAsync(folder.Folder.Id!, Xunit.TestContext.Current.CancellationToken);
         after.Permissions.Should().BeEmpty();
     }
@@ -105,8 +106,9 @@ public class StubGoogleDrivePermissionsClientTests
 
         var result = await _client.DeletePermissionAsync(folder.Folder!.Id!, "nope", Xunit.TestContext.Current.CancellationToken);
 
-        result.Should().NotBeNull();
-        result.StatusCode.Should().Be(404);
+        result.Outcome.Should().Be(DrivePermissionDeleteOutcome.Failed);
+        result.Error.Should().NotBeNull();
+        result.Error!.StatusCode.Should().Be(404);
     }
 
     [HumansFact]
