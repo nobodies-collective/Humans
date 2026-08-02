@@ -110,7 +110,15 @@ public sealed class GoogleWorkspaceSyncService(
         var effectiveLevel = permissionLevelOverride ?? resource.DrivePermissionLevel;
         var apiRole = effectiveLevel.ToApiRole();
 
-        var result = await drivePermissions.CreatePermissionAsync(resource.GoogleId, userEmail, apiRole, cancellationToken);
+        // Issue nobodies-collective/Humans#945 — Drive's permissions.create
+        // rejects a plus-addressed local part (local+tag@domain) with an
+        // opaque HTTP 400. Plus-addressing is only guaranteed equivalent on
+        // Gmail (CanonicalizeGmail leaves non-Gmail domains untouched, since
+        // granting the base address there could resolve to a different
+        // Google identity than the one recorded on the user).
+        var driveTargetEmail = EmailNormalization.CanonicalizeGmail(userEmail);
+
+        var result = await drivePermissions.CreatePermissionAsync(resource.GoogleId, driveTargetEmail, apiRole, cancellationToken);
 
         switch (result.Outcome)
         {
@@ -211,13 +219,28 @@ public sealed class GoogleWorkspaceSyncService(
             return;
         }
 
-        var error = await drivePermissions.DeletePermissionAsync(resource.GoogleId, permissionId, cancellationToken);
-        if (error is not null)
+        var result = await drivePermissions.DeletePermissionAsync(resource.GoogleId, permissionId, cancellationToken);
+        switch (result.Outcome)
         {
-            logger.LogWarning(
-                "Google API error deleting permission {PermissionId} on {GoogleId} — HTTP {Code}: {Message}",
-                permissionId, resource.GoogleId, error.StatusCode, error.RawMessage);
-            return;
+            case DrivePermissionDeleteOutcome.InheritedPermission:
+                // Defensive fallback only — RemoveExtraDriveAccessAsync excludes
+                // any permission with an inherited component from the removal
+                // set upfront (IsDirectManagedPermission), so this should be
+                // unreachable outside a race where inheritance changed between
+                // the list and delete calls. Log once, do not retry within this
+                // pass; the next reconciliation re-lists and re-classifies from
+                // scratch (nobodies-collective/Humans#945).
+                logger.LogWarning(
+                    "Google API error deleting permission {PermissionId} on {GoogleId} — HTTP {Code}: {Message}. " +
+                    "Permission is inherited and cannot be deleted at this level.",
+                    permissionId, resource.GoogleId, result.Error?.StatusCode, result.Error?.RawMessage);
+                return;
+
+            case DrivePermissionDeleteOutcome.Failed:
+                logger.LogWarning(
+                    "Google API error deleting permission {PermissionId} on {GoogleId} — HTTP {Code}: {Message}",
+                    permissionId, resource.GoogleId, result.Error?.StatusCode, result.Error?.RawMessage);
+                return;
         }
 
         await auditLogService.LogGoogleSyncAsync(
@@ -405,10 +428,8 @@ public sealed class GoogleWorkspaceSyncService(
         // (including soft-deleted) through the Teams service so we never touch
         // the team graph directly — the resource's Team nav is hydrated via
         // ITeamService.GetTeamByIdAsync / GetByIdsWithParentsAsync.
-        var allActive = await resourceRepository.GetActiveDriveFoldersAsync(cancellationToken);
-        IReadOnlyList<GoogleResource> resources = allActive
-            .Where(r => r.ResourceType == resourceType && r.IsActive)
-            .ToList();
+        IReadOnlyList<GoogleResource> resources =
+            await resourceRepository.GetActiveByResourceTypeAsync(resourceType, cancellationToken);
 
         if (resources.Count == 0)
         {
@@ -707,9 +728,16 @@ public sealed class GoogleWorkspaceSyncService(
         IReadOnlyDictionary<Guid, IReadOnlyList<UserEmailRowSnapshot>> emailsByUserId,
         Dictionary<string, DriveExpectedMember> membersByEmail)
     {
-        var memberEmail = TryGetGoogleEmail(member.UserId, member.GoogleEmailStatus, emailsByUserId);
-        if (memberEmail is null)
+        var rawMemberEmail = TryGetGoogleEmail(member.UserId, member.GoogleEmailStatus, emailsByUserId);
+        if (rawMemberEmail is null)
             return;
+
+        // Issue nobodies-collective/Humans#945 — key on the same canonical
+        // form Drive actually grants/returns (AddUserToDriveAsync grants to
+        // the canonicalized address), so a plus-addressed member's expected
+        // key matches what permissions.list reports instead of permanently
+        // reading as Missing/Extra.
+        var memberEmail = CanonicalizeDriveEmail(rawMemberEmail);
 
         if (membersByEmail.TryGetValue(memberEmail, out var existing))
         {
@@ -770,15 +798,21 @@ public sealed class GoogleWorkspaceSyncService(
 
         foreach (var permission in permissions)
         {
+            // Issue nobodies-collective/Humans#945 — canonicalize the same way
+            // expected-member keys are canonicalized (AddExpectedDriveMember),
+            // so a Gmail account granted to its base address still matches an
+            // expected member whose stored email carries a "+tag".
+            var email = CanonicalizeDriveEmail(permission.EmailAddress);
+
             if (IsAnyUserPermission(permission))
             {
-                snapshot.AllEmails.Add(permission.EmailAddress!);
+                snapshot.AllEmails.Add(email);
                 if (!string.IsNullOrEmpty(permission.Role))
-                    snapshot.RoleByEmail[permission.EmailAddress!] = permission.Role;
+                    snapshot.RoleByEmail[email] = permission.Role;
             }
 
             if (IsDirectManagedPermission(permission))
-                snapshot.DirectEmails.Add(permission.EmailAddress!);
+                snapshot.DirectEmails.Add(email);
         }
 
         return snapshot;
@@ -913,9 +947,14 @@ public sealed class GoogleWorkspaceSyncService(
     {
         try
         {
+            // Issue nobodies-collective/Humans#945 — IsDirectManagedPermission
+            // excludes any permission with an inherited component (not just
+            // fully-inherited ones), so a permission that can never be deleted
+            // at this level is never selected for removal in the first place.
             var permissionToRemove = permissions.FirstOrDefault(permission =>
                 IsDirectManagedPermission(permission) &&
-                NormalizingEmailComparer.Instance.Equals(permission.EmailAddress, member.Email));
+                NormalizingEmailComparer.Instance.Equals(
+                    CanonicalizeDriveEmail(permission.EmailAddress), member.Email));
 
             if (permissionToRemove?.Id is null)
             {
@@ -1831,8 +1870,29 @@ public sealed class GoogleWorkspaceSyncService(
             return false;
         if (perm.EmailAddress.EndsWith(".iam.gserviceaccount.com", StringComparison.OrdinalIgnoreCase))
             return false;
-        return !perm.IsInheritedOnly;
+
+        // Issue nobodies-collective/Humans#945 — a permission with ANY
+        // inherited component can 403 on delete even when it is not
+        // fully inherited (e.g. the same role also granted directly on
+        // this item alongside an inherited grant from a parent). Only a
+        // permission with zero inherited components is safely deletable
+        // at this level, so exclude it from the managed/removable set
+        // upfront instead of attempting the delete and recording the
+        // failure after the fact.
+        return !perm.HasInheritedComponent;
     }
+
+    /// <summary>
+    /// Issue nobodies-collective/Humans#945 — Drive returns the account's
+    /// canonical email on <c>permissions.list</c>/<c>permissions.create</c>
+    /// regardless of what plus-tagged form was requested, so expected-member
+    /// keys built from a user's raw stored email must be canonicalized the
+    /// same way before comparing against what Drive reports, or a
+    /// plus-addressed Gmail member never resolves to <c>Correct</c> (shows as
+    /// permanently Missing/Extra and thrashes grant/revoke every night).
+    /// </summary>
+    private static string CanonicalizeDriveEmail(string? email) =>
+        email is null ? string.Empty : EmailNormalization.CanonicalizeGmail(email);
 
     private static DrivePermissionLevel? ParseApiRole(string? role) => role switch
     {

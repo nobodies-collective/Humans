@@ -9,6 +9,7 @@ using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Expenses;
 using Humans.Application.Services.Expenses.Dtos;
 using Humans.Application.Services.Finance.Dtos;
+using Humans.Application.Tests.AuditLog;
 using Humans.Application.Tests.Infrastructure;
 using Microsoft.Extensions.Options;
 using Humans.Domain.Entities;
@@ -16,9 +17,11 @@ using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Repositories.Expenses;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 
 namespace Humans.Application.Tests.Services.Expenses;
 
@@ -669,6 +672,66 @@ public sealed class ExpenseReportServiceTests : ServiceTestHarness
         var result = await _sut.SubmitWithResultAsync(id, submitter, Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
+    }
+
+    [HumansFact]
+    public async Task SubmitWithResultAsync_LogsWarning_WithReportId_NoException_WhenValidationFails()
+    {
+        var logger = new CapturingLogger<ExpenseReportService>();
+        var sut = new ExpenseReportService(
+            _expenseRepo, _fileStorage, _budgetService, _teamService, _userService,
+            AuditLog, _holdedClient, _holdedFinance, Clock, logger,
+            Options.Create(new TravelReimbursementConfig()));
+
+        var (_, category) = SetupActiveYear();
+        var submitter = Guid.NewGuid();
+        var id = await sut.CreateDraftAsync(submitter, category.Id, null, Xunit.TestContext.Current.CancellationToken);
+        await sut.AddLineAsync(id, submitter, "No attachment line", 50m, ct: Xunit.TestContext.Current.CancellationToken); // Receipt line, no attachment
+        SetupUserAndProfile(submitter, "Bob", "ES1234");
+
+        var result = await sut.SubmitWithResultAsync(id, submitter, Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning,
+            because: "a validation rejection is an expected, user-driven outcome, not a fault");
+        var warning = logger.Entries.Single(e => e.Level == LogLevel.Warning);
+        warning.Exception.Should().BeNull("no stack trace should be logged for a validation rejection");
+        warning.Message.Should().Contain(id.ToString(),
+            because: "the caller's structured identifiers (report ID) must survive into the warning");
+        warning.Message.Should().Contain("attachment");
+        logger.Entries.Should().NotContain(e => e.Level == LogLevel.Error);
+    }
+
+    [HumansFact]
+    public async Task SubmitWithResultAsync_LogsError_WithException_ForGenuineFault()
+    {
+        var logger = new CapturingLogger<ExpenseReportService>();
+        var sut = new ExpenseReportService(
+            _expenseRepo, _fileStorage, _budgetService, _teamService, _userService,
+            AuditLog, _holdedClient, _holdedFinance, Clock, logger,
+            Options.Create(new TravelReimbursementConfig()));
+
+        var (_, category) = SetupActiveYear();
+        var submitter = Guid.NewGuid();
+        var id = await sut.CreateDraftAsync(submitter, category.Id, null, Xunit.TestContext.Current.CancellationToken);
+        var lineId = await sut.AddLineAsync(id, submitter, "Item", 50m, ct: Xunit.TestContext.Current.CancellationToken);
+        var attachId = await _expenseRepo.AddAttachmentAsync(MakeAttachment(submitter), Xunit.TestContext.Current.CancellationToken);
+        await _expenseRepo.SetLineAttachmentAsync(lineId, attachId, Xunit.TestContext.Current.CancellationToken);
+
+        // A dependency throwing plain InvalidOperationException for a genuine runtime fault —
+        // NOT the service's own ExpenseValidationException — must still log at Error with the
+        // exception attached, not be misclassified as a validation rejection.
+        _userService.GetUserInfoAsync(submitter, Arg.Any<CancellationToken>())
+            .Throws(new InvalidOperationException("IUserService: profile cache not initialized"));
+
+        var result = await sut.SubmitWithResultAsync(id, submitter, Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error,
+            because: "a dependency fault (even one thrown as InvalidOperationException) is not a validation rejection");
+        var error = logger.Entries.Single(e => e.Level == LogLevel.Error);
+        error.Exception.Should().BeOfType<InvalidOperationException>();
+        logger.Entries.Should().NotContain(e => e.Level == LogLevel.Warning);
     }
 
     [HumansFact]

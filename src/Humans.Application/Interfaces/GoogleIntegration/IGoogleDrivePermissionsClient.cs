@@ -58,7 +58,15 @@ public interface IGoogleDrivePermissionsClient
     /// Deletes the permission identified by <paramref name="permissionId"/>
     /// from <paramref name="fileId"/>.
     /// </summary>
-    Task<GoogleClientError?> DeletePermissionAsync(
+    /// <returns>
+    /// <see cref="DrivePermissionDeleteOutcome.Deleted"/> on success,
+    /// <see cref="DrivePermissionDeleteOutcome.InheritedPermission"/> when
+    /// Google responded with HTTP 403 because the permission is inherited
+    /// from a parent folder and cannot be deleted at this level (terminal —
+    /// callers must not retry), or <see cref="DrivePermissionDeleteOutcome.Failed"/>
+    /// with a populated <see cref="GoogleClientError"/> for any other error.
+    /// </returns>
+    Task<DrivePermissionDeleteResult> DeletePermissionAsync(
         string fileId,
         string permissionId,
         CancellationToken ct = default);
@@ -132,16 +140,24 @@ public sealed record DrivePermissionListResult(
 /// <param name="EmailAddress">
 /// The granted user's email. Null for non-user permissions (domain, anyone).
 /// </param>
-/// <param name="IsInheritedOnly">
-/// True when every entry in <c>permissionDetails</c> is marked inherited —
-/// the system cannot manage these and must skip them during reconciliation.
+/// <param name="HasInheritedComponent">
+/// True when ANY entry in <c>permissionDetails</c> is marked inherited — not
+/// only when every entry is. Issue nobodies-collective/Humans#945: a
+/// permission can carry both a direct and an inherited
+/// <c>permissionDetails</c> entry (e.g. the same role granted directly on
+/// this item and also inherited from a parent folder), and Drive's
+/// <c>permissions.delete</c> still 403s on those as "cannot delete an
+/// inherited permission." Only a permission with zero inherited components
+/// is safely deletable at this level — the system must skip any permission
+/// with an inherited component during reconciliation, not just fully-
+/// inherited ones.
 /// </param>
 public sealed record DrivePermission(
     string? Id,
     string? Type,
     string? Role,
     string? EmailAddress,
-    bool IsInheritedOnly);
+    bool HasInheritedComponent);
 
 /// <summary>
 /// Outcome of <see cref="IGoogleDrivePermissionsClient.CreatePermissionAsync"/>.
@@ -162,6 +178,33 @@ public enum DrivePermissionCreateOutcome
     AlreadyExists,
 
     /// <summary>Google responded with any other error. <see cref="DrivePermissionMutationResult.Error"/> is populated.</summary>
+    Failed
+}
+
+/// <summary>
+/// Outcome of <see cref="IGoogleDrivePermissionsClient.DeletePermissionAsync"/>.
+/// </summary>
+public sealed record DrivePermissionDeleteResult(
+    DrivePermissionDeleteOutcome Outcome,
+    GoogleClientError? Error);
+
+/// <summary>
+/// What happened when deleting a Drive permission.
+/// </summary>
+public enum DrivePermissionDeleteOutcome
+{
+    /// <summary>The permission was deleted.</summary>
+    Deleted,
+
+    /// <summary>
+    /// Google responded with HTTP 403 because the permission is inherited
+    /// from a parent folder — it cannot be deleted at this level. Terminal:
+    /// the caller must record the outcome and stop retrying
+    /// (nobodies-collective/Humans#945).
+    /// </summary>
+    InheritedPermission,
+
+    /// <summary>Google responded with any other error. <see cref="DrivePermissionDeleteResult.Error"/> is populated.</summary>
     Failed
 }
 
