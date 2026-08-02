@@ -42,14 +42,13 @@ RUN sed -i 's|archive\.ubuntu\.com|nl.archive.ubuntu.com|g; s|security\.ubuntu\.
         curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser -s /sbin/nologin appuser
+# Create non-root user and give it ownership of the app directory
+RUN groupadd -r appuser && useradd -r -g appuser -s /sbin/nologin appuser \
+    && chown appuser:appuser /app
 
-# Copy published files
-COPY --from=build /app/publish .
-
-# Set ownership
-RUN chown -R appuser:appuser /app
+# Copy published files pre-owned by appuser (a separate chown -R would re-run on
+# every build and duplicate the entire layer)
+COPY --from=build --chown=appuser:appuser /app/publish .
 
 # Switch to non-root user
 USER appuser
@@ -63,7 +62,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8080/health/live || exit 1
 
 # Copy entrypoint wrapper (handles preview environment DB selection)
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chown=appuser:appuser docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # Entry point
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
