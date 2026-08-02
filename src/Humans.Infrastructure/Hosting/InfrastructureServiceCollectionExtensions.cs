@@ -44,18 +44,75 @@ public static class InfrastructureServiceCollectionExtensions
             options.ConfigureWarnings(w => w.Ignore(CoreEventId.FirstWithoutOrderByAndFilterWarning));
         });
 
+        // Per-section contexts (nobodies-collective/Humans#858), migrated after
+        // HumansDbContext by DatabaseMigrationHostedService in registration order.
+        services.AddSectionDbContext<SystemSettingsDbContext>(sentinelTable: "system_settings");
+        services.AddSectionDbContext<ContainersDbContext>(sentinelTable: "containers");
+        services.AddSectionDbContext<AgentDbContext>(sentinelTable: "agent_conversations");
+        services.AddSectionDbContext<ExpensesDbContext>(sentinelTable: "expense_reports");
+        services.AddSectionDbContext<FinanceDbContext>(sentinelTable: "holded_expense_docs");
+        services.AddSectionDbContext<SurveysDbContext>(sentinelTable: "surveys");
+        services.AddSectionDbContext<EventGuideDbContext>(sentinelTable: "events");
+
         services.AddHostedService<DatabaseMigrationHostedService>();
 
         return services;
     }
 
-    private static void ConfigureNpgsql(IServiceProvider sp, DbContextOptionsBuilder options)
+    /// <summary>
+    /// Registers a per-section DbContext (nobodies-collective/Humans#858): scoped context +
+    /// singleton factory with the same Npgsql options and interceptors as
+    /// <see cref="HumansDbContext"/>, the section-specific history table from
+    /// <see cref="SectionMigrationsHistory"/> (the same helper the design-time
+    /// factories use, so the two can never disagree), and the
+    /// <see cref="SectionDbContextRegistration"/> consumed by
+    /// <see cref="DatabaseMigrationHostedService"/> to run
+    /// <see cref="SectionMigrationRunner"/> at startup.
+    /// </summary>
+    /// <param name="sentinelTable">See <see cref="SectionDbContextRegistration.SentinelTable"/>.</param>
+    internal static IServiceCollection AddSectionDbContext<TContext>(
+        this IServiceCollection services,
+        string sentinelTable)
+        where TContext : DbContext
+    {
+        var historyTable = SectionMigrationsHistory.TableFor<TContext>();
+
+        services.AddDbContext<TContext>((sp, options) =>
+        {
+            ConfigureNpgsql(sp, options, historyTable);
+            options.AddInterceptors(sp.GetRequiredService<QueryMonitoringInterceptor>());
+            options.AddInterceptors(sp.GetRequiredService<UserInfoSaveChangesInterceptor>());
+            options.AddInterceptors(sp.GetRequiredService<LegalDocumentSaveChangesInterceptor>());
+            options.ConfigureWarnings(w => w.Ignore(CoreEventId.FirstWithoutOrderByAndFilterWarning));
+        }, optionsLifetime: ServiceLifetime.Singleton);
+
+        services.AddDbContextFactory<TContext>((sp, options) =>
+        {
+            ConfigureNpgsql(sp, options, historyTable);
+            options.AddInterceptors(sp.GetRequiredService<UserInfoSaveChangesInterceptor>());
+            options.AddInterceptors(sp.GetRequiredService<LegalDocumentSaveChangesInterceptor>());
+            options.ConfigureWarnings(w => w.Ignore(CoreEventId.FirstWithoutOrderByAndFilterWarning));
+        });
+
+        services.AddSingleton(new SectionDbContextRegistration(typeof(TContext), sentinelTable));
+
+        return services;
+    }
+
+    private static void ConfigureNpgsql(
+        IServiceProvider sp,
+        DbContextOptionsBuilder options,
+        string? migrationsHistoryTable = null)
     {
         options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>(), npgsqlOptions =>
         {
             npgsqlOptions.UseNodaTime();
             npgsqlOptions.MigrationsAssembly("Humans.Infrastructure");
             npgsqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+            if (migrationsHistoryTable is not null)
+            {
+                npgsqlOptions.MigrationsHistoryTable(migrationsHistoryTable);
+            }
         });
     }
 

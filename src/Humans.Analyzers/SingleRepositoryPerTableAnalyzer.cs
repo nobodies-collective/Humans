@@ -57,7 +57,6 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
 {
     public const string DiagnosticId = "HUM0025";
 
-    private const string HumansDbContextFullName = "Humans.Infrastructure.Data.HumansDbContext";
     private const string DbSetOpenTypeFullName = "Microsoft.EntityFrameworkCore.DbSet`1";
     private const string RepositoryMarkerFullName = "Humans.Application.Interfaces.Repositories.IRepository";
 
@@ -65,7 +64,7 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
         "A DbSet table must be referenced by exactly one repository";
 
     private static readonly LocalizableString MessageFormat =
-        "'{0}' references HumansDbContext.{1}, which is referenced by {2} repositories ({3}). A table must belong to exactly one repository — route foreign access through the owning section's service (I<Section>ServiceRead).";
+        "'{0}' references DbSet '{1}', which is referenced by {2} repositories ({3}). A table must belong to exactly one repository — route foreign access through the owning section's service (I<Section>ServiceRead).";
 
     public static readonly DiagnosticDescriptor Rule = new(
         id: DiagnosticId,
@@ -100,8 +99,13 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
         if (!string.Equals(context.Compilation.Assembly.Name, AssemblyScope.Infrastructure, StringComparison.Ordinal))
             return;
 
-        var dbContextType = context.Compilation.GetTypeByMetadataName(HumansDbContextFullName);
-        if (dbContextType is null)
+        // Since the per-section split (nobodies-collective/Humans#858) tables are
+        // spread across every application context; DbSet access is matched on any of
+        // them via SectionDbContexts, which finds contexts structurally (declared in
+        // this assembly, derived from EF's DbContext), so peeled tables stay policed
+        // wherever the contexts live.
+        var efDbContext = SectionDbContexts.ResolveEfDbContext(context.Compilation);
+        if (efDbContext is null)
             return;
 
         var dbSetOpenType = context.Compilation.GetTypeByMetadataName(DbSetOpenTypeFullName);
@@ -112,18 +116,23 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
         if (repositoryMarker is null)
             return;
 
-        // entity → DbSet property name, so ctx.Set<TEntity>() resolves to the
-        // same table identity as a direct ctx.<DbSet> reference.
-        var dbSetNameByEntity = BuildDbSetNameByEntity(dbContextType, dbSetOpenType);
+        // entity → DbSet property name across all contexts (table sets are
+        // disjoint), so ctx.Set<TEntity>() resolves to the same table identity
+        // as a direct ctx.<DbSet> reference.
+        var dbSetNameByEntity = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var contextType in SectionDbContexts.EnumerateSectionDbContexts(context.Compilation, efDbContext))
+        {
+            BuildDbSetNameByEntity(contextType, dbSetOpenType, dbSetNameByEntity);
+        }
 
         var accesses = new ConcurrentBag<TableAccess>();
 
         context.RegisterOperationAction(
-            ctx => CollectPropertyReference(ctx, dbContextType, dbSetOpenType, repositoryMarker, accesses),
+            ctx => CollectPropertyReference(ctx, efDbContext, dbSetOpenType, repositoryMarker, accesses),
             OperationKind.PropertyReference);
 
         context.RegisterOperationAction(
-            ctx => CollectSetInvocation(ctx, dbContextType, repositoryMarker, dbSetNameByEntity, accesses),
+            ctx => CollectSetInvocation(ctx, efDbContext, repositoryMarker, dbSetNameByEntity, accesses),
             OperationKind.Invocation);
 
         var grandfatheredAttr = GrandfatheredCheck.Resolve(context.Compilation);
@@ -133,7 +142,7 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
 
     private static void CollectPropertyReference(
         OperationAnalysisContext context,
-        INamedTypeSymbol dbContextType,
+        INamedTypeSymbol efDbContext,
         INamedTypeSymbol dbSetOpenType,
         INamedTypeSymbol repositoryMarker,
         ConcurrentBag<TableAccess> accesses)
@@ -147,10 +156,10 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        // …accessed on a HumansDbContext receiver. Keying off the receiver type
-        // (rather than the declaring type) catches DbSets inherited from
-        // IdentityDbContext such as Users.
-        if (!IsDbContextReceiver(op.Instance, dbContextType))
+        // …accessed on a Humans persistence-context receiver. Keying off the
+        // receiver type (rather than the declaring type) catches DbSets
+        // inherited from IdentityDbContext such as Users.
+        if (!IsDbContextReceiver(op.Instance, efDbContext))
             return;
 
         var repository = OwningRepository(context.ContainingSymbol, repositoryMarker);
@@ -162,7 +171,7 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
 
     private static void CollectSetInvocation(
         OperationAnalysisContext context,
-        INamedTypeSymbol dbContextType,
+        INamedTypeSymbol efDbContext,
         INamedTypeSymbol repositoryMarker,
         IReadOnlyDictionary<string, string> dbSetNameByEntity,
         ConcurrentBag<TableAccess> accesses)
@@ -174,7 +183,7 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (!IsDbContextReceiver(op.Instance, dbContextType))
+        if (!IsDbContextReceiver(op.Instance, efDbContext))
             return;
 
         if (op.TargetMethod.TypeArguments[0] is not INamedTypeSymbol entity
@@ -236,7 +245,7 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static bool IsDbContextReceiver(IOperation? instance, INamedTypeSymbol dbContextType)
+    private static bool IsDbContextReceiver(IOperation? instance, INamedTypeSymbol efDbContext)
     {
         var type = Unwrap(instance)?.Type;
         if (type is null)
@@ -244,7 +253,7 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
 
         for (ITypeSymbol? current = type; current is not null; current = current.BaseType)
         {
-            if (SymbolEqualityComparer.Default.Equals(current, dbContextType))
+            if (SectionDbContexts.IsSectionDbContext(current, efDbContext))
                 return true;
         }
 
@@ -266,12 +275,11 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
         return null;
     }
 
-    private static Dictionary<string, string> BuildDbSetNameByEntity(
+    private static void BuildDbSetNameByEntity(
         INamedTypeSymbol dbContextType,
-        INamedTypeSymbol dbSetOpenType)
+        INamedTypeSymbol dbSetOpenType,
+        Dictionary<string, string> map)
     {
-        var map = new Dictionary<string, string>(StringComparer.Ordinal);
-
         for (ITypeSymbol? type = dbContextType; type is not null; type = type.BaseType)
         {
             foreach (var member in type.GetMembers())
@@ -290,8 +298,6 @@ public sealed class SingleRepositoryPerTableAnalyzer : DiagnosticAnalyzer
                     map[key] = property.Name;
             }
         }
-
-        return map;
     }
 
     private static IOperation? Unwrap(IOperation? operation)

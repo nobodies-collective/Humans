@@ -53,8 +53,6 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     public DbSet<CampImage> CampImages => Set<CampImage>();
     public DbSet<CampSettings> CampSettings => Set<CampSettings>();
     public DbSet<CampMember> CampMembers => Set<CampMember>();
-    public DbSet<Container> Containers => Set<Container>();
-    public DbSet<ContainerPlacement> ContainerPlacements => Set<ContainerPlacement>();
     public DbSet<CampRoleDefinition> CampRoleDefinitions => Set<CampRoleDefinition>();
     public DbSet<CampRoleAssignment> CampRoleAssignments => Set<CampRoleAssignment>();
     public DbSet<CampPolygon> CampPolygons => Set<CampPolygon>();
@@ -64,7 +62,6 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     public DbSet<Campaign> Campaigns { get; set; } = null!;
     public DbSet<CampaignCode> CampaignCodes { get; set; } = null!;
     public DbSet<CampaignGrant> CampaignGrants { get; set; } = null!;
-    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<TicketOrder> TicketOrders => Set<TicketOrder>();
     public DbSet<TicketAttendee> TicketAttendees => Set<TicketAttendee>();
     public DbSet<TicketSyncState> TicketSyncStates => Set<TicketSyncState>();
@@ -75,21 +72,11 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     public DbSet<ShiftSignup> ShiftSignups => Set<ShiftSignup>();
     public DbSet<VolunteerEventProfile> VolunteerEventProfiles => Set<VolunteerEventProfile>();
     public DbSet<GeneralAvailability> GeneralAvailability => Set<GeneralAvailability>();
-    public DbSet<EventGuideSettings> EventGuideSettings => Set<EventGuideSettings>();
-    public DbSet<EventCategory> EventCategories => Set<EventCategory>();
-    public DbSet<EventVenue> EventVenues => Set<EventVenue>();
-    public DbSet<Event> Events => Set<Event>();
-    public DbSet<EventModerationAction> EventModerationActions => Set<EventModerationAction>();
-    public DbSet<EventPreference> EventPreferences => Set<EventPreference>();
-    public DbSet<EventFavourite> EventFavourites => Set<EventFavourite>();
     public DbSet<VolunteerBuildStatus> VolunteerBuildStatuses => Set<VolunteerBuildStatus>();
     public DbSet<FeedbackReport> FeedbackReports => Set<FeedbackReport>();
     public DbSet<FeedbackMessage> FeedbackMessages => Set<FeedbackMessage>();
     public DbSet<Issue> Issues => Set<Issue>();
     public DbSet<IssueComment> IssueComments => Set<IssueComment>();
-    public DbSet<AgentConversation> AgentConversations => Set<AgentConversation>();
-    public DbSet<AgentMessage> AgentMessages => Set<AgentMessage>();
-    public DbSet<AgentSettings> AgentSettings => Set<AgentSettings>();
     public DbSet<AccountMergeRequest> AccountMergeRequests => Set<AccountMergeRequest>();
     public DbSet<CommunicationPreference> CommunicationPreferences => Set<CommunicationPreference>();
     public DbSet<BudgetYear> BudgetYears => Set<BudgetYear>();
@@ -112,31 +99,33 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     public DbSet<StorePayment> StorePayments => Set<StorePayment>();
     public DbSet<StoreInvoice> StoreInvoices => Set<StoreInvoice>();
     public DbSet<StoreTreasurySyncState> StoreTreasurySyncStates => Set<StoreTreasurySyncState>();
-    public DbSet<ExpenseReport> ExpenseReports => Set<ExpenseReport>();
-    public DbSet<ExpenseLine> ExpenseLines => Set<ExpenseLine>();
-    public DbSet<ExpenseAttachment> ExpenseAttachments => Set<ExpenseAttachment>();
-    public DbSet<HoldedExpenseOutboxEvent> HoldedExpenseOutboxEvents
-        => Set<HoldedExpenseOutboxEvent>();
-    public DbSet<HoldedExpenseDoc> HoldedExpenseDocs => Set<HoldedExpenseDoc>();
-    public DbSet<HoldedCategoryMap> HoldedCategoryMap => Set<HoldedCategoryMap>();
-    public DbSet<HoldedSyncState> HoldedSyncStates => Set<HoldedSyncState>();
-    public DbSet<HoldedLedgerLine> HoldedLedgerLines => Set<HoldedLedgerLine>();
-    public DbSet<HoldedCreditorContact> HoldedCreditorContacts => Set<HoldedCreditorContact>();
 
-    // Survey section
-    public DbSet<Survey> Surveys => Set<Survey>();
-    public DbSet<SurveyQuestion> SurveyQuestions => Set<SurveyQuestion>();
-    public DbSet<SurveyQuestionOption> SurveyQuestionOptions => Set<SurveyQuestionOption>();
-    public DbSet<SurveyInvitation> SurveyInvitations => Set<SurveyInvitation>();
-    public DbSet<SurveyResponse> SurveyResponses => Set<SurveyResponse>();
-    public DbSet<SurveyAnswer> SurveyAnswers => Set<SurveyAnswer>();
+    /// <summary>
+    /// Configuration namespaces of sections peeled into their own DbContexts
+    /// (nobodies-collective/Humans#858). Their tables are no longer part of this
+    /// model; each peel appends its section here. Derived from a configuration
+    /// type per section (not string literals) so a namespace move breaks the
+    /// build instead of silently re-adding the section's tables to this model.
+    /// </summary>
+    private static readonly string[] PeeledConfigurationNamespaces =
+    [
+        typeof(Configurations.SystemSettings.SystemSettingConfiguration).Namespace!,
+        typeof(Configurations.Containers.ContainerConfiguration).Namespace!,
+        typeof(Configurations.Agent.AgentConversationConfiguration).Namespace!,
+        typeof(Configurations.Expenses.ExpenseReportConfiguration).Namespace!,
+        typeof(Configurations.Finance.HoldedExpenseDocConfiguration).Namespace!,
+        typeof(Configurations.Surveys.SurveyConfiguration).Namespace!,
+        typeof(Configurations.EventGuide.EventConfiguration).Namespace!,
+    ];
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
-        // Apply all configurations from the assembly
-        builder.ApplyConfigurationsFromAssembly(typeof(HumansDbContext).Assembly);
+        // Apply all configurations from the assembly, minus peeled sections'.
+        builder.ApplyConfigurationsFromAssembly(
+            typeof(HumansDbContext).Assembly,
+            type => !PeeledConfigurationNamespaces.Contains(type.Namespace, StringComparer.Ordinal));
 
         // Rename Identity tables to use lowercase with underscores (PostgreSQL convention)
         builder.Entity<User>().ToTable("users");

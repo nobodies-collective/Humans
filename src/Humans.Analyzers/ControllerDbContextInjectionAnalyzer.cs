@@ -30,7 +30,6 @@ public sealed class ControllerDbContextInjectionAnalyzer : DiagnosticAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
     private const string ControllerBaseFullName = "Microsoft.AspNetCore.Mvc.ControllerBase";
-    private const string HumansDbContextFullName = "Humans.Infrastructure.Data.HumansDbContext";
 
     public override void Initialize(AnalysisContext context)
     {
@@ -44,14 +43,18 @@ public sealed class ControllerDbContextInjectionAnalyzer : DiagnosticAnalyzer
         if (!string.Equals(context.Compilation.Assembly.Name, AssemblyScope.Web, System.StringComparison.Ordinal))
             return;
 
-        var dbContextType = context.Compilation.GetTypeByMetadataName(HumansDbContextFullName);
-        if (dbContextType is null)
+        // Since the per-section split (nobodies-collective/Humans#858) the persistence
+        // boundary is every application context, matched structurally via
+        // SectionDbContexts (derives from EF's DbContext) rather than by name or
+        // namespace, so relocating the contexts cannot switch this rule off.
+        var efDbContext = SectionDbContexts.ResolveEfDbContext(context.Compilation);
+        if (efDbContext is null)
             return;
 
-        context.RegisterSymbolAction(c => AnalyzeNamedType(c, dbContextType), SymbolKind.NamedType);
+        context.RegisterSymbolAction(c => AnalyzeNamedType(c, efDbContext), SymbolKind.NamedType);
     }
 
-    private static void AnalyzeNamedType(SymbolAnalysisContext context, INamedTypeSymbol dbContextType)
+    private static void AnalyzeNamedType(SymbolAnalysisContext context, INamedTypeSymbol efDbContext)
     {
         var type = (INamedTypeSymbol)context.Symbol;
         if (!type.InheritsFromOrEquals(ControllerBaseFullName))
@@ -61,7 +64,7 @@ public sealed class ControllerDbContextInjectionAnalyzer : DiagnosticAnalyzer
         {
             foreach (var parameter in ctor.Parameters)
             {
-                if (!SymbolEqualityComparer.Default.Equals(parameter.Type, dbContextType))
+                if (!SectionDbContexts.IsSectionDbContext(parameter.Type, efDbContext))
                     continue;
 
                 context.ReportDiagnostic(Diagnostic.Create(
