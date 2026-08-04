@@ -93,15 +93,22 @@ The safety net plus the map. Nothing destructive starts before G0 closes.
 - [ ] **Quarantine discipline:** CI fails on `Skip=` without a tracking issue ref (#767).
 - [ ] **Integration tests trustworthy as a net:** shared Postgres fixture (#764) landed;
       suite green on main.
-- [ ] **Section inventory frozen:** the tracker table below confirmed as the canonical
-      section list (additions/merges decided now, not mid-flight).
-- [ ] **Dependency DAG computed:** Reforge-derived section→section call graph (service
-      calls, invalidator injections, read-interface consumers) committed alongside this
-      plan. Shared-contract exceptions (User/UserInfo, Auth, Audit) explicitly listed;
-      anything else that looks like it needs the exception gets challenged here.
-- [ ] **Demolition inventory:** per-section list of dead columns/tables, cross-section FK
-      constraints, and non-conforming table names (feeds G2 work items).
-- [ ] **First audit pass:** every section scored against G1–G3 predicates; tracker filled.
+- [x] **Section inventory frozen (2026-08-03):** canonical list confirmed by Peter —
+      decision record: [`2026-08-03-proposed-frozen-section-inventory.md`](2026-08-03-proposed-frozen-section-inventory.md)
+      (Profiles→Users; Holded/Mailer stay as vendor connectors; Consent + Surveys naming;
+      new rows Gate, Settings, Development, Gdpr, Search; Admin/Dashboard/Platform are
+      not sections). Config back-propagation + new-row audits are queued follow-ups.
+- [x] **Dependency DAG computed:** [`2026-08-03-section-dependency-dag.md`](2026-08-03-section-dependency-dag.md)
+      (Reforge-derived; shared-contract exceptions listed; challenged edges called out).
+- [x] **Demolition inventory:** [`2026-08-03-demolition-inventory.md`](2026-08-03-demolition-inventory.md)
+      (per-section dead columns/tables, cross-section FKs, non-conforming table names).
+- [x] **First audit pass (tracker-taxonomy scope):** all 33 sections in the tracker below
+      scored against G1–G3 predicates ([`2026-08-03-g0-first-audit/`](2026-08-03-g0-first-audit/));
+      tracker filled.
+- [ ] **Audit the five sections admitted at the 2026-08-03 freeze:** `Gate`, `Settings`,
+      `Development`, `Gdpr`, `Search` have no scorecards yet. Split out as its own gate item
+      2026-08-03 — it was previously only a prose caveat on the item above, which meant the
+      checklist could read complete while five canonical sections had never been scored.
 
 ### G1 — Ownership (per section): *your data is yours alone*
 
@@ -277,43 +284,89 @@ lands. #864 follows #809 and coordinates nav with #861.)
 Filled by the G0 first-audit pass; updated by every `/section-gate` run. Horizontal
 sections and shared contracts noted explicitly. (`—` = not yet audited.)
 
-| Section | Kind | G1 | G2 | G3 | G4 | G5 |
-|---|---|---|---|---|---|---|
-| Agent | vertical | — | — | — | — | — |
-| AuditLog | **horizontal** | — | — | — | — | — |
-| Auth | **horizontal** | — | — | — | — | — |
-| Budget | vertical | — | — | — | — | — |
-| Calendar | vertical | — | — | — | — | — |
-| Campaigns | vertical | — | — | — | — | — |
-| Camps | vertical | — | — | — | — | — |
-| Cantina | vertical | — | — | — | — | — |
-| CityPlanning | vertical | — | — | — | — | — |
-| Containers | vertical | — | — | — | — | — |
-| Debug | **horizontal** | — | — | — | — | — |
-| Email | vertical | — | — | — | — | — |
-| Events | vertical | — | — | — | — | — |
-| Expenses | vertical | — | — | — | — | — |
-| Feedback | vertical | — | — | — | — | — |
-| Finance | vertical | — | — | — | — | — |
-| GoogleIntegration | vertical | — | — | — | — | — |
-| Governance | vertical | — | — | — | — | — |
-| Guide | vertical | — | — | — | — | — |
-| Holded | vertical | — | — | — | — | — |
-| Issues | vertical | — | — | — | — | — |
-| LegalAndConsent | vertical | — | — | — | — | — |
-| Mailer | vertical | — | — | — | — | — |
-| Notifications | vertical | — | — | — | — | — |
-| Onboarding | vertical (orchestrator) | — | — | — | — | — |
-| Profiles | **shared contract** | — | — | — | — | — |
-| Scanner | vertical | — | — | — | — | — |
-| Shifts | vertical | — | — | — | — | — |
-| Store | vertical | — | — | — | — | — |
-| Survey | vertical | — | — | — | — | — |
-| Teams | vertical | — | — | — | — | — |
-| Tickets | vertical | — | — | — | — | — |
-| Users | **shared contract** | — | — | — | — | — |
-| *Settings (new, #864)* | vertical | n/a | n/a | — | — | — |
-| *Shortlinks (new, #810)* | vertical | n/a | n/a | — | — | — |
+> **First audit pass completed 2026-08-03** @ `5a9bbe198`. Per-section scorecards, evidence
+> and G1 gap lists: [`2026-08-03-g0-first-audit/`](2026-08-03-g0-first-audit/). Companion
+> G0 artifacts: [dependency DAG](2026-08-03-section-dependency-dag.md) ·
+> [demolition inventory](2026-08-03-demolition-inventory.md) ·
+> [PROPOSED frozen inventory](2026-08-03-proposed-frozen-section-inventory.md).
+> This table is the canonical **section list and audit index** — it deliberately carries no
+> gap counts. Counts here were hand-copied out of 33 scorecards and drifted from them
+> constantly; the scorecard is the single source of truth for a section's gate status, so
+> read it there. G2 is not scored per-section — its queue lives in the demolition inventory.
+> Taxonomy is per the **2026-08-03 inventory freeze** (decision record:
+> [`2026-08-03-proposed-frozen-section-inventory.md`](2026-08-03-proposed-frozen-section-inventory.md));
+> rows admitted at the freeze show `—` until their first audit pass.
+
+| Section | Kind | First audit (gate detail lives in the scorecard) |
+|---|---|---|
+| Agent | vertical | [Agent](2026-08-03-g0-first-audit/Agent.md) |
+| AuditLog | **horizontal** | [AuditLog](2026-08-03-g0-first-audit/AuditLog.md) |
+| Auth | **horizontal** | [Auth](2026-08-03-g0-first-audit/Auth.md) |
+| Budget | vertical | [Budget](2026-08-03-g0-first-audit/Budget.md) |
+| Calendar (incl. ICalFeed) | vertical | [Calendar](2026-08-03-g0-first-audit/Calendar.md) |
+| Campaigns | vertical | [Campaigns](2026-08-03-g0-first-audit/Campaigns.md) |
+| Camps | vertical | [Camps](2026-08-03-g0-first-audit/Camps.md) |
+| Cantina | vertical | [Cantina](2026-08-03-g0-first-audit/Cantina.md) |
+| CityPlanning | vertical | [CityPlanning](2026-08-03-g0-first-audit/CityPlanning.md) |
+| Containers | vertical | [Containers](2026-08-03-g0-first-audit/Containers.md) |
+| Debug | vertical | [Debug](2026-08-03-g0-first-audit/Debug.md) |
+| Development *(new 2026-08-03 — dev-only, never loaded in prod; takes DevLogin/DevSeed)* | vertical | — |
+| Email | vertical | [Email](2026-08-03-g0-first-audit/Email.md) |
+| Events | vertical | [Events](2026-08-03-g0-first-audit/Events.md) |
+| Expenses | vertical | [Expenses](2026-08-03-g0-first-audit/Expenses.md) |
+| Feedback | vertical | [Feedback](2026-08-03-g0-first-audit/Feedback.md) |
+| Finance | vertical | [Finance](2026-08-03-g0-first-audit/Finance.md) |
+| Gate *(new row 2026-08-03)* | vertical | — |
+| Gdpr *(new row 2026-08-03)* | **orchestrator** | — |
+| GoogleIntegration | **vendor connector** | [GoogleIntegration](2026-08-03-g0-first-audit/GoogleIntegration.md) |
+| Governance | vertical | [Governance](2026-08-03-g0-first-audit/Governance.md) |
+| Guide | vertical | [Guide](2026-08-03-g0-first-audit/Guide.md) |
+| Holded | **vendor connector** | [Holded](2026-08-03-g0-first-audit/Holded.md) |
+| Issues | vertical | [Issues](2026-08-03-g0-first-audit/Issues.md) |
+| Consent *(renamed from LegalAndConsent)* | vertical | [LegalAndConsent](2026-08-03-g0-first-audit/LegalAndConsent.md) |
+| Mailer | **vendor connector** | [Mailer](2026-08-03-g0-first-audit/Mailer.md) |
+| Notifications | vertical | [Notifications](2026-08-03-g0-first-audit/Notifications.md) |
+| Onboarding | **orchestrator** | [Onboarding](2026-08-03-g0-first-audit/Onboarding.md) |
+| Scanner | vertical | [Scanner](2026-08-03-g0-first-audit/Scanner.md) |
+| Search *(new row 2026-08-03)* | **orchestrator** | — |
+| Settings *(ex-SystemSettings; absorbs #864)* | vertical | — |
+| Shifts | vertical | [Shifts](2026-08-03-g0-first-audit/Shifts.md) |
+| Store | vertical | [Store](2026-08-03-g0-first-audit/Store.md) |
+| Surveys *(renamed from Survey)* | vertical | [Survey](2026-08-03-g0-first-audit/Survey.md) |
+| Teams | vertical | [Teams](2026-08-03-g0-first-audit/Teams.md) |
+| Tickets | vertical | [Tickets](2026-08-03-g0-first-audit/Tickets.md) |
+| Users *(incl. Profiles — the "Humans" section)* | **shared contract** | [Users](2026-08-03-g0-first-audit/Users.md) · [Profiles](2026-08-03-g0-first-audit/Profiles.md) |
+| *Shortlinks (new, #810)* | vertical | — *(does not exist yet)* |
+
+Confirmed non-sections (never get ladder rows): **Admin** (nav holder), **Dashboard**
+(GUI holder; possible future per-section `DashboardPanel` contributions), **Platform**
+(dissolved config bucket). Decision record:
+[`2026-08-03-proposed-frozen-section-inventory.md`](2026-08-03-proposed-frozen-section-inventory.md).
+The Users row merges the former Profiles row; scorecards remain split as
+[`Users.md`](2026-08-03-g0-first-audit/Users.md) / [`Profiles.md`](2026-08-03-g0-first-audit/Profiles.md).
+**Arithmetic corrected 2026-08-03** (the note said "G3 combines Users 1 + Profiles 2", which
+yields 3 and stopped matching the cell once `Users.md`'s G3 count was corrected 1 → 2). Both
+cells are **4**, but they get there differently — the two scorecards each report 4/4, so
+neither cell is a plain sum:
+
+- **G1 = 4 — union of distinct items, deduplicated.** The scorecards' own "4"s overlap and
+  sub-count differently (Users counts the two entity-leak baseline rows separately and has no
+  nav item; Profiles collapses those rows but adds the navs). The union is: (1) the
+  `UserInfoSaveChangesInterceptor` workaround — flagged in both, `Users.md` says "Same item as
+  Profiles.md"; (2) `IUserService.GetByIdsAsync` / `IAccountProvisioningService.FindOrCreateUserByEmailAsync`
+  returning `User` — the same `ApplicationServiceEntityReadReturns` rows 28–29 in both; (3) the
+  HUM0031 controller grandfathers under #857 — `AccountController`/`UsersAdminDebugController`
+  on the Users side plus `ProfileController` on the Profiles side, different controllers but
+  one tracked item; (4) the un-stripped `AccountMergeRequest.TargetUser`/`SourceUser`/`ResolvedByUser`
+  navs, Profiles-only.
+- **G3 = 4 — additive, no overlap.** Users 2 (`UserRepositoryTests`/`UserRepositoryUserEmailsTests`
+  on EF-InMemory; `UserServiceProfileOnboardingMutationTests` harness-inherited) + Profiles 2
+  (`ProfileRepositoryTests` on EF-InMemory; `ProfileServiceTests`/`ContactFieldServiceTests`/
+  `CommunicationPreferenceServiceTests` harness-inherited). Disjoint test files, so nothing
+  deduplicates.
+
+Anyone re-deriving this cell from the scorecards should apply the same union-for-G1,
+sum-for-G3 rule rather than adding both.
 
 G0 confirms this inventory (merges/splits decided then — e.g. whether Cantina/Scanner stay
 separate, where admin-shell lands, whether Settings absorbs pieces of Shifts per #864).
