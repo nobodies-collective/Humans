@@ -19,7 +19,8 @@ namespace Humans.Application.Tests.Services.Store;
 
 /// <summary>
 /// Focused coverage for the polymorphic team-coordinator order path.
-/// See <c>docs/superpowers/specs/2026-05-27-store-team-orders-design.md</c>.
+/// See <c>docs/sections/Store.md</c> (Architecture — the schema decision for why
+/// team orders reuse <c>StoreOrder</c> rather than a separate table).
 /// </summary>
 public class StoreServiceTeamOrdersTests
 {
@@ -212,7 +213,7 @@ public class StoreServiceTeamOrdersTests
         _repo.GetActiveProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns(new List<StoreProduct>());
 
-        var data = await _service.GetIndexDataAsync(userId, isPrivilegedReader: false, ct: TestContext.Current.CancellationToken);
+        var data = await _service.GetIndexDataAsync(userId, ct: TestContext.Current.CancellationToken);
 
         data.Counterparties.Should().HaveCount(1);
         data.Counterparties[0].CounterpartyType.Should().Be(StoreOrderCounterpartyType.Team);
@@ -234,7 +235,7 @@ public class StoreServiceTeamOrdersTests
         _repo.GetActiveProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns(new List<StoreProduct>());
 
-        var data = await _service.GetIndexDataAsync(userId, isPrivilegedReader: false, ct: TestContext.Current.CancellationToken);
+        var data = await _service.GetIndexDataAsync(userId, ct: TestContext.Current.CancellationToken);
 
         data.Counterparties.Should().BeEmpty();
         data.ShowNoOrdersMessage.Should().BeTrue();
@@ -254,7 +255,7 @@ public class StoreServiceTeamOrdersTests
         _repo.GetActiveProductsForYearAsync(2026, Arg.Any<CancellationToken>())
             .Returns(new List<StoreProduct>());
 
-        var data = await _service.GetIndexDataAsync(viewerId, isPrivilegedReader: true, ct: TestContext.Current.CancellationToken);
+        var data = await _service.GetAllCounterpartiesIndexDataAsync(ct: TestContext.Current.CancellationToken);
 
         data.Counterparties.Should().ContainSingle(c =>
             c.CounterpartyType == StoreOrderCounterpartyType.Team && c.CounterpartyId == otherDeptId);
