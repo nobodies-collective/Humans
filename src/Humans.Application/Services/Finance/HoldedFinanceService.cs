@@ -477,7 +477,8 @@ public sealed class HoldedFinanceService(
 
     // ─── Creditor bindings + statement ──────────────────────────────────────────
 
-    public async Task<IReadOnlyList<HoldedCreditorAccountRow>> ListCreditorAccountsAsync(
+    public async Task<(IReadOnlyList<HoldedCreditorAccountRow> Accounts,
+                       IReadOnlyList<CreditorContactBinding> Unresolved)> ListCreditorAccountsAsync(
         CancellationToken ct = default)
     {
         var byAccount = (await repo.GetAllLedgerLinesAsync(ct))
@@ -507,14 +508,21 @@ public sealed class HoldedFinanceService(
             .GroupBy(kv => kv.Value.Id, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First().Key, StringComparer.Ordinal);
 
-        // Every binding on an account, not just the first: only UserId is unique in the DB and the two
-        // automatic write paths record what Holded assigned rather than refusing, so a second member on
-        // one 400000xx is exactly the state an admin has to see and resolve here.
-        var bindings = (await repo.GetCreditorContactsAsync(ct))
+        // Resolve every binding to its account once, then split on the outcome. The two halves are one
+        // partition of one snapshot rather than two independently-derived filters: an account row and
+        // the unresolved card must never both claim the same binding, and deriving them separately
+        // would let a mid-read change to either input produce exactly that.
+        var resolved = (await repo.GetCreditorContactsAsync(ct))
             .Select(b => (Account: accountByContactId.TryGetValue(b.HoldedContactId, out var viaContact)
                               ? viaContact
                               : b.SupplierAccountNum,
                           Binding: b))
+            .ToList();
+
+        // Every binding on an account, not just the first: only UserId is unique in the DB and the two
+        // automatic write paths record what Holded assigned rather than refusing, so a second member on
+        // one 400000xx is exactly the state an admin has to see and resolve here.
+        var bindings = resolved
             .Where(x => x.Account is not null)
             .GroupBy(x => x.Account!.Value)
             .ToDictionary(
@@ -523,6 +531,15 @@ public sealed class HoldedFinanceService(
                     .OrderBy(x => x.Binding.CreatedAt)
                     .Select(x => ToBinding(x.Binding))
                     .ToList());
+
+        // The remainder: no number of our own and none on Holded's contact either, so no row below can
+        // carry it. Nothing retries these (nobodies-collective/Humans#972), so they are returned
+        // alongside the rows rather than dropped — unreturned is unbindable.
+        var unresolved = resolved
+            .Where(x => x.Account is null)
+            .OrderBy(x => x.Binding.CreatedAt)
+            .Select(x => ToBinding(x.Binding))
+            .ToList();
 
         // Every creditor account with ledger activity, plus bound accounts that have no lines yet,
         // plus every Holded creditor contact — a first-time submitter's account exists in Holded
@@ -550,7 +567,7 @@ public sealed class HoldedFinanceService(
                 "None of the {Count} creditor accounts resolved a Holded contact name; the bind card and " +
                 "/Finance/Creditors will show bare account numbers.", rows.Count);
 
-        return rows;
+        return (rows, unresolved);
     }
 
     /// <summary>Holded's contact list, or empty when the Holded call fails. Cached for
