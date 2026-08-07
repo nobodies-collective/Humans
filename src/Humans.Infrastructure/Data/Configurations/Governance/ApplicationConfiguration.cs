@@ -4,7 +4,7 @@ using Humans.Domain.Entities;
 using Humans.Application.Architecture;
 using MemberApplication = Humans.Domain.Entities.Application;
 
-namespace Humans.Infrastructure.Data.Configurations;
+namespace Humans.Infrastructure.Data.Configurations.Governance;
 
 [Grandfathered(
     ruleId: "HUM0024",

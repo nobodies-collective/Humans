@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Humans.Application.Extensions;
 using Humans.Application.Interfaces.Holded;
@@ -156,8 +157,23 @@ public sealed class HoldedClient : IHoldedClient
         AttachAuth(req);
         using var resp = await SendAsync(req, ct);
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
-        var arr = (await JsonNode.ParseAsync(stream, cancellationToken: ct))?.AsArray() ?? [];
-        return arr.Select(ParsePurchaseDoc).ToList();
+        try
+        {
+            var arr = (await JsonNode.ParseAsync(stream, cancellationToken: ct))?.AsArray() ?? [];
+            return arr.Select(ParsePurchaseDoc).ToList();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException
+            or FormatException or OverflowException)
+        {
+            // Same normalization as GetContactAsync: a value of an unexpected type belongs to the
+            // stored document, not to this request, so retrying cannot help. Raw parse throws would
+            // escape past IHoldedClient's two typed exceptions and leak an Infrastructure detail into
+            // the Application layer. Unlike the per-contact skip in ListContactsAsync this fails the
+            // page rather than dropping the doc — these totals become budget-category actuals, and a
+            // silently short page is wrong money rather than a missing name.
+            throw new HoldedPermanentException(
+                $"Holded purchase-document page {page} could not be read.", ex);
+        }
     }
 
     public async Task<string> UpsertContactAsync(HoldedContactInput input, CancellationToken ct = default)
@@ -195,31 +211,100 @@ public sealed class HoldedClient : IHoldedClient
         AttachAuth(req);
         using var resp = await SendAsync(req, ct);
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
-        var node = await JsonNode.ParseAsync(stream, cancellationToken: ct)
-            ?? throw new HoldedTransientException("Holded returned empty body");
-
-        return new HoldedContactDto
+        try
         {
-            Id = node["id"]?.GetValue<string>() ?? contactId,
-            Name = node["name"]?.GetValue<string>(),
-            SupplierAccountNum = ReadInt(node["supplierRecord"]?["num"]),
-        };
+            var node = await JsonNode.ParseAsync(stream, cancellationToken: ct)
+                ?? throw new HoldedTransientException("Holded returned empty body");
+
+            return ParseContact(node, contactId);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException
+            or FormatException or OverflowException)
+        {
+            // The single-contact sibling of the per-contact skip in ListContactsAsync. A value of an
+            // unexpected type is a property of the stored contact, not of this request, so retrying
+            // cannot help — surface it as permanent so callers that already handle the client's typed
+            // exceptions degrade instead of letting a raw parse failure escape the client. The only
+            // caller (ExpenseReportService.ProcessHoldedCreateAsync) would otherwise abort the whole
+            // outbox batch and leave its own event neither processed nor failed.
+            throw new HoldedPermanentException(
+                $"Holded contact {contactId} could not be read.", ex);
+        }
     }
 
     public async Task<IReadOnlyList<HoldedContactDto>> ListContactsAsync(CancellationToken ct = default)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/invoicing/v1/contacts");
-        AttachAuth(req);
-        using var resp = await SendAsync(req, ct);
-        await using var stream = await resp.Content.ReadAsStreamAsync(ct);
-        var arr = (await JsonNode.ParseAsync(stream, cancellationToken: ct))?.AsArray() ?? [];
-        return arr.Where(n => n is not null).Select(n => new HoldedContactDto
+        // Paginates by walking `page` until an empty page comes back — the same
+        // "empty list = past the end" contract already verified for this API family
+        // via ListPurchaseDocumentsPageAsync. No `limit` param: unlike dailyledger/
+        // documents-purchase, the contacts endpoint's page size has never been probed
+        // live, so we don't assume it honors a requested limit.
+        const int pageSafetyCap = 50; // 5 000+ contacts — far above a small nonprofit's vendor/member list
+        var contacts = new List<HoldedContactDto>();
+        var skipped = 0;
+        var page = 1;
+        for (; page <= pageSafetyCap; page++)
         {
-            Id = n!["id"]?.GetValue<string>() ?? "",
-            Name = n["name"]?.GetValue<string>(),
-            SupplierAccountNum = ReadInt(n["supplierRecord"]?["num"]),
-        }).ToList();
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/invoicing/v1/contacts?page={page}");
+            AttachAuth(req);
+            using var resp = await SendAsync(req, ct);
+            await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+            var arr = (await JsonNode.ParseAsync(stream, cancellationToken: ct))?.AsArray() ?? [];
+            if (arr.Count == 0) break;
+
+            foreach (var n in arr)
+            {
+                if (n is null) continue;
+                try
+                {
+                    contacts.Add(ParseContact(n));
+                }
+                catch (Exception ex) when (ex is JsonException or InvalidOperationException
+                    or FormatException or OverflowException)
+                {
+                    // One contact carrying an unexpected value must not cost every other contact its name.
+                    // This list is the sole source of creditor account names on /Finance/Creditors and the
+                    // bind dropdown, and its caller degrades a throw to *all* names blank — which is how a
+                    // single contact silently emptied the whole card (nobodies-collective/Humans#994).
+                    // Detail on the first one only; the rest are counted, so a bad page cannot flood the log.
+                    if (skipped == 0)
+                        _logger.LogWarning(ex, "Unreadable Holded contact on page {Page}; skipping it.", page);
+                    skipped++;
+                }
+            }
+        }
+
+        if (page > pageSafetyCap)
+            _logger.LogWarning(
+                "Holded contacts hit the {Cap}-page safety cap; results may be truncated.",
+                pageSafetyCap);
+        if (skipped > 0)
+            _logger.LogWarning(
+                "Skipped {Skipped} unreadable Holded contact(s); those accounts will show without a name.",
+                skipped);
+        return contacts;
     }
+
+    /// <summary>Projects one Holded contact. Holded sends an absent sub-record as an empty array rather
+    /// than null, and <see cref="JsonNode"/>'s string indexer throws on anything but a JsonObject — so
+    /// every nested read goes through <see cref="Prop"/>, never the raw indexer.</summary>
+    private static HoldedContactDto ParseContact(JsonNode node, string? fallbackId = null) => new()
+    {
+        Id = Prop(node, "id")?.GetValue<string>() ?? fallbackId ?? "",
+        Name = Prop(node, "name")?.GetValue<string>(),
+        SupplierAccountNum = ReadInt(Prop(Prop(node, "supplierRecord"), "num")),
+    };
+
+    /// <summary>A property of <paramref name="node"/>, or null when it is not an object. The raw
+    /// <c>node["x"]</c> indexer throws InvalidOperationException on a non-object, which for a list read
+    /// costs the whole page rather than the one field.</summary>
+    private static JsonNode? Prop(JsonNode? node, string name) =>
+        node is JsonObject obj ? obj[name] : null;
+
+    /// <summary>The array at <paramref name="node"/>, or empty when it is absent or of another kind.
+    /// <see cref="JsonNode.AsArray"/> throws on a non-array for the same reason the string indexer
+    /// throws on a non-object, and Holded is equally happy to send an absent collection as a scalar.</summary>
+    private static JsonArray Arr(JsonNode? node) => node as JsonArray ?? [];
 
     public async Task<IReadOnlyList<HoldedLedgerLineDto>> ListDailyLedgerAsync(
         Instant from, Instant to, CancellationToken ct = default)
@@ -236,21 +321,34 @@ public sealed class HoldedClient : IHoldedClient
             AttachAuth(req);
             using var resp = await SendAsync(req, ct);
             await using var stream = await resp.Content.ReadAsStreamAsync(ct);
-            var arr = (await JsonNode.ParseAsync(stream, cancellationToken: ct))?.AsArray() ?? [];
-            foreach (var n in arr)
+            JsonArray arr;
+            try
             {
-                if (n is null) continue;
-                lines.Add(new HoldedLedgerLineDto
+                arr = (await JsonNode.ParseAsync(stream, cancellationToken: ct))?.AsArray() ?? [];
+                foreach (var n in arr)
                 {
-                    EntryNumber = ReadInt(n["entryNumber"]) ?? 0,
-                    Line = ReadInt(n["line"]) ?? 0,
-                    Date = ReadInstant(n["timestamp"]) ?? Instant.FromUnixTimeSeconds(0),
-                    AccountNum = ReadInt(n["account"]) ?? 0,
-                    Debit = ReadDecimal(n["debit"]),
-                    Credit = ReadDecimal(n["credit"]),
-                    Type = n["type"]?.GetValue<string>(),
-                    Description = n["description"]?.GetValue<string>(),
-                });
+                    if (n is null) continue;
+                    lines.Add(new HoldedLedgerLineDto
+                    {
+                        EntryNumber = ReadInt(Prop(n, "entryNumber")) ?? 0,
+                        Line = ReadInt(Prop(n, "line")) ?? 0,
+                        Date = ReadInstant(Prop(n, "timestamp")) ?? Instant.FromUnixTimeSeconds(0),
+                        AccountNum = ReadInt(Prop(n, "account")) ?? 0,
+                        Debit = ReadDecimal(Prop(n, "debit")),
+                        Credit = ReadDecimal(Prop(n, "credit")),
+                        Type = Prop(n, "type")?.GetValue<string>(),
+                        Description = Prop(n, "description")?.GetValue<string>(),
+                    });
+                }
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException
+                or FormatException or OverflowException)
+            {
+                // As in ListPurchaseDocumentsPageAsync — permanent, and the whole page fails rather
+                // than skipping the line. Creditor balances are summed from these debits and credits,
+                // so a quietly dropped line reads as a settled invoice that was never paid.
+                throw new HoldedPermanentException(
+                    $"Holded daily-ledger page {page} for {from}..{to} could not be read.", ex);
             }
             if (arr.Count < pageSize) return lines;
         }
@@ -260,28 +358,30 @@ public sealed class HoldedClient : IHoldedClient
         return lines;
     }
 
+    /// <summary>Projects one purchase document. Every container read goes through <see cref="Prop"/> /
+    /// <see cref="Arr"/> rather than the raw indexer, for the reason spelled out on those two.</summary>
     private static HoldedPurchaseDocListItemDto ParsePurchaseDoc(JsonNode? n) => new()
     {
-        Id = n!["id"]?.GetValue<string>() ?? "",
-        DocNumber = n["docNumber"]?.GetValue<string>() ?? "",
-        ContactName = n["contactName"]?.GetValue<string>() ?? "",
-        Date = ReadInstant(n["date"]) ?? Instant.FromUnixTimeSeconds(0),
-        Subtotal = ReadDecimal(n["subtotal"]),
-        Tax = ReadDecimal(n["tax"]),
-        Total = ReadDecimal(n["total"]),
-        ApprovedAt = ReadInstant(n["approvedAt"]),
-        Currency = n["currency"]?.GetValue<string>() ?? "eur",
-        Tags = ReadTags(n["tags"]),
-        Lines = (n["products"]?.AsArray() ?? []).Select(p => new HoldedPurchaseLineDto
+        Id = Prop(n, "id")?.GetValue<string>() ?? "",
+        DocNumber = Prop(n, "docNumber")?.GetValue<string>() ?? "",
+        ContactName = Prop(n, "contactName")?.GetValue<string>() ?? "",
+        Date = ReadInstant(Prop(n, "date")) ?? Instant.FromUnixTimeSeconds(0),
+        Subtotal = ReadDecimal(Prop(n, "subtotal")),
+        Tax = ReadDecimal(Prop(n, "tax")),
+        Total = ReadDecimal(Prop(n, "total")),
+        ApprovedAt = ReadInstant(Prop(n, "approvedAt")),
+        Currency = Prop(n, "currency")?.GetValue<string>() ?? "eur",
+        Tags = ReadTags(Prop(n, "tags")),
+        Lines = Arr(Prop(n, "products")).Select(p => new HoldedPurchaseLineDto
         {
-            Amount = ReadDecimal(p!["price"]),
-            AccountId = p["account"]?.GetValue<string>(),
-            Tags = ReadTags(p["tags"]),
+            Amount = ReadDecimal(Prop(p, "price")),
+            AccountId = Prop(p, "account")?.GetValue<string>(),
+            Tags = ReadTags(Prop(p, "tags")),
         }).ToList(),
     };
 
     private static IReadOnlyList<string> ReadTags(JsonNode? node) =>
-        node?.AsArray().Where(t => t is not null).Select(t => t!.GetValue<string>()).ToList() ?? [];
+        Arr(node).Where(t => t is not null).Select(t => t!.GetValue<string>()).ToList();
 
     private void AttachAuth(HttpRequestMessage req) =>
         req.Headers.Add("key", _options.ApiKey);

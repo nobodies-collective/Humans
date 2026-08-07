@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Humans.Domain.Entities;
 using Humans.Application.Architecture;
 
-namespace Humans.Infrastructure.Data.Configurations;
+namespace Humans.Infrastructure.Data.Configurations.GoogleIntegration;
 
 [Grandfathered(
     ruleId: "HUM0024",

@@ -5,8 +5,11 @@ using Humans.Application.Interfaces.Holded;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Services.Finance;
 using Humans.Application.Services.Finance.Dtos;
+using Humans.Application.Tests.AuditLog;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
@@ -23,12 +26,14 @@ public class HoldedFinanceServiceTests
     private readonly IHoldedClient _client = Substitute.For<IHoldedClient>();
     private readonly IBudgetService _budget = Substitute.For<IBudgetService>();
     private readonly FakeClock _clock = new(FixedNow);
+    private readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
 
     private HoldedFinanceService MakeService() => new(
         _repo,
         _client,
         _budget,
         _clock,
+        _cache,
         NullLogger<HoldedFinanceService>.Instance);
 
     // ─── GetProvisioningPlan ──────────────────────────────────────────────────────
@@ -368,25 +373,142 @@ public class HoldedFinanceServiceTests
     }
 
     [HumansFact]
-    public async Task ListCreditorAccounts_DerivesFromLedger_AndDuplicateBindingDoesNotThrow()
+    public async Task ListCreditorAccounts_DerivesFromLedger_AndSurfacesBothSidesOfACollision()
     {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
         _repo.GetAllLedgerLinesAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedLedgerLine>
         {
             new() { EntryNumber = 1, Line = 0, AccountNum = 40000004, Date = FixedNow, Credit = 10m },
         });
-        // Two members mis-bound to the same account number — only UserId is unique in the DB.
+        // Two members on the same account number — only UserId is unique in the DB, and the automatic
+        // push paths record what Holded assigned rather than refusing, so this state is reachable.
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
         {
-            new() { UserId = Guid.NewGuid(), HoldedContactId = "c1", SupplierAccountNum = 40000004, Source = CreditorContactSource.Manual },
-            new() { UserId = Guid.NewGuid(), HoldedContactId = "c2", SupplierAccountNum = 40000004, Source = CreditorContactSource.Auto },
+            new() { UserId = first, HoldedContactId = "c1", SupplierAccountNum = 40000004, Source = CreditorContactSource.Manual },
+            new() { UserId = second, HoldedContactId = "c2", SupplierAccountNum = 40000004, Source = CreditorContactSource.Auto },
         });
 
-        var rows = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+        var (rows, _) = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
 
         var row = rows.Should().ContainSingle(r => r.SupplierAccountNum == 40000004).Subject;
         row.Balance.Should().Be(-10m);
         row.OwedToMember.Should().Be(10m);
-        row.BoundUserId.Should().NotBeNull();
+        // Both, not the first: hiding the second is what kept the collision invisible to admins.
+        row.Bindings.Select(b => b.UserId).Should().BeEquivalentTo([first, second]);
+    }
+
+    [HumansFact]
+    public async Task ListCreditorAccounts_BindingWithUnresolvedNumber_LandsOnItsAccountViaTheContactId()
+    {
+        // The one-shot number resolution is best-effort and has no retry, so a binding can sit on a
+        // contact id with a null 400000xx indefinitely. Keyed on the number alone the account would
+        // render "unbound" while this member holds it — and could not be unbound from that page.
+        var userId = Guid.NewGuid();
+        _repo.GetAllLedgerLinesAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedLedgerLine>());
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = userId, HoldedContactId = "c1", SupplierAccountNum = null, Source = CreditorContactSource.Auto },
+        });
+        _client.ListContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedContactDto>
+        {
+            new() { Id = "c1", Name = "Daniela Marquez", SupplierAccountNum = 40000004 },
+        });
+
+        var (rows, _) = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var row = rows.Should().ContainSingle().Subject;
+        row.SupplierAccountNum.Should().Be(40000004);
+        row.Bindings.Should().ContainSingle().Which.UserId.Should().Be(userId);
+    }
+
+    [HumansFact]
+    public async Task ListCreditorAccounts_BindingsSharingAContact_CollideOnOneRowDespiteDifferentNumbers()
+    {
+        // HoldedContactId and SupplierAccountNum are independent columns, so two members on one Holded
+        // contact can carry numbers that disagree — the legacy state the previously-unguarded seed path
+        // could leave behind. Grouped on the stored number they would be two innocent single-member
+        // rows, hiding the contact-id half of the invariant FindConflictingBinding enforces on writes.
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        _repo.GetAllLedgerLinesAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedLedgerLine>());
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = first, HoldedContactId = "c1", SupplierAccountNum = 40000004, Source = CreditorContactSource.Manual },
+            new() { UserId = second, HoldedContactId = "c1", SupplierAccountNum = 40000007, Source = CreditorContactSource.Auto },
+        });
+        _client.ListContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedContactDto>
+        {
+            new() { Id = "c1", Name = "Daniela Marquez", SupplierAccountNum = 40000004 },
+        });
+
+        var (rows, _) = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+
+        // Holded says c1 is 40000004, so that is the row — and 40000007 was only ever a stale guess,
+        // with no ledger lines and no contact of its own to keep it alive.
+        var row = rows.Should().ContainSingle().Subject;
+        row.SupplierAccountNum.Should().Be(40000004);
+        row.Bindings.Select(b => b.UserId).Should().BeEquivalentTo([first, second]);
+    }
+
+    // ─── ListCreditorAccounts: the Unresolved half ─────────────────────────────────
+
+    [HumansFact]
+    public async Task ListCreditorAccounts_BindingWithNoNumberAndNoLiveHoldedNumber_IsUnresolved()
+    {
+        // Neither the one-shot push resolution nor Holded's own contact list carries a number for this
+        // contact, so there is no account row to place it on — it comes back in Unresolved (#972).
+        var userId = Guid.NewGuid();
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = userId, HoldedContactId = "c1", SupplierAccountNum = null, Source = CreditorContactSource.Auto },
+        });
+        _client.ListContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedContactDto>
+        {
+            new() { Id = "c1", Name = "Daniela Marquez", SupplierAccountNum = null },
+        });
+
+        var (_, unresolved) = await MakeService()
+            .ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+
+        unresolved.Should().ContainSingle().Which.UserId.Should().Be(userId);
+    }
+
+    [HumansFact]
+    public async Task ListCreditorAccounts_BindingResolvedViaLiveHoldedContact_IsNotUnresolved()
+    {
+        // Holded's own contact list carries a number for this contact even though our cached
+        // SupplierAccountNum is null — it lands on that account's row, so the same binding must not
+        // also come back in Unresolved. The two halves are a partition, not two overlapping filters.
+        var userId = Guid.NewGuid();
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = userId, HoldedContactId = "c1", SupplierAccountNum = null, Source = CreditorContactSource.Auto },
+        });
+        _client.ListContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedContactDto>
+        {
+            new() { Id = "c1", Name = "Daniela Marquez", SupplierAccountNum = 40000004 },
+        });
+
+        var (_, unresolved) = await MakeService()
+            .ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+
+        unresolved.Should().BeEmpty();
+    }
+
+    [HumansFact]
+    public async Task ListCreditorAccounts_FullyBoundMember_IsNotUnresolved()
+    {
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = Guid.NewGuid(), HoldedContactId = "c1", SupplierAccountNum = 40000004, Source = CreditorContactSource.Manual },
+        });
+        _client.ListContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedContactDto>());
+
+        var (_, unresolved) = await MakeService()
+            .ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+
+        unresolved.Should().BeEmpty();
     }
 
     [HumansFact]
@@ -507,6 +629,8 @@ public class HoldedFinanceServiceTests
     [HumansFact]
     public async Task EnsureCreditorContact_ManualBinding_NotDowngradedToAuto()
     {
+        // A Manual binding whose 400000xx never resolved: the seed still has a number to contribute,
+        // so this is a push that genuinely writes — which is what makes it the case that can downgrade.
         var userId = Guid.NewGuid();
         _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns(
             new HoldedCreditorContact
@@ -514,17 +638,75 @@ public class HoldedFinanceServiceTests
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 HoldedContactId = "m-c",
-                SupplierAccountNum = 40000001,
+                SupplierAccountNum = null,
                 Source = CreditorContactSource.Manual,
             });
         _client.UpsertContactAsync(Arg.Any<HoldedContactInput>(), Arg.Any<CancellationToken>()).Returns("m-c");
 
         await MakeService().EnsureCreditorContactAsync(
-            userId, "Daniela Marquez", null, null, null, null,
+            userId, "Daniela Marquez", null, null, null, 40000001,
             Xunit.TestContext.Current.CancellationToken);
 
         await _repo.Received(1).UpsertCreditorContactAsync(
             Arg.Is<HoldedCreditorContact>(c => c.Source == CreditorContactSource.Manual),
+            FixedNow, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task EnsureCreditorContact_MemberAlreadyHoldsThisContact_WritesNothing()
+    {
+        // The steady state: bound member, number already resolved. UpsertContactAsync PUTs to the id it
+        // was given and returns it, and Source/number come straight off the binding just read, so the
+        // row's only changing column would be UpdatedAt — which nothing reads. It is not a harmless
+        // write either: it lands after a multi-second Holded round-trip carrying a pre-round-trip copy
+        // of the binding, so an admin who unbinds during that window would have the binding they just
+        // cleared resurrected. No write, nothing to resurrect.
+        var userId = Guid.NewGuid();
+        _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns(
+            new HoldedCreditorContact
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                HoldedContactId = "c1",
+                SupplierAccountNum = 40000004,
+                Source = CreditorContactSource.Auto,
+            });
+        _client.UpsertContactAsync(Arg.Any<HoldedContactInput>(), Arg.Any<CancellationToken>()).Returns("c1");
+
+        var id = await MakeService().EnsureCreditorContactAsync(
+            userId, "Peter Drier", null, null, null, null,
+            Xunit.TestContext.Current.CancellationToken);
+
+        // Holded is still updated — the member's legal name and IBAN have to reach the contact.
+        id.Should().Be("c1");
+        await _client.Received(1).UpsertContactAsync(Arg.Any<HoldedContactInput>(), Arg.Any<CancellationToken>());
+        await _repo.DidNotReceive().UpsertCreditorContactAsync(
+            Arg.Any<HoldedCreditorContact>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task EnsureCreditorContact_BindingMissingItsAccountNumber_StillWritesTheSeedNumber()
+    {
+        // The skip must not swallow a push that has something to say: an unresolved 400000xx is exactly
+        // the gap the seed exists to close, so this write still has to happen.
+        var userId = Guid.NewGuid();
+        _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns(
+            new HoldedCreditorContact
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                HoldedContactId = "c1",
+                SupplierAccountNum = null,
+                Source = CreditorContactSource.Auto,
+            });
+        _client.UpsertContactAsync(Arg.Any<HoldedContactInput>(), Arg.Any<CancellationToken>()).Returns("c1");
+
+        await MakeService().EnsureCreditorContactAsync(
+            userId, "Peter Drier", null, null, null, 40000004,
+            Xunit.TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).UpsertCreditorContactAsync(
+            Arg.Is<HoldedCreditorContact>(c => c.SupplierAccountNum == 40000004),
             FixedNow, Arg.Any<CancellationToken>());
     }
 
@@ -572,7 +754,7 @@ public class HoldedFinanceServiceTests
             new() { Id = "c4", Name = "Acme Supplies SL", SupplierAccountNum = 40000150 }, // vendor, outside the block
         });
 
-        var rows = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+        var (rows, _) = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
 
         // Ordinary org vendors carry supplier numbers too — only the 400000xx member-creditor block counts,
         // or an admin could bind a member onto a vendor's account.
@@ -598,7 +780,7 @@ public class HoldedFinanceServiceTests
         _client.ListContactsAsync(Arg.Any<CancellationToken>())
             .Throws(new HoldedTransientException("Holded is down"));
 
-        var rows = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+        var (rows, _) = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
 
         var row = rows.Should().ContainSingle().Subject;
         row.SupplierAccountNum.Should().Be(40000004);
@@ -634,7 +816,7 @@ public class HoldedFinanceServiceTests
         _client.ListContactsAsync(Arg.Any<CancellationToken>())
             .Throws(new JsonException("unexpected token"));
 
-        var rows = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+        var (rows, _) = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
 
         rows.Should().ContainSingle().Which.Name.Should().BeEmpty();
     }
@@ -664,12 +846,12 @@ public class HoldedFinanceServiceTests
         });
         _client.ListContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedContactDto>());
 
-        var rows = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
+        var (rows, _) = await MakeService().ListCreditorAccountsAsync(Xunit.TestContext.Current.CancellationToken);
 
         // The binding keeps the row visible; there is simply no name to show for it.
         var row = rows.Should().ContainSingle().Subject;
         row.SupplierAccountNum.Should().Be(40000004);
-        row.BoundUserId.Should().Be(userId);
+        row.Bindings.Should().ContainSingle().Which.UserId.Should().Be(userId);
         row.Name.Should().BeEmpty();
     }
 
@@ -752,5 +934,201 @@ public class HoldedFinanceServiceTests
                 c.UserId == userId && c.HoldedContactId == "c1" &&
                 c.SupplierAccountNum == 40000004 && c.Source == CreditorContactSource.Manual),
             FixedNow, Arg.Any<CancellationToken>());
+    }
+
+    // ─── The automatic write paths (nobodies-collective/Humans#975) ──────────────
+    //
+    // Holded assigned the number to the contact just pushed, so it is authoritative and the older
+    // binding is the wrong guess. Refusing would leave a real payable unlinked to preserve a bad row,
+    // so these paths write, log Error, and leave the collision standing on /Finance/Creditors.
+
+    [HumansFact]
+    public async Task SetCreditorAccountNum_AccountHeldByAnotherMember_WritesAnyway_AndLogsError()
+    {
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var logger = new CapturingLogger<HoldedFinanceService>();
+        _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns(
+            new HoldedCreditorContact
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                HoldedContactId = "c-mine",
+                SupplierAccountNum = null,
+                Source = CreditorContactSource.Auto,
+                CreatedAt = FixedNow,
+            });
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = otherUserId, HoldedContactId = "c-theirs", SupplierAccountNum = 40000012, Source = CreditorContactSource.Manual },
+        });
+
+        await new HoldedFinanceService(_repo, _client, _budget, _clock, _cache, logger)
+            .SetCreditorAccountNumAsync(userId, 40000012, Xunit.TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).UpsertCreditorContactAsync(
+            Arg.Is<HoldedCreditorContact>(c => c.UserId == userId && c.SupplierAccountNum == 40000012),
+            FixedNow, Arg.Any<CancellationToken>());
+        var error = logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error).Subject;
+        error.Message.Should().Contain(otherUserId.ToString()).And.Contain("40000012");
+    }
+
+    [HumansFact]
+    public async Task SetCreditorAccountNum_AccountFree_WritesWithoutLoggingAnError()
+    {
+        var userId = Guid.NewGuid();
+        var logger = new CapturingLogger<HoldedFinanceService>();
+        _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns(
+            new HoldedCreditorContact
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                HoldedContactId = "c-mine",
+                Source = CreditorContactSource.Auto,
+                CreatedAt = FixedNow,
+            });
+        // The member's own prior binding on the same account must not read as a collision.
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = userId, HoldedContactId = "c-mine", SupplierAccountNum = 40000012, Source = CreditorContactSource.Auto },
+        });
+
+        await new HoldedFinanceService(_repo, _client, _budget, _clock, _cache, logger)
+            .SetCreditorAccountNumAsync(userId, 40000012, Xunit.TestContext.Current.CancellationToken);
+
+        await _repo.Received(1).UpsertCreditorContactAsync(
+            Arg.Any<HoldedCreditorContact>(), FixedNow, Arg.Any<CancellationToken>());
+        logger.Entries.Should().NotContain(e => e.Level == LogLevel.Error);
+    }
+
+    [HumansFact]
+    public async Task EnsureCreditorContact_SeedHeldByAnotherMember_IsRefused_AndANewContactIsCreated()
+    {
+        // The seed is this member's own cached guess off a prior report, not something Holded just
+        // told us, so it is refused like a bad manual bind rather than recorded like an assignment.
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var logger = new CapturingLogger<HoldedFinanceService>();
+        _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns((HoldedCreditorContact?)null);
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = otherUserId, HoldedContactId = "c-theirs", SupplierAccountNum = 40000012, Source = CreditorContactSource.Manual },
+        });
+        _client.UpsertContactAsync(Arg.Any<HoldedContactInput>(), Arg.Any<CancellationToken>()).Returns("c-fresh");
+
+        await new HoldedFinanceService(_repo, _client, _budget, _clock, _cache, logger)
+            .EnsureCreditorContactAsync(
+                userId, "Ana Ruiz", null, null, seedContactId: "c-theirs", seedAccountNum: 40000012,
+                Xunit.TestContext.Current.CancellationToken);
+
+        // No ExistingContactId => Holded POSTs a new contact, splitting the two members apart.
+        await _client.Received(1).UpsertContactAsync(
+            Arg.Is<HoldedContactInput>(i => i.ExistingContactId == null), Arg.Any<CancellationToken>());
+        await _repo.Received(1).UpsertCreditorContactAsync(
+            Arg.Is<HoldedCreditorContact>(c =>
+                c.UserId == userId && c.HoldedContactId == "c-fresh" && c.SupplierAccountNum == null),
+            FixedNow, Arg.Any<CancellationToken>());
+        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error)
+            .Which.Message.Should().Contain(otherUserId.ToString());
+    }
+
+    [HumansFact]
+    public async Task EnsureCreditorContact_SeedContactHeldByAnotherMember_IsRefused_EvenWithNoAccountNumber()
+    {
+        // The one-shot number resolution is best-effort, so the other member's binding can carry the
+        // shared Holded contact with a null 400000xx — invisible to an account-number-only check.
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var logger = new CapturingLogger<HoldedFinanceService>();
+        _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns((HoldedCreditorContact?)null);
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = otherUserId, HoldedContactId = "c-shared", SupplierAccountNum = null, Source = CreditorContactSource.Auto },
+        });
+        _client.UpsertContactAsync(Arg.Any<HoldedContactInput>(), Arg.Any<CancellationToken>()).Returns("c-fresh");
+
+        await new HoldedFinanceService(_repo, _client, _budget, _clock, _cache, logger)
+            .EnsureCreditorContactAsync(
+                userId, "Ana Ruiz", null, null, seedContactId: "c-shared", seedAccountNum: null,
+                Xunit.TestContext.Current.CancellationToken);
+
+        await _client.Received(1).UpsertContactAsync(
+            Arg.Is<HoldedContactInput>(i => i.ExistingContactId == null), Arg.Any<CancellationToken>());
+        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error)
+            .Which.Message.Should().Contain("c-shared");
+    }
+
+    [HumansFact]
+    public async Task EnsureCreditorContact_AfterUnbind_DoesNotRestoreTheOtherMembersBindingFromAPriorReport()
+    {
+        // The regression this guards (PR #1194 review): unbind deletes the binding row, but the
+        // cleared member's old reports still carry the other member's contact id and 400000xx, and
+        // ProcessHoldedCreateAsync hands those straight back as seeds on their very next push.
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns((HoldedCreditorContact?)null);
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = otherUserId, HoldedContactId = "c-theirs", SupplierAccountNum = 40000012, Source = CreditorContactSource.Manual },
+        });
+        _client.UpsertContactAsync(Arg.Any<HoldedContactInput>(), Arg.Any<CancellationToken>()).Returns("c-fresh");
+
+        await MakeService().EnsureCreditorContactAsync(
+            userId, "Ana Ruiz", null, null, seedContactId: "c-theirs", seedAccountNum: 40000012,
+            Xunit.TestContext.Current.CancellationToken);
+
+        await _repo.DidNotReceive().UpsertCreditorContactAsync(
+            Arg.Is<HoldedCreditorContact>(c => c.HoldedContactId == "c-theirs" || c.SupplierAccountNum == 40000012),
+            Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task EnsureCreditorContact_SeedIsTheMembersOwnContact_IsStillAdopted()
+    {
+        // The lazy-seed self-heal must survive the refusal: only *another* member's binding blocks it.
+        var userId = Guid.NewGuid();
+        _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns((HoldedCreditorContact?)null);
+        _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
+        {
+            new() { UserId = userId, HoldedContactId = "c-mine", SupplierAccountNum = 40000012, Source = CreditorContactSource.Auto },
+        });
+        _client.UpsertContactAsync(Arg.Any<HoldedContactInput>(), Arg.Any<CancellationToken>()).Returns("c-mine");
+
+        await MakeService().EnsureCreditorContactAsync(
+            userId, "Ana Ruiz", null, null, seedContactId: "c-mine", seedAccountNum: 40000012,
+            Xunit.TestContext.Current.CancellationToken);
+
+        await _client.Received(1).UpsertContactAsync(
+            Arg.Is<HoldedContactInput>(i => i.ExistingContactId == "c-mine"), Arg.Any<CancellationToken>());
+        await _repo.Received(1).UpsertCreditorContactAsync(
+            Arg.Is<HoldedCreditorContact>(c => c.SupplierAccountNum == 40000012),
+            FixedNow, Arg.Any<CancellationToken>());
+    }
+
+    // ─── Unbind ─────────────────────────────────────────────────────────────────
+
+    [HumansFact]
+    public async Task ClearCreditorContact_RemovesTheBinding()
+    {
+        var userId = Guid.NewGuid();
+        _repo.DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>()).Returns(true);
+
+        var removed = await MakeService().ClearCreditorContactAsync(
+            userId, Xunit.TestContext.Current.CancellationToken);
+
+        removed.Should().BeTrue();
+        await _repo.Received(1).DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task ClearCreditorContact_NothingBound_ReportsFalse()
+    {
+        var userId = Guid.NewGuid();
+        _repo.DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>()).Returns(false);
+
+        var removed = await MakeService().ClearCreditorContactAsync(
+            userId, Xunit.TestContext.Current.CancellationToken);
+
+        removed.Should().BeFalse();
     }
 }

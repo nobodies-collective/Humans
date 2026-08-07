@@ -2,7 +2,6 @@ using AwesomeAssertions;
 using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Camps;
 using Humans.Application.Interfaces.EarlyEntry;
-using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Camps;
@@ -295,55 +294,6 @@ public sealed class CampServiceTests : ServiceTestHarness
             .Single(c => c.Id == camp.Id)
             .IsLead(userId);
         result.Should().BeFalse();
-    }
-
-    [HumansFact]
-    public async Task ContributeForUserAsync_ExportsLegacyCampLeadRows_UntilTableDrops()
-    {
-        // §8a GDPR completeness: the legacy camp_leads table still holds per-user
-        // rows until #774 drops it, so the Article 15 export must include them.
-        await SeedSettingsAsync();
-        var camp = await CreateTestCamp();
-        var userId = Guid.NewGuid();
-        Db.CampLeads.Add(new CampLead
-        {
-            Id = Guid.NewGuid(),
-            CampId = camp.Id,
-            UserId = userId,
-            Role = CampLeadRole.CoLead,
-            JoinedAt = Clock.GetCurrentInstant(),
-        });
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
-
-        var slices = await _service.ContributeForUserAsync(userId, Xunit.TestContext.Current.CancellationToken);
-
-        var leadSlice = slices.Should()
-            .ContainSingle(s => s.SectionName == GdprExportSections.CampLeadAssignments).Subject;
-        ((System.Collections.IEnumerable)leadSlice.Data!).Cast<object>().Should().ContainSingle();
-    }
-
-    [HumansFact]
-    public async Task GetCampsForYearAsync_LegacyCampLeadRowOnly_DoesNotProjectLead()
-    {
-        // Locks the removal of the legacy CampLead fallback: a camp_leads row with
-        // no matching CampRoleAssignment no longer confers lead status.
-        await SeedSettingsAsync();
-        var camp = await CreateTestCamp();
-        var legacyUserId = Guid.NewGuid();
-        Db.CampLeads.Add(new CampLead
-        {
-            Id = Guid.NewGuid(),
-            CampId = camp.Id,
-            UserId = legacyUserId,
-            Role = CampLeadRole.CoLead,
-            JoinedAt = Clock.GetCurrentInstant(),
-        });
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
-
-        (await _service.GetCampsForYearAsync(2026, Xunit.TestContext.Current.CancellationToken))
-            .Single(c => c.Id == camp.Id)
-            .IsLead(legacyUserId)
-            .Should().BeFalse();
     }
 
     [HumansFact]

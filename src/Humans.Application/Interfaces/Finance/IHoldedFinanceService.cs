@@ -22,7 +22,16 @@ public interface IHoldedFinanceService : IApplicationService
     /// <summary>Admin overview: every 400000xx creditor account — cached balances, member bindings and
     /// Holded's own creditor contacts (which carry the account name and appear before any journal
     /// activity exists). Names are blank when Holded is unreachable; the rest still renders.</summary>
-    Task<IReadOnlyList<HoldedCreditorAccountRow>> ListCreditorAccountsAsync(CancellationToken ct = default);
+    /// <returns>
+    /// The two halves of one partition of the binding set, from one snapshot of the same inputs.
+    /// <c>Unresolved</c> is the remainder <c>Accounts</c> cannot represent: bindings whose 400000xx
+    /// never resolved — neither our one-shot push resolution nor Holded's live contact list has a
+    /// number for the contact — so there is no account row to place them on. There is no automatic
+    /// retry (nobodies-collective/Humans#972), so returning them here is what keeps them visible on
+    /// /Finance/Creditors, where an admin binds them with <see cref="SetCreditorContactAsync"/>.
+    /// </returns>
+    Task<(IReadOnlyList<HoldedCreditorAccountRow> Accounts, IReadOnlyList<CreditorContactBinding> Unresolved)>
+        ListCreditorAccountsAsync(CancellationToken ct = default);
 
     /// <summary>The member's creditor-account binding, if any.</summary>
     Task<CreditorContactBinding?> GetCreditorContactByUserAsync(Guid userId, CancellationToken ct = default);
@@ -45,4 +54,11 @@ public interface IHoldedFinanceService : IApplicationService
 
     /// <summary>Records the resolved 400000xx number on the member's binding (once the payable exists).</summary>
     Task SetCreditorAccountNumAsync(Guid userId, int supplierAccountNum, CancellationToken ct = default);
+
+    /// <summary>Clears the member's creditor binding outright — the admin remedy for a wrong bind and
+    /// for the duplicate the automatic write paths record rather than refuse. Removes the whole row,
+    /// not just the 400000xx: a binding stripped of its number still carries the other member's Holded
+    /// contact id, which merges their payables just as thoroughly. The member's next expense push
+    /// re-resolves the contact from scratch. Returns false when there was nothing bound.</summary>
+    Task<bool> ClearCreditorContactAsync(Guid userId, CancellationToken ct = default);
 }

@@ -18,7 +18,7 @@ namespace Humans.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -789,41 +789,6 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("camp_images", (string)null);
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.CampLead", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CampId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant>("JoinedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Instant?>("LeftAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("CampId", "UserId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_camp_leads_active_unique")
-                        .HasFilter("\"LeftAt\" IS NULL");
-
-                    b.ToTable("camp_leads", (string)null);
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.CampMember", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1010,10 +975,8 @@ namespace Humans.Infrastructure.Migrations
 
                     b.Property<string>("SpecialRole")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValueSql("'None'");
+                        .HasColumnType("character varying(50)");
 
                     b.Property<Instant>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -4763,23 +4726,6 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("Camp");
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.CampLead", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.Camp", "Camp")
-                        .WithMany("Leads")
-                        .HasForeignKey("CampId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Humans.Domain.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Camp");
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.CampMember", b =>
                 {
                     b.HasOne("Humans.Domain.Entities.CampSeason", "CampSeason")
@@ -5613,8 +5559,6 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("HistoricalNames");
 
                     b.Navigation("Images");
-
-                    b.Navigation("Leads");
 
                     b.Navigation("Seasons");
                 });
