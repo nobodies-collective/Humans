@@ -54,7 +54,7 @@ Admin pages are not visible to you.
 
 ## As a Coordinator
 
-The Coordinator role does not include global admin access; the domain-specific admin roles (Teams Admin, Camp Admin, Ticket Admin, Finance Admin, Feedback Admin, and so on) are separate and covered in their respective section guides.
+The Coordinator role does not include global admin access; the domain-specific admin roles (Teams Admin, Camp Admin, Ticket Admin, Finance Admin, and so on) are separate and covered in their respective section guides. Feedback Admin is the exception — the role is still assignable but grants nothing since Feedback was retired.
 
 ## As a Board member / Admin
 
@@ -90,7 +90,7 @@ See [GoogleIntegration](GoogleIntegration.md) for the full Google surface.
 
 ### Run technical operations (Admin only)
 
-- **Configuration** (`/Debug/Configuration`) lists every auto-discovered setting, classified as critical, recommended, or optional, with sensitive values masked. The feedback API key is set here and enables the in-app feedback submission flow described in [Feedback](Feedback.md).
+- **Configuration** (`/Debug/Configuration`) lists every auto-discovered setting, classified as critical, recommended, or optional, with sensitive values masked. The feedback API key is set here and authenticates the `/api/feedback` triage endpoints described in [Feedback](Feedback.md).
 - **Logs** (`/Debug/Logs`) shows recent in-memory Serilog entries for quick triage without shelling in.
 - **HTTP errors** (`/Debug/HttpErrors`) shows recent HTTP error responses for quick diagnosis.
 - **DbStats**, **CacheStats**, **DbVersion** report query statistics, cache hit/miss rates, and applied and pending EF migrations.
@@ -110,5 +110,5 @@ See [GoogleIntegration](GoogleIntegration.md) for the full Google surface.
 - [Profiles](Profiles.md) — the humans list and per-human detail page are the Profiles admin surface.
 - [Teams](Teams.md) — Teams Admin and Coordinator duties live here; system team sync is triggered from the Admin dashboard.
 - [Google Integration](GoogleIntegration.md) — sync settings, workspace accounts, and sync audit views.
-- [Feedback](Feedback.md) — Feedback Admin triages reports; all admins use the shared notification inbox.
+- [Feedback](Feedback.md) — retired and closed to new reports; full Admins triage the historical queue. All admins use the shared notification inbox.
 - [Governance](Governance.md) — role assignments (Admin, Board, HumanAdmin, Coordinator roles) and tier application vote finalization.

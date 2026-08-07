@@ -119,6 +119,123 @@ public sealed class AgentService : IAgentService
             Model = settings.Model
         }, cancellationToken);
 
+        // From here on, a thrown exception (or client disconnect) would otherwise leave the
+        // user message above with no matching assistant reply (nobodies-collective/Humans#963:
+        // 4 of 11 conversations in #952's log evidence never reached the AppendMessageAsync
+        // below because something threw between the two writes). `await foreach` forbids
+        // `yield` inside its implicit try/finally, so drive the inner enumerator manually —
+        // that lets MoveNextAsync be wrapped in try/catch while still streaming tokens live.
+        // Shared with RunTurnAsync so the failure path below can still bill a turn that broke
+        // partway: the running totals live inside the iterator, out of reach of this method.
+        var turnUsage = new TurnUsage();
+        var turn = RunTurnAsync(request, conversation, settings, priorTurns, today, hour, turnUsage, cancellationToken);
+        await using var enumerator = turn.GetAsyncEnumerator(cancellationToken);
+        // False until the assistant message for this turn is on disk — written either by
+        // RunTurnAsync itself (it yields its finalizer only after AppendMessageAsync) or by
+        // the finally below. While it's false the persisted user message still owes the user
+        // a reply, and the turn is still unbilled.
+        var assistantPersisted = false;
+        Exception? turnFailure = null;
+        try
+        {
+            while (true)
+            {
+                AgentTurnToken? current = null;
+                try
+                {
+                    if (!await enumerator.MoveNextAsync())
+                        yield break;
+                    current = enumerator.Current;
+                }
+                catch (Exception ex)
+                {
+                    // `yield` isn't allowed inside a catch block, so stash the exception and
+                    // handle/yield below.
+                    turnFailure = ex;
+                }
+
+                if (turnFailure is not null)
+                {
+                    if (turnFailure is OperationCanceledException && cancellationToken.IsCancellationRequested)
+                    {
+                        // Expected (client disconnect), not a bug — Warning, not Error. The
+                        // finally still persists the trace: #952's log evidence showed
+                        // conversations with no assistant message at all, and a disconnect is
+                        // one plausible cause.
+                        _logger.LogWarning(
+                            "Agent turn cancelled (likely client disconnect) before completion for conversation {ConversationId}",
+                            conversation.Id);
+                    }
+                    else
+                    {
+                        _logger.LogError(turnFailure,
+                            "Agent turn failed before completion for conversation {ConversationId}", conversation.Id);
+                    }
+                    yield return new AgentTurnToken(null, null,
+                        new AgentTurnFinalizer(0, 0, 0, 0, settings.Model, "error", conversation.Id));
+                    yield break;
+                }
+
+                // RunTurnAsync yields its finalizer last, after AppendMessageAsync and its own
+                // _rateLimit.Record — seeing one means the turn is fully persisted and billed,
+                // so a disconnect while writing that very frame must not double up on either.
+                if (current!.Finalizer is not null)
+                    assistantPersisted = true;
+                yield return current;
+            }
+        }
+        finally
+        {
+            // Reached by `yield break` above and also by disposal: not every abandoned turn
+            // throws into the catch, because AgentController awaits WriteSse OUTSIDE this
+            // method — a browser that disconnects while a token is being written tears the turn
+            // down by disposing the iterator at a `yield return`, which resumes here rather
+            // than at MoveNextAsync. Without that the disconnect case #963 set out to fix still
+            // leaves a user message with no assistant reply.
+            if (!assistantPersisted)
+            {
+                if (turnFailure is null)
+                    _logger.LogWarning(
+                        "Agent turn abandoned mid-stream (likely client disconnect) for conversation {ConversationId}",
+                        conversation.Id);
+                // CancellationToken.None: the turn may be failing BECAUSE cancellationToken
+                // fired (client disconnect), and the whole point is to still leave a trace.
+                await AppendFailureMessage(conversation.Id, "error", settings.Model, turnUsage, CancellationToken.None);
+                // Bill it. The provider already charged us for whatever the turn consumed
+                // before it broke, so leaving those tokens out understates admin spend and the
+                // DailyTokenCap; and a turn that fails deterministically must still cost a
+                // message, or a repeatable backend error becomes an unmetered send loop.
+                _rateLimit.Record(request.UserId, today, hour,
+                    messagesDelta: 1, tokensDelta: turnUsage.PromptTokens + turnUsage.OutputTokens);
+            }
+        }
+    }
+
+    /// <summary>Provider usage accumulated by <see cref="RunTurnAsync"/> as its tool loop runs.
+    /// Mutable and passed in by <see cref="AskAsync"/> rather than kept as iterator locals so a
+    /// turn that dies partway can still be billed for the tokens already spent on it.</summary>
+    private sealed class TurnUsage
+    {
+        public int PromptTokens;
+        public int OutputTokens;
+        public int CacheReadTokens;
+        public int CacheCreationTokens;
+    }
+
+    /// <summary>The tool-call loop and finalizer for one turn, run after the user message is
+    /// already persisted. Split out of <see cref="AskAsync"/> so the caller can wrap iteration
+    /// in try/catch (nobodies-collective/Humans#963) — a `yield`-containing method can't have a
+    /// `catch` in its own body around the `yield`.</summary>
+    private async IAsyncEnumerable<AgentTurnToken> RunTurnAsync(
+        AgentTurnRequest request,
+        AgentConversation conversation,
+        AgentSettingsDto settings,
+        List<AgentMessage> priorTurns,
+        LocalDate today,
+        int hour,
+        TurnUsage usage,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         var snapshot = await _snapshots.LoadAsync(request.UserId, cancellationToken);
         var preloadText = await _preload.BuildAsync(settings.PreloadConfig, cancellationToken);
         var systemPrompt = _assembler.BuildSystemPrompt(preloadText);
@@ -148,11 +265,8 @@ public sealed class AgentService : IAgentService
         // Each loop iteration is a separate provider request with its own usage.
         // Accumulate across all of them — recording only the last finalizer would
         // drop tool-loop (and cap-hit synthesis) requests from admin spend and
-        // the DailyTokenCap accounting.
-        var promptTokensTotal = 0;
-        var outputTokensTotal = 0;
-        var cacheReadTokensTotal = 0;
-        var cacheCreationTokensTotal = 0;
+        // the DailyTokenCap accounting. The totals live on the caller-supplied
+        // `usage` so a turn that throws mid-loop can still be billed for them.
         // Wall-clock turn duration (streaming + tool loop) for the admin status latency panel.
         var turnStart = _clock.GetCurrentInstant();
 
@@ -167,8 +281,8 @@ public sealed class AgentService : IAgentService
             var pendingToolCalls = new List<AnthropicToolCall>();
 
             await foreach (var token in _client.StreamAsync(
-                new AnthropicRequest(settings.Model, systemPrompt, sdkMessages, tools, MaxOutputTokens: 1024,
-                    DisallowToolUse: withholdTools),
+                new AnthropicRequest(settings.Model, systemPrompt, sdkMessages, tools,
+                    MaxOutputTokens: MaxOutputTokensPerIteration, DisallowToolUse: withholdTools),
                 cancellationToken))
             {
                 if (token.TextDelta is { Length: > 0 } delta)
@@ -184,20 +298,32 @@ public sealed class AgentService : IAgentService
                 else if (token.Finalizer is { } f)
                 {
                     finalFinalizer = f;
-                    promptTokensTotal += f.InputTokens;
-                    outputTokensTotal += f.OutputTokens;
-                    cacheReadTokensTotal += f.CacheReadTokens;
-                    cacheCreationTokensTotal += f.CacheCreationTokens;
+                    usage.PromptTokens += f.InputTokens;
+                    usage.OutputTokens += f.OutputTokens;
+                    usage.CacheReadTokens += f.CacheReadTokens;
+                    usage.CacheCreationTokens += f.CacheCreationTokens;
                 }
             }
 
-            if (withholdTools || pendingToolCalls.Count == 0 || !string.Equals(finalFinalizer?.StopReason, "tool_use", StringComparison.Ordinal))
+            // A max_tokens cutoff mid tool-call JSON still yields a (possibly truncated)
+            // AnthropicToolCall — AnthropicClient closes the current content block before the
+            // stream ends regardless of stop reason (nobodies-collective/Humans#963). Treat it
+            // like tool_use so the call is dispatched instead of silently discarded: the
+            // dispatcher already handles malformed JSON gracefully, and MaxToolCallsPerTurn
+            // still bounds the loop if the model keeps truncating.
+            var stopReason = finalFinalizer?.StopReason;
+            var continuesToolLoop = string.Equals(stopReason, "tool_use", StringComparison.Ordinal)
+                || string.Equals(stopReason, "max_tokens", StringComparison.Ordinal);
+            if (withholdTools || pendingToolCalls.Count == 0 || !continuesToolLoop)
                 break;
 
+            // Replay the calls with unparseable arguments neutralised — see
+            // ReplayableToolCalls. Dispatch below still uses the raw pendingToolCalls
+            // so the dispatcher sees (and reports) the malformed payload as it is.
             sdkMessages.Add(new AnthropicMessage(
                 Role: "assistant",
                 Text: iterationAssistantText.Length > 0 ? iterationAssistantText.ToString() : null,
-                ToolCalls: pendingToolCalls,
+                ToolCalls: ReplayableToolCalls(pendingToolCalls),
                 ToolResults: null));
 
             var results = new List<AnthropicToolResult>();
@@ -230,9 +356,13 @@ public sealed class AgentService : IAgentService
                         fetchedDocs.Add(NormalizeFetchedDocSlug(call.Name, call.JsonArguments, _logger));
                     }
                 }
-                else
+                else if (!result.IsError)
                 {
                     // Normalize slug so admin "Top fetched docs" groups by document, not tool-name+args.
+                    // Only successful dispatches count: now that max_tokens-truncated calls are
+                    // dispatched rather than discarded, a malformed-JSON call would otherwise be
+                    // recorded under its bare tool name (NormalizeFetchedDocSlug's parse fallback)
+                    // and inflate the admin panel with lookups that never returned a document.
                     fetchedDocs.Add(NormalizeFetchedDocSlug(call.Name, call.JsonArguments, _logger));
                 }
             }
@@ -294,9 +424,9 @@ public sealed class AgentService : IAgentService
             Role = AgentRole.Assistant,
             Content = assistantText,
             CreatedAt = turnEnd,
-            PromptTokens = promptTokensTotal,
-            OutputTokens = outputTokensTotal,
-            CachedTokens = cacheReadTokensTotal,
+            PromptTokens = usage.PromptTokens,
+            OutputTokens = usage.OutputTokens,
+            CachedTokens = usage.CacheReadTokens,
             Model = settings.Model,
             DurationMs = durationMs,
             FetchedDocs = fetchedDocs.ToArray(),
@@ -314,15 +444,22 @@ public sealed class AgentService : IAgentService
         yield return new AgentTurnToken(null, null, fallbackFinalizer with
         {
             ConversationId = conversation.Id,
-            InputTokens = promptTokensTotal,
-            OutputTokens = outputTokensTotal,
-            CacheReadTokens = cacheReadTokensTotal,
-            CacheCreationTokens = cacheCreationTokensTotal
+            InputTokens = usage.PromptTokens,
+            OutputTokens = usage.OutputTokens,
+            CacheReadTokens = usage.CacheReadTokens,
+            CacheCreationTokens = usage.CacheCreationTokens
         });
     }
 
     /// <summary>How many prior user/assistant turns to replay (bounded for context budget).</summary>
     private const int HistoryReplayLimit = 20;
+
+    /// <summary>Per-iteration output cap sent to the provider. 1024 (the prior value) was tight
+    /// for a turn that also emits tool-call JSON, truncating mid-JSON often enough to matter
+    /// (nobodies-collective/Humans#963). Raised alongside the max_tokens loop-continuation fix
+    /// above — the two are complementary, not alternatives: the higher cap avoids most
+    /// truncation outright, and the loop fix handles what it doesn't.</summary>
+    private const int MaxOutputTokensPerIteration = 4096;
 
     /// <summary>Shown when a turn ends with no assistant prose (exhausted/truncated tool loop).
     /// Localized here because the Application layer has no resx access and the text is both
@@ -521,6 +658,43 @@ public sealed class AgentService : IAgentService
     /// non-doc tools we drop the JSON args entirely — different shift ids /
     /// audit limits would otherwise split the bucket per invocation.
     /// </summary>
+    /// <summary>
+    /// Returns the tool calls as they can safely be replayed to the provider.
+    /// </summary>
+    /// <remarks>
+    /// A max_tokens cutoff mid tool-call JSON yields a truncated arguments payload
+    /// (nobodies-collective/Humans#963). Every following request replays the whole
+    /// assistant message, and <c>AnthropicClient.MapMessages</c> deserializes each
+    /// replayed <c>tool_use</c> block's arguments into a
+    /// <c>Dictionary&lt;string, JsonElement&gt;</c> — so replaying the raw truncated
+    /// payload throws while building the request, killing the very recovery
+    /// iteration this is supposed to enable.
+    /// <para>
+    /// Unparseable arguments are therefore swapped for an empty object. The block
+    /// still pairs with its <c>tool_result</c> (the API rejects an unmatched
+    /// <c>tool_use</c>), and that result carries <c>IsError</c>, so the model is
+    /// told the call failed and can reissue it rather than silently seeing a
+    /// well-formed no-arg call.
+    /// </para>
+    /// </remarks>
+    private static List<AnthropicToolCall> ReplayableToolCalls(List<AnthropicToolCall> calls) =>
+        [.. calls.Select(c => IsReplayableArguments(c.JsonArguments) ? c : c with { JsonArguments = "{}" })];
+
+    private static bool IsReplayableArguments(string jsonArguments)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(jsonArguments);
+            // MapMessages deserializes into a dictionary, so a valid non-object
+            // (array, bare string) would throw there just like malformed JSON does.
+            return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
     private static string NormalizeFetchedDocSlug(string toolName, string jsonArguments, ILogger<AgentService> logger)
     {
         switch (toolName)
@@ -598,14 +772,35 @@ public sealed class AgentService : IAgentService
                 : await _repo.CreateConversationAsync(req.UserId, req.Locale, ct);
         }
 
+        // usage: null — a refused turn is rejected before any provider call, so it cost nothing.
+        await AppendFailureMessage(conv.Id, reason, _settings.Current.Model, usage: null, ct);
+    }
+
+    /// <summary>Appends an empty-content assistant message carrying a machine-readable
+    /// <c>RefusalReason</c> — the same "no real answer, here's why" shape <see cref="PersistRefusal"/>
+    /// already writes for rate-limit/abuse turns (Agent.md invariant 6). Reused for the
+    /// turn-exception path (nobodies-collective/Humans#963) so a failed turn shows up through the
+    /// same admin refusals filter and "top refusal reasons" panel instead of a new surface.</summary>
+    /// <param name="usage">Provider usage to stamp on the row, or null for a turn that never
+    /// reached the provider (rate_limited / abuse_flag). A turn that failed mid-flight did spend
+    /// tokens, and <see cref="AgentAdminStatusService"/> prices spend straight off
+    /// <see cref="AgentMessage.PromptTokens"/>/<see cref="AgentMessage.OutputTokens"/> — leaving
+    /// zeros here would hide billable turns from the admin panel even though the rate-limit
+    /// store counted them.</param>
+    private async Task AppendFailureMessage(
+        Guid conversationId, string reason, string model, TurnUsage? usage, CancellationToken ct)
+    {
         await _repo.AppendMessageAsync(new AgentMessage
         {
             Id = Guid.NewGuid(),
-            ConversationId = conv.Id,
+            ConversationId = conversationId,
             Role = AgentRole.Assistant,
             Content = "",
             CreatedAt = _clock.GetCurrentInstant(),
-            Model = _settings.Current.Model,
+            PromptTokens = usage?.PromptTokens ?? 0,
+            OutputTokens = usage?.OutputTokens ?? 0,
+            CachedTokens = usage?.CacheReadTokens ?? 0,
+            Model = model,
             RefusalReason = reason
         }, ct);
     }

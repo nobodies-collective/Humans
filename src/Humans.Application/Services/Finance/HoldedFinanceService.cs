@@ -5,6 +5,7 @@ using Humans.Application.Interfaces.Holded;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Services.Finance.Dtos;
 using Humans.Domain.Entities;
+using System.Text.Json;
 using Humans.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using NodaTime;
@@ -487,22 +488,61 @@ public sealed class HoldedFinanceService(
             .GroupBy(b => b.SupplierAccountNum!.Value)
             .ToDictionary(g => g.Key, g => g.First());
 
-        // Every creditor account with ledger activity, plus bound accounts that have no lines yet.
-        // Name (the Holded chart-account label) is no longer cached; the bound member's name is
-        // resolved by the controller for display.
-        return byAccount.Keys.Union(bindings.Keys)
+        // Holded is the only place the chart-account label lives — nothing caches it locally.
+        // Range filter is load-bearing: Holded assigns a supplier number to every supplier contact,
+        // so an ordinary org vendor would otherwise become a bindable "creditor account" here.
+        // Same group-by-first reasoning: a duplicate account number must not throw the whole list.
+        var contacts = (await ListContactsOrEmptyAsync(ct))
+            .Where(c => c.SupplierAccountNum is >= CreditorAccountMin and <= CreditorAccountMax)
+            .GroupBy(c => c.SupplierAccountNum!.Value)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Every creditor account with ledger activity, plus bound accounts that have no lines yet,
+        // plus every Holded creditor contact — a first-time submitter's account exists in Holded
+        // before it has any journal activity, and that is exactly the row an admin needs to see.
+        return byAccount.Keys.Union(bindings.Keys).Union(contacts.Keys)
             .Select(num =>
             {
                 decimal? balance = byAccount.TryGetValue(num, out var lines) ? LedgerBalance(lines) : null;
                 bindings.TryGetValue(num, out var binding);
+                contacts.TryGetValue(num, out var contact);
                 return new HoldedCreditorAccountRow(
                     SupplierAccountNum: num,
-                    Name: "",
+                    Name: contact?.Name ?? "",
                     Balance: balance,
                     OwedToMember: balance is { } b ? Math.Max(0m, -b) : 0m,
                     BoundUserId: binding?.UserId,
                     BindingSource: binding?.Source);
             }).ToList();
+    }
+
+    /// <summary>Holded's contact list, or empty when the Holded call fails. The creditor overviews are
+    /// otherwise cache-backed reads embedded in admin pages, so a vendor failure must cost the account
+    /// names, not the page. Only vendor-call failures are absorbed — anything else is a bug and throws.</summary>
+    private async Task<IReadOnlyList<HoldedContactDto>> ListContactsOrEmptyAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await client.ListContactsAsync(ct);
+        }
+        catch (HoldedTransientException ex)
+        {
+            logger.LogWarning(ex, "Holded contact list unavailable; creditor account names will be blank.");
+            return [];
+        }
+        catch (HoldedPermanentException ex)
+        {
+            // A rejected key or a removed endpoint blanks every name until someone acts — Error, not Warning.
+            logger.LogError(ex, "Holded rejected the contact list; creditor account names will be blank.");
+            return [];
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            // Malformed body, or a 200 carrying Holded's {"status":0,...} error object where the
+            // contact array should be. Still a vendor failure — it must not take the page down.
+            logger.LogError(ex, "Holded returned an unreadable contact list; creditor account names will be blank.");
+            return [];
+        }
     }
 
     public async Task<CreditorContactBinding?> GetCreditorContactByUserAsync(
@@ -514,12 +554,45 @@ public sealed class HoldedFinanceService(
             : new CreditorContactBinding(b.UserId, b.HoldedContactId, b.SupplierAccountNum, b.Source);
     }
 
-    public async Task<bool> SetCreditorContactAsync(
+    public async Task<CreditorBindResult> SetCreditorContactAsync(
         Guid userId, int supplierAccountNum, CancellationToken ct = default)
     {
+        // The dropdown is filtered, but it is client data — the account number arrives on a POST.
+        // Holded numbers every supplier contact, so without this an org vendor's account is bindable.
+        if (supplierAccountNum is < CreditorAccountMin or > CreditorAccountMax)
+            return CreditorBindResult.Failure(
+                $"Account {supplierAccountNum} is outside the member creditor block " +
+                $"({CreditorAccountMin}–{CreditorAccountMax}) — that is not a member's account.");
+
+        // Only UserId is unique in the DB, so nothing stops a second member being written onto the
+        // same 400000xx — which silently points one person's payments at another's creditor account.
+        var bindings = await repo.GetCreditorContactsAsync(ct);
+        var takenByOther = bindings
+            .Any(b => b.SupplierAccountNum == supplierAccountNum && b.UserId != userId);
+        if (takenByOther)
+            // No unbind action exists; the remedy is to move the other member onto their own account,
+            // which overwrites their row (the binding upsert is keyed by UserId).
+            return CreditorBindResult.Failure(
+                $"Account {supplierAccountNum} is already bound to a different member. " +
+                "Check /Finance/Creditors to see who, and bind them to their own account first.");
+
         var contact = (await client.ListContactsAsync(ct))
             .FirstOrDefault(c => c.SupplierAccountNum == supplierAccountNum);
-        if (contact is null) return false;
+        if (contact is null)
+            return CreditorBindResult.Failure(
+                $"No Holded contact carries account {supplierAccountNum} — nothing bound.");
+
+        // The account-number check above cannot see a member whose binding carries this contact but
+        // whose 400000xx never resolved — the push's lookup is best-effort and leaves the number null.
+        // Two members on one Holded contact merges their payables just as surely as two on one number,
+        // and that binding is invisible on /Finance/Creditors (its rows are keyed by account number),
+        // so name the contact rather than send the admin somewhere it does not appear.
+        if (bindings.Any(b => b.UserId != userId
+                              && string.Equals(b.HoldedContactId, contact.Id, StringComparison.Ordinal)))
+            return CreditorBindResult.Failure(
+                $"Account {supplierAccountNum} belongs to Holded contact \"{contact.Name}\", which is " +
+                "already bound to a different member whose account number has not resolved yet. " +
+                "Nothing was changed — two members must never share one Holded contact.");
 
         var now = clock.GetCurrentInstant();
         await repo.UpsertCreditorContactAsync(new HoldedCreditorContact
@@ -532,7 +605,7 @@ public sealed class HoldedFinanceService(
             CreatedAt = now,
             UpdatedAt = now,
         }, now, ct);
-        return true;
+        return CreditorBindResult.Success;
     }
 
     public async Task<HoldedCreditorLedger?> GetCreditorLedgerAsync(

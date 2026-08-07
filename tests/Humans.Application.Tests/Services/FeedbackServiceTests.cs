@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Email;
+using Humans.Application.Interfaces.Feedback;
 using Humans.Application.Interfaces.Notifications;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Repositories;
@@ -12,7 +13,6 @@ using Humans.Domain.Enums;
 using Humans.Infrastructure.Repositories.Feedback;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
@@ -38,8 +38,6 @@ public sealed class FeedbackServiceTests : ServiceTestHarness
     {
         _emailService = Substitute.For<IEmailService>();
         _emailMessages = Substitute.For<IEmailMessageFactory>();
-        var env = Substitute.For<IHostEnvironment>();
-        env.ContentRootPath.Returns(Path.GetTempPath());
 
         _userService = NewDbBackedUserService();
 
@@ -110,56 +108,26 @@ public sealed class FeedbackServiceTests : ServiceTestHarness
 
         _service = new FeedbackApplicationService(
             _repository, _userService, _userEmailService, _teamService,
-            _emailService, _emailMessages, _notificationService, AuditLog, _navBadge, _cache, Clock, env,
+            _emailService, _emailMessages, _notificationService, AuditLog, _navBadge, _cache, Clock,
             NullLogger<FeedbackApplicationService>.Instance);
     }
 
+    // Feedback stopped accepting new reports in nobodies-collective/Humans#977 —
+    // there is no service- or repository-level create any more, so every fixture
+    // below seeds historical rows straight into the DB.
     [HumansFact]
-    public async Task SubmitFeedbackAsync_CreatesReport()
+    public void FeedbackSurface_ExposesNoReportCreationMethod()
     {
-        var userId = Guid.NewGuid();
-        SeedUser(userId, "Test").Email = "t@t.com";
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+        Type[] surfaces = [typeof(IFeedbackService), typeof(IFeedbackRepository)];
 
-        var report = await _service.SubmitFeedbackAsync(
-            userId, FeedbackCategory.Bug, "Something broke",
-            "/Teams/test", "Mozilla/5.0", null, null, Xunit.TestContext.Current.CancellationToken);
+        var creators = surfaces
+            .SelectMany(s => s.GetMethods().Select(m => $"{s.Name}.{m.Name}"))
+            .Where(n => n.Contains(".Submit", StringComparison.Ordinal)
+                     || n.Contains(".Create", StringComparison.Ordinal)
+                     || n.Contains(".AddReport", StringComparison.Ordinal))
+            .ToList();
 
-        report.Id.Should().NotBeEmpty();
-        report.Category.Should().Be(FeedbackCategory.Bug);
-        report.Status.Should().Be(FeedbackStatus.Open);
-        report.Description.Should().Be("Something broke");
-        report.PageUrl.Should().Be("/Teams/test");
-
-        _navBadge.Received(1).Invalidate();
-    }
-
-    [HumansFact(Timeout = 10000)]
-    public async Task SubmitFeedbackAsync_SetsAdditionalContext()
-    {
-        var userId = Guid.NewGuid();
-        SeedUser(userId, "U").Email = "u@test.com";
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
-
-        var report = await _service.SubmitFeedbackAsync(
-            userId, FeedbackCategory.Bug, "desc", "/page", "UA",
-            "Volunteer, Coordinator", null, Xunit.TestContext.Current.CancellationToken);
-
-        report.AdditionalContext.Should().Be("Volunteer, Coordinator");
-    }
-
-    [HumansFact(Timeout = 10000)]
-    public async Task SubmitUserFeedbackAsync_BuildsSortedRoleContext()
-    {
-        var userId = Guid.NewGuid();
-        SeedUser(userId, "U").Email = "u@test.com";
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
-
-        var report = await _service.SubmitUserFeedbackAsync(
-            userId, FeedbackCategory.Bug, "desc", "/page", "UA",
-            ["Volunteer", "Admin", "Coordinator"], null, Xunit.TestContext.Current.CancellationToken);
-
-        report.AdditionalContext.Should().Be("Admin, Coordinator, Volunteer");
+        creators.Should().BeEmpty("no Feedback surface may expose a way to create a FeedbackReport");
     }
 
     [HumansFact]
@@ -208,10 +176,7 @@ public sealed class FeedbackServiceTests : ServiceTestHarness
     {
         var userId = Guid.NewGuid();
         SeedUser(userId, "Alice").Email = "a@a.com";
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
-
-        await _service.SubmitFeedbackAsync(
-            userId, FeedbackCategory.Bug, "a", "/a", null, null, null, Xunit.TestContext.Current.CancellationToken);
+        await SeedReportAsync(userId, "a", "/a");
 
         var results = await _service.GetFeedbackListAsync(cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
@@ -226,10 +191,7 @@ public sealed class FeedbackServiceTests : ServiceTestHarness
         // BurnerName-is-the-display-name rule: ReporterName must render Profile.BurnerName.
         var userId = Guid.NewGuid();
         SeedUser(userId, "Sparkle").Email = "a@a.com";
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
-
-        await _service.SubmitFeedbackAsync(
-            userId, FeedbackCategory.Bug, "a", "/a", null, null, null, Xunit.TestContext.Current.CancellationToken);
+        await SeedReportAsync(userId, "a", "/a");
 
         var results = await _service.GetFeedbackListAsync(cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
@@ -258,7 +220,7 @@ public sealed class FeedbackServiceTests : ServiceTestHarness
         await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
         var adminId = Guid.NewGuid();
-        var message = await _service.PostMessageAsync(report.Id, adminId, "Looking into it", isAdmin: true, cancellationToken: Xunit.TestContext.Current.CancellationToken);
+        var message = await _service.PostMessageAsync(report.Id, adminId, "Looking into it", Xunit.TestContext.Current.CancellationToken);
 
         message.Content.Should().Be("Looking into it");
         message.SenderUserId.Should().Be(adminId);
@@ -271,65 +233,6 @@ public sealed class FeedbackServiceTests : ServiceTestHarness
         _emailMessages.Received(1).FeedbackResponse(
             "reporter@test.com", "Reporter", "Test", "Looking into it",
             $"/Feedback/{report.Id}", "en");
-    }
-
-    [HumansFact]
-    public async Task GetFeedbackByIdForViewerAsync_NonReporter_ReturnsNull()
-    {
-        var reporterId = Guid.NewGuid();
-        SeedUser(reporterId, "Reporter").Email = "reporter@test.com";
-        Db.FeedbackReports.Add(new FeedbackReport
-        {
-            Id = Guid.NewGuid(),
-            UserId = reporterId,
-            Category = FeedbackCategory.Bug,
-            Description = "Test",
-            PageUrl = "/test",
-            Status = FeedbackStatus.Open,
-            CreatedAt = Clock.GetCurrentInstant(),
-            UpdatedAt = Clock.GetCurrentInstant()
-        });
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
-
-        var result = await _service.GetFeedbackByIdForViewerAsync(
-            Db.FeedbackReports.Single().Id,
-            Guid.NewGuid(),
-            isAdmin: false, cancellationToken: Xunit.TestContext.Current.CancellationToken);
-
-        result.Should().BeNull();
-    }
-
-    [HumansFact]
-    public async Task PostMessageAsync_ReporterMessage_SetsLastReporterMessageAt_NoEmail()
-    {
-        var userId = Guid.NewGuid();
-        SeedUser(userId, "Reporter").Email = "reporter@test.com";
-
-        var report = new FeedbackReport
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Category = FeedbackCategory.Bug,
-            Description = "Test",
-            PageUrl = "/test",
-            Status = FeedbackStatus.Open,
-            CreatedAt = Clock.GetCurrentInstant(),
-            UpdatedAt = Clock.GetCurrentInstant()
-        };
-        Db.FeedbackReports.Add(report);
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
-
-        var message = await _service.PostMessageAsync(report.Id, userId, "More details", isAdmin: false, cancellationToken: Xunit.TestContext.Current.CancellationToken);
-
-        message.Content.Should().Be("More details");
-        var updated = await Db.FeedbackReports.AsNoTracking()
-            .FirstAsync(r => r.Id == report.Id, Xunit.TestContext.Current.CancellationToken);
-        updated.LastReporterMessageAt.Should().NotBeNull();
-        updated.LastAdminMessageAt.Should().BeNull();
-
-        _emailMessages.DidNotReceive().FeedbackResponse(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>());
     }
 
     [HumansFact]
@@ -444,16 +347,38 @@ public sealed class FeedbackServiceTests : ServiceTestHarness
     {
         var userId = Guid.NewGuid();
         SeedUser(userId, "Test").Email = $"{userId}@test.com";
-        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
-
-        var report = await _service.SubmitFeedbackAsync(
-            userId, FeedbackCategory.Bug, "Test bug", "/test", null, null, null, Xunit.TestContext.Current.CancellationToken);
+        var report = await SeedReportAsync(userId, "Test bug", "/test");
 
         if (status != FeedbackStatus.Open)
         {
             await _service.UpdateStatusAsync(report.Id, status, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
         }
 
+        return report;
+    }
+
+    /// <summary>
+    /// Seeds a historical report straight into the DB. Feedback has no creation
+    /// path any more (nobodies-collective/Humans#977), so tests must not go
+    /// through the service to get one.
+    /// </summary>
+    private async Task<FeedbackReport> SeedReportAsync(
+        Guid userId, string description, string pageUrl, FeedbackStatus status = FeedbackStatus.Open)
+    {
+        var now = Clock.GetCurrentInstant();
+        var report = new FeedbackReport
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Category = FeedbackCategory.Bug,
+            Description = description,
+            PageUrl = pageUrl,
+            Status = status,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        Db.FeedbackReports.Add(report);
+        await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
         return report;
     }
 }

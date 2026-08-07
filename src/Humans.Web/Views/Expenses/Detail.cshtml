@@ -190,16 +190,42 @@
 
         @if (Model.CanBindCreditor)
         {
-            <div class="card mb-3 border-warning">
-                <div class="card-header bg-warning-subtle"><strong><i class="fa-solid fa-link me-1"></i>Holded creditor account</strong></div>
+            <div class="card mb-3 border-danger">
+                <div class="card-header bg-danger-subtle"><strong><i class="fa-solid fa-link me-1"></i>Holded creditor account</strong> <small class="text-muted">(Finance admin only)</small></div>
                 <div class="card-body">
                     @if (Model.BoundAccountNum is { } boundAcct)
                     {
-                        <p class="small mb-2"><i class="fa-solid fa-circle-check text-success me-1"></i>Bound to account <strong>@boundAcct</strong>. Change below if needed.</p>
+                        <p class="small mb-2">
+                            <i class="fa-solid fa-circle-check text-success me-1"></i>Bound to account
+                            <strong>@boundAcct@(string.IsNullOrWhiteSpace(Model.BoundAccountName) ? "" : $" — {Model.BoundAccountName}")</strong>.
+                            Change below if needed.
+                        </p>
+                    }
+                    else if (Model.HasCreditorContact && string.IsNullOrEmpty(Model.Report.HoldedDocId))
+                    {
+                        <p class="small mb-2 text-muted">
+                            <i class="fa-solid fa-circle-info me-1"></i>This member has a Holded contact; its 400000xx
+                            account number is assigned by Holded on the next push. Nothing to do before approving.
+                        </p>
+                    }
+                    else if (Model.HasCreditorContact)
+                    {
+                        @* Pushed, yet still no number: the push resolves it best-effort and does not retry for
+                           this report, so the binding can sit unresolved. The member is missing from the creditor
+                           overview and has no statement until it lands — not a blocker here, but not "nothing to do". *@
+                        <p class="small mb-2 text-muted">
+                            <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i>This report was already
+                            pushed to Holded, but the member's 400000xx account number never resolved, so they do not
+                            appear on the creditor overview. It is not retried for this report &mdash; bind below to fix it now.
+                        </p>
                     }
                     else
                     {
-                        <p class="small mb-2 text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>Not bound &mdash; set this before approving so the push reuses the right account instead of creating a new one.</p>
+                        <p class="small mb-2 text-muted">
+                            <i class="fa-solid fa-circle-info me-1"></i>No Holded creditor account yet &mdash; one is created
+                            automatically when this report is pushed. That is the expected state for a first-time submitter,
+                            so approve as normal. Bind below only if this member already has an account in Holded.
+                        </p>
                     }
                     <form asp-controller="Finance" asp-action="BindCreditor" method="post" class="row g-2 align-items-center">
                         @Html.AntiForgeryToken()
@@ -207,13 +233,24 @@
                         <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
                         <div class="col-auto">
                             @{
-                                var accountItems = Model.CreditorAccounts.Select(a => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+                                // Holded is the only source of the account name; fall back to the bare number
+                                // for an account we hold a binding for but Holded has no contact for.
+                                // Accounts held by another member are marked, not hidden — the bind will be
+                                // refused, and seeing why beats a round-trip into a red error.
+                                var submitterId = Model.Report.SubmitterUserId;
+                                var accountItems = Model.CreditorAccounts.Select(a =>
                                 {
-                                    Value = a.SupplierAccountNum.ToString(),
-                                    Text = a.OwedToMember > 0
-                                        ? $"{a.SupplierAccountNum} — {a.Name} (owed {a.OwedToMember.ToEuro()})"
-                                        : $"{a.SupplierAccountNum} — {a.Name}",
-                                    Selected = Model.BoundAccountNum == a.SupplierAccountNum,
+                                    var label = string.IsNullOrWhiteSpace(a.Name)
+                                        ? a.SupplierAccountNum.ToString()
+                                        : $"{a.SupplierAccountNum} — {a.Name}";
+                                    if (a.OwedToMember > 0) label += $" (owed {a.OwedToMember.ToEuro()})";
+                                    if (a.BoundUserId is { } owner && owner != submitterId) label += " — bound to another member";
+                                    return new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+                                    {
+                                        Value = a.SupplierAccountNum.ToString(),
+                                        Text = label,
+                                        Selected = Model.BoundAccountNum == a.SupplierAccountNum,
+                                    };
                                 });
                             }
                             <select name="supplierAccountNum" class="form-select form-select-sm" asp-items="accountItems" required>

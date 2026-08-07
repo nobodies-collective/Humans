@@ -26,7 +26,7 @@ Business requirements, user stories, data model, and workflows for each feature 
 | [Email Flag Violations — Admin & Self Remediation](features/email/email-flag-violations-remediation.md) | Recovery surface for stuck `UserEmail` IsGoogle/IsPrimary duplicates with admin scan page and self-service clear actions |
 | [Feature 21: Email Outbox](features/email/email-outbox.md) | Outbox pattern for reliable transactional email delivery with retry and crash recovery |
 | [`[ExpiresOn]` — Hard removal deadlines](features/expires-on-deadline.md) | Analyzer-enforced removal deadlines that escalate deprecation warnings to errors on a fixed date |
-| [Feedback System](features/feedback/feedback-system.md) | In-app feedback page with reporter↔admin conversation threads and FeedbackAdmin triage |
+| [Feedback System](features/feedback/feedback-system.md) | Retired (nobodies-collective/Humans#977) — closed to new reports and Admin-only; superseded by Issues |
 | [Gate Admissions](features/gate-admissions.md) | Gate QR scanning on rugged tablets deciding entry against ticket validity, photo-ID name check, and Early Entry grants — shipped design draft; `sections/Gate.md` is the authoritative current-state doc |
 | [Administration](features/global/administration.md) | Admin dashboards and management screens for members, applications, teams, and organizational compliance |
 | [Background Jobs](features/global/background-jobs.md) | Hangfire-scheduled automated operations for syncing, reminders, compliance enforcement, and system team maintenance |
@@ -98,7 +98,7 @@ Terse, authoritative invariant docs for each major section: concepts, data model
 | [Email](sections/Email.md) | Transactional email outbox: queue, render, deliver, retry, and pause/resume — backs campaign sends, onboarding, shift, and feedback emails |
 | [Events](sections/Events.md) | Event programming: submission, moderation, browsing, export, and preference management for festival events |
 | [Expenses](sections/Expenses.md) | Expense reports submitted by members and approved by Finance Admin; approval books into Holded async, and paid/unpaid status is read back from the member's Holded creditor ledger rather than stamped on the report — payment itself happens externally, with no SEPA-file generation in the app |
-| [Feedback](sections/Feedback.md) | In-app feedback reports (bugs, feature requests, questions) with screenshots and reporter↔admin conversation threads |
+| [Feedback](sections/Feedback.md) | Retired — closed to new reports and Admin-only; the historical archive of in-app reports (bugs, feature requests, questions) with screenshots and conversation threads |
 | [Finance](sections/Finance.md) | Treasurer's reality side of money — actuals, reconciliation, and treasurer-facing operational data sharing keys with Budget |
 | [Gate](sections/Gate.md) | Gate ticket scanning that decides entry at the event door and writes the durable admission record — distinct from the read-only Scanner section, which must never check anyone in |
 | [Google Integration](sections/GoogleIntegration.md) | Shared-Drive-only sync for Drive folders, Groups, and Workspace accounts with reconciliation and Drive-activity monitoring |
@@ -106,10 +106,10 @@ Terse, authoritative invariant docs for each major section: concepts, data model
 | [Guide](sections/Guide.md) | The in-app `/Guide` renderer for `docs/guide/` markdown with role-scoped block filtering |
 | [Holded](sections/Holded.md) | Thin typed-`HttpClient` surface to the Holded accounting API, shared by Expenses (purchase documents) and Finance (ledger reconciliation) |
 | [Issues](sections/Issues.md) | In-app issue tracker (bugs, features, questions) with screenshots, role-routed triage, and a reporter↔handler conversation thread |
-| [Legal & Consent](sections/Consent.md) | GitHub-synced legal documents, per-version append-only consent records, and the Consent Coordinator review gate |
+| [Consent](sections/Consent.md) | GitHub-synced legal documents, per-version append-only consent records, and the Consent Coordinator audit/review queue |
 | [Mailer](sections/Mailer.md) | Humans ↔ MailerLite synchronisation: inbound import and outbound audience management |
 | [Notifications](sections/Notifications.md) | In-app notification fan-out (stored events plus per-user inbox) and live meter counts (computed) |
-| [Onboarding](sections/Onboarding.md) | Pure orchestrator over Profiles, Legal & Consent, Teams, and Governance — owns no tables |
+| [Onboarding](sections/Onboarding.md) | Pure orchestrator over Profiles, Consent, Teams, and Governance — owns no tables |
 | [Profiles](sections/Profiles.md) | Per-human personal data: profile, contact fields, emails, communication preferences — reference implementation for §15 caching |
 | [Scanner](sections/Scanner.md) | In-browser camera tools for barcode decode (`/Scanner/Barcode`) and read-only ticket lookup (`/Scanner/Tickets`); no owned tables |
 | [Shifts](sections/Shifts.md) | Event shifts, rotas, signups, range blocks, event settings, general availability, and per-event volunteer profiles |
@@ -134,10 +134,10 @@ The end-user guide for the Humans app, organized by role within each section.
 | [Email](guide/Email.md) | Personal `@nobodies.team` mailboxes and team group emails: how they work and how to send "as" your team |
 | [Events](guide/Events.md) | Browse the festival programme and submit your own events; moderators approve submissions into the public guide |
 | [Expenses](guide/Expenses.md) | Submit expense reports and track reimbursement; FinanceAdmin reviews |
-| [Feedback](guide/Feedback.md) | Report a bug, suggest an improvement, or ask a question without leaving the app |
+| [Feedback](guide/Feedback.md) | Retired predecessor to Issues — Admins triage the historical queue; report bugs and ideas via `/Issues` instead |
 | [Google Integration](guide/GoogleIntegration.md) | Wires teams up to Google Workspace: Group, Shared Drive, Workspace accounts, and Drive activity monitoring |
 | [Governance](guide/Governance.md) | Tier applications, Board votes, and coordinator/admin role assignments — not Volunteer onboarding |
-| [Legal & Consent](guide/LegalAndConsent.md) | Documents you sign, GDPR Article 15 export, and Article 17 deletion |
+| [Consent](guide/LegalAndConsent.md) | Documents you sign, GDPR Article 15 export, and Article 17 deletion |
 | [Onboarding](guide/Onboarding.md) | The path from signing up to becoming an active Volunteer |
 | [Profiles](guide/Profiles.md) | Your profile: personal info, contact handles, emails, shift preferences, and communication settings |
 | [Shifts](guide/Shifts.md) | Browse and sign up for event shifts across Set-up, Event, and Strike; coordinators manage team-owned rotas |
@@ -162,6 +162,7 @@ Plain-language pages for the things people ask most.
 
 | Document | Description |
 |----------|-------------|
+| [Database Restore Runbook](database-restore-runbook.md) | Restoring Postgres from a backup, the automatic pre-deploy snapshot, and the event deploy-freeze policy |
 | [Admin Role Setup](admin-role-setup.md) | Adding initial admin users via SQL |
 | [GUID Reservations](guid-reservations.md) | Reserved deterministic GUID blocks for seeded data |
 | [Seed Data Strategy](seed-data.md) | When to use `HasData`, migration backfills, and dev-only runtime seeders |
