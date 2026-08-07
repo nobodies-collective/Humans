@@ -5,7 +5,7 @@ using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Application.Architecture;
 
-namespace Humans.Infrastructure.Data.Configurations;
+namespace Humans.Infrastructure.Data.Configurations.GoogleIntegration;
 
 [Grandfathered(
     ruleId: "HUM0024",
