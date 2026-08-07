@@ -106,10 +106,28 @@ The safety net plus the map. Nothing destructive starts before G0 closes.
 - [x] **First audit pass (tracker-taxonomy scope):** all 33 sections in the tracker below
       scored against G1–G3 predicates ([`2026-08-03-g0-first-audit/`](2026-08-03-g0-first-audit/));
       tracker filled.
-- [ ] **Audit the five sections admitted at the 2026-08-03 freeze:** `Gate`, `Settings`,
-      `Development`, `Gdpr`, `Search` have no scorecards yet. Split out as its own gate item
-      2026-08-03 — it was previously only a prose caveat on the item above, which meant the
-      checklist could read complete while five canonical sections had never been scored.
+- [x] **Audit the five sections admitted at the 2026-08-03 freeze (2026-08-05):** `Gate`,
+      `Settings`, `Development`, `Gdpr`, `Search` scorecards added
+      ([`2026-08-03-g0-first-audit/`](2026-08-03-g0-first-audit/)). Headline findings: Gate's
+      table ownership is clean, but it is untested at real-Postgres/mocked-repo G3, its
+      vendor-checked-in dedupe signal is dead in code rather than merely untested, and
+      gate-terminal account provisioning writes Identity state via `UserManager` outside the
+      Users service boundary and is wholly untested (plus two `docs/sections/Gate.md` drifts).
+      Gate also carries the pass's one **G2** item: the personal staff-PIN surface
+      (`gate_staff_pins`, its service methods, admin actions and views) has been dead since
+      peterdrier#1075 and is queued for deletion under nobodies-collective/Humans#933 — which
+      post-dates the demolition inventory's "no findings" verdict on Gate. Settings (still coded
+      as `SystemSettings`) is already ahead
+      of G4 despite missing docs and service tests; Development is a decision, not yet a code
+      module (DevLogin/DevSeed remain in generic `Humans.Web.*` namespaces — follow-up #4
+      confirmed still open, and only `DevLogin` is actually excluded from prod); Gdpr's export
+      half is clean, but the erasure half the frozen inventory assigns to it lives under Users
+      and needs an ownership ruling; Search has zero test coverage of any kind — the largest gap
+      found in this pass — and that blind spot is hiding a live one: on GUID queries the Team,
+      Camp and Rota buckets each resolve by id around their own visibility filter, so the
+      "public surface only, regardless of role" guarantee is already broken. Two findings need
+      a Peter ruling before anyone codes against them (Gdpr erasure ownership, Search's GUID
+      contract); see each scorecard's gap lists for details.
 
 ### G1 — Ownership (per section): *your data is yours alone*
 
@@ -392,14 +410,14 @@ sections and shared contracts noted explicitly. (`—` = not yet audited.)
 | CityPlanning | vertical | [CityPlanning](2026-08-03-g0-first-audit/CityPlanning.md) |
 | Containers | vertical | [Containers](2026-08-03-g0-first-audit/Containers.md) |
 | Debug | vertical | [Debug](2026-08-03-g0-first-audit/Debug.md) |
-| Development *(new 2026-08-03 — dev-only, never loaded in prod; takes DevLogin/DevSeed)* | vertical | — |
+| Development *(new 2026-08-03 — dev-only; DevLogin prod-excluded, DevSeed not yet)* | vertical | [Development](2026-08-03-g0-first-audit/Development.md) |
 | Email | vertical | [Email](2026-08-03-g0-first-audit/Email.md) |
 | Events | vertical | [Events](2026-08-03-g0-first-audit/Events.md) |
 | Expenses | vertical | [Expenses](2026-08-03-g0-first-audit/Expenses.md) |
 | Feedback | vertical | [Feedback](2026-08-03-g0-first-audit/Feedback.md) |
 | Finance | vertical | [Finance](2026-08-03-g0-first-audit/Finance.md) |
-| Gate *(new row 2026-08-03)* | vertical | — |
-| Gdpr *(new row 2026-08-03)* | **orchestrator** | — |
+| Gate *(new row 2026-08-03)* | vertical | [Gate](2026-08-03-g0-first-audit/Gate.md) |
+| Gdpr *(new row 2026-08-03)* | **orchestrator** | [Gdpr](2026-08-03-g0-first-audit/Gdpr.md) |
 | GoogleIntegration | **vendor connector** | [GoogleIntegration](2026-08-03-g0-first-audit/GoogleIntegration.md) |
 | Governance | vertical | [Governance](2026-08-03-g0-first-audit/Governance.md) |
 | Guide | vertical | [Guide](2026-08-03-g0-first-audit/Guide.md) |
@@ -410,8 +428,8 @@ sections and shared contracts noted explicitly. (`—` = not yet audited.)
 | Notifications | vertical | [Notifications](2026-08-03-g0-first-audit/Notifications.md) |
 | Onboarding | **orchestrator** | [Onboarding](2026-08-03-g0-first-audit/Onboarding.md) |
 | Scanner | vertical | [Scanner](2026-08-03-g0-first-audit/Scanner.md) |
-| Search *(new row 2026-08-03)* | **orchestrator** | — |
-| Settings *(ex-SystemSettings; absorbs #864)* | vertical | — |
+| Search *(new row 2026-08-03)* | **orchestrator** | [Search](2026-08-03-g0-first-audit/Search.md) |
+| Settings *(ex-SystemSettings; absorbs #864)* | vertical | [Settings](2026-08-03-g0-first-audit/Settings.md) |
 | Shifts | vertical | [Shifts](2026-08-03-g0-first-audit/Shifts.md) |
 | Store | vertical | [Store](2026-08-03-g0-first-audit/Store.md) |
 | Surveys *(renamed from Survey)* | vertical | [Survey](2026-08-03-g0-first-audit/Survey.md) |
