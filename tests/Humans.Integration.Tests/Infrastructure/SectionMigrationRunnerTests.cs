@@ -31,6 +31,12 @@ namespace Humans.Integration.Tests.Infrastructure;
 /// </summary>
 public sealed class SectionMigrationRunnerTests(HumansWebApplicationFactory factory)
 {
+    /// <summary>
+    /// The pre-migration snapshot hook (nobodies-collective/Humans#845) is a production-boot
+    /// concern; these tests migrate throwaway Testcontainers databases with nothing to protect.
+    /// </summary>
+    private static readonly Func<CancellationToken, Task> NoSnapshot = _ => Task.CompletedTask;
+
     private sealed record SectionCase(
         string Name,
         string SentinelTable,
@@ -88,7 +94,7 @@ public sealed class SectionMigrationRunnerTests(HumansWebApplicationFactory fact
             await using (var db = section.CreateContext(connectionString))
             {
                 await SectionMigrationRunner.MigrateAsync(
-                    db, section.SentinelTable, NullLogger.Instance, TestContext.Current.CancellationToken);
+                    db, section.SentinelTable, NullLogger.Instance, NoSnapshot, TestContext.Current.CancellationToken);
                 tables = SectionTables(db);
             }
 
@@ -125,7 +131,7 @@ public sealed class SectionMigrationRunnerTests(HumansWebApplicationFactory fact
             {
                 await using var db = section.CreateContext(connectionString);
                 await SectionMigrationRunner.MigrateAsync(
-                    db, section.SentinelTable, NullLogger.Instance, TestContext.Current.CancellationToken);
+                    db, section.SentinelTable, NullLogger.Instance, NoSnapshot, TestContext.Current.CancellationToken);
             }
         }
 
@@ -156,7 +162,7 @@ public sealed class SectionMigrationRunnerTests(HumansWebApplicationFactory fact
             await using (var db = section.CreateContext(freshConnection))
             {
                 await SectionMigrationRunner.MigrateAsync(
-                    db, section.SentinelTable, NullLogger.Instance, TestContext.Current.CancellationToken);
+                    db, section.SentinelTable, NullLogger.Instance, NoSnapshot, TestContext.Current.CancellationToken);
                 tables = SectionTables(db);
             }
 

@@ -43,6 +43,12 @@ namespace Humans.Integration.Tests.Infrastructure;
 /// </remarks>
 public sealed class PhysicalDefaultParityTests(HumansWebApplicationFactory factory)
 {
+    /// <summary>
+    /// The pre-migration snapshot hook (nobodies-collective/Humans#845) is a production-boot
+    /// concern; this test migrates a throwaway test database with nothing to protect.
+    /// </summary>
+    private static readonly Func<CancellationToken, Task> NoSnapshot = _ => Task.CompletedTask;
+
     [HumansFact]
     public async Task ChainBuiltDatabase_HasNoUndeclaredPhysicalColumnDefaults()
     {
@@ -78,7 +84,7 @@ public sealed class PhysicalDefaultParityTests(HumansWebApplicationFactory facto
                     .Order(StringComparer.Ordinal)
                     .First();
                 await SectionMigrationRunner.MigrateAsync(
-                    db, sentinel, NullLogger.Instance, TestContext.Current.CancellationToken);
+                    db, sentinel, NullLogger.Instance, NoSnapshot, TestContext.Current.CancellationToken);
             }
 
             foreach (var entity in db.Model.GetEntityTypes())

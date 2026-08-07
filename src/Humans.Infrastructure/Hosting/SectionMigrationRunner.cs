@@ -38,7 +38,21 @@ namespace Humans.Infrastructure.Hosting;
 /// </remarks>
 internal static class SectionMigrationRunner
 {
-    public static async Task MigrateAsync(DbContext db, string sentinelTable, ILogger logger, CancellationToken ct)
+    /// <summary>
+    /// Brings one section context up to date, choosing between the three baseline branches
+    /// described on the class, and applies whatever migrations remain after that decision.
+    /// </summary>
+    /// <param name="beforeSchemaChange">
+    /// Invoked immediately before anything writes to the schema — including the baseline
+    /// bookkeeping, which creates the section's history table (nobodies-collective/Humans#845).
+    /// Idempotent across contexts: one snapshot per boot, not one per section.
+    /// </param>
+    public static async Task MigrateAsync(
+        DbContext db,
+        string sentinelTable,
+        ILogger logger,
+        Func<CancellationToken, Task> beforeSchemaChange,
+        CancellationToken ct)
     {
         var contextName = db.GetType().Name;
         try
@@ -51,6 +65,7 @@ internal static class SectionMigrationRunner
                 logger.LogWarning(
                     "{Context}: tables exist but history is empty - recording baseline {Baseline} as applied without executing",
                     contextName, baselineId);
+                await beforeSchemaChange(ct);
                 await RecordBaselineAsAppliedAsync(db, baselineId, ct);
                 applied = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
             }
@@ -71,6 +86,7 @@ internal static class SectionMigrationRunner
                     logger.LogWarning("{Context}: applying pending migration: {Migration}", contextName, migration);
                 }
 
+                await beforeSchemaChange(ct);
                 await db.Database.MigrateAsync(ct);
 
                 var nowApplied = (await db.Database.GetAppliedMigrationsAsync(ct)).ToList();
