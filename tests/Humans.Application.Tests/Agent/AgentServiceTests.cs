@@ -496,6 +496,240 @@ public class AgentServiceTests
     }
 
     [HumansFact]
+    public async Task Ask_continues_the_tool_loop_when_a_tool_call_is_truncated_by_max_tokens()
+    {
+        // nobodies-collective/Humans#963 — a max_tokens cutoff mid tool-call JSON used to
+        // discard the call outright: the loop only ever continued on StopReason=="tool_use".
+        // AnthropicClient still closes the current content block before the stream ends, so a
+        // (possibly malformed) AnthropicToolCall reaches AgentService even on a max_tokens stop.
+        var userId = Guid.NewGuid();
+        var dispatcher = Substitute.For<IAgentToolDispatcher>();
+        dispatcher.DispatchAsync(Arg.Any<AnthropicToolCall>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new AnthropicToolResult(
+                call.Arg<AnthropicToolCall>().Id, "Malformed tool arguments (expected JSON object).", IsError: true)));
+        var (svc, client) = await BuildService(s => s.Enabled = true, toolDispatcher: dispatcher);
+
+        // Iteration 1: max_tokens hits mid tool-call JSON.
+        client.EnqueueTurn(
+            new AgentTurnToken("Let me check that. ", null, null),
+            new AgentTurnToken(null, new AnthropicToolCall("t1", "fetch_section_guide", """{"section":"tea"""), null),
+            new AgentTurnToken(null, null, new AgentTurnFinalizer(100, 20, 0, 0, "claude-sonnet-4-6", "max_tokens")));
+
+        // Iteration 2: the follow-up call recovers and answers normally.
+        client.EnqueueTurn(
+            new AgentTurnToken("Teams are groups of volunteers.", null, null),
+            new AgentTurnToken(null, null, new AgentTurnFinalizer(40, 10, 0, 0, "claude-sonnet-4-6", "end_turn")));
+
+        var tokens = new List<AgentTurnToken>();
+        await foreach (var t in svc.AskAsync(
+            new AgentTurnRequest(ConversationId: Guid.Empty, UserId: userId, Message: "What are teams?", Locale: "es"),
+            Xunit.TestContext.Current.CancellationToken))
+        {
+            tokens.Add(t);
+        }
+
+        await dispatcher.Received(1).DispatchAsync(
+            Arg.Any<AnthropicToolCall>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+
+        var streamedText = string.Concat(tokens.Where(t => t.TextDelta != null).Select(t => t.TextDelta));
+        streamedText.Should().Contain("Teams are groups of volunteers",
+            "a max_tokens cutoff mid tool-call must not dead-end the turn — the loop retries and the model finishes its answer");
+
+        tokens.Last().Finalizer!.StopReason.Should().Be("end_turn");
+
+        // Dispatching the truncated call must not inflate the admin "Top fetched docs" panel:
+        // NormalizeFetchedDocSlug can't parse the truncated args, so it would fall back to the
+        // bare tool name and record a lookup that never returned a document.
+        var rows = await svc.ListAllConversationsForAdminWithMessagesAsync(
+            refusalsOnly: false, handoffsOnly: false, userId: userId, take: 50, skip: 0,
+            Xunit.TestContext.Current.CancellationToken);
+        rows.SelectMany(r => r.Messages).SelectMany(m => m.FetchedDocs)
+            .Should().BeEmpty("a failed tool dispatch is not a fetched doc");
+    }
+
+    [HumansFact]
+    public async Task Ask_persists_an_assistant_message_when_an_exception_escapes_the_turn()
+    {
+        // nobodies-collective/Humans#963 — 4 of 11 conversations in #952's log evidence never
+        // reached AppendMessageAsync for the assistant turn because an exception escaped the
+        // stream between the user message being written and the assistant message being
+        // written. A failed turn must still leave a trace in the transcript.
+        var userId = Guid.NewGuid();
+        var dispatcher = Substitute.For<IAgentToolDispatcher>();
+        dispatcher.DispatchAsync(Arg.Any<AnthropicToolCall>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns<Task<AnthropicToolResult>>(_ => throw new InvalidOperationException("simulated dispatch failure"));
+        var logger = Substitute.For<ILogger<AgentService>>();
+        var store = new AgentRateLimitStore();
+        var (svc, client) = await BuildService(s => s.Enabled = true, rateLimitStore: store,
+            toolDispatcher: dispatcher, logger: logger);
+
+        client.EnqueueTurn(
+            new AgentTurnToken(null, new AnthropicToolCall("t1", "fetch_section_guide", """{"section":"teams"}"""), null),
+            new AgentTurnToken(null, null, new AgentTurnFinalizer(100, 20, 0, 0, "claude-sonnet-4-6", "tool_use")));
+
+        var tokens = new List<AgentTurnToken>();
+        await foreach (var t in svc.AskAsync(
+            new AgentTurnRequest(ConversationId: Guid.Empty, UserId: userId, Message: "What are teams?", Locale: "es"),
+            Xunit.TestContext.Current.CancellationToken))
+        {
+            tokens.Add(t);
+        }
+
+        var finalizer = tokens.Last().Finalizer;
+        finalizer.Should().NotBeNull();
+        finalizer!.StopReason.Should().Be("error");
+        finalizer.ConversationId.Should().NotBe(Guid.Empty,
+            "the client must be able to continue the same conversation after a failed turn");
+
+        var transcript = await svc.GetConversationForUserAsync(
+            userId, finalizer.ConversationId, Xunit.TestContext.Current.CancellationToken);
+        transcript.Should().NotBeNull();
+        var failureMessage = transcript!.Messages.Should().ContainSingle(m => m.Role == AgentRole.Assistant,
+            "a turn that throws mid-stream must still leave an assistant message in the transcript").Subject;
+        failureMessage.RefusalReason.Should().Be("error");
+        // AgentAdminStatusService prices spend straight off these fields, so a zeroed trace
+        // would hide a turn the provider actually billed us for.
+        failureMessage.PromptTokens.Should().Be(100);
+        failureMessage.OutputTokens.Should().Be(20);
+
+        logger.Received(1).Log(
+            LogLevel.Error,
+            Arg.Any<EventId>(),
+            Arg.Any<object>(),
+            Arg.Is<Exception>(e => e is InvalidOperationException),
+            Arg.Any<Func<object, Exception?, string>>());
+
+        // A failed turn is still a billed turn: the provider charged us for the 100/20 the
+        // first request consumed before the dispatcher threw, and leaving the message cap
+        // untouched would make a deterministic backend error an unmetered send loop.
+        var usage = store.Get(userId, new LocalDate(2026, 4, 21), hour: 12);
+        usage.MessagesToday.Should().Be(1);
+        usage.MessagesThisHour.Should().Be(1);
+        usage.TokensToday.Should().Be(120,
+            "tokens the provider already billed before the failure must reach DailyTokenCap and admin spend");
+    }
+
+    [HumansFact]
+    public async Task Ask_writes_one_trace_when_the_assistant_append_itself_is_cancelled()
+    {
+        // AgentRepository shares one scoped AgentDbContext across the turn. A cancellation that
+        // lands inside the final AppendMessageAsync leaves the assistant message tracked as
+        // Added, so the failure trace's save would flush BOTH — a real reply plus an "error"
+        // refusal for the same turn, and a double MessageCount bump. The repository discards the
+        // half-written append on failure so the turn ends with exactly one trace.
+        var userId = Guid.NewGuid();
+        using var cts = new CancellationTokenSource();
+
+        // route_to_issue is the one turn shape that reaches the final append with no further
+        // provider call in between (the proposal frame is terminal), so cancelling from the
+        // dispatcher lands the cancellation inside AppendMessageAsync itself rather than in
+        // the streaming loop — which is the ordering the duplicate-write hazard needs.
+        var dispatcher = Substitute.For<IAgentToolDispatcher>();
+        dispatcher.DispatchAsync(Arg.Any<AnthropicToolCall>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                await cts.CancelAsync();
+                return new AnthropicToolResult(
+                    call.Arg<AnthropicToolCall>().Id, "Proposal queued.", IsError: false);
+            });
+        var (svc, client) = await BuildService(s => s.Enabled = true, toolDispatcher: dispatcher);
+
+        client.EnqueueTurn(
+            new AgentTurnToken(null, new AnthropicToolCall(
+                "tc1", AgentToolNames.RouteToIssue,
+                """{"title":"Broken link","category":"Bug","description":"The camps page 404s."}"""), null),
+            new AgentTurnToken(null, null, new AgentTurnFinalizer(40, 10, 0, 0, "claude-sonnet-4-6", "tool_use")));
+
+        await foreach (var _ in svc.AskAsync(
+            new AgentTurnRequest(ConversationId: Guid.Empty, UserId: userId, Message: "the camps page is broken", Locale: "es"),
+            cts.Token))
+        {
+            // Drain; the assertions below read the persisted transcript.
+        }
+
+        var rows = await svc.ListAllConversationsForAdminWithMessagesAsync(
+            refusalsOnly: false, handoffsOnly: false, userId: userId, take: 50, skip: 0,
+            Xunit.TestContext.Current.CancellationToken);
+        var conversation = rows.Should().ContainSingle().Subject;
+        var assistant = conversation.Messages.Should()
+            .ContainSingle(m => m.Role == AgentRole.Assistant,
+                "the cancelled append must not be flushed alongside the failure trace")
+            .Subject;
+        assistant.RefusalReason.Should().Be("error");
+        assistant.Content.Should().BeEmpty();
+        conversation.MessageCount.Should().Be(2, "one user message and one assistant trace");
+    }
+
+    [HumansFact]
+    public async Task Ask_persists_an_assistant_message_when_the_stream_is_abandoned_mid_turn()
+    {
+        // nobodies-collective/Humans#963 — AgentController awaits WriteSse OUTSIDE AskAsync, so
+        // a browser that goes away while a token is being written never throws into AskAsync's
+        // catch: it abandons the enumeration, which disposes the iterator at a `yield return`.
+        // That is the likeliest disconnect timing, and it must still leave the already-persisted
+        // user message with a matching assistant trace.
+        var userId = Guid.NewGuid();
+        var (svc, client) = await BuildService(s => s.Enabled = true);
+
+        client.EnqueueTurn(
+            new AgentTurnToken("Teams are groups of ", null, null),
+            new AgentTurnToken("volunteers.", null, null),
+            new AgentTurnToken(null, null, new AgentTurnFinalizer(40, 10, 0, 0, "claude-sonnet-4-6", "end_turn")));
+
+        // `break` disposes the async enumerator — exactly what the controller's `await foreach`
+        // does when the response write throws on a dead connection.
+        await foreach (var t in svc.AskAsync(
+            new AgentTurnRequest(ConversationId: Guid.Empty, UserId: userId, Message: "What are teams?", Locale: "es"),
+            Xunit.TestContext.Current.CancellationToken))
+        {
+            if (t.TextDelta is not null)
+                break;
+        }
+
+        var rows = await svc.ListAllConversationsForAdminWithMessagesAsync(
+            refusalsOnly: false, handoffsOnly: false, userId: userId, take: 50, skip: 0,
+            Xunit.TestContext.Current.CancellationToken);
+        var messages = rows.SelectMany(r => r.Messages).ToList();
+        messages.Should().Contain(m => m.Role == AgentRole.User,
+            "the user message is persisted before the turn starts streaming");
+        var failure = messages.Should().ContainSingle(m => m.Role == AgentRole.Assistant,
+            "an abandoned turn must leave exactly one assistant trace — no reply, and no duplicate")
+            .Subject;
+        failure.RefusalReason.Should().Be("error",
+            "the trace surfaces through the existing admin refusals filter");
+    }
+
+    [HumansFact]
+    public async Task Ask_does_not_add_a_failure_trace_when_the_consumer_stops_after_the_finalizer()
+    {
+        // The disconnect guard above must not fire on a turn that completed: RunTurnAsync yields
+        // its finalizer only after AppendMessageAsync, so a disconnect while writing that last
+        // frame would otherwise stack a bogus "error" trace on top of a perfectly good answer.
+        var userId = Guid.NewGuid();
+        var (svc, client) = await BuildService(s => s.Enabled = true);
+
+        client.EnqueueTurn(
+            new AgentTurnToken("Teams are groups of volunteers.", null, null),
+            new AgentTurnToken(null, null, new AgentTurnFinalizer(40, 10, 0, 0, "claude-sonnet-4-6", "end_turn")));
+
+        await foreach (var t in svc.AskAsync(
+            new AgentTurnRequest(ConversationId: Guid.Empty, UserId: userId, Message: "What are teams?", Locale: "es"),
+            Xunit.TestContext.Current.CancellationToken))
+        {
+            if (t.Finalizer is not null)
+                break;
+        }
+
+        var rows = await svc.ListAllConversationsForAdminWithMessagesAsync(
+            refusalsOnly: false, handoffsOnly: false, userId: userId, take: 50, skip: 0,
+            Xunit.TestContext.Current.CancellationToken);
+        var assistant = rows.SelectMany(r => r.Messages).Should()
+            .ContainSingle(m => m.Role == AgentRole.Assistant).Subject;
+        assistant.Content.Should().Be("Teams are groups of volunteers.");
+        assistant.RefusalReason.Should().BeNull();
+    }
+
+    [HumansFact]
     public async Task Refused_conversations_are_surfaced_by_the_admin_refusals_filter()
     {
         var userId = Guid.NewGuid();
