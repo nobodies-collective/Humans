@@ -20,6 +20,7 @@ namespace Humans.Web.Controllers;
 [Authorize(Policy = PolicyNames.ShiftDepartmentManager)]
 [Route("Shifts/Dashboard")]
 public class ShiftDashboardController(
+    IBurnSettingsService burnSettings,
     IShiftManagementService shiftMgmt,
     IShiftSignupService signupService,
     IUserServiceRead userService,
@@ -44,7 +45,7 @@ public class ShiftDashboardController(
         ShiftPeriod? period,
         BuildSubPeriod? subPeriod)
     {
-        var es = await shiftMgmt.GetActiveAsync();
+        var es = await burnSettings.GetActiveAsync();
         if (es is null)
         {
             SetError("No active event settings configured.");
@@ -76,7 +77,7 @@ public class ShiftDashboardController(
     [HttpGet("PostEventStats")]
     public async Task<IActionResult> PostEventStats()
     {
-        var es = await shiftMgmt.GetActiveAsync();
+        var es = await burnSettings.GetActiveAsync();
         if (es is null)
         {
             SetError("No active event settings configured.");
