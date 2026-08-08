@@ -1,4 +1,5 @@
 using Humans.Application.Extensions;
+using Humans.UI.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
