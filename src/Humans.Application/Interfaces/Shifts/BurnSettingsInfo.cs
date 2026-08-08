@@ -6,8 +6,8 @@ namespace Humans.Application.Interfaces.Shifts;
 /// Cross-section read DTO over the Shifts-owned <c>event_settings</c> row
 /// (colloquially "the burn" — Nowhere 2026, etc.). Exposes only the fields
 /// other sections legitimately need (identity, calendar anchor, build
-/// calendar, early-entry capacity) — Shifts-internal flags
-/// (<c>IsShiftBrowsingOpen</c>, <c>GlobalVolunteerCap</c>,
+/// calendar, early-entry capacity, and the global shift-browsing switch) —
+/// Shifts-internal tuning knobs (<c>GlobalVolunteerCap</c>,
 /// <c>ReminderLeadTimeHours</c>) stay on <see cref="IShiftManagementService"/>.
 /// </summary>
 /// <remarks>
@@ -38,7 +38,8 @@ public sealed record BurnSettingsInfo(
     int FinishingWeekendStartOffset,
     IReadOnlyDictionary<int, int> EarlyEntryCapacity,
     IReadOnlyDictionary<int, int>? BarriosEarlyEntryAllocation,
-    Instant? EarlyEntryClose)
+    Instant? EarlyEntryClose,
+    bool IsShiftBrowsingOpen) : IBurnSettingsInfo
 {
     /// <summary>
     /// Step-function lookup: returns the cumulative EE capacity for the
@@ -61,4 +62,17 @@ public sealed record BurnSettingsInfo(
 
         return applicableKey == int.MinValue ? 0 : EarlyEntryCapacity[applicableKey];
     }
+
+    // Forwarders to the sealed bodies on IBurnSettingsInfo — the clock rule's
+    // single home. C# only surfaces interface members through an interface-typed
+    // receiver, so without these every DTO-holding call site would need a cast.
+    // These carry no logic and cannot drift from the interface.
+
+    /// <inheritdoc cref="IBurnSettingsInfo.IsEarlyEntryClosed" />
+    public bool IsEarlyEntryClosed(Instant now) =>
+        ((IBurnSettingsInfo)this).IsEarlyEntryClosed(now);
+
+    /// <inheritdoc cref="IBurnSettingsInfo.IsEarlyEntrySignupsClosedFor" />
+    public bool IsEarlyEntrySignupsClosedFor(bool isPrivileged, Instant now) =>
+        ((IBurnSettingsInfo)this).IsEarlyEntrySignupsClosedFor(isPrivileged, now);
 }
