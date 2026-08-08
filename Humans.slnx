@@ -6,7 +6,11 @@
     <Project Path="src/Humans.Domain/Humans.Domain.csproj" />
     <Project Path="src/Humans.Application/Humans.Application.csproj" />
     <Project Path="src/Humans.Infrastructure/Humans.Infrastructure.csproj" />
+    <Project Path="src/Humans.UI/Humans.UI.csproj" />
     <Project Path="src/Humans.Web/Humans.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/Sections/">
+    <Project Path="src/Sections/Humans.Store/Humans.Store.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
@@ -14,6 +18,7 @@
     <Project Path="tests/Humans.Analyzers.Tests/Humans.Analyzers.Tests.csproj" />
     <Project Path="tests/Humans.Application.Tests/Humans.Application.Tests.csproj" />
     <Project Path="tests/Humans.Integration.Tests/Humans.Integration.Tests.csproj" />
+    <Project Path="tests/Humans.Store.Tests/Humans.Store.Tests.csproj" />
     <Project Path="tests/Humans.Web.Tests/Humans.Web.Tests.csproj" />
   </Folder>
   <Folder Name="/build/">

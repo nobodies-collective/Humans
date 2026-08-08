@@ -1,8 +1,10 @@
 @model Humans.Web.Models.EventRotaRowViewModel
+@using Humans.Application.Interfaces.Shifts
+@using Humans.UI.Extensions
 @using NodaTime
 
 @functions {
-    string GetPhase(Shift shift, EventSettings es)
+    string GetPhase(Shift shift, BurnSettingsInfo es)
     {
         return shift.GetShiftPeriod(es) switch
         {
@@ -13,7 +15,7 @@
         };
     }
 
-    string GetPhaseBadge(Shift shift, EventSettings es)
+    string GetPhaseBadge(Shift shift, BurnSettingsInfo es)
     {
         return shift.GetShiftPeriod(es) switch
         {

@@ -1,3 +1,4 @@
+using Humans.UI.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Humans.Application.Interfaces.AuditLog;
@@ -5,7 +6,7 @@ using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.AuditLog;
 using Humans.Domain.Enums;
-using Humans.Web.Authorization;
+using Humans.UI.Authorization;
 using Humans.Web.Models;
 
 namespace Humans.Web.Controllers;

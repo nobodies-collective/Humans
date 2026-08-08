@@ -1,9 +1,11 @@
+using Humans.UI.Controllers;
 using System.Globalization;
 using Humans.Application.Interfaces.Surveys;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Surveys;
 using Humans.Domain.Enums;
-using Humans.Web.Extensions;
+using Humans.UI;
+using Humans.UI.Extensions;
 using Humans.Web.Models;
 using Humans.Web.Models.Survey;
 using Microsoft.AspNetCore.Authorization;

@@ -67,7 +67,8 @@
         "src/Humans.Domain/Entities/RoleAssignment*",
         "src/Humans.Infrastructure/Repositories/Auth/**",
         "src/Humans.Infrastructure/Services/Auth/**",
-        "src/Humans.Web/Authorization/**"
+        "src/Humans.Web/Authorization/**",
+        "src/Humans.UI/Authorization/**"
       ],
       "symbols": [
         "RoleAssignment*",
@@ -715,12 +716,7 @@
     },
     "Store": {
       "paths": [
-        "src/Humans.Application/Interfaces/Store/**",
-        "src/Humans.Application/Services/Store/**",
-        "src/Humans.Domain/Entities/Store*",
-        "src/Humans.Infrastructure/Repositories/Store/**",
-        "src/Humans.Web/Controllers/Store*",
-        "src/Humans.Web/Models/ProductInputModel.cs"
+        "src/Sections/Humans.Store/**"
       ],
       "symbols": [
         "Store*",
@@ -891,6 +887,7 @@
         "src/Humans.Web/Controllers/WelcomeController.cs",
         "src/Humans.Web/Controllers/WidgetGalleryController.cs",
         "src/Humans.Web/Extensions/**",
+        "src/Humans.UI/Extensions/**",
         "src/Humans.Web/ExceptionHandlers/**",
         "src/Humans.Web/Filters/**",
         "src/Humans.Web/Helpers/**",
@@ -903,7 +900,7 @@
         "src/Humans.Web/Models/Guide*.cs",
         "src/Humans.Web/ViewComponents/NavBadgesViewComponent.cs",
         "src/Humans.Web/Models/PagedListViewModel.cs",
-        "src/Humans.Web/Models/PagerViewModel.cs",
+        "src/Humans.UI/Models/PagerViewModel.cs",
         "src/Humans.Web/Models/PublicPopoverViewModel.cs",
         "src/Humans.Web/Models/SectionHelpViewModel.cs",
         "src/Humans.Web/Models/StaffViewModels.cs"

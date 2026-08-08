@@ -1,3 +1,4 @@
+using Humans.UI.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
@@ -5,6 +6,7 @@ using Humans.Web.Models;
 using Humans.Application.Interfaces.Consent;
 using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Users;
+using Humans.UI;
 
 namespace Humans.Web.Controllers;
 

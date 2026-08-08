@@ -1,8 +1,9 @@
+using Humans.UI.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Humans.Application.Interfaces.Governance;
 using Humans.Application.Interfaces.Users;
-using Humans.Web.Extensions;
+using Humans.UI.Extensions;
 using Humans.Web.Models;
 
 namespace Humans.Web.Controllers;

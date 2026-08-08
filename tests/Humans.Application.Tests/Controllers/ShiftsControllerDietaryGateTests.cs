@@ -6,7 +6,7 @@ using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Teams;
 using Humans.Application.Interfaces.Users;
 using Humans.Domain.Entities;
-using Humans.Web;
+using Humans.UI;
 using Humans.Web.Controllers;
 using Humans.Web.Models.Shifts;
 using Microsoft.AspNetCore.Http;
@@ -63,10 +63,12 @@ public class ShiftsControllerDietaryGateTests
         _shiftView.GetUserAsync(_user.Id, Arg.Any<CancellationToken>())
             .Returns(new ShiftUserView(_user.Id, null, null, null, [], []));
 
-        var builder = new ShiftBrowsePageBuilder(_shiftMgmt, _teamService);
+        var burnSettings = Substitute.For<IBurnSettingsService>();
+        var builder = new ShiftBrowsePageBuilder(_shiftMgmt, burnSettings, _teamService);
 
         _controller = new ShiftsController(
             _shiftMgmt,
+            burnSettings,
             _signupService,
             _volunteerTrackingService,
             _shiftView,

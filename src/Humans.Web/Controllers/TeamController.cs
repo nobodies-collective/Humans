@@ -1,5 +1,5 @@
-#pragma warning disable CS0618 // TeamMember.User / TeamJoinRequest.User — populated in-memory by TeamService (§6b).
 using Humans.Application.Extensions;
+using Humans.UI.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -8,13 +8,15 @@ using Humans.Application.Configuration;
 using Humans.Domain.Enums;
 using Humans.Web.Authorization;
 using Humans.Web.Authorization.Requirements;
-using Humans.Web.Extensions;
 using Humans.Web.Models;
 using NodaTime;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Interfaces.Teams;
 using Humans.Application.Interfaces.Users;
+using Humans.UI;
+using Humans.UI.Authorization;
+using Humans.UI.Extensions;
 
 namespace Humans.Web.Controllers;
 

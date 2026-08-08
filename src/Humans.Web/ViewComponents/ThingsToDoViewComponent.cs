@@ -7,6 +7,7 @@ using Humans.Web.Models;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Governance;
 using Humans.Application.Interfaces.Users;
+using Humans.UI;
 
 namespace Humans.Web.ViewComponents;
 
@@ -124,7 +125,7 @@ public class ThingsToDoViewComponent(
             // Copy varies by whether the user has an active qualifying signup; the
             // item is the same Key either way so it disappears with the rest of the
             // card when DietaryPreference becomes non-empty.
-            // See docs/superpowers/specs/2026-05-25-dietary-prompt-tightening-design.md
+            // See docs/features/profiles/dietary-medical-nudge.md (US-35.5)
             try
             {
                 // Dietary now lives on Profile (already loaded as `profile` above).

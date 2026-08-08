@@ -1,3 +1,4 @@
+using Humans.UI.Controllers;
 using System.Security.Cryptography;
 using System.Text;
 using Hangfire;
@@ -7,7 +8,7 @@ using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Profiles;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Jobs;
-using Humans.Web.Authorization;
+using Humans.UI.Authorization;
 using Humans.Web.Extensions;
 using Humans.Web.Infrastructure;
 using Humans.Web.Models;

@@ -1,3 +1,4 @@
+using Humans.UI.Controllers;
 using System.Security.Claims;
 using Humans.Application;
 using Humans.Application.DTOs;
@@ -6,6 +7,7 @@ using Humans.Application.Interfaces.Onboarding;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Users;
+using Humans.UI;
 using Humans.Web.Models.OnboardingWidget;
 using Humans.Web.Services.Onboarding;
 using Microsoft.AspNetCore.Authorization;
@@ -27,6 +29,7 @@ public class OnboardingWidgetController(
     IProfileEditorService profileEditorService,
     IShiftSignupService signupService,
     IShiftManagementService shiftMgmt,
+    IBurnSettingsService burnSettings,
     IShiftView shiftView,
     IConsentService consents,
     IOnboardingService onboardingService,
@@ -124,7 +127,7 @@ public class OnboardingWidgetController(
     [HttpGet]
     public async Task<IActionResult> Shifts(string? priority = null, CancellationToken ct = default)
     {
-        var es = await shiftMgmt.GetActiveAsync();
+        var es = await burnSettings.GetActiveAsync(ct);
         if (es is null)
             return View(OnboardingShiftsBrowseModelBuilder.BuildEmpty(priority ?? string.Empty));
 

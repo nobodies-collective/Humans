@@ -51,7 +51,7 @@ This file is the **index and cross-cutting rule sheet** for the data model. Per-
 | BudgetYear / BudgetGroup / BudgetCategory / BudgetLineItem / BudgetAuditLog / TicketingProjection | [Budget](../sections/Budget.md) | `BudgetAuditLog` append-only (§12). `BudgetGroup.Slug` and `BudgetCategory.Slug` are the Holded-tag-safe identifiers consumed by Finance. |
 | ExpenseReport / ExpenseLine / ExpenseAttachment / HoldedExpenseOutboxEvent | [Expenses](../sections/Expenses.md) | Expense reports and Holded sync outbox. |
 | HoldedExpenseDoc / HoldedCategoryMap / HoldedSyncState / HoldedLedgerLine / HoldedCreditorContact | [Finance](../sections/Finance.md) | Holded actuals cache (Feature 1) + creditor daybook ledger cache + member→account binding (Feature 2). |
-| StoreProduct / StoreOrder / StoreOrderLine / StorePayment / StoreInvoice / StoreTreasurySyncState | [Store](../sections/Store.md) | |
+| StoreProduct / StoreOrder / StoreOrderLine / StorePayment / StoreInvoice / StoreTreasurySyncState | [Store](../../src/Sections/Humans.Store/Docs/Store.md) | |
 | Issue / IssueComment | [Issues](../sections/Issues.md) | |
 | AgentConversation / AgentMessage / AgentSettings | [Agent](../sections/Agent.md) | |
 | SyncServiceSettings / GoogleSyncOutboxEvent | [Google Integration](../sections/GoogleIntegration.md) | |
@@ -79,9 +79,10 @@ Since the per-section split (nobodies-collective/Humans#858) the model is partit
 | `FinanceDbContext` | `holded_expense_docs`, `holded_category_map`, `holded_ledger_lines`, `holded_creditor_contacts`, `holded_sync_states` |
 | `SurveysDbContext` | `surveys`, `survey_questions`, `survey_question_options`, `survey_invitations`, `survey_responses`, `survey_answers` |
 | `EventGuideDbContext` | `events`, `event_categories`, `event_venues`, `event_guide_settings`, `event_moderation_actions`, `event_favourites`, `event_preferences` |
+| `StoreDbContext` | `store_products`, `store_orders`, `store_order_lines`, `store_payments`, `store_invoices`, `store_treasury_sync_state` |
 | `HumansDbContext` | everything else, including the Identity and Data Protection tables (which stay here permanently — they come from the framework base classes) |
 
-Gate and Store are clean candidates that stay in `HumansDbContext` for now; see the design doc's §5.1 for what blocks them.
+Gate is a clean candidate that stays in `HumansDbContext` for now; see the design doc's §5.1 for what blocks it. Store's blocker — the physical `DEFAULT 0` on `store_orders.Year` — was cleared by `20260802203816_RealignScaffoldedPhysicalDefaults`, and Store peeled as PR A of nobodies-collective/Humans#866.
 
 ## Cross-section FK graph
 

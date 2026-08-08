@@ -92,12 +92,6 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     public DbSet<NotificationRecipient> NotificationRecipients => Set<NotificationRecipient>();
     public DbSet<ProfileLanguage> ProfileLanguages => Set<ProfileLanguage>();
     public DbSet<EventParticipation> EventParticipations => Set<EventParticipation>();
-    public DbSet<StoreProduct> StoreProducts => Set<StoreProduct>();
-    public DbSet<StoreOrder> StoreOrders => Set<StoreOrder>();
-    public DbSet<StoreOrderLine> StoreOrderLines => Set<StoreOrderLine>();
-    public DbSet<StorePayment> StorePayments => Set<StorePayment>();
-    public DbSet<StoreInvoice> StoreInvoices => Set<StoreInvoice>();
-    public DbSet<StoreTreasurySyncState> StoreTreasurySyncStates => Set<StoreTreasurySyncState>();
 
     /// <summary>
     /// Configuration namespaces of sections peeled into their own DbContexts
@@ -105,6 +99,9 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     /// model; each peel appends its section here. Derived from a configuration
     /// type per section (not string literals) so a namespace move breaks the
     /// build instead of silently re-adding the section's tables to this model.
+    /// A section that goes on to G5 (its own project, nobodies-collective/Humans#866)
+    /// drops its entry again: ApplyConfigurationsFromAssembly scans this assembly, and
+    /// the section's configurations are no longer in it.
     /// </summary>
     private static readonly string[] PeeledConfigurationNamespaces =
     [

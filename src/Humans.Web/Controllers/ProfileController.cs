@@ -1,5 +1,6 @@
 // @e2e: board.spec.ts
 // @e2e: profile.spec.ts
+using Humans.UI.Controllers;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Web;
@@ -34,6 +35,9 @@ using Humans.Application.Interfaces.Governance;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Models;
 using Humans.Application.Services.Profiles;
+using Humans.UI;
+using Humans.UI.Authorization;
+using Humans.UI.Extensions;
 
 // RoleAssignment nav props are [Obsolete]; service stitches them in memory. Nav-strip tracked in §15i.
 #pragma warning disable CS0618
@@ -1670,10 +1674,10 @@ public class ProfileController(
             await profileEditorService.SaveDietaryMedicalAsync(user.Id, model.ToCommand());
 
             // Signup-replay — the user was bounced here from
-            // ShiftsController.SignUp/SignUpRange by the dietary gate. After a
+            // ShiftsController.ToggleDay by the dietary gate. After a
             // successful save we re-run the original signup and land them on
             // /Shifts with the appropriate flash. See
-            // docs/superpowers/specs/2026-05-25-dietary-prompt-tightening-design.md.
+            // docs/features/profiles/dietary-medical-nudge.md (US-35.6).
             // Replay failure does NOT roll back the dietary save — the user can
             // retry the signup directly from /Shifts without re-entering it.
             return await ReplayShiftSignupAfterDietaryMedicalSaveAsync(user.Id, model);

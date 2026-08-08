@@ -13,6 +13,7 @@ using NodaTime;
 
 using Humans.Application.Interfaces.Users;
 using Humans.Application;
+using Humans.UI.Authorization;
 
 namespace Humans.Web.Controllers;
 
@@ -21,6 +22,7 @@ namespace Humans.Web.Controllers;
 public class ShiftAdminController(
     ITeamServiceRead teamService,
     IShiftManagementService shiftMgmt,
+    IBurnSettingsService burnSettings,
     IShiftSignupService signupService,
     IShiftView shiftView,
     IUserServiceRead userService,
@@ -45,7 +47,7 @@ public class ShiftAdminController(
 
         var canManage = await CanManageDepartmentAsync(user, team);
         var canApprove = await CanApproveDepartmentAsync(user, team);
-        var es = await shiftMgmt.GetActiveAsync();
+        var es = await burnSettings.GetActiveAsync(HttpContext.RequestAborted);
         if (es is null)
         {
             SetError("No active event settings configured.");
@@ -74,7 +76,7 @@ public class ShiftAdminController(
         var (teamError, _, team) = await ResolveDepartmentManagementAsync(slug);
         if (teamError is not null) return teamError;
 
-        var es = await shiftMgmt.GetActiveAsync();
+        var es = await burnSettings.GetActiveAsync(HttpContext.RequestAborted);
         if (es is null) return BadRequest("No active event.");
 
         if (!ModelState.IsValid)

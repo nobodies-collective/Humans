@@ -6,7 +6,6 @@ using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Teams;
 using Humans.Application.Interfaces.Tickets;
 using Humans.Application.Interfaces.Users;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,6 +18,7 @@ public class DashboardService(
     IMembershipCalculatorRead membershipCalculator,
     IApplicationServiceRead applicationDecisionService,
     IShiftManagementService shiftMgmt,
+    IBurnSettingsService burnSettings,
     IShiftView shiftView,
     ITicketServiceRead ticketQueryService,
     IUserServiceRead userService,
@@ -64,10 +64,10 @@ public class DashboardService(
             ComputeTermState(applications, currentTier);
 
         // Shift cards (urgent shifts + confirmed signups) — guarded, failures never crash the dashboard.
-        EventSettings? activeEvent = null;
+        BurnSettingsInfo? activeEvent = null;
         try
         {
-            activeEvent = await shiftMgmt.GetActiveAsync();
+            activeEvent = await burnSettings.GetActiveAsync();
         }
         catch (Exception ex)
         {

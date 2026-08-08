@@ -1,5 +1,6 @@
 using Humans.Application.Authorization;
 using Humans.Domain.Constants;
+using Humans.UI.Authorization;
 using Humans.Web.Authorization.Handlers;
 using Humans.Web.Authorization.Requirements;
 using Microsoft.AspNetCore.Authorization;
@@ -24,7 +25,6 @@ public static class AuthorizationPolicyExtensions
         services.AddScoped<IAuthorizationHandler, CampComplianceAccessHandler>();
         services.AddScoped<IAuthorizationHandler, ContainerAuthorizationHandler>();
         services.AddScoped<IAuthorizationHandler, IsAnyTeamManagerOrCoordinatorHandler>();
-        services.AddScoped<IAuthorizationHandler, StoreOrderAuthorizationHandler>();
         services.AddScoped<IAuthorizationHandler, TeamAuthorizationHandler>();
         services.AddSingleton<IAuthorizationHandler, IssuesAuthorizationHandler>();
 

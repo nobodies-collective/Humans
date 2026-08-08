@@ -1,3 +1,4 @@
+using Humans.UI.Controllers;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -8,6 +9,7 @@ using Humans.Domain.Constants;
 using Humans.Domain.Entities;
 using Humans.Application.Interfaces.Auth;
 using Humans.Application.Interfaces.Users;
+using Humans.UI;
 using Humans.Web.Infrastructure;
 
 namespace Humans.Web.Controllers;

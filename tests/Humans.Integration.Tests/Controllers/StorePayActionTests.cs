@@ -1,3 +1,5 @@
+using Humans.Store.Data;
+using Humans.Store.Domain;
 using System.Net;
 using System.Text.RegularExpressions;
 using AwesomeAssertions;
@@ -90,13 +92,14 @@ public class StorePayActionTests(HumansTestDatabase database) : IntegrationTestB
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var storeDb = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
 
         var year = (await db.CampSettings.FirstAsync(Xunit.TestContext.Current.CancellationToken)).PublicYear;
         var seasonId = await db.Set<CampSeason>().AsNoTracking()
             .Where(s => s.Camp.Slug == "barrio-1")
             .Select(s => s.Id).FirstAsync(Xunit.TestContext.Current.CancellationToken);
 
-        var product = new StoreProduct
+        var product = new Product
         {
             Id = Guid.NewGuid(),
             Year = year,
@@ -110,16 +113,16 @@ public class StorePayActionTests(HumansTestDatabase database) : IntegrationTestB
             CreatedAt = SystemClock.Instance.GetCurrentInstant(),
             UpdatedAt = SystemClock.Instance.GetCurrentInstant(),
         };
-        db.StoreProducts.Add(product);
+        storeDb.Products.Add(product);
 
         var orderId = Guid.NewGuid();
         var now = SystemClock.Instance.GetCurrentInstant();
-        db.StoreOrders.Add(new StoreOrder
+        storeDb.Orders.Add(new Order
         {
             Id = orderId,
             CampSeasonId = seasonId,
-            State = Domain.Enums.StoreOrderState.Open,
-            Lines = new List<StoreOrderLine>
+            State = OrderState.Open,
+            Lines = new List<OrderLine>
             {
                 new()
                 {
@@ -137,7 +140,7 @@ public class StorePayActionTests(HumansTestDatabase database) : IntegrationTestB
             CreatedAt = now,
             UpdatedAt = now,
         });
-        await db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+        await storeDb.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
         // Subtotal 25 + VAT 21% = 30.25 EUR balance.
         return (orderId, 30.25m);

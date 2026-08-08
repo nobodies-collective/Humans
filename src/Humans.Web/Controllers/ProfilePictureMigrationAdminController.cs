@@ -1,10 +1,10 @@
+using Humans.UI.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces.Profiles;
-using Humans.Web.Authorization;
-
 using Humans.Application.Interfaces.Users;
+using Humans.UI.Authorization;
 
 namespace Humans.Web.Controllers;
 
