@@ -1,3 +1,4 @@
+using System.Transactions;
 using Humans.Application.DTOs;
 using Humans.Application.Extensions;
 using Humans.Application.Helpers;
@@ -5,6 +6,7 @@ using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.Camps;
+using Humans.Application.Interfaces.CityPlanning;
 using Humans.Application.Interfaces.EarlyEntry;
 using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.GoogleIntegration;
@@ -29,6 +31,8 @@ public sealed class CampService : ICampService, ICampRoleCampAccess, IUserDataCo
     private readonly INotificationEmitter _notificationEmitter;
     private readonly ICampLeadJoinRequestsBadgeCacheInvalidator _leadBadgeInvalidator;
     private readonly Lazy<ICampRoleService> _campRoleService;
+    // Lazy: CityPlanningService injects ICampServiceRead, closing the cycle.
+    private readonly Lazy<ICityPlanningService> _cityPlanningService;
     private readonly IEarlyEntryInvalidator _earlyEntryInvalidator;
     private readonly IUserServiceRead _userServiceRead;
     private readonly IClock _clock;
@@ -47,6 +51,7 @@ public sealed class CampService : ICampService, ICampRoleCampAccess, IUserDataCo
         INotificationEmitter notificationEmitter,
         ICampLeadJoinRequestsBadgeCacheInvalidator leadBadgeInvalidator,
         Lazy<ICampRoleService> campRoleService,
+        Lazy<ICityPlanningService> cityPlanningService,
         IEarlyEntryInvalidator earlyEntryInvalidator,
         IUserServiceRead userServiceRead,
         IClock clock,
@@ -59,6 +64,7 @@ public sealed class CampService : ICampService, ICampRoleCampAccess, IUserDataCo
         _notificationEmitter = notificationEmitter;
         _leadBadgeInvalidator = leadBadgeInvalidator;
         _campRoleService = campRoleService;
+        _cityPlanningService = cityPlanningService;
         _earlyEntryInvalidator = earlyEntryInvalidator;
         _userServiceRead = userServiceRead;
         _clock = clock;
@@ -731,12 +737,50 @@ public sealed class CampService : ICampService, ICampRoleCampAccess, IUserDataCo
 
     public async Task DeleteCampAsync(Guid campId, CancellationToken cancellationToken = default)
     {
-        var deletedImagePaths = await _repo.DeleteCampAsync(campId, cancellationToken);
-        if (deletedImagePaths is null)
+        var camp = await _repo.GetByIdAsync(campId, cancellationToken)
+            ?? throw new InvalidOperationException("Camp not found.");
+
+        // Removing the camp cascades to its seasons. City Planning keeps polygons and
+        // polygon history keyed on CampSeasonId; the Restrict FK that used to make the
+        // database refuse this delete was dropped by nobodies-collective/Humans#992, so
+        // the Camps section now clears them through the owning section's service.
+        //
+        // Both writes share one ambient transaction (the TeamService.TryAddMemberWithOutboxAsync
+        // shape) so a failure in either does not leave a live camp with its polygon history
+        // already deleted. It does not close the concurrent-insert window — a SaveCampPolygonAsync
+        // landing between the cleanup and the commit still orphans a row — which is the narrowed
+        // trade recorded in docs/plans/2026-08-07-fk-cut-inventory.md.
+        var seasonIds = camp.Seasons.Select(s => s.Id).ToList();
+        IReadOnlyList<string>? deletedImagePaths;
+
+        using (var scope = new TransactionScope(
+            TransactionScopeOption.Required,
+            new TransactionOptions { IsolationLevel = IsolationLevel.ReadCommitted },
+            TransactionScopeAsyncFlowOption.Enabled))
         {
-            throw new InvalidOperationException("Camp not found.");
+            if (seasonIds.Count > 0)
+            {
+                var removed = await _cityPlanningService.Value
+                    .DeleteCampPolygonsForSeasonsAsync(seasonIds, cancellationToken);
+                if (removed > 0)
+                {
+                    _logger.LogInformation(
+                        "Deleted {Rows} city-planning polygon/history rows for {Seasons} seasons of camp {CampId}",
+                        removed, seasonIds.Count, campId);
+                }
+            }
+
+            deletedImagePaths = await _repo.DeleteCampAsync(campId, cancellationToken);
+            if (deletedImagePaths is null)
+            {
+                throw new InvalidOperationException("Camp not found.");
+            }
+
+            scope.Complete();
         }
 
+        // Outside the transaction: file deletes cannot be rolled back, and a failure here
+        // must not undo the DB work.
         foreach (var path in deletedImagePaths)
         {
             try

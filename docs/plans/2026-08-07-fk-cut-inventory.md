@@ -6,6 +6,46 @@
 FK-cut carve-out (`2026-06-13-q3-transition-plan.md`, *FK-cut carve-out*) gate the migration
 and are not this document's subject.
 
+> **ACTED ON 2026-08-08.** Re-derived at `origin/main` `04dd8bc8c`:
+> still exactly 54 relationships, matching this document row for row, and all 54 in
+> `HumansDbContext` (no cross-section FK hides in a peeled context). What the migration did
+> with each recommendation:
+>
+> - **Condition 1.** `20260808191329_DropCrossSectionForeignKeys` drops **23** convention
+>   indexes — this document's 25 exposed, minus `campaign_grants.UserId` and
+>   `budget_audit_logs.ActorUserId`, which now carry an explicit `HasIndex` and therefore
+>   produce no schema operation at all. The generated migration is the empirical confirmation
+>   of the survives/drops column below: none of the four columns the issue named appears in
+>   the drop list. The `EXPLAIN` check this document asks for is still worth running against
+>   prod, but nothing in the cut depends on it.
+> - **Condition 3.** Implemented: the `CampSeason → camp_polygons` / `camp_polygon_histories`
+>   `Restrict` pair, the only ordinary-production guard the cut removed —
+>   `CampService.DeleteCampAsync` now clears them through `ICityPlanningService` before
+>   deleting the camp. Accepted as recorded orphans: `email_outbox_messages.ShiftSignupId`
+>   and `.CampaignGrantId`, `audit_log.ActorUserId` (the cut *fixes* the trigger/`SET NULL`
+>   contradiction described below) and `audit_log.ResourceId` (no delete path).
+>   **No replacement, by decision (Peter, 2026-08-09):** the eight `Team` rows and the 42
+>   `User`-targeting actions. Permanently deleting a team does not happen —
+>   `PermanentlyDeleteTeamAsync` is dev-only surface — and neither does hard-deleting a user,
+>   so none of those orphans is reachable. When a real delete path is wanted, the shape is an
+>   **`IDeleteUser` fanout**: sections with rows to remove implement it, mirroring the existing
+>   `IUserDataContributor` / `IUserMerge` pair on `IFanout`. What each would have to clean up
+>   is recorded in nobodies-collective/Humans#1009 so it does not have to be re-derived. This
+>   supersedes the *Follow-up worth filing* section below, which proposed an analyzer over both
+>   hard-delete doors: the fanout is the mechanism, not a guard against adding one.
+>
+> **The migration is one-way in practice, and that follows from the `audit_log.ActorUserId`
+> decision.** `Down()` re-adds all 54 constraints, and Postgres validates existing rows when it
+> does. Once the OAuth `CrossUserBlocked` path has deleted an actor whose `audit_log` row
+> survives — exactly the orphan accepted above — `AddForeignKey` on
+> `FK_audit_log_users_ActorUserId` fails and `Down()` cannot complete. Nulling the orphans first
+> is barred twice: it is a data migration ([[no-data-backfills]]), and `prevent_audit_log_update`
+> rejects the `UPDATE` it would need. This costs nothing operationally, because prod rollback is
+> the pre-deploy `pg_dump` snapshot, not `Down()` —
+> [`database-restore-runbook.md`](../database-restore-runbook.md) §5, and its line *"schema
+> changes do not roll back with the image."* `Down()` stays correct for a clean database, which
+> is what CI and local use it for. Recorded rather than fixed.
+
 ---
 
 ## How the list was derived
