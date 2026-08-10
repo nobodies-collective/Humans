@@ -37,7 +37,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddGovernanceSection();
         services.AddOnboardingSection();
         services.AddCampsSection();
-        services.AddContainersSection();
         services.AddCityPlanningSection(configuration);
         services.AddBudgetSection();
         services.AddShiftsSection();
@@ -59,7 +58,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddGuideSection(configuration);
         services.AddAgentSection(configuration);
         services.AddSearchSection();
-        services.AddHoldedSection(configuration);
+        services.AddHoldedConnector(configuration);
         services.AddMailerSection(configuration);
         services.AddExpensesSection(configuration);
 
