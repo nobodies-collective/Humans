@@ -32,7 +32,7 @@ public sealed class TeamRoleServiceTests : ServiceTestHarness
     public TeamRoleServiceTests() : base(Instant.FromUtc(2026, 3, 11, 12, 0))
     {
         var roleAssignmentService = new RoleAssignmentService(
-            new RoleAssignmentRepository(DbFactory),
+            new RoleAssignmentRepository(AuthDbFactory),
             Substitute.For<IUserService>(),
             AuditLog,
             Notifier,
@@ -48,7 +48,7 @@ public sealed class TeamRoleServiceTests : ServiceTestHarness
             .Returns(new Dictionary<Guid, TeamResourceSummary>());
         var userService = NewDbBackedUserService();
         var googleOutboxService = new GoogleSyncOutboxService(
-            new GoogleSyncOutboxRepository(DbFactory));
+            new GoogleSyncOutboxRepository(GoogleIntegrationDbFactory));
         var serviceProvider = new ServiceLocatorBuilder()
             .With<ITeamService>()
             .With<IRoleAssignmentService>(roleAssignmentService)
@@ -646,7 +646,7 @@ public sealed class TeamRoleServiceTests : ServiceTestHarness
 
     private void SeedAdminRole(User user)
     {
-        Db.RoleAssignments.Add(new RoleAssignment
+        AuthDb.RoleAssignments.Add(new RoleAssignment
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
@@ -655,6 +655,7 @@ public sealed class TeamRoleServiceTests : ServiceTestHarness
             CreatedAt = Clock.GetCurrentInstant(),
             CreatedByUserId = user.Id
         });
+        AuthDb.SaveChanges();
     }
 
     private void SeedRoleAssignment(TeamRoleDefinition definition, TeamMember member, int slotIndex)

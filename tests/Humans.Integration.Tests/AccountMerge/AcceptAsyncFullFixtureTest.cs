@@ -171,6 +171,12 @@ public class AcceptAsyncFullFixtureTest(HumansTestDatabase database)
         // Assert — comprehensive post-merge state.
         await using var assertScope = Factory.Services.CreateAsyncScope();
         var db = assertScope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var governanceDb = assertScope.ServiceProvider.GetRequiredService<GovernanceDbContext>();
+        var campaignsDb = assertScope.ServiceProvider.GetRequiredService<CampaignsDbContext>();
+        var feedbackDb = assertScope.ServiceProvider.GetRequiredService<FeedbackDbContext>();
+        var authDb = assertScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var notificationsDb = assertScope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
+        var budgetDb = assertScope.ServiceProvider.GetRequiredService<BudgetDbContext>();
 
         // ----------------------------------------------------------------
         // Source User: tombstoned with MergedToUserId, MergedAt, lockout.
@@ -202,9 +208,9 @@ public class AcceptAsyncFullFixtureTest(HumansTestDatabase database)
             .Should().Be(0);
         (await db.EventParticipations.AsNoTracking().CountAsync(ep => ep.UserId == sourceId, TestContext.Current.CancellationToken))
             .Should().Be(0);
-        (await db.Applications.AsNoTracking().CountAsync(a => a.UserId == sourceId, TestContext.Current.CancellationToken))
+        (await governanceDb.Applications.AsNoTracking().CountAsync(a => a.UserId == sourceId, TestContext.Current.CancellationToken))
             .Should().Be(0);
-        (await db.RoleAssignments.AsNoTracking().CountAsync(ra =>
+        (await authDb.RoleAssignments.AsNoTracking().CountAsync(ra =>
                 ra.UserId == sourceId && (ra.RoleName == sharedRole || ra.RoleName == sourceOnlyRole), TestContext.Current.CancellationToken))
             .Should().Be(0);
         (await db.TeamMembers.AsNoTracking().CountAsync(tm =>
@@ -214,17 +220,17 @@ public class AcceptAsyncFullFixtureTest(HumansTestDatabase database)
         (await db.TeamJoinRequests.AsNoTracking().CountAsync(r =>
                 r.UserId == sourceId && r.TeamId == joinTeamId, TestContext.Current.CancellationToken))
             .Should().Be(0);
-        (await db.NotificationRecipients.AsNoTracking().CountAsync(nr =>
+        (await notificationsDb.NotificationRecipients.AsNoTracking().CountAsync(nr =>
                 nr.UserId == sourceId
                 && (nr.NotificationId == sharedNotificationId || nr.NotificationId == sourceOnlyNotificationId), TestContext.Current.CancellationToken))
             .Should().Be(0);
-        (await db.CampaignGrants.AsNoTracking().CountAsync(g =>
+        (await campaignsDb.CampaignGrants.AsNoTracking().CountAsync(g =>
                 g.UserId == sourceId
                 && (g.CampaignId == contestedCampaignId || g.CampaignId == sourceOnlyCampaignId), TestContext.Current.CancellationToken))
             .Should().Be(0);
-        (await db.FeedbackReports.AsNoTracking().CountAsync(r => r.UserId == sourceId, TestContext.Current.CancellationToken))
+        (await feedbackDb.FeedbackReports.AsNoTracking().CountAsync(r => r.UserId == sourceId, TestContext.Current.CancellationToken))
             .Should().Be(0);
-        (await db.FeedbackMessages.AsNoTracking().CountAsync(m => m.SenderUserId == sourceId, TestContext.Current.CancellationToken))
+        (await feedbackDb.FeedbackMessages.AsNoTracking().CountAsync(m => m.SenderUserId == sourceId, TestContext.Current.CancellationToken))
             .Should().Be(0);
 
         // Profile is the one live-section EXCEPTION — source profile row
@@ -251,7 +257,7 @@ public class AcceptAsyncFullFixtureTest(HumansTestDatabase database)
             .Should().Be(1, "audit log is append-only — source row stays for chain-follow");
         (await db.ConsentRecords.AsNoTracking().CountAsync(c => c.UserId == sourceId, TestContext.Current.CancellationToken))
             .Should().BeGreaterThan(0, "consent records are append-only — source rows stay for chain-follow");
-        (await db.BudgetAuditLogs.AsNoTracking()
+        (await budgetDb.BudgetAuditLogs.AsNoTracking()
                 .CountAsync(b => b.Description == budgetDescription && b.ActorUserId == sourceId, TestContext.Current.CancellationToken))
             .Should().Be(1, "budget audit log is append-only — source row stays for chain-follow");
 
@@ -298,15 +304,15 @@ public class AcceptAsyncFullFixtureTest(HumansTestDatabase database)
                     && ep.Status == ParticipationStatus.Attended, TestContext.Current.CancellationToken))
             .Should().BeTrue("source event participation re-FK'd to target");
 
-        (await db.Applications.AsNoTracking()
+        (await governanceDb.Applications.AsNoTracking()
                 .CountAsync(a => a.UserId == targetId
                     && a.MembershipTier == MembershipTier.Colaborador, TestContext.Current.CancellationToken))
             .Should().BeGreaterThan(0, "source application moved to target");
 
-        (await db.RoleAssignments.AsNoTracking()
+        (await authDb.RoleAssignments.AsNoTracking()
                 .AnyAsync(ra => ra.UserId == targetId && ra.RoleName == sourceOnlyRole, TestContext.Current.CancellationToken))
             .Should().BeTrue("source-only role re-FK'd to target");
-        (await db.RoleAssignments.AsNoTracking()
+        (await authDb.RoleAssignments.AsNoTracking()
                 .CountAsync(ra => ra.UserId == targetId && ra.RoleName == sharedRole, TestContext.Current.CancellationToken))
             .Should().Be(1, "shared role stays as target's single active assignment");
 
@@ -323,26 +329,26 @@ public class AcceptAsyncFullFixtureTest(HumansTestDatabase database)
                 .AnyAsync(r => r.UserId == targetId && r.TeamId == joinTeamId, TestContext.Current.CancellationToken))
             .Should().BeTrue("source's team-join request re-FK'd to target");
 
-        (await db.NotificationRecipients.AsNoTracking()
+        (await notificationsDb.NotificationRecipients.AsNoTracking()
                 .AnyAsync(nr => nr.UserId == targetId
                     && nr.NotificationId == sourceOnlyNotificationId, TestContext.Current.CancellationToken))
             .Should().BeTrue("source-only notification recipient re-FK'd to target");
-        (await db.NotificationRecipients.AsNoTracking()
+        (await notificationsDb.NotificationRecipients.AsNoTracking()
                 .CountAsync(nr => nr.UserId == targetId
                     && nr.NotificationId == sharedNotificationId, TestContext.Current.CancellationToken))
             .Should().Be(1, "duplicate-on-shared-notification dropped, single row kept");
 
-        (await db.CampaignGrants.AsNoTracking()
+        (await campaignsDb.CampaignGrants.AsNoTracking()
                 .AnyAsync(g => g.UserId == targetId && g.CampaignId == sourceOnlyCampaignId, TestContext.Current.CancellationToken))
             .Should().BeTrue("source-only campaign grant re-FK'd to target");
-        (await db.CampaignGrants.AsNoTracking()
+        (await campaignsDb.CampaignGrants.AsNoTracking()
                 .CountAsync(g => g.UserId == targetId && g.CampaignId == contestedCampaignId, TestContext.Current.CancellationToken))
             .Should().Be(1, "contested campaign grant deduped to a single target row");
 
-        (await db.FeedbackReports.AsNoTracking()
+        (await feedbackDb.FeedbackReports.AsNoTracking()
                 .AnyAsync(r => r.UserId == targetId && r.Description == $"src-report-{runTag}", TestContext.Current.CancellationToken))
             .Should().BeTrue("source feedback report re-FK'd to target");
-        (await db.FeedbackMessages.AsNoTracking()
+        (await feedbackDb.FeedbackMessages.AsNoTracking()
                 .AnyAsync(m => m.SenderUserId == targetId && m.Content == $"src-msg-{runTag}", TestContext.Current.CancellationToken))
             .Should().BeTrue("source feedback message re-FK'd to target");
 
@@ -364,7 +370,7 @@ public class AcceptAsyncFullFixtureTest(HumansTestDatabase database)
     {
         await using var scope = Factory.Services.CreateAsyncScope();
         var um = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-        var db = scope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var authDb = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         var now = SystemClock.Instance.GetCurrentInstant();
 
         var adminId = Guid.NewGuid();
@@ -384,7 +390,7 @@ public class AcceptAsyncFullFixtureTest(HumansTestDatabase database)
                 + string.Join("; ", result.Errors.Select(e => e.Description)));
         }
 
-        db.RoleAssignments.Add(new RoleAssignment
+        authDb.RoleAssignments.Add(new RoleAssignment
         {
             Id = Guid.NewGuid(),
             UserId = adminId,
@@ -394,7 +400,7 @@ public class AcceptAsyncFullFixtureTest(HumansTestDatabase database)
             CreatedAt = now,
             CreatedByUserId = adminId,
         });
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await authDb.SaveChangesAsync(TestContext.Current.CancellationToken);
         return adminId;
     }
 }

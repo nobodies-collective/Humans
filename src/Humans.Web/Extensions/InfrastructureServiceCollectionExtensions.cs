@@ -1,9 +1,6 @@
 using Humans.Application.Configuration;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Repositories;
-using Humans.Application.Interfaces.SystemSettings;
-using Humans.Application.Services.SystemSettings;
-using Humans.Infrastructure.Repositories.SystemSettings;
 using Humans.Infrastructure.Services;
 using Humans.Web.Extensions.Infrastructure;
 using Humans.Web.Extensions.Sections;
@@ -21,8 +18,6 @@ public static class InfrastructureServiceCollectionExtensions
         // Cross-cutting infrastructure — options bindings, integrations, config metadata.
         services.AddConfigurationMetadata(configuration, configRegistry);
         services.AddTelemetryInfrastructure(configuration);
-        services.AddSingleton<ISystemSettingsRepository, SystemSettingsRepository>();
-        services.AddScoped<ISystemSettingsService, SystemSettingsService>();
         services.AddEmailInfrastructure(configuration, environment);
         services.AddGoogleWorkspaceInfrastructure(configuration, environment);
         services.AddTicketVendorInfrastructure(configuration, environment);
@@ -42,8 +37,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddGovernanceSection();
         services.AddOnboardingSection();
         services.AddCampsSection();
-        services.AddContainersSection();
-        services.AddEventsSection();
         services.AddCityPlanningSection(configuration);
         services.AddBudgetSection();
         services.AddShiftsSection();
@@ -65,9 +58,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddGuideSection(configuration);
         services.AddAgentSection(configuration);
         services.AddSearchSection();
-        services.AddHoldedSection(configuration);
+        services.AddHoldedConnector(configuration);
         services.AddMailerSection(configuration);
-        services.AddExpensesSection(configuration);
 
         // Sections that have moved into their own project (nobodies-collective/Humans#866)
         // register themselves via ISection and are discovered, not named. The roll-call

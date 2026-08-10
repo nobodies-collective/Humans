@@ -1,6 +1,6 @@
 using Hangfire;
 using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Finance;
+using Humans.Finance.Contracts;
 using Humans.Infrastructure.Services.Holded;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,6 +25,6 @@ public class HoldedSyncJob(
         }
 
         await finance.SyncAsync(cancellationToken);
-        await finance.SyncCreditorLedgerAsync(cancellationToken);
+        await finance.SyncCreditorLedgerAsync(fullHistory: false, cancellationToken);
     }
 }

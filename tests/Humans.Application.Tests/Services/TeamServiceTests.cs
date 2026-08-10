@@ -46,7 +46,7 @@ public sealed class TeamServiceTests : ServiceTestHarness
     public TeamServiceTests()
     {
         _roleAssignmentService = new RoleAssignmentService(
-            new RoleAssignmentRepository(DbFactory),
+            new RoleAssignmentRepository(AuthDbFactory),
             Substitute.For<IUserService>(),
             AuditLog,
             Notifier,
@@ -66,7 +66,7 @@ public sealed class TeamServiceTests : ServiceTestHarness
         // itself configures substitute calls.
         var userService = NewDbBackedUserService();
         var googleOutboxService = new GoogleSyncOutboxService(
-            new GoogleSyncOutboxRepository(DbFactory));
+            new GoogleSyncOutboxRepository(GoogleIntegrationDbFactory));
         var serviceProvider = new ServiceLocatorBuilder()
             .With<ITeamService>()
             .With<IRoleAssignmentService>(_roleAssignmentService)

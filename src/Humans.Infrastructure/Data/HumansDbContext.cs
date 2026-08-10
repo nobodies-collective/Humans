@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Humans.Domain.Entities;
-using MemberApplication = Humans.Domain.Entities.Application;
 
 namespace Humans.Infrastructure.Data;
 
@@ -25,9 +24,6 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     public DbSet<Profile> Profiles => Set<Profile>();
-    public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
-    public DbSet<MemberApplication> Applications => Set<MemberApplication>();
-    public DbSet<ApplicationStateHistory> ApplicationStateHistories => Set<ApplicationStateHistory>();
     public DbSet<LegalDocument> LegalDocuments => Set<LegalDocument>();
     public DbSet<DocumentVersion> DocumentVersions => Set<DocumentVersion>();
     public DbSet<ConsentRecord> ConsentRecords => Set<ConsentRecord>();
@@ -38,33 +34,10 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     public DbSet<TeamRoleDefinition> TeamRoleDefinitions => Set<TeamRoleDefinition>();
     public DbSet<TeamRoleAssignment> TeamRoleAssignments => Set<TeamRoleAssignment>();
     public DbSet<TeamEarlyEntryGrant> TeamEarlyEntryGrants => Set<TeamEarlyEntryGrant>();
-    public DbSet<GoogleResource> GoogleResources => Set<GoogleResource>();
-    public DbSet<GoogleSyncOutboxEvent> GoogleSyncOutboxEvents => Set<GoogleSyncOutboxEvent>();
     public DbSet<ContactField> ContactFields => Set<ContactField>();
     public DbSet<UserEmail> UserEmails => Set<UserEmail>();
     public DbSet<VolunteerHistoryEntry> VolunteerHistoryEntries => Set<VolunteerHistoryEntry>();
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
-    public DbSet<BoardVote> BoardVotes => Set<BoardVote>();
-    public DbSet<SyncServiceSettings> SyncServiceSettings => Set<SyncServiceSettings>();
-    public DbSet<Camp> Camps => Set<Camp>();
-    public DbSet<CampSeason> CampSeasons => Set<CampSeason>();
-    public DbSet<CampHistoricalName> CampHistoricalNames => Set<CampHistoricalName>();
-    public DbSet<CampImage> CampImages => Set<CampImage>();
-    public DbSet<CampSettings> CampSettings => Set<CampSettings>();
-    public DbSet<CampMember> CampMembers => Set<CampMember>();
-    public DbSet<CampRoleDefinition> CampRoleDefinitions => Set<CampRoleDefinition>();
-    public DbSet<CampRoleAssignment> CampRoleAssignments => Set<CampRoleAssignment>();
-    public DbSet<CampPolygon> CampPolygons => Set<CampPolygon>();
-    public DbSet<CampPolygonHistory> CampPolygonHistories => Set<CampPolygonHistory>();
-    public DbSet<CityPlanningSettings> CityPlanningSettings => Set<CityPlanningSettings>();
-    public DbSet<EmailOutboxMessage> EmailOutboxMessages { get; set; } = null!;
-    public DbSet<Campaign> Campaigns { get; set; } = null!;
-    public DbSet<CampaignCode> CampaignCodes { get; set; } = null!;
-    public DbSet<CampaignGrant> CampaignGrants { get; set; } = null!;
-    public DbSet<TicketOrder> TicketOrders => Set<TicketOrder>();
-    public DbSet<TicketAttendee> TicketAttendees => Set<TicketAttendee>();
-    public DbSet<TicketSyncState> TicketSyncStates => Set<TicketSyncState>();
-    public DbSet<TicketTransferRequest> TicketTransferRequests => Set<TicketTransferRequest>();
     public DbSet<EventSettings> EventSettings => Set<EventSettings>();
     public DbSet<Rota> Rotas => Set<Rota>();
     public DbSet<Shift> Shifts => Set<Shift>();
@@ -72,24 +45,10 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     public DbSet<VolunteerEventProfile> VolunteerEventProfiles => Set<VolunteerEventProfile>();
     public DbSet<GeneralAvailability> GeneralAvailability => Set<GeneralAvailability>();
     public DbSet<VolunteerBuildStatus> VolunteerBuildStatuses => Set<VolunteerBuildStatus>();
-    public DbSet<FeedbackReport> FeedbackReports => Set<FeedbackReport>();
-    public DbSet<FeedbackMessage> FeedbackMessages => Set<FeedbackMessage>();
-    public DbSet<Issue> Issues => Set<Issue>();
-    public DbSet<IssueComment> IssueComments => Set<IssueComment>();
     public DbSet<AccountMergeRequest> AccountMergeRequests => Set<AccountMergeRequest>();
     public DbSet<CommunicationPreference> CommunicationPreferences => Set<CommunicationPreference>();
-    public DbSet<BudgetYear> BudgetYears => Set<BudgetYear>();
-    public DbSet<BudgetGroup> BudgetGroups => Set<BudgetGroup>();
-    public DbSet<BudgetCategory> BudgetCategories => Set<BudgetCategory>();
-    public DbSet<BudgetLineItem> BudgetLineItems => Set<BudgetLineItem>();
-    public DbSet<BudgetAuditLog> BudgetAuditLogs => Set<BudgetAuditLog>();
-    public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
-    public DbSet<CalendarEventException> CalendarEventExceptions => Set<CalendarEventException>();
-    public DbSet<TicketingProjection> TicketingProjections => Set<TicketingProjection>();
     public DbSet<ShiftTag> ShiftTags => Set<ShiftTag>();
     public DbSet<VolunteerTagPreference> VolunteerTagPreferences => Set<VolunteerTagPreference>();
-    public DbSet<Notification> Notifications => Set<Notification>();
-    public DbSet<NotificationRecipient> NotificationRecipients => Set<NotificationRecipient>();
     public DbSet<ProfileLanguage> ProfileLanguages => Set<ProfileLanguage>();
     public DbSet<EventParticipation> EventParticipations => Set<EventParticipation>();
 
@@ -105,13 +64,21 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     /// </summary>
     private static readonly string[] PeeledConfigurationNamespaces =
     [
-        typeof(Configurations.SystemSettings.SystemSettingConfiguration).Namespace!,
-        typeof(Configurations.Containers.ContainerConfiguration).Namespace!,
         typeof(Configurations.Agent.AgentConversationConfiguration).Namespace!,
-        typeof(Configurations.Expenses.ExpenseReportConfiguration).Namespace!,
-        typeof(Configurations.Finance.HoldedExpenseDocConfiguration).Namespace!,
         typeof(Configurations.Surveys.SurveyConfiguration).Namespace!,
-        typeof(Configurations.EventGuide.EventConfiguration).Namespace!,
+        typeof(Configurations.Auth.RoleAssignmentConfiguration).Namespace!,
+        typeof(Configurations.Email.EmailOutboxMessageConfiguration).Namespace!,
+        typeof(Configurations.Calendar.CalendarEventConfiguration).Namespace!,
+        typeof(Configurations.Notifications.NotificationConfiguration).Namespace!,
+        typeof(Configurations.Issues.IssueConfiguration).Namespace!,
+        typeof(Configurations.Governance.ApplicationConfiguration).Namespace!,
+        typeof(Configurations.Campaigns.CampaignConfiguration).Namespace!,
+        typeof(Configurations.GoogleIntegration.GoogleResourceConfiguration).Namespace!,
+        typeof(Configurations.Tickets.TicketOrderConfiguration).Namespace!,
+        typeof(Configurations.Feedback.FeedbackReportConfiguration).Namespace!,
+        typeof(Configurations.CityPlanning.CampPolygonConfiguration).Namespace!,
+        typeof(Configurations.Budget.BudgetYearConfiguration).Namespace!,
+        typeof(Configurations.Camps.CampConfiguration).Namespace!,
     ];
 
     protected override void OnModelCreating(ModelBuilder builder)

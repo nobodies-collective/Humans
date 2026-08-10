@@ -32,6 +32,68 @@ public abstract class ServiceTestHarness : IDisposable
     private protected DbContextOptions<HumansDbContext> DbOptions { get; }
     private protected HumansDbContext Db { get; }
     private protected TestDbContextFactory DbFactory { get; }
+
+    // ----- Peeled-section contexts (nobodies-collective/Humans#858) ----------
+    // These sections' tables are no longer in Db's model, so seeding them and
+    // wiring their repositories both go through the section context. Each pair
+    // is an independent in-memory store; a test that seeds across two saves on
+    // each. Add a pair here as each further section peels.
+    //
+    // Every pair is built on FIRST TOUCH, not in the constructor: this class is
+    // the base for ~4000 tests and almost none of them touch any given section.
+    // Building all of them eagerly gives each test six extra sets of
+    // DbContextOptions — each with its own EF internal service provider — and
+    // that overhead alone pushed a 5s-budget test over its timeout on CI.
+    // SaveAllAsync/ClearAllTrackers/Dispose therefore visit only the pairs a
+    // test actually created.
+
+    private readonly List<Func<DbContext?>> _sectionContextProbes = [];
+
+    /// <summary>Auth: <c>role_assignments</c> (see <see cref="SeedRoleAssignment"/>).</summary>
+    private readonly Lazy<SectionDb<AuthDbContext>> _authDb;
+    private protected AuthDbContext AuthDb => _authDb.Value.Context;
+    private protected TestDbContextFactory<AuthDbContext> AuthDbFactory => _authDb.Value.Factory;
+
+    /// <summary>Governance: <c>applications</c>, <c>application_state_history</c>, <c>board_votes</c>.</summary>
+    private readonly Lazy<SectionDb<GovernanceDbContext>> _governanceDb;
+    private protected GovernanceDbContext GovernanceDb => _governanceDb.Value.Context;
+    private protected TestDbContextFactory<GovernanceDbContext> GovernanceDbFactory => _governanceDb.Value.Factory;
+
+    /// <summary>Campaigns: <c>campaigns</c>, <c>campaign_codes</c>, <c>campaign_grants</c>.</summary>
+    private readonly Lazy<SectionDb<CampaignsDbContext>> _campaignsDb;
+    private protected CampaignsDbContext CampaignsDb => _campaignsDb.Value.Context;
+    private protected TestDbContextFactory<CampaignsDbContext> CampaignsDbFactory => _campaignsDb.Value.Factory;
+
+    /// <summary>GoogleIntegration: <c>google_resources</c>, <c>google_sync_outbox</c>, <c>sync_service_settings</c>.</summary>
+    private readonly Lazy<SectionDb<GoogleIntegrationDbContext>> _googleIntegrationDb;
+    private protected GoogleIntegrationDbContext GoogleIntegrationDb => _googleIntegrationDb.Value.Context;
+    private protected TestDbContextFactory<GoogleIntegrationDbContext> GoogleIntegrationDbFactory => _googleIntegrationDb.Value.Factory;
+
+    /// <summary>Tickets: <c>ticket_orders</c>, <c>ticket_attendees</c>, <c>ticket_sync_state</c>, <c>ticket_transfer_requests</c>.</summary>
+    private readonly Lazy<SectionDb<TicketsDbContext>> _ticketsDb;
+    private protected TicketsDbContext TicketsDb => _ticketsDb.Value.Context;
+    private protected TestDbContextFactory<TicketsDbContext> TicketsDbFactory => _ticketsDb.Value.Factory;
+
+    /// <summary>Feedback: <c>feedback_reports</c>, <c>feedback_messages</c>.</summary>
+    private readonly Lazy<SectionDb<FeedbackDbContext>> _feedbackDb;
+    private protected FeedbackDbContext FeedbackDb => _feedbackDb.Value.Context;
+    private protected TestDbContextFactory<FeedbackDbContext> FeedbackDbFactory => _feedbackDb.Value.Factory;
+
+    /// <summary>CityPlanning: <c>city_planning_settings</c>, <c>camp_polygons</c>, <c>camp_polygon_histories</c>.</summary>
+    private readonly Lazy<SectionDb<CityPlanningDbContext>> _cityPlanningDb;
+    private protected CityPlanningDbContext CityPlanningDb => _cityPlanningDb.Value.Context;
+    private protected TestDbContextFactory<CityPlanningDbContext> CityPlanningDbFactory => _cityPlanningDb.Value.Factory;
+
+    /// <summary>Budget: <c>budget_years</c>, <c>budget_groups</c>, <c>budget_categories</c>, <c>budget_line_items</c>, <c>budget_audit_logs</c>, <c>ticketing_projections</c>.</summary>
+    private readonly Lazy<SectionDb<BudgetDbContext>> _budgetDb;
+    private protected BudgetDbContext BudgetDb => _budgetDb.Value.Context;
+    private protected TestDbContextFactory<BudgetDbContext> BudgetDbFactory => _budgetDb.Value.Factory;
+
+    /// <summary>Camps: <c>camps</c>, <c>camp_seasons</c>, <c>camp_historical_names</c>, <c>camp_images</c>, <c>camp_settings</c>, <c>camp_members</c>, <c>camp_role_definitions</c>, <c>camp_role_assignments</c>.</summary>
+    private readonly Lazy<SectionDb<CampsDbContext>> _campsDb;
+    private protected CampsDbContext CampsDb => _campsDb.Value.Context;
+    private protected TestDbContextFactory<CampsDbContext> CampsDbFactory => _campsDb.Value.Factory;
+
     private protected FakeClock Clock { get; }
     private protected IMemoryCache Cache { get; } = new MemoryCache(new MemoryCacheOptions());
 
@@ -56,8 +118,45 @@ public abstract class ServiceTestHarness : IDisposable
             .Options;
         Db = new HumansDbContext(DbOptions);
         DbFactory = new TestDbContextFactory(DbOptions);
+
+        _authDb = RegisterSection<AuthDbContext>(o => new(o));
+        _governanceDb = RegisterSection<GovernanceDbContext>(o => new(o));
+        _campaignsDb = RegisterSection<CampaignsDbContext>(o => new(o));
+        _googleIntegrationDb = RegisterSection<GoogleIntegrationDbContext>(o => new(o));
+        _ticketsDb = RegisterSection<TicketsDbContext>(o => new(o));
+        _feedbackDb = RegisterSection<FeedbackDbContext>(o => new(o));
+        _cityPlanningDb = RegisterSection<CityPlanningDbContext>(o => new(o));
+        _budgetDb = RegisterSection<BudgetDbContext>(o => new(o));
+        _campsDb = RegisterSection<CampsDbContext>(o => new(o));
+
         Clock = new FakeClock(now ?? Instant.FromUtc(2026, 3, 1, 12, 0));
     }
+
+    /// <summary>A peeled section's in-memory context and the factory over the same store.</summary>
+    private sealed record SectionDb<TContext>(TContext Context, TestDbContextFactory<TContext> Factory)
+        where TContext : DbContext;
+
+    /// <summary>
+    /// Declares a peeled-section context without building it. The options, the
+    /// context and the factory are all created the first time a test reads the
+    /// corresponding property; until then the section costs nothing.
+    /// </summary>
+    private Lazy<SectionDb<TContext>> RegisterSection<TContext>(Func<DbContextOptions<TContext>, TContext> create)
+        where TContext : DbContext
+    {
+        var lazy = new Lazy<SectionDb<TContext>>(() =>
+        {
+            var options = NewSectionDbOptions<TContext>();
+            return new SectionDb<TContext>(create(options), new TestDbContextFactory<TContext>(options));
+        });
+
+        _sectionContextProbes.Add(() => lazy.IsValueCreated ? lazy.Value.Context : null);
+        return lazy;
+    }
+
+    /// <summary>The section contexts this test actually touched, in declaration order.</summary>
+    private IEnumerable<DbContext> CreatedSectionContexts() =>
+        _sectionContextProbes.Select(probe => probe()).OfType<DbContext>();
 
     /// <summary>
     /// In-memory options for a per-section DbContext (nobodies-collective/Humans#858),
@@ -72,10 +171,56 @@ public abstract class ServiceTestHarness : IDisposable
             .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
 
+    /// <summary>
+    /// Flushes <see cref="Db"/> and every peeled-section context. A test that
+    /// stages rows across the main pile and one or more section contexts calls
+    /// this instead of <c>Db.SaveChangesAsync</c>, so it does not have to track
+    /// which context each seed landed in. <c>SaveChanges</c> on a context with
+    /// no pending changes is a no-op, so this is safe everywhere.
+    /// </summary>
+    private protected async Task SaveAllAsync(CancellationToken ct = default)
+    {
+        await Db.SaveChangesAsync(ct);
+        foreach (var sectionDb in CreatedSectionContexts())
+        {
+            await sectionDb.SaveChangesAsync(ct);
+        }
+    }
+
+    /// <summary>
+    /// Clears the change tracker on <see cref="Db"/> and every peeled-section
+    /// context. Tests do this after exercising a service so the read-back sees
+    /// what the repository actually wrote rather than the instance the seed
+    /// left tracked — and the entity now lives in whichever context owns its
+    /// section, so clearing only <see cref="Db"/> silently returns stale state.
+    /// </summary>
+    private protected void ClearAllTrackers()
+    {
+        Db.ChangeTracker.Clear();
+        foreach (var sectionDb in CreatedSectionContexts())
+        {
+            sectionDb.ChangeTracker.Clear();
+        }
+    }
+
+    /// <summary>Synchronous <see cref="SaveAllAsync"/>.</summary>
+    private protected void SaveAll()
+    {
+        Db.SaveChanges();
+        foreach (var sectionDb in CreatedSectionContexts())
+        {
+            sectionDb.SaveChanges();
+        }
+    }
+
     public virtual void Dispose()
     {
         Cache.Dispose();
         Db.Dispose();
+        foreach (var sectionDb in CreatedSectionContexts())
+        {
+            sectionDb.Dispose();
+        }
         GC.SuppressFinalize(this);
     }
 
@@ -188,7 +333,12 @@ public abstract class ServiceTestHarness : IDisposable
             CreatedAt = Clock.GetCurrentInstant(),
             CreatedByUserId = Guid.NewGuid()
         };
-        Db.RoleAssignments.Add(ra);
+        // Unlike the Db seeders above, this one saves: role_assignments sits in
+        // its own context since the Auth peel, so callers' `Db.SaveChangesAsync()`
+        // would never reach it, and the row has no ordering dependency on
+        // anything staged in Db.
+        AuthDb.RoleAssignments.Add(ra);
+        AuthDb.SaveChanges();
         return ra;
     }
 

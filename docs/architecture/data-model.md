@@ -36,7 +36,7 @@ This file is the **index and cross-cutting rule sheet** for the data model. Per-
 | Camp / CampSeason / CampImage / CampHistoricalName / CampSettings | [Camps](../sections/Camps.md) | |
 | CampMember | [Camps](../sections/Camps.md) | Per-season, post-hoc human/camp affiliation (Pending/Active/Removed). Partial unique on `(CampSeasonId, UserId) WHERE Status <> 'Removed'`. |
 | CampRoleDefinition / CampRoleAssignment | [Camps](../sections/Camps.md) | Per-camp role catalogue + per-season assignments. Owned by `CampRoleService`. Unique on `(CampSeasonId, CampRoleDefinitionId, CampMemberId)`. |
-| Container / ContainerPlacement | [Containers](../sections/Containers.md) | Camp-owned (`CampId` → `camps.Id`, non-nullable). |
+| Container / ContainerPlacement | [Containers](../../src/Sections/Humans.Containers/Docs/Containers.md) | Camp-owned (`CampId` → `camps.Id`, non-nullable). |
 | CityPlanningSettings | [City Planning](../sections/CityPlanning.md) | |
 | CampPolygon | [City Planning](../sections/CityPlanning.md) | |
 | CampPolygonHistory | [City Planning](../sections/CityPlanning.md) | Append-only (§12). |
@@ -46,11 +46,11 @@ This file is the **index and cross-cutting rule sheet** for the data model. Per-
 | TicketOrder / TicketAttendee / TicketSyncState / TicketTransferRequest | [Tickets](../sections/Tickets.md) | |
 | GateScanEvent / GateSettings / GateStaffPin | [Gate](../sections/Gate.md) | `GateScanEvent` is the append-only gate admission log (retention-purged by `GateRetentionJob`; user ids re-pointed on merge). Cross-section refs (`ScannedByUserId`, `GuestUserId`, `OverrideByUserId`, `TicketAttendeeId`, `GateStaffPin.UserId`) are bare Guid columns — no navs, no cross-section EF FK constraints. |
 | EventSettings / Rota / Shift / ShiftSignup / GeneralAvailability / VolunteerEventProfile / VolunteerBuildStatus / ShiftTag / VolunteerTagPreference | [Shifts](../sections/Shifts.md) | |
-| Event / EventCategory / EventVenue / EventGuideSettings / EventModerationAction / EventFavourite / EventPreference | [Events](../sections/Events.md) | Event Guide submissions, moderation, categories, shared venues, per-user favourites/preferences. `EventModerationAction` append-only (§12 — Restrict on delete). |
+| Event / EventCategory / EventVenue / EventGuideSettings / EventModerationAction / EventFavourite / EventPreference | [Events](../../src/Sections/Humans.Events/Docs/Events.md) | Event Guide submissions, moderation, categories, shared venues, per-user favourites/preferences. `EventModerationAction` append-only (§12 — Restrict on delete). |
 | FeedbackReport / FeedbackMessage | [Feedback](../sections/Feedback.md) | |
 | BudgetYear / BudgetGroup / BudgetCategory / BudgetLineItem / BudgetAuditLog / TicketingProjection | [Budget](../sections/Budget.md) | `BudgetAuditLog` append-only (§12). `BudgetGroup.Slug` and `BudgetCategory.Slug` are the Holded-tag-safe identifiers consumed by Finance. |
-| ExpenseReport / ExpenseLine / ExpenseAttachment / HoldedExpenseOutboxEvent | [Expenses](../sections/Expenses.md) | Expense reports and Holded sync outbox. |
-| HoldedExpenseDoc / HoldedCategoryMap / HoldedSyncState / HoldedLedgerLine / HoldedCreditorContact | [Finance](../sections/Finance.md) | Holded actuals cache (Feature 1) + creditor daybook ledger cache + member→account binding (Feature 2). |
+| ExpenseReport / ExpenseLine / ExpenseAttachment / HoldedExpenseOutboxEvent | [Expenses](../../src/Sections/Humans.Expenses/Docs/Expenses.md) | Expense reports and Holded sync outbox. |
+| HoldedExpenseDoc / HoldedCategoryMap / HoldedSyncState / HoldedLedgerLine / HoldedCreditorContact | [Finance](../../src/Sections/Humans.Finance/Docs/Finance.md) | Holded actuals cache (Feature 1) + creditor daybook ledger cache + member→account binding (Feature 2). |
 | StoreProduct / StoreOrder / StoreOrderLine / StorePayment / StoreInvoice / StoreTreasurySyncState | [Store](../../src/Sections/Humans.Store/Docs/Store.md) | |
 | Issue / IssueComment | [Issues](../sections/Issues.md) | |
 | AgentConversation / AgentMessage / AgentSettings | [Agent](../sections/Agent.md) | |
@@ -80,9 +80,22 @@ Since the per-section split (nobodies-collective/Humans#858) the model is partit
 | `SurveysDbContext` | `surveys`, `survey_questions`, `survey_question_options`, `survey_invitations`, `survey_responses`, `survey_answers` |
 | `EventGuideDbContext` | `events`, `event_categories`, `event_venues`, `event_guide_settings`, `event_moderation_actions`, `event_favourites`, `event_preferences` |
 | `StoreDbContext` | `store_products`, `store_orders`, `store_order_lines`, `store_payments`, `store_invoices`, `store_treasury_sync_state` |
+| `AuthDbContext` | `role_assignments` |
+| `EmailDbContext` | `email_outbox_messages` |
+| `CalendarDbContext` | `calendar_events`, `calendar_event_exceptions` |
+| `NotificationsDbContext` | `notifications`, `notification_recipients` |
+| `IssuesDbContext` | `issues`, `issue_comments` |
+| `GovernanceDbContext` | `applications`, `application_state_history`, `board_votes` |
+| `CampaignsDbContext` | `campaigns`, `campaign_codes`, `campaign_grants` |
+| `GoogleIntegrationDbContext` | `google_resources`, `google_sync_outbox`, `sync_service_settings` |
+| `TicketsDbContext` | `ticket_orders`, `ticket_attendees`, `ticket_sync_state`, `ticket_transfer_requests` |
+| `FeedbackDbContext` | `feedback_reports`, `feedback_messages` |
+| `CityPlanningDbContext` | `city_planning_settings`, `camp_polygons`, `camp_polygon_histories` |
+| `BudgetDbContext` | `budget_years`, `budget_groups`, `budget_categories`, `budget_line_items`, `budget_audit_logs`, `ticketing_projections` |
+| `CampsDbContext` | `camps`, `camp_seasons`, `camp_historical_names`, `camp_images`, `camp_settings`, `camp_members`, `camp_role_definitions`, `camp_role_assignments` |
 | `HumansDbContext` | everything else, including the Identity and Data Protection tables (which stay here permanently — they come from the framework base classes) |
 
-Gate is a clean candidate that stays in `HumansDbContext` for now; see the design doc's §5.1 for what blocks it. Store's blocker — the physical `DEFAULT 0` on `store_orders.Year` — was cleared by `20260802203816_RealignScaffoldedPhysicalDefaults`, and Store peeled as PR A of nobodies-collective/Humans#866.
+What is left in `HumansDbContext`: Users/Identity, Teams, Profiles, Legal, Shifts, AuditLog and Gate. Profiles and Shifts are blocked by the five surviving `→ User` model relationships, Legal and AuditLog by their plpgsql immutability triggers (raw SQL in the old chain, in no model); Users and Teams peel last by design. Gate's §5.1 blocker was cleared by `20260802203816_RealignScaffoldedPhysicalDefaults` (as was Store's, which then peeled as PR A of nobodies-collective/Humans#866) — it is peelable but not yet scheduled. See the design doc's §10.1.
 
 ## Cross-section FK graph
 

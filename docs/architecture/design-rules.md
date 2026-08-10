@@ -260,7 +260,7 @@ If audit calls become noisy across many methods inside one service, the next evo
 
 Each section's service owns these tables. Cross-service access goes through the service interface, never through direct DB queries, never through another domain's repository or store.
 
-Ownership is now physical as well as conventional for the peeled sections: the map below is **per DbContext**, not per single model. System Settings, Containers, Agent, Expenses, Finance, Survey, Event Guide, and Store each own their tables in their own `<Section>DbContext` and migration chain; everything else is still mapped by `HumansDbContext`. See [`data-model.md`](data-model.md#dbcontext-ownership) for the context-to-table listing.
+Ownership is now physical as well as conventional for the peeled sections: the map below is **per DbContext**, not per single model. Most sections now own their tables in their own `<Section>DbContext` and migration chain; only Users/Identity, Teams, Profiles, Legal, Shifts, AuditLog and Gate are still mapped by `HumansDbContext`. See [`data-model.md`](data-model.md#dbcontext-ownership) for the context-to-table listing.
 
 | Section | Service(s) | Owned Tables |
 |---------|-----------|--------------|
@@ -484,7 +484,7 @@ Some entities are append-only. They have database triggers or application-level 
 | Entity | Table | Constraint |
 |--------|-------|------------|
 | `ConsentRecord` | `consent_records` | DB triggers block UPDATE and DELETE |
-| `AuditLogEntry` | `audit_log_entries` | Append-only by convention |
+| `AuditLogEntry` | `audit_log` | DB triggers block UPDATE and DELETE |
 | `BudgetAuditLog` | `budget_audit_logs` | Append-only by convention |
 | `CampPolygonHistory` | `camp_polygon_histories` | Append-only by convention |
 | `ApplicationStateHistory` | `application_state_histories` | Append-only by convention |

@@ -34,7 +34,7 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         // succeeds.
         await using var scope = Factory.Services.CreateAsyncScope();
         var um = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-        var db = scope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var authDb = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         var now = SystemClock.Instance.GetCurrentInstant();
 
         var adminId = Guid.NewGuid();
@@ -54,7 +54,7 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
                 + string.Join("; ", result.Errors.Select(e => e.Description)));
         }
 
-        db.RoleAssignments.Add(new RoleAssignment
+        authDb.RoleAssignments.Add(new RoleAssignment
         {
             Id = Guid.NewGuid(),
             UserId = adminId,
@@ -64,7 +64,7 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
             CreatedAt = now,
             CreatedByUserId = adminId,
         });
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await authDb.SaveChangesAsync(TestContext.Current.CancellationToken);
         return adminId;
     }
 
@@ -434,15 +434,15 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         await AcceptAsync(requestId, adminId);
 
         await using var assertScope = Factory.Services.CreateAsyncScope();
-        var db = assertScope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var governanceDb = assertScope.ServiceProvider.GetRequiredService<GovernanceDbContext>();
 
-        var targetApps = await db.Applications
+        var targetApps = await governanceDb.Applications
             .AsNoTracking()
             .Where(a => a.UserId == targetId)
             .ToListAsync(TestContext.Current.CancellationToken);
         targetApps.Should().HaveCount(3);
 
-        var sourceApps = await db.Applications
+        var sourceApps = await governanceDb.Applications
             .AsNoTracking()
             .Where(a => a.UserId == sourceId)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -468,9 +468,9 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         await AcceptAsync(requestId, adminId);
 
         await using var assertScope = Factory.Services.CreateAsyncScope();
-        var db = assertScope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var feedbackDb = assertScope.ServiceProvider.GetRequiredService<FeedbackDbContext>();
 
-        var targetReports = await db.FeedbackReports
+        var targetReports = await feedbackDb.FeedbackReports
             .AsNoTracking()
             .Where(r => r.UserId == targetId)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -479,7 +479,7 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         targetReports.Should().ContainSingle(r => r.Description == "Source bug B");
         targetReports.Should().ContainSingle(r => r.Description == "Target bug C");
 
-        var sourceReports = await db.FeedbackReports
+        var sourceReports = await feedbackDb.FeedbackReports
             .AsNoTracking()
             .Where(r => r.UserId == sourceId)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -647,8 +647,9 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
 
         await using var assertScope = Factory.Services.CreateAsyncScope();
         var db = assertScope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var authDb = assertScope.ServiceProvider.GetRequiredService<AuthDbContext>();
 
-        var targetRows = await db.RoleAssignments
+        var targetRows = await authDb.RoleAssignments
             .AsNoTracking()
             .Where(ra => ra.UserId == targetId
                 && (ra.RoleName == sharedRole || ra.RoleName == sourceOnlyRole))
@@ -658,7 +659,7 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         targetRows.Should().ContainSingle(ra => string.Equals(ra.RoleName, sharedRole, StringComparison.Ordinal));
         targetRows.Should().ContainSingle(ra => string.Equals(ra.RoleName, sourceOnlyRole, StringComparison.Ordinal));
 
-        var sourceRows = await db.RoleAssignments
+        var sourceRows = await authDb.RoleAssignments
             .AsNoTracking()
             .Where(ra => ra.UserId == sourceId
                 && (ra.RoleName == sharedRole || ra.RoleName == sourceOnlyRole))
@@ -787,8 +788,9 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
 
         await using var assertScope = Factory.Services.CreateAsyncScope();
         var db = assertScope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var notificationsDb = assertScope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
 
-        var targetRecipients = await db.NotificationRecipients
+        var targetRecipients = await notificationsDb.NotificationRecipients
             .AsNoTracking()
             .Where(nr => nr.UserId == targetId
                 && (nr.NotificationId == sharedNotificationId || nr.NotificationId == sourceOnlyNotificationId))
@@ -798,7 +800,7 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         targetRecipients.Should().ContainSingle(nr => nr.NotificationId == sharedNotificationId);
         targetRecipients.Should().ContainSingle(nr => nr.NotificationId == sourceOnlyNotificationId);
 
-        var sourceRecipients = await db.NotificationRecipients
+        var sourceRecipients = await notificationsDb.NotificationRecipients
             .AsNoTracking()
             .Where(nr => nr.UserId == sourceId
                 && (nr.NotificationId == sharedNotificationId || nr.NotificationId == sourceOnlyNotificationId))
@@ -840,9 +842,9 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         await AcceptAsync(requestId, adminId);
 
         await using var assertScope = Factory.Services.CreateAsyncScope();
-        var db2 = assertScope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var campaignsDb = assertScope.ServiceProvider.GetRequiredService<CampaignsDbContext>();
 
-        var targetGrants = await db2.CampaignGrants
+        var targetGrants = await campaignsDb.CampaignGrants
             .AsNoTracking()
             .Where(g => g.UserId == targetId
                 && (g.CampaignId == contestedCampaignId || g.CampaignId == sourceOnlyCampaignId))
@@ -851,7 +853,7 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         targetGrants.Should().ContainSingle(g => g.CampaignId == contestedCampaignId);
         targetGrants.Should().ContainSingle(g => g.CampaignId == sourceOnlyCampaignId);
 
-        var sourceGrants = await db2.CampaignGrants
+        var sourceGrants = await campaignsDb.CampaignGrants
             .AsNoTracking()
             .Where(g => g.UserId == sourceId
                 && (g.CampaignId == contestedCampaignId || g.CampaignId == sourceOnlyCampaignId))
@@ -893,17 +895,17 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         await AcceptAsync(requestId, adminId);
 
         await using var assertScope = Factory.Services.CreateAsyncScope();
-        var db = assertScope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var feedbackDb = assertScope.ServiceProvider.GetRequiredService<FeedbackDbContext>();
 
         // Both messages should now be attributed to target.
-        var targetMessages = await db.FeedbackMessages
+        var targetMessages = await feedbackDb.FeedbackMessages
             .AsNoTracking()
             .Where(m => m.SenderUserId == targetId
                 && (m.Content == sourceContent || m.Content == targetContent))
             .ToListAsync(TestContext.Current.CancellationToken);
         targetMessages.Should().HaveCount(2);
 
-        var sourceMessages = await db.FeedbackMessages
+        var sourceMessages = await feedbackDb.FeedbackMessages
             .AsNoTracking()
             .Where(m => m.SenderUserId == sourceId)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -936,12 +938,12 @@ public class AcceptAsyncFoldTests(HumansTestDatabase database) : IntegrationTest
         await AcceptAsync(requestId, adminId);
 
         await using var assertScope = Factory.Services.CreateAsyncScope();
-        var db = assertScope.ServiceProvider.GetRequiredService<HumansDbContext>();
+        var budgetDb = assertScope.ServiceProvider.GetRequiredService<BudgetDbContext>();
 
         // Audit row must still point at the source user — fold doesn't
         // mutate append-only logs; chain-follow at read time stitches them
         // with the target.
-        var rows = await db.BudgetAuditLogs
+        var rows = await budgetDb.BudgetAuditLogs
             .AsNoTracking()
             .Where(l => l.Description == description)
             .ToListAsync(TestContext.Current.CancellationToken);

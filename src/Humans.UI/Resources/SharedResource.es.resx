@@ -3881,66 +3881,6 @@
   <data name="CityPlanning_Help_ColorsBody" xml:space="preserve">
     <value>Cada barrio está coloreado según su zona de sonido preferida (editable desde la página de tu barrio).</value>
   </data>
-  <data name="Container_Breadcrumb" xml:space="preserve">
-    <value>Contenedores</value>
-  </data>
-  <data name="Container_PlacementClosed" xml:space="preserve">
-    <value>La colocación de contenedores está actualmente cerrada. Puedes gestionar los contenedores de tu campamento, pero aún no colocarlos en el mapa.</value>
-  </data>
-  <data name="Container_Empty" xml:space="preserve">
-    <value>Aún no hay contenedores registrados para esta temporada.</value>
-  </data>
-  <data name="Container_AddModal_Title" xml:space="preserve">
-    <value>Añadir Contenedor</value>
-  </data>
-  <data name="Container_EditModal_Title" xml:space="preserve">
-    <value>Editar Contenedor</value>
-  </data>
-  <data name="Container_FieldName" xml:space="preserve">
-    <value>Nombre</value>
-  </data>
-  <data name="Container_FieldDescription" xml:space="preserve">
-    <value>Descripción</value>
-  </data>
-  <data name="Container_NamePlaceholder" xml:space="preserve">
-    <value>p. ej. Contenedor #1</value>
-  </data>
-  <data name="Container_DescPlaceholder" xml:space="preserve">
-    <value>Tamaño, tipo, requisitos especiales…</value>
-  </data>
-  <data name="Container_FieldMainImage" xml:space="preserve">
-    <value>Imagen principal (JPEG, PNG o WebP — máx. 10 MB)</value>
-  </data>
-  <data name="Container_FieldPlacementImage" xml:space="preserve">
-    <value>Croquis de colocación (JPEG, PNG o WebP — máx. 10 MB)</value>
-  </data>
-  <data name="Container_RemoveMainImage_Label" xml:space="preserve">
-    <value>Eliminar imagen principal</value>
-  </data>
-  <data name="Container_UploadMainImageModal_Title" xml:space="preserve">
-    <value>Imagen principal — {0}</value>
-  </data>
-  <data name="Container_RemoveMainImageConfirm" xml:space="preserve">
-    <value>¿Eliminar la imagen principal de {0}?</value>
-  </data>
-  <data name="Container_RemovePlacementImage_Label" xml:space="preserve">
-    <value>Eliminar imagen de colocación</value>
-  </data>
-  <data name="Container_FieldPlacementNotes" xml:space="preserve">
-    <value>Notas de colocación</value>
-  </data>
-  <data name="Container_PlacementNotesPlaceholder" xml:space="preserve">
-    <value>Restricciones, requisitos de acceso, orientación…</value>
-  </data>
-  <data name="Container_PlacementNotes_ButtonLabel" xml:space="preserve">
-    <value>Notas de colocación</value>
-  </data>
-  <data name="Container_PlacementNotes_Title" xml:space="preserve">
-    <value>Notas de colocación</value>
-  </data>
-  <data name="Container_DeleteConfirm" xml:space="preserve">
-    <value>¿Eliminar el contenedor {0}?</value>
-  </data>
   <data name="ContainerMap_Unplaced" xml:space="preserve">
     <value>Sin colocar</value>
   </data>
@@ -6385,17 +6325,6 @@
   <data name="Enum_EmailOutboxStatus_Failed" xml:space="preserve"><value>Fallido</value></data>
   <data name="Enum_EmailOutboxStatus_Queued" xml:space="preserve"><value>En cola</value></data>
   <data name="Enum_EmailOutboxStatus_Sent" xml:space="preserve"><value>Enviado</value></data>
-  <data name="Enum_EventStatus_Approved" xml:space="preserve"><value>Aprobado</value></data>
-  <data name="Enum_EventStatus_Draft" xml:space="preserve"><value>Borrador</value></data>
-  <data name="Enum_EventStatus_Pending" xml:space="preserve"><value>Pendiente</value></data>
-  <data name="Enum_EventStatus_Rejected" xml:space="preserve"><value>Rechazado</value></data>
-  <data name="Enum_EventStatus_ResubmitRequested" xml:space="preserve"><value>Cambios solicitados</value></data>
-  <data name="Enum_EventStatus_Withdrawn" xml:space="preserve"><value>Retirado</value></data>
-  <data name="Enum_ExpenseReportStatus_Approved" xml:space="preserve"><value>Aprobado</value></data>
-  <data name="Enum_ExpenseReportStatus_CoordinatorEndorsed" xml:space="preserve"><value>Avalado por el coordinador</value></data>
-  <data name="Enum_ExpenseReportStatus_Draft" xml:space="preserve"><value>Borrador</value></data>
-  <data name="Enum_ExpenseReportStatus_Submitted" xml:space="preserve"><value>Enviado</value></data>
-  <data name="Enum_ExpenseReportStatus_Withdrawn" xml:space="preserve"><value>Retirado</value></data>
   <data name="Enum_FeedbackCategory_Bug" xml:space="preserve"><value>Error</value></data>
   <data name="Enum_FeedbackCategory_FeatureRequest" xml:space="preserve"><value>Petición de funcionalidad</value></data>
   <data name="Enum_FeedbackCategory_Question" xml:space="preserve"><value>Pregunta</value></data>
@@ -6448,78 +6377,6 @@
   <data name="Enum_YesNoMaybe_Maybe" xml:space="preserve"><value>Quizá</value></data>
   <data name="Enum_YesNoMaybe_No" xml:space="preserve"><value>No</value></data>
   <data name="Enum_YesNoMaybe_Yes" xml:space="preserve"><value>Sí</value></data>
-  <data name="Events_AddBarrioEvent" xml:space="preserve"><value>Añadir evento del barrio</value></data>
-  <data name="Events_AddToFavourites" xml:space="preserve"><value>Añadir a favoritos</value></data>
-  <data name="Events_AllCategories" xml:space="preserve"><value>Todas las categorías</value></data>
-  <data name="Events_AllTimesIn" xml:space="preserve"><value>Todas las horas en {0}. ¡Puede aplicarse la Playa Time!</value></data>
-  <data name="Events_AllTimesInShort" xml:space="preserve"><value>Todas las horas en {0}</value></data>
-  <data name="Events_AllVenues" xml:space="preserve"><value>Todos los lugares</value></data>
-  <data name="Events_BrowseTitle" xml:space="preserve"><value>Explorar eventos</value></data>
-  <data name="Events_ColActions" xml:space="preserve"><value>Acciones</value></data>
-  <data name="Events_ColCategory" xml:space="preserve"><value>Categoría</value></data>
-  <data name="Events_ColDateTime" xml:space="preserve"><value>Fecha y hora</value></data>
-  <data name="Events_ColEventName" xml:space="preserve"><value>Nombre del evento</value></data>
-  <data name="Events_ColPriority" xml:space="preserve"><value>Prioridad</value></data>
-  <data name="Events_ConflictBadge" xml:space="preserve"><value>Conflicto de horario con otro evento favorito</value></data>
-  <data name="Events_DownloadCsv" xml:space="preserve"><value>Descargar CSV de eventos</value></data>
-  <data name="Events_DurationMin" xml:space="preserve"><value>{0} min</value></data>
-  <data name="Events_FavouritesOnly" xml:space="preserve"><value>Solo favoritos</value></data>
-  <data name="Events_FilterCategory" xml:space="preserve"><value>Categoría</value></data>
-  <data name="Events_FilterDay" xml:space="preserve"><value>Día</value></data>
-  <data name="Events_FilterSearch" xml:space="preserve"><value>Buscar</value></data>
-  <data name="Events_FilterVenue" xml:space="preserve"><value>Lugar</value></data>
-  <data name="Events_MyPersonalEvents" xml:space="preserve"><value>Mis eventos personales</value></data>
-  <data name="Events_MySchedule" xml:space="preserve"><value>Mi agenda</value></data>
-  <data name="Events_MySubmissions" xml:space="preserve"><value>Mis propuestas</value></data>
-  <data name="Events_MySubmissionsTitle" xml:space="preserve"><value>Mis propuestas de eventos</value></data>
-  <data name="Events_NoBarrioEvents" xml:space="preserve"><value>Aún no se han propuesto eventos para este barrio.</value></data>
-  <data name="Events_NoEventsFound" xml:space="preserve"><value>No se encontraron eventos. Prueba a ajustar tus filtros.</value></data>
-  <data name="Events_NoPersonalEvents" xml:space="preserve"><value>Aún no has propuesto ningún evento personal.</value></data>
-  <data name="Events_RemoveFromFavourites" xml:space="preserve"><value>Quitar de favoritos</value></data>
-  <data name="Events_RemoveFromSchedule" xml:space="preserve"><value>Quitar de la agenda</value></data>
-  <data name="Events_RemoveFromScheduleConfirm" xml:space="preserve"><value>¿Quitar este evento de tu agenda?</value></data>
-  <data name="Events_ScheduleEmpty" xml:space="preserve"><value>Aún no has marcado ningún evento como favorito. Explora la {0} para añadir eventos a tu agenda.</value></data>
-  <data name="Events_ScheduleEmptyLink" xml:space="preserve"><value>guía de eventos</value></data>
-  <data name="Events_ScheduleTitle" xml:space="preserve"><value>Mi agenda</value></data>
-  <data name="Events_SearchPlaceholder" xml:space="preserve"><value>Buscar por título o descripción…</value></data>
-  <data name="Events_StatApproved" xml:space="preserve"><value>Aprobados</value></data>
-  <data name="Events_StatPending" xml:space="preserve"><value>Pendientes</value></data>
-  <data name="Events_StatSubmitted" xml:space="preserve"><value>Enviados</value></data>
-  <data name="Events_SubmissionWindow" xml:space="preserve"><value>Periodo de propuestas:</value></data>
-  <data name="Events_SubmissionWindowClosed" xml:space="preserve"><value>El periodo de propuestas no está abierto en este momento. Contacta con un administrador para configurar los ajustes de la guía.</value></data>
-  <data name="Events_SubmitNewEvent" xml:space="preserve"><value>Proponer nuevo evento</value></data>
-  <data name="Events_UploadColErrors" xml:space="preserve"><value>Errores</value></data>
-  <data name="Events_UploadColEvent" xml:space="preserve"><value>Evento</value></data>
-  <data name="Events_UploadColRow" xml:space="preserve"><value>Fila</value></data>
-  <data name="Events_UploadCsv" xml:space="preserve"><value>Subir CSV</value></data>
-  <data name="Events_UploadFailed" xml:space="preserve"><value>La subida falló.</value></data>
-  <data name="Events_UploadFailedDetail" xml:space="preserve"><value>Corrige los errores de abajo e inténtalo de nuevo. No se guardó ningún evento.</value></data>
-  <data name="Events_WithdrawConfirm" xml:space="preserve"><value>¿Retirar este evento?</value></data>
-  <data name="Expenses_ColReport" xml:space="preserve"><value>Informe</value></data>
-  <data name="Expenses_ColSubmitted" xml:space="preserve"><value>Enviado</value></data>
-  <data name="Expenses_ColSubmittedBy" xml:space="preserve"><value>Enviado por</value></data>
-  <data name="Expenses_CoordinatorQueue" xml:space="preserve"><value>Cola del coordinador</value></data>
-  <data name="Expenses_CoordinatorQueueTitle" xml:space="preserve"><value>Informes de gastos — Cola del coordinador</value></data>
-  <data name="Expenses_Endorse" xml:space="preserve"><value>Avalar</value></data>
-  <data name="Expenses_EndorseConfirm" xml:space="preserve"><value>¿Avalar este informe de gastos?</value></data>
-  <data name="Expenses_FileFirst" xml:space="preserve"><value>Presenta tu primer informe</value></data>
-  <data name="Expenses_IouHeader" xml:space="preserve"><value>Lo que el colectivo te debe</value></data>
-  <data name="Expenses_IouLastPayment" xml:space="preserve"><value>Último pago</value></data>
-  <data name="Expenses_IouOtherAmountNote" xml:space="preserve"><value>Tu saldo en Holded incluye {0} no relacionado con estos informes (artículos adelantados en nombre del colectivo, ajustes, etc.), así que las filas de abajo no tienen por qué sumar ese total.</value></data>
-  <data name="Expenses_IouOwed" xml:space="preserve"><value>Te debe (saldo en Holded)</value></data>
-  <data name="Expenses_IouPaid" xml:space="preserve"><value>Pagado hasta la fecha</value></data>
-  <data name="Expenses_LedgerColItem" xml:space="preserve"><value>Concepto</value></data>
-  <data name="Expenses_MyReportsTitle" xml:space="preserve"><value>Mis informes de gastos</value></data>
-  <data name="Expenses_NewReport" xml:space="preserve"><value>Nuevo informe</value></data>
-  <data name="Expenses_NoActiveYear" xml:space="preserve"><value>No hay ningún año presupuestario activo en este momento. No se pueden presentar informes de gastos hasta que se active un año presupuestario.</value></data>
-  <data name="Expenses_NoIban" xml:space="preserve"><value>Aún no has establecido tu IBAN de pago. Se te pedirá que lo establezcas cuando envíes un informe.</value></data>
-  <data name="Expenses_NoReports" xml:space="preserve"><value>Aún no hay informes de gastos.</value></data>
-  <data name="Expenses_NoReportsAwaiting" xml:space="preserve"><value>No hay informes a la espera de tu aval.</value></data>
-  <data name="Expenses_Reject" xml:space="preserve"><value>Rechazar</value></data>
-  <data name="Expenses_RejectModalBody" xml:space="preserve"><value>Quien lo envió verá este motivo. Explica con claridad por qué no se puede avalar el informe.</value></data>
-  <data name="Expenses_RejectModalTitle" xml:space="preserve"><value>Rechazar informe</value></data>
-  <data name="Expenses_RejectReasonLabel" xml:space="preserve"><value>Motivo del rechazo</value></data>
-  <data name="Expenses_RejectReasonPlaceholder" xml:space="preserve"><value>p. ej. Faltan recibos de la línea 2</value></data>
   <data name="Feedback_AssignedToName" xml:space="preserve"><value>Asignado a {0}</value></data>
   <data name="Feedback_CategoryOnPage" xml:space="preserve"><value>{0} en {1}</value></data>
   <data name="Feedback_TeamName" xml:space="preserve"><value>Equipo: {0}</value></data>

@@ -1,11 +1,16 @@
 using AwesomeAssertions;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Hosting;
+using Humans.Containers.Data;
+using Humans.Expenses.Data;
+using Humans.Finance.Data;
 using Humans.Store.Data;
+using Humans.SystemSettings.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
+using Humans.Events.Data;
 
 namespace Humans.Integration.Tests.Infrastructure;
 
@@ -87,6 +92,73 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
             "store_orders",
             CreateSectionContext<StoreDbContext>,
             null),
+        new(
+            "Auth",
+            "role_assignments",
+            CreateSectionContext<AuthDbContext>,
+            null),
+        new(
+            "Email",
+            "email_outbox_messages",
+            CreateSectionContext<EmailDbContext>,
+            null),
+        new(
+            "Calendar",
+            "calendar_events",
+            CreateSectionContext<CalendarDbContext>,
+            null),
+        new(
+            "Notifications",
+            "notifications",
+            CreateSectionContext<NotificationsDbContext>,
+            null),
+        new(
+            "Issues",
+            "issues",
+            CreateSectionContext<IssuesDbContext>,
+            null),
+        new(
+            "Governance",
+            "applications",
+            CreateSectionContext<GovernanceDbContext>,
+            null),
+        new(
+            "Campaigns",
+            "campaigns",
+            CreateSectionContext<CampaignsDbContext>,
+            null),
+        new(
+            "GoogleIntegration",
+            "google_resources",
+            CreateSectionContext<GoogleIntegrationDbContext>,
+            // Three seed rows, one per service type — probe a single reserved
+            // Id so the count is 1 on both the fresh and mark-applied paths.
+            """SELECT count(*) FROM sync_service_settings WHERE "Id" = '00000000-0000-0000-0002-000000000002'"""),
+        new(
+            "Tickets",
+            "ticket_orders",
+            CreateSectionContext<TicketsDbContext>,
+            "SELECT count(*) FROM ticket_sync_state"),
+        new(
+            "Feedback",
+            "feedback_reports",
+            CreateSectionContext<FeedbackDbContext>,
+            null),
+        new(
+            "CityPlanning",
+            "city_planning_settings",
+            CreateSectionContext<CityPlanningDbContext>,
+            null),
+        new(
+            "Budget",
+            "budget_years",
+            CreateSectionContext<BudgetDbContext>,
+            null),
+        new(
+            "Camps",
+            "camps",
+            CreateSectionContext<CampsDbContext>,
+            "SELECT count(*) FROM camp_settings"),
     ];
 
     [HumansFact]

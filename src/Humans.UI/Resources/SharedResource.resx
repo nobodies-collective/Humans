@@ -1622,26 +1622,6 @@
   <!-- ======================== -->
   <!-- Containers               -->
   <!-- ======================== -->
-  <data name="Container_Breadcrumb" xml:space="preserve"><value>Containers</value></data>
-  <data name="Container_PlacementClosed" xml:space="preserve"><value>Container placement is currently closed. You can manage containers you own, but not yet place them on the map.</value></data>
-  <data name="Container_Empty" xml:space="preserve"><value>No containers registered for this season yet.</value></data>
-  <data name="Container_AddModal_Title" xml:space="preserve"><value>Add Container</value></data>
-  <data name="Container_EditModal_Title" xml:space="preserve"><value>Edit Container</value></data>
-  <data name="Container_FieldName" xml:space="preserve"><value>Name</value></data>
-  <data name="Container_FieldDescription" xml:space="preserve"><value>Description</value></data>
-  <data name="Container_NamePlaceholder" xml:space="preserve"><value>e.g. Shipping Container #1</value></data>
-  <data name="Container_DescPlaceholder" xml:space="preserve"><value>Size, type, special requirements…</value></data>
-  <data name="Container_FieldMainImage" xml:space="preserve"><value>Main image (JPEG, PNG, or WebP — max 10 MB)</value></data>
-  <data name="Container_FieldPlacementImage" xml:space="preserve"><value>Placement sketch (JPEG, PNG, or WebP — max 10 MB)</value></data>
-  <data name="Container_RemoveMainImage_Label" xml:space="preserve"><value>Remove main image</value></data>
-  <data name="Container_UploadMainImageModal_Title" xml:space="preserve"><value>Main image — {0}</value><comment>{0} = container name</comment></data>
-  <data name="Container_RemoveMainImageConfirm" xml:space="preserve"><value>Remove main image from {0}?</value><comment>{0} = container name</comment></data>
-  <data name="Container_RemovePlacementImage_Label" xml:space="preserve"><value>Remove placement image</value></data>
-  <data name="Container_FieldPlacementNotes" xml:space="preserve"><value>Placement notes</value></data>
-  <data name="Container_PlacementNotesPlaceholder" xml:space="preserve"><value>Constraints, access requirements, orientation…</value></data>
-  <data name="Container_PlacementNotes_ButtonLabel" xml:space="preserve"><value>Placement notes</value></data>
-  <data name="Container_PlacementNotes_Title" xml:space="preserve"><value>Placement notes</value></data>
-  <data name="Container_DeleteConfirm" xml:space="preserve"><value>Delete container {0}?</value><comment>{0} = container name</comment></data>
   <data name="ContainerMap_Unplaced" xml:space="preserve"><value>Unplaced</value></data>
   <data name="ContainerMap_Placed" xml:space="preserve"><value>Placed</value></data>
   <data name="ContainerMap_Placing" xml:space="preserve"><value>Placing…</value></data>
@@ -2739,17 +2719,6 @@
   <data name="Enum_EmailOutboxStatus_Failed" xml:space="preserve"><value>Failed</value></data>
   <data name="Enum_EmailOutboxStatus_Queued" xml:space="preserve"><value>Queued</value></data>
   <data name="Enum_EmailOutboxStatus_Sent" xml:space="preserve"><value>Sent</value></data>
-  <data name="Enum_EventStatus_Approved" xml:space="preserve"><value>Approved</value></data>
-  <data name="Enum_EventStatus_Draft" xml:space="preserve"><value>Draft</value></data>
-  <data name="Enum_EventStatus_Pending" xml:space="preserve"><value>Pending</value></data>
-  <data name="Enum_EventStatus_Rejected" xml:space="preserve"><value>Rejected</value></data>
-  <data name="Enum_EventStatus_ResubmitRequested" xml:space="preserve"><value>Changes requested</value></data>
-  <data name="Enum_EventStatus_Withdrawn" xml:space="preserve"><value>Withdrawn</value></data>
-  <data name="Enum_ExpenseReportStatus_Approved" xml:space="preserve"><value>Approved</value></data>
-  <data name="Enum_ExpenseReportStatus_CoordinatorEndorsed" xml:space="preserve"><value>Coordinator endorsed</value></data>
-  <data name="Enum_ExpenseReportStatus_Draft" xml:space="preserve"><value>Draft</value></data>
-  <data name="Enum_ExpenseReportStatus_Submitted" xml:space="preserve"><value>Submitted</value></data>
-  <data name="Enum_ExpenseReportStatus_Withdrawn" xml:space="preserve"><value>Withdrawn</value></data>
   <data name="Enum_FeedbackCategory_Bug" xml:space="preserve"><value>Bug</value></data>
   <data name="Enum_FeedbackCategory_FeatureRequest" xml:space="preserve"><value>Feature request</value></data>
   <data name="Enum_FeedbackCategory_Question" xml:space="preserve"><value>Question</value></data>
@@ -2802,78 +2771,6 @@
   <data name="Enum_YesNoMaybe_Maybe" xml:space="preserve"><value>Maybe</value></data>
   <data name="Enum_YesNoMaybe_No" xml:space="preserve"><value>No</value></data>
   <data name="Enum_YesNoMaybe_Yes" xml:space="preserve"><value>Yes</value></data>
-  <data name="Events_AddBarrioEvent" xml:space="preserve"><value>Add barrio event</value></data>
-  <data name="Events_AddToFavourites" xml:space="preserve"><value>Add to favourites</value></data>
-  <data name="Events_AllCategories" xml:space="preserve"><value>All categories</value></data>
-  <data name="Events_AllTimesIn" xml:space="preserve"><value>All times in {0}. Playa Time may apply!</value></data>
-  <data name="Events_AllTimesInShort" xml:space="preserve"><value>All times in {0}</value></data>
-  <data name="Events_AllVenues" xml:space="preserve"><value>All venues</value></data>
-  <data name="Events_BrowseTitle" xml:space="preserve"><value>Browse Events</value></data>
-  <data name="Events_ColActions" xml:space="preserve"><value>Actions</value></data>
-  <data name="Events_ColCategory" xml:space="preserve"><value>Category</value></data>
-  <data name="Events_ColDateTime" xml:space="preserve"><value>Date &amp; time</value></data>
-  <data name="Events_ColEventName" xml:space="preserve"><value>Event name</value></data>
-  <data name="Events_ColPriority" xml:space="preserve"><value>Priority</value></data>
-  <data name="Events_ConflictBadge" xml:space="preserve"><value>Time conflict with another favourited event</value></data>
-  <data name="Events_DownloadCsv" xml:space="preserve"><value>Download events CSV</value></data>
-  <data name="Events_DurationMin" xml:space="preserve"><value>{0} min</value></data>
-  <data name="Events_FavouritesOnly" xml:space="preserve"><value>Only</value></data>
-  <data name="Events_FilterCategory" xml:space="preserve"><value>Category</value></data>
-  <data name="Events_FilterDay" xml:space="preserve"><value>Day</value></data>
-  <data name="Events_FilterSearch" xml:space="preserve"><value>Search</value></data>
-  <data name="Events_FilterVenue" xml:space="preserve"><value>Venue</value></data>
-  <data name="Events_MyPersonalEvents" xml:space="preserve"><value>My personal events</value></data>
-  <data name="Events_MySchedule" xml:space="preserve"><value>My Schedule</value></data>
-  <data name="Events_MySubmissions" xml:space="preserve"><value>My Submissions</value></data>
-  <data name="Events_MySubmissionsTitle" xml:space="preserve"><value>My Event Submissions</value></data>
-  <data name="Events_NoBarrioEvents" xml:space="preserve"><value>No events submitted yet for this barrio.</value></data>
-  <data name="Events_NoEventsFound" xml:space="preserve"><value>No events found. Try adjusting your filters.</value></data>
-  <data name="Events_NoPersonalEvents" xml:space="preserve"><value>You haven’t submitted any personal events yet.</value></data>
-  <data name="Events_RemoveFromFavourites" xml:space="preserve"><value>Remove from favourites</value></data>
-  <data name="Events_RemoveFromSchedule" xml:space="preserve"><value>Remove from schedule</value></data>
-  <data name="Events_RemoveFromScheduleConfirm" xml:space="preserve"><value>Remove this event from your schedule?</value></data>
-  <data name="Events_ScheduleEmpty" xml:space="preserve"><value>You haven’t favourited any events yet. Browse the {0} to add events to your schedule.</value></data>
-  <data name="Events_ScheduleEmptyLink" xml:space="preserve"><value>event guide</value></data>
-  <data name="Events_ScheduleTitle" xml:space="preserve"><value>My Schedule</value></data>
-  <data name="Events_SearchPlaceholder" xml:space="preserve"><value>Search title or description…</value></data>
-  <data name="Events_StatApproved" xml:space="preserve"><value>Approved</value></data>
-  <data name="Events_StatPending" xml:space="preserve"><value>Pending</value></data>
-  <data name="Events_StatSubmitted" xml:space="preserve"><value>Submitted</value></data>
-  <data name="Events_SubmissionWindow" xml:space="preserve"><value>Submission window:</value></data>
-  <data name="Events_SubmissionWindowClosed" xml:space="preserve"><value>Submission window is not currently open. Contact an admin to configure guide settings.</value></data>
-  <data name="Events_SubmitNewEvent" xml:space="preserve"><value>Submit new event</value></data>
-  <data name="Events_UploadColErrors" xml:space="preserve"><value>Errors</value></data>
-  <data name="Events_UploadColEvent" xml:space="preserve"><value>Event</value></data>
-  <data name="Events_UploadColRow" xml:space="preserve"><value>Row</value></data>
-  <data name="Events_UploadCsv" xml:space="preserve"><value>Upload CSV</value></data>
-  <data name="Events_UploadFailed" xml:space="preserve"><value>Upload failed.</value></data>
-  <data name="Events_UploadFailedDetail" xml:space="preserve"><value>Fix the errors below and try again. No events were saved.</value></data>
-  <data name="Events_WithdrawConfirm" xml:space="preserve"><value>Withdraw this event?</value></data>
-  <data name="Expenses_ColReport" xml:space="preserve"><value>Report</value></data>
-  <data name="Expenses_ColSubmitted" xml:space="preserve"><value>Submitted</value></data>
-  <data name="Expenses_ColSubmittedBy" xml:space="preserve"><value>Submitted by</value></data>
-  <data name="Expenses_CoordinatorQueue" xml:space="preserve"><value>Coordinator queue</value></data>
-  <data name="Expenses_CoordinatorQueueTitle" xml:space="preserve"><value>Expense Reports — Coordinator Queue</value></data>
-  <data name="Expenses_Endorse" xml:space="preserve"><value>Endorse</value></data>
-  <data name="Expenses_EndorseConfirm" xml:space="preserve"><value>Endorse this expense report?</value></data>
-  <data name="Expenses_FileFirst" xml:space="preserve"><value>File your first report</value></data>
-  <data name="Expenses_IouHeader" xml:space="preserve"><value>What the collective owes you</value></data>
-  <data name="Expenses_IouLastPayment" xml:space="preserve"><value>Last payment</value></data>
-  <data name="Expenses_IouOtherAmountNote" xml:space="preserve"><value>Your Holded balance includes {0} unrelated to these reports (items fronted on the collective's behalf, adjustments, etc.), so the rows below won't necessarily sum to it.</value></data>
-  <data name="Expenses_IouOwed" xml:space="preserve"><value>Owed to you (Holded balance)</value></data>
-  <data name="Expenses_IouPaid" xml:space="preserve"><value>Paid to date</value></data>
-  <data name="Expenses_LedgerColItem" xml:space="preserve"><value>Item</value></data>
-  <data name="Expenses_MyReportsTitle" xml:space="preserve"><value>My Expense Reports</value></data>
-  <data name="Expenses_NewReport" xml:space="preserve"><value>New Report</value></data>
-  <data name="Expenses_NoActiveYear" xml:space="preserve"><value>There is no active budget year at the moment. Expense reports cannot be filed until a budget year is activated.</value></data>
-  <data name="Expenses_NoIban" xml:space="preserve"><value>You have not yet set your payment IBAN. You will be prompted to set it when you submit a report.</value></data>
-  <data name="Expenses_NoReports" xml:space="preserve"><value>No expense reports yet.</value></data>
-  <data name="Expenses_NoReportsAwaiting" xml:space="preserve"><value>No reports awaiting your endorsement.</value></data>
-  <data name="Expenses_Reject" xml:space="preserve"><value>Reject</value></data>
-  <data name="Expenses_RejectModalBody" xml:space="preserve"><value>The submitter will see this reason. Explain clearly why the report cannot be endorsed.</value></data>
-  <data name="Expenses_RejectModalTitle" xml:space="preserve"><value>Reject Report</value></data>
-  <data name="Expenses_RejectReasonLabel" xml:space="preserve"><value>Rejection reason</value></data>
-  <data name="Expenses_RejectReasonPlaceholder" xml:space="preserve"><value>e.g. Missing receipts for line 2</value></data>
   <data name="Feedback_AssignedToName" xml:space="preserve"><value>Assigned to {0}</value></data>
   <data name="Feedback_CategoryOnPage" xml:space="preserve"><value>{0} on {1}</value></data>
   <data name="Feedback_TeamName" xml:space="preserve"><value>Team: {0}</value></data>

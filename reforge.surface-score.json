@@ -346,15 +346,8 @@
     },
     "Events": {
       "paths": [
-        "src/Humans.Application/Interfaces/Events/**",
-        "src/Humans.Application/DTOs/Events/**",
-        "src/Humans.Application/Events/**",
-        "src/Humans.Application/Services/Events/**",
-        "src/Humans.Domain/Entities/Event*",
-        "src/Humans.Infrastructure/Repositories/Events/**",
-        "src/Humans.Infrastructure/Services/Events/**",
-        "src/Humans.Web/Controllers/Events*",
-        "src/Humans.Web/Models/Events/**"
+        "src/Sections/Humans.Events/**",
+        "src/Sections/Humans.Events.Contracts/**"
       ],
       "symbols": [
         "Event*",
@@ -369,12 +362,8 @@
     },
     "Expenses": {
       "paths": [
-        "src/Humans.Application/Interfaces/Expenses/**",
-        "src/Humans.Application/Services/Expenses/**",
-        "src/Humans.Domain/Entities/Expense*",
-        "src/Humans.Infrastructure/Repositories/Expenses/**",
-        "src/Humans.Web/Controllers/ExpensesController.cs",
-        "src/Humans.Web/Models/ExpensesViewModels.cs"
+        "src/Sections/Humans.Expenses/**",
+        "src/Sections/Humans.Expenses.Contracts/**"
       ],
       "symbols": [
         "Expense*",
@@ -384,7 +373,7 @@
         "IExpenseRepository"
       ],
       "serviceInterfaces": [
-        "IExpenseService"
+        "IExpenseReportService"
       ]
     },
     "Feedback": {
@@ -409,10 +398,8 @@
     },
     "Finance": {
       "paths": [
-        "src/Humans.Application/Interfaces/Finance/**",
-        "src/Humans.Application/Services/Finance/**",
-        "src/Humans.Infrastructure/Repositories/Finance/**",
-        "src/Humans.Web/Controllers/FinanceController.cs"
+        "src/Sections/Humans.Finance/**",
+        "src/Sections/Humans.Finance.Contracts/**"
       ],
       "symbols": [
         "Finance*",
