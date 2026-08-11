@@ -1,7 +1,8 @@
+using Humans.Governance.Contracts;
 using System.ComponentModel.DataAnnotations;
 using NodaTime;
 using Humans.Application.Extensions;
-using Humans.Application.Interfaces.Campaigns;
+using Humans.Campaigns.Contracts;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Domain.Enums;
 

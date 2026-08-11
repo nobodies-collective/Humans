@@ -9,6 +9,8 @@ using Humans.Web.Authorization;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Web.Extensions;
+using Humans.UI.Extensions;
+using Humans.UI.Models;
 using Humans.Web.Models;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Application.Interfaces.Teams;
@@ -1138,7 +1140,9 @@ public class TeamAdminController(
 
     /// <summary>
     /// Resolve a ticket barcode to its issued attendee within the current event only
-    /// (the gate-scanner admissibility scope, see <see cref="ScannerController"/> / #916).
+    /// (the gate-scanner admissibility scope, see <c>Humans.Scanner</c>'s ScannerController
+    /// / #916 — internal to its own assembly since the section's G5 move, so this cannot be
+    /// a <c>cref</c>).
     /// Exact, case-sensitive (<see cref="StringComparison.Ordinal"/>) — barcodes are codes,
     /// not names. Returns null for empty/whitespace input or no match.
     /// </summary>

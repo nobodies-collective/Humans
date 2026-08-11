@@ -1,4 +1,5 @@
 <!-- freshness:triggers
+  src/Sections/Humans.Governance/**
   src/Humans.Application/Services/Gdpr/**
   src/Humans.Application/Interfaces/Gdpr/**
   src/Humans.Web/Controllers/ProfileController.cs
@@ -10,21 +11,20 @@
   src/Humans.Application/Services/Auth/RoleAssignmentService.cs
   src/Humans.Application/Services/Shifts/ShiftSignupService.cs
   src/Humans.Application/Services/Feedback/FeedbackService.cs
-  src/Humans.Application/Services/Notifications/NotificationInboxService.cs
+  src/Sections/Humans.Notifications/Services/NotificationInboxService.cs
   src/Humans.Application/Services/Tickets/TicketQueryService.cs
   src/Humans.Application/Services/Campaigns/CampaignService.cs
   src/Humans.Application/Services/Camps/**
   src/Humans.Application/Services/AuditLog/**
-  src/Humans.Application/Services/Budget/BudgetService.cs
+  src/Sections/Humans.Budget/Services/BudgetService.cs
   src/Humans.Application/Services/Users/AccountMergeService.cs
   src/Humans.Application/Services/Surveys/SurveyService.cs
-  src/Humans.Application/Services/Governance/ApplicationDecisionService.cs
   src/Humans.Application/Services/Agent/AgentService.cs
   src/Sections/Humans.Events/Services/Service.cs
   src/Humans.Application/Services/Issues/IssuesService.cs
   src/Sections/Humans.Expenses/Services/ExpenseReportService.cs
   src/Sections/Humans.Finance/Services/Service.cs
-  src/Humans.Application/Services/Gate/GateService.cs
+  src/Sections/Humans.Gate/Services/GateService.cs
 -->
 <!-- freshness:flag-on-change
   Contributor list, JSON section names/shapes, or fan-out orchestration may have shifted; per-section table must stay in sync with each contributor's slice.

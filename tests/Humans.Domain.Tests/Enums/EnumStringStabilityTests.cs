@@ -81,16 +81,10 @@ public class EnumStringStabilityTests
             ]
         },
         {
-            typeof(ApplicationStatus), ["Submitted", "Approved", "Rejected", "Withdrawn"]
-        },
-        {
             typeof(MembershipTier), ["Volunteer", "Colaborador", "Asociado"]
         },
         {
             typeof(ConsentCheckStatus), ["Pending", "Cleared", "Flagged"]
-        },
-        {
-            typeof(VoteChoice), ["Yay", "Maybe", "No", "Abstain"]
         },
         {
             typeof(SyncMode), ["None", "AddOnly", "AddAndRemove"]
@@ -127,12 +121,6 @@ public class EnumStringStabilityTests
         },
         {
             typeof(DrivePermissionLevel), ["None", "Viewer", "Commenter", "Contributor", "ContentManager", "Manager"]
-        },
-        {
-            typeof(BudgetYearStatus), ["Draft", "Active", "Closed"]
-        },
-        {
-            typeof(ExpenditureType), ["CapEx", "OpEx"]
         },
         {
             typeof(MessageCategory), [

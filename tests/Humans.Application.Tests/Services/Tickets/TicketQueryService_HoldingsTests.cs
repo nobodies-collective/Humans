@@ -1,6 +1,6 @@
 using AwesomeAssertions;
-using Humans.Application.Interfaces.Budget;
-using Humans.Application.Interfaces.Campaigns;
+using Humans.Budget.Contracts;
+using Humans.Campaigns.Contracts;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Shifts;
@@ -37,7 +37,7 @@ public sealed class TicketQueryService_HoldingsTests
         Service = new TicketQueryService(
             _ticketRepo,
             _transferRepo,
-            Substitute.For<IBudgetService>(),
+            Substitute.For<IBudgetServiceRead>(),
             Substitute.For<ICampaignService>(),
             Substitute.For<IUserService>(),
             Substitute.For<IUserEmailService>(),

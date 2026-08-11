@@ -1,11 +1,7 @@
 using AwesomeAssertions;
 using Humans.Application.Services.AuditLog;
 using Humans.Application.Services.Camps;
-using Humans.Application.Services.Feedback;
-using Humans.Application.Services.Governance;
-using Humans.Application.Services.Issues;
 using Humans.Application.Services.Legal;
-using Humans.Application.Services.Notifications;
 using Humans.Application.Services.Shifts;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -26,14 +22,14 @@ namespace Humans.Application.Tests.Architecture.Rules;
 /// Allowlisted services (audited 2026-05-25, Wave B drift reconciliation):
 /// <list type="bullet">
 ///   <item><see cref="CampContactService"/> — contact name cache</item>
-///   <item><see cref="IssuesService"/> — issues cache</item>
+///   <item><c>IssuesService</c> — issues cache</item>
 ///   <item><see cref="LegalDocumentService"/> — document version cache</item>
 ///   <item><see cref="NotificationEmitter"/> — throttle-key cache</item>
 ///   <item><see cref="NotificationInboxService"/> — inbox cache</item>
 ///   <item><see cref="NotificationMeterProvider"/> — meter cache</item>
 ///   <item><see cref="NotificationService"/> — notification preferences cache</item>
 ///   <item><see cref="ShiftManagementService"/> — shift data cache</item>
-///   <item><see cref="FeedbackService"/> — feedback-badge count cache (nav badges)</item>
+///   <item><c>Humans.Feedback.Services.FeedbackService</c> — feedback-badge count cache (nav badges)</item>
 ///   <item><see cref="ApplicationDecisionService"/> — voting-badge count cache (nav badges)</item>
 ///   <item><c>Humans.Finance.Services.Service</c> — Holded contact-list cache (nobodies-collective/Humans#976)</item>
 /// </list>
@@ -54,12 +50,12 @@ public class ApplicationServicesTakeNoMemoryCacheRule
     private static readonly HashSet<Type> Allowlist =
     [
         typeof(CampContactService),
-        typeof(IssuesService),
+        SectionType("Humans.Issues.Services.IssuesService"),  // CacheKeys.IssuesBadge(userId)
         typeof(LegalDocumentService),
-        typeof(NotificationEmitter),
-        typeof(NotificationInboxService),
-        typeof(NotificationMeterProvider),
-        typeof(NotificationService),
+        SectionType("Humans.Notifications.Services.NotificationEmitter"),
+        SectionType("Humans.Notifications.Services.NotificationInboxService"),
+        SectionType("Humans.Notifications.Services.NotificationMeterProvider"),
+        SectionType("Humans.Notifications.Services.NotificationService"),
         typeof(ShiftManagementService),
         // Nav-badge count caches moved out of NavBadgesViewComponent into their
         // owning services (memory/code/viewcomponent-no-cache.md) — same inline
@@ -68,8 +64,8 @@ public class ApplicationServicesTakeNoMemoryCacheRule
         // INavBadgeCacheInvalidator / IVotingBadgeCacheInvalidator. (The review
         // count is NOT here — its read is already cache-served by CachingUserService,
         // so AdminDashboardService stays cache-free; double-caching it would be §4b.)
-        typeof(FeedbackService),        // CacheKeys.FeedbackBadgeCount
-        typeof(ApplicationDecisionService),  // CacheKeys.VotingBadge(userId)
+        SectionType("Humans.Feedback.Services.FeedbackService"),  // CacheKeys.FeedbackBadgeCount
+        SectionType("Humans.Governance.Services.ApplicationDecisionService"),  // CacheKeys.VotingBadge(userId)
         // CacheKeys.HoldedContacts — 2-min TTL so /Finance/Creditors and /Expenses/{id} don't
         // call Holded live on every admin page load (nobodies-collective/Humans#976).
         SectionType("Humans.Finance.Services.Service")

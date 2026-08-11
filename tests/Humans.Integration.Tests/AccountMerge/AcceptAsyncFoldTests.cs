@@ -1,3 +1,12 @@
+using Humans.Notifications.Data;
+using Humans.Notifications.Domain;
+using Humans.Notifications.Contracts;
+using Humans.Budget.Data;
+using Humans.Campaigns.Data;
+using Humans.Feedback.Data;
+using Humans.Governance.Data;
+using Humans.Governance.Domain;
+using Humans.Feedback.Domain;
 using AwesomeAssertions;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Users;

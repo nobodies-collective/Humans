@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:element name="root" msdata:IsDataSet="true">
@@ -68,7 +68,6 @@
   <data name="Nav_Admin" xml:space="preserve"><value>Admin</value></data>
   <data name="Nav_OnboardingReview" xml:space="preserve"><value>Review Queue</value></data>
   <data name="Nav_Issues" xml:space="preserve"><value>Issues</value></data>
-  <data name="Issue_Unavailable" xml:space="preserve"><value>That issue isn't available — it may have been removed, or you don't have access to it.</value></data>
 
 
   <!-- ======================== -->
@@ -399,51 +398,14 @@
   <!-- ======================== -->
   <!-- Application / Governance -->
   <!-- ======================== -->
-  <data name="Governance_Title" xml:space="preserve"><value>Governance</value></data>
-  <data name="GovernanceApplication_Title" xml:space="preserve"><value>Governance Application</value></data>
-  <data name="ApplicationDetail_Title" xml:space="preserve"><value>Application Details</value></data>
 
   <!-- Governance Index View -->
-  <data name="Governance_NotYetApplied" xml:space="preserve"><value>Not Yet Applied</value></data>
-  <data name="Governance_AsociadoDescription" xml:space="preserve"><value>Asociados are the formal voting members of Nobodies Collective. As an asociado, you can attend general assemblies, vote on collective decisions, and participate in elections.</value></data>
-  <data name="Governance_Optional" xml:space="preserve"><value>This is optional. Most humans don't need to become asociados. You already have access to resources once you've completed your profile and consents.</value></data>
-  <data name="Governance_ApplyButton" xml:space="preserve"><value>Apply to Become an Asociado</value></data>
-  <data name="Governance_ColaboradorCanApply" xml:space="preserve"><value>Colaboradores may also apply for Asociado status if they wish to participate in governance.</value></data>
-  <data name="Governance_ApplyForAsociado" xml:space="preserve"><value>Apply for Asociado</value></data>
-  <data name="Governance_YourApplication" xml:space="preserve"><value>Your Application</value></data>
-  <data name="Governance_Submitted" xml:space="preserve"><value>Submitted</value></data>
-  <data name="Governance_Resolved" xml:space="preserve"><value>Resolved</value></data>
-  <data name="Governance_UnderReviewMessage" xml:space="preserve"><value>Your application is being reviewed. We'll notify you by email once a decision is made.</value></data>
-  <data name="Governance_ApprovedMessage" xml:space="preserve"><value>Welcome! You are now an asociado of Nobodies Collective.</value></data>
-  <data name="Governance_ApprovedMessageColaborador" xml:space="preserve"><value>You are an approved Colaborador of Nobodies Collective.</value></data>
-  <data name="Governance_ApprovedMessageAsociado" xml:space="preserve"><value>Welcome! You are now an Asociado of Nobodies Collective.</value></data>
-  <data name="Governance_Tier" xml:space="preserve"><value>Tier</value></data>
-  <data name="Governance_TermExpiry" xml:space="preserve"><value>Term expires</value></data>
-  <data name="Governance_RejectedMessage" xml:space="preserve"><value>Your application was not approved. If you have questions, please contact the board.</value></data>
-  <data name="Governance_WhatIsAsociado" xml:space="preserve"><value>What is an Asociado?</value></data>
-  <data name="Governance_AsociadoLawDescription" xml:space="preserve"><value>Asociados are the formal voting members of the association under Spanish law.</value></data>
-  <data name="Governance_AsociadoCanDo" xml:space="preserve"><value>As an asociado you can:</value></data>
-  <data name="Governance_AttendAssemblies" xml:space="preserve"><value>Attend general assemblies</value></data>
-  <data name="Governance_VoteOnDecisions" xml:space="preserve"><value>Vote on collective decisions</value></data>
-  <data name="Governance_ParticipateElections" xml:space="preserve"><value>Participate in board elections</value></data>
-  <data name="Governance_WhoShouldApply" xml:space="preserve"><value>Who Should Apply?</value></data>
-  <data name="Governance_WhoShouldApplyDescription" xml:space="preserve"><value>Governance membership is intended for humans in leadership roles:</value></data>
-  <data name="Governance_CampLeads" xml:space="preserve"><value>Camp leads and coordinators</value></data>
-  <data name="Governance_MetaVolunteers" xml:space="preserve"><value>Meta volunteers and team leads</value></data>
-  <data name="Governance_LongTermMembers" xml:space="preserve"><value>Long-term committed community members</value></data>
-  <data name="Governance_BoardReviews" xml:space="preserve"><value>The board reviews applications based on community involvement and alignment with the collective's mission.</value></data>
-  <data name="Governance_NoteNotRequired" xml:space="preserve"><value>Note: You don't need to be an asociado to access resources or participate in events.</value></data>
-  <data name="Governance_Statutes" xml:space="preserve"><value>Statutes</value></data>
-  <data name="Governance_MemberCounts" xml:space="preserve"><value>Community</value></data>
-  <data name="Governance_Colaboradores" xml:space="preserve"><value>Colaboradores</value></data>
-  <data name="Governance_Asociados" xml:space="preserve"><value>Asociados</value></data>
 
   <!-- Application Status Badges -->
   <data name="ApplicationStatus_Submitted" xml:space="preserve"><value>Submitted</value></data>
   <data name="ApplicationStatus_Approved" xml:space="preserve"><value>Approved</value></data>
   <data name="ApplicationStatus_Rejected" xml:space="preserve"><value>Rejected</value></data>
   <data name="ApplicationStatus_Withdrawn" xml:space="preserve"><value>Withdrawn</value></data>
-  <data name="MyApplications_Title" xml:space="preserve"><value>My Applications</value></data>
 
   <!-- Admin Application Statistics -->
   <data name="Admin_ApplicationStats" xml:space="preserve"><value>Application Statistics</value></data>
@@ -453,38 +415,8 @@
   <data name="Admin_StatsPending" xml:space="preserve"><value>Pending</value></data>
 
   <!-- Governance Create View -->
-  <data name="GovernanceCreate_NewApplication" xml:space="preserve"><value>New Application</value></data>
-  <data name="GovernanceCreate_Lead" xml:space="preserve"><value>Colaboradors and Asociados take on governance responsibilities. Choose the tier that best fits your involvement level.</value></data>
-  <data name="GovernanceCreate_MotivationPlaceholder" xml:space="preserve"><value>Please share your motivation for joining...</value></data>
-  <data name="GovernanceCreate_MotivationHelp" xml:space="preserve"><value>Minimum 50 characters. Tell us about yourself and why you want to be part of the collective.</value></data>
-  <data name="GovernanceCreate_AdditionalInfoPlaceholder" xml:space="preserve"><value>Any additional information you'd like to share...</value></data>
-  <data name="GovernanceCreate_AdditionalInfoHelp" xml:space="preserve"><value>Optional. Include any relevant skills, experience, or how you heard about us.</value></data>
-  <data name="GovernanceCreate_ConfirmAccuracy" xml:space="preserve"><value>I confirm that all information provided in this application is accurate and truthful.</value></data>
-  <data name="GovernanceCreate_SubmitApplication" xml:space="preserve"><value>Submit Application</value></data>
-  <data name="GovernanceCreate_IsThisRightForMe" xml:space="preserve"><value>Is This Right for Me?</value></data>
-  <data name="GovernanceCreate_IdealFor" xml:space="preserve"><value>Governance is ideal for:</value></data>
-  <data name="GovernanceCreate_WhatHappensNext" xml:space="preserve"><value>What Happens Next?</value></data>
-  <data name="GovernanceCreate_Step1" xml:space="preserve"><value>Your application will be reviewed by the board</value></data>
-  <data name="GovernanceCreate_Step2" xml:space="preserve"><value>The board considers community involvement and fit</value></data>
-  <data name="GovernanceCreate_Step3" xml:space="preserve"><value>We may contact you for more information</value></data>
-  <data name="GovernanceCreate_Step4" xml:space="preserve"><value>You'll receive an email once a decision is made</value></data>
 
   <!-- Application Detail View -->
-  <data name="ApplicationDetail_Details" xml:space="preserve"><value>Details</value></data>
-  <data name="ApplicationDetail_ApplicationInfo" xml:space="preserve"><value>Application Information</value></data>
-  <data name="ApplicationDetail_ReviewStarted" xml:space="preserve"><value>Review Started</value></data>
-  <data name="ApplicationDetail_ReviewedBy" xml:space="preserve"><value>Reviewed By</value></data>
-  <data name="ApplicationDetail_YourMotivation" xml:space="preserve"><value>Your Motivation</value></data>
-  <data name="ApplicationDetail_AdditionalInfo" xml:space="preserve"><value>Additional Information</value></data>
-  <data name="ApplicationDetail_ReviewerNotes" xml:space="preserve"><value>Reviewer Notes</value></data>
-  <data name="ApplicationDetail_WithdrawTitle" xml:space="preserve"><value>Withdraw Application</value></data>
-  <data name="ApplicationDetail_WithdrawDescription" xml:space="preserve"><value>If you no longer wish to proceed with this application, you can withdraw it.</value></data>
-  <data name="ApplicationDetail_WithdrawConfirm" xml:space="preserve"><value>Are you sure you want to withdraw this application?</value></data>
-  <data name="ApplicationDetail_WithdrawButton" xml:space="preserve"><value>Withdraw Application</value></data>
-  <data name="ApplicationDetail_History" xml:space="preserve"><value>Application History</value></data>
-  <data name="ApplicationDetail_NoHistory" xml:space="preserve"><value>No history available.</value></data>
-  <data name="ApplicationDetail_By" xml:space="preserve"><value>by</value></data>
-  <data name="ApplicationDetail_BackToApplications" xml:space="preserve"><value>Back to Applications</value></data>
 
   <!-- Application Controller TempData -->
   <data name="Application_AlreadyPending" xml:space="preserve"><value>You already have a pending application.</value></data>
@@ -655,8 +587,6 @@
   <data name="AdminHumans_Merged" xml:space="preserve"><value>Merged</value></data>
   <data name="AdminHumans_Deleted" xml:space="preserve"><value>Deleted</value></data>
   <data name="AdminHumanDetail_Title" xml:space="preserve"><value>Member: {0}</value><comment>{0} = display name</comment></data>
-  <data name="AdminApplications_Title" xml:space="preserve"><value>Asociado Applications</value></data>
-  <data name="AdminApplicationDetail_Title" xml:space="preserve"><value>Review Application</value></data>
   <data name="AdminTeams_Title" xml:space="preserve"><value>Teams Administration</value></data>
   <data name="AdminCreateTeam_Title" xml:space="preserve"><value>Create Team</value></data>
   <data name="AdminEditTeam_Title" xml:space="preserve"><value>Edit Team</value></data>
@@ -812,19 +742,6 @@
   <!-- ======================== -->
   <!-- Admin Application Detail -->
   <!-- ======================== -->
-  <data name="AdminAppDetail_ApplicationReview" xml:space="preserve"><value>Application Review</value></data>
-  <data name="AdminAppDetail_ViewProfile" xml:space="preserve"><value>View Profile</value></data>
-  <data name="AdminAppDetail_Motivation" xml:space="preserve"><value>Motivation</value></data>
-  <data name="AdminAppDetail_Reviewer" xml:space="preserve"><value>Reviewer</value></data>
-  <data name="AdminAppDetail_StartReview" xml:space="preserve"><value>Start Review</value></data>
-  <data name="AdminAppDetail_NotesLabel" xml:space="preserve"><value>Notes (required for reject/request info)</value></data>
-  <data name="AdminAppDetail_NotesPlaceholder" xml:space="preserve"><value>Add notes...</value></data>
-  <data name="AdminAppDetail_ApproveConfirm" xml:space="preserve"><value>Approve this application?</value></data>
-  <data name="AdminAppDetail_Approve" xml:space="preserve"><value>Approve</value></data>
-  <data name="AdminAppDetail_RejectConfirm" xml:space="preserve"><value>Reject this application?</value></data>
-  <data name="AdminAppDetail_Reject" xml:space="preserve"><value>Reject</value></data>
-  <data name="AdminAppDetail_RequestMoreInfo" xml:space="preserve"><value>Request More Info</value></data>
-  <data name="AdminAppDetail_Language" xml:space="preserve"><value>Language</value></data>
 
   <!-- ======================== -->
   <!-- Admin Teams View         -->
@@ -1064,36 +981,6 @@
 
   <!-- Board Voting -->
   <data name="Nav_BoardVoting" xml:space="preserve"><value>Board Voting</value></data>
-  <data name="BoardVoting_Title" xml:space="preserve"><value>Board Voting Dashboard</value></data>
-  <data name="BoardVoting_DetailTitle" xml:space="preserve"><value>Board Vote: {0}</value></data>
-  <data name="BoardVoting_NoApplications" xml:space="preserve"><value>No applications are pending board vote.</value></data>
-  <data name="BoardVoting_Applicant" xml:space="preserve"><value>Applicant</value></data>
-  <data name="BoardVoting_Tier" xml:space="preserve"><value>Tier</value></data>
-  <data name="BoardVoting_Details" xml:space="preserve"><value>Details</value></data>
-  <data name="BoardVoting_Vote" xml:space="preserve"><value>Vote</value></data>
-  <data name="BoardVoting_Note" xml:space="preserve"><value>Note</value></data>
-  <data name="BoardVoting_Date" xml:space="preserve"><value>Date</value></data>
-  <data name="BoardVoting_CastVote" xml:space="preserve"><value>Cast Your Vote</value></data>
-  <data name="BoardVoting_YourVote" xml:space="preserve"><value>Your Vote</value></data>
-  <data name="BoardVoting_VotesSoFar" xml:space="preserve"><value>Votes So Far</value></data>
-  <data name="BoardVoting_BoardMember" xml:space="preserve"><value>Board Member</value></data>
-  <data name="BoardVoting_VoteSaved" xml:space="preserve"><value>Your vote has been recorded.</value></data>
-  <data name="BoardVoting_FinalizeDecision" xml:space="preserve"><value>Finalize Decision</value></data>
-  <data name="BoardVoting_MeetingDate" xml:space="preserve"><value>Board Meeting Date</value></data>
-  <data name="BoardVoting_DecisionNote" xml:space="preserve"><value>Decision Note</value></data>
-  <data name="BoardVoting_DecisionNotePlaceholder" xml:space="preserve"><value>Summary of the board's decision...</value></data>
-  <data name="BoardVoting_Approve" xml:space="preserve"><value>Approve</value></data>
-  <data name="BoardVoting_Reject" xml:space="preserve"><value>Reject</value></data>
-  <data name="BoardVoting_ApproveConfirm" xml:space="preserve"><value>This will approve the application and grant the membership tier. Continue?</value></data>
-  <data name="BoardVoting_RejectConfirm" xml:space="preserve"><value>This will reject the application. Continue?</value></data>
-  <data name="BoardVoting_Finalized" xml:space="preserve"><value>Application decision has been finalized.</value></data>
-  <data name="BoardVoting_ApplicationNotVotable" xml:space="preserve"><value>This application is no longer open for voting.</value></data>
-  <data name="BoardVoting_ApplicationNotVotable_WithStatus" xml:space="preserve"><value>This application cannot be voted on (current status: {0}).</value><comment>{0} = current application status</comment></data>
-  <data name="BoardVoting_ApplicationNotFound" xml:space="preserve"><value>Application not found.</value></data>
-  <data name="BoardVoting_ConcurrencyConflict" xml:space="preserve"><value>This application was modified by another user. Please reload and try again.</value></data>
-  <data name="BoardVoting_AdditionalInfo" xml:space="preserve"><value>Additional Information</value></data>
-  <data name="BoardVoting_NoVotes" xml:space="preserve"><value>Cannot finalize: at least one board vote is required.</value></data>
-  <data name="BoardVoting_MeetingDateRequired" xml:space="preserve"><value>Cannot finalize: a board meeting date is required.</value></data>
 
   <!-- Term Renewal -->
   <data name="Dashboard_TermExpires" xml:space="preserve"><value>Term expires: {0}</value><comment>{0} = formatted date</comment></data>
@@ -1236,44 +1123,6 @@
   <data name="Nav_Scanner" xml:space="preserve"><value>Scanner</value></data>
 
   <!-- Scanner section (issue nobodies-collective/Humans#525) -->
-  <data name="Scanner_Section" xml:space="preserve"><value>Scanner</value></data>
-  <data name="Scanner_Index_Title" xml:space="preserve"><value>Scanner tools</value></data>
-  <data name="Scanner_Index_Intro" xml:space="preserve"><value>In-browser scanner tools. No data is sent to the server — everything runs on your device.</value></data>
-  <data name="Scanner_Barcode_Title" xml:space="preserve"><value>Barcode scanner</value></data>
-  <data name="Scanner_Barcode_Open" xml:space="preserve"><value>Open barcode scanner</value></data>
-  <data name="Scanner_Barcode_CardBlurb" xml:space="preserve"><value>Decode QR codes and CODE128 barcodes using the device camera.</value></data>
-  <data name="Scanner_Barcode_NotForCheckIn" xml:space="preserve"><value>This is a test tool — it is not used for check-in. Scanning a ticket here does not mark anyone as arrived.</value></data>
-  <data name="Scanner_Barcode_Intro" xml:space="preserve"><value>Tap Scan to open the camera, point it at a barcode, and the decoded value will appear below. Nothing is saved.</value></data>
-  <data name="Scanner_Barcode_Scan" xml:space="preserve"><value>Scan</value></data>
-  <data name="Scanner_Barcode_Stop" xml:space="preserve"><value>Stop</value></data>
-  <data name="Scanner_Barcode_VideoAria" xml:space="preserve"><value>Live camera preview</value></data>
-  <data name="Scanner_Barcode_DecodedTitle" xml:space="preserve"><value>Decoded barcodes</value></data>
-  <data name="Scanner_Barcode_DecodedHelp" xml:space="preserve"><value>Most recent on top. This list is kept in your browser only and cleared when you leave the page.</value></data>
-  <data name="Scanner_Barcode_NoResultsYet" xml:space="preserve"><value>No barcodes decoded yet.</value></data>
-  <data name="Scanner_Barcode_Status_Starting" xml:space="preserve"><value>Starting camera…</value></data>
-  <data name="Scanner_Barcode_Status_Running" xml:space="preserve"><value>Scanning</value></data>
-  <data name="Scanner_Barcode_Status_Stopped" xml:space="preserve"><value>Stopped</value></data>
-  <data name="Scanner_Barcode_Path_Native" xml:space="preserve"><value>native detector</value></data>
-  <data name="Scanner_Barcode_Path_ZXing" xml:space="preserve"><value>ZXing fallback</value></data>
-  <data name="Scanner_Barcode_Error_Camera" xml:space="preserve"><value>Couldn't access the camera. Make sure you've granted permission and that this page is served over HTTPS.</value></data>
-  <data name="Scanner_Barcode_Error_NoDecoder" xml:space="preserve"><value>Your browser doesn't have a built-in barcode decoder and the fallback library failed to load. Try a recent mobile Chrome or Safari.</value></data>
-  <data name="Scanner_Tickets_Title" xml:space="preserve"><value>Ticket lookup</value></data>
-  <data name="Scanner_Tickets_Intro" xml:space="preserve"><value>Scan a ticket to see its details.</value></data>
-  <data name="Scanner_Tickets_ManualEntry_Placeholder" xml:space="preserve"><value>Type or paste a barcode</value></data>
-  <data name="Scanner_Tickets_ManualEntry_Lookup" xml:space="preserve"><value>Look up</value></data>
-  <data name="Scanner_Tickets_CardBlurb" xml:space="preserve"><value>Scan a ticket barcode to view the ticket holder, status, and transfer history.</value></data>
-  <data name="Scanner_Tickets_Open" xml:space="preserve"><value>Open ticket lookup</value></data>
-  <data name="Scanner_Tickets_NotFound" xml:space="preserve"><value>No ticket found for this code:</value></data>
-  <data name="Scanner_Tickets_Type" xml:space="preserve"><value>Ticket type</value></data>
-  <data name="Scanner_Tickets_Status" xml:space="preserve"><value>Status</value></data>
-  <data name="Scanner_Tickets_TransferredTo" xml:space="preserve"><value>Transferred to</value></data>
-  <data name="Scanner_Tickets_TransferredOn" xml:space="preserve"><value>Transferred on</value></data>
-  <data name="Scanner_Tickets_CheckedInAt" xml:space="preserve"><value>Checked in at</value></data>
-  <data name="Scanner_Tickets_EarlyEntryVia" xml:space="preserve"><value>Early entry via</value></data>
-  <data name="Scanner_Tickets_ConsentsOk" xml:space="preserve"><value>All consents signed</value></data>
-  <data name="Scanner_Tickets_ConsentsMissing" xml:space="preserve"><value>Missing consents</value></data>
-  <data name="Scanner_Tickets_Provides" xml:space="preserve"><value>Signed up to provide</value></data>
-  <data name="Scanner_Tickets_ProvidesNone" xml:space="preserve"><value>No shifts or events</value></data>
 
   <!-- Team admin: add member -->
   <data name="TeamAdmin_AddMember" xml:space="preserve"><value>Add Member</value></data>
@@ -1439,44 +1288,6 @@
   <data name="Todo_ShiftInfo_Action" xml:space="preserve"><value>Fill Out Shift Info</value></data>
 
   <!-- Notification Inbox -->
-  <data name="Notification_Bell_AriaLabel" xml:space="preserve"><value>Notifications</value></data>
-  <data name="Notification_Popup_AriaLabel" xml:space="preserve"><value>Notification popup</value></data>
-  <data name="Notification_Popup_Title" xml:space="preserve"><value>Notifications</value></data>
-  <data name="Notification_Popup_NeedAction" xml:space="preserve"><value>need action</value></data>
-  <data name="Notification_Popup_Close" xml:space="preserve"><value>Close notifications</value></data>
-  <data name="Notification_Popup_CaughtUp" xml:space="preserve"><value>You're all caught up.</value></data>
-  <data name="Notification_Popup_NoUnread" xml:space="preserve"><value>No unread notifications.</value></data>
-  <data name="Notification_Section_NeedsAttention" xml:space="preserve"><value>Needs your attention</value></data>
-  <data name="Notification_Section_Recent" xml:space="preserve"><value>Recent</value></data>
-  <data name="Notification_Section_Informational" xml:space="preserve"><value>Informational</value></data>
-  <data name="Notification_Section_Resolved" xml:space="preserve"><value>Resolved</value></data>
-  <data name="Notification_Section_WorkQueues" xml:space="preserve"><value>Work queues</value></data>
-  <data name="Notification_MarkAllRead" xml:space="preserve"><value>Mark all as read</value></data>
-  <data name="Notification_SeeAll" xml:space="preserve"><value>See all notifications</value></data>
-  <data name="Notification_PageTitle" xml:space="preserve"><value>All notifications</value></data>
-  <data name="Notification_SearchPlaceholder" xml:space="preserve"><value>Search notifications...</value></data>
-  <data name="Notification_Filter_All" xml:space="preserve"><value>All</value></data>
-  <data name="Notification_Filter_NeedsAction" xml:space="preserve"><value>Needs action</value></data>
-  <data name="Notification_Filter_Shifts" xml:space="preserve"><value>Shifts</value></data>
-  <data name="Notification_Filter_Approvals" xml:space="preserve"><value>Approvals</value></data>
-  <data name="Notification_Filter_Resolved" xml:space="preserve"><value>Resolved</value></data>
-  <data name="Notification_Tab_Unread" xml:space="preserve"><value>Unread</value></data>
-  <data name="Notification_Tab_All" xml:space="preserve"><value>All</value></data>
-  <data name="Notification_Inbox_Title" xml:space="preserve"><value>Notifications</value></data>
-  <data name="Notification_Tag_Urgent" xml:space="preserve"><value>Urgent</value></data>
-  <data name="Notification_Tag_Action" xml:space="preserve"><value>Action</value></data>
-  <data name="Notification_Tag_Info" xml:space="preserve"><value>Info</value></data>
-  <data name="Notification_Dismiss" xml:space="preserve"><value>Dismiss</value></data>
-  <data name="Notification_HandledBy" xml:space="preserve"><value>Handled by {0}, {1}</value></data>
-  <data name="Notification_Pref_InboxEnabled" xml:space="preserve"><value>In-app notifications</value></data>
-  <data name="Notification_DefaultActionLabel" xml:space="preserve"><value>View →</value></data>
-  <data name="Notification_TimeAgo_JustNow" xml:space="preserve"><value>just now</value></data>
-  <data name="Notification_TimeAgo_Minutes" xml:space="preserve"><value>{0}m ago</value></data>
-  <data name="Notification_TimeAgo_Hours" xml:space="preserve"><value>{0}h ago</value></data>
-  <data name="Notification_TimeAgo_Days" xml:space="preserve"><value>{0}d ago</value></data>
-  <data name="Notification_Bulk_Selected" xml:space="preserve"><value>{0} selected</value></data>
-  <data name="Notification_Bulk_Resolve" xml:space="preserve"><value>Resolve selected</value></data>
-  <data name="Notification_Bulk_Dismiss" xml:space="preserve"><value>Dismiss selected</value></data>
 
   <!-- Get Involved card (Dashboard) -->
   <data name="GetInvolved_Title" xml:space="preserve"><value>Get Involved</value></data>
@@ -1495,152 +1306,19 @@
   <!-- CityPlanning                -->
   <!-- ======================== -->
   <!-- Map page -->
-  <data name="CityPlanning_BarrioMapTitle" xml:space="preserve"><value>Barrio placement map</value></data>
-  <data name="CityPlanning_PlacementPhase" xml:space="preserve"><value>Placement phase</value></data>
-  <data name="CityPlanning_StatusOpen" xml:space="preserve"><value>Open</value></data>
-  <data name="CityPlanning_StatusClosed" xml:space="preserve"><value>Closed</value></data>
-  <data name="CityPlanning_HelpButton" xml:space="preserve"><value>Help</value></data>
-  <data name="CityPlanning_AddMyBarrioButton" xml:space="preserve"><value>Add my barrio on the map</value></data>
-  <data name="CityPlanning_AddABarrioOption" xml:space="preserve"><value>Add a barrio…</value></data>
-  <data name="CityPlanning_SaveButton" xml:space="preserve"><value>Save</value></data>
-  <data name="CityPlanning_HistoryButton" xml:space="preserve"><value>History</value></data>
-  <data name="CityPlanning_MeasureButton" xml:space="preserve"><value>Measure</value></data>
-  <data name="CityPlanning_ClearMeasurementsButton" xml:space="preserve"><value>Clear all measurements</value></data>
-  <data name="CityPlanning_CampLimits" xml:space="preserve"><value>Camp limits</value></data>
-  <data name="CityPlanning_BarrioZones" xml:space="preserve"><value>Barrio zones</value></data>
-  <data name="CityPlanning_Layers" xml:space="preserve"><value>Layers</value></data>
-  <data name="CityPlanning_AdminLink" xml:space="preserve"><value>Admin</value></data>
-  <data name="CityPlanning_GoToPlacementMap" xml:space="preserve"><value>Go to barrio placement</value></data>
-  <data name="CityPlanning_GoToContainerMap" xml:space="preserve"><value>Go to container placement</value></data>
-  <data name="CityPlanning_PlacementPhaseInfo" xml:space="preserve"><value>Placement phase info</value></data>
   <!-- Admin page -->
-  <data name="CityPlanning_Admin_Title" xml:space="preserve"><value>Barrio Map Admin</value></data>
-  <data name="CityPlanning_Admin_ViewMap" xml:space="preserve"><value>View Map</value></data>
-  <data name="CityPlanning_Admin_PlacementPhaseCard" xml:space="preserve"><value>Placement Phase</value></data>
-  <data name="CityPlanning_Admin_Status" xml:space="preserve"><value>Status:</value></data>
-  <data name="CityPlanning_Admin_OpenedAt" xml:space="preserve"><value>Opened {0}</value><comment>{0} = timestamp</comment></data>
-  <data name="CityPlanning_Admin_ClosedAt" xml:space="preserve"><value>Closed {0}</value><comment>{0} = timestamp</comment></data>
-  <data name="CityPlanning_Admin_ClosePlacement" xml:space="preserve"><value>Close Placement</value></data>
-  <data name="CityPlanning_Admin_OpenPlacement" xml:space="preserve"><value>Open Placement</value></data>
-  <data name="CityPlanning_Admin_PlacementDatesCard" xml:space="preserve"><value>Placement Dates</value></data>
-  <data name="CityPlanning_Admin_PlacementDatesHint" xml:space="preserve"><value>Informational only — shown in the help modal (Spain time). Does not automatically open or close placement.</value></data>
-  <data name="CityPlanning_Admin_OpensAt" xml:space="preserve"><value>Opens at</value></data>
-  <data name="CityPlanning_Admin_ClosesAt" xml:space="preserve"><value>Closes at</value></data>
-  <data name="CityPlanning_Admin_SaveDates" xml:space="preserve"><value>Save dates</value></data>
-  <data name="CityPlanning_Admin_LimitZoneCard" xml:space="preserve"><value>Barrios Limit Zone</value></data>
-  <data name="CityPlanning_Admin_LimitZoneUploaded" xml:space="preserve"><value>Limit zone uploaded</value></data>
-  <data name="CityPlanning_Admin_LimitZoneDeleteConfirm" xml:space="preserve"><value>Delete the limit zone?</value></data>
-  <data name="CityPlanning_Admin_LimitZoneEmpty" xml:space="preserve"><value>No limit zone uploaded yet.</value></data>
-  <data name="CityPlanning_Admin_LimitZoneHint" xml:space="preserve"><value>Features may include an optional SoundZone property. Valid values: blue, green, yellow, orange, red, or two combined with an underscore (e.g. yellow_orange).</value></data>
-  <data name="CityPlanning_Admin_OfficialZonesCard" xml:space="preserve"><value>Official Zones</value></data>
-  <data name="CityPlanning_Admin_OfficialZonesUploaded" xml:space="preserve"><value>Official zones uploaded</value></data>
-  <data name="CityPlanning_Admin_OfficialZonesDeleteConfirm" xml:space="preserve"><value>Delete the official zones?</value></data>
-  <data name="CityPlanning_Admin_OfficialZonesEmpty" xml:space="preserve"><value>No official zones uploaded yet.</value></data>
-  <data name="CityPlanning_Admin_OfficialZonesHint" xml:space="preserve"><value>Each feature's label is read from the Name property, if present.</value></data>
-  <data name="CityPlanning_Admin_UploadGeoJson" xml:space="preserve"><value>Upload GeoJSON file</value></data>
-  <data name="CityPlanning_Admin_Upload" xml:space="preserve"><value>Upload</value></data>
-  <data name="CityPlanning_Admin_Download" xml:space="preserve"><value>Download</value></data>
-  <data name="CityPlanning_Admin_Remove" xml:space="preserve"><value>Remove</value></data>
-  <data name="CityPlanning_Admin_ExportCard" xml:space="preserve"><value>Export</value></data>
-  <data name="CityPlanning_Admin_ExportDescription" xml:space="preserve"><value>Download all camp polygons for {0} as a GeoJSON FeatureCollection.</value><comment>{0} = year</comment></data>
-  <data name="CityPlanning_Admin_DownloadGeoJson" xml:space="preserve"><value>Download GeoJSON ({0})</value><comment>{0} = year</comment></data>
   <!-- Containers admin sub-page -->
-  <data name="CityPlanning_Admin_ContainersCard" xml:space="preserve"><value>Containers ({0})</value><comment>{0} = year</comment></data>
-  <data name="CityPlanning_Admin_ContainersDesc" xml:space="preserve"><value>Manage all containers — organisation-level and barrio containers.</value></data>
-  <data name="CityPlanning_Admin_ManageContainers" xml:space="preserve"><value>Manage Containers</value></data>
-  <data name="CityPlanning_Admin_ContainerPlacement" xml:space="preserve"><value>Container placement</value></data>
-  <data name="CityPlanning_Admin_OpenContainerPlacement" xml:space="preserve"><value>Open</value></data>
-  <data name="CityPlanning_Admin_CloseContainerPlacement" xml:space="preserve"><value>Close</value></data>
-  <data name="CityPlanning_Admin_BarrioContainersEmpty" xml:space="preserve"><value>No containers for {0} yet.</value><comment>{0} = camp name</comment></data>
-  <data name="CityPlanning_Admin_AddBarrioContainer" xml:space="preserve"><value>Add Container — {0}</value><comment>{0} = camp name</comment></data>
   <!-- Import polygons -->
-  <data name="CityPlanning_Admin_ImportCard" xml:space="preserve"><value>Import polygons</value></data>
-  <data name="CityPlanning_Admin_ImportDescription" xml:space="preserve"><value>Upload a GeoJSON FeatureCollection to bulk-update camp polygons for {0}. Features are matched by campName or campSlug property.</value><comment>{0} = year</comment></data>
-  <data name="CityPlanning_Admin_ImportFileLabel" xml:space="preserve"><value>GeoJSON file</value></data>
-  <data name="CityPlanning_Admin_ImportPreviewBtn" xml:space="preserve"><value>Preview import</value></data>
-  <data name="CityPlanning_Admin_ImportModalTitle" xml:space="preserve"><value>Import preview</value></data>
-  <data name="CityPlanning_Admin_ImportWillBeUpdated" xml:space="preserve"><value>Will be updated</value></data>
-  <data name="CityPlanning_Admin_ImportCampHeader" xml:space="preserve"><value>Camp</value></data>
-  <data name="CityPlanning_Admin_ImportPreviousArea" xml:space="preserve"><value>Previous area</value></data>
-  <data name="CityPlanning_Admin_ImportNewArea" xml:space="preserve"><value>New area</value></data>
-  <data name="CityPlanning_Admin_ImportUnrecognized" xml:space="preserve"><value>Unrecognized features (will be skipped)</value></data>
-  <data name="CityPlanning_Admin_ImportConfirmBtn" xml:space="preserve"><value>Confirm import</value></data>
-  <data name="CityPlanning_Admin_ImportSelectFileError" xml:space="preserve"><value>Please select a GeoJSON file.</value></data>
-  <data name="CityPlanning_Admin_ImportInvalidJsonError" xml:space="preserve"><value>Invalid file — not valid JSON.</value></data>
-  <data name="CityPlanning_Admin_ImportNotFeatureCollectionError" xml:space="preserve"><value>File must be a GeoJSON FeatureCollection.</value></data>
-  <data name="CityPlanning_Admin_ImportFetchStateError" xml:space="preserve"><value>Could not load camp list. Please try again.</value></data>
-  <data name="CityPlanning_Admin_ImportNoCampsMatched" xml:space="preserve"><value>No camps matched.</value></data>
-  <data name="CityPlanning_Admin_ImportTokenMissingError" xml:space="preserve"><value>Security token missing. Please refresh the page.</value></data>
-  <data name="CityPlanning_Admin_ImportFileTooLargeError" xml:space="preserve"><value>File is too large (max 10 MB).</value></data>
-  <data name="CityPlanning_Admin_ImportNotPolygonSuffix" xml:space="preserve"><value>(not a polygon)</value></data>
-  <data name="CityPlanning_Admin_ImportUpdating" xml:space="preserve"><value>Updating {0} polygon(s)…</value><comment>{0} = count</comment></data>
-  <data name="CityPlanning_Admin_ImportSuccess" xml:space="preserve"><value>{0} polygon(s) updated.</value><comment>{0} = success count</comment></data>
-  <data name="CityPlanning_Admin_ImportPartialFailure" xml:space="preserve"><value>{0} updated, {1} failed: {2}.</value><comment>{0} = success count, {1} = fail count, {2} = comma-separated camp names</comment></data>
   <!-- History offcanvas -->
-  <data name="CityPlanning_HistoryTitle" xml:space="preserve"><value>Polygon History</value></data>
-  <data name="CityPlanning_Loading" xml:space="preserve"><value>Loading…</value></data>
   <!-- Help modal -->
-  <data name="CityPlanning_Help_WhenIsIt" xml:space="preserve"><value>When is it?</value></data>
-  <data name="CityPlanning_Help_Opens" xml:space="preserve"><value>Opens:</value></data>
-  <data name="CityPlanning_Help_Closes" xml:space="preserve"><value>Closes:</value></data>
-  <data name="CityPlanning_Help_SpainTime" xml:space="preserve"><value>(Spain time)</value></data>
-  <data name="CityPlanning_Help_WhenPlaceholder" xml:space="preserve"><value>The placement phase runs for a limited time — exact dates will be shown here soon. Place your barrio before it closes!</value></data>
-  <data name="CityPlanning_Help_PlacingTitle" xml:space="preserve"><value>Placing your barrio</value></data>
-  <data name="CityPlanning_Help_PlacingBody" xml:space="preserve"><value>Click {0} to start drawing. Then click on the map to drop points that define your space — each click adds a corner. Close the shape by clicking back on the first point.</value><comment>{0} = "Add my barrio on the map" button label in bold</comment></data>
-  <data name="CityPlanning_Help_AdjustingTitle" xml:space="preserve"><value>Adjusting the shape</value></data>
-  <data name="CityPlanning_Help_Adjusting_VertexMove" xml:space="preserve"><value>Drag a corner point to move it</value></data>
-  <data name="CityPlanning_Help_Adjusting_Reposition" xml:space="preserve"><value>Drag the whole shape to reposition it</value></data>
-  <data name="CityPlanning_Help_Adjusting_AddVertex" xml:space="preserve"><value>Click the midpoint of an edge (where the length in metres is shown) to add a new corner</value></data>
-  <data name="CityPlanning_Help_Adjusting_DeleteVertex" xml:space="preserve"><value>Click a point to select it (it turns orange), then press Delete or Backspace to remove it</value></data>
-  <data name="CityPlanning_Help_Adjusting_MultiSelect" xml:space="preserve"><value>Hold Shift and click points to select multiple at once, or click and drag on empty space to draw a selection rectangle</value></data>
-  <data name="CityPlanning_Help_Adjusting_Area" xml:space="preserve"><value>The area in m² is shown in the centre and updates as you edit</value></data>
-  <data name="CityPlanning_Help_SavingTitle" xml:space="preserve"><value>Saving &amp; editing later</value></data>
-  <data name="CityPlanning_Help_SavingBody" xml:space="preserve"><value>Happy with it? Hit Save. Afterwards, click your barrio on the map to see its size, then Edit to jump back into edit mode. Every save creates a history entry — use the History button to browse and restore any previous version: hit the preview button to show the version, and then save the one you want to restore. No stress, you can't break anything!</value></data>
-  <data name="CityPlanning_Help_ZonesTitle" xml:space="preserve"><value>Stay inside the dashed zones</value></data>
-  <data name="CityPlanning_Help_ZonesBody" xml:space="preserve"><value>The dashed areas mark the safe camping zones, protected by lightning poles. The colour of the dashes indicates the zone's sound level — from blue (quieter) to red (louder). Camping outside them is not allowed, so keep your barrio inside those boundaries.</value></data>
-  <data name="CityPlanning_Help_OverlapsTitle" xml:space="preserve"><value>Overlaps? Talk it out!</value></data>
-  <data name="CityPlanning_Help_OverlapsBody" xml:space="preserve"><value>If your barrio overlaps with another, reach out on {0} and work it out together. If there are unresolved conflicts at the end of the phase, the city planning team will sort them out.</value><comment>{0} = Discord channel link</comment></data>
-  <data name="CityPlanning_Help_OverlapsDiscordChannel" xml:space="preserve"><value>Discord #city-planning</value></data>
-  <data name="CityPlanning_Help_ColorsTitle" xml:space="preserve"><value>Colours &amp; sound zones</value></data>
-  <data name="CityPlanning_Help_ColorsBody" xml:space="preserve"><value>Each barrio is coloured by its preferred sound zone (editable from your barrio page).</value></data>
 
 
   <!-- ======================== -->
   <!-- Containers               -->
   <!-- ======================== -->
-  <data name="ContainerMap_Unplaced" xml:space="preserve"><value>Unplaced</value></data>
-  <data name="ContainerMap_Placed" xml:space="preserve"><value>Placed</value></data>
-  <data name="ContainerMap_Placing" xml:space="preserve"><value>Placing…</value></data>
-  <data name="ContainerMap_ClearPlacement" xml:space="preserve"><value>Clear placement</value></data>
-  <data name="ContainerMap_PlaceOnMap" xml:space="preserve"><value>Place on map</value></data>
-  <data name="ContainerMap_ConfirmClear" xml:space="preserve"><value>Remove placement for «{0}»? This cannot be undone.</value><comment>{0} = container name</comment></data>
-  <data name="ContainerMap_Legend_Title" xml:space="preserve"><value>Container legend</value></data>
-  <data name="ContainerMap_Legend_Body" xml:space="preserve"><value>6 m × 2.4 m body</value></data>
-  <data name="ContainerMap_Legend_Door" xml:space="preserve"><value>Triangle = door end</value></data>
   <!-- ======================== -->
   <!-- User-Facing Views        -->
   <!-- ======================== -->
-  <data name="Feedback_PageTitle" xml:space="preserve"><value>Feedback</value></data>
-  <data name="Feedback_AllStatuses" xml:space="preserve"><value>All Statuses</value></data>
-  <data name="Feedback_AllCategories" xml:space="preserve"><value>All Categories</value></data>
-  <data name="Feedback_AllReporters" xml:space="preserve"><value>All Reporters</value></data>
-  <data name="Feedback_AllAssignees" xml:space="preserve"><value>All Assignees</value></data>
-  <data name="Feedback_AssignedToMe" xml:space="preserve"><value>Assigned to me</value></data>
-  <data name="Feedback_AllTeams" xml:space="preserve"><value>All Teams</value></data>
-  <data name="Feedback_UnassignedOnly" xml:space="preserve"><value>Unassigned only</value></data>
-  <data name="Feedback_Clear" xml:space="preserve"><value>Clear</value></data>
-  <data name="Feedback_NoReports" xml:space="preserve"><value>No feedback reports found.</value></data>
-  <data name="Feedback_Unassigned" xml:space="preserve"><value>Unassigned</value></data>
-  <data name="Feedback_NeedsReply" xml:space="preserve"><value>needs reply</value></data>
-  <data name="Feedback_SelectReport" xml:space="preserve"><value>Select a report to view details</value></data>
-  <data name="Feedback_Conversation" xml:space="preserve"><value>Conversation</value></data>
-  <data name="Feedback_NoMessages" xml:space="preserve"><value>No messages yet.</value></data>
-  <data name="Feedback_MessagePlaceholder" xml:space="preserve"><value>Type a message...</value></data>
-  <data name="Feedback_Send" xml:space="preserve"><value>Send</value></data>
-  <data name="Feedback_ResolvedAt" xml:space="preserve"><value>Resolved {0}</value><comment>{0} = date/time</comment></data>
-  <data name="Feedback_ResolvedBy" xml:space="preserve"><value>by {0}</value><comment>{0} = name</comment></data>
-  <data name="Feedback_NoTeam" xml:space="preserve"><value>No team</value></data>
-  <data name="Feedback_ScreenshotLink" xml:space="preserve"><value>Screenshot</value></data>
   <data name="Unsub_Title" xml:space="preserve"><value>Unsubscribe from Emails</value></data>
   <data name="Unsub_Heading" xml:space="preserve"><value>Unsubscribe from {0} emails?</value><comment>{0} = category name</comment></data>
   <data name="Unsub_Greeting" xml:space="preserve"><value>Hi {0},</value><comment>{0} = display name</comment></data>
@@ -2045,76 +1723,8 @@
   <data name="LinkedAccounts_UnlinkBlockedLastSignInMethod" xml:space="preserve"><value>Cannot unlink — this is your only remaining sign-in method.</value></data>
 
   <!-- Issues section -->
-  <data name="Issue_PageTitle" xml:space="preserve"><value>Issues</value></data>
-  <data name="Issue_New" xml:space="preserve"><value>New issue</value></data>
-  <data name="Issue_New_Title" xml:space="preserve"><value>File a new issue</value></data>
-  <data name="Issue_BackToList" xml:space="preserve"><value>Back to list</value></data>
-  <data name="Issue_All" xml:space="preserve"><value>All</value></data>
-  <data name="Issue_Open" xml:space="preserve"><value>Open</value></data>
-  <data name="Issue_Mine" xml:space="preserve"><value>Mine</value></data>
-  <data name="Issue_Closed" xml:space="preserve"><value>Closed</value></data>
-  <data name="Issue_AllCategories" xml:space="preserve"><value>All types</value></data>
-  <data name="Issue_AllAreas" xml:space="preserve"><value>All areas</value></data>
-  <data name="Issue_AllReporters" xml:space="preserve"><value>All reporters</value></data>
-  <data name="Issue_SearchPlaceholder" xml:space="preserve"><value>Search title or description…</value></data>
-  <data name="Issue_Apply" xml:space="preserve"><value>Apply</value></data>
-  <data name="Issue_Clear" xml:space="preserve"><value>Clear</value></data>
-  <data name="Issue_NoneFound" xml:space="preserve"><value>No issues match the current filters.</value></data>
-  <data name="Issue_AssignedTo" xml:space="preserve"><value>assigned to</value></data>
-  <data name="Issue_SelectOne" xml:space="preserve"><value>Select an issue from the list to view details.</value></data>
-  <data name="Issue_Detail_Heading" xml:space="preserve"><value>Issue</value></data>
-  <data name="Issue_OpenedBy" xml:space="preserve"><value>Opened by</value></data>
-  <data name="Issue_Screenshot" xml:space="preserve"><value>Screenshot</value></data>
-  <data name="Issue_Thread" xml:space="preserve"><value>Conversation</value></data>
-  <data name="Issue_NoActivity" xml:space="preserve"><value>No activity yet.</value></data>
-  <data name="Issue_Reporter" xml:space="preserve"><value>Reporter</value></data>
-  <data name="Issue_ComposerPlaceholder" xml:space="preserve"><value>Add a comment…</value></data>
-  <data name="Issue_Comment" xml:space="preserve"><value>Comment</value></data>
-  <data name="Issue_CommentAndResolve" xml:space="preserve"><value>Comment &amp; mark resolved</value></data>
-  <data name="Issue_ReopenByCommenting" xml:space="preserve"><value>Posting a comment will reopen this issue.</value></data>
-  <data name="Issue_Details" xml:space="preserve"><value>Details</value></data>
-  <data name="Issue_Status" xml:space="preserve"><value>Status</value></data>
-  <data name="Issue_Type" xml:space="preserve"><value>Type</value></data>
-  <data name="Issue_Area" xml:space="preserve"><value>Area</value></data>
-  <data name="Issue_Unspecified" xml:space="preserve"><value>Unspecified</value></data>
-  <data name="Issue_Assignee" xml:space="preserve"><value>Assignee</value></data>
-  <data name="Issue_Unassigned" xml:space="preserve"><value>Unassigned</value></data>
-  <data name="Issue_GitHub" xml:space="preserve"><value>GitHub</value></data>
-  <data name="Issue_Opened" xml:space="preserve"><value>Opened</value></data>
-  <data name="Issue_LastUpdate" xml:space="preserve"><value>Last update</value></data>
-  <data name="Issue_Due" xml:space="preserve"><value>Due</value></data>
-  <data name="Issue_Resolved" xml:space="preserve"><value>Resolved</value></data>
-  <data name="Issue_ResolvedBy" xml:space="preserve"><value>by</value></data>
-  <data name="Issue_Title" xml:space="preserve"><value>Title</value></data>
-  <data name="Issue_Area_Auto" xml:space="preserve"><value>Auto-detect</value></data>
-  <data name="Issue_Area_Hint" xml:space="preserve"><value>Leave blank to auto-detect from the current page.</value></data>
-  <data name="Issue_Description" xml:space="preserve"><value>Description</value></data>
-  <data name="Issue_Description_Placeholder" xml:space="preserve"><value>What happened? What did you expect?</value></data>
-  <data name="Issue_Attachment" xml:space="preserve"><value>Screenshot (optional)</value></data>
-  <data name="Issue_Attachment_Hint" xml:space="preserve"><value>PNG or JPEG, max 5 MB.</value></data>
-  <data name="Issue_FileIssue" xml:space="preserve"><value>File issue</value></data>
-  <data name="Issue_FileAnIssue" xml:space="preserve"><value>File an issue</value></data>
-  <data name="Issue_Cancel" xml:space="preserve"><value>Cancel</value></data>
-  <data name="Issue_Widget_ToastSuccess" xml:space="preserve"><value>Thanks! Issue logged. View it here: {0}</value><comment>{0} = absolute URL path of the new issue</comment></data>
-  <data name="Issue_Widget_ToastValidationFailed" xml:space="preserve"><value>Could not file the issue. Please check the required fields and try again.</value></data>
-  <data name="Issue_Widget_ToastNetworkError" xml:space="preserve"><value>Something went wrong. Please try again.</value></data>
-  <data name="Issue_Tips_Title" xml:space="preserve"><value>Tips for a good issue</value></data>
-  <data name="Issue_Tips_Bullet1" xml:space="preserve"><value>Describe what you were trying to do.</value></data>
-  <data name="Issue_Tips_Bullet2" xml:space="preserve"><value>Describe what happened, and what you expected.</value></data>
-  <data name="Issue_Tips_Bullet3" xml:space="preserve"><value>Include a screenshot if it helps explain.</value></data>
-  <data name="Issue_Tips_Bullet4" xml:space="preserve"><value>One issue per report — separate problems should be separate issues.</value></data>
-  <data name="Issue_NotEmail_Notice" xml:space="preserve"><value>This isn't email — replies happen here, in the conversation thread on the issue.</value></data>
 
   <!-- Issues — controller status messages (TempData) -->
-  <data name="Issue_Submitted" xml:space="preserve"><value>Issue submitted. Thanks!</value></data>
-  <data name="Issue_Error" xml:space="preserve"><value>Something went wrong. Please try again.</value></data>
-  <data name="Issue_Comment_Posted" xml:space="preserve"><value>Comment posted.</value></data>
-  <data name="Issue_Comment_Reopened" xml:space="preserve"><value>Issue reopened.</value></data>
-  <data name="Issue_Comment_PostFailed" xml:space="preserve"><value>Could not post comment.</value></data>
-  <data name="Issue_Status_Updated" xml:space="preserve"><value>Status updated.</value></data>
-  <data name="Issue_Assignee_Updated" xml:space="preserve"><value>Assignee updated.</value></data>
-  <data name="Issue_Section_Updated" xml:space="preserve"><value>Section updated.</value></data>
-  <data name="Issue_GitHub_Linked" xml:space="preserve"><value>Linked to GitHub.</value></data>
   <data name="Welcome_Title" xml:space="preserve"><value>Welcome</value></data>
   <data name="Welcome_Heading" xml:space="preserve"><value>You're in.</value></data>
   <data name="Welcome_Subtitle" xml:space="preserve"><value>Your ticket for Elsewhere 2026 is confirmed.</value></data>
@@ -2472,85 +2082,6 @@
   <data name="About_Staff_Intro" xml:space="preserve"><value>Every collective needs its keepers. These are the humans who volunteer their time and energy to keep Nobodies running — from governance to tech support, from trust and safety to ticket alchemy.</value></data>
   <data name="About_Staff_Title" xml:space="preserve"><value>The Humans Behind the Curtain</value></data>
   <data name="About_Title" xml:space="preserve"><value>About Humans</value></data>
-  <data name="Budget_ColAmount" xml:space="preserve"><value>Amount (€)</value></data>
-  <data name="Budget_ColCategory" xml:space="preserve"><value>Category</value></data>
-  <data name="Budget_ColShare" xml:space="preserve"><value>Share</value></data>
-  <data name="Budget_DepartmentDetail" xml:space="preserve"><value>Department Detail</value></data>
-  <data name="Budget_Expenses" xml:space="preserve"><value>Expenses</value></data>
-  <data name="Budget_ExpensesBreakdown" xml:space="preserve"><value>Expenses Breakdown</value></data>
-  <data name="Budget_Income" xml:space="preserve"><value>Income</value></data>
-  <data name="Budget_IncomeBreakdown" xml:space="preserve"><value>Income Breakdown</value></data>
-  <data name="Budget_NetBalance" xml:space="preserve"><value>Net Balance</value></data>
-  <data name="Budget_NoActiveBudget" xml:space="preserve"><value>No Active Budget</value></data>
-  <data name="Budget_NoActiveBudgetSubtitle" xml:space="preserve"><value>There is no active budget year to display. A finance admin will set one up when budget planning begins.</value></data>
-  <data name="Budget_NoDataSubtitle" xml:space="preserve"><value>Budget allocations will appear here once they are set up by the finance team.</value></data>
-  <data name="Budget_NoDataYet" xml:space="preserve"><value>Budget data not available yet</value></data>
-  <data name="Budget_NoExpenseItems" xml:space="preserve"><value>No expense line items yet.</value></data>
-  <data name="Budget_NoIncomeItems" xml:space="preserve"><value>No income line items yet.</value></data>
-  <data name="Budget_OverviewSubtitle" xml:space="preserve"><value>How the {0} budget is allocated across departments and infrastructure.</value></data>
-  <data name="Budget_OverviewTitle" xml:space="preserve"><value>Budget Overview</value></data>
-  <data name="Budget_Title" xml:space="preserve"><value>Budget</value></data>
-  <data name="Budget_TitleYear" xml:space="preserve"><value>Budget - {0}</value></data>
-  <data name="Budget_TotalExpenses" xml:space="preserve"><value>Total Expenses</value></data>
-  <data name="Budget_TotalIncome" xml:space="preserve"><value>Total Income</value></data>
-  <data name="Calendar_Agenda" xml:space="preserve"><value>Agenda</value></data>
-  <data name="Calendar_AllDay" xml:space="preserve"><value>all day</value></data>
-  <data name="Calendar_AllDayEvent" xml:space="preserve"><value>All-day event</value></data>
-  <data name="Calendar_AllDayLabel" xml:space="preserve"><value>All-day</value></data>
-  <data name="Calendar_AllTeamsMonthView" xml:space="preserve"><value>All teams (month view)</value></data>
-  <data name="Calendar_AllTimesShownIn" xml:space="preserve"><value>All times shown in {0}.</value></data>
-  <data name="Calendar_BackToCalendar" xml:space="preserve"><value>Back to calendar</value></data>
-  <data name="Calendar_CancelOccurrenceConfirm" xml:space="preserve"><value>Cancel just this occurrence?</value></data>
-  <data name="Calendar_CancelThisOccurrence" xml:space="preserve"><value>Cancel this</value></data>
-  <data name="Calendar_ChangeHistory" xml:space="preserve"><value>Change history</value></data>
-  <data name="Calendar_Continues" xml:space="preserve"><value>continues</value></data>
-  <data name="Calendar_Created" xml:space="preserve"><value>Created {0}</value></data>
-  <data name="Calendar_CreateEvent" xml:space="preserve"><value>Create event</value></data>
-  <data name="Calendar_DeleteConfirm" xml:space="preserve"><value>Delete this event and all its occurrences?</value></data>
-  <data name="Calendar_Description" xml:space="preserve"><value>Description</value></data>
-  <data name="Calendar_EditEvent" xml:space="preserve"><value>Edit event</value></data>
-  <data name="Calendar_EditSingleOccurrence" xml:space="preserve"><value>Edit single occurrence</value></data>
-  <data name="Calendar_EditSingleOccurrenceHeading" xml:space="preserve"><value>Edit a single occurrence</value></data>
-  <data name="Calendar_EditThisOccurrence" xml:space="preserve"><value>Edit this occurrence</value></data>
-  <data name="Calendar_End" xml:space="preserve"><value>End</value></data>
-  <data name="Calendar_EndDate" xml:space="preserve"><value>End date</value></data>
-  <data name="Calendar_EndDateHelp" xml:space="preserve"><value>Inclusive — leave blank for a single-day event.</value></data>
-  <data name="Calendar_EventTitle" xml:space="preserve"><value>Event</value></data>
-  <data name="Calendar_FirstStart" xml:space="preserve"><value>First start</value></data>
-  <data name="Calendar_FormTitle" xml:space="preserve"><value>Title</value></data>
-  <data name="Calendar_LastUpdated" xml:space="preserve"><value>· Last updated {0}</value></data>
-  <data name="Calendar_LocationUrl" xml:space="preserve"><value>Location URL</value></data>
-  <data name="Calendar_MoreCount" xml:space="preserve"><value>+{0} more</value></data>
-  <data name="Calendar_NewEvent" xml:space="preserve"><value>New event</value></data>
-  <data name="Calendar_Next" xml:space="preserve"><value>Next</value></data>
-  <data name="Calendar_NoEventsInRange" xml:space="preserve"><value>No events in the selected range.</value></data>
-  <data name="Calendar_OverrideDescription" xml:space="preserve"><value>Override description</value></data>
-  <data name="Calendar_OverrideEnd" xml:space="preserve"><value>Override end</value></data>
-  <data name="Calendar_OverrideInstructions" xml:space="preserve"><value>Override only this occurrence of the recurring event. Leave a field blank to inherit the value from the parent event.</value></data>
-  <data name="Calendar_OverrideLocation" xml:space="preserve"><value>Override location</value></data>
-  <data name="Calendar_OverrideLocationUrl" xml:space="preserve"><value>Override location URL</value></data>
-  <data name="Calendar_OverrideStart" xml:space="preserve"><value>Override start</value></data>
-  <data name="Calendar_OverrideTitle" xml:space="preserve"><value>Override title</value></data>
-  <data name="Calendar_OwningTeam" xml:space="preserve"><value>Owning team</value></data>
-  <data name="Calendar_Prev" xml:space="preserve"><value>Prev</value></data>
-  <data name="Calendar_Recurrence" xml:space="preserve"><value>Recurrence</value></data>
-  <data name="Calendar_RecurrenceTimezoneHelpPrefix" xml:space="preserve"><value>IANA TZ, e.g.</value></data>
-  <data name="Calendar_RecurrenceTimezoneLabel" xml:space="preserve"><value>Recurrence timezone</value></data>
-  <data name="Calendar_RecurrenceTimezoneNote" xml:space="preserve"><value>Timezone: {0}</value></data>
-  <data name="Calendar_RecurringEvent" xml:space="preserve"><value>Recurring event</value></data>
-  <data name="Calendar_RRule" xml:space="preserve"><value>RRULE</value></data>
-  <data name="Calendar_RRuleHelpPrefix" xml:space="preserve"><value>RFC 5545 RRULE. Leave blank for single event. Example:</value></data>
-  <data name="Calendar_SaveOverride" xml:space="preserve"><value>Save override</value></data>
-  <data name="Calendar_Start" xml:space="preserve"><value>Start</value></data>
-  <data name="Calendar_StartDate" xml:space="preserve"><value>Start date</value></data>
-  <data name="Calendar_TeamFallback" xml:space="preserve"><value>Team</value></data>
-  <data name="Calendar_Title" xml:space="preserve"><value>Calendar</value></data>
-  <data name="Calendar_Today" xml:space="preserve"><value>Today</value></data>
-  <data name="Calendar_UpcomingOccurrences" xml:space="preserve"><value>Upcoming occurrences</value></data>
-  <data name="Calendar_ViewAriaLabel" xml:space="preserve"><value>Calendar view</value></data>
-  <data name="Calendar_ViewGrid" xml:space="preserve"><value>Grid</value></data>
-  <data name="Calendar_ViewList" xml:space="preserve"><value>List</value></data>
-  <data name="Calendar_Yes" xml:space="preserve"><value>Yes</value></data>
   <data name="Camp_AboutHeading" xml:space="preserve"><value>About Your {0}</value></data>
   <data name="Camp_AcceptingMembersLabel" xml:space="preserve"><value>Accepting New Humans?</value></data>
   <data name="Camp_AdultPlayspaceLabel" xml:space="preserve"><value>Adult Playspace</value></data>
@@ -2678,16 +2209,6 @@
   <data name="Enum_EmailOutboxStatus_Failed" xml:space="preserve"><value>Failed</value></data>
   <data name="Enum_EmailOutboxStatus_Queued" xml:space="preserve"><value>Queued</value></data>
   <data name="Enum_EmailOutboxStatus_Sent" xml:space="preserve"><value>Sent</value></data>
-  <data name="Enum_FeedbackCategory_Bug" xml:space="preserve"><value>Bug</value></data>
-  <data name="Enum_FeedbackCategory_FeatureRequest" xml:space="preserve"><value>Feature request</value></data>
-  <data name="Enum_FeedbackCategory_Question" xml:space="preserve"><value>Question</value></data>
-  <data name="Enum_FeedbackStatus_Acknowledged" xml:space="preserve"><value>Acknowledged</value></data>
-  <data name="Enum_FeedbackStatus_Open" xml:space="preserve"><value>Open</value></data>
-  <data name="Enum_FeedbackStatus_Resolved" xml:space="preserve"><value>Resolved</value></data>
-  <data name="Enum_FeedbackStatus_WontFix" xml:space="preserve"><value>Won't fix</value></data>
-  <data name="Enum_IssueCategory_Bug" xml:space="preserve"><value>Bug</value></data>
-  <data name="Enum_IssueCategory_Feature" xml:space="preserve"><value>Feature</value></data>
-  <data name="Enum_IssueCategory_Question" xml:space="preserve"><value>Question</value></data>
   <data name="Enum_KidsVisitingPolicy_DaytimeOnly" xml:space="preserve"><value>Daytime only</value></data>
   <data name="Enum_KidsVisitingPolicy_No" xml:space="preserve"><value>No</value></data>
   <data name="Enum_KidsVisitingPolicy_Yes" xml:space="preserve"><value>Yes</value></data>
@@ -2730,15 +2251,6 @@
   <data name="Enum_YesNoMaybe_Maybe" xml:space="preserve"><value>Maybe</value></data>
   <data name="Enum_YesNoMaybe_No" xml:space="preserve"><value>No</value></data>
   <data name="Enum_YesNoMaybe_Yes" xml:space="preserve"><value>Yes</value></data>
-  <data name="Feedback_AssignedToName" xml:space="preserve"><value>Assigned to {0}</value></data>
-  <data name="Feedback_CategoryOnPage" xml:space="preserve"><value>{0} on {1}</value></data>
-  <data name="Feedback_TeamName" xml:space="preserve"><value>Team: {0}</value></data>
-  <data name="Issue_ColComments" xml:space="preserve"><value>Comments</value></data>
-  <data name="Issue_ColReporter" xml:space="preserve"><value>Reporter</value></data>
-  <data name="Issue_ColStatus" xml:space="preserve"><value>Status</value></data>
-  <data name="Issue_ColTitle" xml:space="preserve"><value>Title</value></data>
-  <data name="Issue_ColUpdated" xml:space="preserve"><value>Updated</value></data>
-  <data name="Issue_CountSummary" xml:space="preserve"><value>{0} open · {1} total</value></data>
   <data name="MarkdownHelp_Bold" xml:space="preserve"><value>bold</value></data>
   <data name="MarkdownHelp_ColYouGet" xml:space="preserve"><value>You get</value></data>
   <data name="MarkdownHelp_ColYouType" xml:space="preserve"><value>You type</value></data>

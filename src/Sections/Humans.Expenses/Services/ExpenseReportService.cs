@@ -1,7 +1,7 @@
 using Humans.Application.Extensions;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.AuditLog;
-using Humans.Application.Interfaces.Budget;
+using Humans.Budget.Contracts;
 using Humans.Expenses.Services;
 using Humans.Finance.Contracts;
 using Humans.Application.Interfaces.Gdpr;
@@ -31,7 +31,7 @@ namespace Humans.Expenses.Services;
 internal sealed class ExpenseReportService(
     IExpenseRepository repo,
     IFileStorage fileStorage,
-    IBudgetService budgetService,
+    IBudgetServiceRead budgetService,
     ITeamService teamService,
     IUserService userService,
     IAuditLogService auditLogService,

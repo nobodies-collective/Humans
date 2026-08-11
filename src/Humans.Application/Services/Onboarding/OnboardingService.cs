@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.Consent;
-using Humans.Application.Interfaces.Governance;
+using Humans.Governance.Contracts;
 using Humans.Application.Interfaces.HumanLifecycle;
 using Humans.Domain.Constants;
 using Humans.Domain.Entities;
@@ -10,7 +10,7 @@ using Humans.Domain.Enums;
 using Humans.Application.Interfaces.Email;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Interfaces.Onboarding;
-using Humans.Application.Interfaces.Notifications;
+using Humans.Notifications.Contracts;
 using Humans.Application.Interfaces.GoogleIntegration;
 
 namespace Humans.Application.Services.Onboarding;

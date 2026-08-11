@@ -1,7 +1,7 @@
 using Humans.Application.Interfaces.AuditLog;
 using Humans.Application.Interfaces.Auth;
 using Humans.Application.Interfaces.EarlyEntry;
-using Humans.Application.Interfaces.Notifications;
+using Humans.Notifications.Contracts;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Users;
 using Humans.Domain.Entities;
@@ -54,16 +54,6 @@ public abstract class ServiceTestHarness : IDisposable
     private protected AuthDbContext AuthDb => _authDb.Value.Context;
     private protected TestDbContextFactory<AuthDbContext> AuthDbFactory => _authDb.Value.Factory;
 
-    /// <summary>Governance: <c>applications</c>, <c>application_state_history</c>, <c>board_votes</c>.</summary>
-    private readonly Lazy<SectionDb<GovernanceDbContext>> _governanceDb;
-    private protected GovernanceDbContext GovernanceDb => _governanceDb.Value.Context;
-    private protected TestDbContextFactory<GovernanceDbContext> GovernanceDbFactory => _governanceDb.Value.Factory;
-
-    /// <summary>Campaigns: <c>campaigns</c>, <c>campaign_codes</c>, <c>campaign_grants</c>.</summary>
-    private readonly Lazy<SectionDb<CampaignsDbContext>> _campaignsDb;
-    private protected CampaignsDbContext CampaignsDb => _campaignsDb.Value.Context;
-    private protected TestDbContextFactory<CampaignsDbContext> CampaignsDbFactory => _campaignsDb.Value.Factory;
-
     /// <summary>GoogleIntegration: <c>google_resources</c>, <c>google_sync_outbox</c>, <c>sync_service_settings</c>.</summary>
     private readonly Lazy<SectionDb<GoogleIntegrationDbContext>> _googleIntegrationDb;
     private protected GoogleIntegrationDbContext GoogleIntegrationDb => _googleIntegrationDb.Value.Context;
@@ -74,30 +64,10 @@ public abstract class ServiceTestHarness : IDisposable
     private protected TicketsDbContext TicketsDb => _ticketsDb.Value.Context;
     private protected TestDbContextFactory<TicketsDbContext> TicketsDbFactory => _ticketsDb.Value.Factory;
 
-    /// <summary>Feedback: <c>feedback_reports</c>, <c>feedback_messages</c>.</summary>
-    private readonly Lazy<SectionDb<FeedbackDbContext>> _feedbackDb;
-    private protected FeedbackDbContext FeedbackDb => _feedbackDb.Value.Context;
-    private protected TestDbContextFactory<FeedbackDbContext> FeedbackDbFactory => _feedbackDb.Value.Factory;
-
-    /// <summary>CityPlanning: <c>city_planning_settings</c>, <c>camp_polygons</c>, <c>camp_polygon_histories</c>.</summary>
-    private readonly Lazy<SectionDb<CityPlanningDbContext>> _cityPlanningDb;
-    private protected CityPlanningDbContext CityPlanningDb => _cityPlanningDb.Value.Context;
-    private protected TestDbContextFactory<CityPlanningDbContext> CityPlanningDbFactory => _cityPlanningDb.Value.Factory;
-
-    /// <summary>Budget: <c>budget_years</c>, <c>budget_groups</c>, <c>budget_categories</c>, <c>budget_line_items</c>, <c>budget_audit_logs</c>, <c>ticketing_projections</c>.</summary>
-    private readonly Lazy<SectionDb<BudgetDbContext>> _budgetDb;
-    private protected BudgetDbContext BudgetDb => _budgetDb.Value.Context;
-    private protected TestDbContextFactory<BudgetDbContext> BudgetDbFactory => _budgetDb.Value.Factory;
-
     /// <summary>Camps: <c>camps</c>, <c>camp_seasons</c>, <c>camp_historical_names</c>, <c>camp_images</c>, <c>camp_settings</c>, <c>camp_members</c>, <c>camp_role_definitions</c>, <c>camp_role_assignments</c>.</summary>
     private readonly Lazy<SectionDb<CampsDbContext>> _campsDb;
     private protected CampsDbContext CampsDb => _campsDb.Value.Context;
     private protected TestDbContextFactory<CampsDbContext> CampsDbFactory => _campsDb.Value.Factory;
-
-    /// <summary>Gate: <c>gate_scan_events</c>, <c>gate_settings</c>, <c>gate_staff_pins</c>.</summary>
-    private readonly Lazy<SectionDb<GateDbContext>> _gateDb;
-    private protected GateDbContext GateDb => _gateDb.Value.Context;
-    private protected TestDbContextFactory<GateDbContext> GateDbFactory => _gateDb.Value.Factory;
 
     /// <summary>Legal: <c>legal_documents</c>, <c>document_versions</c>, <c>consent_records</c>.</summary>
     private readonly Lazy<SectionDb<LegalDbContext>> _legalDb;
@@ -142,15 +112,9 @@ public abstract class ServiceTestHarness : IDisposable
         DbFactory = new TestDbContextFactory(DbOptions);
 
         _authDb = RegisterSection<AuthDbContext>(o => new(o));
-        _governanceDb = RegisterSection<GovernanceDbContext>(o => new(o));
-        _campaignsDb = RegisterSection<CampaignsDbContext>(o => new(o));
         _googleIntegrationDb = RegisterSection<GoogleIntegrationDbContext>(o => new(o));
         _ticketsDb = RegisterSection<TicketsDbContext>(o => new(o));
-        _feedbackDb = RegisterSection<FeedbackDbContext>(o => new(o));
-        _cityPlanningDb = RegisterSection<CityPlanningDbContext>(o => new(o));
-        _budgetDb = RegisterSection<BudgetDbContext>(o => new(o));
         _campsDb = RegisterSection<CampsDbContext>(o => new(o));
-        _gateDb = RegisterSection<GateDbContext>(o => new(o));
         _legalDb = RegisterSection<LegalDbContext>(o => new(o));
         _auditLogDb = RegisterSection<AuditLogDbContext>(o => new(o));
         _shiftsDb = RegisterSection<ShiftsDbContext>(o => new(o));

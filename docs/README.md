@@ -27,7 +27,7 @@ Business requirements, user stories, data model, and workflows for each feature 
 | [Feature 21: Email Outbox](features/email/email-outbox.md) | Outbox pattern for reliable transactional email delivery with retry and crash recovery |
 | [`[ExpiresOn]` — Hard removal deadlines](features/expires-on-deadline.md) | Analyzer-enforced removal deadlines that escalate deprecation warnings to errors on a fixed date |
 | [Feedback System](features/feedback/feedback-system.md) | Retired (nobodies-collective/Humans#977) — closed to new reports and Admin-only; superseded by Issues |
-| [Gate Admissions](features/gate-admissions.md) | Gate QR scanning on rugged tablets deciding entry against ticket validity, photo-ID name check, and Early Entry grants — shipped design draft; `sections/Gate.md` is the authoritative current-state doc |
+| [Gate Admissions](features/gate-admissions.md) | Gate QR scanning on rugged tablets deciding entry against ticket validity, photo-ID name check, and Early Entry grants — shipped design draft; `src/Sections/Humans.Gate/Docs/Gate.md` is the authoritative current-state doc |
 | [Administration](features/global/administration.md) | Admin dashboards and management screens for members, applications, teams, and organizational compliance |
 | [Background Jobs](features/global/background-jobs.md) | Hangfire-scheduled automated operations for syncing, reminders, compliance enforcement, and system team maintenance |
 | [GDPR Data Export](features/global/gdpr-export.md) | Self-service download fulfilling GDPR Article 15 right to a copy of all personal data held |
@@ -87,31 +87,31 @@ Terse, authoritative invariant docs for each major section: concepts, data model
 | [Agent](../src/Sections/Humans.Agent/Docs/Agent.md) | Conversational helper backed by Anthropic Claude, available to authenticated consented users when `AgentSettings.Enabled = true` |
 | [Audit Log](sections/AuditLog.md) | Append-only system audit trail capturing actor, action, entity, and timestamp; enforced append-only per design-rules §12 |
 | [Auth](sections/Auth.md) | Temporal role assignments, magic-link login/signup, and claims transformation |
-| [Budget](sections/Budget.md) | Fiscal-year budgets (Draft/Active/Closed) with groups, categories, line items, and an append-only audit log |
-| [Calendar](sections/Calendar.md) | Per-team community calendar with one-off and recurring events plus per-occurrence overrides and cancellations |
-| [Campaigns](sections/Campaigns.md) | Bulk code-distribution campaigns: codes imported or generated, assigned to humans, delivered via email waves |
+| [Budget](../src/Sections/Humans.Budget/Docs/Budget.md) | Fiscal-year budgets (Draft/Active/Closed) with groups, categories, line items, and an append-only audit log |
+| [Calendar](../src/Sections/Humans.Calendar/Docs/Calendar.md) | Per-team community calendar with one-off and recurring events plus per-occurrence overrides and cancellations |
+| [Campaigns](../src/Sections/Humans.Campaigns/Docs/Campaigns.md) | Bulk code-distribution campaigns: codes imported or generated, assigned to humans, delivered via email waves |
 | [Camps](sections/Camps.md) | Themed community camps (Barrios) with per-year season registrations, leads, images, and renaming history |
 | [Cantina](sections/Cantina.md) | Read-only weekly roster surface for the food-service team — who is on site each day and what they can/cannot eat; composes over Shifts, owns no tables |
-| [City Planning](sections/CityPlanning.md) | Interactive map surface with three screens: read-only overview, barrio polygon editing, and container placement |
+| [City Planning](../src/Sections/Humans.CityPlanning/Docs/CityPlanning.md) | Interactive map surface with three screens: read-only overview, barrio polygon editing, and container placement |
 | [Containers](../src/Sections/Humans.Containers/Docs/Containers.md) | Physical shipping containers managed per-barrio or at org level, placed on the City Planning map |
 | [Debug](sections/Debug.md) | Developer/diagnostics section: admin-only pages exposing operational insight (client demographics, request health) that no domain section owns — owns no tables |
 | [Email](sections/Email.md) | Transactional email outbox: queue, render, deliver, retry, and pause/resume — backs campaign sends, onboarding, shift, and feedback emails |
 | [Events](../src/Sections/Humans.Events/Docs/Events.md) | Event programming: submission, moderation, browsing, export, and preference management for festival events |
 | [Expenses](../src/Sections/Humans.Expenses/Docs/Expenses.md) | Expense reports submitted by members and approved by Finance Admin; approval books into Holded async, and paid/unpaid status is read back from the member's Holded creditor ledger rather than stamped on the report — payment itself happens externally, with no SEPA-file generation in the app |
-| [Feedback](sections/Feedback.md) | Retired — closed to new reports and Admin-only; the historical archive of in-app reports (bugs, feature requests, questions) with screenshots and conversation threads |
+| [Feedback](../src/Sections/Humans.Feedback/Docs/Feedback.md) | Retired — closed to new reports and Admin-only; the historical archive of in-app reports (bugs, feature requests, questions) with screenshots and conversation threads |
 | [Finance](../src/Sections/Humans.Finance/Docs/Finance.md) | Treasurer's reality side of money — actuals, reconciliation, and treasurer-facing operational data sharing keys with Budget |
-| [Gate](sections/Gate.md) | Gate ticket scanning that decides entry at the event door and writes the durable admission record — distinct from the read-only Scanner section, which must never check anyone in |
+| [Gate](../src/Sections/Humans.Gate/Docs/Gate.md) | Gate ticket scanning that decides entry at the event door and writes the durable admission record — distinct from the read-only Scanner section, which must never check anyone in |
 | [Google Integration](sections/GoogleIntegration.md) | Shared-Drive-only sync for Drive folders, Groups, and Workspace accounts with reconciliation and Drive-activity monitoring |
-| [Governance](sections/Governance.md) | Colaborador and Asociado tier applications, Board voting workflow, and term lifecycle (not volunteer onboarding) |
+| [Governance](../src/Sections/Humans.Governance/Docs/Governance.md) | Colaborador and Asociado tier applications, Board voting workflow, and term lifecycle (not volunteer onboarding) |
 | [Guide](sections/Guide.md) | The in-app `/Guide` renderer for `docs/guide/` markdown with role-scoped block filtering |
 | [Holded](sections/Holded.md) | Thin typed-`HttpClient` surface to the Holded accounting API, shared by Expenses (purchase documents) and Finance (ledger reconciliation) |
-| [Issues](sections/Issues.md) | In-app issue tracker (bugs, features, questions) with screenshots, role-routed triage, and a reporter↔handler conversation thread |
+| [Issues](../src/Sections/Humans.Issues/Docs/Issues.md) | In-app issue tracker (bugs, features, questions) with screenshots, role-routed triage, and a reporter↔handler conversation thread |
 | [Consent](sections/Consent.md) | GitHub-synced legal documents, per-version append-only consent records, and the Consent Coordinator audit/review queue |
 | [Mailer](sections/Mailer.md) | Humans ↔ MailerLite synchronisation: inbound import and outbound audience management |
-| [Notifications](sections/Notifications.md) | In-app notification fan-out (stored events plus per-user inbox) and live meter counts (computed) |
+| [Notifications](../src/Sections/Humans.Notifications/Docs/Notifications.md) | In-app notification fan-out (stored events plus per-user inbox) and live meter counts (computed) |
 | [Onboarding](sections/Onboarding.md) | Pure orchestrator over Profiles, Consent, Teams, and Governance — owns no tables |
 | [Profiles](sections/Profiles.md) | Per-human personal data: profile, contact fields, emails, communication preferences — reference implementation for §15 caching |
-| [Scanner](sections/Scanner.md) | In-browser camera tools for barcode decode (`/Scanner/Barcode`) and read-only ticket lookup (`/Scanner/Tickets`); no owned tables |
+| [Scanner](../src/Sections/Humans.Scanner/Docs/Scanner.md) | In-browser camera tools for barcode decode (`/Scanner/Barcode`) and read-only ticket lookup (`/Scanner/Tickets`); no owned tables |
 | [Search](sections/Search.md) | Orchestrator behind the global `/Search` page — fans out to five sections' read surfaces, scores each independently, owns no tables |
 | [Shifts](sections/Shifts.md) | Event shifts, rotas, signups, range blocks, event settings, general availability, and per-event volunteer profiles |
 | [Store](../src/Sections/Humans.Store/Docs/Store.md) | Per-camp catalog ordering, multi-method payments, and consolidated Holded factura issuance for Camp Lead purchases |
