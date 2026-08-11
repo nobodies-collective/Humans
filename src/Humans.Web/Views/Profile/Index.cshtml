@@ -1,3 +1,4 @@
+@using Humans.Governance.Contracts
 @using Humans.UI.Authorization
 @using Humans.UI.Extensions
 @using Humans.UI.Models.Tables
@@ -156,7 +157,7 @@
                 </div>
                 <div class="card-body p-0">
                     @{
-                        Func<Humans.Application.Interfaces.Campaigns.CampaignGrantSummary, IHtmlContent> redeemedCell =
+                        Func<Humans.Campaigns.Contracts.CampaignGrantSummary, IHtmlContent> redeemedCell =
                             @<text>
                                 @if (item.RedeemedAt.HasValue)
                                 {

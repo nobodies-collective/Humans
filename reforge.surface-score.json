@@ -73,14 +73,8 @@
     },
     "Budget": {
       "paths": [
-        "src/Humans.Application/Interfaces/Budget/**",
-        "src/Humans.Application/Services/Budget/**",
-        "src/Humans.Application/DTOs/Budget*",
-        "src/Humans.Application/DTOs/TicketingBudget*",
-        "src/Humans.Domain/Entities/Budget*",
-        "src/Humans.Infrastructure/Repositories/Budget/**",
-        "src/Humans.Web/Controllers/BudgetController.cs",
-        "src/Humans.Web/Models/BudgetViewModels.cs"
+        "src/Sections/Humans.Budget/**",
+        "src/Sections/Humans.Budget.Contracts/**"
       ],
       "symbols": [
         "Budget*",
@@ -91,19 +85,16 @@
         "IBudgetRepository"
       ],
       "serviceInterfaces": [
-        "IBudgetService"
+        "IBudgetService",
+        "ITicketingBudgetService"
+      ],
+      "readServiceInterfaces": [
+        "IBudgetServiceRead"
       ]
     },
     "Calendar": {
       "paths": [
-        "src/Humans.Application/Interfaces/Calendar/**",
-        "src/Humans.Application/DTOs/Calendar/**",
-        "src/Humans.Application/Services/Calendar/**",
-        "src/Humans.Domain/Entities/Calendar*",
-        "src/Humans.Infrastructure/Repositories/Calendar/**",
-        "src/Humans.Infrastructure/Services/Calendar/**",
-        "src/Humans.Web/Controllers/CalendarController.cs",
-        "src/Humans.Web/Models/Calendar/**"
+        "src/Sections/Humans.Calendar/**"
       ],
       "symbols": [
         "Calendar*",
@@ -124,12 +115,8 @@
     },
     "Campaigns": {
       "paths": [
-        "src/Humans.Application/Interfaces/Campaigns/**",
-        "src/Humans.Application/Interfaces/Repositories/ICampaignRepository.cs",
-        "src/Humans.Application/Services/Campaigns/**",
-        "src/Humans.Domain/Entities/Campaign*",
-        "src/Humans.Infrastructure/Repositories/Campaigns/**",
-        "src/Humans.Web/Controllers/CampaignController.cs"
+        "src/Sections/Humans.Campaigns/**",
+        "src/Sections/Humans.Campaigns.Contracts/**"
       ],
       "symbols": [
         "Campaign*",
@@ -187,13 +174,8 @@
     },
     "CityPlanning": {
       "paths": [
-        "src/Humans.Application/Interfaces/CityPlanning/**",
-        "src/Humans.Application/Configuration/CityPlanningOptions.cs",
-        "src/Humans.Application/Services/CityPlanning/**",
-        "src/Humans.Domain/Entities/CampPolygon*",
-        "src/Humans.Infrastructure/Repositories/CityPlanning/**",
-        "src/Humans.Web/Controllers/CityPlanningController.cs",
-        "src/Humans.Web/Hubs/CityPlanningHub.cs"
+        "src/Sections/Humans.CityPlanning/**",
+        "src/Sections/Humans.CityPlanning.Contracts/**"
       ],
       "symbols": [
         "CityPlanning*",
@@ -366,12 +348,7 @@
     },
     "Feedback": {
       "paths": [
-        "src/Humans.Application/Interfaces/Feedback/**",
-        "src/Humans.Application/Services/Feedback/**",
-        "src/Humans.Domain/Entities/Feedback*",
-        "src/Humans.Infrastructure/Repositories/Feedback/**",
-        "src/Humans.Web/Controllers/FeedbackController.cs",
-        "src/Humans.Web/Models/FeedbackViewModels.cs"
+        "src/Sections/Humans.Feedback/**"
       ],
       "symbols": [
         "Feedback*",
@@ -381,7 +358,7 @@
         "IFeedbackRepository"
       ],
       "serviceInterfaces": [
-        "IFeedbackService"
+        "IFeedbackServiceRead"
       ]
     },
     "Finance": {
@@ -399,6 +376,22 @@
       ],
       "serviceInterfaces": [
         "IHoldedFinanceService"
+      ]
+    },
+    "Gate": {
+      "paths": [
+        "src/Sections/Humans.Gate/**",
+        "src/Sections/Humans.Gate.Contracts/**"
+      ],
+      "symbols": [
+        "Gate*",
+        "IGate*"
+      ],
+      "repositoryInterfaces": [
+        "IGateRepository"
+      ],
+      "serviceInterfaces": [
+        "IGateService"
       ]
     },
     "Gdpr": {
@@ -456,14 +449,8 @@
     },
     "Governance": {
       "paths": [
-        "src/Humans.Application/Interfaces/Governance/**",
-        "src/Humans.Application/DTOs/MembershipPartition.cs",
-        "src/Humans.Application/DTOs/MembershipSnapshot.cs",
-        "src/Humans.Application/Services/Governance/**",
-        "src/Humans.Domain/Entities/Application*",
-        "src/Humans.Domain/Entities/Board*",
-        "src/Humans.Infrastructure/Repositories/Governance/**",
-        "src/Humans.Web/Controllers/Governance*"
+        "src/Sections/Humans.Governance/**",
+        "src/Sections/Humans.Governance.Contracts/**"
       ],
       "symbols": [
         "Application*",
@@ -568,13 +555,8 @@
     },
     "Issues": {
       "paths": [
-        "src/Humans.Application/Interfaces/Issues/**",
-        "src/Humans.Application/Interfaces/Repositories/IIssuesRepository.cs",
-        "src/Humans.Application/Services/Issues/**",
-        "src/Humans.Domain/Entities/Issue*",
-        "src/Humans.Infrastructure/Repositories/Issues/**",
-        "src/Humans.Web/Controllers/Issues*",
-        "src/Humans.Web/Models/IssueViewModels.cs"
+        "src/Sections/Humans.Issues/**",
+        "src/Sections/Humans.Issues.Contracts/**"
       ],
       "symbols": [
         "Issue*",
@@ -589,11 +571,8 @@
     },
     "Notifications": {
       "paths": [
-        "src/Humans.Application/Interfaces/Notifications/**",
-        "src/Humans.Application/Services/Notifications/**",
-        "src/Humans.Domain/Entities/Notification*",
-        "src/Humans.Infrastructure/Repositories/Notifications/**",
-        "src/Humans.Web/Controllers/NotificationsController.cs"
+        "src/Sections/Humans.Notifications/**",
+        "src/Sections/Humans.Notifications.Contracts/**"
       ],
       "symbols": [
         "Notification*",
@@ -767,7 +746,6 @@
       ],
       "serviceInterfaces": [
         "ITicketService",
-        "ITicketingBudgetService",
         "ITicketTransferService"
       ],
       "readServiceInterfaces": [
@@ -857,7 +835,7 @@
         "src/Humans.Web/Controllers/GuideController.cs",
         "src/Humans.Web/Controllers/LogApiController.cs",
         "src/Humans.Web/Controllers/ApiControllerBase.cs",
-        "src/Humans.Web/Controllers/ScannerController.cs",
+        "src/Sections/Humans.Scanner/**",
         "src/Humans.Web/Controllers/TimezoneApiController.cs",
         "src/Humans.Web/Controllers/WelcomeController.cs",
         "src/Humans.Web/Controllers/WidgetGalleryController.cs",

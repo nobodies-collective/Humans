@@ -2,9 +2,9 @@ using System.Reflection;
 using System.Security.Claims;
 using AwesomeAssertions;
 using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Budget;
+using Humans.Budget.Contracts;
 using Humans.Application.Interfaces.Camps;
-using Humans.Application.Interfaces.CityPlanning;
+using Humans.CityPlanning.Contracts;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Teams;
 using Humans.Domain.Constants;
@@ -33,7 +33,7 @@ public class AuthorizationPolicyTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddScoped(_ => Substitute.For<IBudgetService>());
+        services.AddScoped(_ => Substitute.For<IBudgetServiceRead>());
         services.AddScoped(_ => Substitute.For<ICampService>());
         services.AddScoped(_ => Substitute.For<ICampServiceRead>());
         services.AddScoped(_ => Substitute.For<ICityPlanningServiceRead>());
@@ -463,10 +463,24 @@ public class AuthorizationPolicyTests : IDisposable
     }
 
     private static string FeedbackControllerPolicy =>
-        typeof(Humans.Web.Controllers.FeedbackController)
+        SectionType("Humans.Feedback.Controllers.FeedbackController")
             .GetCustomAttribute<AuthorizeAttribute>()?.Policy
         ?? throw new InvalidOperationException(
             "FeedbackController must carry a policy-bearing [Authorize] attribute.");
+
+    /// <summary>
+    /// A G5 section's controller is <c>internal</c> to its own assembly
+    /// (nobodies-collective/Humans#866), so it cannot be named with <c>typeof</c> here.
+    /// Resolved by reflection instead — the same helper
+    /// <c>EndpointAuthorizationTests</c> carries — and it throws on a miss, so a renamed
+    /// or dropped controller fails the test rather than quietly leaving the sweep.
+    /// </summary>
+    private static Type SectionType(string fullName) =>
+        Humans.Web.Extensions.SectionDiscoveryExtensions.SectionAssemblies()
+            .Select(a => a.GetType(fullName, throwOnError: false))
+            .FirstOrDefault(t => t is not null)
+        ?? throw new InvalidOperationException(
+            $"{fullName} not found in any section assembly — did the section move or rename it?");
 
     // --- FinanceAdminOrAdmin ---
 

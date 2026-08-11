@@ -31,10 +31,6 @@ public static class EnumBadgeMap
         [TicketAttendeeStatus.CheckedIn] = "bg-info",
         [TicketAttendeeStatus.Void] = "bg-danger",
 
-        [CampaignStatus.Draft] = "bg-secondary",
-        [CampaignStatus.Active] = "bg-success",
-        [CampaignStatus.Completed] = "bg-info",
-
         [EmailOutboxStatus.Queued] = "bg-warning text-dark",
         [EmailOutboxStatus.Sent] = "bg-success",
         [EmailOutboxStatus.Failed] = "bg-danger",
@@ -54,11 +50,6 @@ public static class EnumBadgeMap
         [TicketPaymentStatus.Pending] = "bg-warning text-dark",
         [TicketPaymentStatus.Refunded] = "bg-danger",
         [TicketPaymentStatus.Cancelled] = "bg-secondary",
-
-        [VoteChoice.Yay] = "bg-success",
-        [VoteChoice.Maybe] = "bg-warning text-dark",
-        [VoteChoice.No] = "bg-danger",
-        [VoteChoice.Abstain] = "bg-secondary",
     };
 
     /// <summary>

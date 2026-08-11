@@ -36,18 +36,18 @@ env:
     EventGuideDbContext:src/Sections/Humans.Events
     AuthDbContext:src/Humans.Infrastructure
     EmailDbContext:src/Humans.Infrastructure
-    CalendarDbContext:src/Humans.Infrastructure
-    NotificationsDbContext:src/Humans.Infrastructure
-    IssuesDbContext:src/Humans.Infrastructure
-    GovernanceDbContext:src/Humans.Infrastructure
-    CampaignsDbContext:src/Humans.Infrastructure
+    CalendarDbContext:src/Sections/Humans.Calendar
+    NotificationsDbContext:src/Sections/Humans.Notifications
+    IssuesDbContext:src/Sections/Humans.Issues
+    GovernanceDbContext:src/Sections/Humans.Governance
+    CampaignsDbContext:src/Sections/Humans.Campaigns
     GoogleIntegrationDbContext:src/Humans.Infrastructure
     TicketsDbContext:src/Humans.Infrastructure
-    FeedbackDbContext:src/Humans.Infrastructure
-    CityPlanningDbContext:src/Humans.Infrastructure
-    BudgetDbContext:src/Humans.Infrastructure
+    FeedbackDbContext:src/Sections/Humans.Feedback
+    CityPlanningDbContext:src/Sections/Humans.CityPlanning
+    BudgetDbContext:src/Sections/Humans.Budget
     CampsDbContext:src/Humans.Infrastructure
-    GateDbContext:src/Humans.Infrastructure
+    GateDbContext:src/Sections/Humans.Gate
     SystemDbContext:src/Humans.Infrastructure
     LegalDbContext:src/Humans.Infrastructure
     AuditLogDbContext:src/Humans.Infrastructure

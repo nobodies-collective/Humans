@@ -16,6 +16,21 @@
     <!-- Events' contracts leaf: SearchService calls IEventServiceRead. -->
     <ProjectReference Include="..\Sections\Humans.Events.Contracts\Humans.Events.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Finance.Contracts\Humans.Finance.Contracts.csproj" />
+    <!-- City Planning's contracts leaf: CampService clears a deleted camp's polygons. -->
+    <ProjectReference Include="..\Sections\Humans.CityPlanning.Contracts\Humans.CityPlanning.Contracts.csproj" />
+    <ProjectReference Include="..\Sections\Humans.Budget.Contracts\Humans.Budget.Contracts.csproj" />
+    <!--
+      Campaigns' contracts leaf: TicketSyncService marks redeemed discount codes and
+      TicketQueryService builds the code-tracking dashboard.
+    -->
+    <ProjectReference Include="..\Sections\Humans.Campaigns.Contracts\Humans.Campaigns.Contracts.csproj" />
+    <!--
+      Notifications' contracts leaf: eleven services here emit through INotificationEmitter,
+      AccountMergeService takes INotificationService, and ConsentService /
+      HumanLifecycleService auto-resolve through INotificationAutoResolve.
+    -->
+    <ProjectReference Include="..\Sections\Humans.Governance.Contracts\Humans.Governance.Contracts.csproj" />
+    <ProjectReference Include="..\Sections\Humans.Notifications.Contracts\Humans.Notifications.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Holded.Contracts\Humans.Holded.Contracts.csproj" />
   </ItemGroup>
 

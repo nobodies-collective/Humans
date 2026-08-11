@@ -6,9 +6,9 @@ using Humans.Application.Interfaces.Gdpr;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Domain.Constants;
 using Humans.Domain.Enums;
-using Humans.Application.Interfaces.Budget;
+using Humans.Budget.Contracts;
 using Humans.Application.Interfaces.Profiles;
-using Humans.Application.Interfaces.Campaigns;
+using Humans.Campaigns.Contracts;
 using Humans.Application.Interfaces.Shifts;
 using Humans.Application.Interfaces.Teams;
 using Humans.Application.Interfaces.Tickets;
@@ -23,7 +23,7 @@ namespace Humans.Application.Services.Tickets;
 public sealed class TicketQueryService(
     ITicketRepository ticketRepository,
     ITicketTransferRepository ticketTransferRepository,
-    IBudgetService budgetService,
+    IBudgetServiceRead budgetService,
     ICampaignServiceRead campaignService,
     IUserService userService,
     IUserEmailService userEmailService,

@@ -28,7 +28,7 @@ using Humans.Infrastructure.Hosting;
 using Humans.Infrastructure.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Health;
-using Humans.Web.Hubs;
+using Humans.UI.Hubs;
 using Humans.Web.Middleware;
 using Microsoft.Extensions.Localization;
 using Npgsql;
@@ -76,18 +76,17 @@ builder.Services.AddSingleton(configRegistry);
 builder.Services.AddSingleton<IClock>(SystemClock.Instance);
 if (!builder.Environment.IsProduction())
 {
-    builder.Services.AddScoped<DevelopmentBudgetSeeder>();
     builder.Services.AddScoped<DevelopmentCampRoleSeeder>();
     builder.Services.AddScoped<DevelopmentDashboardSeeder>();
     builder.Services.AddScoped<DevPersonaSeeder>();
 }
 
 // All environments: gate-terminal account management (provisioned from /Tickets/Admin/Gate)
-// + the per-source-IP sign-in failure throttle for /Account/GateLogin.
+// + the per-source-IP sign-in failure throttle for /Account/GateLogin. Both are Shell's:
+// the terminal's Identity account and the /Account/GateLogin page belong to Auth, not to
+// the Gate section (whose own PIN throttle and mirror ledger moved with it at G5).
 builder.Services.AddScoped<GateTerminalAccountSeeder>();
 builder.Services.AddSingleton<GateLoginThrottle>();
-builder.Services.AddSingleton<GatePinThrottle>();
-builder.Services.AddSingleton<GateVendorMirrorLedger>();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -478,6 +477,11 @@ var mvcBuilder = builder.Services.AddControllersWithViews(options =>
 // default provider only discovers public ones, and says nothing when it doesn't.
 mvcBuilder.ConfigureApplicationPartManager(apm =>
     apm.FeatureProviders.Add(new SectionControllerFeatureProvider()));
+
+// …and the same for a section's view components, which MVC discovers through a separate,
+// equally public-only convention (Notifications' bell).
+mvcBuilder.ConfigureApplicationPartManager(apm =>
+    apm.FeatureProviders.Add(new SectionViewComponentFeatureProvider()));
 
 // DevLoginController depends on DevPersonaSeeder (non-Production only); exclude in Prod so ValidateOnBuild passes and /dev/login/* 404s cleanly.
 if (builder.Environment.IsProduction())

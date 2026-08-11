@@ -4,22 +4,15 @@ using Humans.Application.Interfaces.Gdpr;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using ApplicationDecisionService = Humans.Application.Services.Governance.ApplicationDecisionService;
-using BudgetService = Humans.Application.Services.Budget.BudgetService;
-using CampaignService = Humans.Application.Services.Campaigns.CampaignService;
 using ProfilesAccountMergeService = Humans.Application.Services.Users.AccountMergeService;
 using UsersUserService = Humans.Application.Services.Users.UserService;
 using AuditLogService = Humans.Application.Services.AuditLog.AuditLogService;
 using CampService = Humans.Application.Services.Camps.CampService;
-using FeedbackService = Humans.Application.Services.Feedback.FeedbackService;
-using IssuesService = Humans.Application.Services.Issues.IssuesService;
 using RoleAssignmentService = Humans.Application.Services.Auth.RoleAssignmentService;
 using ConsentService = Humans.Application.Services.Consent.ConsentService;
 using ShiftSignupService = Humans.Application.Services.Shifts.ShiftSignupService;
 using TicketsTicketQueryService = Humans.Application.Services.Tickets.TicketQueryService;
-using NotificationInboxService = Humans.Application.Services.Notifications.NotificationInboxService;
 using TeamService = Humans.Application.Services.Teams.TeamService;
-using GateService = Humans.Application.Services.Gate.GateService;
 
 namespace Humans.Application.Tests.Services.Gdpr;
 
@@ -71,25 +64,25 @@ public class GdprExportDependencyInjectionTests
     [
         typeof(UsersUserService),
         typeof(ProfilesAccountMergeService),
-        typeof(ApplicationDecisionService),
+        SectionType("Humans.Governance.Services.ApplicationDecisionService"),
         typeof(ConsentService),
         typeof(TeamService),
         typeof(RoleAssignmentService),
         typeof(ShiftSignupService),
-        typeof(FeedbackService),
-        typeof(IssuesService),
-        typeof(NotificationInboxService),
+        SectionType("Humans.Feedback.Services.FeedbackService"),
+        SectionType("Humans.Issues.Services.IssuesService"),
+        SectionType("Humans.Notifications.Services.NotificationInboxService"),
         typeof(TicketsTicketQueryService),
-        typeof(CampaignService),
+        SectionType("Humans.Campaigns.Services.CampaignService"),
         typeof(CampService),
         SectionType("Humans.Events.Services.EventService"),
         typeof(AuditLogService),
-        typeof(BudgetService),
+        SectionType("Humans.Budget.Services.BudgetService"),
         SectionType("Humans.Agent.Services.AgentService"),
         SectionType("Humans.Expenses.Services.ExpenseReportService"),
         SectionType("Humans.Finance.Services.Service"),
         SectionType("Humans.Surveys.Services.SurveyService"),
-        typeof(GateService)
+        SectionType("Humans.Gate.Services.GateService")
     ];
 
     /// <summary>
@@ -122,13 +115,13 @@ public class GdprExportDependencyInjectionTests
         // Scan every assembly where section services live: Humans.Infrastructure
         // still holds most of them, Humans.Application is the intermediate target
         // per the repository/store/decorator migration (first move:
-        // ApplicationDecisionService, Governance PR #503), and each G5 section
+        // ApplicationDecisionService, Governance PR #503, since moved to G5), and each G5 section
         // project (nobodies-collective/Humans#866) holds its own. The section
         // assemblies come from SectionDiscoveryExtensions — the same discovery the
         // runtime uses, so a section that moves cannot silently drop out of this
         // sweep the way it would with a hard-coded assembly list (design §10).
         var infrastructureAssembly = typeof(Humans.Infrastructure.Data.HumansDbContext).Assembly;
-        var applicationAssembly = typeof(ApplicationDecisionService).Assembly;
+        var applicationAssembly = typeof(Humans.Application.Services.Users.UserService).Assembly;
 
         var foundContributors = new[] { infrastructureAssembly, applicationAssembly }
             .Concat(Web.Extensions.SectionDiscoveryExtensions.SectionAssemblies())

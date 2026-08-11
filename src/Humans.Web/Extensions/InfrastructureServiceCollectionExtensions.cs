@@ -1,7 +1,11 @@
 using Humans.Agent.Contracts;
 using Humans.Application.Configuration;
 using Humans.Application.Interfaces;
+using Humans.Application.Interfaces.Caching;
+using Humans.Application.Interfaces.HumanLifecycle;
 using Humans.Application.Interfaces.Repositories;
+using Humans.Application.Services.HumanLifecycle;
+using Humans.Infrastructure.Caching;
 using Humans.Infrastructure.Jobs;
 using Humans.Infrastructure.Services;
 using Humans.Web.Extensions.Infrastructure;
@@ -36,21 +40,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddUsersSection();
         services.AddAuthSection();
         services.AddTeamsSection();
-        services.AddGovernanceSection();
         services.AddOnboardingSection();
         services.AddCampsSection();
-        services.AddCityPlanningSection(configuration);
-        services.AddBudgetSection();
         services.AddShiftsSection();
         services.AddEarlyEntrySection();
-        services.AddCalendarSection();
         services.AddTicketsSection();
-        services.AddGateSection();
-        services.AddFeedbackSection();
-        services.AddIssuesSection();
-        services.AddNotificationsSection();
         services.AddLegalAndConsentSection();
-        services.AddCampaignsSection();
         services.AddAuditLogSection();
         services.AddGdprSection();
         services.AddICalFeedSection();
@@ -66,6 +61,20 @@ public static class InfrastructureServiceCollectionExtensions
         // type and there is no ISection-style discovery seam for jobs yet (design §15.6b);
         // each reaches its section through that section's contracts leaf.
         services.AddScoped<SendSurveyReminderJob>();
+        services.AddScoped<GateRetentionJob>();
+        services.AddScoped<GateVendorCheckInJob>();
+        services.AddScoped<CleanupIssuesJob>();
+        services.AddScoped<TermRenewalReminderJob>();
+
+        // Base collaborators that Governance's section file used to register on the way past.
+        // The three badge-cache invalidators are Humans.Infrastructure implementations of
+        // Humans.Application interfaces that four sections evict through, and
+        // HumanLifecycleService is the suspend/unsuspend state machine over IProfileService —
+        // none of them is Governance's to own (memory/architecture/governance-scope.md).
+        services.AddScoped<INavBadgeCacheInvalidator, NavBadgeCacheInvalidator>();
+        services.AddScoped<INotificationMeterCacheInvalidator, NotificationMeterCacheInvalidator>();
+        services.AddScoped<IVotingBadgeCacheInvalidator, VotingBadgeCacheInvalidator>();
+        services.AddScoped<IHumanLifecycleService, HumanLifecycleService>();
 
         // Shell-resident collaborators of sections that have already moved out. AgentPreloadAugmentor
         // builds the access matrix, glossaries, route map and FAQ blocks of the agent's preload
