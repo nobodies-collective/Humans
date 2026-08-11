@@ -10,6 +10,8 @@
     <Project Path="src/Humans.Web/Humans.Web.csproj" />
   </Folder>
   <Folder Name="/src/Sections/">
+    <Project Path="src/Sections/Humans.Agent/Humans.Agent.csproj" />
+    <Project Path="src/Sections/Humans.Agent.Contracts/Humans.Agent.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Containers/Humans.Containers.csproj" />
     <Project Path="src/Sections/Humans.Events/Humans.Events.csproj" />
     <Project Path="src/Sections/Humans.Events.Contracts/Humans.Events.Contracts.csproj" />
@@ -17,7 +19,11 @@
     <Project Path="src/Sections/Humans.Expenses.Contracts/Humans.Expenses.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Finance/Humans.Finance.csproj" />
     <Project Path="src/Sections/Humans.Finance.Contracts/Humans.Finance.Contracts.csproj" />
+    <Project Path="src/Sections/Humans.Holded/Humans.Holded.csproj" />
+    <Project Path="src/Sections/Humans.Holded.Contracts/Humans.Holded.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Store/Humans.Store.csproj" />
+    <Project Path="src/Sections/Humans.Surveys/Humans.Surveys.csproj" />
+    <Project Path="src/Sections/Humans.Surveys.Contracts/Humans.Surveys.Contracts.csproj" />
     <Project Path="src/Sections/Humans.SystemSettings/Humans.SystemSettings.csproj" />
     <Project Path="src/Sections/Humans.SystemSettings.Contracts/Humans.SystemSettings.Contracts.csproj" />
   </Folder>
@@ -27,11 +33,14 @@
     <Project Path="tests/Humans.Analyzers.Tests/Humans.Analyzers.Tests.csproj" />
     <Project Path="tests/Humans.Application.Tests/Humans.Application.Tests.csproj" />
     <Project Path="tests/Humans.Integration.Tests/Humans.Integration.Tests.csproj" />
+    <Project Path="tests/Humans.Agent.Tests/Humans.Agent.Tests.csproj" />
     <Project Path="tests/Humans.Containers.Tests/Humans.Containers.Tests.csproj" />
     <Project Path="tests/Humans.Events.Tests/Humans.Events.Tests.csproj" />
     <Project Path="tests/Humans.Expenses.Tests/Humans.Expenses.Tests.csproj" />
     <Project Path="tests/Humans.Finance.Tests/Humans.Finance.Tests.csproj" />
+    <Project Path="tests/Humans.Holded.Tests/Humans.Holded.Tests.csproj" />
     <Project Path="tests/Humans.Store.Tests/Humans.Store.Tests.csproj" />
+    <Project Path="tests/Humans.Surveys.Tests/Humans.Surveys.Tests.csproj" />
     <Project Path="tests/Humans.SystemSettings.Tests/Humans.SystemSettings.Tests.csproj" />
     <Project Path="tests/Humans.Web.Tests/Humans.Web.Tests.csproj" />
   </Folder>

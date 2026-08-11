@@ -1,9 +1,11 @@
 using AwesomeAssertions;
+using Humans.Agent.Data;
 using Humans.Infrastructure.Data;
 using Humans.Infrastructure.Hosting;
 using Humans.Containers.Data;
 using Humans.Expenses.Data;
 using Humans.Finance.Data;
+using Humans.Holded.Data;
 using Humans.Store.Data;
 using Humans.SystemSettings.Data;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
 using Humans.Events.Data;
+using Humans.Surveys.Data;
 
 namespace Humans.Integration.Tests.Infrastructure;
 
@@ -76,7 +79,17 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
             "Finance",
             "holded_expense_docs",
             CreateSectionContext<FinanceDbContext>,
-            "SELECT count(*) FROM holded_sync_states"),
+            // No seed probe: the old seeded holded_sync_states singleton moved to the Holded
+            // section re-keyed and lazy-created; Finance's doc-sync state is lazy too.
+            null),
+        new(
+            // After Finance, as in production's name-ordered migration: Finance's
+            // HoldedMirrorMovesToHoldedSection drops holded_ledger_lines before this baseline
+            // recreates it under Holded ownership.
+            "Holded",
+            "holded_accounts",
+            CreateSectionContext<HoldedDbContext>,
+            null),
         new(
             "Surveys",
             "surveys",
@@ -159,6 +172,31 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
             "camps",
             CreateSectionContext<CampsDbContext>,
             "SELECT count(*) FROM camp_settings"),
+        new(
+            "Gate",
+            "gate_settings",
+            CreateSectionContext<GateDbContext>,
+            null),
+        new(
+            "System",
+            "DataProtectionKeys",
+            CreateSectionContext<SystemDbContext>,
+            null),
+        new(
+            "Legal",
+            "legal_documents",
+            CreateSectionContext<LegalDbContext>,
+            null),
+        new(
+            "AuditLog",
+            "audit_log",
+            CreateSectionContext<AuditLogDbContext>,
+            null),
+        new(
+            "Shifts",
+            "shifts",
+            CreateSectionContext<ShiftsDbContext>,
+            "SELECT count(*) FROM shift_tags WHERE \"Id\" = '00000000-0000-0000-0003-000000000001'"),
     ];
 
     [HumansFact]
@@ -169,17 +207,21 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
             var connectionString = await CreateDatabaseAsync($"fresh_{section.Name.ToLowerInvariant()}");
 
             List<string> tables;
+            int migrationCount;
             await using (var db = section.CreateContext(connectionString))
             {
                 await SectionMigrationRunner.MigrateAsync(
                     db, section.SentinelTable, NullLogger.Instance, NoSnapshot, TestContext.Current.CancellationToken);
                 tables = SectionTables(db);
+                migrationCount = db.Database.GetMigrations().Count();
             }
 
             foreach (var table in tables)
             {
+                // Quoted: table names come from the EF model in their exact stored
+                // case (e.g. DataProtectionKeys), and to_regclass lowercases bare names.
                 (await ScalarAsync<bool>(connectionString,
-                    $"SELECT to_regclass('public.{table}') IS NOT NULL"))
+                    $"""SELECT to_regclass('public."{table}"') IS NOT NULL"""))
                     .Should().BeTrue($"{section.Name}: {table} must exist after the baseline executes");
             }
 
@@ -189,7 +231,9 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
                     .Should().Be(1, $"{section.Name}: the HasData seed must be inserted by the baseline");
             }
 
-            (await HistoryCountAsync(connectionString, section.Name)).Should().Be(1);
+            // One history row per migration in the section's chain — the baseline plus any
+            // post-baseline migrations (the runner executes those for real on every path).
+            (await HistoryCountAsync(connectionString, section.Name)).Should().Be(migrationCount);
         }
     }
 
@@ -215,8 +259,16 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
 
         foreach (var section in Sections)
         {
+            int migrationCount;
+            await using (var db = section.CreateContext(connectionString))
+            {
+                migrationCount = db.Database.GetMigrations().Count();
+            }
+
+            // The baseline is mark-applied; post-baseline migrations execute for real on the first
+            // boot. Either way exactly one history row per migration, stable across boots.
             (await HistoryCountAsync(connectionString, section.Name))
-                .Should().Be(1, $"{section.Name}: exactly one baseline history row after two boots");
+                .Should().Be(migrationCount, $"{section.Name}: one history row per migration after two boots");
 
             if (section.SeedProbeSql is not null)
             {
@@ -231,6 +283,16 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
     {
         var oldChainConnection = await CreateDatabaseAsync("equiv_old_chain");
         await MigrateOldChainAsync(oldChainConnection);
+
+        // Production boot runs every section runner after the historical chain (mark the baseline
+        // applied, then execute post-baseline migrations for real) — the old-chain path must get the
+        // same pass or any post-baseline migration would read as a false schema divergence.
+        foreach (var section in Sections)
+        {
+            await using var db = section.CreateContext(oldChainConnection);
+            await SectionMigrationRunner.MigrateAsync(
+                db, section.SentinelTable, NullLogger.Instance, NoSnapshot, TestContext.Current.CancellationToken);
+        }
 
         foreach (var section in Sections)
         {
@@ -321,12 +383,16 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
 
     /// <summary>
     /// Ordinal-independent physical description of a table: one line per column
-    /// (name, type, nullability, default), one per index definition, and one per
-    /// constraint (name, type, definition), sorted. Constraints are compared
-    /// because a missing or differently-shaped FK / CHECK is invisible to a
-    /// columns-plus-indexes comparison, and a model-generated baseline that
-    /// silently omits one would produce a fresh database that diverges from
-    /// every chain-built database.
+    /// (name, type, nullability, default), one per index definition, one per
+    /// constraint (name, type, definition), and one per non-internal trigger
+    /// definition, sorted. Constraints are compared because a missing or
+    /// differently-shaped FK / CHECK is invisible to a columns-plus-indexes
+    /// comparison, and a model-generated baseline that silently omits one would
+    /// produce a fresh database that diverges from every chain-built database.
+    /// Triggers are compared for the same reason: the Legal and AuditLog
+    /// immutability triggers exist only as raw SQL in the baselines
+    /// (nobodies-collective/Humans#858), so without this check the Sql block
+    /// could drift from the chain-built schema silently.
     /// </summary>
     private static async Task<List<string>> DescribeTableAsync(string connectionString, string table)
     {
@@ -374,6 +440,21 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
             await using var reader = await constraints.ExecuteReaderAsync(TestContext.Current.CancellationToken);
             while (await reader.ReadAsync(TestContext.Current.CancellationToken))
                 rows.Add("constraint:" + reader.GetString(0));
+        }
+
+        await using (var triggers = connection.CreateCommand())
+        {
+            triggers.CommandText = """
+                SELECT pg_get_triggerdef(tg.oid)
+                FROM pg_trigger tg
+                JOIN pg_class t ON t.oid = tg.tgrelid
+                JOIN pg_namespace n ON n.oid = t.relnamespace
+                WHERE n.nspname = 'public' AND t.relname = @table AND NOT tg.tgisinternal
+                """;
+            triggers.Parameters.AddWithValue("table", table);
+            await using var reader = await triggers.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+            while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+                rows.Add("trigger:" + reader.GetString(0));
         }
 
         rows.Sort(StringComparer.Ordinal);

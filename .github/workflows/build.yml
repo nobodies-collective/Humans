@@ -28,10 +28,11 @@ env:
   SECTION_DB_CONTEXTS: >-
     SystemSettingsDbContext:src/Sections/Humans.SystemSettings
     ContainersDbContext:src/Sections/Humans.Containers
-    AgentDbContext:src/Humans.Infrastructure
+    AgentDbContext:src/Sections/Humans.Agent
     ExpensesDbContext:src/Sections/Humans.Expenses
     FinanceDbContext:src/Sections/Humans.Finance
-    SurveysDbContext:src/Humans.Infrastructure
+    HoldedDbContext:src/Sections/Humans.Holded
+    SurveysDbContext:src/Sections/Humans.Surveys
     EventGuideDbContext:src/Sections/Humans.Events
     AuthDbContext:src/Humans.Infrastructure
     EmailDbContext:src/Humans.Infrastructure
@@ -46,6 +47,11 @@ env:
     CityPlanningDbContext:src/Humans.Infrastructure
     BudgetDbContext:src/Humans.Infrastructure
     CampsDbContext:src/Humans.Infrastructure
+    GateDbContext:src/Humans.Infrastructure
+    SystemDbContext:src/Humans.Infrastructure
+    LegalDbContext:src/Humans.Infrastructure
+    AuditLogDbContext:src/Humans.Infrastructure
+    ShiftsDbContext:src/Humans.Infrastructure
     StoreDbContext:src/Sections/Humans.Store
 
 jobs:

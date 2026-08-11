@@ -74,80 +74,6 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("account_merge_requests", (string)null);
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.AuditLogEntry", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<Guid?>("ActorUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<Guid>("EntityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("EntityType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<Instant>("OccurredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("RelatedEntityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("RelatedEntityType")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<Guid?>("ResourceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Role")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<bool?>("Success")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("SyncSource")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("UserEmail")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Action");
-
-                    b.HasIndex("OccurredAt");
-
-                    b.HasIndex("ResourceId");
-
-                    b.HasIndex("EntityType", "EntityId");
-
-                    b.HasIndex("RelatedEntityType", "RelatedEntityId");
-
-                    b.ToTable("audit_log", (string)null);
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.CommunicationPreference", b =>
                 {
                     b.Property<Guid>("Id")
@@ -190,55 +116,6 @@ namespace Humans.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("communication_preferences", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.ConsentRecord", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant>("ConsentedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ContentHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<Guid>("DocumentVersionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("ExplicitConsent")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("IpAddress")
-                        .IsRequired()
-                        .HasMaxLength(45)
-                        .HasColumnType("character varying(45)");
-
-                    b.Property<string>("UserAgent")
-                        .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConsentedAt");
-
-                    b.HasIndex("DocumentVersionId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "DocumentVersionId")
-                        .IsUnique();
-
-                    b.HasIndex("UserId", "ExplicitConsent", "ConsentedAt");
-
-                    b.ToTable("consent_records", (string)null);
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.ContactField", b =>
@@ -287,55 +164,6 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("contact_fields", (string)null);
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.DocumentVersion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ChangesSummary")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("CommitSha")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("jsonb")
-                        .HasDefaultValueSql("'{}'::jsonb");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Instant>("EffectiveFrom")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("LegalDocumentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("RequiresReConsent")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("VersionNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CommitSha");
-
-                    b.HasIndex("EffectiveFrom");
-
-                    b.HasIndex("LegalDocumentId");
-
-                    b.ToTable("document_versions", (string)null);
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.EventParticipation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -370,272 +198,6 @@ namespace Humans.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("event_participations", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.EventSettings", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("BarriosEarlyEntryAllocation")
-                        .HasColumnType("jsonb");
-
-                    b.Property<int>("BuildStartOffset")
-                        .HasColumnType("integer");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("EarlyEntryCapacity")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<Instant?>("EarlyEntryClose")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("EventEndOffset")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EventName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<int>("FinishingWeekendStartOffset")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(-4);
-
-                    b.Property<int>("FirstCrewStartOffset")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(-25);
-
-                    b.Property<LocalDate>("GateOpeningDate")
-                        .HasColumnType("date");
-
-                    b.Property<int?>("GlobalVolunteerCap")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsShiftBrowsingOpen")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("PreEventWeekStartOffset")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(-9);
-
-                    b.Property<int>("ReminderLeadTimeHours")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SetupWeekStartOffset")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(-16);
-
-                    b.Property<int>("StrikeEndOffset")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("TimeZoneId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<Instant>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Year")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.ToTable("event_settings", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.GateScanEvent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AdmitDedupeKey")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("Barcode")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<Instant?>("ClientScanAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("GuestUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("LaneId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Instant>("OccurredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("OverrideByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ScannedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("TicketAttendeeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Verdict")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AdmitDedupeKey")
-                        .IsUnique()
-                        .HasDatabaseName("ix_gate_scan_events_admit_dedupe_key");
-
-                    b.HasIndex("OccurredAt");
-
-                    b.HasIndex("ScannedByUserId");
-
-                    b.ToTable("gate_scan_events", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.GateSettings", b =>
-                {
-                    b.Property<int>("Id")
-                        .HasColumnType("integer");
-
-                    b.Property<Instant>("GeneralEntryOpensAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("MinorAgeThresholdYears")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("gate_settings", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.GateStaffPin", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("AdminEnrolled")
-                        .HasColumnType("boolean");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PinHash")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<Instant>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("gate_staff_pins", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.GeneralAvailability", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.PrimitiveCollection<string>("AvailableDayOffsets")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("EventSettingsId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EventSettingsId");
-
-                    b.HasIndex("UserId", "EventSettingsId")
-                        .IsUnique();
-
-                    b.ToTable("general_availability", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.LegalDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CurrentCommitSha")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<string>("GitHubFolderPath")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<int>("GracePeriodDays")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(7);
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsRequired")
-                        .HasColumnType("boolean");
-
-                    b.Property<Instant>("LastSyncedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<Guid>("TeamId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("TeamId", "IsActive");
-
-                    b.ToTable("legal_documents", (string)null);
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.Profile", b =>
@@ -824,228 +386,6 @@ namespace Humans.Infrastructure.Migrations
                     b.HasIndex("ProfileId");
 
                     b.ToTable("profile_languages", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.Rota", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<Guid>("EventSettingsId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsVisibleToVolunteers")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("Period")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("Policy")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("PracticalInfo")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Priority")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid>("TeamId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EventSettingsId", "TeamId");
-
-                    b.ToTable("rotas", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.Shift", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("AdminOnly")
-                        .HasColumnType("boolean");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("DayOffset")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<long>("Duration")
-                        .HasColumnType("bigint");
-
-                    b.Property<bool>("IsAllDay")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("MaxVolunteers")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MinVolunteers")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("RotaId")
-                        .HasColumnType("uuid");
-
-                    b.Property<LocalTime>("StartTime")
-                        .HasColumnType("time");
-
-                    b.Property<Instant>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RotaId");
-
-                    b.ToTable("shifts", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.ShiftSignup", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("Enrolled")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("EnrolledByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Instant?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ReviewedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ShiftId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("SignupBlockId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("StatusReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Instant>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ShiftId");
-
-                    b.HasIndex("SignupBlockId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("ShiftId", "Status");
-
-                    b.ToTable("shift_signups", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.ShiftTag", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique()
-                        .HasDatabaseName("IX_shift_tags_name_unique");
-
-                    b.ToTable("shift_tags", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0003-000000000001"),
-                            Name = "Heavy lifting"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0003-000000000002"),
-                            Name = "Working in the sun"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0003-000000000003"),
-                            Name = "Working in the shade"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0003-000000000004"),
-                            Name = "Organisational task"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0003-000000000005"),
-                            Name = "Meeting new people"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0003-000000000006"),
-                            Name = "Looking after folks"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0003-000000000007"),
-                            Name = "Exploring the site"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0003-000000000008"),
-                            Name = "Feeding and hydrating folks"
-                        });
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.Team", b =>
@@ -1743,106 +1083,6 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("user_emails", (string)null);
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.VolunteerBuildStatus", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<LocalDate?>("BarrioSetupStartDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("DayOffs")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("jsonb")
-                        .HasDefaultValueSql("'[]'::jsonb");
-
-                    b.Property<Guid>("EventSettingsId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Instant?>("SetAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("SetByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EventSettingsId");
-
-                    b.HasIndex("UserId", "EventSettingsId")
-                        .IsUnique();
-
-                    b.ToTable("volunteer_build_statuses", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.VolunteerEventProfile", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Allergies")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("AllergyOtherText")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DietaryPreference")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("IntoleranceOtherText")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("Intolerances")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("Languages")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("MedicalConditions")
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("Quirks")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("Skills")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<Instant>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("volunteer_event_profiles", (string)null);
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.VolunteerHistoryEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1875,50 +1115,6 @@ namespace Humans.Infrastructure.Migrations
                     b.HasIndex("ProfileId");
 
                     b.ToTable("volunteer_history_entries", (string)null);
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.VolunteerTagPreference", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ShiftTagId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ShiftTagId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "ShiftTagId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_volunteer_tag_preferences_user_tag_unique");
-
-                    b.ToTable("volunteer_tag_preferences", (string)null);
-                });
-
-            modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("FriendlyName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Xml")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("DataProtectionKeys");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>
@@ -2051,21 +1247,6 @@ namespace Humans.Infrastructure.Migrations
                     b.ToTable("user_tokens", (string)null);
                 });
 
-            modelBuilder.Entity("RotaShiftTag", b =>
-                {
-                    b.Property<Guid>("RotaId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ShiftTagId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("RotaId", "ShiftTagId");
-
-                    b.HasIndex("ShiftTagId");
-
-                    b.ToTable("rota_shift_tags", (string)null);
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.AccountMergeRequest", b =>
                 {
                     b.HasOne("Humans.Domain.Entities.User", "ResolvedByUser")
@@ -2101,17 +1282,6 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.ConsentRecord", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.DocumentVersion", "DocumentVersion")
-                        .WithMany("ConsentRecords")
-                        .HasForeignKey("DocumentVersionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("DocumentVersion");
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.ContactField", b =>
                 {
                     b.HasOne("Humans.Domain.Entities.Profile", "Profile")
@@ -2123,17 +1293,6 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("Profile");
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.DocumentVersion", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.LegalDocument", "LegalDocument")
-                        .WithMany("Versions")
-                        .HasForeignKey("LegalDocumentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("LegalDocument");
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.EventParticipation", b =>
                 {
                     b.HasOne("Humans.Domain.Entities.User", null)
@@ -2141,17 +1300,6 @@ namespace Humans.Infrastructure.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.GeneralAvailability", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.EventSettings", "EventSettings")
-                        .WithMany()
-                        .HasForeignKey("EventSettingsId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("EventSettings");
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.Profile", b =>
@@ -2172,39 +1320,6 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Profile");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.Rota", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.EventSettings", "EventSettings")
-                        .WithMany("Rotas")
-                        .HasForeignKey("EventSettingsId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("EventSettings");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.Shift", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.Rota", "Rota")
-                        .WithMany("Shifts")
-                        .HasForeignKey("RotaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Rota");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.ShiftSignup", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.Shift", "Shift")
-                        .WithMany("ShiftSignups")
-                        .HasForeignKey("ShiftId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Shift");
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.Team", b =>
@@ -2308,15 +1423,6 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Humans.Domain.Entities.VolunteerBuildStatus", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.EventSettings", null)
-                        .WithMany()
-                        .HasForeignKey("EventSettingsId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.VolunteerHistoryEntry", b =>
                 {
                     b.HasOne("Humans.Domain.Entities.Profile", "Profile")
@@ -2326,17 +1432,6 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Profile");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.VolunteerTagPreference", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.ShiftTag", "ShiftTag")
-                        .WithMany("VolunteerPreferences")
-                        .HasForeignKey("ShiftTagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ShiftTag");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -2390,36 +1485,6 @@ namespace Humans.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("RotaShiftTag", b =>
-                {
-                    b.HasOne("Humans.Domain.Entities.Rota", null)
-                        .WithMany()
-                        .HasForeignKey("RotaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Humans.Domain.Entities.ShiftTag", null)
-                        .WithMany()
-                        .HasForeignKey("ShiftTagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.DocumentVersion", b =>
-                {
-                    b.Navigation("ConsentRecords");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.EventSettings", b =>
-                {
-                    b.Navigation("Rotas");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.LegalDocument", b =>
-                {
-                    b.Navigation("Versions");
-                });
-
             modelBuilder.Entity("Humans.Domain.Entities.Profile", b =>
                 {
                     b.Navigation("ContactFields");
@@ -2427,21 +1492,6 @@ namespace Humans.Infrastructure.Migrations
                     b.Navigation("Languages");
 
                     b.Navigation("VolunteerHistory");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.Rota", b =>
-                {
-                    b.Navigation("Shifts");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.Shift", b =>
-                {
-                    b.Navigation("ShiftSignups");
-                });
-
-            modelBuilder.Entity("Humans.Domain.Entities.ShiftTag", b =>
-                {
-                    b.Navigation("VolunteerPreferences");
                 });
 
             modelBuilder.Entity("Humans.Domain.Entities.Team", b =>

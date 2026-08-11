@@ -3158,48 +3158,6 @@
 &lt;p&gt;— Das Humans-Team&lt;/p&gt;</value>
     <comment>{0} = display name, {1} = issue title, {2} = comment HTML, {3} = issue URL</comment>
   </data>
-  <data name="Agent_ConversationBackToHistory" xml:space="preserve">
-    <value>Zurück zum Verlauf</value>
-  </data>
-  <data name="Agent_ConversationEmpty" xml:space="preserve">
-    <value>Keine Nachrichten in diesem Gespräch.</value>
-  </data>
-  <data name="Agent_ConversationRefusedLabel" xml:space="preserve">
-    <value>Der Assistent hat es abgelehnt, in dieser Runde zu antworten.</value>
-  </data>
-  <data name="Agent_ConversationTitle" xml:space="preserve">
-    <value>Assistenten-Gespräch</value>
-  </data>
-  <data name="Agent_ConversationToolCallsSummary" xml:space="preserve">
-    <value>{0} Werkzeugaufruf(e)</value>
-  </data>
-  <data name="Agent_ConversationTranscript" xml:space="preserve">
-    <value>Transkript</value>
-  </data>
-  <data name="Agent_ContextCardCaveat" xml:space="preserve">
-    <value>Dies ist dein aktueller Kontext. Wenn sich deine Rollen oder Teams seit diesem Gespräch geändert haben, sah der Assistent damals eine andere Version.</value>
-  </data>
-  <data name="Agent_ContextCardEmpty" xml:space="preserve">
-    <value>Derzeit wird kein persönlicher Kontext an den Assistenten gesendet.</value>
-  </data>
-  <data name="Agent_ContextCardSummary" xml:space="preserve">
-    <value>Dein Kontext (wie der Assistent dich jetzt sieht)</value>
-  </data>
-  <data name="Agent_HistoryEmpty" xml:space="preserve">
-    <value>Noch keine Gespräche.</value>
-  </data>
-  <data name="Agent_HistoryLastMessage" xml:space="preserve">
-    <value>Letzte Nachricht</value>
-  </data>
-  <data name="Agent_HistoryMessages" xml:space="preserve">
-    <value>Nachrichten</value>
-  </data>
-  <data name="Agent_HistoryStarted" xml:space="preserve">
-    <value>Gestartet</value>
-  </data>
-  <data name="Agent_HistoryTitle" xml:space="preserve">
-    <value>Assistent — Meine Gespräche</value>
-  </data>
   <data name="Agent_InputPlaceholder" xml:space="preserve">
     <value>Frage, wie das System funktioniert…</value>
   </data>
@@ -5987,33 +5945,6 @@
   <!-- ======================== -->
   <!-- Survey                   -->
   <!-- ======================== -->
-  <data name="Survey_TransparencyNote" xml:space="preserve"><value>Deine Antworten können überprüft und analysiert werden, auch durch automatisierte Tools, um das Kollektiv zu verbessern.</value></data>
-  <data name="Survey_TitleFallback" xml:space="preserve"><value>Umfrage</value></data>
-  <data name="Survey_ResumeNotice" xml:space="preserve"><value>Du hast Antworten in Bearbeitung — mach dort weiter, wo du aufgehört hast.</value></data>
-  <data name="Survey_Language" xml:space="preserve"><value>Sprache</value></data>
-  <data name="Survey_AnonymityLegend" xml:space="preserve"><value>Wie möchtest du antworten?</value></data>
-  <data name="Survey_Anonymity_Identified" xml:space="preserve"><value>Identifiziert</value></data>
-  <data name="Survey_Anonymity_IdentifiedHelp" xml:space="preserve"><value>mit dir verknüpft; du kannst pausieren und später weitermachen.</value></data>
-  <data name="Survey_Anonymity_CompletionTracked" xml:space="preserve"><value>Teilnahme erfasst</value></data>
-  <data name="Survey_Anonymity_CompletionTrackedHelp" xml:space="preserve"><value>deine Antworten werden nicht mit dir verknüpft, aber deine Teilnahme wird gezählt.</value></data>
-  <data name="Survey_Anonymity_Anonymous" xml:space="preserve"><value>Anonym</value></data>
-  <data name="Survey_Anonymity_AnonymousHelp" xml:space="preserve"><value>keinerlei Verknüpfung mit dir.</value></data>
-  <data name="Survey_AnonymityFootnote" xml:space="preserve"><value>Anonyme und teilnahme-erfasste Antworten können nicht fortgesetzt werden, und du erhältst eventuell trotzdem eine Erinnerung. Nur eine identifizierte Antwort kann pausiert und später fortgesetzt werden.</value></data>
-  <data name="Survey_Start" xml:space="preserve"><value>Starten</value></data>
-  <data name="Survey_Continue" xml:space="preserve"><value>Fortsetzen</value></data>
-  <data name="Survey_PageOf" xml:space="preserve"><value>Seite {0} von {1}</value></data>
-  <data name="Survey_RequiredAlert" xml:space="preserve"><value>Bitte beantworte die Pflichtfragen, bevor du fortfährst.</value></data>
-  <data name="Survey_QuestionRequired" xml:space="preserve"><value>Diese Frage ist erforderlich.</value></data>
-  <data name="Survey_Back" xml:space="preserve"><value>Zurück</value></data>
-  <data name="Survey_Next" xml:space="preserve"><value>Weiter</value></data>
-  <data name="Survey_Submit" xml:space="preserve"><value>Absenden</value></data>
-  <data name="Survey_Closed_Title" xml:space="preserve"><value>Umfrage nicht verfügbar</value></data>
-  <data name="Survey_Closed_Heading" xml:space="preserve"><value>Diese Umfrage ist geschlossen</value></data>
-  <data name="Survey_Closed_Body" xml:space="preserve"><value>Danke für dein Interesse — diese Umfrage nimmt keine Antworten mehr an.</value></data>
-  <data name="Survey_InvalidLink_Heading" xml:space="preserve"><value>Dieser Link ist nicht mehr gültig</value></data>
-  <data name="Survey_InvalidLink_Body" xml:space="preserve"><value>Der Umfrage-Link ist ungültig oder abgelaufen. Wenn du denkst, dass das ein Fehler ist, fordere bitte einen neuen Link an.</value></data>
-  <data name="Survey_ThankYou_Heading" xml:space="preserve"><value>Vielen Dank</value></data>
-  <data name="Survey_ThankYouFallback" xml:space="preserve"><value>Vielen Dank für deine Antwort.</value></data>
   <data name="AccountStatus_Title" xml:space="preserve"><value>Kontostatus</value></data>
   <data name="AccountStatus_HeadingSuspended" xml:space="preserve"><value>Dein Konto wurde gesperrt</value></data>
   <data name="AccountStatus_HeadingRejected" xml:space="preserve"><value>Dein Konto wurde abgelehnt</value></data>
