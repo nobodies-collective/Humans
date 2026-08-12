@@ -21,13 +21,6 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     : IdentityDbContext<User, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<Profile> Profiles => Set<Profile>();
-    public DbSet<Team> Teams => Set<Team>();
-    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
-    public DbSet<TeamJoinRequest> TeamJoinRequests => Set<TeamJoinRequest>();
-    public DbSet<TeamJoinRequestStateHistory> TeamJoinRequestStateHistories => Set<TeamJoinRequestStateHistory>();
-    public DbSet<TeamRoleDefinition> TeamRoleDefinitions => Set<TeamRoleDefinition>();
-    public DbSet<TeamRoleAssignment> TeamRoleAssignments => Set<TeamRoleAssignment>();
-    public DbSet<TeamEarlyEntryGrant> TeamEarlyEntryGrants => Set<TeamEarlyEntryGrant>();
     public DbSet<ContactField> ContactFields => Set<ContactField>();
     public DbSet<UserEmail> UserEmails => Set<UserEmail>();
     public DbSet<VolunteerHistoryEntry> VolunteerHistoryEntries => Set<VolunteerHistoryEntry>();
@@ -49,13 +42,12 @@ internal sealed class HumansDbContext(DbContextOptions<HumansDbContext> options)
     private static readonly string[] PeeledConfigurationNamespaces =
     [
         typeof(Configurations.Auth.RoleAssignmentConfiguration).Namespace!,
-        typeof(Configurations.Email.EmailOutboxMessageConfiguration).Namespace!,
         typeof(Configurations.GoogleIntegration.GoogleResourceConfiguration).Namespace!,
         typeof(Configurations.Tickets.TicketOrderConfiguration).Namespace!,
         typeof(Configurations.Camps.CampConfiguration).Namespace!,
-        typeof(Configurations.Legal.LegalDocumentConfiguration).Namespace!,
         typeof(Configurations.AuditLog.AuditLogEntryConfiguration).Namespace!,
         typeof(Configurations.Shifts.RotaConfiguration).Namespace!,
+        typeof(Configurations.Teams.TeamConfiguration).Namespace!,
     ];
 
     protected override void OnModelCreating(ModelBuilder builder)

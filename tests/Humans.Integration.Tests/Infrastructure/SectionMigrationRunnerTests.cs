@@ -1,3 +1,8 @@
+using Humans.Email.Data;
+using Humans.Consent.Services;
+using Humans.Consent.Contracts;
+using Humans.Consent.Domain;
+using Humans.Consent.Data;
 using Humans.Notifications.Data;
 using Humans.Notifications.Domain;
 using Humans.Notifications.Contracts;
@@ -208,6 +213,13 @@ public sealed class SectionMigrationRunnerTests(HumansTestDatabase database)
             "shifts",
             CreateSectionContext<ShiftsDbContext>,
             "SELECT count(*) FROM shift_tags WHERE \"Id\" = '00000000-0000-0000-0003-000000000001'"),
+        new(
+            "Teams",
+            "teams",
+            CreateSectionContext<TeamsDbContext>,
+            // Six system-team seed rows — probe a single reserved Id so the
+            // count is 1 on both the fresh and mark-applied paths.
+            "SELECT count(*) FROM teams WHERE \"Id\" = '00000000-0000-0000-0001-000000000001'"),
     ];
 
     [HumansFact]
