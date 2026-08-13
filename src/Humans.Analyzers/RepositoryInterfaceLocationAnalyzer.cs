@@ -12,9 +12,21 @@ namespace Humans.Analyzers;
 /// namespace exactly (the repo interface folder is flat, not per-section).
 /// </summary>
 /// <remarks>
+/// <para>
 /// Runs in <c>Humans.Application</c> only. Replaces ~20 per-section reflection
 /// assertions of the form
 /// <c>IXxxRepository_LivesInApplicationInterfacesRepositoriesNamespace</c>.
+/// </para>
+/// <para>
+/// Deliberately <em>not</em> widened to section assemblies (a moved section owns
+/// its repository interface under <c>Humans.&lt;Section&gt;.Data</c>) and
+/// deliberately not retired: fifteen <c>IRepository</c> extenders still live in
+/// <c>Humans.Application.Interfaces.Repositories</c>, and the surviving
+/// <c>ServiceBoundaryArchitectureTests</c> check repository markers and
+/// ownership-map membership but not this location invariant. Retire when
+/// <c>Humans.Application/Interfaces/Repositories</c> is empty
+/// (nobodies-collective/Humans#866, G5).
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class RepositoryInterfaceLocationAnalyzer : DiagnosticAnalyzer

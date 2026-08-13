@@ -27,6 +27,16 @@ namespace Humans.Analyzers;
 /// <c>ServiceName_LivesInHumansApplicationServices&lt;Section&gt;Namespace</c>
 /// AND enforces per-section ownership (which the looser prefix check did not).
 /// </para>
+/// <para>
+/// Deliberately <em>not</em> widened to section assemblies and deliberately not
+/// retired: a moved section carries its own assembly boundary, but the ~60
+/// service implementations still in <c>Humans.Application.Services</c> have no
+/// such boundary, and this is their only namespace check. It also gates
+/// <c>CrossSectionRepositoryInjectionAnalyzer</c> — that rule derives a service's
+/// section from this namespace and returns early when it cannot, so a service
+/// misplaced here silently drops out of HUM0017 as well. Retire when
+/// <c>Humans.Application/Services</c> is empty (nobodies-collective/Humans#866, G5).
+/// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ApplicationServiceLocationAnalyzer : DiagnosticAnalyzer
