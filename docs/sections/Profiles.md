@@ -5,7 +5,6 @@
   src/Humans.Domain/Entities/UserEmail.cs
   src/Humans.Domain/Entities/CommunicationPreference.cs
   src/Humans.Domain/Entities/VolunteerHistoryEntry.cs
-  src/Humans.Domain/Entities/AccountMergeRequest.cs
   src/Humans.Infrastructure/Data/Configurations/Profiles/**
   src/Humans.Web/Controllers/ProfileController.cs
   src/Humans.Web/Controllers/ProfileApiController.cs
@@ -234,29 +233,6 @@ Sub-aggregate of Profile — no separate service. Records languages spoken with 
 
 **Indexes:** `ProfileId`.
 
-### AccountMergeRequest
-
-Tracks pending and resolved merges between duplicate accounts. `AccountMergeService` orchestrates the merge; `DuplicateAccountService` is the stateless detector that flags candidates.
-
-**Table:** `account_merge_requests`
-
-| Field | Type | Notes |
-|-------|------|-------|
-| Id | Guid | PK |
-| TargetUserId | Guid | FK → User (Cascade) — receives the merged data |
-| SourceUserId | Guid | FK → User (Cascade) — gets archived |
-| Email | string (256) | The address that triggered the request |
-| PendingEmailId | Guid | The unverified `UserEmail` row on the target account |
-| Status | AccountMergeRequestStatus | Stored as string (max 50) |
-| CreatedAt | Instant | When created |
-| ResolvedAt | Instant? | When accepted or rejected |
-| ResolvedByUserId | Guid? | FK → User (SetNull) — admin who resolved |
-| AdminNotes | string? (4000) | Admin notes |
-
-**Indexes:** `Status`, `TargetUserId`, `SourceUserId`.
-
-The entity still carries `TargetUser`, `SourceUser`, and `ResolvedByUser` navigation properties (configured with `HasOne(...).WithMany().HasForeignKey(...)`). They predate the §15i nav-strip work; the merge admin views read them directly today. Strip and route through `IUserServiceRead.GetUserInfosAsync` when this pattern is generalised across the section.
-
 ### MembershipTier
 
 | Value | Int | Description |
@@ -350,7 +326,6 @@ Admin-only flows for the section's cross-account hygiene (routes pre-date `memor
 
 ## Invariants
 
-<!-- wheat: docs/superpowers/specs/2026-05-25-dietary-prompt-tightening-design.md §Out of Scope (YAGNI) -->
 - `Profile.DietaryPreference` is stored as free text (`varchar(200)?`), not a constrained enum. The `/Profile/Me/Edit` and `/Profile/Me/DietaryMedical` radio groups constrain the UI to `DietaryOptions.DietaryPreferences` (Omnivore / Vegetarian / Vegan / Pescatarian), but neither `ProfileController` nor `UserService.SaveDietaryMedicalAsync` re-checks membership on POST — any non-blank string persists. Deliberate: legacy free-text values predating [#279](../features/profiles/dietary-medical-nudge.md) stay readable without a data migration. Allergies are the exception — the Edit path filters them against `DietaryOptions.AllergyOptions` before saving.
 - Every authenticated human can edit their own profile regardless of membership status (available during onboarding).
 - Contact field visibility is enforced per-field: a human viewing their own profile sees everything. Board members see everything. Coordinators see CoordinatorsAndBoard-level and below. Shared-team members see MyTeams-level and below. Other active members see only AllActiveProfiles fields.
@@ -369,12 +344,10 @@ Admin-only flows for the section's cross-account hygiene (routes pre-date `memor
 - The preferred-language flag (rendered next to a person's name on `ProfileCard` and `_HumanPopover`) is visible only to `HumanAdmin` / `Board` / `Admin` viewers — general active humans see other people's profile cards and popovers without it. Self-view is unaffected (the flag isn't shown there in the first place; preferred language is editable on `/Profile/Me/Edit`).
 - The authenticated `_HumanPopover` (`GET /Profile/{id}/Popover`) also renders the person's active-season camp name + camp roles, sourced from `ICampServiceRead.GetCampUserInfoAsync`. This block is gated to `AnyAdminRole` viewers (admin-only) and is omitted when the person is not an Active member of any camp this season.
 - Profile-less users (legacy contact imports whose Stub Profile has not yet been materialized by the `/Profile/Admin/Backfill` tool) render in `GET /Profile/{id}/Popover` as a sparse card showing display name, best-available verified email, and an "imported · no profile yet" badge — the endpoint never returns 404 for a known `User`. Truly unknown user ids still return 404. In the fallback (no-profile) branch the email is derived directly from canonical `UserEmail` rows (verified primary, then any verified) — `User.Email` is not read on that branch because it silently falls back to the legacy Identity column when `UserEmails` is not loaded (see `User.Email` SILENT-FALLBACK FOOTGUN). The full-profile branch still reads `popoverUser.Email` (pre-existing); same footgun applies and is tracked separately.
-<!-- wheat: docs/superpowers/specs/2026-03-10-facilitated-messaging-design.md §Email; §What This Feature Does NOT Include -->
 - Facilitated messaging (`/Profile/{id}/SendMessage`) is a **conduit, not a mailbox** — Humans relays one-off plain-text emails between humans and stores nothing: no message persistence, no threading, no attachments. (Deliberate contrast with Feedback, which *does* persist a conversation thread.) The body is plain text only — HTML tags are stripped server-side, then the renderer HTML-encodes the text and converts newlines to `<br>`; max 2000 chars. The recipient's address is never disclosed to the sender: the email's `Reply-To` is set to the sender's notification email only when the sender ticks "include my contact info"; otherwise it is omitted and the footer states the human chose not to share contact information.
 
 ## Negative Access Rules
 
-<!-- wheat: docs/superpowers/specs/2026-05-25-dietary-prompt-tightening-design.md §Voluntelling (on-behalf-of signup) -->
 - A privileged signup approver **cannot** use the dietary redirect-and-replay flow to sign up anyone but themselves. `ProfileController.ReplayShiftSignupAfterDietaryMedicalSaveAsync` always replays for the current `user.Id`, and `ShiftRoleChecks.IsPrivilegedSignupApprover` only relaxes signup validation (auto-confirm) — it never switches the actor. There is no target-user parameter on the form or on the `returnAction` / `shiftId` / `rotaId` carryover.
 - Regular humans **cannot** view suspended profiles.
 - Regular humans **cannot** edit another human's profile.
@@ -382,7 +355,6 @@ Admin-only flows for the section's cross-account hygiene (routes pre-date `memor
 - Non-active humans (still onboarding) **cannot** view other humans' profiles or send messages.
 - Any Admin **cannot** purge their own account.
 - Purge **cannot** run in production environments (gate on `IWebHostEnvironment`).
-<!-- wheat: docs/superpowers/specs/2026-04-30-email-oauth-pr4-grid-and-link.md §Non-goals (Admin-driven OAuth link) -->
 - Admins **cannot** establish a new OAuth link on a user's behalf — there is no admin `Link` action under `/Profile/{id}/Admin/Emails/*`. Google authenticates whoever is at the keyboard, and admins must never hold user credentials; linking requires the target user's own session (`POST /Profile/Me/Emails/Link/{provider}`). Admins may `Unlink` existing provider-attached rows (that operates on already-stored data, no OAuth flow).
 
 ## Triggers
@@ -411,14 +383,13 @@ Admin-only flows for the section's cross-account hygiene (routes pre-date `memor
 **Status:** (A) Migrated — canonical §15 reference implementation (peterdrier/Humans PR #235, 2026-04-20). `AccountMergeService` / `DuplicateAccountService` now live in the **Users** section (`Humans.Application/Services/Users/`) following the account-merge consolidation — see [Users.md](Users.md).
 
 - Services live in `Humans.Application.Services.Profiles/` and never import `Microsoft.EntityFrameworkCore`.
-- `IUserRepository` (profile/contact methods), `IUserEmailRepository`, and `ICommunicationPreferenceRepository` are the only code paths that touch this section's tables via `DbContext`. Repositories are Singleton, using `IDbContextFactory<HumansDbContext>` and short-lived contexts per method.
+- `IUserRepository` (profile/contact methods), `IUserEmailRepository`, and `ICommunicationPreferenceRepository` are the only code paths that touch this section's tables via `DbContext`. Repositories are Singleton, using `IDbContextFactory<UsersDbContext>` and short-lived contexts per method.
 - **Decorator decision — caching decorator.** `CachingProfileService` is a Singleton owning `ConcurrentDictionary<Guid, FullProfile> _byUserId`. Warmup via `FullProfileWarmupHostedService`. See design-rules §15d.
 - **`FullProfile` is canonical (issue #635 §15i, 2026-05-04).** Three derived properties — `PrimaryEmail`, `AllVerifiedEmails`, `GoogleEmail` — replace the old `User.UserEmails` / `User.GetEffectiveEmail()` / `User.GoogleEmail` reader sites. `CachingProfileService` populates them from already-loaded `UserEmail` rows (no new repo lookups). `FullProfile.NotificationEmail` is kept as a get-only alias for `PrimaryEmail` for backward compat. The lifecycle marker `Profile.State` (Stub/Active/Suspended) flows through `FullProfile.State` and is lazily computed-and-written-back when the persisted value is `null` (see `CachingProfileService.ComputeProfileState`).
 - **Stub Profile invariant (issue #635 §15i).** Every newly created User materializes a `ProfileState.Stub` Profile inline at the User-creation call site (`ExternalLoginService.CompleteExternalLoginAsync`, `AccountProvisioningService.FindOrCreateUserByEmailAsync`/`CompleteMagicLinkSignupAsync`). `ProfileService.SaveProfileAsync` promotes the row to `Active` once `BurnerName`/`FirstName`/`LastName` are all populated. Legacy profile-less users (contact imports pre-§15i) are reconciled through the `/Profile/Admin/Backfill` admin tool — idempotent count-and-bulk-create page; no-op when N=0. Until the backfill is run, `GET /Profile/{id}/Popover` (issue #690) renders a sparse fallback card for these users so `<human-link>` hovers don't 404 — see the Invariants section bullet.
 - **`UserEmail.IsPrimary` invariants.** Service-layer guarantee in `UserEmailService.EnsurePrimaryInvariantAsync` (exactly one verified `IsPrimary` per user, recovers from zero/multi states). Account-merge fold preserves target's `IsPrimary` and demotes the source's. No DB unique index — per `memory/architecture/db-enforcement-minimal.md` the service is the contract; a DB partial unique index would push violations to runtime as untyped `DbUpdateException` failures rather than service-layer recovery (column persists under legacy name `IsNotificationTarget` per `no-column-drops-for-decoupling.md`). **`UserEmailService.ClearPrimaryAsync` (issue #650, hardened by issue #686) is the duplicate-flag recovery path** — it drops `IsPrimary` from a single row *without* invoking `EnsurePrimaryInvariantAsync`, but only when at least one other verified `IsPrimary` row exists; it returns `false` otherwise so the user can never end in a zero-verified-primary state via this path. Surface (admin and self): `/Profile/{id}/Admin/Emails/ClearPrimary` and `/Profile/Me/Emails/ClearPrimary` — both UI buttons appear only when ≥ 2 verified `IsPrimary` rows exist, and the service rejects direct form replay below that threshold.
 - **Email delete guards (issue nobodies-collective/Humans#758).** `UserEmailService.DeleteEmailAsync` rejects (`ValidationException`) removal of (a) the primary email — the user must promote another verified email to primary first — and (b) any email whose address matches the user's event ticket (order buyer or matched attendee), read via `ITicketServiceRead.GetTicketOrdersAsync` (lazy-resolved through `IServiceProvider` to break the `TicketQueryService → IUserEmailService → ITicketServiceRead` DI cycle). The `/Profile/Me/Emails` grid hides the Delete action for both row kinds; the service re-validates both guards server-side for self and admin paths. Admin recovery for a deleted ticket/primary email uses the existing "Add verified email directly" card (`AdminAddVerifiedEmail`) + `AdminSetPrimary`.
 - **Email re-add fix (issue nobodies-collective/Humans#758).** `UserEmailService.AddEmailAsync` only rejects an address with "This is already your sign-in email" when a live **verified** `UserEmail` row holds it. The prior check used `GetPrimaryEmailAsync`, which falls back to the legacy `AspNetUsers.Email` column — so a user who deleted their primary row could never re-add the same address (the original incident). `IsGoogle` is never set or inferred on this path.
-<!-- wheat: docs/superpowers/specs/2026-04-30-email-oauth-pr4-grid-and-link.md §Service & repo changes -->
 - **Unlink and Delete operate on disjoint row sets.** `UserEmailService.DeleteEmailAsync` returns `false` for Provider-attached rows (guards non-UI callers; the grid never routes one there), and `UnlinkAsync` operates only on rows with `Provider`+`ProviderKey`: it removes the `AspNetUserLogins` entry via `UserManager.RemoveLoginAsync` **before** deleting the email row, and hard-fails (no row deletion) if login removal fails so `user_logins` and `user_emails` never diverge. `UnlinkAsync` also throws (`ValidationException`) if no *other* verified email would remain — the guard runs even when the row being unlinked is itself unverified, because an unverified row can still carry the user's only OAuth login (issue nobodies-collective/Humans#731). Admin mirror routes exist for both (`/Profile/{id}/Admin/Emails/Unlink/{emailId}`, `/Delete`).
 - **Inner service** is `Humans.Application.Services.Profiles.ProfileService`, registered as `AddKeyedScoped` under `CachingProfileService.InnerServiceKey` (`"profile-inner"`). The decorator resolves it per-call via `IServiceScopeFactory`.
 - **`IFullProfileInvalidator`** is aliased to the same Singleton `CachingProfileService` instance so external sections' writes (Auth, Onboarding, Teams, Google) can invalidate the cache without touching the dict.
@@ -434,5 +405,4 @@ Account deletion cascades (user-requested / admin-initiated / expiry-triggered) 
 ### Touch-and-clean guidance
 
 - Cross-section reads for `Profile.User` / `UserEmail.User` / `CommunicationPreference.User` must go through `IUserServiceRead.GetUserInfosAsync` — do not re-add nav properties to the entities.
-<!-- wheat: docs/superpowers/specs/2026-04-30-email-oauth-pr4-grid-and-link.md §Architecture (hard naming rule) -->
 - The token "OAuth" is banned from `IUserEmailService` / `UserEmailRepository` method, parameter, and property names — provider operations are parameterized (`LinkAsync(provider, providerKey, …)`) so new providers add data, not methods. Enforced by `UserArchitectureTests.NoOAuthTokenInUserEmailServiceOrRepositoryMethodNames`; the single allowed exception is `ReconcileOAuthIdentityAsync` (issue nobodies-collective/Humans#697), where "OAuth" is categorical (the OAuth-callback write channel, distinct from user-driven email management).
