@@ -22,17 +22,17 @@ This file is the **index and cross-cutting rule sheet** for the data model. Per-
 | Application | [Governance](../../src/Sections/Humans.Governance/Docs/Governance.md) | |
 | ApplicationStateHistory | [Governance](../../src/Sections/Humans.Governance/Docs/Governance.md) | Append-only (§12). |
 | BoardVote | [Governance](../../src/Sections/Humans.Governance/Docs/Governance.md) | Transient — deleted on finalization. |
-| RoleAssignment | [Auth](../sections/Auth.md) | |
+| RoleAssignment | [Auth](../../src/Sections/Humans.Auth/Docs/Auth.md) | |
 | LegalDocument / DocumentVersion | [Consent](../../src/Sections/Humans.Consent/Docs/Consent.md) | |
 | ConsentRecord | [Consent](../../src/Sections/Humans.Consent/Docs/Consent.md) | Append-only via DB triggers (§12). |
-| Team | [Teams](../sections/Teams.md) | |
-| TeamMember | [Teams](../sections/Teams.md) | |
-| TeamJoinRequest | [Teams](../sections/Teams.md) | |
-| TeamJoinRequestStateHistory | [Teams](../sections/Teams.md) | Append-only (§12). |
-| TeamRoleDefinition | [Teams](../sections/Teams.md) | |
-| TeamRoleAssignment | [Teams](../sections/Teams.md) | |
-| TeamEarlyEntryGrant | [Teams](../sections/Teams.md) | Per-team Early Entry grant (gated by `Team.EarlyEntryEnabled`). Cross-section `UserId` FK — nav stripped, resolved via `IUserServiceRead`. |
-| GoogleResource | [Teams](../sections/Teams.md) | Team Resources sub-aggregate. |
+| Team | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | |
+| TeamMember | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | |
+| TeamJoinRequest | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | |
+| TeamJoinRequestStateHistory | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | Append-only (§12). |
+| TeamRoleDefinition | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | |
+| TeamRoleAssignment | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | |
+| TeamEarlyEntryGrant | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | Per-team Early Entry grant (gated by `Team.EarlyEntryEnabled`). Cross-section `UserId` FK — nav stripped, resolved via `IUserServiceRead`. |
+| GoogleResource | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | Team Resources sub-aggregate. |
 | Camp / CampSeason / CampImage / CampHistoricalName / CampSettings | [Camps](../sections/Camps.md) | |
 | CampMember | [Camps](../sections/Camps.md) | Per-season, post-hoc human/camp affiliation (Pending/Active/Removed). Partial unique on `(CampSeasonId, UserId) WHERE Status <> 'Removed'`. |
 | CampRoleDefinition / CampRoleAssignment | [Camps](../sections/Camps.md) | Per-camp role catalogue + per-season assignments. Owned by `CampRoleService`. Unique on `(CampSeasonId, CampRoleDefinitionId, CampMemberId)`. |
@@ -43,7 +43,7 @@ This file is the **index and cross-cutting rule sheet** for the data model. Per-
 | CalendarEvent / CalendarEventException | [Calendar](../../src/Sections/Humans.Calendar/Docs/Calendar.md) | |
 | EmailOutboxMessage | [Email](../../src/Sections/Humans.Email/Docs/Email.md) | |
 | Campaign / CampaignCode / CampaignGrant | [Campaigns](../../src/Sections/Humans.Campaigns/Docs/Campaigns.md) | |
-| TicketOrder / TicketAttendee / TicketSyncState / TicketTransferRequest | [Tickets](../sections/Tickets.md) | |
+| TicketOrder / TicketAttendee / TicketSyncState / TicketTransferRequest | [Tickets](../../src/Sections/Humans.Tickets/Docs/Tickets.md) | |
 | GateScanEvent / GateSettings / GateStaffPin | [Gate](../../src/Sections/Humans.Gate/Docs/Gate.md) | `GateScanEvent` is the append-only gate admission log (retention-purged by `GateRetentionJob`; user ids re-pointed on merge). Cross-section refs (`ScannedByUserId`, `GuestUserId`, `OverrideByUserId`, `TicketAttendeeId`, `GateStaffPin.UserId`) are bare Guid columns — no navs, no cross-section EF FK constraints. |
 | EventSettings / Rota / Shift / ShiftSignup / GeneralAvailability / VolunteerEventProfile / VolunteerBuildStatus / ShiftTag / VolunteerTagPreference | [Shifts](../sections/Shifts.md) | |
 | Event / EventCategory / EventVenue / EventGuideSettings / EventModerationAction / EventFavourite / EventPreference | [Events](../../src/Sections/Humans.Events/Docs/Events.md) | Event Guide submissions, moderation, categories, shared venues, per-user favourites/preferences. `EventModerationAction` append-only (§12 — Restrict on delete). |
@@ -57,7 +57,7 @@ This file is the **index and cross-cutting rule sheet** for the data model. Per-
 | SyncServiceSettings / GoogleSyncOutboxEvent | [Google Integration](../sections/GoogleIntegration.md) | |
 | Survey / SurveyQuestion / SurveyQuestionOption / SurveyResponse / SurveyAnswer / SurveyInvitation | [Survey](../../src/Sections/Humans.Surveys/Docs/Surveys.md) | Cross-domain refs are bare `Guid` FK columns only — no nav properties, no cross-section EF FK constraints. |
 | SystemSetting | System Settings section | Owned by `SystemSettingsRepository` (exposed via `ISystemSettingsService`); consuming sections read/write keys through it. See [SystemSetting below](#systemsetting-system-settings-section). |
-| AuditLogEntry | [Audit Log](../sections/AuditLog.md) | Append-only (§12). |
+| AuditLogEntry | [Audit Log](../../src/Sections/Humans.AuditLog/Docs/AuditLog.md) | Append-only (§12). |
 | Notification / NotificationRecipient | [Notifications](../../src/Sections/Humans.Notifications/Docs/Notifications.md) | |
 
 <!-- /freshness:auto -->
@@ -200,7 +200,7 @@ Append-only sections (§12) cannot rewrite their `UserId` / `ActorUserId` column
 
 | Section | Owning entity | Read paths that chain-follow |
 |---------|---------------|------------------------------|
-| [Audit Log](../sections/AuditLog.md) | `AuditLogEntry` | `GetByUserAsync`, `GetUserAuditLogPageAsync`, per-entity history when entity is User, `ContributeForUserAsync` |
+| [Audit Log](../../src/Sections/Humans.AuditLog/Docs/AuditLog.md) | `AuditLogEntry` | `GetByUserAsync`, `GetUserAuditLogPageAsync`, per-entity history when entity is User, `ContributeForUserAsync` |
 | [Consent](../../src/Sections/Humans.Consent/Docs/Consent.md) | `ConsentRecord` | `GetUserConsentsAsync`, `HasAllRequiredConsentsAsync`, consent dashboard, `ContributeForUserAsync` |
 | [Budget](../../src/Sections/Humans.Budget/Docs/Budget.md) | `BudgetAuditLog` | `ContributeForUserAsync` (GDPR) |
 
@@ -213,21 +213,21 @@ The following entities are append-only — no `UpdateAsync` / `DeleteAsync` on t
 | Entity | Owning section | Enforcement |
 |--------|---------------|-------------|
 | ConsentRecord | [Consent](../../src/Sections/Humans.Consent/Docs/Consent.md) | DB triggers block UPDATE / DELETE |
-| AuditLogEntry | [Audit Log](../sections/AuditLog.md) | Architecture test: `AuditLogArchitectureTests.IAuditLogRepository_HasNoUpdateOrDeleteMethods` |
+| AuditLogEntry | [Audit Log](../../src/Sections/Humans.AuditLog/Docs/AuditLog.md) | Architecture test: `AuditLogArchitectureTests.IAuditLogRepository_HasNoUpdateOrDeleteMethods` |
 | BudgetAuditLog | [Budget](../../src/Sections/Humans.Budget/Docs/Budget.md) | Repository shape — no update/delete methods |
 | CampPolygonHistory | [City Planning](../../src/Sections/Humans.CityPlanning/Docs/CityPlanning.md) | Architecture test: `CityPlanningArchitectureTests` pins append-only repo surface |
 | ApplicationStateHistory | [Governance](../../src/Sections/Humans.Governance/Docs/Governance.md) | Repository shape — no update/delete methods |
-| TeamJoinRequestStateHistory | [Teams](../sections/Teams.md) | Repository shape (target; pending sub-task nobodies-collective/Humans#540a) |
+| TeamJoinRequestStateHistory | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | Repository shape (target; pending sub-task nobodies-collective/Humans#540a) |
 
 ## Constants
 
 ### SystemTeamIds
 
-See [`../sections/Teams.md`](../sections/Teams.md#systemteamids-constants) for the authoritative list.
+See [`Teams.md`](../../src/Sections/Humans.Teams/Docs/Teams.md#systemteamids-constants) for the authoritative list.
 
 ### RoleNames
 
-See [`../sections/Auth.md`](../sections/Auth.md#rolenames-constants) for the authoritative list.
+See [`Auth.md`](../../src/Sections/Humans.Auth/Docs/Auth.md#rolenames-constants) for the authoritative list.
 
 ## Where to add a new entity
 

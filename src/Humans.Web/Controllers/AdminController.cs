@@ -5,7 +5,7 @@ using Humans.Email.Contracts;
 using Humans.Expenses.Contracts;
 using Humans.Feedback.Contracts;
 using Humans.Application.Interfaces.Shifts;
-using Humans.Application.Interfaces.Teams;
+using Humans.Teams.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Store.Contracts;
 using Humans.UI.Authorization;

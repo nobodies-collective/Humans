@@ -22,14 +22,10 @@ public static class InfrastructureServiceCollectionExtensions
         // DatabaseMigrationHostedService in registration order. Users carries the
         // Identity tables; its sentinel is the chain-created users table.
         services.AddSectionDbContext<UsersDbContext>(sentinelTable: "users");
-        services.AddSectionDbContext<AuthDbContext>(sentinelTable: "role_assignments");
         services.AddSectionDbContext<GoogleIntegrationDbContext>(sentinelTable: "google_resources");
-        services.AddSectionDbContext<TicketsDbContext>(sentinelTable: "ticket_orders");
         services.AddSectionDbContext<CampsDbContext>(sentinelTable: "camps");
         services.AddSectionDbContext<SystemDbContext>(sentinelTable: "DataProtectionKeys");
-        services.AddSectionDbContext<AuditLogDbContext>(sentinelTable: "audit_log");
         services.AddSectionDbContext<ShiftsDbContext>(sentinelTable: "shifts");
-        services.AddSectionDbContext<TeamsDbContext>(sentinelTable: "teams");
 
         services.AddHostedService<DatabaseMigrationHostedService>();
 

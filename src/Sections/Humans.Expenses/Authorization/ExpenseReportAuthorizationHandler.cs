@@ -1,8 +1,8 @@
 using Humans.UI.Authorization;
 using System.Security.Claims;
 using Humans.Budget.Contracts;
-using Humans.Application.Interfaces.Teams;
 using Humans.Expenses.Contracts;
+using Humans.Teams.Contracts;
 using Humans.Expenses.Services.Dtos;
 using Humans.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
