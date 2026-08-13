@@ -31,7 +31,6 @@ public class NotificationsArchitectureTests
 
     // The DbContext-constructor-parameter check is covered by the generic
     // ApplicationServicesTakeNoDbContextRule for every Application service.
-    // Repository-takes check covered by IRepositoryImplementationsAreSealedRule.
     // Service-namespace check covered by HUM0012.
 
     [HumansFact]
@@ -141,6 +140,7 @@ public class NotificationsArchitectureTests
 
     // ── INotificationRepository ──────────────────────────────────────────────
 
-    // Sealed-repository check is covered by the generic
-    // IRepositoryImplementationsAreSealedRule across every repository.
+    // Sealed-repository check covered by HUM0034 (section types are internal) plus
+    // MA0053 (an unsealed internal class is a build error) — not by
+    // IRepositoryImplementationsAreSealedRule, which sweeps Humans.Infrastructure only.
 }

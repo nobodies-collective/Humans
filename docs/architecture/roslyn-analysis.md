@@ -84,7 +84,16 @@ assertion families that are plausible analyzer candidates:
   rather than constructing an application context directly (any
   per-section context). The first two are already generalized arch tests
   (`IRepositoryImplementationsAreSealedRule`,
-  `RepositoryImplementationsLiveInInfrastructureRule`).
+  `RepositoryImplementationsLiveInInfrastructureRule`), both scoped to the
+  `Humans.Infrastructure` assembly. They do **not** sweep the G5 section
+  assemblies, and should not be widened to: there, HUM0034 forces every
+  non-`Contracts/` type `internal` and MA0053 then errors on an unsealed
+  `internal` class, so sealing is a structural fact; and a section repository
+  lives under its own section namespace by construction, so the
+  `Humans.Infrastructure.*` prefix would be wrong. Both rules retire — file
+  deleted, not repointed — once `src/Humans.Infrastructure/Repositories/` is
+  empty. Note MA0053 does not report `public` classes, which is why
+  `Humans.Infrastructure` (no HUM0034) still needs the sealing sweep.
 - Interface marker obligations should be compile-time enforced:
   `I*Service`/`I*Query`/`I*Calculator` extend `IApplicationService`, and
   `I*Repository` extends `IRepository`.

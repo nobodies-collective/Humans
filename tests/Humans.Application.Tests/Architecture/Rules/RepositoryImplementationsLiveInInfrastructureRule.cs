@@ -5,19 +5,28 @@ using Humans.Application.Interfaces.Repositories;
 namespace Humans.Application.Tests.Architecture.Rules;
 
 /// <summary>
-/// Generic rule: every concrete <see cref="IRepository"/> implementation lives
-/// in a namespace under <c>Humans.Infrastructure.Repositories.*</c>.
-///
-/// Repository implementations belong in the Infrastructure layer. A concrete
-/// repository in <c>Humans.Application.*</c> or <c>Humans.Web.*</c> is a
-/// layer-inversion violation. The Infrastructure assembly is the correct home;
-/// the namespace should start with <c>Humans.Infrastructure.Repositories.</c>
-/// (with the section-named subfolder as the next segment).
-///
-/// Reflects over the Infrastructure assembly (via an anchor type) to find
-/// every non-abstract class that implements <see cref="IRepository"/> and
-/// asserts its namespace is inside the expected prefix.
+/// Generic rule: every concrete <see cref="IRepository"/> implementation still in
+/// <c>Humans.Infrastructure</c> lives in a namespace under
+/// <c>Humans.Infrastructure.Repositories.*</c>, with the section-named subfolder as
+/// the next segment (design-rules §3).
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Scope is Humans.Infrastructure only.</b> A repository that has moved into its
+/// section project (#866, G5) lives under that section's own <c>Data/</c> namespace
+/// by construction — the assembly boundary is the location rule there, and asserting
+/// a <c>Humans.Infrastructure.*</c> prefix over section assemblies would be actively
+/// wrong. Nothing else covers the nine repositories still in
+/// <c>src/Humans.Infrastructure/Repositories/</c>: HUM0013 constrains repository
+/// <i>interfaces</i> in <c>Humans.Application</c>, and HUM0034 does not run outside a
+/// section assembly.
+/// </para>
+/// <para>
+/// This rule retires itself alongside
+/// <see cref="IRepositoryImplementationsAreSealedRule"/>: once
+/// <c>src/Humans.Infrastructure/Repositories/</c> is empty, delete the file.
+/// </para>
+/// </remarks>
 public class RepositoryImplementationsLiveInInfrastructureRule
 {
     private const string ExpectedNamespacePrefix = "Humans.Infrastructure.Repositories";
@@ -33,7 +42,7 @@ public class RepositoryImplementationsLiveInInfrastructureRule
             .GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract)
             .Where(t => typeof(IRepository).IsAssignableFrom(t))
-            .Where(t => !(t.Namespace?.StartsWith(ExpectedNamespacePrefix, StringComparison.Ordinal) == true))
+            .Where(t => !IsUnderExpectedNamespace(t.Namespace))
             .Select(t => $"{t.FullName} — namespace '{t.Namespace}' is not under '{ExpectedNamespacePrefix}'")
             .OrderBy(v => v, StringComparer.Ordinal)
             .ToList();
@@ -42,4 +51,13 @@ public class RepositoryImplementationsLiveInInfrastructureRule
             because: "repository implementations are Infrastructure-layer concerns; their namespace " +
                      "must start with Humans.Infrastructure.Repositories.* (design-rules §3)");
     }
+
+    /// <summary>
+    /// Matches the prefix on a namespace-segment boundary, not on raw characters: a bare
+    /// <c>StartsWith</c> would also accept <c>Humans.Infrastructure.RepositoriesLegacy</c>,
+    /// which is a different namespace and exactly the drift this rule exists to catch.
+    /// </summary>
+    private static bool IsUnderExpectedNamespace(string? ns) =>
+        string.Equals(ns, ExpectedNamespacePrefix, StringComparison.Ordinal)
+        || ns?.StartsWith(ExpectedNamespacePrefix + ".", StringComparison.Ordinal) == true;
 }

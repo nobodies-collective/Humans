@@ -72,7 +72,6 @@ public class FeedbackArchitectureTests
 
     // IMemoryCache check covered by ApplicationServicesTakeNoMemoryCacheRule.
     // TakesRepository check covered by pattern G (positive wiring noise).
-    // Sealed-repository check covered by IRepositoryImplementationsAreSealedRule.
 
     [HumansFact]
     public void FeedbackService_TakesNavBadgeInvalidator()
@@ -148,5 +147,7 @@ public class FeedbackArchitectureTests
 
     // ── IFeedbackRepository ──────────────────────────────────────────────────
 
-    // Sealed-repository check covered by IRepositoryImplementationsAreSealedRule.
+    // Sealed-repository check covered by HUM0034 (section types are internal) plus
+    // MA0053 (an unsealed internal class is a build error) — not by
+    // IRepositoryImplementationsAreSealedRule, which sweeps Humans.Infrastructure only.
 }
