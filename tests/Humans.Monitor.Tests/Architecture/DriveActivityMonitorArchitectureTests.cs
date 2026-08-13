@@ -1,7 +1,7 @@
+using Humans.GoogleIntegration.Contracts;
 using Humans.Monitor.Contracts;
 using System.Reflection;
 using AwesomeAssertions;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Monitor.Services;
 
 namespace Humans.Monitor.Tests.Architecture;
@@ -10,7 +10,7 @@ namespace Humans.Monitor.Tests.Architecture;
 /// Architecture tests enforcing the §15 pattern for the Google Integration
 /// section's <see cref="DriveActivityMonitorService"/> — migrated under issue
 /// #554 (split-off from the umbrella migration). The service now lives in
-/// <c>Humans.Application.Services.GoogleIntegration</c> and routes all Google
+/// <c>Humans.GoogleIntegration.Services</c> and routes all Google
 /// SDK calls through <see cref="IGoogleDriveActivityClient"/>. These tests
 /// are the compile-time guarantee that the connector boundary does not leak
 /// back into the Application project.
@@ -54,11 +54,17 @@ public class DriveActivityMonitorArchitectureTests
     // ── IGoogleDriveActivityClient ───────────────────────────────────────────
 
     [HumansFact]
-    public void IGoogleDriveActivityClient_LivesInApplicationInterfacesNamespace()
+    public void IGoogleDriveActivityClient_LivesOnGoogleIntegrationsLeaf()
     {
+        // It was in Humans.Application.Interfaces.GoogleIntegration until GoogleIntegration's
+        // own G5 move, which turned every other connector abstraction internal to that
+        // section. This one could not follow them: DriveActivityMonitorService is here, and a
+        // section cannot see another section's internals — so the interface and its
+        // DriveActivityEvent projection went onto the contracts leaf instead
+        // (nobodies-collective/Humans#866, G5-SECTION-TEMPLATE.md step 5b).
         typeof(IGoogleDriveActivityClient).Namespace
-            .Should().Be("Humans.Application.Interfaces.GoogleIntegration",
-                because: "connector interfaces live alongside other application interfaces per design-rules §2b");
+            .Should().Be("Humans.GoogleIntegration.Contracts",
+                because: "Monitor consumes this connector across an assembly boundary, so it must be public surface on GoogleIntegration's leaf");
     }
 
     [HumansFact]

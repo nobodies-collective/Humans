@@ -51,10 +51,6 @@ public abstract class ServiceTestHarness : IDisposable
 
     private readonly List<Func<DbContext?>> _sectionContextProbes = [];
 
-    /// <summary>GoogleIntegration: <c>google_resources</c>, <c>google_sync_outbox</c>, <c>sync_service_settings</c>.</summary>
-    private readonly Lazy<SectionDb<GoogleIntegrationDbContext>> _googleIntegrationDb;
-    private protected GoogleIntegrationDbContext GoogleIntegrationDb => _googleIntegrationDb.Value.Context;
-    private protected TestDbContextFactory<GoogleIntegrationDbContext> GoogleIntegrationDbFactory => _googleIntegrationDb.Value.Factory;
 
 
 
@@ -91,7 +87,6 @@ public abstract class ServiceTestHarness : IDisposable
         Db = new UsersDbContext(DbOptions);
         DbFactory = new TestDbContextFactory(DbOptions);
 
-        _googleIntegrationDb = RegisterSection<GoogleIntegrationDbContext>(o => new(o));
         _teamsDb = RegisterSection<TeamsDbContext>(o => new(o));
 
         Clock = new FakeClock(now ?? Instant.FromUtc(2026, 3, 1, 12, 0));

@@ -20,6 +20,7 @@ using Microsoft.Extensions.Caching.Memory;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
+using Humans.GoogleIntegration.Data;
 
 namespace Humans.Teams.Tests.Infrastructure;
 
