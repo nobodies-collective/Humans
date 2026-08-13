@@ -1,3 +1,4 @@
+using Humans.GoogleIntegration.Contracts;
 using AwesomeAssertions;
 using Humans.Camps.Contracts;
 using Humans.Application.Interfaces.Caching;

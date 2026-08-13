@@ -1,7 +1,7 @@
+using Humans.GoogleIntegration.Contracts;
 using Humans.Application.Configuration;
 using Humans.AuditLog.Contracts;
 using Humans.Camps.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Notifications.Contracts;
 using Humans.Application.Interfaces.Profiles;
 using Humans.Application.Interfaces.Repositories;

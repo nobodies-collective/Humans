@@ -1,3 +1,4 @@
+using Humans.GoogleIntegration.Contracts;
 using Humans.Domain.Entities;
 using Humans.Tickets.Contracts;
 using Humans.Domain.Enums;
@@ -7,7 +8,6 @@ using Humans.Notifications.Services;
 using System.Security.Claims;
 using AwesomeAssertions;
 using Humans.Camps.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Governance.Contracts;
 using Humans.Teams.Contracts;
 
