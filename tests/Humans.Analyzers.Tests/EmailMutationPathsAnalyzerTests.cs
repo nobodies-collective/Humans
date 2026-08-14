@@ -13,7 +13,7 @@ public class EmailMutationPathsAnalyzerTests
             }
         }
 
-        namespace Humans.Application.Interfaces.Repositories
+        namespace Humans.Users.Data.Repositories
         {
             public interface IUserRepository
             {
@@ -120,7 +120,7 @@ public class EmailMutationPathsAnalyzerTests
                 public class SomeOtherService
                 {
                     public async System.Threading.Tasks.Task Run(
-                        Humans.Application.Interfaces.Repositories.IUserRepository repo)
+                        Humans.Users.Data.Repositories.IUserRepository repo)
                     {
                         await repo.ApplyUserEmailReconcilePlanAsync(null, null, null, null);
                     }
@@ -141,12 +141,12 @@ public class EmailMutationPathsAnalyzerTests
     {
         var source = InterfaceStubs + """
 
-            namespace Humans.Application.Services.Profiles
+            namespace Humans.Users.Services
             {
                 public class UserEmailService
                 {
                     public async System.Threading.Tasks.Task Run(
-                        Humans.Application.Interfaces.Repositories.IUserRepository repo)
+                        Humans.Users.Data.Repositories.IUserRepository repo)
                     {
                         await repo.ApplyUserEmailReconcilePlanAsync(null, null, null, null);
                     }
@@ -167,12 +167,12 @@ public class EmailMutationPathsAnalyzerTests
     {
         var source = InterfaceStubs + """
 
-            namespace Humans.Application.Services.Users
+            namespace Humans.Users.Services
             {
                 public class UserService
                 {
                     public async System.Threading.Tasks.Task Run(
-                        Humans.Application.Interfaces.Repositories.IUserRepository repo)
+                        Humans.Users.Data.Repositories.IUserRepository repo)
                     {
                         await repo.ApplyUserEmailReconcilePlanAsync(null, null, null, null);
                     }
@@ -196,7 +196,7 @@ public class EmailMutationPathsAnalyzerTests
         // ContainingType was the class, not the interface.
         var source = InterfaceStubs + """
 
-            namespace Humans.Application.Services.Profiles
+            namespace Humans.Users.Services
             {
                 public class UserEmailService : Humans.Users.Contracts.IUserEmailService
                 {
@@ -214,7 +214,7 @@ public class EmailMutationPathsAnalyzerTests
                 public class SomeOtherController
                 {
                     public async System.Threading.Tasks.Task Run(
-                        Humans.Application.Services.Profiles.UserEmailService concrete)
+                        Humans.Users.Services.UserEmailService concrete)
                     {
                         await concrete.ReconcileOAuthIdentityAsync(System.Guid.Empty, "p", "k", "e@x", true);
                     }
@@ -237,7 +237,7 @@ public class EmailMutationPathsAnalyzerTests
 
             namespace Humans.Infrastructure.Repositories.Users
             {
-                public class UserRepository : Humans.Application.Interfaces.Repositories.IUserRepository
+                public class UserRepository : Humans.Users.Data.Repositories.IUserRepository
                 {
                     public async System.Threading.Tasks.Task ApplyUserEmailReconcilePlanAsync(
                         object? a, object? b, object? c, object? d)
@@ -312,7 +312,7 @@ public class EmailMutationPathsAnalyzerTests
                 public class SomeBackgroundJob
                 {
                     public async System.Threading.Tasks.Task Run(
-                        Humans.Application.Interfaces.Repositories.IUserRepository repo)
+                        Humans.Users.Data.Repositories.IUserRepository repo)
                     {
                         await repo.ApplyUserEmailReconcilePlanAsync(null, null, null, null);
                     }

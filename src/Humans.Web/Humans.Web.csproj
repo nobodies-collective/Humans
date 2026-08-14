@@ -50,6 +50,7 @@
     <ProjectReference Include="..\Sections\Humans.AuditLog.Contracts\Humans.AuditLog.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Auth.Contracts\Humans.Auth.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Tour\Humans.Tour.csproj" />
+    <ProjectReference Include="..\Sections\Humans.Users\Humans.Users.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -72,7 +73,6 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
-    <PackageReference Include="Magick.NET-Q8-AnyCPU" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Debug" />
     <PackageReference Include="Serilog.Sinks.OpenTelemetry" />

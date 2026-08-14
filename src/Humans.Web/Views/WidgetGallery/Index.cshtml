@@ -292,7 +292,7 @@
                             <span class="wg-card-name">&lt;vc:profile-card&gt;</span>
                             <span class="wg-card-kind kind-vc">ViewComponent</span>
                         </div>
-                        <span class="wg-card-path">src/Humans.Web/ViewComponents/ProfileCardViewComponent.cs</span>
+                        <span class="wg-card-path">src/Sections/Humans.Users/ViewComponents/ProfileCardViewComponent.cs</span>
                     </div>
                     <div class="wg-card-note">
                         Full profile card. The view mode controls which sensitive fields render — legal name, board notes, emergency contacts.
@@ -305,7 +305,7 @@
                     <div class="wg-variants">
                         <div class="wg-variant-label">view-mode="Admin"<span class="wg-variant-sub">current human</span></div>
                         <div class="wg-variant-render" style="display:block;">
-                            <vc:profile-card user-id="@Model.CurrentUserId" view-mode="@ProfileCardViewMode.Admin" />
+                            @await Component.InvokeAsync("ProfileCard", new { userId = Model.CurrentUserId, viewMode = ProfileCardViewMode.Admin })
                         </div>
                     </div>
                 </div>
@@ -316,7 +316,7 @@
                             <span class="wg-card-name">_ProfileCard.cshtml</span>
                             <span class="wg-card-kind kind-pa">Partial</span>
                         </div>
-                        <span class="wg-card-path">src/Humans.Web/Views/Shared/_ProfileCard.cshtml</span>
+                        <span class="wg-card-path">src/Sections/Humans.Users/Views/Shared/_ProfileCard.cshtml</span>
                     </div>
                     <div class="wg-card-note">
                         Compact profile summary line — avatar + name + email + status badges. Used in admin tables.
@@ -363,7 +363,7 @@
                             <span class="wg-card-name">_HumanPopover.cshtml</span>
                             <span class="wg-card-kind kind-pa">Partial</span>
                         </div>
-                        <span class="wg-card-path">src/Humans.Web/Views/Shared/_HumanPopover.cshtml</span>
+                        <span class="wg-card-path">src/Sections/Humans.Users/Views/Shared/_HumanPopover.cshtml</span>
                     </div>
                     <div class="wg-card-note">
                         Hover popover content rendered by JS when a <code>&lt;vc:human&gt;</code> element with
@@ -385,7 +385,7 @@
                             <span class="wg-card-name">&lt;vc:human-summary&gt;</span>
                             <span class="wg-card-kind kind-vc">ViewComponent</span>
                         </div>
-                        <span class="wg-card-path">src/Humans.Web/ViewComponents/HumanSummaryViewComponent.cs</span>
+                        <span class="wg-card-path">src/Sections/Humans.Users/ViewComponents/HumanSummaryViewComponent.cs</span>
                     </div>
                     <div class="wg-card-note">
                         Renders the same content as the hover popover (<code>_HumanPopover.cshtml</code>) inline — avatar, name, membership badge, city/country, public + (admin-only) hidden teams, and languages. Use on admin-review screens where the reviewer needs identity context without having to hover (e.g. ticket-transfer detail).
@@ -397,7 +397,7 @@
                     <div class="wg-variants">
                         <div class="wg-variant-label">user-id=current<span class="wg-variant-sub">has profile</span></div>
                         <div class="wg-variant-render" style="display:block;">
-                            <vc:human-summary user-id="@Model.CurrentUserId" />
+                            @await Component.InvokeAsync("HumanSummary", new { userId = Model.CurrentUserId })
                         </div>
                     </div>
                 </div>
