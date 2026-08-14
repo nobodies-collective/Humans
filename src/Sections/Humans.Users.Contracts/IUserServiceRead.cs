@@ -1,8 +1,8 @@
+using NodaTime;
+using Humans.Domain.Enums;
 using Humans.Application.Architecture;
-using Humans.Application.DTOs;
-using Humans.Application.Services.Profiles;
 
-namespace Humans.Application.Interfaces.Users;
+namespace Humans.Users.Contracts;
 
 /// <summary>
 /// Cross-section read surface for the Users section. External sections inject
@@ -10,7 +10,7 @@ namespace Humans.Application.Interfaces.Users;
 /// projections and the merge-chain-follow primitive — no EF entities, no writes,
 /// no cache hooks. See memory/architecture/section-read-write-split.md.
 /// </summary>
-[SurfaceBudget(6)]
+[SurfaceBudget(8)]
 public interface IUserServiceRead
 {
     /// <summary>
@@ -97,4 +97,46 @@ public interface IUserServiceRead
     /// </summary>
     Task<IReadOnlySet<Guid>> GetMergedSourceIdsAsync(
         Guid targetUserId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Get all participation records for a given year, projected to the slim
+    /// <see cref="UserParticipationRow"/> shape (no EF entity leaves the
+    /// section). Served from the caching decorator's <see cref="UserInfo"/>
+    /// snapshot.
+    /// </summary>
+    Task<IReadOnlyList<UserParticipationRow>> GetAllParticipationsForYearAsync(
+        int year, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the user ids of every account with <c>DeletionScheduledFor</c>
+    /// in the past (or equal to <paramref name="now"/>) and with
+    /// <c>DeletionEligibleAfter</c> either null or already elapsed. Used by
+    /// the account deletion job to enumerate candidates without reading the
+    /// Users table directly (design-rules §2c).
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetAccountsDueForAnonymizationAsync(
+        Instant now, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Slim cross-section projection of an <c>EventParticipation</c> row for a given
+/// year, returned by <see cref="IUserServiceRead.GetAllParticipationsForYearAsync"/>.
+/// Carries only the facts consumers diff against (status, source, check-in
+/// instant) keyed by user — no EF entity crosses the section boundary.
+/// </summary>
+public sealed record UserParticipationRow(
+    Guid UserId,
+    ParticipationStatus Status,
+    ParticipationSource Source,
+    Instant? CheckedInAt);
+
+/// <summary>
+/// Per-user row returned from <see cref="IUserServiceRead.GetOnsiteUsersAsync"/>.
+/// Names of camps / teams / governance roles are not stitched in here; the Web
+/// layer joins them via the owning section services before rendering. Issue
+/// nobodies-collective/Humans#736.
+/// </summary>
+public sealed record OnsiteUserRow(
+    Guid UserId,
+    string DisplayName,
+    Instant? CheckedInAt);

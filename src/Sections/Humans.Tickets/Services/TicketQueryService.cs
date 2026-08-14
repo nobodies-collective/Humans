@@ -19,6 +19,7 @@ using Humans.Tickets.Domain;
 using Humans.Tickets.Models;
 using Humans.Tickets.Services.Dtos;
 using Humans.Tickets.Services.Stores;
+using Humans.Users.Contracts;
 
 namespace Humans.Tickets.Services;
 
@@ -30,7 +31,7 @@ internal sealed class TicketQueryService(
     ITicketTransferRepository ticketTransferRepository,
     IBudgetServiceRead budgetService,
     ICampaignServiceRead campaignService,
-    IUserService userService,
+    IUserServiceRead userService,
     IUserEmailService userEmailService,
     ITeamServiceRead teamService,
     IBurnSettingsService burnSettings,

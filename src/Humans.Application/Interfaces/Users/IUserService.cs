@@ -3,6 +3,7 @@ using Humans.Onboarding.Contracts;
 using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;
+using Humans.Users.Contracts;
 
 namespace Humans.Application.Interfaces.Users;
 
@@ -17,14 +18,6 @@ namespace Humans.Application.Interfaces.Users;
 /// </remarks>
 public interface IUserService : IUserServiceRead, IApplicationService, IUserMerge
 {
-    /// <summary>
-    /// Get all participation records for a given year, projected to the slim
-    /// <see cref="UserParticipationRow"/> shape (no EF entity leaves the
-    /// section). Served from the caching decorator's <see cref="UserInfo"/>
-    /// snapshot.
-    /// </summary>
-    Task<IReadOnlyList<UserParticipationRow>> GetAllParticipationsForYearAsync(int year, CancellationToken ct = default);
-
     /// <summary>
     /// Declare that the user is not attending this year's event. Upserts a
     /// UserDeclared NotAttending row unless the user is already Attended (in
@@ -334,16 +327,6 @@ public interface IUserService : IUserServiceRead, IApplicationService, IUserMerg
     Task SetLastConsentReminderSentAsync(
         Guid userId, Instant sentAt, CancellationToken ct = default);
 
-    /// <summary>
-    /// Returns the user ids of every account with <c>DeletionScheduledFor</c>
-    /// in the past (or equal to <paramref name="now"/>) and with
-    /// <c>DeletionEligibleAfter</c> either null or already elapsed. Used by
-    /// the account deletion job to enumerate candidates without reading the
-    /// Users table directly (design-rules §2c).
-    /// </summary>
-    Task<IReadOnlyList<Guid>> GetAccountsDueForAnonymizationAsync(
-        Instant now, CancellationToken ct = default);
-
     // ---- Methods added for AccountMergeService fold-into-target redesign ----
 
     /// <summary>
@@ -421,25 +404,3 @@ public record AnonymizedAccountSummary(
     string PreferredLanguage,
     IReadOnlyList<(Guid SignupId, Guid ShiftId)> CancelledSignupIds);
 
-/// <summary>
-/// Per-user row returned from <see cref="IUserServiceRead.GetOnsiteUsersAsync"/>.
-/// Names of camps / teams / governance roles are not stitched in here; the Web
-/// layer joins them via the owning section services before rendering. Issue
-/// nobodies-collective/Humans#736.
-/// </summary>
-public sealed record OnsiteUserRow(
-    Guid UserId,
-    string DisplayName,
-    Instant? CheckedInAt);
-
-/// <summary>
-/// Slim cross-section projection of an <see cref="EventParticipation"/> row for
-/// a given year, returned by <see cref="IUserService.GetAllParticipationsForYearAsync"/>.
-/// Carries only the facts consumers diff against (status, source, check-in
-/// instant) keyed by user — no EF entity crosses the section boundary.
-/// </summary>
-public sealed record UserParticipationRow(
-    Guid UserId,
-    ParticipationStatus Status,
-    ParticipationSource Source,
-    Instant? CheckedInAt);
