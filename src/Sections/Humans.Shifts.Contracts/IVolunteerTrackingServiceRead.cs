@@ -8,7 +8,6 @@ namespace Humans.Shifts.Contracts;
 /// the <see cref="VolunteerBuildStripDto"/> projection. See
 /// <c>memory/architecture/section-read-write-split.md</c>.
 /// </summary>
-[SurfaceBudget(1)]
 public interface IVolunteerTrackingServiceRead
 {
     /// <summary>One volunteer's build-window strip, or null when there is no

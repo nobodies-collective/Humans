@@ -7,7 +7,6 @@ namespace Humans.Campaigns.Contracts;
 /// inject this interface; only DTO projections (no EF entities). See
 /// <c>memory/architecture/section-read-write-split.md</c>.
 /// </summary>
-[SurfaceBudget(1)]
 public interface ICampaignServiceRead
 {
     /// <summary>

@@ -10,7 +10,6 @@ namespace Humans.Users.Contracts;
 /// projections and the merge-chain-follow primitive — no EF entities, no writes,
 /// no cache hooks. See memory/architecture/section-read-write-split.md.
 /// </summary>
-[SurfaceBudget(9)]
 public interface IUserServiceRead
 {
     /// <summary>

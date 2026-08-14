@@ -7,7 +7,6 @@ namespace Humans.Expenses.Contracts;
 /// Cross-section read surface for expense reports. External readers should use
 /// this interface instead of the mutation service.
 /// </summary>
-[SurfaceBudget(8)]
 public interface IExpenseReportServiceRead
 {
     Task<ExpenseReportDto?> GetAsync(Guid id, CancellationToken ct = default);

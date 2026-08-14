@@ -8,7 +8,6 @@ namespace Humans.Teams.Contracts;
 /// projections, no EF entities. See
 /// <c>memory/architecture/section-read-write-split.md</c>.
 /// </summary>
-[SurfaceBudget(5)]
 public interface ITeamServiceRead
 {
     /// <summary>

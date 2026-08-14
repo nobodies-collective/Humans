@@ -10,7 +10,6 @@ namespace Humans.Governance.Contracts;
 /// are scalars, Guid sets/lists, and section read DTOs — no EF entities. See
 /// <c>memory/architecture/section-read-write-split.md</c>.
 /// </summary>
-[SurfaceBudget(9)]
 public interface IMembershipCalculatorRead
 {
     /// <summary>
