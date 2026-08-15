@@ -563,7 +563,6 @@
       "paths": [
         "src/Sections/Humans.Shifts/**",
         "src/Sections/Humans.Shifts.Contracts/**",
-        "src/Humans.Application/Models/UpcomingShiftEntry.cs",
         "src/Humans.Web/ViewComponents/DietaryMissingBannerViewComponent.cs"
       ],
       "symbols": [
