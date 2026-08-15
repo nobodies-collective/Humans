@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Humans.Application;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Interfaces;
+using Humans.Application.Services.Dashboard;
 using Humans.Infrastructure.Services;
 using Humans.Teams.Contracts;
 using Humans.Teams.Data;
@@ -75,12 +76,17 @@ public class TeamsArchitectureTests
         {
             typeof(TeamService).Assembly,                                // Humans.Teams
             typeof(HumansMetricsService).Assembly,                       // Humans.Infrastructure
-            // Anchored on IFileStorage: Base's one key-addressed storage abstraction, which
-            // peters-hard-rules.md pins to Humans.Application. It was typeof(UserService) until
-            // that type moved into Humans.Users (#866, G5 lane 2) — an assembly anchor whose
-            // type leaves relocates the sweep silently onto the section (design §15 step 11).
-            typeof(IFileStorage).Assembly,                                // Humans.Application
+            // Anchored on DashboardService, a concrete Humans.Application service with no
+            // scheduled move in G5 phase 3. It was typeof(UserService) until that type moved
+            // into Humans.Users (#866, G5 lane 2), then typeof(IFileStorage) until G5 lane 3a-1
+            // moved that interface into Humans.Interfaces (Base) with its namespace preserved —
+            // an assembly anchor whose type leaves relocates the sweep silently (design §15
+            // step 11), and namespace preservation makes the relocation invisible at compile time.
+            typeof(DashboardService).Assembly,                            // Humans.Application
         };
+
+        typeof(DashboardService).Assembly.GetName().Name.Should().Be("Humans.Application",
+            because: "an anchor whose type leaves this assembly would silently drop Humans.Application out of this sweep instead of failing");
 
         var violations = new List<string>();
         foreach (var assembly in assembliesToScan)
