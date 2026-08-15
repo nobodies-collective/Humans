@@ -13,7 +13,7 @@ using Humans.Users.Services;
 using Humans.Users.Tests.Infrastructure;
 using Humans.Users.Data.Repositories;
 using ProfileEditorService = Humans.Users.Services.ProfileEditorService;
-using ProfilePictureStorageKeys = Humans.Application.Storage.ProfilePictureStorageKeys;
+using ProfilePictureStorageKeys = Humans.Users.Contracts.ProfilePictureStorageKeys;
 using Humans.Users.Contracts;
 
 namespace Humans.Users.Tests.Services;
@@ -410,7 +410,7 @@ public sealed class ProfileServiceTests : ServiceTestHarness
         await SeedUserAsync(userId);
         var request = MakeRequest() with
         {
-            Allergies = [Humans.Domain.Constants.DietaryOptions.OtherOption],
+            Allergies = [Humans.Users.Contracts.DietaryOptions.OtherOption],
             AllergyOtherText = "   ",
         };
 

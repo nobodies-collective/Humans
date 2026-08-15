@@ -18,6 +18,7 @@ using Microsoft.Extensions.Caching.Memory;
 using NodaTime;
 using NSubstitute;
 using Humans.Users.Contracts;
+using Humans.AuditLog.Contracts;
 
 namespace Humans.Shifts.Tests.Services;
 

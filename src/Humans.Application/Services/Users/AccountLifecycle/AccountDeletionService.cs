@@ -12,7 +12,6 @@ using Humans.Application.Interfaces;
 using Humans.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using NodaTime;
-using Humans.Application.Storage;
 
 namespace Humans.Application.Services.Users.AccountLifecycle;
 

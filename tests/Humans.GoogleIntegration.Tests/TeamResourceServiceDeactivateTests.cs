@@ -12,6 +12,7 @@ using NSubstitute;
 using Humans.GoogleIntegration.Services.Workspace;
 using Humans.Application;
 using Humans.GoogleIntegration.Tests.Infrastructure;
+using Humans.AuditLog.Contracts;
 
 namespace Humans.GoogleIntegration.Tests;
 

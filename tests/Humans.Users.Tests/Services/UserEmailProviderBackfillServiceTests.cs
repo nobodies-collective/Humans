@@ -60,7 +60,7 @@ public class UserEmailProviderBackfillServiceTests
         _userRepository.GetUserEmailLegacyBackfillSnapshotsByUserIdAsync(
                 userId, Arg.Any<CancellationToken>())
             .Returns([
-                new Humans.Application.DTOs.UserEmailLegacyBackfillSnapshot(
+                new UserEmailLegacyBackfillSnapshot(
                     emailId, userId, "user@example.com", true, null, null, false, false)
             ]);
         _userRepository.GetUserEmailsByUserIdForMutationAsync(userId, Arg.Any<CancellationToken>())
@@ -112,9 +112,9 @@ public class UserEmailProviderBackfillServiceTests
         _userRepository.GetUserEmailLegacyBackfillSnapshotsByUserIdAsync(
                 userId, Arg.Any<CancellationToken>())
             .Returns([
-                new Humans.Application.DTOs.UserEmailLegacyBackfillSnapshot(
+                new UserEmailLegacyBackfillSnapshot(
                     googleRowId, userId, "user@nobodies.team", true, null, null, false, false),
-                new Humans.Application.DTOs.UserEmailLegacyBackfillSnapshot(
+                new UserEmailLegacyBackfillSnapshot(
                     otherRowId, userId, "personal@example.com", true, null, null, false, false)
             ]);
         _userRepository.GetUserEmailsByUserIdForMutationAsync(userId, Arg.Any<CancellationToken>())
@@ -157,9 +157,9 @@ public class UserEmailProviderBackfillServiceTests
         _userRepository.GetUserEmailLegacyBackfillSnapshotsByUserIdAsync(
                 userId, Arg.Any<CancellationToken>())
             .Returns([
-                new Humans.Application.DTOs.UserEmailLegacyBackfillSnapshot(
+                new UserEmailLegacyBackfillSnapshot(
                     oauthRowId, userId, "user@gmail.com", true, null, null, false, true),
-                new Humans.Application.DTOs.UserEmailLegacyBackfillSnapshot(
+                new UserEmailLegacyBackfillSnapshot(
                     otherRowId, userId, "secondary@example.com", true, null, null, false, false)
             ]);
         _userRepository.GetUserEmailsByUserIdForMutationAsync(userId, Arg.Any<CancellationToken>())
@@ -197,7 +197,7 @@ public class UserEmailProviderBackfillServiceTests
         _userRepository.GetUserEmailLegacyBackfillSnapshotsByUserIdAsync(
                 userId, Arg.Any<CancellationToken>())
             .Returns([
-                new Humans.Application.DTOs.UserEmailLegacyBackfillSnapshot(
+                new UserEmailLegacyBackfillSnapshot(
                     emailId, userId, "user@example.com", true, "Google", "sub-A", false, false)
             ]);
         _userRepository.GetUserEmailsByUserIdForMutationAsync(userId, Arg.Any<CancellationToken>())
