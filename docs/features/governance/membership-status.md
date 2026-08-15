@@ -3,7 +3,7 @@
   src/Sections/Humans.Consent/Services/ConsentService.cs
   src/Sections/Humans.Governance.Contracts/MembershipStatusLabels.cs
   src/Humans.Domain/Constants/SystemTeamIds.cs
-  src/Humans.Infrastructure/Jobs/SystemTeamSyncJob.cs
+  src/Sections/Humans.Teams/Services/SystemTeamSyncJob.cs
   src/Humans.Infrastructure/Jobs/SuspendNonCompliantMembersJob.cs
 -->
 <!-- freshness:flag-on-change
