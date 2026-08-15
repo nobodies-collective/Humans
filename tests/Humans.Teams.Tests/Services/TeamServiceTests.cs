@@ -36,7 +36,6 @@ using Humans.Application.Interfaces.Users;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.GoogleIntegration.Services;
-using Humans.Application.Interfaces.Auth;
 
 using Humans.GoogleIntegration.Data;
 using Humans.Shifts.Data;
