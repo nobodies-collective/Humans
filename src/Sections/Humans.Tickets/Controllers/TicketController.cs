@@ -248,6 +248,13 @@ internal sealed class TicketController(
                 VatAmount = q.VatAmount,
                 VipDonations = q.VipDonations,
             }).ToList(),
+            ByTicketType = aggregates.ByTicketType.Select(t => new TicketTypeSalesRow
+            {
+                TicketTypeName = t.TicketTypeName,
+                Price = t.Price,
+                TicketsSold = t.TicketsSold,
+                FaceValue = t.FaceValue,
+            }).ToList(),
         };
 
         return View(model);

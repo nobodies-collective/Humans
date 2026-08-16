@@ -249,6 +249,8 @@ internal interface ITicketRepository : IRepository
 
     Task<IReadOnlyList<PaidOrderSalesRow>> GetPaidOrderSalesRowsAsync(CancellationToken ct = default);
 
+    Task<IReadOnlyList<PaidAttendeeTypePriceRow>> GetPaidAttendeeTypePriceRowsAsync(CancellationToken ct = default);
+
     Task<IReadOnlyList<DiscountCodeOrderRow>> GetOrdersWithDiscountCodesAsync(CancellationToken ct = default);
 
     Task<(IReadOnlyList<OrderRow> Rows, int TotalCount)> GetOrdersPageAsync(
