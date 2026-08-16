@@ -24,7 +24,7 @@ internal sealed partial class TeamResourceService(
     IGoogleResourceRepository repository,
     ITeamResourceGoogleClient googleClient,
     IGoogleDrivePermissionsClient drivePermissions,
-    ITeamService teamService,
+    ITeamServiceRead teamService,
     IServiceProvider serviceProvider,
     IAuditLogService auditLogService,
     TeamResourceManagementOptions resourceOptions,

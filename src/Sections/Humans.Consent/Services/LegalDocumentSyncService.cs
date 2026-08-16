@@ -31,7 +31,7 @@ internal sealed partial class LegalDocumentSyncService(
     ILegalDocumentRepository repository,
     IGitHubLegalDocumentConnector gitHub,
     INotificationEmitter notificationService,
-    ITeamService teamService,
+    ITeamServiceRead teamService,
     IUserServiceRead userService,
     ILegalDocumentCacheInvalidator invalidator,
     IOptions<GitHubSettings> githubSettings,

@@ -11,7 +11,7 @@ namespace Humans.Users.Services;
 // is performed by AccountMergeService.MergeAsync — this service is detection-only.
 internal sealed class DuplicateAccountService(
     IUserService userService,
-    ITeamService teamService,
+    ITeamServiceRead teamService,
     IRoleAssignmentService roleAssignmentService) : IDuplicateAccountService
 {
     public async Task<IReadOnlyList<DuplicateAccountGroup>> DetectDuplicatesAsync(CancellationToken ct = default)

@@ -3,10 +3,9 @@ using Humans.Analyzers.Internal;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace Humans.Analyzers;
+namespace Humans.Analyzers.Internal.Rules;
 
-[DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed class ControllerDbContextInjectionAnalyzer : DiagnosticAnalyzer
+internal static class ControllerDbContextRule
 {
     public const string DiagnosticId = "HUM0008";
 
@@ -28,22 +27,10 @@ public sealed class ControllerDbContextInjectionAnalyzer : DiagnosticAnalyzer
             "context) bypass the service and repository layers. Keep database access behind an application or " +
             "infrastructure service and inject that service instead.");
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
-
     private const string ControllerBaseFullName = "Microsoft.AspNetCore.Mvc.ControllerBase";
 
-    public override void Initialize(AnalysisContext context)
+    public static void Register(CompilationStartAnalysisContext context)
     {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.EnableConcurrentExecution();
-        context.RegisterCompilationStartAction(OnCompilationStart);
-    }
-
-    private static void OnCompilationStart(CompilationStartAnalysisContext context)
-    {
-        if (!AssemblyScope.IsLayerOrSection(context.Compilation.Assembly, AssemblyScope.Web))
-            return;
-
         // Since the per-section split (nobodies-collective/Humans#858) the persistence
         // boundary is every application context, matched structurally via
         // SectionDbContexts (derives from EF's DbContext) rather than by name or

@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Humans.Analyzers.Tests;
 
-public class CachingDecoratorRepositoryAnalyzerTests
+public class CachingDecoratorRuleTests
 {
     private const string Stubs = """
         namespace Humans.Application.Interfaces.Repositories
@@ -25,28 +25,23 @@ public class CachingDecoratorRepositoryAnalyzerTests
         }
         """;
 
-    // Assembly attributes must precede every namespace/type declaration (CS1730), so this
-    // goes first in any source that needs the compilation to be recognised as a section by
-    // AssemblyScope.IsSection.
-    private const string SectionAssemblyAttribute = """
-        [assembly: Humans.Domain.Attributes.Section("Teams")]
-
-        """;
-
-    private const string SectionAttributeStub = """
-        namespace Humans.Domain.Attributes
+    // What makes a compilation a section to AssemblyScope.IsSection: the
+    // Section : ISection entry point in the assembly's root namespace, exactly as boot
+    // discovery finds it. Paired with the "Humans.Teams" assembly name below.
+    private const string SectionEntryPoint = """
+        namespace Humans.Application.Interfaces
         {
-            [System.AttributeUsage(System.AttributeTargets.Assembly | System.AttributeTargets.Interface | System.AttributeTargets.Class)]
-            public sealed class SectionAttribute : System.Attribute
-            {
-                public SectionAttribute(string name) { Name = name; }
-                public string Name { get; }
-            }
+            public interface ISection { }
+        }
+
+        namespace Humans.Teams
+        {
+            public sealed class Section : Humans.Application.Interfaces.ISection { }
         }
         """;
 
     private static bool IsHum0020(Diagnostic d) =>
-        string.Equals(d.Id, CachingDecoratorRepositoryAnalyzer.DiagnosticId, StringComparison.Ordinal);
+        string.Equals(d.Id, "HUM0020", StringComparison.Ordinal);
 
     [HumansFact]
     public async Task Fires_error_on_repository_constructor_parameter_in_caching_decorator()
@@ -63,7 +58,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Infrastructure",
             source);
 
@@ -90,7 +85,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Infrastructure",
             source);
 
@@ -115,7 +110,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Infrastructure",
             source);
 
@@ -137,7 +132,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Infrastructure",
             source);
 
@@ -159,7 +154,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Infrastructure",
             source);
 
@@ -181,7 +176,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Infrastructure",
             source);
 
@@ -205,7 +200,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Infrastructure",
             source);
 
@@ -227,30 +222,8 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Infrastructure",
-            source);
-
-        diagnostics.Where(IsHum0020).Should().BeEmpty();
-    }
-
-    [HumansFact]
-    public async Task Does_not_fire_outside_infrastructure_assembly()
-    {
-        var source = Stubs + """
-
-            namespace Humans.Infrastructure.Services.Teams
-            {
-                public sealed class CachingTeamService(
-                    Humans.Application.Interfaces.Repositories.ITeamRepository repository)
-                {
-                }
-            }
-            """;
-
-        var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
-            "Humans.Application",
             source);
 
         diagnostics.Where(IsHum0020).Should().BeEmpty();
@@ -267,7 +240,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
     [HumansFact]
     public async Task Fires_on_repository_in_section_project_caching_decorator()
     {
-        var source = SectionAssemblyAttribute + SectionAttributeStub + Stubs + """
+        var source = SectionEntryPoint + Stubs + """
 
             namespace Humans.Teams.Services
             {
@@ -279,7 +252,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Teams",
             source);
 
@@ -308,7 +281,7 @@ public class CachingDecoratorRepositoryAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new CachingDecoratorRepositoryAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Infrastructure",
             source);
 

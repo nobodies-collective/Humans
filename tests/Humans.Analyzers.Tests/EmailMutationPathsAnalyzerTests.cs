@@ -272,9 +272,8 @@ public class EmailMutationPathsAnalyzerTests
     public async Task Fires_HUM0005_when_service_called_from_Infrastructure_non_allowed_caller()
     {
         // Positive scope test for Infrastructure — mirrors the HUM0006 canary below.
-        // Same regression risk: a future scope narrowing from
-        // IsApplicationWebOrInfrastructure to IsApplicationOrWeb would silently pass
-        // every Application/Web HUM0005 test.
+        // The rule is unscoped; this pins that a caller outside Application/Web
+        // is still checked.
         var source = InterfaceStubs + """
 
             namespace Humans.Infrastructure.Jobs
@@ -301,10 +300,9 @@ public class EmailMutationPathsAnalyzerTests
     [HumansFact]
     public async Task Fires_HUM0006_when_repository_called_from_Infrastructure_non_UserEmailService()
     {
-        // Positive scope test for Infrastructure. The analyzer's
-        // IsApplicationWebOrInfrastructure guard means a future narrowing of
-        // that scope to ApplicationOrWeb would pass every test that lives in
-        // Application/Web — this case is the canary for that regression.
+        // Positive scope test for Infrastructure. The rule is unscoped; a future
+        // narrowing that only kept Application/Web would pass every other test
+        // here — this case is the canary for that regression.
         var source = InterfaceStubs + """
 
             namespace Humans.Infrastructure.Jobs
@@ -328,29 +326,4 @@ public class EmailMutationPathsAnalyzerTests
         diagnostics.Should().ContainSingle(d => IsHum0006(d));
     }
 
-    [HumansFact]
-    public async Task Does_not_fire_outside_scope_assemblies()
-    {
-        var source = InterfaceStubs + """
-
-            namespace Some.Domain.Code
-            {
-                public class Caller
-                {
-                    public async System.Threading.Tasks.Task Run(
-                        Humans.Users.Contracts.IUserEmailService svc)
-                    {
-                        await svc.ReconcileOAuthIdentityAsync(System.Guid.Empty, "p", "k", "e@x", true);
-                    }
-                }
-            }
-            """;
-
-        var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new EmailMutationPathsAnalyzer(),
-            "Humans.Domain",
-            source);
-
-        diagnostics.Should().BeEmpty();
-    }
 }

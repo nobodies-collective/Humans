@@ -2,32 +2,22 @@ using AwesomeAssertions;
 
 namespace Humans.Analyzers.Tests;
 
-public class SectionPublicSurfaceAnalyzerTests
+public class SectionRulesAnalyzerTests
 {
-    // Assembly attributes must precede every namespace/type declaration in the file
-    // (CS1730), so this goes first in every source that needs the assembly under
-    // test to be recognised as a section by AssemblyScope.IsSection.
-    private const string SectionAssemblyAttribute = """
-        [assembly: Humans.Domain.Attributes.Section("Test")]
+    // What makes the compilation a section: the entry point AssemblyScope.IsSection looks
+    // up as <assemblyName>.Section. Prefixed to every source that needs one.
+    private const string SectionEntryPoint = """
+        namespace Humans.Test
+        {
+            public sealed class Section : Humans.Application.Interfaces.ISection { }
+        }
 
         """;
 
-    // Marker/base types the analyzer carves out live in other assemblies in
-    // production (ISection in Humans.Interfaces, Migration in
-    // Microsoft.EntityFrameworkCore) — compiled here as a separate referenced
-    // assembly so implementing/deriving from them doesn't also make them symbols
-    // declared in, and analyzed as part of, the compilation under test.
+    // Marker/base types the analyzer carves out live in other assemblies in production, so
+    // they are compiled here as a referenced assembly rather than as symbols of the
+    // compilation under test.
     private const string ReferencedStubs = """
-        namespace Humans.Domain.Attributes
-        {
-            [System.AttributeUsage(System.AttributeTargets.Assembly | System.AttributeTargets.Interface | System.AttributeTargets.Class)]
-            public sealed class SectionAttribute : System.Attribute
-            {
-                public SectionAttribute(string name) { Name = name; }
-                public string Name { get; }
-            }
-        }
-
         namespace Humans.Application.Interfaces
         {
             public interface ISection { }
@@ -66,12 +56,12 @@ public class SectionPublicSurfaceAnalyzerTests
         """;
 
     private static bool IsHum0034(Microsoft.CodeAnalysis.Diagnostic d) =>
-        string.Equals(d.Id, SectionPublicSurfaceAnalyzer.DiagnosticId, StringComparison.Ordinal);
+        string.Equals(d.Id, "HUM0034", StringComparison.Ordinal);
 
     [HumansFact]
     public async Task Fires_on_public_type_with_no_carve_out()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test
             {
@@ -80,7 +70,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -91,7 +81,7 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Does_not_fire_on_internal_type()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test
             {
@@ -100,7 +90,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -111,16 +101,10 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Does_not_fire_on_the_ISection_entry_point()
     {
-        var source = SectionAssemblyAttribute + """
-
-            namespace Humans.Test
-            {
-                public sealed class Section : Humans.Application.Interfaces.ISection { }
-            }
-            """;
+        var source = SectionEntryPoint;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -131,7 +115,7 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Does_not_fire_on_the_Resource_marker()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test
             {
@@ -140,7 +124,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -153,7 +137,7 @@ public class SectionPublicSurfaceAnalyzerTests
     {
         // Only a name ENDING in "Resource" is the carve-out — same filter
         // SectionResourceTypes() applies at runtime.
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test
             {
@@ -162,7 +146,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -173,7 +157,7 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Does_not_fire_on_type_under_Contracts_namespace()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test.Contracts
             {
@@ -182,7 +166,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -193,7 +177,7 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Does_not_fire_on_EF_migration()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test.Data.Migrations
             {
@@ -202,7 +186,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -216,7 +200,7 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Does_not_fire_on_view_component_named_by_convention()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test.ViewComponents
             {
@@ -225,7 +209,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -236,7 +220,7 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Does_not_fire_on_view_component_declared_by_attribute()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test.ViewComponents
             {
@@ -246,7 +230,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -259,7 +243,7 @@ public class SectionPublicSurfaceAnalyzerTests
     {
         // [NonViewComponent] opts a conventionally-named class out of being a component,
         // so it is ordinary section internals again and the carve-out must not cover it.
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test.ViewComponents
             {
@@ -269,7 +253,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -280,7 +264,7 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Fires_on_public_type_whose_name_merely_contains_ViewComponent()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test.ViewComponents
             {
@@ -289,7 +273,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -304,7 +288,7 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Does_not_fire_on_tag_helper()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test.TagHelpers
             {
@@ -313,7 +297,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -326,7 +310,7 @@ public class SectionPublicSurfaceAnalyzerTests
     {
         // Implementing ITagHelper is the whole of the provider's test, so the name alone
         // carves nothing out — this one is ordinary section internals.
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test.TagHelpers
             {
@@ -335,7 +319,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -347,7 +331,7 @@ public class SectionPublicSurfaceAnalyzerTests
     public async Task Does_not_fire_on_tag_helper_whose_name_says_nothing()
     {
         // ...and conversely, discovery does not care what an implementation is called.
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test.TagHelpers
             {
@@ -356,7 +340,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -375,7 +359,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -386,7 +370,7 @@ public class SectionPublicSurfaceAnalyzerTests
     [HumansFact]
     public async Task Grandfathered_violator_downgrades_to_warning()
     {
-        var source = SectionAssemblyAttribute + """
+        var source = SectionEntryPoint + """
 
             namespace Humans.Test
             {
@@ -396,7 +380,7 @@ public class SectionPublicSurfaceAnalyzerTests
             """;
 
         var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SectionPublicSurfaceAnalyzer(),
+            new SectionRulesAnalyzer(),
             "Humans.Test",
             source,
             ReferencedStubs);
@@ -404,5 +388,56 @@ public class SectionPublicSurfaceAnalyzerTests
         var hum0034 = diagnostics.Where(IsHum0034).ToList();
         hum0034.Should().ContainSingle();
         hum0034[0].Severity.Should().Be(Microsoft.CodeAnalysis.DiagnosticSeverity.Warning);
+    }
+
+    private static bool IsHum0035(Microsoft.CodeAnalysis.Diagnostic d) =>
+        string.Equals(d.Id, "HUM0035", StringComparison.Ordinal);
+
+    private const string RepositoryStub = """
+
+        namespace Humans.Application.Interfaces.Repositories
+        {
+            public interface IRepository { }
+        }
+        """;
+
+    [HumansFact]
+    public async Task Fires_on_repository_under_Contracts()
+    {
+        var source = SectionEntryPoint + RepositoryStub + """
+
+            namespace Humans.Test.Contracts
+            {
+                public interface ITestRepository : Humans.Application.Interfaces.Repositories.IRepository { }
+            }
+            """;
+
+        var diagnostics = await AnalyzerTestHarness.RunAsync(
+            new SectionRulesAnalyzer(),
+            "Humans.Test",
+            source,
+            ReferencedStubs);
+
+        diagnostics.Should().ContainSingle(d => IsHum0035(d));
+    }
+
+    [HumansFact]
+    public async Task Does_not_fire_on_repository_outside_Contracts()
+    {
+        var source = SectionEntryPoint + RepositoryStub + """
+
+            namespace Humans.Test.Data
+            {
+                internal interface ITestRepository : Humans.Application.Interfaces.Repositories.IRepository { }
+            }
+            """;
+
+        var diagnostics = await AnalyzerTestHarness.RunAsync(
+            new SectionRulesAnalyzer(),
+            "Humans.Test",
+            source,
+            ReferencedStubs);
+
+        diagnostics.Where(IsHum0035).Should().BeEmpty();
     }
 }

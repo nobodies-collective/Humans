@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Humans.Analyzers.Tests;
 
-public sealed class SingleRepositoryPerTableAnalyzerTests
+public sealed class TableOwnershipRuleTests
 {
     // A minimal UsersDbContext with three DbSets — Events and AuditLogEntries
     // declared directly, Users inherited from a base context (mirrors the real
@@ -78,10 +78,10 @@ public sealed class SingleRepositoryPerTableAnalyzerTests
         """;
 
     private static bool IsHum0025(Diagnostic d) =>
-        string.Equals(d.Id, SingleRepositoryPerTableAnalyzer.DiagnosticId, StringComparison.Ordinal);
+        string.Equals(d.Id, "HUM0025", StringComparison.Ordinal);
 
     private static Task<System.Collections.Immutable.ImmutableArray<Diagnostic>> RunAsync(string source) =>
-        AnalyzerTestHarness.RunAsync(new SingleRepositoryPerTableAnalyzer(), "Humans.Infrastructure", source);
+        AnalyzerTestHarness.RunAsync(new SectionRulesAnalyzer(), "Humans.Infrastructure", source);
 
     [HumansFact]
     public async Task Fires_at_each_site_when_two_repositories_reference_the_same_dbset()
@@ -359,35 +359,4 @@ public sealed class SingleRepositoryPerTableAnalyzerTests
         diagnostics.Should().OnlyContain(d => d.GetMessage().Contains("Users"));
     }
 
-    [HumansFact]
-    public async Task Does_not_fire_outside_infrastructure_assembly()
-    {
-        var source = Stubs + """
-
-            namespace Humans.Infrastructure.Repositories.Events
-            {
-                public sealed class EventRepository : Humans.Application.Interfaces.Repositories.IRepository
-                {
-                    public void Save(Humans.Infrastructure.Data.UsersDbContext ctx) =>
-                        ctx.Events.Add(new Humans.Domain.Entities.Event());
-                }
-            }
-
-            namespace Humans.Infrastructure.Repositories.AuditLog
-            {
-                public sealed class AuditLogRepository : Humans.Application.Interfaces.Repositories.IRepository
-                {
-                    public void Touch(Humans.Infrastructure.Data.UsersDbContext ctx) =>
-                        ctx.Events.Add(new Humans.Domain.Entities.Event());
-                }
-            }
-            """;
-
-        var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new SingleRepositoryPerTableAnalyzer(),
-            "Humans.Application",
-            source);
-
-        diagnostics.Where(IsHum0025).Should().BeEmpty();
-    }
 }
