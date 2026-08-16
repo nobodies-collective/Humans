@@ -6,7 +6,6 @@ using Humans.Consent.Data;
 using System.Security.Cryptography;
 using System.Text;
 using Hangfire;
-using Humans.Domain.Entities;
 using Humans.Infrastructure.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -23,8 +22,11 @@ using Xunit;
 using Humans.Application.Interfaces;
 using Humans.Email.Contracts;
 using Humans.Mailer.Services;
-using Humans.Application.Interfaces.Profiles;
+using Humans.Users.Contracts;
 using Humans.Infrastructure.Services;
+using Humans.Stripe.Contracts;
+using Humans.Stripe.Services;
+using Humans.Users.Data;
 
 namespace Humans.Integration.Tests.Infrastructure;
 

@@ -1,5 +1,5 @@
+using Humans.Users.Contracts;
 using Humans.Application.Architecture;
-using Humans.Domain.Enums;
 using NodaTime;
 
 namespace Humans.Governance.Contracts;
@@ -12,7 +12,6 @@ namespace Humans.Governance.Contracts;
 /// Guid sets, and section read DTOs — no EF entities. See
 /// <c>memory/architecture/section-read-write-split.md</c>.
 /// </summary>
-[SurfaceBudget(10)]
 public interface IApplicationServiceRead
 {
     /// <summary>

@@ -6,22 +6,118 @@
     shape interfaces may carry default-implemented members when a rule must have a
     single home across both implementers (IBurnSettingsInfo's early-entry clock) —
     so a little behaviour lives here, deliberately, not just declarations.
-    Never a ProjectReference on another Humans.* project — this project stays the
-    bottom of the graph so Humans.Domain can reference it. External packages only:
-    NodaTime is allowed because IBurnSettingsInfo's calendar members are LocalDate
-    and Instant, and NodaTime is an external, base-class-like dependency already
-    used by every layer above. Namespaces intentionally remain Humans.Application.*
-    (namespace ≠ assembly) so call sites and the Humans.Analyzers full-name
-    constants are unaffected by the move.
+    THE ONE INVARIANT: never a ProjectReference on another Humans.* project — this
+    project stays the bottom of the graph. That is now load-bearing in a way it was
+    not when the rule was written for Humans.Domain (deleted in G5 lane 3b): Base is
+    about to reference Humans.Users.Contracts at 4b-iii, so a reference added here can
+    close an assembly cycle through that leaf.
+
+    EXTERNAL DEPENDENCIES ARE UNRESTRICTED — Peter's ruling, 2026-08-15. Base may take
+    any NuGet package or shared framework it needs; only Humans.* ProjectReferences are
+    forbidden. Earlier revisions of this comment claimed a "no-NuGet-packages promise"
+    and described Base as framework-free. Both were false when written: this project has
+    carried FrameworkReference Microsoft.AspNetCore.App since ISection landed, long
+    before phase 3, and it now also carries CsvHelper, Serilog, Octokit, EF Core and
+    Npgsql. Do not reason from package count when placing a type here; reason from the
+    ProjectReference rule above and from whether the type is genuinely cross-section.
+
+    NodaTime is here because IBurnSettingsInfo's calendar members are LocalDate and
+    Instant. Namespaces intentionally remain Humans.Application.* (namespace ≠ assembly)
+    so call sites and the Humans.Analyzers full-name constants are unaffected by the move.
+
+    G5 lane 3a-1 (nobodies-collective/Humans#866) made this the Base fill: 60 generic files
+    arrived from Humans.Application (34), Humans.Domain (16) and Humans.Infrastructure (10) —
+    the configuration registry, CacheKeys, the CSV seam, the formatting/timing extensions,
+    the cross-cutting cache interfaces and their six IMemoryCache implementations, the
+    metering trio, the Serilog enrichers/sink, the GitHub markdown connectors, the role and
+    team constants, and four enums. Every one kept its original namespace, so no `using`,
+    `_ViewImports`, `<Using Include>` or analyzer full-name constant changed anywhere in the
+    repo. The rename of this project to Humans.Base is a later lane. Still zero
+    ProjectReference elements — check that before adding one.
+
+    G5 lane 3a-2 followed with the AddSectionDbContext cluster: the generic registration seam
+    (SectionDbContextServiceCollectionExtensions), SectionDbContextRegistration,
+    SectionMigrationRunner, DatabaseMigrationHostedService, PreMigrationSnapshot,
+    SectionMigrationsHistory, QueryMonitoringInterceptor and QueryStatistics. All 28
+    table-owning sections call the seam from their own Section.cs and none of them may
+    reference Humans.Infrastructure, so Base is the only place it can live. Namespaces
+    preserved again (Humans.Infrastructure.Data / .Hosting), so no call site moved.
+    InfrastructureServiceCollectionExtensions itself deliberately stayed in
+    Humans.Infrastructure — two architecture rules read typeof(…).Assembly off it to mean
+    "the Humans.Infrastructure assembly".
   -->
+
+  <!--
+    Followed the G5 lane 3a-1 arrivals out of Humans.Application: TrackedCache's
+    MarkWarmedForTesting, LoggerTimingExtensions.SelectLogLevel and TrackedLock.WaitToLogLevel
+    are internal and were already visible to these two test assemblies from there.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Humans.Application.Tests" />
+    <InternalsVisibleTo Include="Humans.Users.Tests" />
+    <!--
+      Followed the G5 lane 3a-2 arrivals: DatabaseMigrationHostedService,
+      SectionDbContextRegistration, SectionMigrationRunner and PreMigrationSnapshot are internal
+      and stay that way — 26 .Contracts leaves inherit this assembly's public surface, and the
+      migration plumbing is not part of it. Humans.Infrastructure still names two of them
+      (AddHumansPersistence registers the hosted service, AdminDatabaseDiagnosticsRepository
+      injects the registrations) and Humans.Integration.Tests drives SectionMigrationRunner
+      directly; both were already inside Humans.Infrastructure's own InternalsVisibleTo set
+      before the move.
+    -->
+    <InternalsVisibleTo Include="Humans.Infrastructure" />
+    <InternalsVisibleTo Include="Humans.Integration.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="NodaTime" />
     <!--
-      ISection names IServiceCollection and IConfiguration. Both live in the
-      shared framework, so this keeps the no-NuGet-packages promise intact.
+      ISection names IServiceCollection and IConfiguration, and the G5 lane 3a-1 arrivals
+      below use IMemoryCache, ILogger, IOptions and IHostEnvironment. All live in the
+      ASP.NET Core shared framework.
+
+      Consequence worth knowing, measured 2026-08-15 with
+      `dotnet msbuild <leaf>.csproj -t:ResolvePackageAssets -getItem:FrameworkReference`:
+      FrameworkReference flows transitively through ProjectReference, so all 26 .Contracts
+      leaves that reference this project resolve Microsoft.AspNetCore.App with
+      IsTransitiveFrameworkReference=true. Those leaves are NOT framework-free and cannot be
+      used as a "cannot name an ASP.NET type" oracle. Only the three leaves with no path here
+      — Humans.Events.Contracts, Humans.Onboarding.Contracts (both zero-ProjectReference) and
+      Humans.Users.Contracts (one edge, to Onboarding) — resolve Microsoft.NETCore.App alone.
     -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+
+    <!--
+      Added by G5 lane 3a-1 (nobodies-collective/Humans#866), each forced by exactly one
+      arrival. Keep this list minimal — 26 .Contracts leaves reference this project and
+      inherit whatever lands here.
+        CsvHelper — Csv/HumansCsv.cs, the single CSV seam (memory/code/csv-use-csvhelper.md).
+        Serilog   — Logging/{CurrentUserEnricher,PiiRedactionEnricher,InMemoryLogSink}.cs,
+                    which implement Serilog.Core.ILogEventEnricher / ILogEventSink.
+        Octokit   — Services/GitHub{Guide,CommunityKb}ContentSource.cs, the Guide and
+                    community-KB markdown readers.
+    -->
+    <PackageReference Include="CsvHelper" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Octokit" />
+
+    <!--
+      Added by G5 lane 3a-2 (nobodies-collective/Humans#866) with the AddSectionDbContext
+      cluster: the generic registration seam is called from all 28 table-owning sections, so it
+      has to live below every one of them, and its body names DbContext, AddDbContext,
+      AddDbContextFactory, IInterceptor, CoreEventId, UseNpgsql and UseNodaTime. This is the
+      moment Base stops being EF-free — approved for that reason, not by drift. It changes no
+      leaf's own reference set: the compiler emits an assembly reference only for what a project
+      actually uses, and no .Contracts leaf names an EF type.
+        Microsoft.EntityFrameworkCore                    — DbContext, the options builders, the
+                                                           interceptor base and the migration runner.
+        Npgsql.EntityFrameworkCore.PostgreSQL            — UseNpgsql / NpgsqlDataSource.
+        Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime   — UseNodaTime on the Npgsql builder.
+      Still zero ProjectReference elements — check that before adding one.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" />
   </ItemGroup>
 
 </Project>

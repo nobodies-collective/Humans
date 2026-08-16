@@ -3,9 +3,9 @@ using System.Security.Claims;
 using AwesomeAssertions;
 using Humans.Application.Interfaces;
 using Humans.Budget.Contracts;
-using Humans.Application.Interfaces.Camps;
+using Humans.Camps.Contracts;
 using Humans.CityPlanning.Contracts;
-using Humans.Application.Interfaces.Shifts;
+using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Domain.Constants;
 using Humans.Domain.Enums;
@@ -16,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 using NSubstitute;
 using Xunit;
+using Humans.Users.Contracts;
 
 namespace Humans.Application.Tests.Authorization;
 
@@ -27,14 +28,13 @@ public class AuthorizationPolicyTests : IDisposable
 {
     private readonly ServiceProvider _serviceProvider;
     private readonly IAuthorizationService _authorizationService;
-    private readonly IShiftManagementService _shiftManagement;
+    private readonly IShiftManagementServiceRead _shiftManagement;
 
     public AuthorizationPolicyTests()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddScoped(_ => Substitute.For<IBudgetServiceRead>());
-        services.AddScoped(_ => Substitute.For<ICampService>());
         services.AddScoped(_ => Substitute.For<ICampServiceRead>());
         services.AddScoped(_ => Substitute.For<ICityPlanningServiceRead>());
         services.AddScoped(_ => Substitute.For<ITeamService>());
@@ -48,7 +48,7 @@ public class AuthorizationPolicyTests : IDisposable
         // (design §15 step 6). Their coverage lives in Humans.Expenses.Tests.
         // IsAnyTeamManagerOrCoordinatorHandler reads team-coord ids through this service
         // (cached path); register a single shared substitute so per-test setups stick.
-        _shiftManagement = Substitute.For<IShiftManagementService>();
+        _shiftManagement = Substitute.For<IShiftManagementServiceRead>();
         _shiftManagement.GetCoordinatorTeamIdsAsync(Arg.Any<Guid>()).Returns([]);
         services.AddSingleton(_shiftManagement);
         services.AddSingleton<IClock>(SystemClock.Instance);

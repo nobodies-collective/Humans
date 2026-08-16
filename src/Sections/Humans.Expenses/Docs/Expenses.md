@@ -76,7 +76,7 @@ Metadata only; bytes on disk managed by the shared `IFileStorage` (key `uploads/
 
 **Table:** `holded_expense_outbox_events`
 
-Append-on-approve, drained by `HoldedExpenseOutboxJob`. Fields: `EventType` (CreateIncomingDoc | UpdateIncomingDocTag), `RetryCount`, `FailedPermanently`, `ProcessedAt`, `LastError`.
+Append-on-approve, drained by `HoldedExpenseOutboxJob`. Fields: `EventType` (CreateIncomingDoc | UpdateIncomingDocTag), `RetryCount`, `NextRetryAt`, `FailedPermanently`, `ProcessedAt`, `LastError`.
 
 ### ExpenseReportStatus
 
@@ -107,6 +107,7 @@ Append-on-approve, drained by `HoldedExpenseOutboxJob`. Fields: `EventType` (Cre
 | `/Expenses/Review` | GET | FinanceAdminOrAdmin | Finance review queue |
 | `/Expenses/{id}/Approve` | POST | FinanceAdminOrAdmin (resource-based) | Approve |
 | `/Expenses/{id}/Reject` | POST | FinanceAdminOrAdmin (resource-based) | Finance reject |
+| `/Expenses/{id}/HoldedRetry` | POST | FinanceAdminOrAdmin (resource-based, Approved only) | Re-queue a failed or backing-off Holded push |
 | `/Users/Admin/{id}/RevealIban` | POST | AdminOnly | Reveal raw IBAN (audit-logged) |
 
 ## Actors & Roles
@@ -128,7 +129,9 @@ Append-on-approve, drained by `HoldedExpenseOutboxJob`. Fields: `EventType` (Cre
 - `PayeeIban` (snapshotted) and `Profile.Iban` (current) MUST pass through `IbanFormatter.Mask` before appearing in any log, audit entry, or error message (enforced by convention; memory atom `memory/code/iban-mask-in-logs.md`).
 - The coordinator endorsement step is required only if the report's category has at least one budget coordinator (`CategoryRequiresCoordinatorEndorsementAsync`). Finance Admin may approve directly from Submitted if no coordinator is assigned.
 - Resource-based authorization (`IbanAccessRequirement` / `IbanAccessHandler`) gates raw IBAN access: self, FinanceAdmin with non-Draft/non-Withdrawn report context, or Admin on admin page.
-- `HoldedExpenseOutboxJob` drains the `holded_expense_outbox_events` in order. Transient errors increment `RetryCount`; permanent errors set `FailedPermanently` and stop retrying.
+- `HoldedExpenseOutboxJob` drains the `holded_expense_outbox_events` in order. A transient error increments `RetryCount` and sets `NextRetryAt` to `now + 2^(RetryCount+1)` minutes, so the event is held back rather than re-hitting Holded every minute; the tenth failure, and any permanent error, sets `FailedPermanently`. A written-off event is never silently dropped — it shows on `/Expenses/Review` as a banner and on `/Expenses/{id}` as the Holded sync card, where a finance admin re-queues it.
+- Attachment uploads are stamped on `ExpenseAttachment.HoldedUploadedAt`, so a re-run after a partial failure or a re-queue resumes rather than adding a second copy of every earlier file to the same Holded document.
+- The drain does nothing at all when no `HOLDED_API_KEY_V2` is configured (`IHoldedClient.IsConfigured`): every call would 401, which is a permanent error, so draining would write off the whole queue. The sync card reports that state as "Not configured" rather than "Queued".
 - Holded API request bodies are the only code path that may contain a raw IBAN (not masked).
 
 ## Negative Access Rules
@@ -146,6 +149,7 @@ Append-on-approve, drained by `HoldedExpenseOutboxJob`. Fields: `EventType` (Cre
 - On **approve**: `HoldedExpenseOutboxEvent` (CreateIncomingDoc) queued. Audit entry `ExpenseApprove` written.
 - On **category override**: `HoldedExpenseOutboxEvent` (UpdateIncomingDocTag) queued. Audit entry `ExpenseCategoryOverride` written.
 - On **IBAN reveal (admin page)**: `AuditAction.IbanReveal` written recording actor + target user.
+- On **Holded push success**: audit entry `ExpenseHoldedPushed` written (actor: the job). On **write-off**: `ExpenseHoldedFailed`. On **finance re-queue**: `ExpenseHoldedRequeued` (actor: the admin). These carry the push history past outbox-row cleanup — the outbox columns themselves are not readable outside the database.
 - **`HoldedExpenseOutboxJob`** runs every minute.
 - **GDPR export** (`IUserDataContributor`): contributes `ExpenseReports` and `ExpenseAuditLog` slices. Chain-follows merge tombstones. (Historical `ExpenseSepaSent` / `ExpenseSepaReopened` / `ExpensePaid` audit entries are still surfaced for accounts that have them — the audit log is immutable; only the writers were removed.)
 
@@ -165,7 +169,7 @@ Append-on-approve, drained by `HoldedExpenseOutboxJob`. Fields: `EventType` (Cre
 **Owned tables:** `expense_reports`, `expense_lines`, `expense_attachments`, `holded_expense_outbox_events`
 **Status:** (A) Migrated (2026-05-10). Moved into its own project `src/Sections/Humans.Expenses` at G5 (nobodies-collective/Humans#866), with the cross-section leaf `Humans.Expenses.Contracts`.
 
-- `ExpenseReportService` lives in `Humans.Expenses.Services` and depends only on Application-layer abstractions. `IExpenseReportServiceRead` is the internal read surface (`[SurfaceBudget(7)]`); `IExpenseReportService` adds the mutations. The only public surface is `Section` plus the contracts leaf's `IExpenseReportBackgroundProcessor` (`DrainHoldedOutboxAsync`), which is how `HoldedExpenseOutboxJob` — still in `Humans.Infrastructure/Jobs`, because recurring jobs are named by concrete type in Shell's roll-call — reaches the section.
+- `ExpenseReportService` lives in `Humans.Expenses.Services` and depends only on Application-layer abstractions. `IExpenseReportServiceRead` is the internal read surface (`[SurfaceBudget(8)]`); `IExpenseReportService` adds the mutations. The only public surface is `Section` plus the contracts leaf's `IExpenseReportBackgroundProcessor` (`DrainHoldedOutboxAsync`), which is how `HoldedExpenseOutboxJob` — still in `Humans.Infrastructure/Jobs`, because recurring jobs are named by concrete type in Shell's roll-call — reaches the section.
 - `ExpenseRepository` (impl `src/Sections/Humans.Expenses/Data/ExpenseRepository.cs`, §15b Singleton + `IDbContextFactory<ExpensesDbContext>`) is the only file that touches expense tables via `DbContext`.
 - **DbContext** — `ExpensesDbContext` (`src/Sections/Humans.Expenses/Data/ExpensesDbContext.cs`, `internal sealed`) is the section's own per-section EF model (nobodies-collective/Humans#858 split): maps only `expense_reports`, `expense_lines`, `expense_attachments`, `holded_expense_outbox_events`, with its own `__EFMigrationsHistory_Expenses` table and migrations under `Data/Migrations/` (baseline `20260715101338_BaselineExpenses`). Same database and connection as `HumansDbContext` — the split partitions the EF model, not the database.
 - **DI registration** lives in `Section.Register` at the project root, discovered by Shell through `ISection`. It also registers the section's `ExpenseReportStatus` badge colours into `EnumBadgeMap` rather than Base holding a literal row per section enum.

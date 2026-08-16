@@ -1,21 +1,24 @@
+using Humans.GoogleIntegration.Contracts;
 using Humans.Agent.Contracts;
-using Humans.Application.Interfaces.AuditLog;
-using Humans.Application.Services.AuditLog;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Users;
 using Humans.Application.Configuration;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Caching;
 using Humans.Application.Interfaces.GoogleIntegration;
-using Humans.Application.Interfaces.HumanLifecycle;
 using Humans.Application.Interfaces.Repositories;
-using Humans.Application.Services.HumanLifecycle;
 using Humans.Infrastructure.Caching;
 using Humans.Infrastructure.Configuration;
 using Humans.Infrastructure.Jobs;
 using Humans.Infrastructure.Services;
+using Humans.Issues.Contracts;
+using Humans.Notifications.Contracts;
 using Humans.Web.Extensions.Infrastructure;
 using Humans.Web.Extensions.Sections;
+using Humans.Users.Contracts;
+using Humans.Application.Services.Users.AccountLifecycle;
+using Humans.Application.Interfaces.Dashboard;
+using Humans.Application.Services.Dashboard;
 
 namespace Humans.Web.Extensions;
 
@@ -33,7 +36,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddEmailInfrastructure(configuration, environment);
         services.AddGoogleWorkspaceInfrastructure(configuration, environment);
         services.AddTicketVendorPort(configuration);
-        services.AddStripeInfrastructure(configuration);
+        // Stripe's own registrations moved with it to Humans.Stripe's Section.Register
+        // (nobodies-collective/Humans#866, G5 lane 4b-2a).
 
         // Single key-addressed file storage rooted at wwwroot. Camps,
         // profile pictures, and any future file-bearing section share this
@@ -42,58 +46,66 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Section-owned registrations. Each section file registers its own
         // repositories, services, jobs, options, and GDPR contributor forwarding.
-        services.AddProfileSection(configuration);
-        services.AddUsersSection();
         services.AddAuthSection();
-        services.AddCampsSection();
-        services.AddShiftsSection();
-        services.AddEarlyEntrySection();
-        // AuditLog's read+render owner. It resolves actor/subject/team display names
-        // through IUserServiceRead, ITeamServiceRead and ITeamResourceService, which makes
-        // it a cross-section orchestrator rather than part of the horizontal AuditLog
-        // section (peters-hard-rules.md: a horizontal may not reference a vertical), so it
-        // stays in Humans.Application and is registered here — Governance's rule, that the
-        // section owning the file is not always the section owning the line.
-        services.AddScoped<IAuditViewerService, AuditViewerService>();
-        services.AddICalFeedSection();
+        // AuditLog's read+render owner (IAuditViewerService) is registered by
+        // Humans.AuditLog's own Section.Register since G5 lane 4b-2h
+        // (nobodies-collective/Humans#866).
         services.AddAdminSection();
-        services.AddGoogleIntegrationSection();
-        services.AddHoldedConnector(configuration);
 
-        // Recurring jobs for sections that have already moved out. The job types stay in
-        // Humans.Infrastructure/Jobs because UseHumansRecurringJobs names them by concrete
-        // type and there is no ISection-style discovery seam for jobs yet (design §15.6b);
-        // each reaches its section through that section's contracts leaf.
+        // Recurring jobs for sections that have already moved out. The *registration* stays
+        // here because UseHumansRecurringJobs names each job by concrete type and there is no
+        // ISection-style discovery seam for jobs yet (design §15.6b) — but that never pinned
+        // the job *type* to Humans.Infrastructure, and G5 lane 5b-1 re-measured the "Hangfire
+        // serializes the declaring assembly" claim and found it false: AddOrUpdate<T>(id, …)
+        // rewrites the stored type string at every startup, so the job id is the stable key.
+        // CleanupIssuesJob moved to Humans.Issues/Contracts/ on that finding; the rest still
+        // reach their section through its contracts leaf and are yet to move.
         services.AddScoped<SendSurveyReminderJob>();
         services.AddScoped<GateRetentionJob>();
         services.AddScoped<GateVendorCheckInJob>();
         services.AddScoped<TicketSyncJob>();
         services.AddScoped<TicketingBudgetSyncJob>();
         services.AddScoped<CleanupIssuesJob>();
+        // Added at G5 lane 5b-1: "cleanup-notifications" is in UseHumansRecurringJobs' roll-call
+        // but CleanupNotificationsJob had no DI registration anywhere, so Hangfire's
+        // AspNetCoreJobActivator (GetRequiredService by concrete type) threw on every daily tick.
+        services.AddScoped<CleanupNotificationsJob>();
         services.AddScoped<TermRenewalReminderJob>();
         services.AddScoped<SyncLegalDocumentsJob>();
         services.AddScoped<SendReConsentReminderJob>();
         services.AddTransient<MailerAudienceSyncJob>();
+        // Both Holded jobs are Hangfire-serialized by concrete type and so stay in Base; the
+        // connector itself (client, options, call log) is registered by Humans.Holded's Section.cs
+        // since G5 lane 4b-2f. HoldedSyncJob is a shim over IHoldedNightlySync; the expense-outbox
+        // drain is Expenses' body and is unchanged.
+        services.AddScoped<HoldedSyncJob>();
+        services.AddScoped<HoldedExpenseOutboxJob>();
 
-        // Base collaborators that Teams' section file used to register on the way past.
-        // ActiveTeamsCacheInvalidator is a Humans.Infrastructure implementation of a
-        // Humans.Application interface (the IInvalidator family other sections evict Teams'
-        // master cache entry through), and SystemTeamSyncJob is a Humans.Infrastructure job
-        // bound to GoogleIntegration's ISystemTeamSync — neither is Teams' to own
-        // (design §15 step 4, Governance's rule: the section that owns the file is not always
-        // the section that owns the line).
-        services.AddScoped<IActiveTeamsCacheInvalidator, ActiveTeamsCacheInvalidator>();
-        services.AddScoped<ISystemTeamSync, SystemTeamSyncJob>();
+        // ActiveTeamsCacheInvalidator used to be registered here as a Base collaborator Teams'
+        // section file registered on the way past. G5 lane 3a-1 re-measured that: its six
+        // IMemoryCache-backed siblings moved to Base, but this one injects ITeamService and so
+        // had to land in Humans.Teams — where HUM0034 makes it internal and therefore
+        // unreachable from Web. Both the type and its registration are now Teams' (Section.cs).
+        //
+        // SystemTeamSyncJob left this list the same way at G5 lane 4b-2e — system-team
+        // membership is a Teams invariant. Only ISystemTeamSync stayed in Humans.Application,
+        // because Hangfire serializes it as the recurring job's target type.
 
         // Base collaborators that Governance's section file used to register on the way past.
         // The three badge-cache invalidators are Humans.Infrastructure implementations of
-        // Humans.Application interfaces that four sections evict through, and
-        // HumanLifecycleService is the suspend/unsuspend state machine over IProfileService —
-        // none of them is Governance's to own (memory/architecture/governance-scope.md).
+        // Humans.Application interfaces that four sections evict through — none of them is
+        // Governance's to own (memory/architecture/governance-scope.md).
+        // HumanLifecycleService left this list at G5 lane 4b-2d: it is Users' suspend/unsuspend
+        // state machine and now registers from Humans.Users' Section.cs (Peter, 2026-08-14 —
+        // Governance is governance only, never Users machinery).
+        // Base's own nav-badge invalidator, sitting beside its siblings in Humans.Infrastructure.
+        // Its registration lived in CampsSectionExtensions because Camps is the only consumer;
+        // the section that owns the file is not always the section that owns the line
+        // (design §15 step 4), and Section.Register may not register another layer's type.
+        services.AddScoped<ICampLeadJoinRequestsBadgeCacheInvalidator, CampLeadJoinRequestsBadgeCacheInvalidator>();
         services.AddScoped<INavBadgeCacheInvalidator, NavBadgeCacheInvalidator>();
         services.AddScoped<INotificationMeterCacheInvalidator, NotificationMeterCacheInvalidator>();
         services.AddScoped<IVotingBadgeCacheInvalidator, VotingBadgeCacheInvalidator>();
-        services.AddScoped<IHumanLifecycleService, HumanLifecycleService>();
 
         // Same call for Guide's section file: IGuideContentSource is a plain GitHub-markdown
         // fetcher (its signatures name only string) and three of its four consumers are not
@@ -105,8 +117,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Shell-resident collaborators of sections that have already moved out. AgentPreloadAugmentor
         // builds the access matrix, glossaries, route map and FAQ blocks of the agent's preload
-        // corpus from Shell-owned help content (AccessMatrixDefinitions, SectionHelpContent), so it
-        // cannot move into Humans.Agent; the section consumes it through the contracts leaf.
+        // corpus from the shared help registries (Humans.UI's AccessMatrixDefinitions and
+        // SectionHelpContent); the section consumes it through the contracts leaf.
         services.AddSingleton<IAgentPreloadAugmentor, Humans.Web.Services.Agent.AgentPreloadAugmentor>();
 
         // Users' CSV participation backfill. Its registration sat in the Tickets section file
@@ -116,6 +128,23 @@ public static class InfrastructureServiceCollectionExtensions
         // that owns the line (memory/architecture/governance-scope.md's rule, Governance
         // finding 94).
         services.AddScoped<IUserParticipationBackfillService, UserParticipationBackfillService>();
+
+        // The three Users/Profiles services that stayed behind when the section moved into
+        // its own project (nobodies-collective/Humans#866, G5 lane 2). All three inject no
+        // repository and call across sections, which by peters-hard-rules.md makes them
+        // orchestrators that cannot live inside the section they orchestrate:
+        //   AccountDeletionService  — Teams, RoleAssignments, Shifts, Tickets, AuditLog, Email.
+        //   ExternalLoginService    — IMagicLinkService, Auth's orchestrator, still in Base.
+        // UserParticipationBackfillService is the third and is registered just above.
+        services.AddScoped<IAccountDeletionService, AccountDeletionService>();
+        services.AddScoped<IExternalLoginService, ExternalLoginService>();
+
+        // Dashboard's two aggregators. They were registered inside AddUsersSection and are
+        // not Users' — they read every section's services and own no table — so they stayed
+        // in Base when the section moved (Governance's rule: the section that owns the file
+        // is not always the section that owns the line).
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 
         // Sections that have moved into their own project (nobodies-collective/Humans#866)
         // register themselves via ISection and are discovered, not named. The roll-call

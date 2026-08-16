@@ -5,6 +5,7 @@ using Humans.Notifications.Data;
 using Humans.Notifications.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Humans.Users.Contracts;
 
 namespace Humans.Notifications.Tests;
 
@@ -31,8 +32,6 @@ public class NotificationsArchitectureTests
 
     // The DbContext-constructor-parameter check is covered by the generic
     // ApplicationServicesTakeNoDbContextRule for every Application service.
-    // Repository-takes check covered by IRepositoryImplementationsAreSealedRule.
-    // Service-namespace check covered by HUM0012.
 
     [HumansFact]
     public void NotificationService_TakesRecipientResolver_NotDbContext()
@@ -126,21 +125,27 @@ public class NotificationsArchitectureTests
     }
 
     [HumansFact]
-    public void NotificationsResourceIsTheOnlyPublicTypeBesidesSection()
+    public void SectionPublicSurfaceIsTheResourceMarkerTheSectionEntryPointAndTheJob()
     {
         // HUM0034 is the build gate; this pins the intent so a Grandfathered escape or a
-        // future carve-out shows up as a test failure too.
+        // future carve-out shows up as a test failure too. It caught CleanupNotificationsJob
+        // arriving at G5 lane 5b-1 (nobodies-collective/Humans#866) — deliberately: the job
+        // sits under Contracts/ because Shell names its concrete type at both its DI
+        // registration and its RecurringJob.AddOrUpdate<T> line, which is HUM0034's
+        // Contracts/ carve-out and not an accident. Anything else new still fails here.
         var publicNames = typeof(Section).Assembly.GetExportedTypes()
             .Select(t => t.Name)
             .Where(n => !n.StartsWith("Baseline", StringComparison.Ordinal))
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
 
-        publicNames.Should().BeEquivalentTo(["NotificationsResource", "Section"]);
+        publicNames.Should().BeEquivalentTo(
+            ["CleanupNotificationsJob", "NotificationsResource", "Section"]);
     }
 
     // ── INotificationRepository ──────────────────────────────────────────────
 
-    // Sealed-repository check is covered by the generic
-    // IRepositoryImplementationsAreSealedRule across every repository.
+    // Sealed-repository check covered by HUM0034 (section types are internal) plus
+    // MA0053 (an unsealed internal class is a build error) — not by
+    // IRepositoryImplementationsAreSealedRule, which sweeps Humans.Infrastructure only.
 }

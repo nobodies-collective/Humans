@@ -1,18 +1,19 @@
 using AwesomeAssertions;
-using Humans.Application.Interfaces.Shifts;
+using Humans.Shifts.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.Services.Users;
 using Humans.Domain.Enums;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
+using Humans.Users.Contracts;
 
 namespace Humans.Application.Tests.Services;
 
 public sealed class UserParticipationBackfillServiceTests
 {
     private readonly IUserService _users = Substitute.For<IUserService>();
-    private readonly IShiftManagementService _shifts = Substitute.For<IShiftManagementService>();
+    private readonly IBurnSettingsService _shifts = Substitute.For<IBurnSettingsService>();
     private List<(Guid UserId, ParticipationStatus Status)>? _captured;
 
     private UserParticipationBackfillService CreateService()

@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Users;
-using Humans.Application.Models;
 using Humans.Domain.Constants;
 using Humans.UI.Authorization;
 using Humans.Agent.Models;
@@ -13,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NodaTime.Serialization.SystemTextJson;
 using Humans.Agent.Services;
+using Humans.Users.Contracts;
 
 namespace Humans.Agent.Controllers;
 

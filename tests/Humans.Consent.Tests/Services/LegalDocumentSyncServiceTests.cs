@@ -13,10 +13,10 @@ using Humans.Application.Interfaces.Repositories;
 using Humans.Teams.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Consent.Services;
-using Humans.Domain.Entities;
 using Humans.Consent.Domain;
 using Humans.Domain.Enums;
 using Humans.Consent.Data;
+using Humans.Users.Contracts;
 
 namespace Humans.Consent.Tests.Services;
 

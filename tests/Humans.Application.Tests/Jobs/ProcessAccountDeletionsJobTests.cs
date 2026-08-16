@@ -7,10 +7,10 @@ using Humans.Application.Tests.Infrastructure;
 using Humans.AuditLog.Contracts;
 using Humans.Email.Contracts;
 using Humans.Application.Interfaces.Users;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Jobs;
 using Humans.Infrastructure.Services;
+using Humans.Users.Contracts;
 
 namespace Humans.Application.Tests.Jobs;
 
@@ -99,7 +99,7 @@ public class ProcessAccountDeletionsJobTests : IDisposable
             Arg.Any<Guid?>(), Arg.Any<string?>());
 
         await _auditLogService.Received(1).LogAsync(
-            AuditAction.ShiftSignupCancelled, nameof(ShiftSignup), signupId,
+            AuditAction.ShiftSignupCancelled, "ShiftSignup", signupId,
             Arg.Is<string>(s => s.Contains(shiftId.ToString())),
             nameof(ProcessAccountDeletionsJob),
             Arg.Any<Guid?>(), Arg.Any<string?>());

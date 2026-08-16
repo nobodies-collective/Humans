@@ -1,7 +1,6 @@
 using AwesomeAssertions;
 using Humans.Gdpr.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.TicketVendor;
 using Humans.Application.Interfaces.Users;
 using Humans.Gate.Contracts;
 using Humans.Gate.Data;
@@ -10,6 +9,7 @@ using Humans.Gate.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
+using Humans.Users.Contracts;
 
 namespace Humans.Gate.Tests;
 

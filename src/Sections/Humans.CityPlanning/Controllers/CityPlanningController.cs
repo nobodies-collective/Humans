@@ -1,4 +1,4 @@
-using Humans.Application.Interfaces.Camps;
+using Humans.Camps.Contracts;
 using Humans.CityPlanning.Contracts;
 using Humans.CityPlanning.Services;
 using Humans.Containers.Contracts;
@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 
 using Humans.Application;
 using Humans.Application.Interfaces.Users;
+using Humans.Users.Contracts;
 
 namespace Humans.CityPlanning.Controllers;
 

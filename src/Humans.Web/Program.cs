@@ -20,7 +20,6 @@ using OpenTelemetry.Trace;
 using Humans.Application.Configuration;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Users;
-using Humans.Domain.Entities;
 using Humans.Web.Extensions;
 using Microsoft.Extensions.Caching.Memory;
 using Humans.Infrastructure.Data;
@@ -28,7 +27,7 @@ using Humans.Infrastructure.Hosting;
 using Humans.Infrastructure.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Health;
-using Humans.UI.Hubs;
+using Humans.CityPlanning.Contracts;
 using Humans.Web.Middleware;
 using Microsoft.Extensions.Localization;
 using Npgsql;
@@ -37,6 +36,7 @@ using Humans.UI.Extensions;
 using Serilog;
 using Serilog.Events;
 using Humans.Web.Infrastructure;
+using Humans.Users.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 

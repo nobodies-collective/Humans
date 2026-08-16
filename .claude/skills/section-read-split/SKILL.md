@@ -12,38 +12,123 @@ Apply the read/write interface split — defined in [`memory/architecture/sectio
 
 ## Vision
 
-Every cross-section-consumed service has a narrow read interface that returns only its own projections (`*Info` DTOs). External sections never see EF entities of another section, never see write methods that aren't theirs, never accidentally invalidate caches they don't own. Today the boundary is advisory; a future Roslyn analyzer enforces. Each invocation of this skill closes the gap for one more section.
+Every cross-section-consumed service has a narrow read interface that returns only its own projections — `*Info`, `*Dto` or whatever that section already uses. External sections never see EF entities of another section, never see write methods that aren't theirs, never accidentally invalidate caches they don't own. Today the boundary is advisory; a future Roslyn analyzer enforces. Each invocation of this skill closes the gap for one more section.
 
 **Teams is the reference.** PR [#678](https://github.com/peterdrier/Humans/pull/678) introduced `ITeamServiceRead` with 4 methods, migrated 23 production files, and folded in 3 audit-driven surface reductions. The skill operationalizes that pattern.
 
 ## Input
 
-- `<SectionName>` — section to split (e.g., `Users`, `Camps`, `Calendar`). Resolves to `docs/sections/<SectionName>.md` + `src/Humans.Application/Interfaces/<SectionName>/I<SectionName>Service.cs`.
+- `<SectionName>` — section to split (e.g., `Users`, `Camps`, `Calendar`). Names the section only. Its service interface, that interface's project, and its projection types are all **discovered** in Phase 0, never derived from the section name — see 0.0.
 - `<empty>` — ask which section.
 
 ## Phase 0 — Pre-flight (in-session, before worktree)
 
 Run sequentially. If any check fails or surfaces ambiguity, stop and ask the user. Don't proceed to worktree creation until Phase 0 is clean.
 
+**Notation:** `I<Section>Service`, `<Section>Info` and `I<Section>ServiceRead` below are placeholders for the types Phase 0 resolves — not literal names to construct from `<SectionName>`. For Expenses they read `IExpenseReportService`, `ExpenseReportDto` and `IExpenseReportServiceRead`: the service name drops the plural, and the projection carries neither the section name nor the `Info` suffix. Substitute the resolved names throughout.
+
+### 0.0 — Resolve the section's roots
+
+**Nothing in this skill may assert a path or a type name. Discover both, once, here.** A section's layout varies along three axes that no naming convention predicts: whether it has moved to G5, whether its contracts sit in a sibling `.Contracts` project or an in-project `Contracts/` folder, and what its service and projection types are actually called. Establish `$ROOTS` first; every step below searches it.
+
+```bash
+SECTION=<SectionName>
+ROOTS=$(ls -d src/Sections/Humans.$SECTION \
+              src/Sections/Humans.$SECTION.Contracts \
+              src/Humans.Application/Interfaces/$SECTION \
+              src/Humans.Application/Services/$SECTION \
+              src/Humans.Application/Models/$SECTION 2>/dev/null)
+[ -n "$ROOTS" ] || { echo "no such section"; exit 1; }
+
+# Sections don't all have the same folders, and `git grep pat a/ b/` (no `--`)
+# aborts entirely if any path is missing. Filter every multi-path list.
+exist() { for p in "$@"; do [ -e "$p" ] && printf '%s ' "$p"; done; }
+```
+
+Whatever exists is the section's home — a moved section yields the first two, a not-yet-moved one the rest, and a section mid-move can yield both.
+
+Resolve the doc and test homes here too, and **carry these variables into the later phases** — Phase B.6 and Phase D consume them. Resolving a path in pre-flight and then hardcoding the legacy one downstream is the same bug as never resolving it:
+
+```bash
+if [ -d "src/Sections/Humans.$SECTION" ]; then
+  DOC=src/Sections/Humans.$SECTION/Docs/$SECTION.md   # G5: doc moved into the project
+  TESTS=tests/Humans.$SECTION.Tests                   # G5: section owns its test project
+else
+  DOC=docs/sections/$SECTION.md
+  TESTS=tests/Humans.Application.Tests
+fi
+```
+
+For Events that is `src/Sections/Humans.Events/Docs/Events.md` and `tests/Humans.Events.Tests` — neither `docs/sections/Events.md` nor an Events folder under `Humans.Application.Tests` exists. The same is true of Teams and every other moved section.
+
 ### 0.1 — Section is real and cross-section-consumed
 
-```
-test -f docs/sections/<Section>.md                 # invariant doc must exist
-test -f src/Humans.Application/Interfaces/<Section>/I<Section>Service.cs
-```
+**The service type name is not the section name.** `Expenses` exposes `IExpenseReportService`, `Events` exposes `IEventService`, `Tickets` exposes `ITicketService` — a synthesized `I<Section>Service` misses all three. Find the declaration rather than a filename; the type is often declared inside another file, so a `find -name` cannot see it either:
 
-Use the `reforge` skill to count external (non-section) callers of `I<Section>Service`:
-```
-reforge callers I<Section>Service --format json
+```bash
+grep -rnE '^[[:space:]]*(public|internal) interface I[A-Za-z]+Service[[:space:]]*[:{]' \
+     $ROOTS --include='*.cs' | grep -v '/obj/'
 ```
 
-Filter out callers inside the section's own folder tree (Application/Services/<Section>, Application/Interfaces/<Section>, Infrastructure/{Services,Repositories}/<Section>, Web/Controllers/<Section>*Controller.cs, Web/ViewComponents related to the section). If **zero non-section callers remain**, the section isn't cross-section-consumed — the read interface buys nothing. Tell the user and stop.
+Both modifiers matter: on G5 a section-internal interface is `internal`, while one promoted to a cross-section contract is `public` and lives in the section's contracts (`IHoldedService` is `public` in `Humans.Holded.Contracts`; only `IHoldedAdminService` is `internal` under `Services/`).
 
-### 0.2 — Section has an `*Info` projection
+- **One match** — that's the section's service. Note the file; Phase B.3 edits it.
+- **Several** — normal for larger sections (Tickets has five, Teams three). List them for the user with their modifiers and ask which to split. Do not guess.
+- **None** — the section has no service interface; tell the user and stop.
 
-Look for `<Section>Info` (or analogous DTO name) in `src/Humans.Application/Services/<Section>/Models/` or `src/Humans.Application/Models/<Section>/`. The architectural rule requires the read interface to return projections, never entities. If the section has no `*Info` type:
+Then count external callers of the resolved name:
 
-- **Stop.** Tell the user the section needs a projection PR first (extract `<Section>Info` from the entity, populate via service, cache if applicable). Reference Teams' `TeamInfo` as the shape template. Do not attempt to invent the projection inside this PR — it's a separate concern with its own callsite migration.
+```bash
+reforge callers <IResolvedService> --format json
+```
+
+Filter out callers **inside `$OWNED`**, resolved below. `$ROOTS` alone is not the section's full footprint: for a not-yet-moved section it covers only the `Humans.Application` paths, leaving the section's own repository, Infrastructure service, DI registration, auth handlers and view models counted as *external*. The DI registration alone is enough to make a service with zero real cross-section consumers pass this gate and trigger an unnecessary public read-interface split.
+
+```bash
+OWNED="$ROOTS $(exist \
+  src/Humans.Infrastructure/Services/$SECTION \
+  src/Humans.Infrastructure/Repositories/$SECTION \
+  src/Humans.Web/Extensions/Sections/${SECTION}SectionExtensions.cs \
+  src/Humans.Web/Controllers/${SECTION}Controller.cs \
+  src/Humans.Web/Controllers/${SECTION}AdminController.cs \
+  src/Humans.Web/Controllers/${SECTION}ApiController.cs \
+  src/Humans.Web/ViewComponents/${SECTION}ViewComponent.cs \
+  src/Humans.Web/Models/${SECTION}ViewModels.cs)"
+```
+
+A moved section contributes nothing extra here — its controllers, views and models are already inside `$ROOTS`. Add the section's authorization handler if it has one under a different name. If **zero external callers remain after excluding `$OWNED`**, the read interface buys nothing — tell the user and stop.
+
+### 0.1b — Does a read interface already exist?
+
+**Check before creating one.** A section may already have an `I<Service>ServiceRead`, and it is not always in contracts: `ICalendarServiceRead` is declared `internal` inside `src/Sections/Humans.Calendar/Services/ICalendarService.cs`, with `ICalendarService : ICalendarServiceRead` already in place. Because it is declared in the same file as the full interface, a filename search never finds it — search declarations, the same way 0.1 and 0.2 do:
+
+```bash
+grep -rnE '^[[:space:]]*(public|internal) interface I[A-Za-z]+ServiceRead\b' \
+     $ROOTS --include='*.cs' | grep -v '/obj/'
+```
+
+- **Found, and the full interface already inherits it** — the split exists. Report what it covers and ask the user whether the goal is to *promote* it (make it `public`, move it to the section's contracts, re-point external callers) or to widen its method set. **Do not run B.2** — creating a second `I<Section>ServiceRead` in the contracts namespace leaves the existing same-namespace internal type winning name resolution inside the section, so the full interface keeps inheriting the old one, DI keeps registering the old one, and the new public contract is inert.
+- **Found but not inherited** — that is the real defect; fix the inheritance rather than adding a type.
+- **Not found** — proceed to 0.2.
+
+### 0.2 — Section has a projection type
+
+The architectural rule requires the read interface to return projections, never entities.
+
+Neither the location nor the name of a projection is predictable. There is no `Services/Models/` convention in this repo — `EventInfo` is under `Humans.Events/Services/Dtos/`, `LegalDocumentInfo` sits directly in `Humans.Consent/Services/`, `TicketStubInfo` in `Humans.Tickets.Contracts/`, and `TeamInfo` is not a file at all: it is declared inside `Humans.Teams.Contracts/ITeamService.cs`. **The `*Info` suffix is not the convention either** — across `src/Sections` the projection records run `Dto` (52), `Result` (51), `Row` (41), `Snapshot` (35), `Model` (33), `Info` (26), `Summary` (18). Expenses has no `*Info` type at all; its read surface returns `ExpenseReportDto`. Filtering on a suffix is what produces the false "section has no projection" stop.
+
+So search for the *shape* — a record declared outside the entity folder — and read the results:
+
+```bash
+grep -rnE '^[[:space:]]*(public|internal)([[:space:]]+sealed)? record([[:space:]]+struct)?[[:space:]]+[A-Za-z]+' \
+     $ROOTS --include='*.cs' | grep -v '/obj/' | grep -v '/Domain/'
+```
+
+Records are the projection idiom here; entities are classes under `Domain/`, which the last filter drops. Searching declarations rather than filenames is also what finds `TeamInfo`, and it avoids matching every section's `Properties/AssemblyInfo.cs`.
+
+Confirm at least one result is actually returned by the service's read methods — a record that exists but is only used as a request/command payload (`AdminLegalDocumentUpsertRequest`) is not a projection. If the section genuinely has no projection type:
+
+- **Stop.** Tell the user the section needs a projection PR first (extract the projection from the entity, populate via service, cache if applicable). Reference Teams' `TeamInfo` as the shape template. Do not attempt to invent the projection inside this PR — it's a separate concern with its own callsite migration.
 
 ### 0.3 — Architectural rule artifacts exist
 
@@ -152,10 +237,21 @@ Commit (or fold into B.2): `refactor(<section>): rename entity-returning <method
 
 #### B.2 — Create the read interface
 
-New file: `src/Humans.Application/Interfaces/<Section>/I<Section>ServiceRead.cs`
+Confirm 0.1b found no existing read interface before creating one.
+
+A read interface that external sections consume is a cross-section contract, so on G5 it goes with the section's other contracts. That is where the ones serving external callers live — `ITeamServiceRead`, `IEventServiceRead`, `ITicketServiceRead` and the rest. It is **not** a universal rule, though: `ICalendarServiceRead` is `internal`, declared inside `Humans.Calendar/Services/ICalendarService.cs`, because it draws the read boundary *within* the section rather than for outside consumers. Placement follows who consumes it. Match whichever contracts shape the section already uses:
+
+| Section shape | New file | Namespace |
+|---|---|---|
+| G5, sibling contracts project (`Humans.Teams.Contracts`, most sections) | `src/Sections/Humans.<Section>.Contracts/I<Section>ServiceRead.cs` | `Humans.<Section>.Contracts` |
+| G5, in-project contracts folder (`Humans.Store`, `Humans.Feedback`) | `src/Sections/Humans.<Section>/Contracts/I<Section>ServiceRead.cs` | `Humans.<Section>.Contracts` |
+| Not yet moved | `src/Humans.Application/Interfaces/<Section>/I<Section>ServiceRead.cs` | `Humans.Application.Interfaces.<Section>` |
+
+Both G5 shapes use the same namespace, so only the file path differs. If the section has neither a sibling `.Contracts` project nor a `Contracts/` folder, create the folder in-project — that's the lighter of the two and needs no new `.csproj` or reference edits.
 
 ```csharp
-namespace Humans.Application.Interfaces.<Section>;
+namespace Humans.<Section>.Contracts;   // G5 — see table above
+                                        // not yet moved: Humans.Application.Interfaces.<Section>
 
 /// <summary>
 /// Cross-section read surface for the <Section> section. External sections inject
@@ -167,6 +263,8 @@ public interface I<Section>ServiceRead
     // Methods from Phase 0 proposal
 }
 ```
+
+`I<Section>Service` may live in a different project than the read interface — on G5 the full service interface is often under `Services/` while the read interface is in contracts. Make sure the project owning `I<Section>Service` references the contracts project before B.3.
 
 #### B.3 — Modify `I<Section>Service.cs`
 
@@ -181,7 +279,7 @@ public interface I<Section>ServiceRead
 
 #### B.5 — DI registration
 
-In the section's DI extension method (likely `src/Humans.Web/Extensions/Sections/<Section>SectionExtensions.cs`):
+In the section's DI registration — `src/Sections/Humans.<Section>/Section.cs` (`ISection.Register`, G5) or `src/Humans.Web/Extensions/Sections/<Section>SectionExtensions.cs` (not yet moved):
 
 ```csharp
 services.AddSingleton<Caching<Section>Service>();
@@ -194,7 +292,10 @@ Both interfaces resolve to the same singleton.
 
 #### B.6 — Architecture tests
 
-In `tests/Humans.Application.Tests/Architecture/<Section>ArchitectureTests.cs` (or new file if missing), assert:
+In the section's architecture test file under `$TESTS` — for a moved section that is `$TESTS/<Section>ArchitectureTests.cs` at the project root (e.g. `tests/Humans.Events.Tests/EventsArchitectureTests.cs`), otherwise `$TESTS/Architecture/<Section>ArchitectureTests.cs` — or a new file there if missing, assert:
+
+**Do not put a moved section's test in `Humans.Application.Tests`.** That project does not reference the section assembly, and a G5 section grants `InternalsVisibleTo` only to `Humans.<Section>.Tests` and `Humans.Integration.Tests`. Since G5 service interfaces are `internal`, a test placed there cannot see the type under test and will not compile — and even if it did, it could not build the section's production DI registration to check the resolution below.
+
 - `I<Section>Service` inherits from `I<Section>ServiceRead`.
 - Both interfaces DI-resolve to the same concrete instance from a service-provider built from the production DI registration.
 - Add a positive smoke test for the new projection-returning method (e.g. by-slug returns same data as the entity-returning version for a known row).
@@ -211,7 +312,7 @@ Commit: `feat(<section>): introduce I<Section>ServiceRead boundary`
 grep -rnE 'I<Section>Service\b' --include='*.cs' src/ tests/ | grep -v 'I<Section>ServiceRead'
 ```
 
-For each file outside the section's own folder tree (exclude `src/Humans.Application/{Services,Interfaces}/<Section>/**`, `src/Humans.Infrastructure/{Services,Repositories}/<Section>/**`, `src/Humans.Web/Controllers/<Section>*Controller.cs`, the section's auth handlers, the section's ViewModels):
+For each file outside the section's own tree — exclude everything under `$ROOTS` as resolved in 0.0, which is the same scope 0.1 used for the caller count, plus (not-yet-moved sections only) `src/Humans.Infrastructure/{Services,Repositories}/<Section>/**`, `src/Humans.Web/Controllers/<Section>*Controller.cs`, the section's auth handlers and its ViewModels:
 
 1. Read the file's actual `I<Section>Service` usages.
 2. If **every call** is to a method on `I<Section>ServiceRead`, swap the field/ctor parameter type from `I<Section>Service` → `I<Section>ServiceRead`. Update field name if it follows a `_section`/`section` convention.
@@ -219,16 +320,16 @@ For each file outside the section's own folder tree (exclude `src/Humans.Applica
 
 #### C.2 — Sweep architecture tests across the repo
 
-Many sections have architecture tests that reference `I<Section>Service` for dependency checks. Grep:
+Many sections have architecture tests that reference `I<Section>Service` for dependency checks. These are spread across per-section test projects now, not just `Humans.Application.Tests`, so grep all of `tests/`:
 ```
-grep -rnE 'I<Section>Service\b' --include='*.cs' tests/Humans.Application.Tests/Architecture/
+grep -rnE 'I<Section>Service\b' --include='*.cs' tests/
 ```
 
 For each match, evaluate: is the test asserting "this section depends on `I<Section>Service`" (write-bearing dependency, keep) or "this section reads from `I<Section>Service`" (read-only, swap to `I<Section>ServiceRead`)?
 
 #### C.3 — Baseline files
 
-If the repo has `tests/Humans.Application.Tests/Architecture/Baselines/*.txt` files that enumerate methods or interface names that changed (renames, deletions, additions), update them. Common pattern: a baseline lists "entity-returning reads in Application services" — the rename in B.1 may update it.
+If the repo has `tests/Humans.Application.Tests/Architecture/Baselines/*.txt` files (the baselines stayed in `Humans.Application.Tests` — they are repo-wide, not per-section) that enumerate methods or interface names that changed (renames, deletions, additions), update them. Common pattern: a baseline lists "entity-returning reads in Application services" — the rename in B.1 may update it.
 
 #### C.4 — Commits
 
@@ -245,7 +346,7 @@ Commit pattern: `refactor(<consumer-section>): consume I<Section>ServiceRead`
 
 If this is the first section being split (artifacts didn't exist in Phase 0.3), create them. Otherwise just add the section reference.
 
-1. `docs/sections/<Section>.md` — add under "Architecture":
+1. `$DOC` — the invariant doc resolved in 0.0, which for a moved section is `src/Sections/Humans.<Section>/Docs/<Section>.md`, NOT `docs/sections/`. Add under "Architecture":
    ```markdown
    - **Read/write interface split.** `I<Section>ServiceRead` (N methods: ...) is the cross-section read surface — only `<Section>Info` projections, no EF entities. `I<Section>Service : I<Section>ServiceRead` adds writes, cache invalidation, and <Section>-internal reads. External sections inject `I<Section>ServiceRead`. See `memory/architecture/section-read-write-split.md`.
    ```
@@ -339,7 +440,7 @@ These have shaped the skill above; called out here so the subagent doesn't relea
 
 - [`memory/architecture/section-read-write-split.md`](../../../memory/architecture/section-read-write-split.md) — the durable rule.
 - [`docs/sections/SECTION-TEMPLATE.md`](../../../docs/sections/SECTION-TEMPLATE.md) — "Cross-section read interface" block.
-- [`docs/sections/Teams.md`](../../../docs/sections/Teams.md) — reference implementation.
+- [`src/Sections/Humans.Teams/Docs/Teams.md`](../../../src/Sections/Humans.Teams/Docs/Teams.md) — reference implementation. Teams is G5, so its doc moved into the project; there is no `docs/sections/Teams.md`.
 - Teams PR [#678](https://github.com/peterdrier/Humans/pull/678) — first application, 23 files migrated, 3 audit cleanups, 1 audit deviation.
 - [`.claude/skills/audit-surface/`](../audit-surface/) — invoked in Phase 0.4 (lives in `~/.claude/skills/audit-surface/`, not this repo).
 - [`.claude/skills/reforge/SKILL.md`](../reforge/SKILL.md) — invoked in Phase 0.1 for caller enumeration.

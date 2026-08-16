@@ -13,7 +13,7 @@
 
 # Roslyn Analyzer Candidates
 
-Forward-looking inventory of *additional* in-repo analyzer rules beyond the currently-shipped set (`HUM0001`–`HUM0021`, `HUM0024`–`HUM0034`; catalogued in [`code-analysis.md`](code-analysis.md)). **IDs are assigned at ship time from the next free slot in `AnalyzerReleases.Unshipped.md` — currently `HUM0035`.** The candidate headings below are deliberately *un-numbered*: several once carried provisional `HUM00xx` numbers that later shipped for unrelated rules, so do not pre-claim an id here. This file is the queue we draw from when adding the next analyzer; do not start writing one without checking here first.
+Forward-looking inventory of *additional* in-repo analyzer rules beyond the currently-shipped set — 29 live rules: `HUM0001`–`HUM0003`, `HUM0005`–`HUM0020`, `HUM0025`–`HUM0034`, catalogued in [`code-analysis.md`](code-analysis.md). **Retired ids are never reassigned:** `HUM0004` (Profile.IsSuspended write guard, dropped with the column in nobodies-collective/Humans#1217), `HUM0022`/`HUM0023` (the per-section Notification and Event DbSet-write analyzers, subsumed by the universal `HUM0025`), and `HUM0021`/`HUM0024` (retired in nobodies-collective/Humans#1278). **IDs are assigned at ship time from the next free slot in `AnalyzerReleases.Unshipped.md` — currently `HUM0035`.** The candidate headings below are deliberately *un-numbered*: several once carried provisional `HUM00xx` numbers that later shipped for unrelated rules, so do not pre-claim an id here. This file is the queue we draw from when adding the next analyzer; do not start writing one without checking here first.
 
 ## Framing
 
@@ -84,7 +84,16 @@ assertion families that are plausible analyzer candidates:
   rather than constructing an application context directly (any
   per-section context). The first two are already generalized arch tests
   (`IRepositoryImplementationsAreSealedRule`,
-  `RepositoryImplementationsLiveInInfrastructureRule`).
+  `RepositoryImplementationsLiveInInfrastructureRule`), both scoped to the
+  `Humans.Infrastructure` assembly. They do **not** sweep the G5 section
+  assemblies, and should not be widened to: there, HUM0034 forces every
+  non-`Contracts/` type `internal` and MA0053 then errors on an unsealed
+  `internal` class, so sealing is a structural fact; and a section repository
+  lives under its own section namespace by construction, so the
+  `Humans.Infrastructure.*` prefix would be wrong. Both rules retire — file
+  deleted, not repointed — once `src/Humans.Infrastructure/Repositories/` is
+  empty. Note MA0053 does not report `public` classes, which is why
+  `Humans.Infrastructure` (no HUM0034) still needs the sealing sweep.
 - Interface marker obligations should be compile-time enforced:
   `I*Service`/`I*Query`/`I*Calculator` extend `IApplicationService`, and
   `I*Repository` extends `IRepository`.
@@ -104,16 +113,16 @@ assertion families that are plausible analyzer candidates:
 - Application service read methods should not expose domain/EF entities.
   `ApplicationServiceEntityReadReturns.baseline.txt` has existing debt, so this
   needs either a grandfather mechanism or a warning-first migration.
-- Cross-section EF nav configuration is error-enforced by `HUM0024`. The debt is
-  drained: nobodies-collective/Humans#992 cut all 54 cross-section relationships,
-  so no `[Grandfathered("HUM0024", ...)]` remains and the rule's
-  `WarningsNotAsErrors` entry is gone — any new cross-section join or bare-FK
-  relationship fails the build outright.
-  `HUM0024` folds `Users` / `Profile` / `Profiles` into one logical section
-  (`Humans`), so a join between a Users entity and a Profiles entity does not
-  flag — they are the same person-section per §2c of `design-rules.md`. This
-  fold retired 5 `[Grandfathered("HUM0024")]` markers on the Profiles/Users
-  EF configs.
+- Cross-section EF nav configuration was error-enforced by `HUM0024`, **retired in
+  nobodies-collective/Humans#1278**. Structure took over: each peeled section has its own
+  `DbContext` in its own assembly, so there is no shared EF model for a navigation to
+  join across. The debt was already drained before retirement —
+  nobodies-collective/Humans#992 cut all 54 cross-section relationships, leaving no
+  `[Grandfathered("HUM0024", ...)]` markers. **Accepted residual:** an EF configuration
+  inside `Humans.Infrastructure`, which still hosts the five not-yet-G5 section contexts,
+  could map another section's entity; that is a review-time check now, not a build error. Do not re-propose this analyzer —
+  reviving it would mean carrying it until the last section peels, which is exactly the
+  trade #1278 declined.
 
 ### HUM0007 — `IsConcurrencyToken` / `[ConcurrencyCheck]` / `[Timestamp]` forbidden
 
@@ -253,9 +262,11 @@ have the supporting machinery. Each notes the missing piece.
   assembly's `[Section("…")]` marker, and `Internal/SectionDbContexts.cs`
   enumerates the DbSets on every application context. What is still missing is
   the entity→section direction — `Sections.cs` keys on service/interface
-  namespaces, not on `Humans.Domain` entity types, and HUM0024 still derives
-  entity ownership from EF-config namespace layout. Land that mapping as a
-  shared helper before writing the Include analyzer.
+  namespaces, not on `Humans.Domain` entity types. HUM0024 used to derive entity
+  ownership from EF-config namespace layout, but it is retired
+  (nobodies-collective/Humans#1278), so that derivation is no longer available to
+  copy — the mapping has to be written fresh. Land it as a shared helper before
+  writing the Include analyzer.
 
 - **`Display sort in repositories/services`** (HARD-ish rule, see
   [`memory/architecture/display-sort-in-controllers.md`](../../memory/architecture/display-sort-in-controllers.md)).
@@ -299,12 +310,12 @@ shaped for ratchet / marker / filesystem-aware enforcement, not for an
 analyzer.
 
 - `NoConcurrencyTokensRule` — replaced by semantic analyzer `HUM0007`.
-- `NoCrossSectionEfJoinsRule` — replaced by analyzer `HUM0024`.
-- `NoLinqAtDbLayerRule` (`tests/.../Rules/NoLinqAtDbLayerRule.cs`) — accumulated debt across services; baseline-ratcheted. Stay as ratchet.
+- `NoCrossSectionEfJoinsRule` — was replaced by analyzer `HUM0024`; both are gone, the analyzer retired in nobodies-collective/Humans#1278 (per-section `DbContext`s make the join structurally impossible). Do not resurrect either.
+- `NoLinqAtDbLayerRule` — retired in nobodies-collective/Humans#866's GoogleIntegration move. It scanned a hardcoded `src/Humans.Application/Services`, which G5 had drained to 28 files while 360 service files moved to `src/Sections/*/Services`; its baseline reached zero through lost coverage, not through fixes. The `no-linq-at-db-layer` rule itself still stands (`memory/architecture/no-linq-at-db-layer.md`) — only the regex ratchet is gone. Do not resurrect it in this form.
 - `NoBusinessLogicInControllersRule` — retired (the regex heuristic was noisy and only saw public action signatures; nobodies-collective/Humans#793). Replaced by semantic analyzer `HUM0031` (`ControllerBusinessLogicAnalyzer`): statements > 40 or cyclomatic complexity > 15 on any controller method, method-level `[Grandfathered]`, **thresholds frozen at 40/15 until 2027**. The freeze is Peter's call and is not up for revisiting — do not propose tightening, unfreezing, or "re-evaluating now that #866 has progressed". He will lower them when he decides to.
-- `NoObsoleteNavReadsRule` — replaced by semantic analyzer `HUM0021`.
+- `NoObsoleteNavReadsRule` — was replaced by semantic analyzer `HUM0021`; both are gone, the analyzer retired in nobodies-collective/Humans#1278 as a dead rule (zero live `[Obsolete("Cross-domain nav…")]` markers since nobodies-collective/Humans#996). Do not resurrect either.
 - `NoDestructiveMigrationOpsRule` (`tests/.../Rules/NoDestructiveMigrationOpsRule.cs`) — operates on EF-generated migration files which legitimately contain destructive ops in other contexts. Filesystem-aware. Stay as ratchet.
-- `NoStartupGuardsRule` (`tests/.../Rules/NoStartupGuardsRule.cs`) — heuristic regex over `Program.cs` and startup classes; pattern is too fuzzy for crisp call-site analyzer detection. Stay as ratchet.
+- `NoStartupGuardsRule` — retired alongside `NoLinqAtDbLayerRule` (Peter's call). Its scan root `src/Humans.Web` was still valid and its baseline genuinely zero, but it was a regex over one project out of 36+ and saw no section's `Section.Register`. The `no-startup-guards` rule itself still stands (`memory/architecture/no-startup-guards.md`).
 - `DisplaySortInControllersRule` (`tests/.../Rules/DisplaySortInControllersRule.cs`) — accumulated debt + inline `// arch:db-sort-ok` opt-out; baseline-ratcheted today, see Tier 2 for the analyzer prerequisite.
 - `ServiceBoundaryArchitectureTests` (`tests/.../Architecture/ServiceBoundaryArchitectureTests.cs`) — five boundary scans (marker-attribute presence for services and repositories, repository-ownership-map completeness, the Users/Profiles single-section pin, and the entity-read-return ratchet; the former repository-injection scans across Web and Application shipped as analyzers). All shaped as reflection/marker tests or baselined ratchets. Stay as tests.
 - The per-section `*ArchitectureTests.cs` files (Camps, Teams, Shifts, Profile, etc.) — each pins namespace location, ctor shape, no-DbContext-injection, and "owned entities have no cross-domain navs" using reflection on the loaded assemblies. Marker/existence + reflection shape. Stay as tests.

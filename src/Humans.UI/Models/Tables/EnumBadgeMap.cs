@@ -30,17 +30,6 @@ public static class EnumBadgeMap
         [EmailOutboxStatus.Queued] = "bg-warning text-dark",
         [EmailOutboxStatus.Sent] = "bg-success",
         [EmailOutboxStatus.Failed] = "bg-danger",
-
-        [ShiftPeriod.Build] = "bg-info",
-        [ShiftPeriod.Event] = "bg-success",
-        [ShiftPeriod.Strike] = "bg-secondary",
-
-        [SignupStatus.Pending] = "bg-warning text-dark",
-        [SignupStatus.Confirmed] = "bg-success",
-        [SignupStatus.Refused] = "bg-danger",
-        [SignupStatus.Bailed] = "bg-secondary",
-        [SignupStatus.Cancelled] = "bg-dark",
-        [SignupStatus.NoShow] = "bg-danger",
     };
 
     /// <summary>

@@ -1,6 +1,6 @@
 using Humans.Application;
-using Humans.Domain.Entities;
 using NodaTime;
+using Humans.Users.Contracts;
 
 namespace Humans.Onboarding.Tests.Services;
 
@@ -45,7 +45,7 @@ internal static class UserInfoStubs
                 BurnerName = displayName,
                 CreatedAt = SystemClock.Instance.GetCurrentInstant(),
                 UpdatedAt = SystemClock.Instance.GetCurrentInstant(),
-                State = Humans.Domain.Enums.ProfileState.Active,
+                State = Humans.Users.Contracts.ProfileState.Active,
                 IsApproved = true,
             },
             [],

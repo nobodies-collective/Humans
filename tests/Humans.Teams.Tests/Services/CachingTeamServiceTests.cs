@@ -1,10 +1,8 @@
 using Humans.Auth.Contracts;
 using AwesomeAssertions;
-using Humans.Application.Interfaces.Auth;
 using Humans.Teams.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Teams.Tests.Infrastructure;
-using Humans.Domain.Entities;
 using Humans.Teams.Domain;
 using Humans.Domain.Enums;
 using Humans.Teams.Services;
@@ -12,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Humans.Users.Contracts;
 
 namespace Humans.Teams.Tests;
 

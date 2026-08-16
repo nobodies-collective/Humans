@@ -8,7 +8,7 @@ using System.Text;
 using Hangfire;
 using Humans.Application;
 using Humans.Application.Interfaces.Users;
-using Humans.Application.Services.Profiles;
+using Humans.Users.Contracts;
 using Humans.Infrastructure.Jobs;
 using Humans.UI.Authorization;
 using Humans.UI.Extensions;

@@ -1,5 +1,5 @@
 using Humans.Application;
-using Humans.Domain.Entities;
+using Humans.Users.Contracts;
 
 namespace Humans.Tickets.Tests;
 

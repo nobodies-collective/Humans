@@ -1,8 +1,7 @@
+using Humans.Auth.Contracts;
 using AwesomeAssertions;
-using Humans.Application.Interfaces.Auth;
 using Humans.Application.Interfaces.Users;
 using Humans.Domain.Constants;
-using Humans.Domain.Entities;
 using Humans.Web.Controllers;
 using Humans.Web.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
@@ -18,6 +17,7 @@ using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
+using Humans.Users.Contracts;
 
 namespace Humans.Application.Tests.Controllers;
 

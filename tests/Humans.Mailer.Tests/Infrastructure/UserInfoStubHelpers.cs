@@ -1,7 +1,7 @@
 using Humans.Application;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using NodaTime;
+using Humans.Users.Contracts;
 
 namespace Humans.Mailer.Tests.Infrastructure;
 

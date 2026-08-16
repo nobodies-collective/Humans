@@ -1,5 +1,4 @@
 using Humans.Application;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Notifications.Data;
 using Humans.Notifications.Services;
@@ -16,7 +15,7 @@ using NodaTime.Testing;
 using NSubstitute;
 
 
-using Humans.Application.Interfaces.Profiles;
+using Humans.Users.Contracts;
 
 namespace Humans.Notifications.Tests.Services;
 

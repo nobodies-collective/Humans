@@ -4,11 +4,18 @@
     <InternalsVisibleTo Include="Humans.Application.Tests" />
     <!--
       Teams' section test project: TeamServiceTests and TeamRoleServiceTests build the real
-      TeamService over real Auth / Shifts / GoogleIntegration repositories, and those three
-      contexts are internal here. Granted rather than rewriting ~3,000 lines of real-object
-      tests into substitutes inside a move commit (design §15 step 8).
+      TeamService over real Auth and Shifts repositories, and those contexts are internal
+      here. Granted rather than rewriting ~3,000 lines of real-object tests into substitutes
+      inside a move commit (design §15 step 8). GoogleIntegration was the third and left at
+      its own G5 — Humans.GoogleIntegration.csproj now carries the mirror of this entry.
     -->
     <InternalsVisibleTo Include="Humans.Teams.Tests" />
+    <InternalsVisibleTo Include="Humans.Shifts.Tests" />
+    <!--
+      Camps' service tests build the real CampService over an in-memory UsersDbContext to seed
+      camp owners. Temporary: the entry comes out at Users' own G5 (Teams finding 36's mirror).
+    -->
+    <InternalsVisibleTo Include="Humans.Camps.Tests" />
     <InternalsVisibleTo Include="Humans.Web.Tests" />
     <InternalsVisibleTo Include="Humans.Integration.Tests" />
     <!--
@@ -39,6 +46,13 @@
     <ProjectReference Include="..\Sections\Humans.Email.Contracts\Humans.Email.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Expenses.Contracts\Humans.Expenses.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Gate.Contracts\Humans.Gate.Contracts.csproj" />
+    <!--
+      Holded's contracts leaf: HoldedSyncJob is the Hangfire shim over IHoldedNightlySync, and
+      HoldedExpenseOutboxJob reads HoldedClientOptions.ApiKey to decide whether to drain. Both
+      jobs stay here for the same reason as the rest — Hangfire serializes the declaring type
+      name — while the connector itself now lives in Humans.Holded (G5 lane 4b-2f).
+    -->
+    <ProjectReference Include="..\Sections\Humans.Holded.Contracts\Humans.Holded.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Governance.Contracts\Humans.Governance.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Issues.Contracts\Humans.Issues.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Mailer.Contracts\Humans.Mailer.Contracts.csproj" />
@@ -46,6 +60,8 @@
     <ProjectReference Include="..\Sections\Humans.Onboarding.Contracts\Humans.Onboarding.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Surveys.Contracts\Humans.Surveys.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Teams.Contracts\Humans.Teams.Contracts.csproj" />
+    <ProjectReference Include="..\Sections\Humans.GoogleIntegration.Contracts\Humans.GoogleIntegration.Contracts.csproj" />
+    <ProjectReference Include="..\Sections\Humans.Monitor.Contracts\Humans.Monitor.Contracts.csproj" />
     <!--
       Tickets' contracts leaf: AdminDatabaseDiagnosticsService reads the order projection,
       TicketSyncJob drives ITicketSync, and GateVendorCheckInJob mirrors a gate admission
@@ -71,13 +87,6 @@
     <PackageReference Include="Octokit" />
     <PackageReference Include="Polly" />
     <PackageReference Include="Serilog" />
-    <PackageReference Include="Google.Apis.Admin.Directory.directory_v1" />
-    <PackageReference Include="Google.Apis.CloudIdentity.v1" />
-    <PackageReference Include="Google.Apis.Drive.v3" />
-    <PackageReference Include="Google.Apis.DriveActivity.v2" />
-    <PackageReference Include="Google.Apis.Groupssettings.v1" />
-    <PackageReference Include="Google.Apis.Auth" />
-    <PackageReference Include="Stripe.net" />
   </ItemGroup>
 
 </Project>

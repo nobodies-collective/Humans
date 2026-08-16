@@ -1,8 +1,5 @@
-using Humans.Application.Architecture;
 using AwesomeAssertions;
-using Humans.Application.Services.AuditLog;
-using Humans.Application.Services.Camps;
-using Humans.Application.Services.Shifts;
+using Humans.Camps.Services;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Humans.Application.Tests.Architecture.Rules;
@@ -21,7 +18,7 @@ namespace Humans.Application.Tests.Architecture.Rules;
 /// <para>
 /// Allowlisted services (audited 2026-05-25, Wave B drift reconciliation):
 /// <list type="bullet">
-///   <item><see cref="CampContactService"/> — contact name cache</item>
+///   <item><c>Humans.Camps.Services.CampContactService</c> — contact name cache</item>
 ///   <item><c>IssuesService</c> — issues cache</item>
 ///   <item><see cref="LegalDocumentService"/> — document version cache</item>
 ///   <item><see cref="NotificationEmitter"/> — throttle-key cache</item>
@@ -34,6 +31,7 @@ namespace Humans.Application.Tests.Architecture.Rules;
 ///   <item><c>Humans.Finance.Services.Service</c> — Holded contact-list cache (nobodies-collective/Humans#976)</item>
 ///   <item><c>Humans.Guide.Services.GuideContentService</c> — rendered guide-page cache</item>
 ///   <item><c>Humans.TicketTailor.Services.TicketTailorService</c> — vendor event-summary cache</item>
+///   <item><c>Humans.Auth.Services.MagicLinkRateLimiter</c> — magic-link replay + signup-cooldown state</item>
 /// </list>
 /// Removed (caching moved to decorators):
 /// <list type="bullet">
@@ -51,14 +49,14 @@ public class ApplicationServicesTakeNoMemoryCacheRule
     /// </summary>
     private static readonly HashSet<Type> Allowlist =
     [
-        typeof(CampContactService),
+        SectionType("Humans.Camps.Services.CampContactService"),
         SectionType("Humans.Issues.Services.IssuesService"),  // CacheKeys.IssuesBadge(userId)
         SectionType("Humans.Consent.Services.LegalDocumentService"),
         SectionType("Humans.Notifications.Services.NotificationEmitter"),
         SectionType("Humans.Notifications.Services.NotificationInboxService"),
         SectionType("Humans.Notifications.Services.NotificationMeterProvider"),
         SectionType("Humans.Notifications.Services.NotificationService"),
-        typeof(ShiftManagementService),
+        SectionType("Humans.Shifts.Services.ShiftManagementService"),
         // Nav-badge count caches moved out of NavBadgesViewComponent into their
         // owning services (memory/code/viewcomponent-no-cache.md) — same inline
         // badge-count caching IssuesService/NotificationMeterProvider already do.
@@ -96,7 +94,17 @@ public class ApplicationServicesTakeNoMemoryCacheRule
         // rule after Development's: the code is unchanged and used to sit in
         // Humans.Infrastructure/Services, which this sweep covers neither before nor after — it
         // entered scope at the TicketTailor adapter's carve into its own section.
-        SectionType("Humans.TicketTailor.Services.TicketTailorService")
+        SectionType("Humans.TicketTailor.Services.TicketTailorService"),
+        // CacheKeys.MagicLinkUsed(token) and CacheKeys.MagicLinkSignupRateLimit(email) — not a
+        // read cache at all, but the two pieces of short-TTL sign-in state that have to survive
+        // between HTTP requests: single-use consumption of a login token (15 min) and the 60-second
+        // signup-send cooldown. §15's repository/decorator options do not apply because there is
+        // nothing to read; the cache *is* the state, and Auth owns no table for it. Fourth sighting
+        // of Guide's rule after Development's and TicketTailor's: the code is byte-identical and
+        // used to sit in Humans.Infrastructure/Services/Auth, which this sweep covers neither
+        // before nor after — it entered scope when the magic-link path moved into Humans.Auth
+        // (nobodies-collective/Humans#866 G5 lane 4b-2i).
+        SectionType("Humans.Auth.Services.MagicLinkRateLimiter")
     ];
 
     /// <summary>
@@ -119,13 +127,11 @@ public class ApplicationServicesTakeNoMemoryCacheRule
         // Scan Humans.Application *and* every G5 section assembly. Scoping this to
         // Humans.Application alone would let a section quietly leave the sweep the moment it
         // moved out — the §10 silent-drop shape: the rule keeps passing while covering less.
-        // Anchor on a type that cannot leave Humans.Application. AuditLogService was the
-        // anchor until its own G5 move, at which point typeof(...).Assembly silently became
-        // the section assembly and this rule stopped scanning Base at all — the same
-        // silent-drop the widening below exists to prevent, arriving through the anchor
-        // rather than the filter. DontFixAttribute is Base's architecture vocabulary.
-        var assemblies = new[] { typeof(DontFixAttribute).Assembly }
-            .Concat(Web.Extensions.SectionDiscoveryExtensions.SectionAssemblies());
+        // ApplicationSweepScope holds the anchor and asserts its assembly identity — the anchor
+        // has silently drifted out of Humans.Application four times, most recently to
+        // Humans.Interfaces, which meant this rule had never once scanned the project it is
+        // named for.
+        var assemblies = ApplicationSweepScope.Assemblies();
 
         var violations = assemblies
             .SelectMany(a => a.GetTypes())

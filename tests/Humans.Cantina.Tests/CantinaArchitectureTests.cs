@@ -1,8 +1,9 @@
 using AwesomeAssertions;
-using Humans.Application.Interfaces.Shifts;
+using Humans.Shifts.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Cantina.Services;
 using Microsoft.Extensions.Localization;
+using Humans.Users.Contracts;
 
 namespace Humans.Cantina.Tests;
 
@@ -92,7 +93,7 @@ public class CantinaArchitectureTests
         var paramTypes = typeof(CantinaRosterService).GetConstructors().Single()
             .GetParameters().Select(p => p.ParameterType).ToList();
 
-        paramTypes.Should().Contain(typeof(IShiftManagementService));
+        paramTypes.Should().Contain(typeof(IShiftManagementServiceRead));
         paramTypes.Should().Contain(typeof(IUserServiceRead));
         paramTypes.Should().NotContain(typeof(IUserService),
             because: "cross-section user reads must use the read interface "

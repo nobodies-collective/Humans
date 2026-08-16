@@ -6,19 +6,19 @@ This file is the **index and cross-cutting rule sheet** for the data model. Per-
 
 ## Entity index
 
-<!-- freshness:auto id="entity-index" prompt="Walk every class under src/Humans.Domain/Entities/ that has a corresponding configuration under src/Humans.Infrastructure/Data/Configurations/. For each, identify the owning section (find the section doc in docs/sections/ whose Data Model section names the entity). Build the entity index table with columns: Entity | Owning section | Notes. Preserve any per-row Notes column content the existing table already has — only update entity names and section links if they changed." -->
+<!-- freshness:auto id="entity-index" prompt="Walk every entity class in BOTH homes: src/Humans.Domain/Entities/ (configured under src/Humans.Infrastructure/Data/Configurations/) AND src/Sections/*/Domain/ (configured under that section's own Data/ tree — search Data/ recursively, since some sections keep configuration classes directly under Data/ rather than Data/Configurations/, e.g. Consent and Email). G5 sections own their entities outright, so a walk restricted to src/Humans.Domain misses most of them. For each, identify the owning section by finding the section doc whose Data Model section names the entity — that doc is either docs/sections/<X>.md or, for a section that has moved into its own project, src/Sections/Humans.<X>/Docs/<X>.md; docs/sections/_Index.md maps which is which. Do not assume a Holded*-prefixed entity belongs to Finance: Finance and Holded are separate sections owning separate tables in separate DbContexts. Build the entity index table with columns: Entity | Owning section | Notes. Preserve any per-row Notes column content the existing table already has — only update entity names and section links if they changed." -->
 
 | Entity | Owning section | Notes |
 |--------|---------------|-------|
-| User | [Users/Identity](../sections/Users.md) | Profile-adjacent extension fields documented in [`Profiles.md`](../sections/Profiles.md#user-identity-extension). |
-| EventParticipation | [Users/Identity](../sections/Users.md) | Per-user, per-event participation status. |
-| Profile | [Profiles](../sections/Profiles.md) | |
-| UserEmail | [Profiles](../sections/Profiles.md) | |
-| ContactField | [Profiles](../sections/Profiles.md) | |
-| CommunicationPreference | [Profiles](../sections/Profiles.md) | |
-| ProfileLanguage | [Profiles](../sections/Profiles.md) | |
-| VolunteerHistoryEntry | [Profiles](../sections/Profiles.md) | Sub-aggregate of Profile. |
-| AccountMergeRequest | [Users/Identity](../sections/Users.md) | `AccountMergeService` + `DuplicateAccountService` live in `Humans.Application.Services.Users/`. |
+| User | [Users/Identity](../../src/Sections/Humans.Users/Docs/Users.md) | Profile-adjacent extension fields documented in [`Profiles.md`](../../src/Sections/Humans.Users/Docs/Users.md#user-identity-extension). |
+| EventParticipation | [Users/Identity](../../src/Sections/Humans.Users/Docs/Users.md) | Per-user, per-event participation status. |
+| Profile | [Profiles](../../src/Sections/Humans.Users/Docs/Users.md) | |
+| UserEmail | [Profiles](../../src/Sections/Humans.Users/Docs/Users.md) | |
+| ContactField | [Profiles](../../src/Sections/Humans.Users/Docs/Users.md) | |
+| CommunicationPreference | [Profiles](../../src/Sections/Humans.Users/Docs/Users.md) | |
+| ProfileLanguage | [Profiles](../../src/Sections/Humans.Users/Docs/Users.md) | |
+| VolunteerHistoryEntry | [Profiles](../../src/Sections/Humans.Users/Docs/Users.md) | Sub-aggregate of Profile. |
+| AccountMergeRequest | [Users/Identity](../../src/Sections/Humans.Users/Docs/Users.md) | `AccountMergeService` + `DuplicateAccountService` live in `Humans.Application.Services.Users/`. |
 | Application | [Governance](../../src/Sections/Humans.Governance/Docs/Governance.md) | |
 | ApplicationStateHistory | [Governance](../../src/Sections/Humans.Governance/Docs/Governance.md) | Append-only (§12). |
 | BoardVote | [Governance](../../src/Sections/Humans.Governance/Docs/Governance.md) | Transient — deleted on finalization. |
@@ -33,9 +33,9 @@ This file is the **index and cross-cutting rule sheet** for the data model. Per-
 | TeamRoleAssignment | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | |
 | TeamEarlyEntryGrant | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | Per-team Early Entry grant (gated by `Team.EarlyEntryEnabled`). Cross-section `UserId` FK — nav stripped, resolved via `IUserServiceRead`. |
 | GoogleResource | [Teams](../../src/Sections/Humans.Teams/Docs/Teams.md) | Team Resources sub-aggregate. |
-| Camp / CampSeason / CampImage / CampHistoricalName / CampSettings | [Camps](../sections/Camps.md) | |
-| CampMember | [Camps](../sections/Camps.md) | Per-season, post-hoc human/camp affiliation (Pending/Active/Removed). Partial unique on `(CampSeasonId, UserId) WHERE Status <> 'Removed'`. |
-| CampRoleDefinition / CampRoleAssignment | [Camps](../sections/Camps.md) | Per-camp role catalogue + per-season assignments. Owned by `CampRoleService`. Unique on `(CampSeasonId, CampRoleDefinitionId, CampMemberId)`. |
+| Camp / CampSeason / CampImage / CampHistoricalName / CampSettings | [Camps](../../src/Sections/Humans.Camps/Docs/Camps.md) | |
+| CampMember | [Camps](../../src/Sections/Humans.Camps/Docs/Camps.md) | Per-season, post-hoc human/camp affiliation (Pending/Active/Removed). Partial unique on `(CampSeasonId, UserId) WHERE Status <> 'Removed'`. |
+| CampRoleDefinition / CampRoleAssignment | [Camps](../../src/Sections/Humans.Camps/Docs/Camps.md) | Per-camp role catalogue + per-season assignments. Owned by `CampRoleService`. Unique on `(CampSeasonId, CampRoleDefinitionId, CampMemberId)`. |
 | Container / ContainerPlacement | [Containers](../../src/Sections/Humans.Containers/Docs/Containers.md) | Camp-owned (`CampId` → `camps.Id`, non-nullable). |
 | CityPlanningSettings | [City Planning](../../src/Sections/Humans.CityPlanning/Docs/CityPlanning.md) | |
 | CampPolygon | [City Planning](../../src/Sections/Humans.CityPlanning/Docs/CityPlanning.md) | |
@@ -45,16 +45,17 @@ This file is the **index and cross-cutting rule sheet** for the data model. Per-
 | Campaign / CampaignCode / CampaignGrant | [Campaigns](../../src/Sections/Humans.Campaigns/Docs/Campaigns.md) | |
 | TicketOrder / TicketAttendee / TicketSyncState / TicketTransferRequest | [Tickets](../../src/Sections/Humans.Tickets/Docs/Tickets.md) | |
 | GateScanEvent / GateSettings / GateStaffPin | [Gate](../../src/Sections/Humans.Gate/Docs/Gate.md) | `GateScanEvent` is the append-only gate admission log (retention-purged by `GateRetentionJob`; user ids re-pointed on merge). Cross-section refs (`ScannedByUserId`, `GuestUserId`, `OverrideByUserId`, `TicketAttendeeId`, `GateStaffPin.UserId`) are bare Guid columns — no navs, no cross-section EF FK constraints. |
-| EventSettings / Rota / Shift / ShiftSignup / GeneralAvailability / VolunteerEventProfile / VolunteerBuildStatus / ShiftTag / VolunteerTagPreference | [Shifts](../sections/Shifts.md) | |
+| EventSettings / Rota / Shift / ShiftSignup / GeneralAvailability / VolunteerEventProfile / VolunteerBuildStatus / ShiftTag / VolunteerTagPreference | [Shifts](../../src/Sections/Humans.Shifts/Docs/Shifts.md) | |
 | Event / EventCategory / EventVenue / EventGuideSettings / EventModerationAction / EventFavourite / EventPreference | [Events](../../src/Sections/Humans.Events/Docs/Events.md) | Event Guide submissions, moderation, categories, shared venues, per-user favourites/preferences. `EventModerationAction` append-only (§12 — Restrict on delete). |
 | FeedbackReport / FeedbackMessage | [Feedback](../../src/Sections/Humans.Feedback/Docs/Feedback.md) | |
 | BudgetYear / BudgetGroup / BudgetCategory / BudgetLineItem / BudgetAuditLog / TicketingProjection | [Budget](../../src/Sections/Humans.Budget/Docs/Budget.md) | `BudgetAuditLog` append-only (§12). `BudgetGroup.Slug` and `BudgetCategory.Slug` are the Holded-tag-safe identifiers consumed by Finance. |
 | ExpenseReport / ExpenseLine / ExpenseAttachment / HoldedExpenseOutboxEvent | [Expenses](../../src/Sections/Humans.Expenses/Docs/Expenses.md) | Expense reports and Holded sync outbox. |
-| HoldedExpenseDoc / HoldedCategoryMap / HoldedSyncState / HoldedLedgerLine / HoldedCreditorContact | [Finance](../../src/Sections/Humans.Finance/Docs/Finance.md) | Holded actuals cache (Feature 1) + creditor daybook ledger cache + member→account binding (Feature 2). |
+| HoldedExpenseDoc / HoldedCategoryMap / HoldedDocSyncState / HoldedCreditorContact | [Finance](../../src/Sections/Humans.Finance/Docs/Finance.md) | Holded actuals cache (Feature 1) + member→account binding (Feature 2). |
+| HoldedLedgerLine / HoldedAccount / HoldedApiCall / HoldedSyncState | [Holded](../../src/Sections/Humans.Holded/Docs/Holded.md) | Ledger mirror — daybook lines, chart of accounts, API call log, sync state. Finance's creditor reads (Feature 2) query this mirror rather than owning it. |
 | Product / Order / OrderLine / Payment / Invoice / TreasurySyncState | [Store](../../src/Sections/Humans.Store/Docs/Store.md) | |
 | Issue / IssueComment | [Issues](../../src/Sections/Humans.Issues/Docs/Issues.md) | |
 | AgentConversation / AgentMessage / AgentSettings | [Agent](../../src/Sections/Humans.Agent/Docs/Agent.md) | |
-| SyncServiceSettings / GoogleSyncOutboxEvent | [Google Integration](../sections/GoogleIntegration.md) | |
+| SyncServiceSettings / GoogleSyncOutboxEvent | [Google Integration](../../src/Sections/Humans.GoogleIntegration/Docs/GoogleIntegration.md) | |
 | Survey / SurveyQuestion / SurveyQuestionOption / SurveyResponse / SurveyAnswer / SurveyInvitation | [Survey](../../src/Sections/Humans.Surveys/Docs/Surveys.md) | Cross-domain refs are bare `Guid` FK columns only — no nav properties, no cross-section EF FK constraints. |
 | SystemSetting | System Settings section | Owned by `SystemSettingsRepository` (exposed via `ISystemSettingsService`); consuming sections read/write keys through it. See [SystemSetting below](#systemsetting-system-settings-section). |
 | AuditLogEntry | [Audit Log](../../src/Sections/Humans.AuditLog/Docs/AuditLog.md) | Append-only (§12). |
@@ -178,7 +179,7 @@ CampaignGrant (Campaigns)
 | Key | Consuming section | Purpose |
 |-----|-------------------|---------|
 | `IsEmailSendingPaused` | [Email](../../src/Sections/Humans.Email/Docs/Email.md) | When `"true"`, `ProcessEmailOutboxJob` skips processing |
-| `DriveActivityMonitor:LastRunAt` | [Google Integration](../sections/GoogleIntegration.md) | Last-run timestamp for drive-activity monitor |
+| `DriveActivityMonitor:LastRunAt` | [Google Integration](../../src/Sections/Humans.GoogleIntegration/Docs/GoogleIntegration.md) | Last-run timestamp for drive-activity monitor |
 
 | Property | Type | Purpose |
 |----------|------|---------|

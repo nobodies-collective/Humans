@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Humans.Email.Contracts;
 using Humans.Events.Data;
-using Humans.Application.Interfaces.Shifts;
+using Humans.Shifts.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Events.Services;
 using Humans.Events.Domain;
@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
+using Humans.Users.Contracts;
 
 namespace Humans.Events.Tests;
 

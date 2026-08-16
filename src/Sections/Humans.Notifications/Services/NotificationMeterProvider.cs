@@ -1,10 +1,10 @@
+using Humans.GoogleIntegration.Contracts;
 using Humans.Domain.Enums;
 using Humans.Application;
 using Humans.Notifications.Data;
 using System.Security.Claims;
 using Humans.Notifications.Services.Dtos;
-using Humans.Application.Interfaces.Camps;
-using Humans.Application.Interfaces.GoogleIntegration;
+using Humans.Camps.Contracts;
 using Humans.Governance.Contracts;
 using Humans.Teams.Contracts;
 
@@ -14,6 +14,7 @@ using Humans.Notifications.Contracts;
 using Humans.Tickets.Contracts;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Humans.Users.Contracts;
 
 namespace Humans.Notifications.Services;
 

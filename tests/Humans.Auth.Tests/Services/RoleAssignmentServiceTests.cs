@@ -10,11 +10,11 @@ using Humans.Auth.Contracts;
 using Humans.Auth.Data;
 using Humans.Auth.Domain;
 using Humans.Auth.Services;
-using Humans.Domain.Entities;
 using Humans.Domain.Constants;
 using NSubstitute;
 
 using Humans.Application.Interfaces.GoogleIntegration;
+using Humans.Users.Contracts;
 
 
 namespace Humans.Auth.Tests.Services;

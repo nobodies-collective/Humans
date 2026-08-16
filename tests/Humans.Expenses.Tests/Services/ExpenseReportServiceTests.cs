@@ -4,7 +4,7 @@ using Humans.Expenses.Domain;
 using Humans.Application.Interfaces;
 using Humans.Budget.Contracts;
 using Humans.Finance.Contracts;
-using Humans.Application.Interfaces.Holded;
+using Humans.Holded.Contracts;
 using Humans.Expenses.Data;
 using Humans.Teams.Contracts;
 using Humans.Application.Interfaces.Users;
@@ -13,7 +13,6 @@ using Humans.Expenses.Services.Dtos;
 using Microsoft.Extensions.Options;
 using Humans.Application;
 using Humans.AuditLog.Contracts;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -23,6 +22,7 @@ using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Humans.Users.Contracts;
 
 namespace Humans.Expenses.Tests.Services;
 
@@ -63,6 +63,10 @@ public sealed class ExpenseReportServiceTests
     public ExpenseReportServiceTests()
     {
         _expenseRepo = new ExpenseRepository(new TestDbContextFactory<ExpensesDbContext>(_expensesOptions));
+
+        // The drain self-guards on the API key now (the job used to), so the substitute has to
+        // claim a key or DrainHoldedOutboxAsync returns before touching anything.
+        _holdedClient.IsConfigured.Returns(true);
 
         _fileStorage = Substitute.For<IFileStorage>();
         _budgetService = Substitute.For<IBudgetServiceRead>();
@@ -438,6 +442,75 @@ public sealed class ExpenseReportServiceTests
 
         result.Succeeded.Should().BeFalse();
         result.ErrorMessage.Should().Contain("Unsupported file type");
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("receipt.exe", "application/octet-stream", 3, "Unsupported file type")]
+    [Xunit.InlineData("receipt.pdf", "application/pdf", 0, "Please select a file")]
+    [Xunit.InlineData("receipt.pdf", "application/pdf", 21 * 1024 * 1024, "File too large")] // AttachmentMaxBytes is 20 MB
+    public async Task AttachFileToLineWithResultAsync_LogsWarning_NoStackTrace_ForUserInputRejection(
+        string fileName, string contentType, int byteCount, string expectedMessage)
+    {
+        var logger = new CapturingLogger<ExpenseReportService>();
+        var sut = new ExpenseReportService(
+            _expenseRepo, _fileStorage, _budgetService, _teamService, _userService,
+            AuditLog, _holdedClient, _holdedFinance, Clock, logger,
+            Options.Create(new TravelReimbursementConfig()));
+
+        var (_, category) = SetupActiveYear();
+        var submitter = Guid.NewGuid();
+        var id = await sut.CreateDraftAsync(submitter, category.Id, null, Xunit.TestContext.Current.CancellationToken);
+        var lineId = await sut.AddLineAsync(id, submitter, "Item", 10m, ct: Xunit.TestContext.Current.CancellationToken);
+
+        await using var stream = new MemoryStream(new byte[byteCount]);
+        var result = await sut.AttachFileToLineWithResultAsync(
+            id, submitter, lineId, fileName, contentType, stream, Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().Contain(expectedMessage,
+            because: "the user-facing message is unchanged by the log-level reclassification");
+        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning);
+        var warning = logger.Entries.Single(e => e.Level == LogLevel.Warning);
+        warning.Exception.Should().BeNull("a rejected upload is user input, not a system failure");
+        warning.Message.Should().Contain(expectedMessage,
+            because: "RunMutationAsync appends the rejection as the {Reason} property");
+        warning.Message.Should().Contain(lineId.ToString(),
+            because: "the caller's structured identifiers must survive into the warning");
+        logger.Entries.Should().NotContain(e => e.Level == LogLevel.Error);
+    }
+
+    [HumansFact]
+    public async Task AddLineWithResultAsync_LogsError_WithStackTrace_WhenRepositoryReportsFailure()
+    {
+        var logger = new CapturingLogger<ExpenseReportService>();
+
+        // A repository returning false is a genuine persistence fault, not user input — it must
+        // keep its Error level and stack trace. Only GetByIdAsync is delegated to the real
+        // in-memory repository so the draft-editable guard passes and the failure lands on AddLine.
+        var failingRepo = Substitute.For<IExpenseRepository>();
+        failingRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(call => _expenseRepo.GetByIdAsync(call.Arg<Guid>(), call.Arg<CancellationToken>()));
+        failingRepo.AddLineAsync(Arg.Any<Guid>(), Arg.Any<ExpenseLine>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var sut = new ExpenseReportService(
+            failingRepo, _fileStorage, _budgetService, _teamService, _userService,
+            AuditLog, _holdedClient, _holdedFinance, Clock, logger,
+            Options.Create(new TravelReimbursementConfig()));
+
+        var (_, category) = SetupActiveYear();
+        var submitter = Guid.NewGuid();
+        var id = await _sut.CreateDraftAsync(submitter, category.Id, null, Xunit.TestContext.Current.CancellationToken);
+
+        var result = await sut.AddLineWithResultAsync(
+            id, submitter, "Supplies", 25m, Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error);
+        var error = logger.Entries.Single(e => e.Level == LogLevel.Error);
+        error.Exception.Should().BeOfType<InvalidOperationException>()
+            .Which.Message.Should().Be("Failed to add line.");
+        logger.Entries.Should().NotContain(e => e.Level == LogLevel.Warning);
     }
 
     [HumansFact]

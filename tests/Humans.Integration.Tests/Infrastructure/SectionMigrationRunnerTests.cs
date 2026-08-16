@@ -1,3 +1,7 @@
+using Humans.Shifts.Data;
+using Humans.Camps.Data;
+using Humans.Camps.Domain;
+using Humans.Camps.Contracts;
 using Humans.Auth.Data;
 using Humans.Auth.Domain;
 using Humans.AuditLog.Data;
@@ -37,6 +41,8 @@ using Npgsql;
 using Xunit;
 using Humans.Events.Data;
 using Humans.Surveys.Data;
+using Humans.GoogleIntegration.Data;
+using Humans.Users.Data;
 
 namespace Humans.Integration.Tests.Infrastructure;
 

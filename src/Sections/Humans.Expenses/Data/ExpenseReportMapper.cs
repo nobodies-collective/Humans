@@ -1,5 +1,4 @@
 using Humans.Expenses.Contracts;
-using Humans.Domain.Entities;
 using Humans.Expenses.Domain;
 
 namespace Humans.Expenses.Data;
@@ -48,7 +47,8 @@ internal static class ExpenseReportMapper
                     ContentType = l.Attachment.ContentType,
                     SizeBytes = l.Attachment.SizeBytes,
                     UploadedByUserId = l.Attachment.UploadedByUserId,
-                    UploadedAt = l.Attachment.UploadedAt
+                    UploadedAt = l.Attachment.UploadedAt,
+                    HoldedUploadedAt = l.Attachment.HoldedUploadedAt
                 },
             SortOrder = l.SortOrder
         }).ToList()

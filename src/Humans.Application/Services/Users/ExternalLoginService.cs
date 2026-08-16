@@ -1,7 +1,6 @@
-using Humans.Application.Interfaces.Auth;
-using Humans.Application.Interfaces.Profiles;
+using Humans.Auth.Contracts;
+using Humans.Users.Contracts;
 using Humans.Application.Interfaces.Users;
-using Humans.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using NodaTime;

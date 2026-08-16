@@ -2,7 +2,8 @@ using System.Reflection;
 using AwesomeAssertions;
 using Humans.Application;
 using Humans.Application.Interfaces.Users;
-using Humans.Application.Services.Users;
+using Humans.Application.Interfaces;
+using Humans.Application.Services.Dashboard;
 using Humans.Infrastructure.Services;
 using Humans.Teams.Contracts;
 using Humans.Teams.Data;
@@ -46,9 +47,7 @@ public class TeamsArchitectureTests
             .Should().NotContain(
                 t => typeof(Microsoft.EntityFrameworkCore.DbContext).IsAssignableFrom(t)
                      || (t.IsGenericType
-                         && t.GetGenericTypeDefinition() == typeof(Microsoft.EntityFrameworkCore.IDbContextFactory<>))
-                     || (t.Namespace != null
-                         && t.Namespace.StartsWith("Humans.Application.Interfaces.Stores", StringComparison.Ordinal)),
+                         && t.GetGenericTypeDefinition() == typeof(Microsoft.EntityFrameworkCore.IDbContextFactory<>)),
                 because: "services reach data only through their repository (design-rules §2b)");
     }
 
@@ -75,8 +74,17 @@ public class TeamsArchitectureTests
         {
             typeof(TeamService).Assembly,                                // Humans.Teams
             typeof(HumansMetricsService).Assembly,                       // Humans.Infrastructure
-            typeof(UserService).Assembly,                                // Humans.Application
+            // Anchored on DashboardService, a concrete Humans.Application service with no
+            // scheduled move in G5 phase 3. It was typeof(UserService) until that type moved
+            // into Humans.Users (#866, G5 lane 2), then typeof(IFileStorage) until G5 lane 3a-1
+            // moved that interface into Humans.Interfaces (Base) with its namespace preserved —
+            // an assembly anchor whose type leaves relocates the sweep silently (design §15
+            // step 11), and namespace preservation makes the relocation invisible at compile time.
+            typeof(DashboardService).Assembly,                            // Humans.Application
         };
+
+        typeof(DashboardService).Assembly.GetName().Name.Should().Be("Humans.Application",
+            because: "an anchor whose type leaves this assembly would silently drop Humans.Application out of this sweep instead of failing");
 
         var violations = new List<string>();
         foreach (var assembly in assembliesToScan)
@@ -203,6 +211,12 @@ public class TeamsArchitectureTests
         exported.Should().BeEquivalentTo(
         [
             "Humans.Teams.Contracts.HumansTeamControllerBase",
+            // Shell's widget gallery binds it (WidgetGalleryController.SampleShiftsSummary),
+            // so it cannot be internal. Under Contracts/ rather than Models/ for that reason
+            // — G5 lane 4b-i, nobodies-collective/Humans#866. It is Teams' and not Shifts'
+            // because Teams both builds and renders it, and Humans.Shifts already references
+            // Humans.Teams, so the plan's Shifts destination would have been a cycle.
+            "Humans.Teams.Contracts.ShiftsSummaryCardViewModel",
             "Humans.Teams.Section",
             "Humans.Teams.TeamsResource",
         ]);

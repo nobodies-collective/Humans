@@ -12,7 +12,6 @@ using Humans.Consent.Contracts;
 using Humans.Gdpr.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Domain.Constants;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
 using Humans.Integration.Tests.Infrastructure;
@@ -20,6 +19,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 using Xunit;
+using Humans.Users.Contracts;
+using Humans.Users.Services;
 
 namespace Humans.Integration.Tests.AccountMerge;
 

@@ -4,7 +4,7 @@ using System.Text.Json;
 using Humans.AuditLog.Contracts;
 using Humans.Mailer.Services;
 using Humans.Mailer.Services.Dtos;
-using Humans.Application.Interfaces.Profiles;
+using Humans.Users.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Domain.Enums;
 using Humans.UI.Authorization;

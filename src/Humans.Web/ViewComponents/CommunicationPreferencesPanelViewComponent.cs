@@ -1,4 +1,4 @@
-using Humans.Application.Interfaces.Profiles;
+using Humans.Users.Contracts;
 using Humans.Tickets.Contracts;
 using Humans.Domain.Enums;
 using Humans.Web.Models;

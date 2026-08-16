@@ -3,7 +3,6 @@ using Humans.Application.Interfaces.Users;
 using Humans.AuditLog.Contracts;
 using Humans.Auth.Data;
 using Humans.Auth.Domain;
-using Humans.Domain.Entities;
 using Humans.Notifications.Contracts;
 using Humans.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
+using Humans.Users.Contracts;
 
 namespace Humans.Auth.Tests.Infrastructure;
 

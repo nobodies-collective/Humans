@@ -16,15 +16,13 @@ using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Caching;
 using Humans.Governance.Services;
 using Humans.Domain;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using MemberApplication = Humans.Governance.Domain.Application;
 using Humans.Email.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Notifications.Contracts;
 using Humans.Application.Interfaces.GoogleIntegration;
-using Humans.Application.Interfaces.Auth;
-using Humans.Application.Interfaces.Profiles;
+using Humans.Users.Contracts;
 using Humans.Governance.Tests.Infrastructure;
 using Humans.Governance.Data;
 

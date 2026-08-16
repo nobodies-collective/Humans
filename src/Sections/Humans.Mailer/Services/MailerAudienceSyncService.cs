@@ -2,7 +2,7 @@ using System.Text.Json;
 using Humans.AuditLog.Contracts;
 using Humans.Mailer.Contracts;
 using Humans.Mailer.Services.Dtos;
-using Humans.Application.Interfaces.Profiles;
+using Humans.Users.Contracts;
 using Humans.Domain.Enums;
 using Microsoft.Extensions.Logging;
 

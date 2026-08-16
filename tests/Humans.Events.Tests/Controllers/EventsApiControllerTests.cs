@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using AwesomeAssertions;
 using Humans.Application;
-using Humans.Application.Interfaces.Camps;
+using Humans.Camps.Contracts;
 using Humans.Events.Services;
 using Humans.Application.Interfaces.Users;
 using Humans.Events.Domain;
@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using NodaTime;
 using NSubstitute;
 using Humans.Events.Contracts;
-using Humans.Domain.Entities;
+using Humans.Users.Contracts;
 
 namespace Humans.Events.Tests;
 

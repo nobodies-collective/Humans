@@ -1,9 +1,13 @@
 using Humans.Teams.Data;
+using Microsoft.Extensions.DependencyModel;
 using System.Reflection;
 using AwesomeAssertions;
 using Humans.Application.Interfaces;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Tests.Architecture.Ratchet;
+using Humans.Users.Contracts;
+using Humans.Users.Data.Repositories;
+using Humans.Users.Services;
 
 namespace Humans.Application.Tests.Architecture;
 
@@ -39,7 +43,7 @@ public class ServiceBoundaryArchitectureTests
             [SectionRepository("Humans.Budget.Data.IBudgetRepository")] = "Budget",
             [SectionRepository("Humans.Calendar.Data.ICalendarRepository")] = "Calendar",
             [SectionRepository("Humans.Campaigns.Data.ICampaignRepository")] = "Campaigns",
-            [typeof(ICampRepository)] = "Camps",
+            [SectionRepository("Humans.Camps.Data.ICampRepository")] = "Camps",
             [SectionRepository("Humans.CityPlanning.Data.ICityPlanningRepository")] = "CityPlanning",
             [typeof(ICommunicationPreferenceRepository)] = "Humans",
             [SectionRepository("Humans.Consent.Data.IConsentRepository")] = "Consent",
@@ -48,23 +52,57 @@ public class ServiceBoundaryArchitectureTests
             [SectionRepository("Humans.Expenses.Data.IExpenseRepository")] = "Expenses",
             [SectionRepository("Humans.Feedback.Data.IFeedbackRepository")] = "Feedback",
             [SectionRepository("Humans.Gate.Data.IGateRepository")] = "Gate",
-            [typeof(IGoogleResourceRepository)] = "GoogleIntegration",
-            [typeof(IGoogleSyncOutboxRepository)] = "GoogleIntegration",
+            [SectionRepository("Humans.GoogleIntegration.Data.IGoogleResourceRepository")] = "GoogleIntegration",
+            [SectionRepository("Humans.GoogleIntegration.Data.IGoogleSyncOutboxRepository")] = "GoogleIntegration",
             [SectionRepository("Humans.Finance.Data.IHoldedRepository")] = "Finance",
             [SectionRepository("Humans.Holded.Data.IHoldedMirrorRepository")] = "Holded",
             [SectionRepository("Humans.Issues.Data.IIssuesRepository")] = "Issues",
             [SectionRepository("Humans.Consent.Data.ILegalDocumentRepository")] = "Legal",
             [SectionRepository("Humans.Notifications.Data.INotificationRepository")] = "Notifications",
             [SectionRepository("Humans.Auth.Data.IRoleAssignmentRepository")] = "Auth",
-            [typeof(IShiftManagementRepository)] = "Shifts",
+            [SectionRepository("Humans.Shifts.Data.IShiftManagementRepository")] = "Shifts",
             [SectionRepository("Humans.Surveys.Data.ISurveyRepository")] = "Surveys",
-            [typeof(ISyncSettingsRepository)] = "GoogleIntegration",
+            [SectionRepository("Humans.GoogleIntegration.Data.ISyncSettingsRepository")] = "GoogleIntegration",
             [SectionRepository("Humans.Teams.Data.ITeamRepository")] = "Teams",
             [SectionRepository("Humans.Tickets.Data.ITicketRepository")] = "Tickets",
             [SectionRepository("Humans.Tickets.Data.ITicketTransferRepository")] = "Tickets",
             [typeof(IUserRepository)] = "Humans",
-            [typeof(IVolunteerTrackingRepository)] = "Shifts",
+            [SectionRepository("Humans.Shifts.Data.IVolunteerTrackingRepository")] = "Shifts",
         };
+
+    /// <summary>
+    /// COVERAGE REDUCED (G5 lane 3b, nobodies-collective/Humans#866). These eight interfaces
+    /// are application service boundaries by name and would be marked, but cannot be.
+    /// </summary>
+    /// <remarks>
+    /// <c>IApplicationService</c> and <c>IOrchestrator</c> live in <c>Humans.Interfaces</c>
+    /// (Base). Base references <c>Humans.Users.Contracts</c> — <c>HumansControllerBase</c>
+    /// injects <c>IUserServiceRead</c> and <c>Humans.UI</c> names the <c>User</c> entity — so
+    /// that leaf must hold no reference back, or 4b-iii closes an assembly cycle when
+    /// <c>HumansControllerBase</c> moves into Base. Peter's ruling: the migration outranks the
+    /// marker. The markers were dropped and each declaration carries a COVERAGE REDUCED comment.
+    ///
+    /// Listed by name rather than excluding the whole assembly ON PURPOSE: a NEW unmarked
+    /// I*Service on that leaf still fails this test. The exclusion covers exactly the interfaces
+    /// that lost a marker they used to carry, and nothing else. <c>INonCompliantMemberSuspension</c>
+    /// also lost <c>IOrchestrator</c> but is absent here because the name predicate below never
+    /// matched it.
+    ///
+    /// Exit condition: delete this list when the leaf can name the markers again — either
+    /// because Base stops referencing it, or because the markers move somewhere it may
+    /// reference. Re-add the inheritance in the same commit.
+    /// </remarks>
+    private static readonly HashSet<string> MarkersDroppedForBaseCycle =
+    [
+        "Humans.Users.Contracts.IAccountProvisioningService",
+        "Humans.Users.Contracts.ICommunicationPreferenceService",
+        "Humans.Users.Contracts.IContactFieldService",
+        "Humans.Users.Contracts.IHumanLifecycleService",
+        "Humans.Users.Contracts.IProfileEditorService",
+        "Humans.Users.Contracts.IUserEmailService",
+        "Humans.Users.Contracts.IUserParticipationBackfillService",
+        "Humans.Users.Contracts.IUserService",
+    ];
 
     [HumansFact]
     public void Application_boundary_interfaces_are_marked_as_application_services()
@@ -74,6 +112,7 @@ public class ServiceBoundaryArchitectureTests
             .Where(t => t != typeof(IApplicationService) && t != typeof(IOrchestrator))
             .Where(t => !typeof(IApplicationService).IsAssignableFrom(t))
             .Where(t => !typeof(IOrchestrator).IsAssignableFrom(t))
+            .Where(t => !MarkersDroppedForBaseCycle.Contains(t.FullName ?? string.Empty))
             .Select(t => t.FullName)
             .Order(StringComparer.Ordinal)
             .ToList();
@@ -112,14 +151,6 @@ public class ServiceBoundaryArchitectureTests
     }
 
     [HumansFact]
-    public void Users_and_profiles_share_one_repository_ownership_section()
-    {
-        RepositoryOwners[typeof(IUserRepository)].Should().Be("Humans");
-        ServiceSection(typeof(Humans.Application.Services.Users.UserService)).Should().Be("Humans");
-        ServiceSection(typeof(Humans.Application.Services.Profiles.ProfileService)).Should().Be("Humans");
-    }
-
-    [HumansFact]
     public void Application_service_read_methods_do_not_add_new_entity_return_types()
     {
         RatchetTestRunner.Run(
@@ -128,18 +159,62 @@ public class ServiceBoundaryArchitectureTests
             ScanApplicationServiceEntityReadReturns());
     }
 
+    /// <summary>
+    /// EF entity types that sit on a contracts leaf rather than under a <c>*.Domain</c>
+    /// namespace, so neither half of the sweep above finds them.
+    /// </summary>
+    /// <remarks>
+    /// <c>User : IdentityUser&lt;Guid&gt;</c> is named by <c>Humans.UI</c> and by ~48 files
+    /// across Shell and twenty test projects, and Base cannot reference a section, so the nine
+    /// Users/Profiles entities are public on <c>Humans.Users.Contracts</c>
+    /// (nobodies-collective/Humans#866, G5 lane 2). Without this list the two
+    /// <c>Humans.Domain.Entities.User</c> rows in the baseline read as *fixed* on byte-identical
+    /// code — the silent shrink design §10 warns about, arriving through a third keying (not a
+    /// path, not an assembly: the namespace convention that says "entities live in .Domain").
+    /// The list empties when the entities are internalised; see the lane 2 handoff.
+    /// </remarks>
+    private static readonly Type[] LeafResidentEntities =
+    [
+        typeof(Humans.Users.Contracts.User),
+        typeof(Humans.Users.Contracts.UserEmail),
+        typeof(Humans.Users.Contracts.EventParticipation),
+        typeof(Humans.Users.Contracts.Profile),
+        typeof(Humans.Users.Contracts.ContactField),
+        typeof(Humans.Users.Contracts.ProfileLanguage),
+        typeof(Humans.Users.Contracts.VolunteerHistoryEntry),
+        typeof(Humans.Users.Contracts.CommunicationPreference),
+        typeof(Humans.Users.Contracts.AccountMergeRequest),
+        // GoogleIntegration's three entities, same shape and same reason
+        // (nobodies-collective/Humans#866, G5 lane 4b-2j): GoogleResource and
+        // GoogleSyncOutboxEvent are public members of IGoogleSyncService /
+        // IGoogleSyncOutboxService on Humans.GoogleIntegration.Contracts, and a leaf
+        // cannot reference its own section project, so they live on the leaf rather
+        // than under Humans.GoogleIntegration.Domain.
+        typeof(Humans.GoogleIntegration.Contracts.GoogleResource),
+        typeof(Humans.GoogleIntegration.Contracts.GoogleSyncOutboxEvent),
+        typeof(Humans.GoogleIntegration.Contracts.SyncServiceSettings),
+    ];
+
     internal static IEnumerable<string> ScanApplicationServiceEntityReadReturns()
     {
         // Shell-era entities plus each G5 section's own Domain/ namespace
         // (nobodies-collective/Humans#866). Without the section half, a section that moves
         // takes its entity-returning reads out of this ratchet's sight and the removal
         // reads as "you fixed it" — the exact silent-shrink §10 warns about.
-        var entityTypes = typeof(Humans.Domain.Entities.User).Assembly
+        // Re-anchored off Humans.Domain.Entities.GoogleResource, which moved to
+        // Humans.GoogleIntegration.Contracts in G5 lane 4b-2j and took the last three
+        // types in Humans.Domain.Entities with it. The namespace filter below now
+        // matches nothing; the clause is kept (anchored on a type still resident in
+        // Humans.Domain) so the sweep re-arms if anything lands back there before
+        // phase 5a deletes the project. Coverage did not shrink — the three entities
+        // are listed in LeafResidentEntities above.
+        var entityTypes = typeof(Humans.Domain.Enums.GoogleSyncSource).Assembly
             .GetTypes()
             .Where(t => string.Equals(t.Namespace, "Humans.Domain.Entities", StringComparison.Ordinal))
             .Concat(SectionAssemblies()
                 .SelectMany(a => a.GetTypes())
                 .Where(t => t.Namespace?.EndsWith(".Domain", StringComparison.Ordinal) == true))
+            .Concat(LeafResidentEntities)
             .ToHashSet();
 
         foreach (var serviceType in ApplicationInterfaceTypes()
@@ -171,13 +246,45 @@ public class ServiceBoundaryArchitectureTests
     // interfaces are internal and live under Humans.<Section>.*, so a namespace filter
     // anchored on Humans.Application.Interfaces alone would stop seeing a section the
     // moment it moves, quietly shrinking every ratchet built on this.
-    private static IEnumerable<Type> ApplicationInterfaceTypes() =>
-        typeof(IUserRepository).Assembly.GetTypes()
+    // …and the contracts leaves, which carry neither the namespace nor the [Section]
+    // attribute the two clauses above key on. A service interface that lives *entirely* on
+    // a leaf — with no Base-side interface deriving from it — leaves this sweep the moment
+    // it is carved, and its baseline rows read as fixed on byte-identical code. The
+    // GetInterfaces() walk in EntityReturnReadMembers only rescues the read-split shape
+    // (I<Section>Service : I<Section>ServiceRead, where the deriving half stays behind);
+    // Users' IAccountProvisioningService is the whole-interface case and is what surfaced
+    // this (nobodies-collective/Humans#866, lane 2 PR A).
+    // …and the anchor itself is load-bearing: it was typeof(IUserRepository) until that
+    // interface moved into Humans.Users with the section (#866, lane 2 PR B), which silently
+    // relocated this whole sweep onto the section assembly and dropped every
+    // Humans.Application.Interfaces.* interface out of it. It was typeof(IFileStorage) until
+    // G5 lane 3a-1 (nobodies-collective/Humans#866) moved that interface into the
+    // Humans.Interfaces (Base) assembly — namespace preserved, so the compile was green and
+    // the retarget would have been silent. DashboardService is the replacement because it is
+    // a concrete Humans.Application service with no scheduled move in phase 3.
+    // COVERAGE NOTE: the marker/infra interfaces that now live in Humans.Interfaces under
+    // Humans.Application.Interfaces.* (IFileStorage, IGuideContentSource, IHumansMetrics,
+    // the cache invalidators, …) are no longer scanned. They cannot regress this rule —
+    // Humans.Interfaces declares no entity type to expose. It stopped being EF-free at G5
+    // lane 3a-2, which put the AddSectionDbContext cluster there, but that cluster is
+    // registration plumbing over an open TContext: the assembly still maps no table and owns
+    // no DbSet, so there is nothing there for an entity-returning read to leak.
+    private static IEnumerable<Type> ApplicationInterfaceTypes()
+    {
+        var applicationAssembly = typeof(Humans.Application.Services.Dashboard.DashboardService).Assembly;
+        applicationAssembly.GetName().Name.Should().Be("Humans.Application",
+            because: "an anchor whose type leaves this assembly would silently drop Humans.Application.Interfaces.* interfaces out of this sweep instead of failing");
+
+        return applicationAssembly.GetTypes()
             .Where(t => t.IsInterface)
             .Where(t => t.Namespace?.StartsWith("Humans.Application.Interfaces", StringComparison.Ordinal) == true)
             .Concat(SectionAssemblies()
                 .SelectMany(a => a.GetTypes())
+                .Where(t => t.IsInterface))
+            .Concat(SectionContractsAssemblies()
+                .SelectMany(a => a.GetTypes())
                 .Where(t => t.IsInterface));
+    }
 
     /// <summary>
     /// Every G5 section assembly, via the same discovery the runtime uses, so this file
@@ -186,23 +293,53 @@ public class ServiceBoundaryArchitectureTests
     private static IEnumerable<Assembly> SectionAssemblies() =>
         Web.Extensions.SectionDiscoveryExtensions.SectionAssemblies();
 
+    /// <summary>
+    /// Every G5 contracts leaf. Discovered from the dependency graph by name rather than by
+    /// <c>[Section]</c> — a leaf deliberately carries no section marker, because it is not
+    /// an MVC application part and registers no services.
+    /// </summary>
+    private static IEnumerable<Assembly> SectionContractsAssemblies() =>
+        DependencyContext.Default?.RuntimeLibraries
+            .Where(l => l.Name.StartsWith("Humans.", StringComparison.Ordinal)
+                        && l.Name.EndsWith(".Contracts", StringComparison.Ordinal))
+            .Select(l =>
+            {
+                try
+                {
+                    return Assembly.Load(new AssemblyName(l.Name));
+                }
+                catch (Exception ex) when (ex is FileNotFoundException or BadImageFormatException)
+                {
+                    return null;
+                }
+            })
+            .OfType<Assembly>()
+        ?? [];
+
     private static IEnumerable<Type> RepositoryInterfaceTypes() =>
         ApplicationInterfaceTypes()
             .Where(t => typeof(IRepository).IsAssignableFrom(t));
 
-    private static string ServiceSection(Type serviceType)
-    {
-        var section = serviceType.Namespace!.Split('.')[3];
-        return section is "Users" or "Profile" or "Profiles" ? "Humans" : section;
-    }
-
     private static IEnumerable<(string MemberName, Type ReturnType)> EntityReturnReadMembers(Type serviceType)
     {
-        foreach (var method in serviceType.GetMethods().Where(IsReadMethod))
-            yield return (method.Name, method.ReturnType);
+        // Base interfaces included: Type.GetMethods() on an interface returns only
+        // *declared* members, so a service whose entity-returning reads were split onto a
+        // section contracts leaf it inherits (Shifts, nobodies-collective/Humans#866) would
+        // drop out of this ratchet while the code stands still — the silent shrink §10
+        // warns about, and the leaf itself is not scanned because it carries no
+        // IApplicationService marker. Distinct by (name, return type): a member
+        // re-declared on the deriving interface would otherwise be yielded twice.
+        var declaringTypes = new[] { serviceType }.Concat(serviceType.GetInterfaces());
 
-        foreach (var property in serviceType.GetProperties().Where(p => p.GetMethod is not null))
-            yield return (property.Name, property.PropertyType);
+        foreach (var member in declaringTypes
+                     .SelectMany(t => t.GetMethods().Where(IsReadMethod)
+                         .Select(m => (MemberName: m.Name, ReturnType: m.ReturnType))
+                         .Concat(t.GetProperties().Where(p => p.GetMethod is not null)
+                             .Select(p => (MemberName: p.Name, ReturnType: p.PropertyType))))
+                     .Distinct())
+        {
+            yield return member;
+        }
     }
 
     // Note: Get*/Find* also match GetOrCreate*/FindOrCreate* upsert mutations.
@@ -282,10 +419,27 @@ public class ServiceBoundaryArchitectureTests
         }
     }
 
+    /// <summary>
+    /// Types this scan recurses *into* looking for an exposed entity: Base DTOs, plus
+    /// anything on a G5 section's contracts leaf (nobodies-collective/Humans#866).
+    /// </summary>
+    /// <remarks>
+    /// The leaf half is what this rule is about — a result record that moves onto a leaf
+    /// keeps wrapping whatever entity it wrapped, and keying the recursion on the
+    /// <c>Humans.Application.</c> namespace alone stops it at the assembly boundary and
+    /// reports the violation as fixed while the code stands still. Shifts'
+    /// <c>UrgentShift(Shift, …)</c> is the case that surfaced it.
+    /// <para>
+    /// Deliberately *not* widened to whole section assemblies: a section-internal DTO
+    /// wrapping that section's own internal entity crosses no boundary, and recursing into
+    /// them adds 96 rows across twenty sections that this rule was never asserting about.
+    /// </para>
+    /// </remarks>
     private static bool IsApplicationReturnShape(Type type) =>
         type is { IsPrimitive: false, IsEnum: false } &&
         type != typeof(string) &&
-        type.Namespace?.StartsWith("Humans.Application.", StringComparison.Ordinal) == true;
+        (type.Namespace?.StartsWith("Humans.Application.", StringComparison.Ordinal) == true ||
+         type.Assembly.GetName().Name?.EndsWith(".Contracts", StringComparison.Ordinal) == true);
 
     private static string Display(Type type) =>
         type.FullName?.Replace('+', '.') ?? type.Name;

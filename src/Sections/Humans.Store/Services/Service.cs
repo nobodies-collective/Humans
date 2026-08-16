@@ -1,7 +1,7 @@
 using Humans.Application.Interfaces;
 using Humans.AuditLog.Contracts;
-using Humans.Application.Interfaces.Camps;
-using Humans.Application.Interfaces.Shifts;
+using Humans.Camps.Contracts;
+using Humans.Shifts.Contracts;
 using Humans.Domain.Enums;
 using Humans.Store.Contracts;
 using Humans.Store.Data;
@@ -9,6 +9,7 @@ using Humans.Store.Domain;
 using Humans.Store.Services;
 using Humans.Teams.Contracts;
 using Humans.Store.Services.Dtos;
+using Humans.Stripe.Contracts;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 using NodaTime.Text;
@@ -21,7 +22,7 @@ internal sealed class Service(
     ICampServiceRead campService,
     ITeamServiceRead teamService,
     IClock clock,
-    IShiftManagementService shifts,
+    IBurnSettingsService burnSettings,
     IStripeService stripeService,
     ILogger<Service> logger) : IStoreServiceRead
 {
@@ -36,7 +37,7 @@ internal sealed class Service(
         bool allCounterparties,
         CancellationToken ct)
     {
-        var activeEvent = await shifts.GetActiveAsync();
+        var activeEvent = await burnSettings.GetActiveAsync();
         var year = activeEvent?.Year > 0 ? activeEvent.Year : clock.GetCurrentInstant().InUtc().Year;
         var catalog = (await GetActiveCatalogAsync(year, ct))
             .OrderBy(p => p.Name, StringComparer.Ordinal)
@@ -135,7 +136,7 @@ internal sealed class Service(
         IReadOnlyList<ProductDto> catalog = [];
         if (canEdit)
         {
-            var activeEvent = await shifts.GetActiveAsync();
+            var activeEvent = await burnSettings.GetActiveAsync();
             var year = activeEvent?.Year > 0 ? activeEvent.Year : clock.GetCurrentInstant().InUtc().Year;
             catalog = (await GetActiveCatalogAsync(year, ct))
                 .OrderBy(p => p.Name, StringComparer.Ordinal)
@@ -405,7 +406,7 @@ internal sealed class Service(
         if (team.ParentTeamId is not null)
             throw new InvalidOperationException("Team orders are restricted to departments (top-level teams).");
 
-        var activeEvent = await shifts.GetActiveAsync();
+        var activeEvent = await burnSettings.GetActiveAsync();
         var year = activeEvent?.Year > 0 ? activeEvent.Year : clock.GetCurrentInstant().InUtc().Year;
 
         var existing = await repo.GetOrderForTeamAsync(teamId, year, ct);
@@ -433,7 +434,7 @@ internal sealed class Service(
 
     public async Task<OrderDto?> GetOrderForTeamAsync(Guid teamId, CancellationToken ct = default)
     {
-        var activeEvent = await shifts.GetActiveAsync();
+        var activeEvent = await burnSettings.GetActiveAsync();
         var year = activeEvent?.Year > 0 ? activeEvent.Year : clock.GetCurrentInstant().InUtc().Year;
         var order = await repo.GetOrderForTeamAsync(teamId, year, ct);
         if (order is null) return null;
@@ -606,7 +607,7 @@ internal sealed class Service(
 
     private async Task<LocalDate> TodayInEventZoneAsync()
     {
-        var activeEvent = await shifts.GetActiveAsync();
+        var activeEvent = await burnSettings.GetActiveAsync();
         var tz = activeEvent is null
             ? DateTimeZone.Utc
             : DateTimeZoneProviders.Tzdb.GetZoneOrNull(activeEvent.TimeZoneId) ?? DateTimeZone.Utc;
@@ -1141,7 +1142,7 @@ internal sealed class Service(
     private async Task<IReadOnlyDictionary<Guid, BalanceCalculator.ProductPrice>> LoadCurrentPricesAsync(
         CancellationToken ct)
     {
-        var activeEvent = await shifts.GetActiveAsync();
+        var activeEvent = await burnSettings.GetActiveAsync();
         var catalogYear = activeEvent?.Year > 0 ? activeEvent.Year : clock.GetCurrentInstant().InUtc().Year;
         var prices = new Dictionary<Guid, BalanceCalculator.ProductPrice>();
         foreach (var product in await repo.GetAllProductsForYearAsync(catalogYear, ct))

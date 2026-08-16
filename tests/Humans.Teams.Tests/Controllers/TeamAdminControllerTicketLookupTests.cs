@@ -1,11 +1,11 @@
 using AwesomeAssertions;
 using Humans.Application;
 using Humans.Tickets.Contracts;
-using Humans.Domain.Entities;
 using Humans.Teams.Domain;
 using Humans.Domain.Enums;
 using Humans.Teams.Controllers;
 using NodaTime;
+using Humans.Users.Contracts;
 
 namespace Humans.Teams.Tests;
 

@@ -1,8 +1,7 @@
 using Humans.Auth.Contracts;
 using AwesomeAssertions;
-using Humans.Application.Interfaces.Auth;
 using Humans.Application.Interfaces.Caching;
-using Humans.Application.Interfaces.Profiles;
+using Humans.Users.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Issues.Data;
 using Humans.Issues.Services;
@@ -58,18 +57,6 @@ public class IssuesArchitectureTests
     }
 
     [HumansFact]
-    public void IssuesService_ConstructorTakesNoStoreType()
-    {
-        var ctor = typeof(IssuesService).GetConstructors().Single();
-        var storeParam = ctor.GetParameters()
-            .FirstOrDefault(p => (p.ParameterType.Namespace ?? string.Empty)
-                .StartsWith("Humans.Application.Interfaces.Stores", StringComparison.Ordinal));
-
-        storeParam.Should().BeNull(
-            because: "Application services must not depend on store abstractions (design-rules §15); the Issues section has no store at all");
-    }
-
-    [HumansFact]
     public void IssuesService_ConstructorTakesNoEfType()
     {
         // Replaces the pre-move assertion that typeof(IssuesService).Assembly carries no
@@ -119,5 +106,7 @@ public class IssuesArchitectureTests
 
     // ── IIssuesRepository ────────────────────────────────────────────────────
 
-    // Sealed-repository check covered by IRepositoryImplementationsAreSealedRule.
+    // Sealed-repository check covered by HUM0034 (section types are internal) plus
+    // MA0053 (an unsealed internal class is a build error) — not by
+    // IRepositoryImplementationsAreSealedRule, which sweeps Humans.Infrastructure only.
 }

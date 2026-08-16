@@ -4,11 +4,11 @@ using Humans.Gdpr.Contracts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using ProfilesAccountMergeService = Humans.Application.Services.Users.AccountMergeService;
-using UsersUserService = Humans.Application.Services.Users.UserService;
-using CampService = Humans.Application.Services.Camps.CampService;
-using ShiftSignupService = Humans.Application.Services.Shifts.ShiftSignupService;
+using ProfilesAccountMergeService = Humans.Users.Services.AccountMergeService;
+using UsersUserService = Humans.Users.Services.UserService;
 using TeamService = Humans.Teams.Services.TeamService;
+using Humans.Users.Data;
+using Humans.Users.Services;
 
 namespace Humans.Application.Tests.Services.Gdpr;
 
@@ -64,13 +64,13 @@ public class GdprExportDependencyInjectionTests
         SectionType("Humans.Consent.Services.ConsentService"),
         typeof(TeamService),
         SectionType("Humans.Auth.Services.RoleAssignmentService"),
-        typeof(ShiftSignupService),
+        SectionType("Humans.Shifts.Services.ShiftSignupService"),
         SectionType("Humans.Feedback.Services.FeedbackService"),
         SectionType("Humans.Issues.Services.IssuesService"),
         SectionType("Humans.Notifications.Services.NotificationInboxService"),
         SectionType("Humans.Tickets.Services.TicketQueryService"),
         SectionType("Humans.Campaigns.Services.CampaignService"),
-        typeof(CampService),
+        SectionType("Humans.Camps.Services.CampService"),
         SectionType("Humans.Events.Services.EventService"),
         SectionType("Humans.AuditLog.Services.AuditLogService"),
         SectionType("Humans.Budget.Services.BudgetService"),
@@ -116,8 +116,8 @@ public class GdprExportDependencyInjectionTests
         // assemblies come from SectionDiscoveryExtensions — the same discovery the
         // runtime uses, so a section that moves cannot silently drop out of this
         // sweep the way it would with a hard-coded assembly list (design §10).
-        var infrastructureAssembly = typeof(Humans.Infrastructure.Data.UsersDbContext).Assembly;
-        var applicationAssembly = typeof(Humans.Application.Services.Users.UserService).Assembly;
+        var infrastructureAssembly = typeof(Humans.Infrastructure.Data.SystemDbContext).Assembly;
+        var applicationAssembly = typeof(Humans.Users.Services.UserService).Assembly;
 
         var foundContributors = new[] { infrastructureAssembly, applicationAssembly }
             .Concat(Web.Extensions.SectionDiscoveryExtensions.SectionAssemblies())

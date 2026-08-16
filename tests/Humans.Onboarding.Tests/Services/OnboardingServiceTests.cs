@@ -3,7 +3,6 @@ using Humans.Application.DTOs;
 using Humans.AuditLog.Contracts;
 using Humans.Consent.Contracts;
 using Humans.Email.Contracts;
-using Humans.Application.Interfaces.HumanLifecycle;
 using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Governance.Contracts;
 using Humans.Notifications.Contracts;
@@ -12,11 +11,11 @@ using Humans.Onboarding.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Onboarding.Services;
 using Humans.Domain.Constants;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
+using Humans.Users.Contracts;
 
 namespace Humans.Onboarding.Tests.Services.Onboarding;
 

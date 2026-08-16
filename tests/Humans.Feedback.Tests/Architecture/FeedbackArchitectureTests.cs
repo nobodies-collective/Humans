@@ -1,6 +1,6 @@
 using AwesomeAssertions;
 using Humans.Application.Interfaces.Caching;
-using Humans.Application.Interfaces.Profiles;
+using Humans.Users.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Feedback.Data;
@@ -72,7 +72,6 @@ public class FeedbackArchitectureTests
 
     // IMemoryCache check covered by ApplicationServicesTakeNoMemoryCacheRule.
     // TakesRepository check covered by pattern G (positive wiring noise).
-    // Sealed-repository check covered by IRepositoryImplementationsAreSealedRule.
 
     [HumansFact]
     public void FeedbackService_TakesNavBadgeInvalidator()
@@ -99,7 +98,7 @@ public class FeedbackArchitectureTests
     }
 
     [HumansFact]
-    public void FeedbackService_ConstructorTakesNoEfTypeAndNoStore()
+    public void FeedbackService_ConstructorTakesNoEfType()
     {
         var ctor = typeof(FeedbackService).GetConstructors().Single();
         var parameterTypes = ctor.GetParameters().Select(p => p.ParameterType).ToList();
@@ -109,10 +108,6 @@ public class FeedbackArchitectureTests
         parameterTypes.Should().NotContain(
             t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IDbContextFactory<>),
             because: "context lifetime is the repository's business (design-rules §3)");
-        parameterTypes.Should().NotContain(
-            t => (t.Namespace ?? string.Empty)
-                .StartsWith("Humans.Application.Interfaces.Stores", StringComparison.Ordinal),
-            because: "services must not depend on store abstractions (design-rules §15); the Feedback section has no store at all");
     }
 
     [HumansFact]
@@ -148,5 +143,7 @@ public class FeedbackArchitectureTests
 
     // ── IFeedbackRepository ──────────────────────────────────────────────────
 
-    // Sealed-repository check covered by IRepositoryImplementationsAreSealedRule.
+    // Sealed-repository check covered by HUM0034 (section types are internal) plus
+    // MA0053 (an unsealed internal class is a build error) — not by
+    // IRepositoryImplementationsAreSealedRule, which sweeps Humans.Infrastructure only.
 }

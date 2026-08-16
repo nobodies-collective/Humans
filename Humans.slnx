@@ -3,7 +3,6 @@
   <Folder Name="/src/">
     <Project Path="src/Humans.Analyzers/Humans.Analyzers.csproj" />
     <Project Path="src/Humans.Interfaces/Humans.Interfaces.csproj" />
-    <Project Path="src/Humans.Domain/Humans.Domain.csproj" />
     <Project Path="src/Humans.Application/Humans.Application.csproj" />
     <Project Path="src/Humans.Infrastructure/Humans.Infrastructure.csproj" />
     <Project Path="src/Humans.UI/Humans.UI.csproj" />
@@ -19,6 +18,9 @@
     <Project Path="src/Sections/Humans.Budget/Humans.Budget.csproj" />
     <Project Path="src/Sections/Humans.Budget.Contracts/Humans.Budget.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Calendar/Humans.Calendar.csproj" />
+    <Project Path="src/Sections/Humans.EarlyEntry/Humans.EarlyEntry.csproj" />
+    <Project Path="src/Sections/Humans.Camps/Humans.Camps.csproj" />
+    <Project Path="src/Sections/Humans.Camps.Contracts/Humans.Camps.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Campaigns/Humans.Campaigns.csproj" />
     <Project Path="src/Sections/Humans.Campaigns.Contracts/Humans.Campaigns.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Cantina/Humans.Cantina.csproj" />
@@ -33,6 +35,8 @@
     <Project Path="src/Sections/Humans.Development/Humans.Development.csproj" />
     <Project Path="src/Sections/Humans.Email/Humans.Email.csproj" />
     <Project Path="src/Sections/Humans.Email.Contracts/Humans.Email.Contracts.csproj" />
+    <Project Path="src/Sections/Humans.GoogleIntegration/Humans.GoogleIntegration.csproj" />
+    <Project Path="src/Sections/Humans.GoogleIntegration.Contracts/Humans.GoogleIntegration.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Events/Humans.Events.csproj" />
     <Project Path="src/Sections/Humans.Events.Contracts/Humans.Events.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Expenses/Humans.Expenses.csproj" />
@@ -53,11 +57,15 @@
     <Project Path="src/Sections/Humans.Issues.Contracts/Humans.Issues.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Mailer/Humans.Mailer.csproj" />
     <Project Path="src/Sections/Humans.Mailer.Contracts/Humans.Mailer.Contracts.csproj" />
+    <Project Path="src/Sections/Humans.Monitor/Humans.Monitor.csproj" />
+    <Project Path="src/Sections/Humans.Monitor.Contracts/Humans.Monitor.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Notifications/Humans.Notifications.csproj" />
     <Project Path="src/Sections/Humans.Notifications.Contracts/Humans.Notifications.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Scanner/Humans.Scanner.csproj" />
     <Project Path="src/Sections/Humans.Search/Humans.Search.csproj" />
+    <Project Path="src/Sections/Humans.Shifts.Contracts/Humans.Shifts.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Store/Humans.Store.csproj" />
+    <Project Path="src/Sections/Humans.Stripe/Humans.Stripe.csproj" />
     <Project Path="src/Sections/Humans.Surveys/Humans.Surveys.csproj" />
     <Project Path="src/Sections/Humans.Surveys.Contracts/Humans.Surveys.Contracts.csproj" />
     <Project Path="src/Sections/Humans.SystemSettings/Humans.SystemSettings.csproj" />
@@ -65,9 +73,12 @@
     <Project Path="src/Sections/Humans.TicketTailor/Humans.TicketTailor.csproj" />
     <Project Path="src/Sections/Humans.Tickets/Humans.Tickets.csproj" />
     <Project Path="src/Sections/Humans.Tickets.Contracts/Humans.Tickets.Contracts.csproj" />
+    <Project Path="src/Sections/Humans.Shifts/Humans.Shifts.csproj" />
     <Project Path="src/Sections/Humans.Teams/Humans.Teams.csproj" />
     <Project Path="src/Sections/Humans.Teams.Contracts/Humans.Teams.Contracts.csproj" />
     <Project Path="src/Sections/Humans.Tour/Humans.Tour.csproj" />
+    <Project Path="src/Sections/Humans.Users/Humans.Users.csproj" />
+    <Project Path="src/Sections/Humans.Users.Contracts/Humans.Users.Contracts.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
@@ -80,8 +91,10 @@
     <Project Path="tests/Humans.Auth.Tests/Humans.Auth.Tests.csproj" />
     <Project Path="tests/Humans.Budget.Tests/Humans.Budget.Tests.csproj" />
     <Project Path="tests/Humans.Calendar.Tests/Humans.Calendar.Tests.csproj" />
+    <Project Path="tests/Humans.EarlyEntry.Tests/Humans.EarlyEntry.Tests.csproj" />
     <Project Path="tests/Humans.Campaigns.Tests/Humans.Campaigns.Tests.csproj" />
     <Project Path="tests/Humans.Cantina.Tests/Humans.Cantina.Tests.csproj" />
+    <Project Path="tests/Humans.Camps.Tests/Humans.Camps.Tests.csproj" />
     <Project Path="tests/Humans.CityPlanning.Tests/Humans.CityPlanning.Tests.csproj" />
     <Project Path="tests/Humans.Containers.Tests/Humans.Containers.Tests.csproj" />
     <Project Path="tests/Humans.Consent.Tests/Humans.Consent.Tests.csproj" />
@@ -100,15 +113,20 @@
     <Project Path="tests/Humans.Holded.Tests/Humans.Holded.Tests.csproj" />
     <Project Path="tests/Humans.Issues.Tests/Humans.Issues.Tests.csproj" />
     <Project Path="tests/Humans.Mailer.Tests/Humans.Mailer.Tests.csproj" />
+    <Project Path="tests/Humans.GoogleIntegration.Tests/Humans.GoogleIntegration.Tests.csproj" />
+    <Project Path="tests/Humans.Monitor.Tests/Humans.Monitor.Tests.csproj" />
     <Project Path="tests/Humans.Notifications.Tests/Humans.Notifications.Tests.csproj" />
     <Project Path="tests/Humans.Scanner.Tests/Humans.Scanner.Tests.csproj" />
     <Project Path="tests/Humans.Search.Tests/Humans.Search.Tests.csproj" />
     <Project Path="tests/Humans.Store.Tests/Humans.Store.Tests.csproj" />
+    <Project Path="tests/Humans.Stripe.Tests/Humans.Stripe.Tests.csproj" />
     <Project Path="tests/Humans.Surveys.Tests/Humans.Surveys.Tests.csproj" />
+    <Project Path="tests/Humans.Shifts.Tests/Humans.Shifts.Tests.csproj" />
     <Project Path="tests/Humans.Teams.Tests/Humans.Teams.Tests.csproj" />
     <Project Path="tests/Humans.TicketTailor.Tests/Humans.TicketTailor.Tests.csproj" />
     <Project Path="tests/Humans.Tickets.Tests/Humans.Tickets.Tests.csproj" />
     <Project Path="tests/Humans.SystemSettings.Tests/Humans.SystemSettings.Tests.csproj" />
+    <Project Path="tests/Humans.Users.Tests/Humans.Users.Tests.csproj" />
     <Project Path="tests/Humans.Web.Tests/Humans.Web.Tests.csproj" />
   </Folder>
   <Folder Name="/build/">

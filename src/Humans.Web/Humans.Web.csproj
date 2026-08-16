@@ -14,6 +14,8 @@
     <ProjectReference Include="..\Sections\Humans.Auth\Humans.Auth.csproj" />
     <ProjectReference Include="..\Sections\Humans.Budget\Humans.Budget.csproj" />
     <ProjectReference Include="..\Sections\Humans.Calendar\Humans.Calendar.csproj" />
+    <ProjectReference Include="..\Sections\Humans.EarlyEntry\Humans.EarlyEntry.csproj" />
+    <ProjectReference Include="..\Sections\Humans.Camps\Humans.Camps.csproj" />
     <ProjectReference Include="..\Sections\Humans.Campaigns\Humans.Campaigns.csproj" />
     <ProjectReference Include="..\Sections\Humans.Cantina\Humans.Cantina.csproj" />
     <ProjectReference Include="..\Sections\Humans.CityPlanning\Humans.CityPlanning.csproj" />
@@ -27,6 +29,7 @@
     <ProjectReference Include="..\Sections\Humans.Feedback\Humans.Feedback.csproj" />
     <ProjectReference Include="..\Sections\Humans.Finance\Humans.Finance.csproj" />
     <ProjectReference Include="..\Sections\Humans.Gate\Humans.Gate.csproj" />
+    <ProjectReference Include="..\Sections\Humans.GoogleIntegration\Humans.GoogleIntegration.csproj" />
     <ProjectReference Include="..\Sections\Humans.Gdpr\Humans.Gdpr.csproj" />
     <ProjectReference Include="..\Sections\Humans.Onboarding\Humans.Onboarding.csproj" />
     <ProjectReference Include="..\Sections\Humans.Governance\Humans.Governance.csproj" />
@@ -35,9 +38,12 @@
     <ProjectReference Include="..\Sections\Humans.Mailer\Humans.Mailer.csproj" />
     <ProjectReference Include="..\Sections\Humans.Notifications\Humans.Notifications.csproj" />
     <ProjectReference Include="..\Sections\Humans.Scanner\Humans.Scanner.csproj" />
+    <ProjectReference Include="..\Sections\Humans.Monitor\Humans.Monitor.csproj" />
     <ProjectReference Include="..\Sections\Humans.Search\Humans.Search.csproj" />
+    <ProjectReference Include="..\Sections\Humans.Shifts\Humans.Shifts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Holded\Humans.Holded.csproj" />
     <ProjectReference Include="..\Sections\Humans.Store\Humans.Store.csproj" />
+    <ProjectReference Include="..\Sections\Humans.Stripe\Humans.Stripe.csproj" />
     <ProjectReference Include="..\Sections\Humans.Surveys\Humans.Surveys.csproj" />
     <ProjectReference Include="..\Sections\Humans.SystemSettings\Humans.SystemSettings.csproj" />
     <ProjectReference Include="..\Sections\Humans.Teams\Humans.Teams.csproj" />
@@ -46,6 +52,7 @@
     <ProjectReference Include="..\Sections\Humans.AuditLog.Contracts\Humans.AuditLog.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Auth.Contracts\Humans.Auth.Contracts.csproj" />
     <ProjectReference Include="..\Sections\Humans.Tour\Humans.Tour.csproj" />
+    <ProjectReference Include="..\Sections\Humans.Users\Humans.Users.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -68,7 +75,6 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
-    <PackageReference Include="Magick.NET-Q8-AnyCPU" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Debug" />
     <PackageReference Include="Serilog.Sinks.OpenTelemetry" />

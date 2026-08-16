@@ -1,3 +1,4 @@
+using Humans.Users.Controllers;
 using System.Reflection;
 using AwesomeAssertions;
 using Humans.Web.Controllers;
@@ -75,15 +76,18 @@ public class EndpointAuthorizationTests
         { SectionType("Humans.Email.Controllers.EmailController"), null, "AdminOnly" },
         { typeof(AdminController), "Index", "AnyAdminRole" },
         { SectionType("Humans.AuditLog.Controllers.AuditLogController"), "Index", "BoardOrAdmin" },
-        { SectionType("Humans.AuditLog.Controllers.AuditLogController"), "CheckDriveActivity", "BoardOrAdmin" },
-        { SectionType("Humans.AuditLog.Controllers.AuditLogController"), "Resource", "BoardOrAdmin" },
-        { SectionType("Humans.AuditLog.Controllers.AuditLogController"), "Human", "HumanAdminBoardOrAdmin" },
-        { typeof(GoogleController), "SyncSettings", "AdminOnly" },
-        { typeof(GoogleController), "UpdateSyncSetting", "AdminOnly" },
-        { typeof(GoogleController), "SyncSystemTeams", "AdminOnly" },
-        { typeof(GoogleController), "SyncResults", "AdminOnly" },
-        { typeof(GoogleController), "CheckGroupSettings", "AdminOnly" },
-        { typeof(GoogleController), "GroupSettingsResults", "AdminOnly" },
+        // These three moved to Humans.Monitor: two injected GoogleIntegration services and
+        // AuditLog is a horizontal, which peters-hard-rules.md forbids. Retargeted rather than
+        // dropped — the policies are unchanged and a deleted row reads as "no longer critical".
+        { SectionType("Humans.Monitor.Controllers.MonitorController"), "CheckDriveActivity", "BoardOrAdmin" },
+        { SectionType("Humans.Monitor.Controllers.MonitorController"), "Resource", "BoardOrAdmin" },
+        { SectionType("Humans.Monitor.Controllers.MonitorController"), "Human", "HumanAdminBoardOrAdmin" },
+        { SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), "SyncSettings", "AdminOnly" },
+        { SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), "UpdateSyncSetting", "AdminOnly" },
+        { SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), "SyncSystemTeams", "AdminOnly" },
+        { SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), "SyncResults", "AdminOnly" },
+        { SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), "CheckGroupSettings", "AdminOnly" },
+        { SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), "GroupSettingsResults", "AdminOnly" },
         { SectionType("Humans.Onboarding.Controllers.OnboardingReviewController"), null, "ReviewQueueAccess" },
         { SectionType("Humans.Onboarding.Controllers.OnboardingReviewController"), "Clear", "ConsentCoordinatorBoardOrAdmin" },
         { SectionType("Humans.Onboarding.Controllers.OnboardingReviewController"), "Flag", "ConsentCoordinatorBoardOrAdmin" },
@@ -99,9 +103,9 @@ public class EndpointAuthorizationTests
         { SectionType("Humans.Scanner.Controllers.ScannerController"), null, "ScannerAccess" },
         { SectionType("Humans.Tickets.Controllers.TicketsOnsiteAdminController"), null, "ScannerAccess" },
         { typeof(TicketsGateAdminController), null, "TicketAdminOrAdmin" },
-        { typeof(ShiftDashboardController), null, "ShiftDepartmentManager" },
-        { typeof(ShiftDashboardController), "SearchVolunteers", "ShiftDashboardAccess" },
-        { typeof(ShiftDashboardController), "Voluntell", "ShiftDashboardAccess" },
+        { SectionType("Humans.Shifts.Controllers.ShiftDashboardController"), null, "ShiftDepartmentManager" },
+        { SectionType("Humans.Shifts.Controllers.ShiftDashboardController"), "SearchVolunteers", "ShiftDashboardAccess" },
+        { SectionType("Humans.Shifts.Controllers.ShiftDashboardController"), "Voluntell", "ShiftDashboardAccess" },
     };
 
     [HumansTheory]
@@ -131,7 +135,7 @@ public class EndpointAuthorizationTests
     [InlineData("GroupSettingsResults")]
     public void GoogleAdminEndpoint_RequiresAdminPolicy(string actionName)
     {
-        AssertHasPolicy(typeof(GoogleController), actionName, "AdminOnly");
+        AssertHasPolicy(SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), actionName, "AdminOnly");
     }
 
     // --- Onboarding review endpoints ---
@@ -201,19 +205,19 @@ public class EndpointAuthorizationTests
     [HumansFact]
     public void ShiftDashboardController_RequiresShiftDepartmentManager()
     {
-        AssertHasPolicy(typeof(ShiftDashboardController), null, "ShiftDepartmentManager");
+        AssertHasPolicy(SectionType("Humans.Shifts.Controllers.ShiftDashboardController"), null, "ShiftDepartmentManager");
     }
 
     [HumansFact]
     public void ShiftDashboardController_SearchVolunteers_RequiresShiftDashboardAccess()
     {
-        AssertHasPolicy(typeof(ShiftDashboardController), "SearchVolunteers", "ShiftDashboardAccess");
+        AssertHasPolicy(SectionType("Humans.Shifts.Controllers.ShiftDashboardController"), "SearchVolunteers", "ShiftDashboardAccess");
     }
 
     [HumansFact]
     public void ShiftDashboardController_Voluntell_RequiresShiftDashboardAccess()
     {
-        AssertHasPolicy(typeof(ShiftDashboardController), "Voluntell", "ShiftDashboardAccess");
+        AssertHasPolicy(SectionType("Humans.Shifts.Controllers.ShiftDashboardController"), "Voluntell", "ShiftDashboardAccess");
     }
 
     // --- POST actions must have ValidateAntiForgeryToken ---

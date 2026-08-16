@@ -1,3 +1,5 @@
+using Humans.GoogleIntegration.Contracts;
+using Humans.Shifts.Services;
 using Humans.Auth.Contracts;
 using Humans.Auth.Services;
 using Humans.Auth.Domain;
@@ -19,12 +21,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
 using Humans.Domain.Constants;
-using Humans.Domain.Entities;
+using Humans.Shifts.Domain;
 using Humans.Teams.Domain;
 using Humans.Domain.Enums;
-using Humans.Domain.ValueObjects;
-using Humans.Application.Interfaces.Shifts;
-using Humans.Application.Services.Shifts;
+using Humans.Shifts.Contracts;
 using Humans.Teams.Tests.Infrastructure;
 using Humans.Teams.Data;
 using RoleAssignmentService = Humans.Auth.Services.RoleAssignmentService;
@@ -34,11 +34,11 @@ using Humans.Teams.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Application.DTOs;
 using Humans.Application.Interfaces.GoogleIntegration;
-using Humans.Application.Services.GoogleIntegration;
-using Humans.Application.Interfaces.Auth;
+using Humans.GoogleIntegration.Services;
 
-using Humans.Infrastructure.Repositories.GoogleIntegration;
-using Humans.Infrastructure.Repositories.Shifts;
+using Humans.GoogleIntegration.Data;
+using Humans.Shifts.Data;
+using Humans.Users.Contracts;
 
 namespace Humans.Teams.Tests;
 
@@ -83,6 +83,7 @@ public sealed class TeamServiceTests : TeamsTestHarness
             .With<IGoogleSyncOutboxService>(googleOutboxService)
             .With(_teamResourceService)
             .With(userService)
+            .With<IUserServiceRead>(userService)
             .Build();
         var shiftManagementService = new ShiftManagementService(
             new ShiftRepository(ShiftsDbFactory, ShiftsDb, Clock),

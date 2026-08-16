@@ -7,15 +7,16 @@ using Humans.Events.Services;
 using Humans.Application.Extensions;
 using Humans.Email.Contracts;
 using Humans.Gdpr.Contracts;
-using Humans.Application.Interfaces.ICalFeed;
+using Humans.Calendar.Contracts;
 using Humans.Application.Interfaces.Repositories;
-using Humans.Application.Interfaces.Shifts;
+using Humans.Shifts.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Events.Domain;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 using Humans.Events.Contracts;
 using Humans.Events.Data;
+using Humans.Users.Contracts;
 
 namespace Humans.Events.Services;
 

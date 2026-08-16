@@ -62,16 +62,16 @@ public sealed class EmailMutationPathsAnalyzer : DiagnosticAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [ServiceCallerRule, RepositoryCallerRule
     ];
 
-    private const string ServiceInterface = "Humans.Application.Interfaces.Profiles.IUserEmailService";
-    private const string RepositoryInterface = "Humans.Application.Interfaces.Repositories.IUserRepository";
+    private const string ServiceInterface = "Humans.Users.Contracts.IUserEmailService";
+    private const string RepositoryInterface = "Humans.Users.Data.Repositories.IUserRepository";
     private const string ServiceMethodName = "ReconcileOAuthIdentityAsync";
     private const string RepositoryMethodName = "ApplyUserEmailReconcilePlanAsync";
     private const string AllowedServiceCaller = "Humans.Application.Services.Users.ExternalLoginService";
     private static readonly ImmutableHashSet<string> AllowedRepositoryCallers =
         ImmutableHashSet.Create(
             StringComparer.Ordinal,
-            "Humans.Application.Services.Profiles.UserEmailService",
-            "Humans.Application.Services.Users.UserService");
+            "Humans.Users.Services.UserEmailService",
+            "Humans.Users.Services.UserService");
 
     public override void Initialize(AnalysisContext context)
     {

@@ -1,7 +1,6 @@
 <!-- freshness:triggers
   src/Sections/Humans.Store/**
-  src/Humans.Application/Interfaces/IStripeService.cs
-  src/Humans.Infrastructure/Services/StripeService.cs
+  src/Sections/Humans.Stripe/**
 -->
 <!-- freshness:flag-on-change
   Store catalog editing, order lifecycle, OrderableUntil gate, invoice issuance idempotency, treasury sync matching, Stripe Checkout / webhook signature verification, and resource-based authorization — review when Store services/entities/controllers/auth handlers/Stripe surfaces change.
@@ -248,12 +247,12 @@ Stored as **string** via `HasConversion<string>()` with column default `Paid`. `
 - **Shifts:** `IShiftManagementService.GetActiveAsync()` for the active event's `Year` and `TimeZoneId` — used to (a) resolve the active catalog year on `/Store` and `/Store/Admin/Catalog`, (b) populate `Year` on new team orders, and (c) compute "today in event time zone" for the `OrderableUntil` deadline gate.
 - **Auth/Roles:** `RoleNames.StoreAdmin` (this section), `RoleNames.FinanceAdmin`, `RoleNames.Admin`.
 - **Holded connector** (Infrastructure): `IHoldedClient` extended with `UpsertContactAsync`, `CreateInvoiceAsync`, `ListTreasuryEntriesAsync` in Phase 4.
-- **Stripe connector** (Infrastructure): `IStripeService.CreateCheckoutSessionAsync` for camp-lead payments; `StoreStripeWebhookController` for `checkout.session.completed` ingestion.
+- **Stripe** (`Humans.Stripe`): `IStripeService.CreateCheckoutSessionAsync` for camp-lead payments; `StoreStripeWebhookController` for `checkout.session.completed` ingestion.
 - **Audit Log:** `IAuditLogService` for every mutation.
 
 ## Stripe Connector
 
-The Store section uses `IStripeService` (Application-layer abstraction; Infrastructure impl in `Humans.Infrastructure/Services/StripeService.cs`).
+The Store section uses `IStripeService` (`Humans.Stripe.Contracts`; internal impl in `src/Sections/Humans.Stripe/Services/StripeService.cs` — see [Stripe.md](../../Humans.Stripe/Docs/Stripe.md)).
 
 - `STRIPE_STORE_KEY` — `checkout_session:write` (Write ⊇ Read, so it also creates Checkout Sessions **and** lists/reads them for reconciliation via `ListStoreCheckoutSessionsAsync`). Each session is created with `humans_store_order_id` stamped on **both** the session metadata and the PaymentIntent metadata, plus a legible description, so payments are matchable from the dashboard, receipts, and PI search. Refunds, payouts, and chargebacks remain manual via the Stripe dashboard; the bookkeeping side posts as negative `Payment` rows via FinanceAdmin manual entry (Phase 5.3).
 - `STRIPE_STORE_WEBHOOK_SECRET` — signing secret for `StoreStripeWebhookController`. Set manually in QA/prod; auto-provisioned at boot in PR-preview envs via `StoreWebhookRegistrationService` (requires `STRIPE_STORE_WEBHOOK_REGISTRAR_KEY`).
@@ -265,10 +264,10 @@ The Store section uses `IStripeService` (Application-layer abstraction; Infrastr
 **Owning services:** `Service`
 **Owned tables:** `store_products`, `store_orders`, `store_order_lines`, `store_payments`, `store_invoices`, `store_treasury_sync_state`
 **Status:** (A) Migrated — new section, born §15-compliant (peterdrier/Humans store-foundation, 2026-04-30).
-**Project:** `src/Sections/Humans.Store` — the G5 pilot (nobodies-collective/Humans#866). The whole vertical is one assembly: `Domain/ Data/ Services/ Controllers/ Models/ Views/ Resources/ Authorization/ Docs/` plus `Section.cs`. Everything is `internal` except `Section`; `Contracts/` is empty because nothing consumes Store.
+**Project:** `src/Sections/Humans.Store` — the G5 pilot (nobodies-collective/Humans#866). The whole vertical is one assembly: `Domain/ Data/ Services/ Controllers/ Models/ Views/ Resources/ Authorization/ Docs/ Contracts/` plus `Section.cs`. Everything is `internal` except `Section`, `StoreResource`, and the `Contracts/` folder's public surface.
 
 - `Service` (`Services/Service.cs`) depends only on Base abstractions — nothing in Store reaches another section's internals.
-- `Repository` (`Data/Repository.cs`, §15b Singleton + `IDbContextFactory<StoreDbContext>`) is the only type that touches Store tables. `IStoreRepository` keeps its prefix where the rest of the internals drop theirs, because it derives from `IRepository` and cannot itself be called that (#866 design §6a). `Service` has no interface — nothing outside the assembly can name it, nothing mocks it, and Store has neither a caching decorator nor a `Contracts/` entry needing the seam.
+- `Repository` (`Data/Repository.cs`, §15b Singleton + `IDbContextFactory<StoreDbContext>`) is the only type that touches Store tables. `IStoreRepository` keeps its prefix where the rest of the internals drop theirs, because it derives from `IRepository` and cannot itself be called that (#866 design §6a). `Service` implements `IStoreServiceRead` (`Contracts/IStoreServiceRead.cs`) — the section's cross-section read surface, added for the admin dashboard tile (nobodies-collective/Humans#1264): `GetStoreSummaryAsync` plus the DTO graph it returns (`SummaryDto`, `OrderSummaryDto`, `ProductAggregateDto`, `CrossTabDto`/`CrossTabColumn`/`CrossTabRow`) and the two enums that graph exposes (`OrderCounterpartyType`, `OrderState`). Store still has no caching decorator (see below).
 - **Decorator decision — no caching decorator.** Store is admin / camp-lead only, low-traffic; same rationale as Budget / Governance.
 - **Schema decision — one polymorphic `Order`, not a second table.** Nullable `CampSeasonId` / `TeamId` on the same row was chosen over a separate `store_team_orders` table so team orders reuse the existing catalog, line, authorization and audit machinery instead of duplicating it for the non-billable case. The "exactly one of the two is non-null" invariant is service-enforced, not a DB constraint.
 - **Cross-domain navs:** none. `CampSeasonId`, `ProductId`, `AddedByUserId`, `RecordedByUserId`, `IssuedByUserId` are all FK-only with no navigation property. Intra-section back-navs `OrderLine.Order` and `Payment.Order` are aggregate-local and are kept.

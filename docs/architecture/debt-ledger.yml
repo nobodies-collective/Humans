@@ -7,7 +7,7 @@
 # Seeded 2026-06-12 (counts from origin/main @ e3fdfbcab). Add new themes with
 # last_swept: never; add one-offs to inbox. See memory/process/debt-ledger-additions.md.
 # Not seeded — zero real [Grandfathered] sites at seed (rules fully enforced):
-# HUM0009, HUM0020, HUM0025, HUM0029, HUM0032. The staleness check re-creates
+# HUM0009, HUM0020, HUM0025, HUM0032 (HUM0029 retired). The staleness check re-creates
 # a theme if any of these is ever grandfathered again.
 # Deliberately excluded from staleness/inventory (not fixable debt):
 # NoDestructiveMigrationOps.baseline.txt — entries are immutable migration
@@ -20,8 +20,15 @@ themes:
     detect: "build:HUM0024"
     review: panel
     last_swept: 2026-06-12
-    remaining: 55
+    remaining: 0
     notes: >-
+      INERT since nobodies-collective/Humans#1278 retired the HUM0024 analyzer —
+      `detect: build:HUM0024` can never report a site again, so `remaining` is 0
+      by construction, not by burndown. The theme row is kept, not deleted, so a
+      future sweep reads why the detector is silent instead of re-seeding it.
+      Do not revive the analyzer to re-open this: #1278 accepted the residual
+      (an EF config inside the unpeeled `Humans.Infrastructure` mapping another
+      section's entity) as a review-time check. Historical detail below.
       Count re-measured 2026-08-05 (nobodies-collective/Humans#978): 47 -> 55,
       all carrying markers. These are not new joins; they are joins HUM0024
       could not see. +1 net from #1178's relocations (GoogleResource gained a
@@ -245,10 +252,16 @@ themes:
     detect: "grep -c '^  - added:' docs/architecture/debt-ledger.yml"
     review: per-item
     last_swept: 2026-06-14
-    remaining: 10
+    remaining: 9
     notes: Each inbox entry carries its own review tier; drained entries are deleted from the list.
 inbox:
   # Seeded from the open items in docs/architecture/tech-debt-2026-04-23.md.
+  - added: 2026-08-16
+    what: "Humans.Users.Contracts (src/Sections/Humans.Users.Contracts/Humans.Users.Contracts.csproj) is the one `.Contracts` leaf where memory/architecture/service-read-no-ef.md's structural guarantee does not hold: it declares the public EF Identity entity `User : IdentityUser<Guid>` and references Microsoft.AspNetCore.Identity.EntityFrameworkCore (see the csproj's own reasoning block — ASP.NET Identity's generic surface, UserManager<User>/SignInManager<User>, can't be hidden). `IUserServiceRead` lives in the same project, so a future member returning `User` or another EF type would compile there, and HUM0029's retirement (peterdrier/Humans#1320) removed the only thing that ever would have caught it. Flagged by claude[bot] (Codex) on peterdrier/Humans#1320. Intended fix: widen `AssemblyScope` so analyzers run inside `.Contracts` assemblies, not just section/Application assemblies — already measured against this leaf at 21 diagnostics, 5 of them Errors on `IdentityUser`'s own inherited members, so the fix needs an Identity carve-out before it can land. Not implemented in #1320."
+    review: panel
+  - added: 2026-08-15
+    what: "Humans.CityPlanning.Tests.CityPlanningArchitectureTests.CityPlanningEntities_HaveNoCrossSectionNavigationProperties (tests/Humans.CityPlanning.Tests/CityPlanningArchitectureTests.cs) passes VACUOUSLY and must be re-keyed onto the real entity homes once Humans.Domain is deleted at G5 phase 5a. It asserts 'X names no type in Humans.Domain.Entities'; G5 lane 4b-2j moved the last types out of that namespace, so the predicate matches nothing and passes regardless of what the code does. The site carries a COVERAGE REDUCED comment. The rule it states — 'a section's entity types are not named across a section boundary' — should be rewritten once as a generic rule in tests/Humans.Application.Tests/Architecture/Rules/ keyed on the real entity homes (src/Sections/*/Domain plus the *.Contracts leaves holding framework-forced entities), not as another per-section decision. Raised by claude[bot] on peterdrier/Humans#1310: the original tracking pointed at local/g5-batch-4/state.md, which .gitignore excludes, so it would not have survived the session. The sibling site, TicketQueryArchitectureTests.ITicketServiceRead_ExposesNoEntityTypes, was deleted rather than re-keyed in the analyzer-enforcement-restore lane."
+    review: light
   - added: 2026-08-13
     what: "StorePayActionTests.Pay_with_amount_over_balance_redirects_back_to_order_without_calling_Stripe fails under full parallel-suite runs but passes in isolation — races something shared; surfaced twice during PR peterdrier/Humans#1272's full-suite runs"
     review: light
@@ -324,4 +337,7 @@ inbox:
     review: light
   - added: 2026-06-29
     what: "TicketTailor inbound check-in detection is broken against the live API (Tickets section; pre-existing, issue #736). TicketTailorService.GetIssuedTicketsAsync maps check-in time from a nested `check_in` object (TtIssuedTicket.check_in -> TtCheckIn.checked_in_at) at line ~147/399-406, but the live TT API (verified read-only 2026-06-29 against /v1/issued_tickets/{id} and /v1/orders/{id}) returns NO nested `check_in` object — only a top-level string field `checked_in: \"true\"|\"false\"`. So ticket.CheckIn is always null and VendorTicketDto.CheckedInAt is always null; no ticket is ever detected as vendor-checked-in. Consequence for Gate: the secondary CheckedInAtVendor dedupe signal never fires from vendor data (the gate's own gate_scan_events local unique index remains the dedupe authority, so admission correctness is unaffected — only the cross-device/vendor signal is dead). Fix in Tickets (not the Gate PR): map the top-level `checked_in` boolean-string, and if a check-in timestamp is needed, fetch it from the dedicated GET /v1/check_ins collection (whose field is `check_in_at`, epoch seconds — note: different name from the dead nested `checked_in_at`). Found while verifying the Gate vendor-mirror payload for PR 895."
+    review: panel
+  - added: 2026-08-14
+    what: "SystemTeamSyncJob (src/Sections/Humans.Teams/Services/SystemTeamSyncJob.cs) makes two read-only cross-section calls through full service interfaces instead of a Read interface, contrary to memory/architecture/section-read-write-split.md: RoleAssignmentService.GetActiveUserIdsInRoleAsync (line 273, IRoleAssignmentService — Auth) and TeamResourceService.GetTeamResourcesAsync (line 620, ITeamResourceService — GoogleIntegration). Neither IRoleAssignmentServiceRead nor ITeamResourceServiceRead exists yet, so there is nothing to switch to today; the fix lands when Auth and GoogleIntegration get their Read splits. HUM0032 cannot catch this shape either way — both are resolved lazily via serviceProvider.GetRequiredService<T>() in computed properties (lines 62-66), and the analyzer only inspects constructor parameters. Pre-existing calls, newly reclassified: before peterdrier/Humans#1305 the job lived in Humans.Infrastructure (Base), where calling a full section interface is normal; the move into Humans.Teams makes them cross-section-from-a-section. Found by Claude review on peterdrier/Humans#1305."
     review: panel

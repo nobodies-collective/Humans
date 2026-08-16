@@ -1,6 +1,6 @@
 using Humans.Application.Extensions;
 using Humans.Cantina.Services;
-using Humans.Application.Interfaces.Shifts;
+using Humans.Shifts.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.UI.Authorization;
 using Humans.UI.Controllers;
@@ -8,6 +8,7 @@ using Humans.Cantina.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NodaTime;
+using Humans.Users.Contracts;
 
 namespace Humans.Cantina.Controllers;
 

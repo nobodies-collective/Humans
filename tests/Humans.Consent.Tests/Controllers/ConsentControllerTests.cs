@@ -8,7 +8,6 @@ using Humans.Consent;
 using Humans.Consent.Contracts;
 using Humans.Onboarding.Contracts;
 using Humans.Application.Interfaces.Users;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.UI;
 using Humans.Consent.Controllers;
@@ -23,6 +22,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
 using Xunit;
+using Humans.Users.Contracts;
 
 namespace Humans.Consent.Tests.Controllers;
 

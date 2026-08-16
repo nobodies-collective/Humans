@@ -1,7 +1,7 @@
 using Humans.Application;
-using Humans.Application.Interfaces.Camps;
+using Humans.Camps.Contracts;
 using Humans.Events.Services;
-using Humans.Application.Interfaces.Shifts;
+using Humans.Shifts.Contracts;
 using Humans.Application.Interfaces.Users;
 using Humans.Events.Filters;
 using Humans.Events.Helpers;
@@ -14,6 +14,7 @@ using NodaTime.Text;
 using Humans.Events.Contracts;
 using Humans.Events.Services.Dtos;
 using Humans.UI.Controllers;
+using Humans.Users.Contracts;
 
 namespace Humans.Events.Controllers;
 

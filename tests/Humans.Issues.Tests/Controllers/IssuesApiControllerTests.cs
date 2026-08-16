@@ -1,7 +1,6 @@
 using AwesomeAssertions;
 using Humans.Application;
 using Humans.Application.Interfaces.Users;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Issues.Contracts;
 using Humans.Issues.Controllers;
@@ -17,8 +16,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using NSubstitute;
+using Humans.Users.Contracts;
 
 #pragma warning disable CS0618 // Cross-domain navs are intentional in test fixtures.
+
+using Humans.AuditLog.Contracts;
 
 namespace Humans.Issues.Tests.Controllers;
 

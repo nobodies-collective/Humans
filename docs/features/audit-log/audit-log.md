@@ -1,9 +1,11 @@
 <!-- freshness:triggers
-  src/Humans.Application/Services/AuditLog/**
-  src/Humans.Web/Controllers/AuditLogController.cs
-  src/Humans.Web/Views/AuditLog/Index.cshtml
-  src/Humans.Domain/Entities/AuditLogEntry.cs
-  src/Humans.Infrastructure/Data/Configurations/AuditLog/**
+  src/Sections/Humans.AuditLog/Services/**
+  src/Sections/Humans.AuditLog/Contracts/**
+  src/Sections/Humans.AuditLog/ViewComponents/**
+  src/Sections/Humans.AuditLog/Controllers/AuditLogController.cs
+  src/Sections/Humans.AuditLog/Views/AuditLog/Index.cshtml
+  src/Sections/Humans.AuditLog/Domain/AuditLogEntry.cs
+  src/Sections/Humans.AuditLog/Data/Configurations/**
 -->
 <!-- freshness:flag-on-change
   AuditLogEntry schema, AuditAction/GoogleSyncSource enum values, immutability triggers, and audit-log views/routes — review when AuditAction enum, AuditLogService, or audit-log UI change.
@@ -57,7 +59,7 @@ Database triggers prevent UPDATE and DELETE on the `audit_log` table, matching t
 
 Stored as string in the database. New values can be appended without migration.
 
-The full value catalog lives in [`src/Sections/Humans.AuditLog/Docs/AuditLog.md`](../../../src/Sections/Humans.AuditLog/Docs/AuditLog.md) and is regenerated from `src/Humans.Domain/Enums/AuditAction.cs` by `/freshness-sweep`. It is not duplicated here — one source of truth.
+The full value catalog lives in [`src/Sections/Humans.AuditLog/Docs/AuditLog.md`](../../../src/Sections/Humans.AuditLog/Docs/AuditLog.md) and is regenerated from `src/Sections/Humans.AuditLog.Contracts/AuditAction.cs` by `/freshness-sweep`. It is not duplicated here — one source of truth.
 
 ## Service Design
 
@@ -140,15 +142,15 @@ Accessible to Board and Admin. Displays all audit log entries with filtering by 
 - Alert banner showing total anomaly count
 - Paginated (50 per page)
 
-### Drive Activity Check (`/AuditLog/CheckDriveActivity`)
+### Drive Activity Check (`/Monitor/CheckDriveActivity`)
 
 POST action on `AuditLogController`. Manual trigger for the Drive Activity monitor. Redirects to `/AuditLog?filter=AnomalousPermissionDetected` after completion.
 
-### Per-Resource Google Sync Audit (`/AuditLog/Resource/{id}`)
+### Per-Resource Google Sync Audit (`/Monitor/Resource/{id}`)
 
 Displays all audit entries for a specific Google resource, queried by `ResourceId`. Shows structured Google sync details: user email, role, sync source, success/failure status, and error messages. Accessible to Board and Admin. Accessed via "Audit" button on each row of the Google Sync page.
 
-### Per-User Google Sync Audit (`/AuditLog/Human/{id}`)
+### Per-User Google Sync Audit (`/Monitor/Human/{id}`)
 
 Displays all Google sync audit entries affecting a specific user, queried by `RelatedEntityId = userId` where `ResourceId IS NOT NULL`. Includes the Google resource name, resolved via `ITeamResourceService.GetResourceNamesByIdsAsync` (no navigation property — cross-section read-interface call). Accessible to HumanAdmin and Admin. Accessed via the Member Detail page sidebar.
 

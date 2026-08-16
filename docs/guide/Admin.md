@@ -1,6 +1,6 @@
 <!-- freshness:triggers
   src/Humans.Web/Views/Admin/**
-  src/Humans.UI/Views/Shared/_AdminLayout.cshtml
+  src/Humans.Web/Views/Shared/_AdminLayout.cshtml
   src/Humans.Web/ViewComponents/AdminNavTree.cs
   src/Humans.Web/Views/UsersAdmin/AdminList.cshtml
   src/Humans.Web/Views/UsersAdmin/AdminDetail.cshtml
@@ -9,9 +9,9 @@
   src/Humans.Web/Controllers/AdminController.cs
   src/Humans.Web/Controllers/UsersAdminAccountMergesController.cs
   src/Humans.Web/Controllers/UsersAdminController.cs
-  src/Humans.Web/Controllers/AdminLegalDocumentsController.cs
+  src/Sections/Humans.Consent/Controllers/AdminLegalDocumentsController.cs
   src/Sections/Humans.Notifications/Controllers/NotificationsController.cs
-  src/Humans.Application/Services/AuditLog/**
+  src/Sections/Humans.AuditLog/Services/**
   src/Sections/Humans.Notifications/Services/**
   src/Humans.Application/Services/Users/AccountMergeService.cs
   src/Humans.Application/Services/Users/DuplicateAccountService.cs

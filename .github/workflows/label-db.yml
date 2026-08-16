@@ -16,16 +16,17 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const { data: files } = await github.rest.pulls.listFiles({
+            const files = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
               per_page: 100
             });
 
+            const sectionMigrationsRe = /^src\/Sections\/[^/]+\/Data\/Migrations\//;
             const hasMigration = files.some(f =>
-              f.filename.startsWith('src/Humans.Infrastructure/Migrations/') &&
-              f.status !== 'removed'
+              f.status !== 'removed' &&
+              (f.filename.startsWith('src/Humans.Infrastructure/Migrations/') || sectionMigrationsRe.test(f.filename))
             );
 
             const labels = context.payload.pull_request.labels.map(l => l.name);

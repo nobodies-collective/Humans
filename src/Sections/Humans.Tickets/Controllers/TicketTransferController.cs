@@ -1,5 +1,5 @@
 using Humans.Application.DTOs;
-using Humans.Application.Interfaces.EarlyEntry;
+using Humans.EarlyEntry.Contracts;
 using Humans.Tickets.Contracts;
 using Humans.Tickets.Services;
 using Humans.Application.Interfaces.Users;
@@ -8,6 +8,7 @@ using Humans.Tickets.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Humans.Tickets.Services.Dtos;
+using Humans.Users.Contracts;
 
 namespace Humans.Tickets.Controllers;
 

@@ -63,33 +63,6 @@ public class TicketQueryArchitectureTests
     }
 
     [HumansFact]
-    public void ITicketServiceRead_ExposesNoEntityTypes()
-    {
-        var offenders = typeof(ITicketServiceRead).GetMethods()
-            .SelectMany(m => m.ReturnParameter.ParameterType
-                .GetGenericArguments()
-                .Append(m.ReturnParameter.ParameterType)
-                .Concat(m.GetParameters().Select(p => p.ParameterType))
-                .SelectMany(FlattenType))
-            .Where(t => string.Equals(t.Namespace, "Humans.Domain.Entities", StringComparison.Ordinal))
-            .Select(t => t.Name)
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(n => n, StringComparer.Ordinal)
-            .ToList();
-
-        offenders.Should().BeEmpty(
-            because: "ITicketServiceRead is the cross-section read contract and must not expose EF entity types");
-
-        static IEnumerable<Type> FlattenType(Type type)
-        {
-            yield return type;
-            foreach (var arg in type.GetGenericArguments())
-                foreach (var nested in FlattenType(arg))
-                    yield return nested;
-        }
-    }
-
-    [HumansFact]
     public void CachingTicketQueryService_ImplementsITicketCacheInvalidator()
     {
         typeof(ITicketCacheInvalidator).IsAssignableFrom(typeof(CachingTicketQueryService))

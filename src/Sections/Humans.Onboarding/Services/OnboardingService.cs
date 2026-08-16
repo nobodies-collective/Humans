@@ -3,7 +3,6 @@ using Humans.Application.DTOs;
 using Humans.AuditLog.Contracts;
 using Humans.Consent.Contracts;
 using Humans.Governance.Contracts;
-using Humans.Application.Interfaces.HumanLifecycle;
 using Humans.Domain.Constants;
 using Humans.Domain.Enums;
 using Humans.Email.Contracts;
@@ -11,6 +10,7 @@ using Humans.Application.Interfaces.Users;
 using Humans.Onboarding.Contracts;
 using Humans.Notifications.Contracts;
 using Humans.Application.Interfaces.GoogleIntegration;
+using Humans.Users.Contracts;
 
 namespace Humans.Onboarding.Services;
 

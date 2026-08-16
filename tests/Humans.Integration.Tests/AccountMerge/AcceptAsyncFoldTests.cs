@@ -17,7 +17,6 @@ using AwesomeAssertions;
 using Humans.Application.Interfaces.Repositories;
 using Humans.Application.Interfaces.Users;
 using Humans.Domain.Constants;
-using Humans.Domain.Entities;
 using Humans.Domain.Enums;
 using Humans.Infrastructure.Data;
 using Humans.Integration.Tests.Infrastructure;
@@ -26,6 +25,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 using Xunit;
+using Humans.Users.Contracts;
+using Humans.Users.Data;
+using Humans.Users.Data.Repositories;
+using Humans.Users.Services;
+using Humans.AuditLog.Contracts;
 
 namespace Humans.Integration.Tests.AccountMerge;
 

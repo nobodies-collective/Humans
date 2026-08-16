@@ -7,13 +7,12 @@ using Humans.Application.Interfaces.Repositories;
 using Humans.Domain.Constants;
 using Humans.Domain.Enums;
 using Humans.Budget.Contracts;
-using Humans.Application.Interfaces.Profiles;
+using Humans.Users.Contracts;
 using Humans.Campaigns.Contracts;
-using Humans.Application.Interfaces.Shifts;
+using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Tickets.Contracts;
 using Humans.Application.Interfaces.Users;
-using Humans.Domain.Entities;
 using Humans.Tickets.Data;
 using Humans.Tickets.Domain;
 using Humans.Tickets.Models;
@@ -30,10 +29,10 @@ internal sealed class TicketQueryService(
     ITicketTransferRepository ticketTransferRepository,
     IBudgetServiceRead budgetService,
     ICampaignServiceRead campaignService,
-    IUserService userService,
+    IUserServiceRead userService,
     IUserEmailService userEmailService,
     ITeamServiceRead teamService,
-    IShiftManagementService shiftManagementService,
+    IBurnSettingsService burnSettings,
     IClock clock) : ITicketService, IUserDataContributor
 {
     private async Task<int> ComputeUserTicketCountAsync(Guid userId)
@@ -498,7 +497,7 @@ internal sealed class TicketQueryService(
             .Select(u => u.Id)
             .ToList();
 
-        var activeEvent = await shiftManagementService.GetActiveAsync();
+        var activeEvent = await burnSettings.GetActiveAsync();
         HashSet<Guid> notAttendingSet = [];
         if (activeEvent is not null && activeEvent.Year > 0)
         {
@@ -725,7 +724,7 @@ internal sealed class TicketQueryService(
 
     private async Task<Instant?> GetPostEventHoldDateAsync()
     {
-        var activeEvent = await shiftManagementService.GetActiveAsync();
+        var activeEvent = await burnSettings.GetActiveAsync();
         if (activeEvent is null)
             return null;
 
