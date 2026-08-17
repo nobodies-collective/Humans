@@ -57,7 +57,7 @@ env:
     BudgetDbContext:src/Sections/Humans.Budget
     CampsDbContext:src/Sections/Humans.Camps
     GateDbContext:src/Sections/Humans.Gate
-    SystemDbContext:src/Humans.Infrastructure
+    SystemDbContext:src/Humans.Web
     LegalDbContext:src/Sections/Humans.Consent
     AuditLogDbContext:src/Sections/Humans.AuditLog
     ShiftsDbContext:src/Sections/Humans.Shifts
@@ -154,10 +154,10 @@ jobs:
           list-files: shell
           filters: |
             migrations:
-              - 'src/Humans.Infrastructure/Migrations/**'
+              - 'src/Humans.Web/Migrations/**'
               # SystemDbContext + its factory live here (not under Migrations/**);
               # a DbSet added there must trigger the System checks.
-              - 'src/Humans.Infrastructure/Data/**'
+              - 'src/Humans.Web/Infrastructure/Data/**'
               - 'src/Humans.Domain/**'
               # Shared leaf: enums here are EF-mapped by section configurations
               # (e.g. Teams maps SystemTeamType with HasConversion<string> and
@@ -198,7 +198,7 @@ jobs:
             case "$f" in
               src/Humans.Domain/*|src/Humans.Interfaces/*|Directory.Packages.props|.github/workflows/build.yml) all=true ;;
               src/Sections/*) proj="$(echo "$f" | cut -d/ -f3)"; hit["src/Sections/${proj%.Contracts}"]=1 ;;
-              src/Humans.Infrastructure/*) hit[src/Humans.Infrastructure]=1 ;;
+              src/Humans.Web/*) hit[src/Humans.Web]=1 ;;
             esac
           done
           contexts=""
@@ -356,7 +356,7 @@ jobs:
       # + TreatWarningsAsErrors surface every warning-or-higher rule as a build
       # error there, and the full three-pass format check spent ~200s per run
       # re-running the same analysis for no additional signal.
-      run: dotnet format whitespace Humans.slnx --verify-no-changes --no-restore --exclude src/Humans.Infrastructure/Migrations/
+      run: dotnet format whitespace Humans.slnx --verify-no-changes --no-restore --exclude src/Humans.Web/Migrations/
 
     - name: Forbid RS0030 suppressions in test code
       # The BannedApiAnalyzers rule RS0030 enforces "no bare [Fact] / [Theory]
