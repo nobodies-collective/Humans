@@ -1,6 +1,7 @@
-using Humans.Application.DTOs;
 
-namespace Humans.Application.Interfaces.Dashboard;
+using Humans.Application.Interfaces;
+
+namespace Humans.Web.Services.Dashboard;
 
 /// <summary>
 /// Aggregation surface for the Board / Admin dashboard. Lives next to

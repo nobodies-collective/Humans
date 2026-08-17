@@ -1,18 +1,16 @@
 using Humans.Application.Configuration;
 using Humans.Application.Helpers;
-using Humans.Application.Interfaces.Dashboard;
 using Humans.Governance.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using Humans.Users.Contracts;
 
-namespace Humans.Application.Services.Dashboard;
+namespace Humans.Web.Services.Dashboard;
 
 /// <summary>Orchestrates the member dashboard snapshot across profile/membership/applications/shifts/tickets/participation.</summary>
 public class DashboardService(

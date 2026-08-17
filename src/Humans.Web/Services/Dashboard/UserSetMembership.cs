@@ -1,4 +1,4 @@
-namespace Humans.Application.DTOs;
+namespace Humans.Web.Services.Dashboard;
 
 /// <summary>
 /// 4-dimensional set partition of the UserInfo cache for the Admin dashboard
