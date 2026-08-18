@@ -44,13 +44,18 @@ Glob/Grep to `$WORKTREE`.
 so the newest plan/log/queue may exist only on that PR branch, not on `origin/main`. Discover:
 
 ```bash
-gh pr list --repo peterdrier/Humans --state open --json number,headRefName \
+gh pr list --repo peterdrier/Humans --state open --limit 200 --json number,headRefName,title \
   --jq '.[] | select(.headRefName | startswith("section-doctor/"))'
 ```
 
-(`--search "head:..."` matches exact branch names, not prefixes — don't use it.) If an open run
+(`--limit` is mandatory — `gh pr list` fetches only 30 by default and the prefix filter runs
+client-side in `--jq`, so an older open run silently drops out without it. `--search "head:..."`
+matches exact branch names, not prefixes — don't use it.) If an open run
 branch exists, fetch it and read `docs/health/*` from its tip; else read `origin/main`'s copy.
 Carry that state forward in this run's commits so plan/log history never forks.
+
+Keep this result — the **blocked set** is the sections named by those open PRs' titles
+(`doctor(<Section>): …`), and section selection below must respect it.
 
 Replan when: no plan, plan exhausted, `--replan`, or a merged change since the plan's anchor
 materially reshapes an upcoming scheduled section (move/rename/major feature — routine churn is
@@ -68,11 +73,49 @@ not staleness).
 3. Tiebreak color: open issues per section, `docs/architecture/debt-ledger.yml` items,
    churn under the section's paths since its last assessment.
 4. Skip sections with in-flight or imminently-planned feature work (check the active sprint plan).
+5. **Exclude every section in the blocked set** — a row that cannot be worked on the day it comes
+   up is a wasted plan row. If this leaves no candidates at all, write no plan and take the
+   all-blocked exit below.
 
 Write the 5–7 day table + anchor to `docs/health/plan.md`. Consecutive days for one section are
-allowed. The plan is advisory — today's findings may extend a section's stay.
+allowed, but only pay off once the prior day's PR has merged — an unmerged run branches off
+`origin/main` and cannot see yesterday's strikes. The plan is advisory — today's findings may
+extend a section's stay.
 
-Take today's section (or `--section`). Sections are `src/Sections/` projects only.
+Take a section from the plan (or `--section`). Sections are `src/Sections/` projects only.
+
+**Never work a section in the blocked set.** A section with an open section-doctor PR has
+unmerged strikes that today's run cannot see — re-doctoring it duplicates work and produces
+conflicting PRs.
+
+Selection is one rule: **the earliest-dated unticked, unblocked row wins.** Ticked rows are
+completed runs and are never re-taken, blocked or not (a merge unblocks the section at exactly
+the moment it must stop being a candidate). Scanning by date rather than from today means an
+overdue row — one skipped on its own day for blocking, whose PR has since merged — is picked up
+first, which is what an overdue row deserves; a future-dated row is only reached when everything
+earlier is ticked or blocked, and pulling it forward beats idling.
+
+**A run must never come up empty while workable sections exist.** Both no-work cases route to the
+planner rather than exiting, and **a replan excludes blocked sections outright** — never write a
+plan whose rows cannot be worked:
+
+- **No unticked rows** — the plan is exhausted; replan and select again.
+- **Every unticked row blocked** — replan and select again. Rows remain, but they are all spoken
+  for by open PRs, and with 42 section projects against a 5–7 row plan there is nearly always
+  other work; idling here would waste a scheduled day.
+
+The single genuine exit is **every section blocked** — no unblocked section exists, so the
+planner has nothing to write. Report the open PRs and go straight to Phase 9 teardown. Nothing
+has been written at this point (the replan produced no plan), so the worktree is clean and
+`git worktree remove` succeeds without `--force`. Never leave a half-written plan behind: if a
+replan wrote a plan, the run has workable rows by construction and does not take this exit.
+
+Rows skipped for blocking on a run that *does* proceed go in that run's `last-report.md` under
+items skipped (`<section> — open PR #N`) — **never as extra `log.md` lines**: `log.md` is one line
+per run and a skip is not a run. Leave the rows unticked so the date scan returns to them.
+
+A `--section` naming a blocked section stops like the all-blocked case — merge the open PR first,
+or use `resume` to work its Needs-Peter queue.
 
 ## Phase 3: Deep assessment
 
@@ -90,8 +133,12 @@ and description** (sonnet for mechanical scanning, opus-tier only where judgment
   a flow-trace simplification pass — walk each service/repository flow asking "is there a
   simpler shape" (overlapping methods, pass-throughs, duplicated pipelines).
 - **Tests lane** — good/bad/ugly triage of the section's tests (slop, redundancy); **kick off
-  section-scoped Stryker in the background at lane start** — score goes in the scorecard,
-  surviving mutants seed test strikes; build the **invariant coverage matrix**: every
+  section-scoped Stryker in the background at lane start** (`dotnet tool restore` first —
+  Stryker is a manifest-local tool, see `docs/testing/mutation-testing.md`) — score goes in the
+  scorecard, surviving mutants seed test strikes. **Stryker is never a blocker**: if the restore
+  or the run fails, write `n/a (<reason>)` in the scorecard's mutation cell, carry on with the
+  rest of the lane, and note it in the retro — do not retry, reconfigure, or install anything
+  globally; build the **invariant coverage matrix**: every
   invariant, negative access rule, and trigger in the section doc mapped to a pinning test —
   each gap is a ranked opportunity.
 - **InspectCode lane** — `jb inspectcode` scoped to the section's project(s) (see `/resharper`
@@ -145,8 +192,9 @@ assessment-only PR, note it in the plan.
 
 ## Phase 5: Bookkeeping
 
-In the same worktree/PR: `health.md` history row; tick today's plan row (if a plan exists —
-`--section` runs have none); append
+In the same worktree/PR: `health.md` history row; tick **the row Phase 2 selected** — not today's
+row, which may have been passed over as blocked and must stay unticked so the date scan returns
+to it (if a plan exists — `--section` runs have none); append
 `docs/health/log.md` (`| date | section | what ran | outcome | PR |`); overwrite
 `docs/health/last-report.md` (assessment summary, worked, skipped + why); update this run's row
 in `docs/architecture/maintenance-log.md` per `maintenance-log-update`. PR-reference cells are
@@ -197,7 +245,7 @@ or strike work.
 1. **Open runs:** discover by branch-name prefix — `--search "head:..."` matches exact names,
    not prefixes:
    ```bash
-   gh pr list --repo peterdrier/Humans --state open --json number,headRefName \
+   gh pr list --repo peterdrier/Humans --state open --limit 200 --json number,headRefName \
      --jq '.[] | select(.headRefName | startswith("section-doctor/"))'
    ```
    Each PR body's `## Needs Peter` block (authoritative for unmerged runs; their plan.md
