@@ -2106,7 +2106,7 @@ failures / 15 min) and `GateVendorMirrorLedger`
 (`GateVendorMirrorSent:{vendorTicketId}` — 24 h atomic claim so the vendor
 check-in mirror and the backfill page never double-post a non-idempotent
 TicketTailor check-in, #1083). Two helpers remain genuinely Web-layer
-(`src/Humans.Web/Infrastructure/`) because they gate terminal *sign-in*,
+(`src/Humans.Web/Services/` and `Hosting/`) because they gate terminal *sign-in*,
 not gate *admission*: `GateLoginThrottle` (`GateLoginFailures:{sourceIp}` —
 per-IP terminal sign-in throttle) and `GateTerminalAccountSeeder`, which
 provisions the shared kiosk account and fires `InvalidateUserAccess`
@@ -3266,7 +3266,7 @@ separately below the key table.
 | `GateVendorMirrorSent:{vendorTicketId}` | 24 hr | Dedupe claim | GateVendorMirrorLedger (Web) | expiry only |
 
 > The three `Gate*` keys are held by Web-layer helper singletons
-> (`src/Humans.Web/Infrastructure/`), not `CacheKeys.cs` /
+> (`src/Humans.Web/Services/`), not `CacheKeys.cs` /
 > `CacheKeys.Metadata` — they never appear on `/Debug/CacheStats`.
 
 > **Retired `IMemoryCache` keys** (now `TrackedCache` projections or
