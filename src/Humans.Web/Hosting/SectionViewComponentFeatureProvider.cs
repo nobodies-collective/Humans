@@ -1,5 +1,4 @@
 using System.Reflection;
-using Humans.Web.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.ViewComponents;
@@ -30,7 +29,7 @@ namespace Humans.Web.Hosting;
 /// two of them (design §15 step 3b).
 /// </para>
 /// </remarks>
-internal sealed class SectionViewComponentFeatureProvider
+internal sealed class SectionViewComponentFeatureProvider(SectionAssemblySnapshot sections)
     : IApplicationFeatureProvider<ViewComponentFeature>
 {
     private const string ViewComponentSuffix = "ViewComponent";
@@ -41,20 +40,28 @@ internal sealed class SectionViewComponentFeatureProvider
         {
             foreach (var type in part.Types)
             {
-                if (IsSectionViewComponent(type) && !feature.ViewComponents.Contains(type))
+                if (IsSectionViewComponent(type, sections) && !feature.ViewComponents.Contains(type))
                     feature.ViewComponents.Add(type);
             }
         }
+
+        // The default provider already took every public one, including from sections this
+        // deployment deactivated; drop those, or they resolve services nobody registered (#1081).
+        for (var i = feature.ViewComponents.Count - 1; i >= 0; i--)
+        {
+            if (sections.IsInactiveSection(feature.ViewComponents[i].Assembly))
+                feature.ViewComponents.RemoveAt(i);
+        }
     }
 
-    private static bool IsSectionViewComponent(TypeInfo typeInfo)
+    private static bool IsSectionViewComponent(TypeInfo typeInfo, SectionAssemblySnapshot sections)
     {
         // Only relax the public check, and only for section assemblies. The default
         // provider has already taken every public one.
         if (typeInfo.IsPublic)
             return false;
 
-        if (!SectionDiscoveryExtensions.IsSectionAssembly(typeInfo.Assembly))
+        if (!sections.IsActiveSection(typeInfo.Assembly))
             return false;
 
         if (!typeInfo.IsClass || typeInfo.IsAbstract || typeInfo.ContainsGenericParameters)
