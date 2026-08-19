@@ -93,9 +93,9 @@ public sealed class Section : ISection
         // Rota coordinator "email a rota" — see #732.
         services.AddScoped<IRotaCoordinatorMessageService, RotaCoordinatorMessageService>();
 
-        // Policy-backing handlers; the policies themselves stay in Shell's
-        // AuthorizationPolicyExtensions, which constructs the (public) Requirement
-        // types directly to build the policy (design §15 step 6's asymmetry).
+        // Policy-backing handlers. ShiftDepartmentManager's policy is this section's, in
+        // SectionPolicies; CampComplianceAccess's is still Shell's, which constructs that
+        // Requirement from Contracts/ to build the policy.
         services.AddScoped<IAuthorizationHandler, CampComplianceAccessHandler>();
         services.AddScoped<IAuthorizationHandler, IsAnyTeamManagerOrCoordinatorHandler>();
 

@@ -4,6 +4,8 @@ using AwesomeAssertions;
 using Humans.Budget.Contracts;
 using Humans.Camps.Contracts;
 using Humans.CityPlanning.Contracts;
+using Humans.Shifts.Authorization;
+using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Base.Constants;
 using Humans.Base.Authorization;
@@ -13,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 using NSubstitute;
 using Xunit;
+using Humans.Users.Authorization;
 using Humans.Users.Contracts;
 
 namespace Humans.Web.Tests.Authorization;
@@ -25,6 +28,7 @@ public class AuthorizationPolicyTests : IDisposable
 {
     private readonly ServiceProvider _serviceProvider;
     private readonly IAuthorizationService _authorizationService;
+    private readonly IShiftManagementServiceRead _shiftManagement;
 
     public AuthorizationPolicyTests()
     {
@@ -42,11 +46,18 @@ public class AuthorizationPolicyTests : IDisposable
         // registered by Humans.Expenses' Section.Register, not by
         // AddHumansAuthorizationPolicies — so this graph no longer needs their collaborators
         // (design §15 step 6). Their coverage lives in Humans.Expenses.Tests.
-        // CampComplianceAccessHandler and IsAnyTeamManagerOrCoordinatorHandler moved into
-        // Humans.Shifts with the section and are registered by its Section.Register, not by
-        // AddHumansAuthorizationPolicies — so this graph no longer needs IShiftManagementServiceRead.
-        // Their coverage lives in Humans.Shifts.Tests.
+        // IsAnyTeamManagerOrCoordinatorHandler reads team-coord ids through this service
+        // (cached path); register a single shared substitute so per-test setups stick.
+        _shiftManagement = Substitute.For<IShiftManagementServiceRead>();
+        _shiftManagement.GetCoordinatorTeamIdsAsync(Arg.Any<Guid>()).Returns([]);
+        services.AddSingleton(_shiftManagement);
         services.AddSingleton<IClock>(SystemClock.Instance);
+        // PolicyNames.ShiftDepartmentManager and PolicyNames.HumanAdminOnly are registered by
+        // Humans.Shifts' and Humans.Users' own Policies contribution (nobodies-collective/Humans#1076);
+        // their handlers are registered by those sections' Section.Register, not by
+        // AddHumansAuthorizationPolicies, so this graph registers them directly.
+        services.AddScoped<IAuthorizationHandler, IsAnyTeamManagerOrCoordinatorHandler>();
+        services.AddSingleton<IAuthorizationHandler, HumanAdminOnlyHandler>();
         services.AddHumansAuthorizationPolicies();
         _serviceProvider = services.BuildServiceProvider();
         _authorizationService = _serviceProvider.GetRequiredService<IAuthorizationService>();
@@ -158,6 +169,12 @@ public class AuthorizationPolicyTests : IDisposable
         { PolicyNames.ShiftDashboardAccess, RoleNames.VolunteerCoordinator, true },
         { PolicyNames.ShiftDashboardAccess, RoleNames.Board, false },
         { PolicyNames.ShiftDashboardAccess, RoleNames.TeamsAdmin, false },
+
+        { PolicyNames.ShiftDepartmentManager, RoleNames.Admin, true },
+        { PolicyNames.ShiftDepartmentManager, RoleNames.NoInfoAdmin, true },
+        { PolicyNames.ShiftDepartmentManager, RoleNames.VolunteerCoordinator, true },
+        { PolicyNames.ShiftDepartmentManager, RoleNames.Board, false },
+        { PolicyNames.ShiftDepartmentManager, RoleNames.TeamsAdmin, false },
 
         { PolicyNames.PrivilegedSignupApprover, RoleNames.Admin, true },
         { PolicyNames.PrivilegedSignupApprover, RoleNames.NoInfoAdmin, true },
@@ -531,6 +548,59 @@ public class AuthorizationPolicyTests : IDisposable
         var result = await AuthorizeAsync(PolicyNames.ShiftDashboardAccess, role);
         result.Succeeded.Should().Be(expected);
     }
+
+    // --- ShiftDepartmentManager ---
+
+    [HumansTheory]
+    [InlineData(RoleNames.Admin, true)]
+    [InlineData(RoleNames.NoInfoAdmin, true)]
+    [InlineData(RoleNames.VolunteerCoordinator, true)]
+    [InlineData(RoleNames.Board, false)]
+    [InlineData(RoleNames.TeamsAdmin, false)]
+    public async Task ShiftDepartmentManager_ChecksCorrectRoles(string role, bool expected)
+    {
+        var result = await AuthorizeAsync(PolicyNames.ShiftDepartmentManager, role);
+        result.Succeeded.Should().Be(expected);
+    }
+
+    [HumansFact]
+    public async Task ShiftDepartmentManager_AllowsUserWithCoordinatedTeams()
+    {
+        var userId = Guid.NewGuid();
+        _shiftManagement.GetCoordinatorTeamIdsAsync(userId).Returns([Guid.NewGuid()]);
+
+        var user = CreateUserWithIdAndRoles(userId, "SomeNonAdminRole");
+        var result = await _authorizationService.AuthorizeAsync(user, PolicyNames.ShiftDepartmentManager);
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [HumansFact]
+    public async Task ShiftDepartmentManager_DeniesUserWithNoRoleAndNoCoordinatedTeams()
+    {
+        var userId = Guid.NewGuid();
+        _shiftManagement.GetCoordinatorTeamIdsAsync(userId).Returns([]);
+
+        var user = CreateUserWithIdAndRoles(userId, "SomeNonAdminRole");
+        var result = await _authorizationService.AuthorizeAsync(user, PolicyNames.ShiftDepartmentManager);
+
+        result.Succeeded.Should().BeFalse();
+    }
+
+    [HumansFact]
+    public async Task ShiftDepartmentManager_PrivilegedRole_ShortCircuitsWithoutCallingShiftService()
+    {
+        _shiftManagement.ClearReceivedCalls();
+
+        var result = await AuthorizeAsync(PolicyNames.ShiftDepartmentManager, RoleNames.Admin);
+
+        result.Succeeded.Should().BeTrue();
+        await _shiftManagement.DidNotReceive().GetCoordinatorTeamIdsAsync(Arg.Any<Guid>());
+    }
+
+    // CampComplianceAccessHandler moved into Humans.Shifts with the section and is
+    // registered by its Section.Register, not by AddHumansAuthorizationPolicies, so this
+    // graph cannot exercise the policy. Coverage lives in Humans.Shifts.Tests.
 
     [HumansFact]
     public async Task AppAccess_AllowsActiveStateUserWithNoRole()
