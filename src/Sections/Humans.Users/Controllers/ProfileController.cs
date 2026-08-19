@@ -1,23 +1,23 @@
-using Humans.Application.Architecture;
-using Humans.UI.Models.Tables;
+using Humans.Base.Attributes;
+using Humans.Base.Models.Tables;
 // @e2e: board.spec.ts
 // @e2e: profile.spec.ts
-using Humans.UI.Controllers;
+using Humans.Base.Controllers;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Web;
+using AngleSharp.Dom;
 using Humans.Users.Authorization;
-using Humans.Application.Configuration;
+using Humans.Base.Configuration;
 using Microsoft.Extensions.Configuration;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using Humans.Gdpr.Contracts;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
-using Humans.UI.Extensions;
+using Humans.Base.Constants;
+using Humans.Base.Enums;
 using Humans.Users.Models;
 using Microsoft.Extensions.Options;
 using NodaTime;
@@ -31,8 +31,8 @@ using Humans.Tickets.Contracts;
 using Humans.Onboarding.Contracts;
 using Humans.Governance.Contracts;
 using Humans.Users.Contracts;
-using Humans.UI;
-using Humans.UI.Authorization;
+using Humans.Base;
+using Humans.Base.Authorization;
 
 // RoleAssignment nav props are [Obsolete]; service stitches them in memory. Nav-strip tracked in §15i.
 #pragma warning disable CS0618
@@ -2135,7 +2135,7 @@ internal sealed class ProfileController(
         var ticketEmails = await GetTicketLinkedEmailsAsync(user.Id, ct);
 
         bool RowIsTicketLinked(string address) =>
-            ticketEmails.Any(ticketEmail => Domain.Helpers.EmailNormalization.EmailsMatch(address, ticketEmail));
+            ticketEmails.Any(ticketEmail => Base.Helpers.EmailNormalization.EmailsMatch(address, ticketEmail));
 
         bool RowHasOrphanProviderTag(string? provider, string? providerKey) =>
             isAdminContext

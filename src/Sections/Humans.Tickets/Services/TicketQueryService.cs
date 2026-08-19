@@ -1,9 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 using NodaTime;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.Gdpr.Contracts;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
+using Humans.Base.Constants;
+using Humans.Base.Enums;
 using Humans.Budget.Contracts;
 using Humans.Users.Contracts;
 using Humans.Campaigns.Contracts;

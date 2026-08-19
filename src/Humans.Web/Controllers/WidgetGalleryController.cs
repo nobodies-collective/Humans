@@ -2,13 +2,13 @@ using Humans.Users.Models;
 using Humans.Shifts.Contracts;
 using Humans.Tickets.Contracts;
 using Humans.Teams.Contracts;
-using Humans.UI.Controllers;
+using Humans.Base.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NodaTime;
 
-using Humans.UI.Authorization;
-using Humans.UI.Models;
+using Humans.Base.Authorization;
+using Humans.Base.Models;
 using Humans.Users.Contracts;
 
 namespace Humans.Web.Controllers;

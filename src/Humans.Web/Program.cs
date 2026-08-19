@@ -17,12 +17,12 @@ using NodaTime.Serialization.SystemTextJson;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Humans.Application.Configuration;
-using Humans.Application.Interfaces;
+using Humans.Base.Configuration;
+using Humans.Base.Interfaces;
 using Humans.Web.Extensions;
 using Microsoft.Extensions.Caching.Memory;
-using Humans.Infrastructure.Data;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Data;
+using Humans.Base.Hosting;
 using Humans.Web.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Health;
@@ -30,8 +30,8 @@ using Humans.CityPlanning.Contracts;
 using Humans.Web.Middleware;
 using Microsoft.Extensions.Localization;
 using Npgsql;
-using Humans.Infrastructure.Logging;
-using Humans.UI.Extensions;
+using Humans.Base.Logging;
+using Humans.Base.Extensions;
 using Serilog;
 using Serilog.Events;
 using Humans.Web.Hosting;
@@ -470,7 +470,7 @@ var mvcBuilder = builder.Services.AddControllersWithViews(options =>
         // MVC defaults to (which nothing here provides, so annotations rendered raw
         // English regardless of culture). A key with no SharedResource match just
         // falls back to the attribute's own text, so untouched view models are unaffected.
-        options.DataAnnotationLocalizerProvider = (_, factory) => factory.Create(typeof(Humans.UI.SharedResource));
+        options.DataAnnotationLocalizerProvider = (_, factory) => factory.Create(typeof(Humans.Base.SharedResource));
     });
 
 // A section project's controllers are internal (nobodies-collective/Humans#866); MVC's
@@ -545,7 +545,7 @@ CurrentUserEnricher.StaticAccessor = app.Services.GetRequiredService<IHttpContex
 {
     using var scope = app.Services.CreateScope();
     var localizerFactory = scope.ServiceProvider.GetRequiredService<IStringLocalizerFactory>();
-    var resourceType = typeof(Humans.UI.SharedResource);
+    var resourceType = typeof(Humans.Base.SharedResource);
     var localizer = localizerFactory.Create(resourceType);
     var testKey = "Dashboard_Welcome";
     var result = localizer[testKey];
@@ -712,7 +712,7 @@ app.Use(async (context, next) =>
     if (context.User.Identity?.IsAuthenticated == true
         && context.User.HasClaim(
             ClaimTypes.NameIdentifier,
-            Humans.Domain.Constants.SystemUserIds.GateTerminal.ToString()))
+            Humans.Base.Constants.SystemUserIds.GateTerminal.ToString()))
     {
         var path = context.Request.Path;
         var allowed =

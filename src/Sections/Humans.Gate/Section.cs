@@ -1,11 +1,11 @@
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.Gdpr.Contracts;
 using Humans.Gate.Contracts;
 using Humans.Gate.Data;
 using Humans.Gate.Domain;
 using Humans.Gate.Services;
 using Humans.Gate.Services.Stores;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,6 +1,6 @@
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.Gdpr.Contracts;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Hosting;
 using Humans.Surveys.Contracts;
 using Humans.Surveys.Data;
 using Humans.Surveys.Filters;

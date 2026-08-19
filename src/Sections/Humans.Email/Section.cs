@@ -1,8 +1,8 @@
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.Email.Contracts;
 using Humans.Email.Data;
 using Humans.Email.Services;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

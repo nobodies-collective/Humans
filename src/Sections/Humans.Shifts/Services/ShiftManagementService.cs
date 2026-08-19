@@ -1,19 +1,19 @@
 using Humans.Auth.Contracts;
 using Humans.Shifts.Services.Dtos;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.AuditLog.Contracts;
 using Humans.Camps.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Domain.Constants;
+using Humans.Base.Constants;
 using Humans.Shifts.Domain;
-using Humans.Domain.Enums;
+using Humans.Base.Enums;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 using Humans.Shifts.Data;
-using Humans.Application;
+using Humans.Base.Caching;
 using Humans.Users.Contracts;
 
 using Humans.Shifts.Models;

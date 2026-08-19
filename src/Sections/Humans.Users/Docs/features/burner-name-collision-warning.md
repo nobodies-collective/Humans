@@ -3,7 +3,7 @@
   src/Sections/Humans.Users.Contracts/PersonSearchFields.cs
   src/Sections/Humans.Users/Services/PersonSearchMatcher.cs
   src/Sections/Humans.Users/Data/CachingUserService.cs
-  src/Humans.Interfaces/Models/SearchResponseModels.cs
+  src/Humans.Base/Models/SearchResponseModels.cs
   src/Sections/Humans.Users/Views/Profile/Edit.cshtml
 -->
 <!-- freshness:flag-on-change
@@ -64,7 +64,7 @@ client-supplied id
 |---|---|---|---|
 | `GET` | `/api/profiles/burner-name-count?name={name}` | `[Authorize]` | `BurnerNameCountResult` `{ count }` — exact-name collisions excluding the session user (200); `{ count: 0 }` for a blank/whitespace name |
 
-`BurnerNameCountResult` is a typed record in `Humans.UI.Models`
+`BurnerNameCountResult` is a typed record in `Humans.Base.Models`
 (per [`memory/code/search-endpoint-response-shape.md`](../../../../../memory/code/search-endpoint-response-shape.md)
 — search/JSON endpoints return stable records, not anonymous objects).
 

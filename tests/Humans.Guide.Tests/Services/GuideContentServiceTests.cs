@@ -2,9 +2,9 @@ using AwesomeAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.Guide.Services;
-using Humans.Infrastructure.Configuration;
+using Humans.Base.Configuration;
 
 namespace Humans.Guide.Tests.Services;
 

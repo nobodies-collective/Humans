@@ -1,8 +1,8 @@
-using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Interfaces;
+using Humans.Base.Interfaces.Caching;
 using Humans.Gdpr.Contracts;
-using Humans.Infrastructure.Caching;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Caching;
+using Humans.Base.Hosting;
 using Humans.Issues.Contracts;
 using Humans.Issues.Data;
 using Humans.Issues.Authorization;

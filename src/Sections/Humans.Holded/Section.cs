@@ -1,8 +1,8 @@
 using System.Globalization;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.Holded.Contracts;
 using Humans.Holded.Data;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

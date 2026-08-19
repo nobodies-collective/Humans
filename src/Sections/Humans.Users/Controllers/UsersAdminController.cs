@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Humans.Auth.Contracts;
 // @e2e: board.spec.ts
 // @e2e: profile.spec.ts
-using Humans.Application.Interfaces.Admin;
+using Humans.Base.Interfaces.Admin;
 using Humans.AuditLog.Contracts;
 using Humans.Campaigns.Contracts;
 using Humans.Consent.Contracts;
@@ -12,9 +12,9 @@ using Humans.Email.Contracts;
 using Humans.Governance.Contracts;
 using Humans.Onboarding.Contracts;
 using Humans.Users.Contracts;
-using Humans.UI.Controllers;
-using Humans.UI;
-using Humans.UI.Authorization;
+using Humans.Base.Controllers;
+using Humans.Base;
+using Humans.Base.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;

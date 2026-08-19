@@ -1,10 +1,10 @@
 using System.Reflection;
 using AwesomeAssertions;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.Teams.Contracts;
 using Humans.Guide.Controllers;
 using Humans.Guide.Services;
-using Humans.UI.Authorization;
+using Humans.Base.Authorization;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Guide.Tests;
@@ -39,7 +39,7 @@ public class GuideArchitectureTests
         // GitHubCommunityKbContentSource). Pinning the namespace here is what stops a later
         // pass "tidying" it into Humans.Guide and forcing Base to reference a section.
         typeof(IGuideContentSource).Assembly.GetName().Name
-            .Should().Be("Humans.Interfaces");
+            .Should().Be("Humans.Base");
 
         typeof(Section).Assembly.GetTypes()
             .Should().NotContain(t => t.Name == "IGuideContentSource");
