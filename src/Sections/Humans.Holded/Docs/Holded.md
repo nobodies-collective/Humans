@@ -74,6 +74,12 @@ Exactly one opposing line shows that account, linked; more than one (e.g. a purc
 expense + VAT + creditor) shows the largest by absolute amount plus "+N more", linked to the
 entry page instead.
 
+**Not this section:** `/Finance/Holded` is Finance's own connector index — its purchase-doc sync
+staleness, category map and pulled docs (nobodies-collective/Humans#1000). The split is the table
+ownership: this screen covers what `HoldedDbContext` owns, that one covers what `FinanceDbContext`
+does. The two link to each other rather than restating each other's figures; the doc-sync row shown
+in the table above is still fetched through `IHoldedFinanceService.GetDocSyncInfoAsync`.
+
 ## Actors & Roles
 
 | Actor | Capabilities |
