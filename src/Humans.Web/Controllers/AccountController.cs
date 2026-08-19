@@ -1,15 +1,14 @@
 using Humans.Auth.Contracts;
-using Humans.UI.Controllers;
+using Humans.Base.Controllers;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using NodaTime;
-using Humans.Application.Extensions;
-using Humans.Domain.Constants;
-using Humans.Application.Interfaces.Users;
-using Humans.UI;
-using Humans.Web.Infrastructure;
+using Humans.Base.Extensions;
+using Humans.Base.Constants;
+using Humans.Base;
+using Humans.Web.Services;
 using Humans.Users.Contracts;
 
 namespace Humans.Web.Controllers;

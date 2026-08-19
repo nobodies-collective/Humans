@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Octokit;
-using Humans.Application.Configuration;
-using Humans.Application.Extensions;
+using Humans.Base.Configuration;
+using Humans.Base.Extensions;
 
 namespace Humans.Web.Health;
 

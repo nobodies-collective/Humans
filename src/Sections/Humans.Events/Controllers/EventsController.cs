@@ -1,11 +1,10 @@
 using Humans.Events.Services.Dtos;
 using Humans.Events.Services;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.Camps.Contracts;
 using Humans.Shifts.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Events.Domain;
-using Humans.UI.Authorization;
+using Humans.Base.Authorization;
 using Humans.Events.Filters;
 using Humans.Events.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -14,7 +13,6 @@ using NodaTime;
 using static Humans.Events.Helpers.EventsLookupHelpers;
 using static Humans.Events.Helpers.EventsTimeHelpers;
 using Humans.Events.Contracts;
-using Humans.UI.Controllers;
 using Humans.Users.Contracts;
 
 namespace Humans.Events.Controllers;

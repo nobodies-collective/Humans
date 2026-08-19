@@ -1,10 +1,9 @@
-using Humans.UI.Controllers;
+using Humans.Base.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Humans.AuditLog.Contracts;
 using Humans.AuditLog.Models;
-using Humans.Application.Interfaces.Users;
-using Humans.UI.Authorization;
+using Humans.Base.Authorization;
 using Humans.Users.Contracts;
 
 namespace Humans.AuditLog.Controllers;

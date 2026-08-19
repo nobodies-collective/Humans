@@ -1,18 +1,13 @@
-using Humans.Application.Configuration;
-using Humans.Application.Interfaces;
 using Humans.Campaigns.Contracts;
 using Humans.Tickets.Data;
 using Humans.Shifts.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Tickets.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
-using Humans.Tickets.Domain;
-using Humans.Tickets.Services.Stores;
 using Humans.Stripe.Contracts;
 using Humans.Users.Contracts;
 

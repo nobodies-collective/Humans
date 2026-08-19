@@ -3,12 +3,9 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.CloudIdentity.v1;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
-using Humans.Application.Extensions;
-using Humans.Infrastructure.Configuration;
-using Microsoft.Extensions.Logging;
+using Humans.Base.Extensions;
+using Humans.Base.Configuration;
 using Microsoft.Extensions.Options;
-using Humans.Application.Interfaces;
-using Humans.GoogleIntegration.Services;
 
 namespace Humans.GoogleIntegration.Services.Workspace;
 

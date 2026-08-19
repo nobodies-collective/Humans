@@ -1,34 +1,31 @@
-using Humans.GoogleIntegration.Contracts;
-using Humans.Shifts.Services;
-using Humans.Auth.Contracts;
-using Humans.Auth.Services;
-using Humans.Auth.Domain;
-using Humans.Auth.Data;
 using AwesomeAssertions;
+using Humans.Base.Interfaces.Caching;
+using Humans.Auth.Contracts;
+using Humans.Auth.Data;
+using Humans.Auth.Domain;
+using Humans.Auth.Services;
+using Humans.Base.Constants;
+using Humans.Base.Enums;
+using Humans.Email.Contracts;
+using Humans.GoogleIntegration.Contracts;
+using Humans.GoogleIntegration.Data;
+using Humans.GoogleIntegration.Services;
+using Humans.Shifts.Contracts;
+using Humans.Shifts.Data;
+using Humans.Shifts.Services;
+using Humans.Teams.Contracts;
+using Humans.Teams.Data;
+using Humans.Teams.Domain;
+using Humans.Teams.Tests.Infrastructure;
+using Humans.Users.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
-using Humans.Domain.Constants;
-using Humans.Teams.Domain;
-using Humans.Domain.Enums;
-using Humans.Application.Interfaces.Caching;
-using Humans.Shifts.Contracts;
-using Humans.Teams.Tests.Infrastructure;
-using Humans.Teams.Data;
 using RoleAssignmentService = Humans.Auth.Services.RoleAssignmentService;
 using TeamService = Humans.Teams.Services.TeamService;
-using Humans.Email.Contracts;
-using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Application.Interfaces.GoogleIntegration;
-using Humans.GoogleIntegration.Services;
 
-using Humans.GoogleIntegration.Data;
-using Humans.Shifts.Data;
-using Humans.Users.Contracts;
-
-namespace Humans.Teams.Tests;
+namespace Humans.Teams.Tests.Services;
 
 public sealed class TeamRoleServiceTests : TeamsTestHarness
 {

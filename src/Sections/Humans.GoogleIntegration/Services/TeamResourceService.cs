@@ -1,16 +1,10 @@
 using Humans.GoogleIntegration.Contracts;
 using Humans.Auth.Contracts;
 using System.Text.RegularExpressions;
-using Humans.Application.DTOs;
 using Humans.AuditLog.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
-using Humans.Application.Interfaces.Repositories;
 using Humans.Teams.Contracts;
-using Humans.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NodaTime;
-using Humans.Application.Interfaces;
 using Humans.GoogleIntegration.Data;
 using Humans.GoogleIntegration.Services.Workspace;
 
@@ -24,7 +18,7 @@ internal sealed partial class TeamResourceService(
     IGoogleResourceRepository repository,
     ITeamResourceGoogleClient googleClient,
     IGoogleDrivePermissionsClient drivePermissions,
-    ITeamService teamService,
+    ITeamServiceRead teamService,
     IServiceProvider serviceProvider,
     IAuditLogService auditLogService,
     TeamResourceManagementOptions resourceOptions,

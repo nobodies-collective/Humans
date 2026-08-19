@@ -1,7 +1,5 @@
 using Humans.Shifts.Contracts;
-using Humans.Shifts.Services;
-using Humans.Domain.Attributes;
-using Humans.Domain.Enums;
+using Humans.Base.Attributes;
 using NodaTime;
 
 namespace Humans.Shifts.Domain;
@@ -148,7 +146,7 @@ internal sealed class Shift
     /// All-day shifts always qualify (08:00–18:00 = 10h);
     /// timed shifts qualify when <see cref="Duration"/> is at least 6 hours.
     /// Pure helper — no DB hit, no clock, no <see cref="EventSettings"/> needed.
-    /// See: docs/features/profiles/dietary-medical-nudge.md
+    /// See: src/Sections/Humans.Users/Docs/features/dietary-medical-nudge.md
     /// </summary>
     public bool QualifiesForCantinaMeal() =>
         IsAllDay || Duration >= Duration.FromHours(6);

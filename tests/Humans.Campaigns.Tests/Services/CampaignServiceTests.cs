@@ -1,22 +1,18 @@
 using AwesomeAssertions;
-using Humans.Application;
-using Humans.Application.DTOs;
 using Humans.Email.Contracts;
 using Humans.Notifications.Contracts;
 using Humans.Users.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Campaigns.Data;
 using Humans.Campaigns.Domain;
-using Humans.Domain.Enums;
+using Humans.Base.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
-using Xunit;
 using CampaignServiceImpl = Humans.Campaigns.Services.CampaignService;
 
 namespace Humans.Campaigns.Tests.Services;

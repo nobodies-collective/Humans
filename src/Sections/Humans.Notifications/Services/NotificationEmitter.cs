@@ -1,10 +1,9 @@
 using Humans.Auth.Contracts;
-using Humans.Application;
+using Humans.Base.Caching;
 using Humans.Notifications.Data;
 using Humans.Notifications.Domain;
 using Humans.Notifications.Contracts;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using NodaTime;
 using Humans.Teams.Contracts;
 using Humans.Users.Contracts;

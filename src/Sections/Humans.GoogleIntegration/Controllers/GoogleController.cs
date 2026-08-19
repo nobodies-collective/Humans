@@ -1,20 +1,14 @@
 using Humans.GoogleIntegration.Contracts;
-using Humans.UI.Controllers;
+using Humans.Base.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Humans.Application;
-using Humans.Application.DTOs;
-using Humans.Domain.Enums;
 using Humans.GoogleIntegration.Models;
 using Humans.AuditLog.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Users.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.UI.Authorization;
-using Humans.UI.Constants;
+using Humans.Base.Authorization;
+using Humans.Base.Constants;
 using Humans.GoogleIntegration.Services;
-using Humans.GoogleIntegration.Data;
 
 namespace Humans.GoogleIntegration.Controllers;
 

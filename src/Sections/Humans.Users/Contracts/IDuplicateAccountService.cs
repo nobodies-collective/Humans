@@ -1,6 +1,5 @@
-using Humans.Users.Contracts;
-using Humans.Application.Interfaces;
-using Humans.Governance.Contracts;
+using Humans.Base.Interfaces;
+
 namespace Humans.Users.Contracts;
 
 /// <summary>

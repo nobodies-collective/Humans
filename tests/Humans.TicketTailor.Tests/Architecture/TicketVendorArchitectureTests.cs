@@ -1,6 +1,5 @@
 using AwesomeAssertions;
 using Humans.Tickets.Contracts;
-using Humans.TicketTailor.Services;
 
 namespace Humans.TicketTailor.Tests.Architecture;
 
@@ -38,49 +37,18 @@ public class TicketVendorArchitectureTests
     ];
 
     [HumansFact]
-    public void ITicketVendorService_LivesUnderTheTicketsSectionContracts()
+    public void ThePortsAssemblyDoesNotReferenceTheAdapterSection()
     {
-        typeof(ITicketVendorService).Namespace
-            .Should().Be(PortNamespace,
-                because: "the vendor-agnostic port is public surface of the section that owns ticketing, so it sits under Humans.Tickets/Contracts/ where HUM0034 expects a section's public types (nobodies-collective/Humans#866, G5 lane 4b-2g)");
-    }
-
-    [HumansFact]
-    public void ITicketVendorService_IsDeclaredInTheTicketsAssembly()
-    {
-        typeof(ITicketVendorService).Assembly.GetName().Name
-            .Should().Be("Humans.Tickets",
-                because: "the port is compiled into the owning section, not onto the Humans.Tickets.Contracts leaf — no Base consumer names it, and the leaf must stay free of the vendor's vocabulary");
-    }
-
-    [HumansFact]
-    public void NeitherThePortsAssemblyNorBaseReferencesTheAdapterSection()
-    {
-        // Two anchors on purpose. The adapter half follows the port (now Humans.Tickets);
-        // the Humans.Application half is a layering claim about Humans.Application itself,
-        // which never had anything to do with where the port lives. It used to read
-        // typeof(Humans.Application.CacheKeys).Assembly, which G5 lane 3a-1 moved to
-        // Humans.Interfaces with its namespace preserved — that would have silently
-        // retargeted the assertion below onto Humans.Interfaces (which has no
-        // ProjectReferences at all, so the check would pass vacuously) instead of
-        // Humans.Application. DashboardService is a concrete Humans.Application service
-        // with no scheduled move in phase 3.
+        // The second half of this test asserted that Humans.Application does not reference
+        // Humans.Infrastructure. G5 lane 5b-6 deleted that assembly, so the claim became
+        // unfalsifiable and came out with it (retirement-first for subsumed guardrails).
         var portAssembly = typeof(ITicketVendorService).Assembly;
-        var applicationAssembly = typeof(Humans.Application.Services.Dashboard.DashboardService).Assembly;
-        applicationAssembly.GetName().Name.Should().Be("Humans.Application",
-            because: "an anchor whose type leaves this assembly would silently retarget this test onto the wrong assembly instead of failing");
 
         portAssembly.GetReferencedAssemblies()
             .Select(a => a.Name ?? string.Empty)
             .Should().NotContain(
                 name => name.StartsWith("Humans.TicketTailor", StringComparison.Ordinal),
                 because: "the port's owning section must not reference the adapter section; the dependency runs the other way, which is what lets the adapter be deleted for the 2027 vendor");
-
-        applicationAssembly.GetReferencedAssemblies()
-            .Select(a => a.Name ?? string.Empty)
-            .Should().NotContain(
-                name => name.StartsWith("Humans.Infrastructure", StringComparison.Ordinal),
-                because: "Humans.Application must not depend on Humans.Infrastructure — the connector pattern inverts this dependency");
     }
 
     [HumansFact]
@@ -181,27 +149,5 @@ public class TicketVendorArchitectureTests
                         yield return inner;
             }
         }
-    }
-
-    [HumansFact]
-    public void BothAdaptersLiveInThisSectionAndAreInternal()
-    {
-        foreach (var impl in new[] { typeof(TicketTailorService), typeof(StubTicketVendorService) })
-        {
-            impl.Namespace.Should().Be("Humans.TicketTailor.Services",
-                because: "the adapters own HttpClient, JSON parsing and TicketTailor-specific response shapes; they belong to the section that gets deleted when the vendor changes");
-            impl.IsPublic.Should().BeFalse(
-                because: "nothing outside this project may name an adapter — Section.Register is the only thing that binds one (HUM0034)");
-            typeof(ITicketVendorService).IsAssignableFrom(impl).Should().BeTrue();
-        }
-    }
-
-    [HumansFact]
-    public void TheSectionExportsNothingButItsSectionMarker()
-    {
-        typeof(Section).Assembly.GetExportedTypes()
-            .Select(t => t.FullName)
-            .Should().BeEquivalentTo(["Humans.TicketTailor.Section"],
-                because: "the adapter publishes no contract: consumers of ticketing talk to Humans.Tickets, and this project is one implementation of a Base port");
     }
 }

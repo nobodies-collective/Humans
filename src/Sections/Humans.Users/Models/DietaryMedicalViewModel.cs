@@ -1,7 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Humans.Application;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Constants;
 using Humans.Users.Contracts;
 
 namespace Humans.Users.Models;
@@ -25,7 +22,7 @@ internal sealed class DietaryMedicalViewModel
     public string? MedicalConditions { get; set; }
 
     // Carryover from the redirect-then-replay flow
-    // (see docs/features/profiles/dietary-medical-nudge.md US-35.6).
+    // (see src/Sections/Humans.Users/Docs/features/dietary-medical-nudge.md US-35.6).
     // Not bound to VolunteerEventProfile — pure round-trip routing data so the POST handler
     // can replay the original ShiftsController.ToggleDay signup after a successful save.
     public string? ReturnAction { get; set; }

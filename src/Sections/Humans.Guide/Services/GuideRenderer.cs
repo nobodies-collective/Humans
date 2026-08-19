@@ -1,6 +1,6 @@
 using Markdig;
 using Microsoft.Extensions.Options;
-using Humans.Infrastructure.Configuration;
+using Humans.Base.Configuration;
 
 namespace Humans.Guide.Services;
 
@@ -20,6 +20,6 @@ internal sealed class GuideRenderer(
 
         var wrapped = preprocessor.Wrap(markdown);
         var rendered = Markdown.ToHtml(wrapped, Pipeline);
-        return postprocessor.Rewrite(rendered, settings.Value, GuideFiles.All);
+        return postprocessor.Rewrite(rendered, settings.Value);
     }
 }

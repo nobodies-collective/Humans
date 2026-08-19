@@ -1,13 +1,12 @@
-using Humans.Governance.Contracts;
-using Humans.UI.Controllers;
+using Humans.Base.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Humans.Application.Configuration;
+using Humans.Base.Configuration;
 using Humans.Web.Models;
-using Humans.Application.Interfaces.Dashboard;
 using Humans.Shifts.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Contracts;
+
+using Humans.Web.Services.Dashboard;
 
 namespace Humans.Web.Controllers;
 

@@ -1,6 +1,6 @@
-using Humans.Application.DTOs;
-using Humans.Domain.Enums;
 using Humans.Users.Contracts;
+
+using Humans.Users.Models;
 
 namespace Humans.Users.Services;
 

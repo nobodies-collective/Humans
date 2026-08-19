@@ -16,6 +16,7 @@ internal static class ExpenseReportMapper
         PayeeName = r.PayeeName,
         PayeeIban = r.PayeeIban,
         Total = r.Total,
+        MaxAmount = r.MaxAmount,
         SubmittedAt = r.SubmittedAt,
         CoordinatorEndorsedByUserId = r.CoordinatorEndorsedByUserId,
         CoordinatorEndorsedAt = r.CoordinatorEndorsedAt,
@@ -37,6 +38,7 @@ internal static class ExpenseReportMapper
             Amount = l.Amount,
             LineType = l.LineType,
             AttachmentId = l.AttachmentId,
+            ParentLineId = l.ParentLineId,
             Attachment = l.Attachment is null
                 ? null
                 : new ExpenseAttachmentDto

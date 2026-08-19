@@ -36,12 +36,12 @@ public sealed class UserEmailLegacyFieldAnalyzer : DiagnosticAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
     private static readonly ImmutableHashSet<string> UserEmailForbiddenMembers =
-        ImmutableHashSet.Create(System.StringComparer.Ordinal,
+        ImmutableHashSet.Create(StringComparer.Ordinal,
             "IsOAuth",
             "DisplayOrder");
 
     private static readonly ImmutableHashSet<string> UserForbiddenMembers =
-        ImmutableHashSet.Create(System.StringComparer.Ordinal,
+        ImmutableHashSet.Create(StringComparer.Ordinal,
             "GoogleEmail",
             "GetGoogleServiceEmail");
 
@@ -59,9 +59,6 @@ public sealed class UserEmailLegacyFieldAnalyzer : DiagnosticAnalyzer
 
     private static void OnCompilationStart(CompilationStartAnalysisContext context)
     {
-        if (!AssemblyScope.IsApplicationOrWeb(context.Compilation.Assembly))
-            return;
-
         context.RegisterOperationAction(AnalyzePropertyReference, OperationKind.PropertyReference);
         context.RegisterOperationAction(AnalyzeInvocation, OperationKind.Invocation);
     }

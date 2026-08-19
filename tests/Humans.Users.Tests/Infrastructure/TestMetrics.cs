@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Humans.Application.Interfaces;
-using Humans.Infrastructure.Services;
+using Humans.Base.Interfaces;
+using Humans.Web.Services;
 
 namespace Humans.Users.Tests.Infrastructure;
 

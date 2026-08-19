@@ -1,16 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NodaTime;
-using Humans.Application.DTOs;
-using Humans.Tickets.Contracts;
 using Humans.AuditLog.Contracts;
 using Humans.Users.Data.Repositories;
 using Humans.Users.Contracts;
-using Humans.Domain.Enums;
-using Humans.Domain.Helpers;
-using Humans.Users.Services;
+using Humans.Base.Helpers;
 
 namespace Humans.Users.Services;
 

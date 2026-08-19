@@ -1,18 +1,17 @@
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Interfaces.Caching;
 using Humans.Calendar.Contracts;
 using Humans.EarlyEntry.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Gdpr.Contracts;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Hosting;
 using Humans.Shifts.Contracts;
 using Humans.Shifts.Data;
 using Humans.Shifts.Helpers;
 using Humans.Shifts.Models;
 using Humans.Shifts.Services;
-using Humans.UI.Models.Tables;
+using Humans.Base.Models.Tables;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.Users.Contracts;
 
 namespace Humans.Shifts;

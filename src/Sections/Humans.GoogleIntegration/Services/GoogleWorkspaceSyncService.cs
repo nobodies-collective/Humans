@@ -1,21 +1,13 @@
+using Humans.Base.Attributes;
 using Humans.GoogleIntegration.Contracts;
-using Humans.Application.Configuration;
-using Humans.Application.DTOs;
-using Humans.Application.Helpers;
 using Humans.AuditLog.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Users.Contracts;
-using Humans.Application.Interfaces.Repositories;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
-using Humans.Domain.Helpers;
+using Humans.Base.Enums;
+using Humans.Base.Helpers;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
-using Humans.Application.Interfaces;
 using Humans.GoogleIntegration.Data;
 using Humans.GoogleIntegration.Services.Workspace;
 
@@ -25,6 +17,7 @@ namespace Humans.GoogleIntegration.Services;
 /// <see cref="IGoogleSyncService"/> impl: Workspace Drive reconciliation, Group provisioning, settings drift remediation.
 /// Group membership reconciliation lives in <see cref="IGoogleGroupSync"/>.
 /// </summary>
+[CrossSectionWrite("Workspace sync writes Google email status back to the user.")]
 internal sealed class GoogleWorkspaceSyncService(
     IGoogleGroupProvisioningClient groupProvisioning,
     IGoogleDrivePermissionsClient drivePermissions,
@@ -46,58 +39,6 @@ internal sealed class GoogleWorkspaceSyncService(
 {
     private readonly GoogleWorkspaceOptions _options = options.Value;
 
-    /// <inheritdoc />
-    public async Task<GoogleResource> ProvisionTeamFolderAsync(
-        Guid teamId,
-        string folderName,
-        CancellationToken cancellationToken = default)
-    {
-        // Idempotent: return any existing active folder for the team.
-        var existingActive = await resourceRepository.GetActiveByTeamIdAsync(teamId, cancellationToken);
-        var existing = existingActive.FirstOrDefault(r => r.ResourceType == GoogleResourceType.DriveFolder);
-        if (existing is not null)
-        {
-            logger.LogInformation("Team {TeamId} already has active Drive folder {FolderId}", teamId, existing.GoogleId);
-            return existing;
-        }
-
-        logger.LogInformation("Provisioning Drive folder '{FolderName}' for team {TeamId}", folderName, teamId);
-
-        var create = await drivePermissions.CreateFolderAsync(folderName, _options.TeamFoldersParentId, cancellationToken);
-        if (create.Folder is null)
-        {
-            var err = create.Error;
-            throw new InvalidOperationException(
-                $"Google Drive folder create failed (HTTP {err?.StatusCode}): {err?.RawMessage}");
-        }
-
-        var now = clock.GetCurrentInstant();
-        var resource = new GoogleResource
-        {
-            Id = Guid.NewGuid(),
-            TeamId = teamId,
-            ResourceType = GoogleResourceType.DriveFolder,
-            GoogleId = create.Folder.Id ?? string.Empty,
-            Name = create.Folder.Name ?? folderName,
-            Url = create.Folder.WebViewLink,
-            ProvisionedAt = now,
-            LastSyncedAt = now,
-            IsActive = true
-        };
-
-        await resourceRepository.AddAsync(resource, cancellationToken);
-
-        await auditLogService.LogAsync(
-            AuditAction.GoogleResourceProvisioned, nameof(GoogleResource), resource.Id,
-            $"Provisioned Drive folder '{resource.Name}' for team",
-            nameof(GoogleWorkspaceSyncService),
-            // "Team" is a persisted audit discriminator, matched by exact equality when the log is
-            // read back, so it stays a literal now that the entity lives in Humans.Teams and Base
-            // cannot name it (memory/code/type-name-as-persisted-string.md).
-            relatedEntityId: teamId, relatedEntityType: "Team");
-
-        return resource;
-    }
 
     /// <summary>GATEWAY: only path that adds a user to a Drive resource. Skips when GoogleDrive mode is None. <paramref name="permissionLevelOverride"/>: resolved max across teams sharing the resource; null = use resource's level.</summary>
     private async Task AddUserToDriveAsync(

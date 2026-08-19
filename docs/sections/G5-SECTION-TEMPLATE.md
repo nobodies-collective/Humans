@@ -133,11 +133,9 @@ visibility flip in one diff is unreviewable.
         lane, a file-move lane and a presentation lane before anyone starts.** The cost is
         the build/test loop over ~250 changed files, not the thinking. Do the read-boundary
         lane first regardless: a move commit that also splits a 50-member interface across
-        73 files is unreviewable, and it is the lane where **HUM0032 still works** — the
-        analyzer derives both sections from `Humans.Application.Services.{A}` /
-        `Humans.Application.Interfaces.{B}` namespaces, neither of which survives the move,
-        so a split done *after* the move gets no over-injection check at all (proven:
-        Shifts, ~130 consumer files; HUM0032 caught a real one on the first build).
+        73 files is unreviewable (proven: Shifts, ~130 consumer files; HUM0032 caught a real
+        one on the first build). HUM0032 works either side of the move now — it resolves both
+        sections from the assembly name, falling back to the namespace.
       - **…and the read-boundary lane's first pass is "who is bypassing the boundary DTO the
         section already ships?", not "what should the leaf carry?"** Shifts had shipped
         `IBurnSettingsService` → `BurnSettingsInfo` a year earlier precisely so nothing
@@ -224,7 +222,7 @@ Git Bash.)
 
 1. [ ] `src/Sections/Humans.<Section>/Humans.<Section>.csproj` — `Microsoft.NET.Sdk.Razor`
    **when the section has controllers or views**, plain `Microsoft.NET.Sdk` when it has neither
-   (SystemSettings): discovery keys off `[assembly: Section("…")]`, not off being an MVC
+   (SystemSettings): discovery keys off `Section.cs : ISection`, not off being an MVC
    application part. **There is a third shape: plain `Microsoft.NET.Sdk` *plus*
    `<FrameworkReference Include="Microsoft.AspNetCore.App" />`, with no `AddRazorSupportForMvc`,
    no `<Using>` group and no `Humans.UI` reference** — for a section that renders nothing but
@@ -280,8 +278,11 @@ Git Bash.)
      none — `Microsoft.AspNetCore.DataProtection` and friends arrive through the framework
      reference Sdk.Razor already adds (proven: Surveys, whose token provider takes
      `IDataProtectionProvider`). Add EF Core, NodaTime and Npgsql; never an `AspNetCore` one.
-2. [ ] Move the vertical, folders as layers: `Contracts/ Domain/ Data/ Services/ Controllers/
-   Models/ Views/ Resources/ Authorization/ Filters/ Docs/ Properties/ wwwroot/` + `Section.cs`.
+2. [ ] Move the vertical, folders as layers: `Contracts/ Interfaces/ Domain/ Data/ Services/
+   Controllers/ Models/ Views/ Authorization/ Filters/ Docs/ Properties/ wwwroot/`
+   + `Section.cs` (and, per step 3b, `<Section>Resource.cs` + its `.resx` at the project root). **`Contracts/` is the public folder and `Interfaces/` is the internal one** —
+   that pair is the whole accessibility convention, and HUM0034 enforces it. Ship only the
+   folders the section has.
    **A controller that names its views by absolute path pins the folder layout** — an RCL's
    compiled view paths are project-relative, so `View("~/Views/Mailer/Admin/Index.cshtml")`
    keeps resolving only if `Views/Mailer/Admin/` moves verbatim rather than being tidied into
@@ -294,16 +295,17 @@ Git Bash.)
    shipped Store example (spec §2) but derive the `@using` list from the section's own folders.
    Omitting a line — or one `@addTagHelper` — ships broken HTML with a green build.
 3b. [ ] **First ask whether the section has any keys at all.** A section whose views carry no
-   `Localizer[…]` call and no `<Section>_*` key in `SharedResource` ships **no `Resources/`
-   folder and no `<Section>Resource`** — `SectionResourceTypes()` simply returns one fewer
+   `Localizer[…]` call and no `<Section>_*` key in `SharedResource` ships **no resource set
+   and no `<Section>Resource`** — `SectionResourceTypes()` simply returns one fewer
    marker and the boot diagnostic is happy (proven both ways: Finance and Gate ship none; the
    `GateLogin_*` keys that look like Gate's belong to Shell's `/Account/GateLogin` page and stay).
    Assert it structurally instead: *no* type in the section may take `IStringLocalizer<T>` for
    any `T` (`GateArchitectureTests.SectionTypesTakeNoStringLocalizer`), so the day someone adds
    copy the build tells them to carve a resource set first. Skip the rest of this step.
    Otherwise: carve the section's `.resx` — the `<Section>_*` and `Enum_<Section>*` keys move out of
-   `Humans.UI`'s set into `Resources/<Section>Resource.{resx,es,ca,de,fr,it}` beside a
-   `<Section>Resource.cs` in the section's namespace. The `.cs` and `.resx` must sit in the same
+   `Humans.UI`'s set into `<Section>Resource.{resx,es,ca,de,fr,it}` at the project root beside a
+   `<Section>Resource.cs` in the section's namespace (root, not a `Resources/` folder — folder and
+   namespace must agree, PR peterdrier/Humans#1365). The `.cs` and `.resx` must sit in the same
    folder, and the `.cs` namespace determines the manifest prefix (spec §3) — get it wrong and
    every string in the set degrades to its key at runtime. The boot diagnostic needs no
    per-section edit, **but only if `<Section>Resource` is `public`** — discovery reads
@@ -420,7 +422,7 @@ Git Bash.)
      in `SharedResource`, so its guard is "`<Section>Resource` or `SharedResource`, nothing
      else", which still catches a controller bound to some third set (proven: Governance).
      **A section with no keys at all can still need the guard in its bound form rather than
-     Gate's "takes no `IStringLocalizer<T>` at all".** Debug ships no `Resources/` folder — its
+     Gate's "takes no `IStringLocalizer<T>` at all".** Debug ships no resource set — its
      copy is English developer text — and yet `/Debug/Translations` injects
      `IStringLocalizer<SharedResource>` on the action, because the page renders the whole shared
      set *as data*: every key in every culture, as a coverage gallery. Gate's structural
@@ -578,10 +580,13 @@ Git Bash.)
      both directions in the section's architecture tests; they are four lines over a
      `ConfigurationBuilder().AddInMemoryCollection(...)` (proven: Development).
 
-4b. [ ] `[assembly: Section("<Section>")]` in `Properties/AssemblyInfo.cs` — the analyzer marker,
-   the discovery marker and the internal-controller marker, all three (spec §10, §6, §1). Add
-   `[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]` beside it if the section's tests
-   substitute anything. Delete any per-type `[Section("…")]` the section carried.
+4b. [ ] **Nothing to declare — step 4's `Section : ISection` is the whole marker.** Discovery,
+   controller/view-component routing and the analyzers all key on it, and the section's *name*
+   is the assembly name minus `Humans.` (`Humans.Store.Contracts` is still section Store). The
+   `[assembly: Section("…")]` this step used to ask for was retired in
+   nobodies-collective/Humans#1064. Add `[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]`
+   in `Properties/AssemblyInfo.cs` if the section's tests substitute anything; otherwise the
+   file need not exist.
 5. [ ] Everything else `internal` — **except `<Section>Resource`** (step 3b) — and internal types
    drop the section prefix: `Repository`, `Service`, entities, EF configurations, view models.
    Controllers, `<Section>DbContext`, `I<Section>Repository` and `Contracts/` types keep it, each
@@ -685,7 +690,7 @@ Git Bash.)
        into `AuditEntityTypes` (proven: Calendar).
    - **The keystone analyzer (nobodies-collective/Humans#1013) has landed, so this is a build
      gate, not a convention — and it collapses the move commit and the visibility commit into
-     one.** HUM0034 fails the build for any public type in a `[assembly: Section("…")]` assembly
+     one.** HUM0034 fails the build for any public type in a section assembly
      that is not `Section`, `<Section>Resource`, a generated migration, or under `Contracts/`.
      A move-only commit therefore does not compile, and "renames in a separate commit after the
      move compiles" no longer describes a reachable state for the visibility half. Split what is
@@ -693,10 +698,17 @@ Git Bash.)
      and say in the PR why the first two are one (proven: Agent, A4b, ~60 files internalised in
      the move commit). Nested `public` members of an already-internal type are flagged too, which
      `internal sealed` at the top level does not cover.
-5b. [ ] `Contracts/` holds **everything consumed from outside the section** — read *or* write
-   (Peter, 2026-08-09: splitting read from write happens once every section has moved, not
-   per-section). May be empty for a leaf section; ship the folder with a `README.md` saying why
-   (proven: Store).
+5b. [ ] `Contracts/` holds **everything consumed from outside the section**. May be empty for a
+   leaf section; ship the folder with a `README.md` saying why (proven: Store).
+   - **A `.Contracts` *assembly* exists only to break a reference cycle.** A `Contracts/` folder
+     in `Humans.<Section>` is the default — every extra assembly is build and deploy cost we pay
+     dozens of times a day. Sections may reference each other directly when it is acyclic
+     (Peter, nobodies-collective/Humans#1064).
+   - **The cross-section contract is `I<Section>ServiceRead`; a write contract is the
+     exception.** HUM0032 fails a cross-section injection of a write-capable `I*Service` that
+     has a read base, so the consumer either takes the read interface or the class carries
+     `[CrossSectionWrite("what it writes and why")]`. Prefer neither: when another section needs
+     a write, pull in *this* section's view component and let it write its own data.
    - **A horizontal section's read+render layer belongs to the section, and the leaves it
      needs come with it — this bullet used to say the opposite, and cost a lane to reverse.**
      `AuditViewerService` wraps the section's own `IAuditLogService` with actor, subject and
@@ -944,7 +956,7 @@ Git Bash.)
      whole point of the Guide section — they are the thing that fetches `docs/guide/*.md`. They
      are not Guide's: the signatures name only `string`, and three of the four consumers are
      elsewhere (the Agent section's `AgentSectionDocReader` / `AgentFeatureSpecReader` /
-     `CommunityFaqReader` over `docs/sections`, `docs/features` and `docs/community-kb`,
+     `CommunityFaqReader` over `docs/sections`, the section `Docs/features/` spec corpus and `docs/community-kb`,
      Shell's `AgentDocsHealthCheck`, and Base's `GitHubCommunityKbContentSource`, which
      *implements* the same interface against a different repo). Taking it in would have forced
      a contracts leaf, made Base and another section consume a section's contracts for a plain
@@ -1036,7 +1048,8 @@ Git Bash.)
      matching `@using` for the moved model. Same test as the filter base: the picker names no
      section's vocabulary. Caught by the step 12 render test, never by the build (proven: Gate).
      **Shell keeps rendering when the component moves down, so this is cheaper than it looks**:
-     `Humans.Web/Views/_ViewImports.cshtml` already carries `@addTagHelper *, Humans.UI`, so
+     `Humans.Web/Views/_ViewImports.cshtml` already carries `@addTagHelper *, Humans.Interfaces`
+     (the directive names an ASSEMBLY; Base's namespaces are still `Humans.UI.*`), so
      every existing `<vc:…>` in Shell resolves the moved component with no edit. The whole
      change is `git mv` of the component class and its
      `Views/Shared/Components/<Name>/Default.cshtml` plus the namespace line — check only that
@@ -1074,7 +1087,7 @@ Git Bash.)
      service has a `Contracts/` interface. **That is a dependency defect to fix, not a
      choice** — and while it holds, the component must be invoked by name, never with
      `<vc:…>`. HUM0034's carve-out is not the contracts *leaf* — read
-     `src/Humans.Analyzers/SectionPublicSurfaceAnalyzer.cs`, `IsUnderContracts`: it matches a
+     `src/Humans.Analyzers/Internal/Rules/PublicSurfaceRule.cs`, `IsUnderContracts`: it matches a
      namespace segment **or file-path segment** named `Contracts`, so a `Contracts/` folder
      inside the section project qualifies, and the section project is `Sdk.Razor` with the
      ASP.NET framework reference, so it can host an MVC `ViewComponent`. When the component
@@ -1142,10 +1155,10 @@ Git Bash.)
      two things. First, MVC's `ViewComponentConventions.IsComponent` requires `IsPublic`, so an
      `internal` component is silently never discovered — exactly the hazard
      `SectionControllerFeatureProvider` exists for on the controller side. The counterpart is
-     `Humans.Web/Infrastructure/SectionViewComponentFeatureProvider`: a second
+     `Humans.Web/Hosting/SectionViewComponentFeatureProvider`: a second
      `IApplicationFeatureProvider<ViewComponentFeature>` pass (the base one is not virtual and
      `ViewComponentConventions` is internal to MVC) that adds non-public components from
-     assemblies carrying `[assembly: Section("…")]`. Write it once; every later section with a
+     discovered section assemblies. Write it once; every later section with a
      view component inherits it. Second, **every `<vc:…>` call site in Shell must become
      `@await Component.InvokeAsync("Name")`** — the tag helper is generated at compile time
      from *public* types in referenced assemblies, so it cannot see the section's. Shell's
@@ -1200,7 +1213,7 @@ Git Bash.)
      partial's own `@model` line, because Shell's `Views/_ViewImports.cshtml` already has the
      `@using` (proven: Search).
      **Fourth sighting, and it says `Humans.UI` is the rule's *example*, not its depth.**
-     `Humans.Web/Infrastructure/InMemoryLogSink` is the Serilog ring buffer `/Debug/Logs`
+     `Humans.Interfaces/Logging/InMemoryLogSink` is the Serilog ring buffer `/Debug/Logs`
      renders; `Program.cs`'s logger configuration writes to it and Shell's `LogApiController`
      reads it, so it cannot come into the section and the section cannot name it where it is.
      It carries no section vocabulary — which is the test — but it is also not presentation, so
@@ -1347,17 +1360,17 @@ Git Bash.)
      `AgentPageRenderTests` has one of each, and the pre/post HTML capture confirmed the only
      difference across every page in English and Spanish was the URL prefix — the `?v=` hashes
      were byte-identical before and after the move.
-7b. [ ] The section's **invariants doc** moves into `Docs/` along with its own design specs;
-   **its `docs/features/*.md` spec does not.** `AgentFeatureSpecReader` lists and fetches
-   `docs/features/{stem}.md` from GitHub at runtime with **no whitelist** — the stem set is the
-   folder listing — so moving a feature doc silently removes it from what the agent can serve,
-   with no probe and no fallback (contrast `AgentSectionDocReader`, which probes
-   `src/Sections/Humans.{key}/Docs/{key}.md` second and is why the *invariants* doc may move).
-   Rewrite the feature doc's own `freshness:triggers` to `src/Sections/Humans.<Section>/**` and
-   leave the file where it is (proven: Gate, whose `gate-admissions.md` stayed).
+7b. [ ] The section's **invariants doc and its own design specs move into `Docs/`; its feature
+   specs move into `Docs/features/`.** `AgentFeatureSpecReader` derives the servable spec set
+   from the repository structure — every `src/Sections/*/Docs/features/*.md`, plus
+   `docs/features/global/` — so a spec is served from wherever its section keeps it, with
+   nothing to register per file. The folder is the whole rule: the invariants doc, the generated
+   companions (`authorization.md`, `data-access.md`, `health.md`) and the dated `20*.md` records
+   stay directly in `Docs/` and are excluded by sitting outside `features/`. Only genuinely
+   cross-section specs belong in `docs/features/global/`.
    Also:
    disambiguate filenames that collide case-insensitively. Fix inbound links (`docs/README.md`,
-   `data-model.md`, **both** `docs/sections/_Index.md` rows, any `memory/` atom citing them, the
+   **both** `docs/sections/_Index.md` rows, any `memory/` atom citing them, the
    `freshness-catalog.yml` globs if the section has an entry) and **rewrite the moved doc's own
    `freshness:triggers` block to `src/Sections/Humans.<Section>/**`** — the old scattered paths
    stop existing at the move and the doc silently stops being swept. Point-in-time plans and
@@ -1386,8 +1399,7 @@ Git Bash.)
      "until Guide's own G5", which read as a scheduled move; it is not one.
      `GitHubGuideContentSource` fetches `{GuideSettings.FolderPath}/{stem}.md` from
      `nobodies-collective/Humans@main` **over the network at request time**, so the folder is a
-     live API against *production's* branch with no fallback and no whitelist — the
-     `AgentFeatureSpecReader` case (Gate finding 4), one step worse. Moving it into `Docs/`
+     live API against *production's* branch with no fallback and no whitelist. Moving it into `Docs/`
      would 404 all 28 files on every deployed instance from the moment the fork's `main`
      deploys until the change reached production `main`, and would need `FolderPath`'s default
      changed in the same commit. The section's *invariants* doc still moves — that probe has a
@@ -1623,12 +1635,12 @@ Git Bash.)
       `I<Section>Service` stays behind and inherits the leaf half — walk its bases and the
       members come back. It does nothing for an interface with no Base-side deriving type:
       `ApplicationInterfaceTypes()` enumerated `Humans.Application.Interfaces.*` plus
-      `SectionAssemblies()`, and a contracts leaf is in neither — it carries no
-      `[assembly: Section("…")]`, by design, because it is not an application part. So
+      `SectionAssemblies()`, and a contracts leaf is in neither — it declares no
+      `Section : ISection`, by design, because it is not an application part. So
       `IAccountProvisioningService`, whose `FindOrCreateUserByEmailAsync` returns a record
       wrapping the `User` entity, simply stopped being scanned the moment Users' leaf was
       carved, and its baseline row read as *fixed*. **Add a third clause enumerating
-      `Humans.*.Contracts` from `DependencyContext` — a leaf cannot be found by `[Section]`,
+      `Humans.*.Contracts` from `DependencyContext` — a leaf is not a discovered section,
       so it needs its own discovery.** Widening it surfaced exactly one row across all
       twenty-one existing leaves, which is the usual answer and is why nobody had noticed
       (proven: Users, lane 2 PR A).
@@ -1718,7 +1730,7 @@ Git Bash.)
       controller needs no edit at all. One file, two rows about the same controller, only one
       of which is a `typeof` (proven: Debug, `DebugController.DbVersion`).
       **And a third shape, which is not in `tests/` at all: Shell's own production code.**
-      `Humans.Web/Infrastructure/DevLoginControllerExclusionProvider` removes
+      `Humans.Web/Hosting/DevLoginControllerExclusionProvider` removes
       `typeof(Controllers.DevLoginController)` from MVC's controller feature in Production —
       the thing that keeps the dev sign-in page out of prod. It cannot move into the section
       (`Program.cs` constructs it by name, which would make it a public section type) and it

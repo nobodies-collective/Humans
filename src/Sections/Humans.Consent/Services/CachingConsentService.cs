@@ -1,10 +1,7 @@
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Caching;
 using Humans.Consent.Contracts;
-using Humans.Application.Interfaces.Users;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NodaTime;
-using Humans.Consent.Domain;
 using Humans.Users.Contracts;
 
 namespace Humans.Consent.Services;

@@ -1,8 +1,7 @@
-using System;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Threading;
-using Humans.Domain.Architecture;
+using Humans.Base.Attributes;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;

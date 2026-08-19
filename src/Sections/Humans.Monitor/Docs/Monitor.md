@@ -1,7 +1,5 @@
 <!-- freshness:triggers
   src/Sections/Humans.Monitor/**
-  src/Sections/Humans.Monitor.Contracts/**
-  src/Humans.Infrastructure/Jobs/DriveActivityMonitorJob.cs
 -->
 <!-- freshness:flag-on-change
   Monitor's reference set is its whole reason to exist — review MonitorArchitectureTests.SectionReferencesOnlyBaseAndTheLeavesItConsumes when any ProjectReference is added.
@@ -42,15 +40,16 @@ horizontal.** It is a leaf consumer: it sits above both and nothing sits above i
   persisted through `ISystemSettingsService` under the `DriveActivityMonitorJob` key. First run,
   or a missing marker, falls back to 24 hours.
 - **Google sync audit trail** — the audit entries carrying `ResourceId` / `SyncSource` /
-  `Success`, projected for one resource or one human. The read path is Base's
-  `IAuditViewerService`, which resolves actor and subject display names.
+  `Success`, shown for one resource or one human. Monitor does not read them: `SyncAudit.cshtml`
+  emits `<vc:audit-log layout="sync">` with the predicate and the AuditLog section owns the read
+  and the render.
 
 ## Data Model
 
 **Monitor owns no tables.** No `DbContext`, no repository, no migrations, no G4 gate. It reads
-Google through GoogleIntegration's connector abstraction, reads and writes audit through
-`IAuditLogService` / `IAuditViewerService`, and stores its one piece of state (the last-run
-timestamp) in SystemSettings. `MonitorArchitectureTests.SectionOwnsNoDbContext` pins this.
+Google through GoogleIntegration's connector abstraction, writes audit through
+`IAuditLogService`, renders audit through `<vc:audit-log>`, and stores its one piece of state
+(the last-run timestamp) in SystemSettings. `MonitorArchitectureTests.SectionOwnsNoDbContext` pins this.
 
 ## Actors / Roles
 
@@ -70,10 +69,14 @@ registration moves into the section, policy registration does not).
   `Humans.AuditLog.Contracts` + `Humans.SystemSettings.Contracts` (GoogleIntegration is still
   Base-resident and arrives via `Humans.Application`). Every name added there is a section
   Monitor now couples to.
-- **Nothing depends on Monitor except the job.** Its whole outward surface is
-  `Humans.Monitor.Contracts` — `IDriveActivityMonitorService`, one method, returning `int` —
-  consumed by `DriveActivityMonitorJob`, which stays in `Humans.Infrastructure/Jobs` because
-  there is no `ISection`-style discovery seam for recurring jobs (template step 6b).
+- **Nothing depends on Monitor except Shell naming the job.** Its whole outward surface is
+  `IDriveActivityMonitorService` in `Contracts/` — one method, returning `int` — consumed by
+  `DriveActivityMonitorJob` beside it, home since the G5 jobs move
+  (nobodies-collective/Humans#866); the `Humans.Monitor.Contracts` leaf folded back in once
+  that job left Base. It is `public` there because Shell names
+  the concrete type in `AddScoped` and in the recurring roll-call — there is still no
+  `ISection`-style discovery seam for recurring jobs (template step 6b) — and HUM0034 allows a
+  section's public types only under `Contracts/`.
 - **The scan is best-effort and never throws to its caller.** `CheckDriveActivity` catches,
   logs at Error, and shows the operator an error banner; the recurring job records a failed run.
 - **No resource set.** One admin-only English page.
@@ -99,12 +102,12 @@ registration moves into the section, policy registration does not).
 | Direction | Section | Through |
 |---|---|---|
 | out | GoogleIntegration | `IGoogleDriveActivityClient`, `ITeamResourceService` |
-| out | AuditLog | `IAuditLogService` (write), `IAuditViewerService` (read) |
+| out | AuditLog | `IAuditLogService` (write), `<vc:audit-log layout="sync">` (render) |
 | out | SystemSettings | `ISystemSettingsService` (last-run marker) |
 | out | Users | `IUserServiceRead` (resolve Google actors to humans) |
-| in | — | `DriveActivityMonitorJob` only, via `Humans.Monitor.Contracts` |
+| in | — | none; Shell names `DriveActivityMonitorJob`, which is in this project |
 
 ## Architecture status
 
-At G5: own project (`src/Sections/Humans.Monitor`) with a `.Contracts` leaf. Table-less, so no
-G4 gate applies. `Section.Register` has one line.
+At G5: own project (`src/Sections/Humans.Monitor`); its former `.Contracts` leaf folded into
+the project's `Contracts/` folder. Table-less, so no G4 gate applies. `Section.Register` has one line.

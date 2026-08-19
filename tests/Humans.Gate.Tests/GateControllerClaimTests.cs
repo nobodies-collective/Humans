@@ -1,13 +1,8 @@
-using Humans.Application;
-using Humans.Domain.Enums;
-using Humans.Application.DTOs;
 using Humans.Gate.Controllers;
-using Humans.Gate.Models;
 using Humans.Gate.Services;
 using Humans.Gate.Services.Stores;
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Contracts;
-using Humans.UI.Models;
+using Humans.Base.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;

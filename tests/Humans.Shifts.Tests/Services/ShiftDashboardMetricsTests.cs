@@ -1,27 +1,22 @@
-using Humans.Application;
 using Humans.Shifts.Domain;
 using Humans.Auth.Contracts;
 using Humans.Teams.Data;
 using Humans.Teams.Domain;
 using AwesomeAssertions;
-using Humans.Application.DTOs;
-using Humans.Application.Enums;
 using Humans.Onboarding.Contracts;
-using Humans.Application.Interfaces.Repositories;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Shifts.Services;
 using Humans.Shifts.Tests.Infrastructure;
-using Humans.Domain.Enums;
-using Humans.Infrastructure.Data;
 using Humans.Shifts.Data;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NSubstitute;
 using Humans.Users.Contracts;
 using Humans.Users.Data;
+
+using Humans.Shifts.Models;
 
 namespace Humans.Shifts.Tests.Services;
 
@@ -1147,7 +1142,7 @@ public sealed class ShiftDashboardMetricsTests : ShiftsTestHarness
         }
 
         public Task<IReadOnlyList<HumanSearchResult>> SearchUsersAsync(
-            string query, Humans.Users.Contracts.PersonSearchFields fields,
+            string query, PersonSearchFields fields,
             int limit = 10, CancellationToken ct = default) => throw new NotSupportedException();
 
         public async ValueTask<IReadOnlyDictionary<Guid, UserInfo>> GetUserInfosAsync(

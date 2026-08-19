@@ -1,10 +1,9 @@
 using Hangfire;
 using Humans.Gate.Services;
 using Humans.Gate.Services.Stores;
-using Humans.Application.Interfaces.Users;
-using Humans.Infrastructure.Jobs;
-using Humans.UI.Authorization;
-using Humans.UI.Controllers;
+using Humans.Gate.Jobs;
+using Humans.Base.Authorization;
+using Humans.Base.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Mvc;

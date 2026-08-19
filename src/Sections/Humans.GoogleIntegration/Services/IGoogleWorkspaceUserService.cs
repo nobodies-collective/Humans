@@ -1,7 +1,6 @@
-using Humans.Application.Architecture;
-using Humans.Application.Interfaces;
-using Humans.GoogleIntegration.Data;
-using Humans.GoogleIntegration.Services.Workspace;
+using Humans.Base.Attributes;
+using Humans.Base.Interfaces;
+
 namespace Humans.GoogleIntegration.Services;
 
 /// <summary>

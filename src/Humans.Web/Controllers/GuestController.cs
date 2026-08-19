@@ -1,12 +1,9 @@
-using Humans.UI.Controllers;
+using Humans.Base.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Humans.Application;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.Gdpr.Contracts;
 using Humans.Onboarding.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
 using Humans.Web.Models;
 using NodaTime;
 using Humans.Tickets.Contracts;

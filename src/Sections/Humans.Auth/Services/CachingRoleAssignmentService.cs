@@ -1,7 +1,5 @@
-using Humans.Auth.Domain;
-using Humans.Auth.Data;
 using Humans.Auth.Contracts;
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Caching;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NodaTime;

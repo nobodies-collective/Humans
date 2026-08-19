@@ -1,31 +1,29 @@
-using Humans.UI.Controllers;
+using Humans.Base.Attributes;
+using Humans.Base.Controllers;
 using System.Globalization;
 using System.Text.Json;
-using Humans.Application;
-using Humans.Application.Extensions;
+using AngleSharp.Dom;
+using Humans.Base.Extensions;
 using Humans.AuditLog.Contracts;
 using Humans.Shifts.Services;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Shifts.Domain;
-using Humans.Domain.Enums;
 using Humans.Onboarding;
-using Humans.UI;
-using Humans.UI.Authorization;
+using Humans.Base.Authorization;
 using Humans.Shifts.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using NodaTime;
 using NodaTime.Text;
-using Humans.Shifts.Services.Dtos;
 using Humans.Users.Contracts;
 
 namespace Humans.Shifts.Controllers;
 
 [Authorize]
 [Route("Shifts")]
+[CrossSectionWrite("Rotates the user iCal token from the shifts calendar page.")]
 internal sealed class ShiftsController(
     IShiftManagementService shiftMgmt,
     IBurnSettingsService burnSettings,

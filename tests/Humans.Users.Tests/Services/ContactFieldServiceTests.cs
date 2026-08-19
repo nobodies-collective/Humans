@@ -1,15 +1,12 @@
 using Humans.Auth.Contracts;
-using Humans.Teams.Domain;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NSubstitute;
-using Humans.Application.DTOs;
 using Humans.Users.Tests.Infrastructure;
-using Humans.Domain.Enums;
+using Humans.Base.Enums;
 using ContactFieldService = Humans.Users.Services.ContactFieldService;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Data.Repositories;
 using Microsoft.Extensions.Logging.Abstractions;
 using Humans.Users.Contracts;

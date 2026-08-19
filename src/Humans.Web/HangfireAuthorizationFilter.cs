@@ -1,6 +1,5 @@
 using Hangfire.Dashboard;
-using Humans.UI.Authorization;
-using Humans.Web.Authorization;
+using Humans.Base.Authorization;
 
 namespace Humans.Web;
 

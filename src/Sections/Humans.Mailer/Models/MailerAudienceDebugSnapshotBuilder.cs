@@ -1,8 +1,5 @@
-using Humans.Application;
-using Humans.Tickets.Contracts;
 using Humans.Mailer.Services;
 using Humans.Mailer.Services.Dtos;
-using Humans.Application.Interfaces.Users;
 using NodaTime;
 using Humans.Users.Contracts;
 

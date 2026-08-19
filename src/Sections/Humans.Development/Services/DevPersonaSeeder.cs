@@ -1,21 +1,17 @@
+using Humans.Base.Attributes;
 using Humans.Auth.Contracts;
 using System.Security.Cryptography;
 using System.Text;
-using Humans.Application.DTOs;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.AuditLog.Contracts;
 using Humans.Camps.Contracts;
 using Humans.Consent.Contracts;
 using Humans.Governance.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Users.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-
-using Humans.Application.Configuration;
 using Humans.CityPlanning.Contracts;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
+using Humans.Base.Constants;
+using Humans.Base.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
@@ -35,6 +31,7 @@ namespace Humans.Development.Services;
 /// team, role assignments, sample contact fields) also go through section
 /// ownership services, so this seeder no longer depends on DbContext writes.
 /// </summary>
+[CrossSectionWrite("Dev seeding creates teams, memberships and profiles.")]
 internal sealed class DevPersonaSeeder(
     UserManager<User> userManager,
     IProfileEditorService profileEditorService,
@@ -696,7 +693,7 @@ internal sealed class DevPersonaSeeder(
     /// <summary>
     /// Resolves a persona slug back to a RoleNames constant, or null for "volunteer".
     /// </summary>
-    private static string? RoleNameFromSlug(string slug)
+    internal static string? RoleNameFromSlug(string slug)
     {
         if (string.Equals(slug, "volunteer", StringComparison.OrdinalIgnoreCase))
             return null;

@@ -1,4 +1,4 @@
-@model Humans.Web.Infrastructure.GateTerminalStatus
+@model Humans.Web.Hosting.GateTerminalStatus
 @{
     ViewData["Title"] = "Gate Terminal";
 }
@@ -11,7 +11,7 @@
     It holds no admin roles and can't change anything — it only reads.
     Set the password here, then sign the laptop in at
     <a asp-controller="Account" asp-action="GateLogin">/Account/GateLogin</a>
-    with username <code>@Humans.Domain.Constants.SystemUserIds.GateTerminalLoginName</code>.
+    with username <code>@Humans.Base.Constants.SystemUserIds.GateTerminalLoginName</code>.
     The session sticks across restarts; rotating the password signs out any
     existing gate sessions within half an hour.
 </p>
@@ -73,7 +73,7 @@
                     Pick something gate staff can type on a laptop keyboard. Anyone with this
                     password can see attendee names, emails, and ticket status.
                     The account never locks out — wrong-password attempts are throttled per
-                    source IP instead (@Humans.Web.Infrastructure.GateLoginThrottle.MaxFailuresPerWindow
+                    source IP instead (@Humans.Web.Services.GateLoginThrottle.MaxFailuresPerWindow
                     failures per minute), so nobody can deny the gate by hammering the login.
                 </p>
             </div>

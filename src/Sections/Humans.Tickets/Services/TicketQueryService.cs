@@ -1,23 +1,18 @@
 using System.Diagnostics.CodeAnalysis;
 using NodaTime;
-using Humans.Application.DTOs;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.Gdpr.Contracts;
-using Humans.Application.Interfaces.Repositories;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
+using Humans.Base.Constants;
+using Humans.Base.Enums;
 using Humans.Budget.Contracts;
 using Humans.Users.Contracts;
 using Humans.Campaigns.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Tickets.Data;
 using Humans.Tickets.Domain;
-using Humans.Tickets.Models;
 using Humans.Tickets.Services.Dtos;
-using Humans.Tickets.Services.Stores;
 
 namespace Humans.Tickets.Services;
 
@@ -359,10 +354,25 @@ internal sealed class TicketQueryService(
             })
             .ToList();
 
+        var attendees = await ticketRepository.GetPaidAttendeeTypePriceRowsAsync();
+
+        var byTicketType = attendees
+            .GroupBy(a => (a.TicketTypeName, a.Price))
+            .Select(g => new TicketTypeSalesAggregate
+            {
+                TicketTypeName = g.Key.TicketTypeName,
+                Price = g.Key.Price,
+                TicketsSold = g.Count(),
+                FaceValue = g.Sum(a => a.Price),
+            })
+            .OrderByDescending(t => t.FaceValue)
+            .ToList();
+
         return new TicketSalesAggregates
         {
             WeeklySales = weeklySales,
             QuarterlySales = quarterlySales,
+            ByTicketType = byTicketType,
         };
     }
 

@@ -1,10 +1,7 @@
-using Microsoft.Extensions.Logging;
 using Humans.AuditLog.Contracts;
 using Humans.Notifications.Contracts;
 using Humans.Onboarding.Contracts;
-using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
+using Humans.Base.Interfaces;
 using Humans.Users.Contracts;
 
 namespace Humans.Users.Services;
@@ -16,7 +13,7 @@ internal sealed class HumanLifecycleService(
     INotificationAutoResolve notificationAutoResolve,
     IAuditLogService auditLogService,
     IHumansMetrics metrics,
-    ILogger<HumanLifecycleService> logger) : IHumanLifecycleService
+    ILogger<HumanLifecycleService> logger) : IHumanLifecycleService, IOrchestrator
 {
     public async Task<OnboardingResult> SuspendAsync(
         Guid userId, Guid adminId, string? notes, CancellationToken ct = default)

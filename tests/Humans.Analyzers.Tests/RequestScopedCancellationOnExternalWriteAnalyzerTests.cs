@@ -8,7 +8,7 @@ public class RequestScopedCancellationOnExternalWriteAnalyzerTests
 {
     // Stubs mirror the production shapes the analyzer matches by name:
     // the MVC verb attributes, HttpContext.RequestAborted, and the two
-    // Humans.Application.Architecture markers.
+    // Humans.Base.Attributes markers.
     private const string Stubs = """
         namespace Microsoft.AspNetCore.Http
         {
@@ -32,7 +32,7 @@ public class RequestScopedCancellationOnExternalWriteAnalyzerTests
             public sealed class HttpPatchAttribute : System.Attribute { }
         }
 
-        namespace Humans.Application.Architecture
+        namespace Humans.Base.Attributes
         {
             [System.AttributeUsage(System.AttributeTargets.Method)]
             public sealed class ExternalWriteAttribute : System.Attribute { }
@@ -43,11 +43,11 @@ public class RequestScopedCancellationOnExternalWriteAnalyzerTests
             }
         }
 
-        namespace Humans.Application.Interfaces
+        namespace Humans.Base.Interfaces
         {
             public interface ISyncService
             {
-                [Humans.Application.Architecture.ExternalWrite]
+                [Humans.Base.Attributes.ExternalWrite]
                 System.Threading.Tasks.Task SyncAsync(System.Threading.CancellationToken ct);
 
                 System.Threading.Tasks.Task PreviewAsync(System.Threading.CancellationToken ct);
@@ -75,7 +75,7 @@ public class RequestScopedCancellationOnExternalWriteAnalyzerTests
         {
             public sealed class SyncController : Microsoft.AspNetCore.Mvc.ControllerBase
             {
-                private readonly Humans.Application.Interfaces.ISyncService _sync = null!;
+                private readonly Humans.Base.Interfaces.ISyncService _sync = null!;
 
         {{body}}
             }
@@ -167,7 +167,7 @@ public class RequestScopedCancellationOnExternalWriteAnalyzerTests
 
             namespace Humans.Application.Services
             {
-                public sealed class SyncService : Humans.Application.Interfaces.ISyncService
+                public sealed class SyncService : Humans.Base.Interfaces.ISyncService
                 {
                     public System.Threading.Tasks.Task SyncAsync(System.Threading.CancellationToken ct) =>
                         System.Threading.Tasks.Task.CompletedTask;
@@ -201,7 +201,7 @@ public class RequestScopedCancellationOnExternalWriteAnalyzerTests
     {
         var diagnostics = await RunAsync(Controller("""
                     [Microsoft.AspNetCore.Mvc.HttpPost]
-                    [Humans.Application.Architecture.Grandfathered("HUM0033", "legacy", "2026-08-05", "nobodies-collective/Humans#950")]
+                    [Humans.Base.Attributes.Grandfathered("HUM0033", "legacy", "2026-08-05", "nobodies-collective/Humans#950")]
                     public System.Threading.Tasks.Task Execute() =>
                         _sync.SyncAsync(HttpContext.RequestAborted);
             """));
@@ -211,42 +211,26 @@ public class RequestScopedCancellationOnExternalWriteAnalyzerTests
     }
 
     [HumansFact]
-    public async Task Does_not_fire_outside_the_web_assembly()
-    {
-        var diagnostics = await RunAsync(
-            Controller("""
-                    [Microsoft.AspNetCore.Mvc.HttpPost]
-                    public System.Threading.Tasks.Task Execute() =>
-                        _sync.SyncAsync(HttpContext.RequestAborted);
-            """),
-            assemblyName: "Humans.Application");
-
-        diagnostics.Should().NotContain(d => IsHum0033(d));
-    }
-
-    [HumansFact]
     public async Task Fires_inside_a_section_assembly()
     {
-        // Assembly attributes must precede every declaration in the file, so this
-        // test composes its own source instead of going through RunAsync's
-        // Stubs-first concatenation.
+        // The Section : ISection entry point is what makes AssemblyScope.IsSection
+        // recognise the "Humans.Store" compilation below as a section.
         const string Source = """
-            [assembly: Humans.Domain.Attributes.Section("Store")]
-
-            namespace Humans.Domain.Attributes
+            namespace Humans.Base.Interfaces
             {
-                public sealed class SectionAttribute : System.Attribute
-                {
-                    public SectionAttribute(string name) { Name = name; }
-                    public string Name { get; }
-                }
+                public interface ISection { }
+            }
+
+            namespace Humans.Store
+            {
+                public sealed class Section : Humans.Base.Interfaces.ISection { }
             }
 
             namespace Humans.Store.Controllers
             {
                 public sealed class StoreController : Microsoft.AspNetCore.Mvc.ControllerBase
                 {
-                    private readonly Humans.Application.Interfaces.ISyncService _sync = null!;
+                    private readonly Humans.Base.Interfaces.ISyncService _sync = null!;
 
                     [Microsoft.AspNetCore.Mvc.HttpPost]
                     public System.Threading.Tasks.Task Execute() =>

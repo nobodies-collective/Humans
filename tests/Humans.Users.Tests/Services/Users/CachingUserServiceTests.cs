@@ -5,9 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
 using Humans.Onboarding.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Contracts;
-using Humans.Domain.Enums;
 using Humans.Users.Data;
 
 namespace Humans.Users.Tests.Services.Users;

@@ -1,11 +1,7 @@
 using System.ComponentModel.DataAnnotations;
-using Humans.Application.DTOs;
-using Humans.Application.Interfaces;
-using Humans.Users.Services;
+using Humans.Base.Interfaces;
 using Humans.Users.Contracts;
-using Humans.Application.Threading;
-using Humans.Domain.Constants;
-using Microsoft.Extensions.Logging;
+using Humans.Base.Threading;
 
 namespace Humans.Users.Services;
 

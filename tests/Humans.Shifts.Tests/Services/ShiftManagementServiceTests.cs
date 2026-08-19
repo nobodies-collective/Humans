@@ -1,17 +1,12 @@
-using Humans.Application;
 using Humans.Shifts.Domain;
 using Humans.Auth.Contracts;
-using Humans.Teams.Data;
 using Humans.Teams.Domain;
 using AwesomeAssertions;
-using Humans.Application.Enums;
-using Humans.Application.Interfaces.Repositories;
 using Humans.Shifts.Services;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Shifts.Tests.Infrastructure;
-using Humans.Domain.Enums;
+using Humans.Base.Enums;
 using Humans.Shifts.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -19,6 +14,8 @@ using NodaTime;
 using NSubstitute;
 using Humans.Users.Contracts;
 using Humans.AuditLog.Contracts;
+
+using Humans.Shifts.Models;
 
 namespace Humans.Shifts.Tests.Services;
 

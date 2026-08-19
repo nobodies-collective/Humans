@@ -1,21 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Humans.Domain.Enums;
-using Humans.Domain.Helpers;
+using Humans.Base.Enums;
+using Humans.Base.Helpers;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using NodaTime;
-using Humans.Application;
 using Humans.CityPlanning.Contracts;
 using Humans.Shifts.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Camps.Resources;
-using Humans.Camps.Services;
-using Humans.UI;
-
-
-using Humans.UI.Controllers;
+using Humans.Base;
 using Humans.Users.Contracts;
 
 namespace Humans.Camps.Controllers;

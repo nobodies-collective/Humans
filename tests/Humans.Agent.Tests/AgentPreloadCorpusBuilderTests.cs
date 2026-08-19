@@ -1,7 +1,6 @@
 using AwesomeAssertions;
 using Humans.Agent.Contracts;
-using Humans.Application.Interfaces;
-using Humans.Domain.Enums;
+using Humans.Base.Interfaces;
 using Humans.Agent.Services.Preload;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -160,5 +159,8 @@ public class AgentPreloadCorpusBuilderTests
 
         public Task<IReadOnlyList<string>> ListMarkdownStemsAsync(string folderPath, CancellationToken cancellationToken = default) =>
             Task.FromResult(string.Equals(folderPath, CommunityFaqReader.FolderPath, StringComparison.Ordinal) ? CommunityFiles : []);
+
+        public Task<(IReadOnlyList<string> Paths, bool IsComplete)> ListMarkdownPathsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<(IReadOnlyList<string>, bool)>(([], true));
     }
 }

@@ -1,18 +1,15 @@
+using Humans.Base.Attributes;
 using Humans.AuditLog.Contracts;
 using Humans.Users.Contracts;
-using Humans.Application.Interfaces.Repositories;
 using Humans.Shifts.Contracts;
-using Humans.Tickets.Contracts;
 using Humans.Tickets.Services.Dtos;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
-using Microsoft.Extensions.Logging;
 using NodaTime;
 using Humans.Tickets.Data;
 using Humans.Tickets.Domain;
 
 namespace Humans.Tickets.Services;
 
+[CrossSectionWrite("Ticket import writes participation onto the imported attendee's user.")]
 internal sealed class AttendeeContactImportService(
     ITicketRepository ticketRepository,
     IUserEmailService userEmails,

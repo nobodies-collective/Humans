@@ -1,11 +1,9 @@
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using NodaTime;
-using Humans.Application.Extensions;
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Extensions;
+using Humans.Base.Interfaces.Caching;
 using Humans.Gdpr.Contracts;
-using Humans.Domain.Enums;
-using Humans.Application;
+using Humans.Base.Caching;
 using Humans.Feedback.Contracts;
 using Humans.Feedback.Data;
 using Humans.Feedback.Domain;
@@ -13,7 +11,6 @@ using Humans.Feedback.Services.Dtos;
 using Humans.AuditLog.Contracts;
 using Humans.Email.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Notifications.Contracts;
 using Humans.Users.Contracts;
 

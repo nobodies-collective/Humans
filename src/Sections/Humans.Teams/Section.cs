@@ -1,13 +1,11 @@
 using Humans.GoogleIntegration.Contracts;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.Teams.Authorization;
 using Microsoft.AspNetCore.Authorization;
-using Humans.Application.Interfaces.Caching;
-using Humans.Application.Interfaces.GoogleIntegration;
+using Humans.Base.Interfaces.Caching;
 using Humans.EarlyEntry.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Gdpr.Contracts;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Hosting;
 using Humans.Teams.Contracts;
 using Humans.Teams.Data;
 using Humans.Teams.Services;
@@ -60,9 +58,8 @@ public sealed class Section : ISection
         // because Humans.Users evicts through it.
         services.AddScoped<IActiveTeamsCacheInvalidator, ActiveTeamsCacheInvalidator>();
 
-        // The system-team reconciler. Its interface stays in Humans.Application because
-        // Hangfire serializes ISystemTeamSync as the "system-team-sync" recurring job's
-        // target type; the implementation is resolved from DI at execution time (lane 4b-2e).
+        // The system-team reconciler. Its interface joined it on Humans.Teams.Contracts at
+        // lane 5c; Hangfire resolves the implementation from DI at execution time.
         services.AddScoped<ISystemTeamSync, SystemTeamSyncJob>();
 
         // Resource-based handler; the policies it backs stay in Shell's

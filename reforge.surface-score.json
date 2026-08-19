@@ -2,8 +2,8 @@
   "sections": {
     "Admin": {
       "paths": [
-        "src/Humans.Application/Interfaces/Admin/**",
-        "src/Humans.Infrastructure/Repositories/Admin/**",
+        "src/Humans.Base/Interfaces/Admin/**",
+        "src/Humans.Web/Repositories/Admin/**",
         "src/Humans.Web/Controllers/Admin*"
       ],
       "symbols": [
@@ -48,7 +48,7 @@
         "src/Sections/Humans.Auth/**",
         "src/Sections/Humans.Auth.Contracts/**",
         "src/Humans.Web/Authorization/**",
-        "src/Humans.UI/Authorization/**"
+        "src/Humans.Base/Authorization/**"
       ],
       "symbols": [
         "RoleAssignment*",
@@ -208,10 +208,7 @@
     },
     "Dashboard": {
       "paths": [
-        "src/Humans.Application/Interfaces/Dashboard/**",
-        "src/Humans.Application/Services/Dashboard/**",
-        "src/Humans.Application/DTOs/AdminDashboardData.cs",
-        "src/Humans.Application/DTOs/DashboardOverview.cs",
+        "src/Humans.Web/Services/Dashboard/**",
         "src/Humans.Web/Models/AdminDashboardViewModel.cs",
         "src/Humans.Web/Models/DashboardViewModel.cs",
         "src/Humans.Web/Models/ThingsToDoViewModel.cs",
@@ -366,9 +363,6 @@
       "paths": [
         "src/Sections/Humans.GoogleIntegration/**",
         "src/Sections/Humans.GoogleIntegration.Contracts/**",
-        "src/Humans.Application/Interfaces/GoogleIntegration/**",
-        "src/Humans.Application/DTOs/SyncReport.cs",
-        "src/Humans.Application/Configuration/GoogleWorkspaceOptions.cs",
         "src/Humans.Web/Health/GoogleWorkspaceHealthCheck.cs"
       ],
       "symbols": [
@@ -413,13 +407,8 @@
         "src/Sections/Humans.Users.Contracts/**",
         "src/Sections/Humans.Users.Contracts/IHumanLifecycleService.cs",
         "src/Sections/Humans.Users.Contracts/INonCompliantMemberSuspension.cs",
-        "src/Humans.Application/Interfaces/Users/**",
-        "src/Humans.Application/DTOs/BirthdayProfileInfo.cs",
-        "src/Humans.Application/DTOs/LocationProfileInfo.cs",
-        "src/Humans.Application/DTOs/MemberSummary.cs",
         "src/Sections/Humans.Users/Services/HumanLifecycleService.cs",
         "src/Sections/Humans.Users/Services/NonCompliantMemberSuspension.cs",
-        "src/Humans.Application/Services/Users/**",
         "src/Humans.Web/Controllers/AboutController.cs",
         "src/Humans.Web/Controllers/AccountController.cs",
         "src/Humans.Web/Controllers/GuestController.cs",
@@ -606,7 +595,6 @@
       "paths": [
         "src/Sections/Humans.Tickets/**",
         "src/Sections/Humans.Tickets.Contracts/**",
-        "src/Humans.Application/Configuration/TicketVendorSettings.cs",
         "src/Humans.Web/ViewComponents/MyTicketStubsViewComponent.cs"
       ],
       "symbols": [
@@ -656,39 +644,34 @@
     },
     "Platform": {
       "paths": [
-        "src/Humans.Application/Configuration/ConfigurationEntry.cs",
-        "src/Humans.Application/Configuration/ConfigurationExtensions.cs",
-        "src/Humans.Application/Configuration/ConfigurationImportance.cs",
-        "src/Humans.Application/Configuration/ConfigurationRegistry.cs",
-        "src/Humans.Application/Configuration/GitHubSettings.cs",
-        "src/Humans.Application/Extensions/**",
-        "src/Humans.Application/Helpers/**",
-        "src/Humans.Application/Interfaces/Caching/**",
-        "src/Humans.Interfaces/Interfaces/IApplicationService.cs",
-        "src/Humans.Application/Interfaces/ICacheStatsProvider.cs",
-        "src/Humans.Application/Interfaces/IClientStatsTracker.cs",
-        "src/Humans.Application/Interfaces/IFileStorage.cs",
-        "src/Humans.Application/Interfaces/IGuideContentSource.cs",
-        "src/Humans.Application/Interfaces/IHttpStatusTracker.cs",
-        "src/Humans.Application/Interfaces/IHumansMetrics.cs",
-        "src/Humans.Interfaces/Interfaces/IOrchestrator.cs",
-        "src/Humans.Application/Interfaces/IRecurringJob.cs",
-        "src/Humans.Interfaces/Interfaces/Repositories/IRepository.cs",
-        "src/Humans.Domain/Attributes/**",
-        "src/Humans.Domain/Constants/**",
-        "src/Humans.Domain/Helpers/**",
+        "src/Humans.Base/Configuration/ConfigurationEntry.cs",
+        "src/Humans.Base/Configuration/ConfigurationExtensions.cs",
+        "src/Humans.Base/Configuration/ConfigurationImportance.cs",
+        "src/Humans.Base/Configuration/ConfigurationRegistry.cs",
+        "src/Humans.Base/Configuration/GitHubSettings.cs",
+        "src/Humans.Base/Extensions/**",
+        "src/Humans.Base/Caching/**",
+        "src/Humans.Base/Interfaces/IApplicationService.cs",
+        "src/Humans.Base/Interfaces/ICacheStatsProvider.cs",
+        "src/Humans.Base/Interfaces/IClientStatsTracker.cs",
+        "src/Humans.Base/Interfaces/IFileStorage.cs",
+        "src/Humans.Base/Interfaces/IGuideContentSource.cs",
+        "src/Humans.Base/Interfaces/IHttpStatusTracker.cs",
+        "src/Humans.Base/Interfaces/IHumansMetrics.cs",
+        "src/Humans.Base/Interfaces/IOrchestrator.cs",
+        "src/Humans.Base/Interfaces/IRecurringJob.cs",
+        "src/Humans.Base/Interfaces/Repositories/IRepository.cs",
         "src/Humans.Analyzers/**",
-        "src/Humans.Infrastructure/Caching/**",
-        "src/Humans.Infrastructure/Data/**",
-        "src/Humans.Infrastructure/Services/AdminDatabaseDiagnosticsService.cs",
-        "src/Humans.Infrastructure/Services/ClientStatsTracker.cs",
-        "src/Humans.Infrastructure/Services/FileSystemFileStorage.cs",
-        "src/Humans.Infrastructure/Services/GitHubGuideContentSource.cs",
-        "src/Humans.Infrastructure/Helpers/**",
-        "src/Humans.Infrastructure/Hosting/**",
-        "src/Humans.Infrastructure/Jobs/**",
-        "src/Humans.Infrastructure/Services/HttpStatusTracker.cs",
-        "src/Humans.Infrastructure/Services/Metering/**",
+        "src/Humans.Base/Interfaces/Caching/**",
+        "src/Humans.Base/Data/**",
+        "src/Humans.Base/Helpers/**",
+        "src/Humans.Base/Hosting/**",
+        "src/Humans.Base/Services/GitHubGuideContentSource.cs",
+        "src/Humans.Base/Services/Metering/**",
+        "src/Humans.Web/Hosting/**",
+        "src/Humans.Web/Data/**",
+        "src/Humans.Web/ModelBinders/**",
+        "src/Humans.Web/Services/*.cs",
         "src/Humans.Web/Controllers/ColorPaletteController.cs",
         "src/Sections/Humans.Debug/**",
         "src/Sections/Humans.Development/**",
@@ -696,26 +679,29 @@
         "src/Sections/Humans.Stripe/Services/StripeService.cs",
         "src/Sections/Humans.Stripe/Services/StripeStartupSmokeService.cs",
         "src/Humans.Web/Controllers/LogApiController.cs",
-        "src/Humans.UI/Controllers/ApiControllerBase.cs",
+        "src/Humans.Base/Controllers/ApiControllerBase.cs",
         "src/Sections/Humans.Scanner/**",
         "src/Sections/Humans.Guide/**",
         "src/Humans.Web/Controllers/TimezoneApiController.cs",
         "src/Humans.Web/Controllers/WelcomeController.cs",
         "src/Humans.Web/Controllers/WidgetGalleryController.cs",
         "src/Humans.Web/Extensions/**",
-        "src/Humans.UI/Extensions/**",
+        "src/Humans.Base/Extensions/**",
         "src/Humans.Web/ExceptionHandlers/**",
         "src/Humans.Web/Filters/**",
         "src/Humans.Web/Helpers/**",
         "src/Humans.Web/Health/ConfigurationHealthCheck.cs",
         "src/Humans.Web/Health/GitHubHealthCheck.cs",
-        "src/Humans.Web/Infrastructure/**",
+        "src/Humans.Web/Hosting/**",
+        "src/Humans.Web/Data/**",
+        "src/Humans.Web/ModelBinders/**",
+        "src/Humans.Web/Services/*.cs",
         "src/Humans.Web/Middleware/**",
-        "src/Humans.UI/Models/AccessMatrixDefinitions.cs",
+        "src/Humans.Base/Models/AccessMatrixDefinitions.cs",
         "src/Humans.Web/ViewComponents/NavBadgesViewComponent.cs",
-        "src/Humans.UI/Models/PagedListViewModel.cs",
-        "src/Humans.UI/Models/PagerViewModel.cs",
-        "src/Humans.UI/Models/SectionHelpViewModel.cs",
+        "src/Humans.Base/Models/PagedListViewModel.cs",
+        "src/Humans.Base/Models/PagerViewModel.cs",
+        "src/Humans.Base/Models/SectionHelpViewModel.cs",
         "src/Humans.Web/Models/StaffViewModels.cs"
       ],
       "symbols": [
@@ -740,12 +726,8 @@
   },
   "classifications": {
     "entity": {
-      "paths": [
-        "src/Humans.Domain/Entities/**"
-      ],
-      "namespaces": [
-        "Humans.Domain.Entities"
-      ]
+      "paths": [],
+      "namespaces": []
     },
     "dto": {
       "namePatterns": [
@@ -760,8 +742,6 @@
         "*ViewModel"
       ],
       "paths": [
-        "src/Humans.Application/DTOs/**",
-        "src/Humans.Application/Models/**",
         "src/Humans.Web/Models/**"
       ]
     },

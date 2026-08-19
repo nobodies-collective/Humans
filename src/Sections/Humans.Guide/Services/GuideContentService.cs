@@ -1,9 +1,8 @@
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Humans.Application.Interfaces;
-using Humans.Application.Threading;
-using Humans.Infrastructure.Configuration;
+using Humans.Base.Interfaces;
+using Humans.Base.Threading;
+using Humans.Base.Configuration;
 
 namespace Humans.Guide.Services;
 
@@ -22,8 +21,10 @@ internal sealed class GuideContentService(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileStem);
 
-        var canonical = GuideFiles.All.FirstOrDefault(s => s.Equals(fileStem, StringComparison.OrdinalIgnoreCase))
-            ?? throw new FileNotFoundException($"Guide file '{fileStem}' is not in the known set.");
+        if (!GuideFiles.TryCanonical(fileStem, out var canonical))
+        {
+            throw new FileNotFoundException($"Guide file '{fileStem}' is not in the known set.");
+        }
 
         if (cache.TryGetValue(CacheKey(canonical), out string? cached) && cached is not null)
         {
@@ -50,8 +51,7 @@ internal sealed class GuideContentService(
 
         var hasStale = GuideFiles.All.Any(s => cache.TryGetValue(CacheKey(s), out string? _));
 
-        var settings1 = settings.Value;
-        var ttl = TimeSpan.FromHours(Math.Max(1, settings1.CacheTtlHours));
+        var ttl = TimeSpan.FromHours(Math.Max(1, settings.Value.CacheTtlHours));
         var anyFailures = false;
         var newEntries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 

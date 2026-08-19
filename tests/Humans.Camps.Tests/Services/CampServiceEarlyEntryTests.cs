@@ -1,19 +1,16 @@
 using AwesomeAssertions;
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Interfaces.Caching;
 using Humans.CityPlanning.Contracts;
 using Humans.EarlyEntry.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
-using Humans.Application.Interfaces.Users;
-using Humans.Camps.Services;
-using Humans.Camps.Tests.Infrastructure;
-using Humans.Domain.Enums;
-using Humans.Camps.Data;
+using Humans.Base.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
 using Humans.Users.Contracts;
 using Humans.AuditLog.Contracts;
+
+using Humans.Teams.Contracts;
 
 namespace Humans.Camps.Tests.Services;
 

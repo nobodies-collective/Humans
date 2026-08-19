@@ -1,8 +1,5 @@
-using Humans.UI.Helpers;
-using Humans.Domain.Enums;
 using Humans.Campaigns.Contracts;
-using Humans.UI.Authorization;
-using Humans.UI.Models;
+using Humans.Base.Models;
 using Humans.Governance.Contracts;
 using Humans.Users.Contracts;
 

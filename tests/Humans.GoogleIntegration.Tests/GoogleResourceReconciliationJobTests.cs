@@ -1,21 +1,14 @@
 using Humans.GoogleIntegration.Contracts;
+using Humans.GoogleIntegration.Jobs;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Humans.Application.DTOs;
-using Humans.Domain.Enums;
-using Humans.Infrastructure.Jobs;
-using Humans.Infrastructure.Services;
+using Humans.Base.Interfaces;
 using Humans.GoogleIntegration.Tests.Infrastructure;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Notifications.Contracts;
-using Humans.GoogleIntegration.Services;
-using Humans.GoogleIntegration.Services.Workspace;
-using Humans.GoogleIntegration.Data;
-using Humans.Application;
 
 namespace Humans.GoogleIntegration.Tests;
 
@@ -24,7 +17,7 @@ public class GoogleResourceReconciliationJobTests : IDisposable
     private readonly IGoogleSyncService _googleSyncService;
     private readonly IGoogleGroupSync _googleGroupSync;
     private readonly FakeClock _clock;
-    private readonly HumansMetricsService _metrics;
+    private readonly IHumansMetrics _metrics;
     private readonly GoogleResourceReconciliationJob _job;
 
     public GoogleResourceReconciliationJobTests()
@@ -45,7 +38,6 @@ public class GoogleResourceReconciliationJobTests : IDisposable
 
     public void Dispose()
     {
-        _metrics.Dispose();
         GC.SuppressFinalize(this);
     }
 

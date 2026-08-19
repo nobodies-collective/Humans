@@ -1,11 +1,9 @@
 using System.Security.Claims;
-using Humans.Application;
 using Humans.Gdpr.Contracts;
 using Humans.Onboarding.Contracts;
 using Humans.Users.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.UI.Constants;
+using Humans.Base.Constants;
 using Humans.Web.Controllers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

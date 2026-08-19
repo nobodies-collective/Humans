@@ -1,5 +1,3 @@
-using Humans.Application.Architecture;
-
 namespace Humans.Campaigns.Contracts;
 
 /// <summary>
@@ -18,4 +16,18 @@ public interface ICampaignServiceRead
     /// ticket orders separately.
     /// </summary>
     Task<CampaignCodeTrackingData> GetCodeTrackingAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns campaign grants for a user where the campaign is Active or Completed,
+    /// ordered by AssignedAt descending.
+    /// </summary>
+    Task<IReadOnlyList<CampaignGrantSummary>> GetActiveOrCompletedGrantsForUserAsync(
+        Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns all campaign grants for a user (any campaign status),
+    /// ordered by AssignedAt descending. Used for admin detail views.
+    /// </summary>
+    Task<IReadOnlyList<CampaignGrantSummary>> GetAllGrantsForUserAsync(
+        Guid userId, CancellationToken ct = default);
 }

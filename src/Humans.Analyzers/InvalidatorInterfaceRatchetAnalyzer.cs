@@ -7,7 +7,7 @@ namespace Humans.Analyzers;
 
 /// <summary>
 /// HUM0028 — every interface that extends
-/// <see cref="Humans.Application.Interfaces.IInvalidator"/> is a new
+/// <see cref="Humans.Base.Interfaces.IInvalidator"/> is a new
 /// cache-invalidator concept. A separate invalidator existing is itself a
 /// smell — usually a cross-section write or a flush the owning section's
 /// service + caching decorator should have absorbed. The marker makes the
@@ -36,7 +36,7 @@ public sealed class InvalidatorInterfaceRatchetAnalyzer : DiagnosticAnalyzer
 {
     public const string DiagnosticId = "HUM0028";
 
-    private const string InvalidatorMarkerFullName = "Humans.Application.Interfaces.IInvalidator";
+    private const string InvalidatorMarkerFullName = "Humans.Base.Interfaces.IInvalidator";
 
     private static readonly LocalizableString Title =
         "Cache-invalidator interface count is ratcheted";
@@ -71,9 +71,6 @@ public sealed class InvalidatorInterfaceRatchetAnalyzer : DiagnosticAnalyzer
 
     private static void OnCompilationStart(CompilationStartAnalysisContext context)
     {
-        if (!AssemblyScope.IsLayerOrSection(context.Compilation.Assembly, AssemblyScope.Application))
-            return;
-
         var invalidatorMarker = context.Compilation.GetTypeByMetadataName(InvalidatorMarkerFullName);
         if (invalidatorMarker is null)
             return;

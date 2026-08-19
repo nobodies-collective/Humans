@@ -1,15 +1,8 @@
-using Humans.Application.Configuration;
-using Humans.Application.DTOs;
-using Humans.Application.Interfaces;
+using Humans.Base.Attributes;
 using Humans.Campaigns.Contracts;
-using Humans.Application.Interfaces.Repositories;
 using Humans.Shifts.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
-using Humans.Domain.Helpers;
-using Microsoft.Extensions.Logging;
+using Humans.Base.Helpers;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using Humans.Stripe.Contracts;
@@ -23,6 +16,7 @@ namespace Humans.Tickets.Services;
 /// Tickets sync pipeline: upsert vendor orders/attendees, match users by email,
 /// compute VAT, enrich Stripe fees, reconcile event participation.
 /// </summary>
+[CrossSectionWrite("Ticket sync writes participation and redeems campaign grants.")]
 internal sealed class TicketSyncService(
     ITicketRepository ticketRepository,
     ITicketTransferRepository transferRepository,

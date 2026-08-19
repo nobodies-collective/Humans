@@ -1,5 +1,4 @@
-using Humans.Domain.Enums;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 
 namespace Humans.Users.Contracts;
 

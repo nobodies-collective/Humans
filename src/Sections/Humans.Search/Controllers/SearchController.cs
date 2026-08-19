@@ -1,12 +1,11 @@
 using Humans.Search.Models;
 using Humans.Search.Services;
 using Humans.Search.Services.Dtos;
-using Humans.UI.Controllers;
-using Humans.UI.Extensions;
+using Humans.Base.Controllers;
+using Humans.Base.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Contracts;
 
 namespace Humans.Search.Controllers;

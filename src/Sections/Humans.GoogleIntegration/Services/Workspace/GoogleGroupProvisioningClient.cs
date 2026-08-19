@@ -2,15 +2,12 @@ using Google.Apis.CloudIdentity.v1;
 using Google.Apis.CloudIdentity.v1.Data;
 using Google.Apis.Groupssettings.v1;
 using Google.Apis.Services;
-using Humans.Application.Extensions;
-using Humans.Infrastructure.Configuration;
-using Microsoft.Extensions.Logging;
+using Humans.Base.Extensions;
+using Humans.Base.Configuration;
 using Microsoft.Extensions.Options;
 using SdkGroup = Google.Apis.CloudIdentity.v1.Data.Group;
 using SdkGroupSettings = Google.Apis.Groupssettings.v1.Data.Groups;
 using SdkGroupSettingsBaseServiceRequest = Google.Apis.Groupssettings.v1.GroupssettingsBaseServiceRequest<Google.Apis.Groupssettings.v1.Data.Groups>;
-using Humans.Application.Interfaces;
-using Humans.GoogleIntegration.Services;
 
 namespace Humans.GoogleIntegration.Services.Workspace;
 

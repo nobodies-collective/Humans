@@ -2,9 +2,8 @@ using Humans.Users.Controllers;
 using Humans.Users.Models;
 using System.Security.Claims;
 using AwesomeAssertions;
-using Humans.Application.Configuration;
+using Humans.Base.Configuration;
 using Humans.Tickets.Contracts;
-using Humans.Application.DTOs;
 using Humans.AuditLog.Contracts;
 using Humans.Campaigns.Contracts;
 using Humans.Camps.Contracts;
@@ -16,12 +15,8 @@ using Humans.Users.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Tests.Infrastructure;
-using Humans.Domain.Enums;
-using Humans.UI;
-using Humans.Web.Controllers;
-using Humans.Web.Models;
+using Humans.Base;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -35,6 +30,8 @@ using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
 using Xunit;
+
+using Humans.GoogleIntegration.Contracts;
 
 namespace Humans.Users.Tests.Controllers;
 
@@ -129,8 +126,7 @@ public class ProfileControllerEditTests
                 NullLogger<SignInManager<User>>.Instance,
                 Substitute.For<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>(),
                 Substitute.For<IUserConfirmation<User>>()),
-            Options.Create(new GoogleWorkspaceOptions()),
-            Substitute.For<IAuditViewerService>());
+            Options.Create(new GoogleWorkspaceOptions()));
 
         var identity = new ClaimsIdentity([
             new Claim(ClaimTypes.NameIdentifier, _userId.ToString())
@@ -517,7 +513,7 @@ public class ProfileControllerEditTests
                 AllergyOtherText = "Mango",
             }));
 
-        var result = await _controller.Edit(ct: Xunit.TestContext.Current.CancellationToken);
+        var result = await _controller.Edit(ct: TestContext.Current.CancellationToken);
 
         var viewModel = result.Should().BeOfType<ViewResult>().Subject
             .Model.Should().BeOfType<ProfileViewModel>().Subject;

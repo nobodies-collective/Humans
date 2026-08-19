@@ -1,13 +1,11 @@
 using Humans.Users.Controllers;
 using Humans.Users.Models;
-using Humans.UI.Helpers;
+using Humans.Base.Helpers;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
+using Humans.Base.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Humans.Users.Contracts;
 
-using Humans.Governance.Contracts;
 namespace Humans.Users.ViewComponents;
 
 /// <summary>

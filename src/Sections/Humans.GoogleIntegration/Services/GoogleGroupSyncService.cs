@@ -1,30 +1,24 @@
+using Humans.Base.Attributes;
 using Humans.GoogleIntegration.Contracts;
-using Humans.Application.DTOs;
-using Humans.Application.Configuration;
-using Humans.Application.Helpers;
 using Humans.AuditLog.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Users.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
-using Humans.Domain.Helpers;
-using Microsoft.Extensions.Logging;
+using Humans.Base.Enums;
+using Humans.Base.Helpers;
 using Microsoft.Extensions.Options;
 using NodaTime;
-using Humans.Application.Interfaces;
-using Humans.GoogleIntegration.Data;
 using Humans.GoogleIntegration.Services.Workspace;
 
 namespace Humans.GoogleIntegration.Services;
 
+[CrossSectionWrite("Group sync writes Google email status back to the user.")]
 internal sealed class GoogleGroupSyncService(
     IEnumerable<IGoogleGroupMembershipSource> sources,
     IGoogleGroupMembershipClient membershipClient,
     IGoogleGroupProvisioningClient provisioningClient,
     ITeamResourceGoogleClient teamResourceClient,
     ITeamResourceService teamResourceService,
-    ITeamService teamService,
+    ITeamServiceRead teamService,
     IUserService userService,
     IUserEmailService userEmailService,
     ISyncSettingsService syncSettingsService,

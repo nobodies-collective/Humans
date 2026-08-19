@@ -1,8 +1,5 @@
 using Humans.GoogleIntegration.Contracts;
-using Humans.Domain.Enums;
-using Humans.Application.Interfaces;
-using Humans.GoogleIntegration.Data;
-using Humans.GoogleIntegration.Services.Workspace;
+using Humans.Base.Interfaces;
 
 namespace Humans.GoogleIntegration.Services;
 

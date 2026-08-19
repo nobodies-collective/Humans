@@ -1,13 +1,11 @@
 using Humans.Shifts.Domain;
 using AwesomeAssertions;
-using Humans.Application;
 using Humans.Governance.Contracts;
 using Humans.Shifts.Services;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
+using Humans.Base.Constants;
+using Humans.Base.Enums;
 using Humans.Shifts.Models;
 using NodaTime;
 using NSubstitute;

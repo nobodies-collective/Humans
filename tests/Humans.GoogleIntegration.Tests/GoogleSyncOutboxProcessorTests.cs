@@ -5,15 +5,10 @@ using Microsoft.Extensions.Logging;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
-using Humans.Application.Interfaces.Repositories;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Constants;
 using Humans.GoogleIntegration.Data;
-using Humans.Infrastructure.Services;
+using Humans.Base.Interfaces;
 using Humans.GoogleIntegration.Services;
-using Humans.GoogleIntegration.Services.Workspace;
-using Humans.Application;
 using Humans.GoogleIntegration.Tests.Infrastructure;
 using Humans.Users.Contracts;
 
@@ -29,7 +24,7 @@ public class GoogleSyncOutboxProcessorTests : IDisposable
     private readonly ITeamService _teamService;
     private readonly IGoogleSyncService _googleSyncService;
     private readonly FakeClock _clock;
-    private readonly HumansMetricsService _metrics;
+    private readonly IHumansMetrics _metrics;
     private readonly GoogleSyncOutboxProcessor _processor;
 
     public GoogleSyncOutboxProcessorTests()
@@ -76,7 +71,6 @@ public class GoogleSyncOutboxProcessorTests : IDisposable
     public void Dispose()
     {
         _dbContext.Dispose();
-        _metrics.Dispose();
         GC.SuppressFinalize(this);
     }
 

@@ -1,10 +1,6 @@
-using Humans.Application;
 using Humans.AuditLog.Contracts;
 using Humans.Mailer.Services.Dtos;
 using Humans.Users.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
-using Microsoft.Extensions.Logging;
 using NodaTime;
 
 namespace Humans.Mailer.Services;

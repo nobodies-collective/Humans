@@ -1,5 +1,5 @@
-using Humans.Application.Interfaces;
-using Humans.Domain.Enums;
+using Humans.Base.Interfaces;
+using Humans.Base.Enums;
 using NodaTime;
 
 namespace Humans.Campaigns.Contracts;
@@ -41,20 +41,6 @@ public sealed record CampaignGrantSummary(
 /// </remarks>
 public interface ICampaignService : ICampaignServiceRead, IApplicationService
 {
-    /// <summary>
-    /// Returns campaign grants for a user where the campaign is Active or Completed,
-    /// ordered by AssignedAt descending.
-    /// </summary>
-    Task<IReadOnlyList<CampaignGrantSummary>> GetActiveOrCompletedGrantsForUserAsync(
-        Guid userId, CancellationToken ct = default);
-
-    /// <summary>
-    /// Returns all campaign grants for a user (any campaign status),
-    /// ordered by AssignedAt descending. Used for admin detail views.
-    /// </summary>
-    Task<IReadOnlyList<CampaignGrantSummary>> GetAllGrantsForUserAsync(
-        Guid userId, CancellationToken ct = default);
-
     /// <summary>
     /// Marks campaign grants as redeemed based on discovered discount-code redemptions.
     /// Matches codes case-insensitively against active/completed campaigns' unredeemed grants.

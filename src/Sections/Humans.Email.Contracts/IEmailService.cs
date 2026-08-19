@@ -1,6 +1,4 @@
-using Humans.Application.Interfaces;
-using Humans.Domain.Enums;
-
+using Humans.Base.Interfaces;
 using Humans.Events.Contracts;
 
 namespace Humans.Email.Contracts;

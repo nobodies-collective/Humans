@@ -1,6 +1,5 @@
-using Humans.Infrastructure.Helpers;
-using Humans.Email.Contracts;
-using Humans.Infrastructure.Configuration;
+using Humans.Base.Helpers;
+using Humans.Base.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 

@@ -1,15 +1,13 @@
 using Humans.Shifts.Domain;
 using Humans.Auth.Contracts;
-using Humans.Teams.Data;
 using Humans.Teams.Domain;
 using AwesomeAssertions;
 using Humans.Shifts.Services;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Shifts.Tests.Infrastructure;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
+using Humans.Base.Constants;
+using Humans.Base.Enums;
 using Humans.Shifts.Data;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -757,7 +755,7 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
     // Helpers
     // ============================================================
 
-    private static CancellationToken Ct => Xunit.TestContext.Current.CancellationToken;
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static TeamInfo ToTeamInfo(Team team) =>
         new(

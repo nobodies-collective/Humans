@@ -1,13 +1,11 @@
-using Humans.Application;
 using AwesomeAssertions;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
 using Humans.Governance.Services;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
+using Humans.Base.Constants;
+using Humans.Base.Enums;
 using Humans.Consent.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Governance.Contracts;
 using Humans.Users.Contracts;
 

@@ -1,8 +1,6 @@
-using Humans.Auth.Domain;
 using Humans.Auth.Data;
 using Humans.Auth.Contracts;
-using Humans.Application.Interfaces.Repositories;
-using Humans.Domain.Constants;
+using Humans.Base.Constants;
 using NodaTime;
 
 namespace Humans.Auth.Services;

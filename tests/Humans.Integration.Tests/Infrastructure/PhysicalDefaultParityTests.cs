@@ -1,6 +1,7 @@
 using AwesomeAssertions;
-using Humans.Infrastructure.Data;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Data;
+using Humans.Web.Data;
+using Humans.Base.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Humans.Web.Extensions;

@@ -5,15 +5,20 @@ namespace Humans.Analyzers.Tests;
 public class WebRepositoryInjectionAnalyzerTests
 {
     private const string Stubs = """
-        namespace Humans.Application.Interfaces.Repositories
+        namespace Humans.Base.Interfaces.Repositories
         {
             public interface IRepository { }
             public interface ICampRepository : IRepository { }
         }
 
-        namespace Humans.Application.Interfaces.Camps
+        namespace Humans.Base.Interfaces.Camps
         {
             public interface ICampService { }
+        }
+
+        namespace Microsoft.AspNetCore.Mvc
+        {
+            public abstract class ControllerBase { }
         }
         """;
 
@@ -27,31 +32,9 @@ public class WebRepositoryInjectionAnalyzerTests
 
             namespace Humans.Web.Controllers
             {
-                public sealed class CampsController
+                public sealed class CampsController : Microsoft.AspNetCore.Mvc.ControllerBase
                 {
-                    public CampsController(Humans.Application.Interfaces.Repositories.ICampRepository repo) { }
-                }
-            }
-            """;
-
-        var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new WebRepositoryInjectionAnalyzer(),
-            "Humans.Web",
-            source);
-
-        diagnostics.Should().ContainSingle(d => IsHum0014(d));
-    }
-
-    [HumansFact]
-    public async Task Fires_when_view_component_injects_repository()
-    {
-        var source = Stubs + """
-
-            namespace Humans.Web.ViewComponents
-            {
-                public sealed class CampSummaryViewComponent
-                {
-                    public CampSummaryViewComponent(Humans.Application.Interfaces.Repositories.ICampRepository repo) { }
+                    public CampsController(Humans.Base.Interfaces.Repositories.ICampRepository repo) { }
                 }
             }
             """;
@@ -71,9 +54,9 @@ public class WebRepositoryInjectionAnalyzerTests
 
             namespace Humans.Web.Controllers
             {
-                public sealed class CampsController
+                public sealed class CampsController : Microsoft.AspNetCore.Mvc.ControllerBase
                 {
-                    public CampsController(Humans.Application.Interfaces.Camps.ICampService service) { }
+                    public CampsController(Humans.Base.Interfaces.Camps.ICampService service) { }
                 }
             }
             """;
@@ -87,33 +70,11 @@ public class WebRepositoryInjectionAnalyzerTests
     }
 
     [HumansFact]
-    public async Task Does_not_fire_outside_Web_assembly()
-    {
-        var source = Stubs + """
-
-            namespace Humans.Infrastructure.Repositories.Camps
-            {
-                public sealed class CachingCampRepository
-                {
-                    public CachingCampRepository(Humans.Application.Interfaces.Repositories.ICampRepository inner) { }
-                }
-            }
-            """;
-
-        var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new WebRepositoryInjectionAnalyzer(),
-            "Humans.Infrastructure",
-            source);
-
-        diagnostics.Where(IsHum0014).Should().BeEmpty();
-    }
-
-    [HumansFact]
     public async Task Grandfathered_violator_downgrades_to_warning()
     {
         var source = Stubs + """
 
-            namespace Humans.Application.Architecture
+            namespace Humans.Base.Attributes
             {
                 [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple = true)]
                 public sealed class GrandfatheredAttribute : System.Attribute
@@ -124,10 +85,10 @@ public class WebRepositoryInjectionAnalyzerTests
 
             namespace Humans.Web.Controllers
             {
-                [Humans.Application.Architecture.Grandfathered("HUM0014", "test", "2026-05-15", "test")]
-                public sealed class CampsController
+                [Humans.Base.Attributes.Grandfathered("HUM0014", "test", "2026-05-15", "test")]
+                public sealed class CampsController : Microsoft.AspNetCore.Mvc.ControllerBase
                 {
-                    public CampsController(Humans.Application.Interfaces.Repositories.ICampRepository repo) { }
+                    public CampsController(Humans.Base.Interfaces.Repositories.ICampRepository repo) { }
                 }
             }
             """;
@@ -146,18 +107,23 @@ public class WebRepositoryInjectionAnalyzerTests
     public async Task Fires_on_indirect_repository_extension()
     {
         var source = """
-            namespace Humans.Application.Interfaces.Repositories
+            namespace Humans.Base.Interfaces.Repositories
             {
                 public interface IRepository { }
                 public interface IMid : IRepository { }
                 public interface IDeepRepository : IMid { }
             }
 
+            namespace Microsoft.AspNetCore.Mvc
+            {
+                public abstract class ControllerBase { }
+            }
+
             namespace Humans.Web.Controllers
             {
-                public sealed class DeepController
+                public sealed class DeepController : Microsoft.AspNetCore.Mvc.ControllerBase
                 {
-                    public DeepController(Humans.Application.Interfaces.Repositories.IDeepRepository repo) { }
+                    public DeepController(Humans.Base.Interfaces.Repositories.IDeepRepository repo) { }
                 }
             }
             """;

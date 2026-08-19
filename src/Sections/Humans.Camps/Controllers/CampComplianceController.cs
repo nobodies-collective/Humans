@@ -1,7 +1,4 @@
-using Humans.Application.Interfaces.Users;
-using Humans.UI.Authorization;
-using Humans.UI.Controllers;
-
+using Humans.Base.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Humans.Users.Contracts;

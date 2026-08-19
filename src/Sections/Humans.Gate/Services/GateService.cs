@@ -1,19 +1,16 @@
+using Humans.Base.Attributes;
 using Humans.Auth.Contracts;
-using Humans.Application.Extensions;
-using Humans.Application.Interfaces;
+using Humans.Base.Extensions;
 using Humans.AuditLog.Contracts;
 using Humans.EarlyEntry.Contracts;
 using Humans.Gdpr.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
+using Humans.Base.Constants;
 using Humans.Gate.Contracts;
 using Humans.Gate.Data;
 using Humans.Gate.Domain;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Logging;
 using NodaTime;
 using Humans.Users.Contracts;
 
@@ -27,6 +24,7 @@ namespace Humans.Gate.Services;
 /// back leaderboard/settings. The cutoff is always evaluated against the server
 /// clock (<see cref="IClock"/>), never a device clock.
 /// </summary>
+[CrossSectionWrite("A gate scan records participation for the scanned user.")]
 internal sealed class GateService(
     IGateRepository repository,
     ITicketServiceRead tickets,

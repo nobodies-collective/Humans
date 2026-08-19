@@ -7,7 +7,7 @@ public class ControllerBusinessLogicAnalyzerTests
 {
     // GrandfatheredAttribute (widened to AttributeTargets.Method so HUM0031 can
     // grandfather individual controller methods) lives in
-    // Humans.Application.Architecture. Stubs mirror the production shapes.
+    // Humans.Base.Attributes. Stubs mirror the production shapes.
     private const string Stubs = """
         namespace Microsoft.AspNetCore.Mvc
         {
@@ -15,7 +15,7 @@ public class ControllerBusinessLogicAnalyzerTests
             public abstract class Controller : ControllerBase { }
         }
 
-        namespace Humans.Application.Architecture
+        namespace Humans.Base.Attributes
         {
             public sealed class GrandfatheredAttribute : System.Attribute
             {
@@ -154,7 +154,7 @@ public class ControllerBusinessLogicAnalyzerTests
             {
                 public sealed class ReportsController : Microsoft.AspNetCore.Mvc.Controller
                 {
-                    [Humans.Application.Architecture.Grandfathered(
+                    [Humans.Base.Attributes.Grandfathered(
                         "HUM0031", "Pre-existing offender.", "2026-06-09", "nobodies-collective/Humans#793")]
                     public int Index()
                     {
@@ -231,29 +231,4 @@ public class ControllerBusinessLogicAnalyzerTests
         diagnostics.Where(IsHum0031).Should().BeEmpty();
     }
 
-    [HumansFact]
-    public async Task Does_not_fire_outside_Web_assembly()
-    {
-        var source = Stubs + $$"""
-
-            namespace Humans.Application.Services
-            {
-                public sealed class BigController : Microsoft.AspNetCore.Mvc.Controller
-                {
-                    public int Index()
-                    {
-                        {{Statements(ControllerBusinessLogicAnalyzer.MaxStatements + 1)}}
-                        return 0;
-                    }
-                }
-            }
-            """;
-
-        var diagnostics = await AnalyzerTestHarness.RunAsync(
-            new ControllerBusinessLogicAnalyzer(),
-            "Humans.Application",
-            source);
-
-        diagnostics.Where(IsHum0031).Should().BeEmpty();
-    }
 }

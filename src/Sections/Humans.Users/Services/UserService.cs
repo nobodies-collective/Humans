@@ -1,17 +1,13 @@
 using Humans.Auth.Contracts;
 using System.ComponentModel.DataAnnotations;
-using Humans.Application.DTOs;
-using Humans.Application.Extensions;
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Extensions;
+using Humans.Base.Interfaces.Caching;
 using Humans.Gdpr.Contracts;
 using Humans.Onboarding.Contracts;
 using Humans.Users.Data.Repositories;
 using Humans.Users.Contracts;
-using Humans.Users.Services;
-using Humans.Application.Threading;
-using Humans.Domain.Enums;
-using Humans.Domain.Helpers;
-using Microsoft.Extensions.Logging;
+using Humans.Base.Threading;
+using Humans.Base.Helpers;
 using NodaTime;
 
 namespace Humans.Users.Services;

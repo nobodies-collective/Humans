@@ -1,8 +1,6 @@
-using Humans.Application;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.Camps.Contracts;
 using Humans.Shifts.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Events.Models;
 using NodaTime;
 using Humans.Users.Contracts;

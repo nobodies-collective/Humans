@@ -2,7 +2,7 @@ using Humans.Users.Controllers;
 using Humans.Users.Models;
 using System.Security.Claims;
 using AwesomeAssertions;
-using Humans.Application.Configuration;
+using Humans.Base.Configuration;
 using Humans.Tickets.Contracts;
 using Humans.AuditLog.Contracts;
 using Humans.Campaigns.Contracts;
@@ -15,11 +15,8 @@ using Humans.Users.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
-using Humans.UI;
-using Humans.Web.Controllers;
-using Humans.Web.Models;
+using Humans.Base.Enums;
+using Humans.Base;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -33,6 +30,8 @@ using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
+
+using Humans.GoogleIntegration.Contracts;
 
 namespace Humans.Users.Tests.Controllers;
 
@@ -99,8 +98,7 @@ public class ProfileControllerPopoverTests
             Substitute.For<IAccountDeletionService>(),
             Substitute.For<IMembershipCalculatorRead>(),
             signInManager,
-            Options.Create(new GoogleWorkspaceOptions()),
-            Substitute.For<IAuditViewerService>());
+            Options.Create(new GoogleWorkspaceOptions()));
 
         var identity = new ClaimsIdentity([
             new Claim(ClaimTypes.NameIdentifier, _viewerId.ToString())
@@ -189,7 +187,7 @@ public class ProfileControllerPopoverTests
         _userService.GetUserInfoAsync(id, Arg.Any<CancellationToken>())
             .Returns(BuildUserInfo(user, profile, userEmails: null));
         _teamService.GetActiveTeamMembershipsForUserAsync(id, Arg.Any<CancellationToken>())
-            .Returns(new List<Humans.Teams.Contracts.TeamMembership>());
+            .Returns(new List<TeamMembership>());
 
         var result = await _controller.Popover(id, Xunit.TestContext.Current.CancellationToken);
 
@@ -226,7 +224,7 @@ public class ProfileControllerPopoverTests
         _userService.GetUserInfoAsync(id, Arg.Any<CancellationToken>())
             .Returns(BuildUserInfo(user, profile, userEmails: null));
         _teamService.GetActiveTeamMembershipsForUserAsync(id, Arg.Any<CancellationToken>())
-            .Returns(new List<Humans.Teams.Contracts.TeamMembership>());
+            .Returns(new List<TeamMembership>());
 
         var season = new CampSeasonInfo(
             Guid.NewGuid(), Guid.NewGuid(), "camp-funhouse", 2026, null,

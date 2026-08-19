@@ -1,7 +1,5 @@
 using Humans.Notifications.Services;
-using Humans.Application.Interfaces.Users;
-using Humans.UI.Controllers;
-using Humans.UI;
+using Humans.Base.Controllers;
 using Humans.Notifications.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

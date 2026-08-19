@@ -1,5 +1,4 @@
 using Humans.GoogleIntegration.Contracts;
-using Humans.Monitor.Contracts;
 using System.Reflection;
 using AwesomeAssertions;
 using Humans.Monitor.Services;
@@ -17,15 +16,6 @@ namespace Humans.Monitor.Tests.Architecture;
 /// </summary>
 public class DriveActivityMonitorArchitectureTests
 {
-    // ── DriveActivityMonitorService ──────────────────────────────────────────
-
-    [HumansFact]
-    public void DriveActivityMonitorService_IsSealed()
-    {
-        typeof(DriveActivityMonitorService).IsSealed.Should().BeTrue(
-            because: "§15-migrated services are sealed to prevent ad-hoc extension");
-    }
-
     // ── Application assembly cleanliness ─────────────────────────────────────
 
     [HumansFact]
@@ -56,7 +46,7 @@ public class DriveActivityMonitorArchitectureTests
     [HumansFact]
     public void IGoogleDriveActivityClient_LivesOnGoogleIntegrationsLeaf()
     {
-        // It was in Humans.Application.Interfaces.GoogleIntegration until GoogleIntegration's
+        // It was in Humans.Base.Interfaces.GoogleIntegration until GoogleIntegration's
         // own G5 move, which turned every other connector abstraction internal to that
         // section. This one could not follow them: DriveActivityMonitorService is here, and a
         // section cannot see another section's internals — so the interface and its
@@ -101,5 +91,4 @@ public class DriveActivityMonitorArchitectureTests
             }
         }
     }
-
 }

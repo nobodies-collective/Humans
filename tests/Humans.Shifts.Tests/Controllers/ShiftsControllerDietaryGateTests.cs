@@ -1,4 +1,3 @@
-using Humans.Application;
 using System.Security.Claims;
 using AwesomeAssertions;
 using Humans.Onboarding;
@@ -7,7 +6,6 @@ using Humans.AuditLog.Contracts;
 using Humans.Shifts.Services;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Shifts.Controllers;
 using Humans.Shifts.Models;
 using Microsoft.AspNetCore.Http;
@@ -162,10 +160,10 @@ public class ShiftsControllerDietaryGateTests
         model.SignupsBlockedByMissingDietary.Should().BeFalse();
     }
 
-    private async Task<Humans.Shifts.Models.MyShiftsViewModel> GetMineViewModel()
+    private async Task<MyShiftsViewModel> GetMineViewModel()
     {
         var result = await _controller.Mine();
         return result.Should().BeOfType<ViewResult>()
-                     .Which.Model.Should().BeOfType<Humans.Shifts.Models.MyShiftsViewModel>().Subject;
+                     .Which.Model.Should().BeOfType<MyShiftsViewModel>().Subject;
     }
 }

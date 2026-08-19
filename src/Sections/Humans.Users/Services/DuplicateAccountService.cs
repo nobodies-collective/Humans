@@ -1,17 +1,15 @@
 using Humans.Auth.Contracts;
-using Humans.Domain.Helpers;
+using Humans.Base.Helpers;
 using Humans.Teams.Contracts;
 using Humans.Users.Contracts;
-using Humans.Users.Services;
 
-using Humans.Governance.Contracts;
 namespace Humans.Users.Services;
 
 // Detects duplicate accounts (same email across multiple User records). Resolution
 // is performed by AccountMergeService.MergeAsync — this service is detection-only.
 internal sealed class DuplicateAccountService(
     IUserService userService,
-    ITeamService teamService,
+    ITeamServiceRead teamService,
     IRoleAssignmentService roleAssignmentService) : IDuplicateAccountService
 {
     public async Task<IReadOnlyList<DuplicateAccountGroup>> DetectDuplicatesAsync(CancellationToken ct = default)

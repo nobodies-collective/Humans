@@ -1,8 +1,7 @@
 using System.Security.Claims;
 using AwesomeAssertions;
 using Humans.Users.Tests.Infrastructure;
-using Humans.Application.Interfaces.Users;
-using Humans.UI.Authorization;
+using Humans.Base.Authorization;
 using Humans.Users.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;

@@ -1,6 +1,5 @@
 using AwesomeAssertions;
-using Humans.Testing;
-using Humans.Domain.Constants;
+using Humans.Base.Constants;
 using Humans.Auth.Domain;
 using Humans.Auth.Data;
 

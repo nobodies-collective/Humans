@@ -1,13 +1,11 @@
 using Humans.Users.Contracts;
 using System.Net;
 using AwesomeAssertions;
-using Humans.Governance.Contracts;
 using Humans.Governance.Data;
 using Humans.Governance.Domain;
 // Humans.Application is a sibling namespace inside this project, so the bare name
 // `Application` resolves to it rather than to the entity.
 using MemberApplication = Humans.Governance.Domain.Application;
-using Humans.Domain.Enums;
 using Humans.Integration.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
@@ -129,7 +127,7 @@ public class GovernancePageRenderTests(HumansTestDatabase database) : Integratio
 
         html.Should().Contain("Who Should Apply?");            // Governance_WhoShouldApply
         // AccessMatrixViewComponent moved into Humans.UI (nobodies-collective/Humans#1056), so
-        // <vc:access-matrix section="Governance" /> binds through @addTagHelper *, Humans.UI.
+        // <vc:access-matrix section="Governance" /> binds through @addTagHelper *, Humans.Interfaces.
         // An unbound <vc:> ships as inert literal markup with a green build and no log line, so
         // the emitted modal id is the proof — the 200 alone is not.
         html.Should().Contain("sectionHelp-Governance",

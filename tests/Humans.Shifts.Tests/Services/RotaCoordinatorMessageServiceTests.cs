@@ -1,16 +1,13 @@
-using Humans.Application;
 using Humans.Shifts.Data;
 using Humans.Shifts.Domain;
 using Humans.Teams.Domain;
 using AwesomeAssertions;
 using Humans.AuditLog.Contracts;
 using Humans.Email.Contracts;
-using Humans.Application.Interfaces.Repositories;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Shifts.Services;
 using Humans.Shifts.Tests.Infrastructure;
-using Humans.Domain.Enums;
+using Humans.Base.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;

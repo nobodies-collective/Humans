@@ -1,28 +1,25 @@
+using Humans.Base.Attributes;
 using Humans.GoogleIntegration.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Humans.Teams.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
-using Humans.Application;
-using Humans.Application.DTOs;
 using Humans.Tickets.Contracts;
-using Humans.Teams.Authorization;
 using Humans.Teams.Domain;
-using Humans.Domain.Enums;
-using Humans.UI.Extensions;
-using Humans.UI.Models;
+using Humans.Base.Extensions;
+using Humans.Base.Models;
 using Humans.Teams.Models;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Contracts;
-using Humans.UI.Authorization;
+using Humans.Base.Authorization;
 using NodaTime.Text;
 
 namespace Humans.Teams.Controllers;
 
 [Authorize]
 [Route("Teams/{slug}")]
+[CrossSectionWrite("Triggers a single-resource Google sync from the team admin page.")]
 internal sealed class TeamAdminController(
     ITeamManagementService teamService,
     ITeamResourceService teamResourceService,

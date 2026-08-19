@@ -9,20 +9,8 @@
     <InternalsVisibleTo Include="Humans.Users.Tests" />
     <!-- The one assembly allowed to see many sections (design §5). -->
     <InternalsVisibleTo Include="Humans.Integration.Tests" />
-    <!--
-      Temporary, and the condition that removes it: the Users/Profiles service and
-      repository tests still live in Humans.Application.Tests until lane 2 phase 3 moves
-      them into tests/Humans.Users.Tests, and several unmoved sections' tests seed this
-      section's rows through ServiceTestHarness (Teams' rule, design §15 step 8).
-    -->
-    <InternalsVisibleTo Include="Humans.Application.Tests" />
-    <!-- Same shape, same expiry: Shell-level tests over the moved controllers. -->
+    <!-- Shell-level tests over the moved controllers. -->
     <InternalsVisibleTo Include="Humans.Web.Tests" />
-    <!--
-      Same shape, same expiry: ContactFieldTests and ProfileTests are two of the 43 test files
-      lane 2 phase 3 moves into tests/Humans.Users.Tests.
-    -->
-    <InternalsVisibleTo Include="Humans.Domain.Tests" />
     <!--
       Three unmoved sections' harnesses seed this section's rows through an in-memory
       UsersDbContext (Teams' two-way pattern, design §15 step 8). Each drops out at the lane
@@ -62,10 +50,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Humans.Interfaces\Humans.Interfaces.csproj" />
+    <ProjectReference Include="..\..\Humans.Base\Humans.Base.csproj" />
     <!--
       Humans.Interfaces above now carries what the deleted Humans.Domain used to supply here:
-      RoleNames, the shared value objects, and the enums that keep the Humans.Domain.Enums
+      RoleNames, the shared value objects, and the enums that keep the Humans.Base.Enums
       namespace because more than one section names or persists them. G5 lane 3b finished the
       job — GoogleEmailStatus, MembershipTier and MessageCategory went to
       Humans.Users.Contracts (this section's own vocabulary, each named by a public leaf type),
@@ -73,10 +61,9 @@
       which left in lane 4b-2l for the same reason. MembershipStatus is Governance's and sits
       on its leaf.
     -->
-    <ProjectReference Include="..\..\Humans.Application\Humans.Application.csproj" />
-    <ProjectReference Include="..\..\Humans.Infrastructure\Humans.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\Humans.UI\Humans.UI.csproj" />
     <ProjectReference Include="..\Humans.Users.Contracts\Humans.Users.Contracts.csproj" />
+    <ProjectReference Include="..\Humans.Camps.Contracts\Humans.Camps.Contracts.csproj" />
+    <ProjectReference Include="..\Humans.Campaigns.Contracts\Humans.Campaigns.Contracts.csproj" />
     <!--
       Outbound section references, all through leaves and all acyclic — none of these
       leaves names a Humans.Users type. Note the reverse direction is sanctioned and
@@ -140,6 +127,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Contracts/ProcessAccountDeletionsJob.cs and Contracts/SuspendNonCompliantMembersJob.cs —
+         [DisableConcurrentExecution] and IRecurringJob, since G5 lane 5b-4. Package, not
+         project, so no cycle is possible; it was already arriving transitively. -->
+    <PackageReference Include="Hangfire.Core" />
     <!-- Helpers/ProfilePictureProcessor.cs — profile-picture resize/orient on upload. -->
     <PackageReference Include="Magick.NET-Q8-AnyCPU" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />

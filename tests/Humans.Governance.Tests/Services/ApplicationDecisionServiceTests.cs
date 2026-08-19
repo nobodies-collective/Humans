@@ -1,10 +1,8 @@
 using Humans.Auth.Contracts;
 using Humans.Governance.Domain;
-using Humans.Testing;
 using NodaTime.Testing;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Humans.AuditLog.Contracts;
-using Humans.Application;
 using Humans.Governance.Contracts;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -12,19 +10,18 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
-using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Interfaces;
+using Humans.Base.Interfaces.Caching;
 using Humans.Governance.Services;
-using Humans.Domain;
-using Humans.Domain.Enums;
+using Humans.Base.Enums;
 using MemberApplication = Humans.Governance.Domain.Application;
 using Humans.Email.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Notifications.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Users.Contracts;
 using Humans.Governance.Tests.Infrastructure;
 using Humans.Governance.Data;
+
+using Humans.Teams.Contracts;
 
 namespace Humans.Governance.Tests.Services;
 

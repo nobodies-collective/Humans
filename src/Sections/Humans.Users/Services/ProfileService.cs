@@ -1,9 +1,6 @@
-using Microsoft.Extensions.Logging;
-using Humans.Application.DTOs;
 using Humans.Users.Data.Repositories;
 using Humans.Users.Contracts;
-using Humans.Users.Services;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 
 namespace Humans.Users.Services;
 

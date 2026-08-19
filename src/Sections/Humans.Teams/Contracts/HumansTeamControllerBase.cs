@@ -1,8 +1,5 @@
-using Humans.Application;
-using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
-using Humans.UI.Controllers;
+using Humans.Base.Enums;
+using Humans.Base.Controllers;
 using Humans.Teams.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

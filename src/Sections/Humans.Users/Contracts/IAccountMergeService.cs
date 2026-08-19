@@ -1,7 +1,5 @@
-using Humans.Users.Contracts;
-using Humans.Domain.Enums;
 using NodaTime;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 
 namespace Humans.Users.Contracts;
 

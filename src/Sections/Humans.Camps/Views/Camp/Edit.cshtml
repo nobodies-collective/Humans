@@ -1,5 +1,3 @@
-@using Humans.Camps.Contracts
-@using Humans.UI.Extensions
 @model Humans.Camps.Models.CampEditViewModel
 @{
     ViewData["Title"] = $"{SharedLocalizer["Common_Edit"]} {Model.Name}";
@@ -70,7 +68,7 @@
                                 <i class="fa-solid fa-plus me-1"></i> @Localizer["Camp_Edit_AddLink"]
                             </button>
                             @{
-                                var hasWebsite = Model.Links?.Any(u => !string.IsNullOrEmpty(u) && !Humans.Domain.Helpers.PlatformDetector.IsSocialMedia(u)) ?? false;
+                                var hasWebsite = Model.Links?.Any(u => !string.IsNullOrEmpty(u) && !Humans.Base.Helpers.PlatformDetector.IsSocialMedia(u)) ?? false;
                             }
                             @if (!hasWebsite)
                             {

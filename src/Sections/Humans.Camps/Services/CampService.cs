@@ -1,21 +1,15 @@
 using System.Transactions;
-using Humans.Application.DTOs;
-using Humans.Application.Extensions;
-using Humans.Application.Helpers;
-using Humans.Application.Interfaces;
 using Humans.AuditLog.Contracts;
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Interfaces.Caching;
 using Humans.CityPlanning.Contracts;
 using Humans.EarlyEntry.Contracts;
 using Humans.Gdpr.Contracts;
-using Humans.Application.Interfaces.GoogleIntegration;
 using Humans.Notifications.Contracts;
-using Humans.Application.Interfaces.Repositories;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
-using Microsoft.Extensions.Logging;
+using Humans.Base.Enums;
 using NodaTime;
 using Humans.Users.Contracts;
+
+using Humans.Teams.Contracts;
 
 namespace Humans.Camps.Services;
 

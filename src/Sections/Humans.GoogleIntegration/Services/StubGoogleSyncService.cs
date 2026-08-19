@@ -1,10 +1,5 @@
 using Humans.GoogleIntegration.Contracts;
-using Microsoft.Extensions.Logging;
-using Humans.Application.DTOs;
-using Humans.Domain.Enums;
-using Humans.Application.Interfaces;
 using Humans.GoogleIntegration.Data;
-using Humans.GoogleIntegration.Services.Workspace;
 
 namespace Humans.GoogleIntegration.Services;
 
@@ -16,28 +11,6 @@ internal sealed class StubGoogleSyncService(
     ILogger<StubGoogleSyncService> logger,
     IGoogleSyncOutboxRepository outboxRepository) : IGoogleSyncService
 {
-    public Task<GoogleResource> ProvisionTeamFolderAsync(
-        Guid teamId,
-        string folderName,
-        CancellationToken cancellationToken = default)
-    {
-        logger.LogInformation("[STUB] Would provision Google Drive folder '{FolderName}' for team {TeamId}", folderName, teamId);
-
-        // Return a stub resource
-        var resource = new GoogleResource
-        {
-            Id = Guid.NewGuid(),
-            TeamId = teamId,
-            GoogleId = $"stub-folder-{Guid.NewGuid():N}",
-            Name = folderName,
-            Url = "https://drive.google.com/stub",
-            ProvisionedAt = NodaTime.SystemClock.Instance.GetCurrentInstant(),
-            IsActive = true
-        };
-
-        return Task.FromResult(resource);
-    }
-
     public Task AddUserToTeamResourcesAsync(Guid teamId, Guid userId, CancellationToken cancellationToken = default)
     {
         logger.LogInformation("[STUB] Would add user {UserId} to team {TeamId} Google resources", userId, teamId);

@@ -1,9 +1,8 @@
-using Humans.Application.Helpers;
+using Humans.Base.Attributes;
+using Humans.Base.Helpers;
 using Humans.Users.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using NodaTime;
 
@@ -28,6 +27,7 @@ internal sealed record DashboardResetResult(
 /// All writes go through the owning section services. The controller keeps destructive
 /// reset behind full Admin authorization.
 /// </summary>
+[CrossSectionWrite("Dev teardown deletes the seeded teams and users.")]
 internal sealed class DevelopmentDashboardSeeder(
     IShiftSeeding shiftManagementService,
     IBurnSettingsService burnSettings,

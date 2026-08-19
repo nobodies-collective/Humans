@@ -1,5 +1,4 @@
-using Humans.Domain.Attributes;
-using Humans.Domain.Enums;
+using Humans.Base.Attributes;
 using NodaTime;
 
 namespace Humans.Camps.Domain;

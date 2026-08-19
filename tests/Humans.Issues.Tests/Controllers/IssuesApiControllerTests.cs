@@ -1,7 +1,4 @@
 using AwesomeAssertions;
-using Humans.Application;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
 using Humans.Issues.Contracts;
 using Humans.Issues.Controllers;
 using Humans.Issues.Domain;

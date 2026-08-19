@@ -1,13 +1,9 @@
 using Humans.Shifts.Services.Dtos;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.EarlyEntry.Contracts;
-using Humans.Application.Interfaces.Repositories;
-using Humans.Shifts.Services;
 using Humans.Shifts.Contracts;
-using Humans.Application.Interfaces.Users;
 using NodaTime;
 using Humans.Shifts.Data;
-using Humans.Application;
 using Humans.Users.Contracts;
 
 namespace Humans.Shifts.Services;

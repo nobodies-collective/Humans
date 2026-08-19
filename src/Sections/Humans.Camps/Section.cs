@@ -1,15 +1,10 @@
 using Humans.GoogleIntegration.Contracts;
-using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Caching;
+using Humans.Base.Interfaces.Caching;
 using Humans.EarlyEntry.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Camps.Authorization;
-using Humans.Camps.Data;
-using Humans.Camps.Models;
-using Humans.Camps.Services;
 using Humans.CityPlanning.Contracts;
 using Humans.Gdpr.Contracts;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Hosting;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

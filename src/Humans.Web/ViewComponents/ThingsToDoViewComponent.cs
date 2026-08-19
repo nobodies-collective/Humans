@@ -1,12 +1,10 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
-using Humans.Domain.Enums;
 using Humans.Web.Models;
 using Humans.Shifts.Contracts;
 using Humans.Governance.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.UI;
+using Humans.Base;
 using Humans.Users.Contracts;
 
 namespace Humans.Web.ViewComponents;
@@ -126,7 +124,7 @@ public class ThingsToDoViewComponent(
             // Copy varies by whether the user has an active qualifying signup; the
             // item is the same Key either way so it disappears with the rest of the
             // card when DietaryPreference becomes non-empty.
-            // See docs/features/profiles/dietary-medical-nudge.md (US-35.5)
+            // See src/Sections/Humans.Users/Docs/features/dietary-medical-nudge.md (US-35.5)
             try
             {
                 // Dietary now lives on Profile (already loaded as `profile` above).

@@ -1,17 +1,17 @@
-using Humans.Application.Configuration;
-using Humans.Application.Diagnostics;
-using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Admin;
-using Humans.Application.Interfaces.Caching;
-using Humans.Application.Interfaces.Users;
+using Humans.Base.Caching;
+using Humans.Base.Configuration;
+using Humans.Base.Diagnostics;
+using Humans.Base.Interfaces;
+using Humans.Base.Interfaces.Admin;
+using Humans.Base.Interfaces.Caching;
 using Humans.Debug.Models;
-using Humans.Infrastructure.Data;
-using Humans.Infrastructure.Logging;
-using Humans.UI.Controllers;
-using Humans.UI;
-using Humans.UI.Authorization;
-using Humans.UI.Extensions;
-using Humans.UI.Models;
+using Humans.Base.Data;
+using Humans.Base.Logging;
+using Humans.Base.Controllers;
+using Humans.Base;
+using Humans.Base.Authorization;
+using Humans.Base.Extensions;
+using Humans.Base.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
@@ -26,7 +26,7 @@ namespace Humans.Debug.Controllers;
 /// </summary>
 /// <remarks>
 /// Internal, and routed anyway: Shell registers <c>SectionControllerFeatureProvider</c>, which
-/// relaxes MVC's <c>IsPublic</c> check for assemblies carrying <c>[assembly: Section("…")]</c>
+/// relaxes MVC's <c>IsPublic</c> check for discovered section assemblies
 /// (memory/architecture/section-controllers-need-feature-provider.md — do not "fix" a 404 by
 /// making this public).
 /// </remarks>
@@ -216,9 +216,7 @@ internal sealed class DebugController(
         try
         {
             var snapshot = cacheStatsProvider.GetSnapshot();
-            var entryCounts = (cacheStatsProvider as Humans.Infrastructure.Services.TrackingMemoryCache)
-                ?.GetActiveEntryCounts()
-                ?? new Dictionary<string, int>(StringComparer.Ordinal);
+            var entryCounts = cacheStatsProvider.GetActiveEntryCounts();
 
             var model = new CacheStatsViewModel
             {
@@ -228,7 +226,7 @@ internal sealed class DebugController(
                 Entries = snapshot.Select(e =>
                 {
                     entryCounts.TryGetValue(e.KeyType, out var activeCount);
-                    Humans.Application.CacheKeys.Metadata.TryGetValue(e.KeyType, out var meta);
+                    CacheKeys.Metadata.TryGetValue(e.KeyType, out var meta);
                     return new CacheStatEntryViewModel
                     {
                         KeyType = e.KeyType,

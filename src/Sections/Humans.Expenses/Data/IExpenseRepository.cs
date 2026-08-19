@@ -1,13 +1,9 @@
 using Humans.Expenses.Contracts;
-using Humans.Expenses.Services.Dtos;
-using Humans.Domain.Enums;
-using Humans.Domain.Attributes;
-using Humans.Application.Interfaces.Repositories;
+using Humans.Base.Interfaces.Repositories;
 using Humans.Expenses.Domain;
 
 namespace Humans.Expenses.Data;
 
-[Section("Expenses")]
 
 internal interface IExpenseRepository : IRepository
 {
@@ -40,7 +36,13 @@ internal interface IExpenseRepository : IRepository
         Guid reportId, ExpenseLine line, CancellationToken ct = default);
     Task<bool> UpdateLineAsync(
         Guid reportId, ExpenseLine line, CancellationToken ct = default);
-    Task<bool> RemoveLineAsync(
+    /// <summary>
+    /// Removes the line, any proof rows under it, and every attachment row they reference, in one
+    /// atomic save — a proof added concurrently makes the whole removal fail rather than leaving
+    /// half the rows gone. Returns the removed attachments so the caller can delete their files
+    /// (after the commit), or null when the report or line does not exist.
+    /// </summary>
+    Task<IReadOnlyList<ExpenseAttachment>?> RemoveLineAsync(
         Guid reportId, Guid lineId, CancellationToken ct = default);
     Task<Guid> AddAttachmentAsync(
         ExpenseAttachment attachment, CancellationToken ct = default);
@@ -57,17 +59,20 @@ internal interface IExpenseRepository : IRepository
     Task<bool> WithdrawAsync(
         Guid reportId, NodaTime.Instant updatedAt, CancellationToken ct = default);
 
+    /// <summary>A non-null <paramref name="maxAmount"/> sets the authorized cap; null leaves it as it is.</summary>
     Task<bool> CoordinatorEndorseAsync(
-        Guid reportId, Guid actorUserId,
+        Guid reportId, Guid actorUserId, decimal? maxAmount,
         NodaTime.Instant endorsedAt, CancellationToken ct = default);
 
     Task<bool> CoordinatorRejectAsync(
         Guid reportId, Guid actorUserId,
         string reason, NodaTime.Instant rejectedAt, CancellationToken ct = default);
 
+    /// <summary>A non-null <paramref name="maxAmount"/> overrides any cap set at endorsement; null leaves it as it is.</summary>
     Task<bool> ApproveAsync(
         Guid reportId, Guid actorUserId,
         Guid? overrideCategoryId,
+        decimal? maxAmount,
         NodaTime.Instant approvedAt,
         Guid outboxEventId,
         CancellationToken ct = default);

@@ -1,9 +1,9 @@
 using AwesomeAssertions;
-using Humans.Domain.Enums;
+using Humans.Base.Enums;
 using NodaTime;
 using Xunit;
 
-namespace Humans.Camps.Tests.Entities;
+namespace Humans.Camps.Tests.Domain;
 
 public class CampSeasonTests
 {

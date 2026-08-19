@@ -1,16 +1,9 @@
+using Humans.Base.Attributes;
 using Humans.GoogleIntegration.Contracts;
-using Humans.Application.DTOs;
-using Humans.Application.Helpers;
+using Humans.Base.Helpers;
 using Humans.AuditLog.Contracts;
 using Humans.Users.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
-using Microsoft.Extensions.Logging;
-using Humans.Application.Interfaces;
-using Humans.GoogleIntegration.Data;
-using Humans.GoogleIntegration.Services.Workspace;
-using Humans.Application;
 
 namespace Humans.GoogleIntegration.Services;
 
@@ -22,6 +15,7 @@ namespace Humans.GoogleIntegration.Services;
 /// services (<see cref="IUserService"/>, <see cref="IUserEmailService"/>,
 /// <see cref="ITeamService"/>, <see cref="ITeamResourceService"/>).
 /// </summary>
+[CrossSectionWrite("Admin sync writes Google email status and group prefixes.")]
 internal sealed class GoogleAdminService(
     IGoogleWorkspaceUserService workspaceUserService,
     IGoogleSyncService googleSyncService,

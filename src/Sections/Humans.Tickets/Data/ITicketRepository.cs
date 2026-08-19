@@ -1,11 +1,7 @@
-using Humans.Application.DTOs;
 using Humans.Tickets.Contracts;
 using Humans.Tickets.Services;
-using Humans.Domain.Enums;
 using NodaTime;
-using Humans.Domain.Attributes;
-using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Repositories;
+using Humans.Base.Interfaces.Repositories;
 using Humans.Tickets.Domain;
 using Humans.Tickets.Services.Dtos;
 
@@ -29,7 +25,6 @@ namespace Humans.Tickets.Data;
 /// method.
 /// </para>
 /// </remarks>
-[Section("Tickets")]
 internal interface ITicketRepository : IRepository
 {
     // ── TicketSyncState (singleton row, Id == 1) ─────────────────────────────
@@ -178,7 +173,7 @@ internal interface ITicketRepository : IRepository
     /// <summary>
     /// Returns every <see cref="TicketAttendee"/> for the given vendor event
     /// that is currently unmatched (<c>MatchedUserId is null</c>) and whose
-    /// <see cref="Humans.Domain.Enums.TicketAttendeeStatus"/> is
+    /// <see cref="Humans.Base.Enums.TicketAttendeeStatus"/> is
     /// <c>Valid</c> or <c>CheckedIn</c>, AND whose
     /// <see cref="TicketAttendee.AttendeeEmail"/> is non-empty.
     ///
@@ -250,6 +245,8 @@ internal interface ITicketRepository : IRepository
     Task<IReadOnlyList<RecentOrder>> GetRecentOrdersAsync(int count, CancellationToken ct = default);
 
     Task<IReadOnlyList<PaidOrderSalesRow>> GetPaidOrderSalesRowsAsync(CancellationToken ct = default);
+
+    Task<IReadOnlyList<PaidAttendeeTypePriceRow>> GetPaidAttendeeTypePriceRowsAsync(CancellationToken ct = default);
 
     Task<IReadOnlyList<DiscountCodeOrderRow>> GetOrdersWithDiscountCodesAsync(CancellationToken ct = default);
 

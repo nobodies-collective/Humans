@@ -1,8 +1,6 @@
 using AwesomeAssertions;
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Tests.Infrastructure;
-using Humans.Domain.Enums;
-using Humans.Infrastructure.Configuration;
+using Humans.Base.Configuration;
 using Humans.Users.Data.Repositories;
 using Humans.Users.Services;
 using Microsoft.AspNetCore.DataProtection;

@@ -10,13 +10,6 @@
     <!-- The one assembly allowed to see many sections (design §5). -->
     <InternalsVisibleTo Include="Humans.Integration.Tests" />
     <!--
-      Temporary, and the condition that removes it: five test files belonging to sections
-      that have NOT moved seed this section's rows through Humans.Application.Tests'
-      ServiceTestHarness. Rewriting them inside a move commit changes unrelated sections'
-      fixtures; each drops out at its own G5 lane (Teams' rule, design §15 step 8).
-    -->
-    <InternalsVisibleTo Include="Humans.Application.Tests" />
-    <!--
       Same shape, same expiry: Humans.Teams.Tests' harness seeds this section's rows
       through its own copy of ServiceTestHarness (Teams finding 36's two-way pattern).
     -->
@@ -34,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Humans.Interfaces\Humans.Interfaces.csproj" />
+    <ProjectReference Include="..\..\Humans.Base\Humans.Base.csproj" />
     <!--
       Humans.Interfaces above carries whatever of the section's persisted-string vocabulary
       is still shared. The separate Humans.Domain reference is gone: lane 4b-2k took
@@ -43,10 +36,9 @@
       their namespaces unchanged, and lane 3b deleted the Humans.Domain project. Their
       EnumStringStabilityTests rows are unaffected (Teams' rule, design §15 step 5).
     -->
-    <ProjectReference Include="..\..\Humans.Application\Humans.Application.csproj" />
-    <ProjectReference Include="..\..\Humans.Infrastructure\Humans.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\Humans.UI\Humans.UI.csproj" />
     <ProjectReference Include="..\Humans.Shifts.Contracts\Humans.Shifts.Contracts.csproj" />
+    <ProjectReference Include="..\Humans.Camps.Contracts\Humans.Camps.Contracts.csproj" />
+    <ProjectReference Include="..\Humans.Users.Contracts\Humans.Users.Contracts.csproj" />
     <!--
       Outbound section references, all through leaves and all acyclic — none of these
       leaves names a Humans.Shifts type (they may name Humans.Shifts.Contracts, which is
@@ -95,6 +87,9 @@
     <PackageReference Include="ClosedXML" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="NodaTime" />
+    <!-- VolunteerBuildStatusConfiguration's JSON column converter. Arrived transitively
+         through Humans.Application until G5 lane 5c dropped that reference. -->
+    <PackageReference Include="NodaTime.Serialization.SystemTextJson" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" />
   </ItemGroup>

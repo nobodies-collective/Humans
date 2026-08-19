@@ -1,12 +1,8 @@
-using Humans.Domain.Enums;
-using Humans.Domain.Attributes;
-using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Repositories;
+using Humans.Base.Interfaces.Repositories;
 using Humans.Tickets.Domain;
 
 namespace Humans.Tickets.Data;
 
-[Section("Tickets")]
 
 internal interface ITicketTransferRepository : IRepository
 {

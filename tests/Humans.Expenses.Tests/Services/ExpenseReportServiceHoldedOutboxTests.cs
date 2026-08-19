@@ -1,19 +1,16 @@
 using AwesomeAssertions;
-using Humans.Application;
 using Humans.Expenses.Contracts;
 using Humans.Expenses.Domain;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.AuditLog.Contracts;
 using Humans.Budget.Contracts;
 using Humans.Finance.Contracts;
 using Humans.Holded.Contracts;
 using Humans.Expenses.Data;
 using Humans.Teams.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Expenses.Services;
 using Humans.Expenses.Services.Dtos;
 using Microsoft.Extensions.Options;
-using Humans.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 using NodaTime.Testing;
@@ -221,6 +218,50 @@ public class ExpenseReportServiceHoldedOutboxTests
     }
 
     [HumansFact]
+    public async Task CreateIncomingDoc_ExcludesProofRows_FromDocLinesAndAttachmentUploads()
+    {
+        // Proof rows back an invoice line for review only — Holded gets the invoice line and the
+        // invoice file, never the proofs.
+        var invoiceLine = MakeLineWithAttachment(Guid.NewGuid(), "invoice.pdf", 0, holdedUploadedAt: null)
+            with
+        { LineType = ExpenseLineType.Invoice, Amount = 1000m };
+        var proofLine = MakeLineWithAttachment(Guid.NewGuid(), "proof.pdf", 1, holdedUploadedAt: null)
+            with
+        { ParentLineId = invoiceLine.Id, Amount = 400m };
+
+        var report = MakeReport() with { Total = 1000m, Lines = [invoiceLine, proofLine] };
+        var outboxEvent = MakeEvent(report.Id, HoldedExpenseOutboxEventType.CreateIncomingDoc);
+
+        _repo.GetUnprocessedOutboxAsync(Arg.Any<Instant>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([outboxEvent]);
+        _repo.GetByIdAsync(report.Id, Arg.Any<CancellationToken>())
+            .Returns(report);
+        _holdedClient.CreatePurchaseDocumentAsync(Arg.Any<HoldedPurchaseDocumentInput>(), Arg.Any<CancellationToken>())
+            .Returns("doc-invoice-1");
+        _fileStorage.TryReadAsync(
+                $"uploads/expense-attachments/{invoiceLine.Attachment!.Id}.pdf",
+                Arg.Any<CancellationToken>())
+            .Returns([1, 2]);
+
+        await _sut.DrainHoldedOutboxAsync(BatchSize, Xunit.TestContext.Current.CancellationToken);
+
+        await _holdedClient.Received(1).CreatePurchaseDocumentAsync(
+            Arg.Is<HoldedPurchaseDocumentInput>(i =>
+                i.Lines.Count == 1 && i.Lines[0].Amount == 1000m),
+            Arg.Any<CancellationToken>());
+        await _holdedClient.Received(1).UploadAttachmentAsync(
+            "doc-invoice-1",
+            Arg.Is<HoldedAttachmentInput>(a => a.FileName == "invoice.pdf"),
+            Arg.Any<CancellationToken>());
+        await _holdedClient.DidNotReceive().UploadAttachmentAsync(
+            Arg.Any<string>(),
+            Arg.Is<HoldedAttachmentInput>(a => a.FileName == "proof.pdf"),
+            Arg.Any<CancellationToken>());
+        await _repo.Received(1).MarkOutboxProcessedAsync(
+            outboxEvent.Id, Now, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
     public async Task CreateIncomingDoc_BooksLinesToTheMappedHoldedAccount()
     {
         // Tags are dead on the write side (Peter, 2026-08-10) — the doc is booked to the right
@@ -277,6 +318,70 @@ public class ExpenseReportServiceHoldedOutboxTests
 
         await _holdedClient.Received(1).CreatePurchaseDocumentAsync(
             Arg.Is<HoldedPurchaseDocumentInput>(i => i.Lines[0].AccountId == null),
+            Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task CreateIncomingDoc_CappedReport_AppendsNegativeAdjustmentLine()
+    {
+        // The receipts book in full and a negative line brings the doc down to the authorized cap,
+        // so what Holded owes the member matches what was approved.
+        var report = MakeReport() with
+        {
+            Total = 100m,
+            MaxAmount = 60m,
+            Lines = new List<ExpenseLineDto>
+            {
+                new() { Id = Guid.NewGuid(), ExpenseReportId = Guid.NewGuid(), Description = "Wood", Amount = 100m, LineType = ExpenseLineType.Receipt, SortOrder = 1 },
+            },
+        };
+        var outboxEvent = MakeEvent(report.Id, HoldedExpenseOutboxEventType.CreateIncomingDoc);
+
+        _repo.GetUnprocessedOutboxAsync(Arg.Any<Instant>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([outboxEvent]);
+        _repo.GetByIdAsync(report.Id, Arg.Any<CancellationToken>())
+            .Returns(report);
+        _holdedFinance.GetHoldedAccountIdForCategoryAsync(CategoryId, Arg.Any<CancellationToken>())
+            .Returns("holded-acc-629001");
+        _holdedClient.CreatePurchaseDocumentAsync(Arg.Any<HoldedPurchaseDocumentInput>(), Arg.Any<CancellationToken>())
+            .Returns("doc-capped");
+
+        await _sut.DrainHoldedOutboxAsync(BatchSize, Xunit.TestContext.Current.CancellationToken);
+
+        await _holdedClient.Received(1).CreatePurchaseDocumentAsync(
+            Arg.Is<HoldedPurchaseDocumentInput>(i =>
+                i.Lines.Count == 2 &&
+                i.Lines[1].Amount == -40m &&
+                string.Equals(i.Lines[1].Description, "Authorized maximum €60.00 — adjustment", StringComparison.Ordinal) &&
+                string.Equals(i.Lines[1].AccountId, "holded-acc-629001", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task CreateIncomingDoc_CapAtOrAboveTheTotal_HasNoAdjustmentLine()
+    {
+        var report = MakeReport() with
+        {
+            Total = 100m,
+            MaxAmount = 100m,
+            Lines = new List<ExpenseLineDto>
+            {
+                new() { Id = Guid.NewGuid(), ExpenseReportId = Guid.NewGuid(), Description = "Wood", Amount = 100m, LineType = ExpenseLineType.Receipt, SortOrder = 1 },
+            },
+        };
+        var outboxEvent = MakeEvent(report.Id, HoldedExpenseOutboxEventType.CreateIncomingDoc);
+
+        _repo.GetUnprocessedOutboxAsync(Arg.Any<Instant>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns([outboxEvent]);
+        _repo.GetByIdAsync(report.Id, Arg.Any<CancellationToken>())
+            .Returns(report);
+        _holdedClient.CreatePurchaseDocumentAsync(Arg.Any<HoldedPurchaseDocumentInput>(), Arg.Any<CancellationToken>())
+            .Returns("doc-uncapped");
+
+        await _sut.DrainHoldedOutboxAsync(BatchSize, Xunit.TestContext.Current.CancellationToken);
+
+        await _holdedClient.Received(1).CreatePurchaseDocumentAsync(
+            Arg.Is<HoldedPurchaseDocumentInput>(i => i.Lines.Count == 1),
             Arg.Any<CancellationToken>());
     }
 

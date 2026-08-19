@@ -1,19 +1,15 @@
 using Humans.GoogleIntegration.Contracts;
-using Humans.Domain.Enums;
-using Humans.Application;
-using Humans.Notifications.Data;
+using Humans.Base.Caching;
 using System.Security.Claims;
 using Humans.Notifications.Services.Dtos;
 using Humans.Camps.Contracts;
 using Humans.Governance.Contracts;
 using Humans.Teams.Contracts;
 
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Constants;
-using Humans.Notifications.Contracts;
+using Humans.Base.Interfaces;
+using Humans.Base.Constants;
 using Humans.Tickets.Contracts;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using Humans.Users.Contracts;
 
 namespace Humans.Notifications.Services;
@@ -43,7 +39,7 @@ internal sealed class NotificationMeterProvider(
     IApplicationServiceRead applicationDecisionService,
     ICampServiceRead campService,
     IMemoryCache cache,
-    ILogger<NotificationMeterProvider> logger)
+    ILogger<NotificationMeterProvider> logger) : IOrchestrator
 {
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(2);
 

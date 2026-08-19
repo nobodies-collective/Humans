@@ -1,17 +1,13 @@
 using AwesomeAssertions;
 using Humans.AuditLog.Contracts;
-using Humans.Application.Interfaces.Repositories;
 using Humans.Tickets.Contracts;
 using Humans.Users.Contracts;
-using Humans.Users.Tests.Infrastructure;
-using Humans.Domain.Enums;
-using Humans.Domain.Helpers;
+using Humans.Base.Helpers;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Data.Repositories;
 using Humans.Users.Services;
 

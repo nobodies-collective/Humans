@@ -1,8 +1,8 @@
 using System.Globalization;
-using Humans.Application.Interfaces;
+using Humans.Base.Interfaces;
 using Humans.Holded.Contracts;
 using Humans.Holded.Data;
-using Humans.Infrastructure.Hosting;
+using Humans.Base.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -64,11 +64,12 @@ public sealed class Section : ISection
 
         services.AddScoped<IHoldedMirrorRepository, Repository>();
         services.AddScoped<Services.Service>();
-        services.AddScoped<Contracts.IHoldedService>(sp => sp.GetRequiredService<Services.Service>());
+        services.AddScoped<IHoldedService>(sp => sp.GetRequiredService<Services.Service>());
         services.AddScoped<Services.IHoldedAdminService>(sp => sp.GetRequiredService<Services.Service>());
 
-        // The nightly pull's body (G5 step 6b). The Hangfire target HoldedSyncJob stays in
-        // Humans.Infrastructure/Jobs because Hangfire serializes its declaring type name.
+        // The nightly pull's body (G5 step 6b). Its Hangfire target, HoldedSyncJob, is in
+        // this project's Contracts/ folder since G5 lane 5b-5; only the registration is
+        // Shell's, because the roll-call names each job by concrete type.
         services.AddScoped<IHoldedNightlySync, Services.HoldedNightlySync>();
     }
 }

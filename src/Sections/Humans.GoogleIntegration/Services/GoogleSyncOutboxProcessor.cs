@@ -1,12 +1,9 @@
+using Humans.Base.Attributes;
 using Humans.GoogleIntegration.Contracts;
-using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
+using Humans.Base.Interfaces;
 using Humans.GoogleIntegration.Data;
 using Humans.Teams.Contracts;
 using NodaTime;
-using Humans.GoogleIntegration.Services.Workspace;
 using Humans.Users.Contracts;
 
 namespace Humans.GoogleIntegration.Services;
@@ -22,6 +19,7 @@ namespace Humans.GoogleIntegration.Services;
 /// SyncSettings enforcement is handled by the gateway methods in
 /// <c>GoogleWorkspaceSyncService</c>, not here.
 /// </remarks>
+[CrossSectionWrite("Outbox processing writes Google email status back to the user.")]
 internal sealed class GoogleSyncOutboxProcessor(
     IGoogleSyncOutboxRepository outboxRepository,
     IGoogleResourceRepository resourceRepository,

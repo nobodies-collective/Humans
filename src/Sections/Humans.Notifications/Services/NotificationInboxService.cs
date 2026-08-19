@@ -1,8 +1,7 @@
-using Humans.Application;
+using Humans.Base.Caching;
 using Humans.Notifications.Data;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.Gdpr.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Notifications.Domain;
 using Humans.Notifications.Contracts;
 using Microsoft.Extensions.Caching.Memory;

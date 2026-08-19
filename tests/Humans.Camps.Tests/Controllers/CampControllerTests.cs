@@ -1,13 +1,9 @@
 using System.Security.Claims;
 using AwesomeAssertions;
-using Humans.Application;
-using Humans.Camps.Resources;
-using Humans.Camps.Services;
 using Humans.CityPlanning.Contracts;
 using Humans.Shifts.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
-using Humans.UI;
+using Humans.Base.Enums;
+using Humans.Base;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

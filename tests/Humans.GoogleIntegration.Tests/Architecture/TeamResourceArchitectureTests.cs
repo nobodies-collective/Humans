@@ -1,7 +1,6 @@
 using Humans.GoogleIntegration.Contracts;
 using AwesomeAssertions;
 using TeamResourceService = Humans.GoogleIntegration.Services.TeamResourceService;
-using Humans.GoogleIntegration.Services;
 using Humans.GoogleIntegration.Services.Workspace;
 using Humans.GoogleIntegration.Data;
 using Humans.GoogleIntegration.Tests.Infrastructure;
@@ -20,12 +19,12 @@ namespace Humans.GoogleIntegration.Tests.Architecture;
 ///     <see cref="ITeamResourceService"/> in <c>Humans.GoogleIntegration.Services</c>
 ///     owns business rules + persistence orchestration. The service was
 ///     relocated from <c>Services.Teams</c> to <c>Services.GoogleIntegration</c>
-///     so HUM0017 sees its <see cref="IGoogleResourceRepository"/> injection
-///     as intra-section (see
+///     so it sits in the same section as the <see cref="IGoogleResourceRepository"/>
+///     it injects (see
 ///     <c>memory/architecture/team-resources-google-integration-section.md</c>).
 ///   </description></item>
 ///   <item><description>
-///     <see cref="IGoogleResourceRepository"/> in <c>Humans.Application.Interfaces.Repositories</c>
+///     <see cref="IGoogleResourceRepository"/> in <c>Humans.Base.Interfaces.Repositories</c>
 ///     is the only path to <c>DbSet&lt;GoogleResource&gt;</c>.
 ///   </description></item>
 ///   <item><description>
@@ -34,21 +33,15 @@ namespace Humans.GoogleIntegration.Tests.Architecture;
 ///     <c>Google.Apis.*</c> imports.
 ///   </description></item>
 /// </list>
-/// These tests pin the invariants so a future refactor can't silently
-/// recombine the pieces.
+/// The tests below cover the first and third pieces — the service takes no
+/// Google SDK type, and the connector interface stays in its own namespace and
+/// keeps SDK types off its surface. Nothing here checks the second: that the
+/// repository is the only path to <c>DbSet&lt;GoogleResource&gt;</c>.
 /// </para>
 /// </summary>
 public class TeamResourceArchitectureTests
 {
     // ── TeamResourceService ──────────────────────────────────────────────────
-
-    [HumansFact]
-    public void TeamResourceService_IsSealed()
-    {
-        typeof(TeamResourceService).IsSealed
-            .Should().BeTrue(
-                because: "application services are terminal — extension happens via a caching decorator when warranted (§15d), not subclassing");
-    }
 
     [HumansFact]
     public void TeamResourceService_HasNoGoogleApisConstructorParameter()

@@ -1,10 +1,9 @@
 using Humans.Shifts.Services.Dtos;
-using Humans.Application.Interfaces.Caching;
-using Humans.Shifts.Services;
+using Humans.Base.Caching;
+using Humans.Base.Interfaces.Caching;
 using Humans.Shifts.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace Humans.Shifts.Services;
 

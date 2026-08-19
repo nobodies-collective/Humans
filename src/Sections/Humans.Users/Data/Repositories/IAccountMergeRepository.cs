@@ -1,7 +1,5 @@
 using Humans.Users.Contracts;
-using Humans.Domain.Attributes;
-using Humans.Application.Interfaces;
-using Humans.Application.Interfaces.Repositories;
+using Humans.Base.Interfaces.Repositories;
 
 namespace Humans.Users.Data.Repositories;
 
@@ -16,7 +14,6 @@ namespace Humans.Users.Data.Repositories;
 /// <c>AccountMergeService</c> via <c>IUserService</c> (§6b), never via the
 /// cross-domain <c>AspNetUsers</c> navigation properties.
 /// </remarks>
-[Section("Humans")]
 internal interface IAccountMergeRepository : IRepository
 {
     /// <summary>

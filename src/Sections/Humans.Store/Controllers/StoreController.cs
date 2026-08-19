@@ -2,15 +2,14 @@ using Humans.Camps.Contracts;
 using Humans.Store.Contracts;
 using Humans.Store.Services;
 using Humans.Store.Services.Dtos;
-using Humans.UI.Authorization;
+using Humans.Base.Authorization;
 using Humans.Store.Authorization;
 using Humans.Store.Models;
-using Humans.UI.Controllers;
+using Humans.Base.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NodaTime;
 
-using Humans.Application.Interfaces.Users;
 using Humans.Users.Contracts;
 
 namespace Humans.Store.Controllers;

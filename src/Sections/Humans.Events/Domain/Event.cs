@@ -1,6 +1,5 @@
 using System.Globalization;
-using Humans.Domain.Attributes;
-using Humans.Events.Domain;
+using Humans.Base.Attributes;
 using NodaTime;
 using Humans.Events.Contracts;
 

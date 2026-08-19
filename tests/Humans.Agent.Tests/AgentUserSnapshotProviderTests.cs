@@ -1,13 +1,11 @@
 using Humans.Auth.Contracts;
 using AwesomeAssertions;
-using Humans.Application;
 using Humans.Consent.Contracts;
 using Humans.Feedback.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
+using Humans.Base.Enums;
 using Humans.Agent.Services;
 using NodaTime;
 using NodaTime.Testing;

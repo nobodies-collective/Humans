@@ -1,7 +1,7 @@
 <!-- freshness:triggers
   src/Sections/Humans.GoogleIntegration/**
   src/Sections/Humans.GoogleIntegration.Contracts/**
-  src/Humans.Application/Interfaces/GoogleIntegration/ISystemTeamSync.cs
+  src/Sections/Humans.Teams.Contracts/ISystemTeamSync.cs
 -->
 <!-- freshness:flag-on-change
   Sync mode invariants, Shared-Drive-only constraint, GoogleEmailStatus rules, and reconciliation gateway operations — review when Google Integration services/entities/controller change.
@@ -105,7 +105,7 @@ All Google integration management is consolidated in `GoogleController` (`[Route
 - Permanent Google API errors (HTTP 400, 403, 404) mark outbox events as `FailedPermanently` and stop retrying immediately. Transient errors (5xx, 429, etc.) continue retrying up to the configured limit.
 - The system authenticates to Google APIs as a service account — no domain-wide delegation or user impersonation.
 - Drive permissions are modified only by the Drive paths in `IGoogleSyncService`. Google Group membership is modified only by `IGoogleGroupSync`; `IGoogleSyncService` still provisions groups and remediates group settings.
-- `IGoogleGroupSync.ReconcileAllAsync` loads all registered group claims, hydrates expected users once for the pass, records per-group errors, and schedules capped scoped retries for groups that fail during Execute; it is the daily, hourly system-team-sync, and bulk reconcile path.
+- `IGoogleGroupSync.ReconcileAllAsync` loads all registered group claims, hydrates expected users once for the pass, records per-group errors, and schedules capped scoped retries for groups that fail during Execute; it is the daily, hourly teams-system-sync, and bulk reconcile path.
 - `IGoogleGroupSync.ReconcileOneAsync` reconciles one group key and, on Google API failure during Execute, schedules delayed scoped Hangfire retries for the same group key, capped at five retry attempts.
 - If more than one `IGoogleGroupMembershipSource` claims the same group key, the orchestrator logs/audits a collision and skips mutation for that group. First-wins is forbidden because it would silently revoke access claimed by another owner.
 - `TeamService` directly implements `IGoogleGroupMembershipSource` for team Google Groups. `ITeamService` does not inherit that interface; Google Integration registers the concrete `TeamService` as a source.

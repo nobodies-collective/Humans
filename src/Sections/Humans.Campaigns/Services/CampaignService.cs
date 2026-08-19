@@ -1,20 +1,16 @@
-using Humans.Application;
-using Humans.Application.Architecture;
-using Humans.Application.DTOs;
-using Humans.Application.Extensions;
+using Humans.Base.Attributes;
+using Humans.Base.Extensions;
 using Humans.Email.Contracts;
 using Humans.Gdpr.Contracts;
 using Humans.Notifications.Contracts;
 using Humans.Users.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
 using Humans.Campaigns.Contracts;
 using Humans.Campaigns.Data;
 using Humans.Campaigns.Domain;
 using Humans.Campaigns.Services.Dtos;
-using Humans.Domain.Enums;
-using Microsoft.Extensions.Logging;
+using Humans.Base.Enums;
 using NodaTime;
 
 namespace Humans.Campaigns.Services;

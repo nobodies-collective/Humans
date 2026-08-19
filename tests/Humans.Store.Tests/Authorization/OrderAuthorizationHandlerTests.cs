@@ -1,12 +1,11 @@
 using Humans.Store.Contracts;
-using Humans.Store.Domain;
 using System.Security.Claims;
 using Humans.Camps.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Store.Services.Dtos;
-using Humans.Domain.Constants;
-using Humans.Domain.Enums;
+using Humans.Base.Constants;
+using Humans.Base.Enums;
 using Humans.Store.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using NodaTime;

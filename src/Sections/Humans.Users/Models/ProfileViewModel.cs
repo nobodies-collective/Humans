@@ -1,10 +1,9 @@
 using Humans.Governance.Contracts;
 using System.ComponentModel.DataAnnotations;
 using NodaTime;
-using Humans.Application.Extensions;
+using Humans.Base.Extensions;
 using Humans.Campaigns.Contracts;
 using Humans.Shifts.Contracts;
-using Humans.Domain.Enums;
 using Humans.Users.Contracts;
 
 namespace Humans.Users.Models;
@@ -377,13 +376,6 @@ internal sealed class ProfileViewModel
     /// (<c>PolicyNames.TicketAdminBoardOrAdmin</c>).
     /// </summary>
     public bool CanViewOnsiteChip { get; set; }
-
-    /// <summary>
-    /// In-platform messages sent to this volunteer. Coordinator-gated; null when
-    /// the viewer does not have coordinator access. Source: <c>FacilitatedMessageSent</c>
-    /// audit entries where <c>EntityId == UserId</c>.
-    /// </summary>
-    public IReadOnlyList<Humans.AuditLog.Contracts.AuditEvent>? SentMessages { get; set; }
 
     /// <summary>
     /// Whether the viewer can see the "Sent messages" panel.

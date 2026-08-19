@@ -1,9 +1,6 @@
 using Humans.Auth.Contracts;
 using Humans.Camps.Contracts;
 using Humans.Teams.Contracts;
-using Humans.Tickets.Contracts;
-using Humans.Application.Interfaces.Users;
-using Humans.Domain.Enums;
 using Humans.Users.Contracts;
 
 namespace Humans.Tickets.Services;

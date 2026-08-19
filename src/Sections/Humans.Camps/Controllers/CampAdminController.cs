@@ -1,13 +1,10 @@
-using Humans.Application.Extensions;
+using Humans.Base.Attributes;
 using Humans.CityPlanning.Contracts;
-using Humans.UI.Controllers;
-
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NodaTime;
 
-using Humans.Application.Interfaces.Users;
-using Humans.UI.Authorization;
+using Humans.Base.Authorization;
 using Humans.Users.Contracts;
 
 namespace Humans.Camps.Controllers;
@@ -15,6 +12,7 @@ namespace Humans.Camps.Controllers;
 [Authorize(Policy = PolicyNames.CampAdminOrAdmin)]
 [Route("Barrios/Admin")]
 [Route("Camps/Admin")]
+[CrossSectionWrite("Camp admin edits the camp's city-planning registration.")]
 internal sealed class CampAdminController(
     ICampService campService,
     ICampRoleService campRoleService,
