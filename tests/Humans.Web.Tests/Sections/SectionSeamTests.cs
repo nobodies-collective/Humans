@@ -28,30 +28,27 @@ public class SectionSeamTests
         new(label, "Some", "Action", null, null, "icon", null, Weight: weight);
 
     [HumansFact]
-    public void Contributing_Nothing_Leaves_The_Tree_Untouched()
+    public void Contributing_Nothing_Composes_Nothing()
     {
-        AdminNavComposition.Compose([]).Should().BeSameAs(AdminNavTree.Groups);
+        AdminNavComposition.Compose([]).Should().BeEmpty();
     }
 
     [HumansFact]
     public void Contribution_Merges_Into_An_Existing_Group_By_Key()
     {
-        var existing = AdminNavTree.Groups.First(g => string.Equals(g.GroupKey, "Tickets", StringComparison.Ordinal));
+        var composed = AdminNavComposition.Compose(
+        [
+            new Nav(new AdminNavGroup("Tickets", [Item("Existing")])),
+            new Nav(new AdminNavGroup("Tickets", [Item("Contributed")]))
+        ]);
 
-        var composed = AdminNavComposition.Compose([new Nav(new AdminNavGroup("Tickets", [Item("Contributed")]))]);
-
-        composed.Should().HaveCount(AdminNavTree.Groups.Count);
+        composed.Should().ContainSingle(g => string.Equals(g.GroupKey, "Tickets", StringComparison.Ordinal));
         var merged = composed.First(g => string.Equals(g.GroupKey, "Tickets", StringComparison.Ordinal));
-        merged.Items.Should().HaveCount(existing.Items.Count + 1);
-        merged.Items[^1].Label.Should().Be("Contributed");
+        merged.Items.Select(i => i.Label).Should().Equal("Existing", "Contributed");
     }
 
-    /// <summary>
-    /// The sidebar renders System groups as collapsed plumbing at the bottom, so a
-    /// user-facing contribution has to land above them rather than below the divider.
-    /// </summary>
     [HumansFact]
-    public void Unknown_Group_Lands_Above_The_System_Zone_Ordered_By_Weight()
+    public void Unknown_Group_Is_Appended_And_Groups_Order_By_Weight()
     {
         var composed = AdminNavComposition.Compose(
         [
@@ -59,64 +56,54 @@ public class SectionSeamTests
             new Nav(new AdminNavGroup("Sooner", [Item("a")], Weight: 10))
         ]);
 
-        var firstSystem = composed.Select((g, i) => (g.System, i)).First(x => x.System).i;
-        composed.Take(firstSystem).Select(g => g.Label).TakeLast(2).Should().Equal("Sooner", "Later");
-    }
-
-    [HumansFact]
-    public void Negative_Weight_Lands_A_Group_Above_The_Tree()
-    {
-        var composed = AdminNavComposition.Compose(
-            [new Nav(new AdminNavGroup("Urgent", [Item("a")], Weight: -5))]);
-
-        composed[0].Label.Should().Be("Urgent");
+        composed.Select(g => g.Label).Should().Equal("Sooner", "Later");
     }
 
     /// <summary>
-    /// The tree's groups all carry weight 0, so both a positive weight and no weight at all
-    /// land last among the user-facing groups — the placement every lane relies on today.
+    /// The sidebar renders System groups as collapsed plumbing at the bottom, so a System
+    /// contribution lands below every user-facing group however heavy those are.
     /// </summary>
     [HumansFact]
-    public void Weight_At_Or_Above_Zero_Lands_A_Group_Last_Above_The_System_Zone()
-    {
-        var lastTreeGroup = AdminNavTree.Groups.Last(g => !g.System).Label;
-
-        foreach (var weight in (int[])[0, 5])
-        {
-            var composed = AdminNavComposition.Compose(
-                [new Nav(new AdminNavGroup("Late", [Item("a")], Weight: weight))]);
-
-            var firstSystem = composed.Select((g, i) => (g.System, i)).First(x => x.System).i;
-            composed[firstSystem - 1].Label.Should().Be("Late");
-            composed[firstSystem - 2].Label.Should().Be(lastTreeGroup);
-        }
-    }
-
-    [HumansFact]
-    public void Contributed_System_Group_Appends_Below_The_System_Zone()
+    public void Contributed_System_Group_Lands_Below_The_User_Facing_Groups()
     {
         var composed = AdminNavComposition.Compose(
-            [new Nav(new AdminNavGroup("Plumbing", [Item("a")], System: true))]);
+        [
+            new Nav(new AdminNavGroup("Plumbing", [Item("a")], System: true)),
+            new Nav(new AdminNavGroup("Heavy", [Item("b")], Weight: 99))
+        ]);
 
-        composed[^1].Label.Should().Be("Plumbing");
+        composed.Select(g => g.Label).Should().Equal("Heavy", "Plumbing");
     }
 
     /// <summary>
-    /// Tree items carry no weight, so a contribution lands after them unless it asks for a
-    /// negative weight. Equal weights keep declared order — the sort is stable, which is what
-    /// lets the tree's traffic-based order survive being merged into.
+    /// Equal weights keep declared order — the sort is stable, which is what lets a group's
+    /// traffic-based item order survive being merged into by another section's contribution.
     /// </summary>
     [HumansFact]
     public void Weight_Places_A_Contribution_Around_The_Existing_Items()
     {
-        var existing = AdminNavTree.Groups
-            .First(g => string.Equals(g.GroupKey, "Cantina", StringComparison.Ordinal)).Items[0].Label;
-
         var composed = AdminNavComposition.Compose(
-            [new Nav(new AdminNavGroup("Cantina", [Item("second"), Item("first", weight: -1)]))]);
+        [
+            new Nav(new AdminNavGroup("Cantina", [Item("existing")])),
+            new Nav(new AdminNavGroup("Cantina", [Item("second"), Item("first", weight: -1)]))
+        ]);
 
         composed.First(g => string.Equals(g.GroupKey, "Cantina", StringComparison.Ordinal))
-            .Items.Select(i => i.Label).Should().Equal("first", existing, "second");
+            .Items.Select(i => i.Label).Should().Equal("first", "existing", "second");
+    }
+
+    /// <summary>
+    /// Discovery activates the real section contributions, which are <c>internal sealed</c>:
+    /// a class's compiler-generated default constructor is public even when the class is not,
+    /// so <c>Activator.CreateInstance(Type)</c> reaches them without non-public binding flags.
+    /// </summary>
+    [HumansFact]
+    public void Internal_Section_Contributions_Are_Reflection_Constructible()
+    {
+        var navs = SectionDiscoveryExtensions.DiscoverImplementations<ISectionAdminNav>();
+
+        navs.Should().NotBeEmpty();
+        navs.Should().OnlyContain(n => !n.GetType().IsPublic, "contributions stay off the section's public surface");
     }
 
     private interface IReportingJob
