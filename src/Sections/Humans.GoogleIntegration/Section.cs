@@ -1,3 +1,4 @@
+using Humans.Gdpr.Contracts;
 using Humans.GoogleIntegration.Contracts;
 using Humans.GoogleIntegration.Data;
 using Humans.GoogleIntegration.Jobs;
@@ -63,7 +64,13 @@ public sealed class Section : ISection
         services.AddSingleton<ISyncSettingsRepository, SyncSettingsRepository>();
         services.AddSingleton<IGoogleResourceRepository, GoogleResourceRepository>();
         services.AddSingleton<IGoogleSyncOutboxRepository, GoogleSyncOutboxRepository>();
+        services.AddSingleton<IGoogleSyncLogRepository, GoogleSyncLogRepository>();
 
+        services.AddScoped<GoogleSyncLogService>();
+        services.AddScoped<IGoogleSyncLogService>(sp => sp.GetRequiredService<GoogleSyncLogService>());
+        services.AddScoped<IGoogleSyncLogViewer>(sp => sp.GetRequiredService<GoogleSyncLogService>());
+        // google_sync_log holds per-user rows → GDPR export contributor (design-rules §8a).
+        services.AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<GoogleSyncLogService>());
         services.AddScoped<ISyncSettingsService, SyncSettingsService>();
         services.AddScoped<IEmailProvisioningService, EmailProvisioningService>();
         services.AddScoped<IGoogleSyncOutboxService, GoogleSyncOutboxService>();
