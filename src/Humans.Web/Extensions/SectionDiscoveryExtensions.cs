@@ -1,5 +1,6 @@
 using System.Reflection;
 using Humans.Base.Interfaces;
+using Humans.Web.Hosting;
 using Microsoft.Extensions.DependencyModel;
 
 namespace Humans.Web.Extensions;
@@ -11,42 +12,106 @@ namespace Humans.Web.Extensions;
 /// section instead of growing one.
 /// </summary>
 /// <remarks>
-/// Sections are still <em>not</em> optional and their ProjectReferences stay hard-coded
-/// (design §12.2). This only removes the by-name call. Later optionality is a change of
-/// where the assembly list comes from — a config allowlist, or an AssemblyLoadContext
-/// over a plugin folder — with no section code touched.
+/// Which of the discovered sections a deployment actually runs is configuration —
+/// see <see cref="SectionActivation"/>. Everything below composes from the host's own
+/// <see cref="SectionAssemblySnapshot"/>, so a deactivated section contributes no
+/// registration, no controller, no job and no nav without any of them naming it, and one
+/// host in a shared process never composes another's sections.
 /// </remarks>
 public static class SectionDiscoveryExtensions
 {
-    public static IServiceCollection AddDiscoveredSections(
+    internal static IServiceCollection AddDiscoveredSections(
         this IServiceCollection services,
+        SectionAssemblySnapshot snapshot,
         IConfiguration configuration)
     {
-        var sections = DiscoverSections();
+        var sections = DiscoverSections(snapshot);
 
         foreach (var (_, section) in sections)
         {
             section.Register(services, configuration);
         }
 
-        // A section that fails to load is now silently absent where the by-name call
-        // was a compile error, so the discovered set is logged: that is what you check
-        // when one of its pages 404s (design §6).
+        // A section is now silently absent when it fails to load or when config deactivates
+        // it, where the by-name call was a compile error — so both sets are logged: that is
+        // what you check when one of its pages 404s (design §6).
+        var inactive = SectionAssemblies()
+            .Select(SectionName)
+            .Except(sections.Select(s => s.Name), StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
         Serilog.Log.Information(
-            "Discovered {Count} section project(s): {Sections}",
+            "Sections: {ActiveCount} active of {DiscoveredCount} discovered. Active: {Active}. Inactive: {Inactive}",
             sections.Count,
-            string.Join(", ", sections.Select(s => s.Name)));
+            sections.Count + inactive.Count,
+            string.Join(", ", sections.Select(s => s.Name)),
+            inactive.Count == 0 ? "(none)" : string.Join(", ", inactive));
+
+        RegisterContributions(services, snapshot);
 
         return services;
     }
+
+    /// <summary>
+    /// Registers every discovered <see cref="ISectionContribution"/> as a singleton against
+    /// each seam interface it implements, so Shell injects <c>IEnumerable&lt;ISectionNav&gt;</c>
+    /// and friends without naming a section.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the marker, never a list of seams: a new seam interface deriving from
+    /// <see cref="ISectionContribution"/> is discovered with no edit here.
+    /// </remarks>
+    private static void RegisterContributions(IServiceCollection services, SectionAssemblySnapshot snapshot)
+    {
+        var contributions = DiscoverImplementations<ISectionContribution>(snapshot);
+
+        foreach (var contribution in contributions)
+        {
+            foreach (var seam in SeamInterfaces(contribution.GetType()))
+            {
+                services.AddSingleton(seam, contribution);
+            }
+        }
+
+        Serilog.Log.Information(
+            "Discovered {Count} section contribution(s): {Contributions}",
+            contributions.Count,
+            string.Join(", ", contributions.Select(c => c.GetType().FullName)));
+    }
+
+    /// <summary>
+    /// Every implementation of <typeparamref name="T"/> a section assembly declares, activated.
+    /// </summary>
+    /// <remarks>
+    /// Concrete, parameterless constructor, stateless — but <em>internal</em>, unlike
+    /// <see cref="ISection"/>. Walks <c>GetTypes()</c> rather than <c>GetExportedTypes()</c>
+    /// precisely so a contribution need not be public: Shell reaches it by reflection, no
+    /// other section ever names it, and a section's public surface stays what
+    /// <c>Contracts/</c> exposes (design: minimal public surface, HUM0034).
+    /// Ordered by section name then type name so composition order is stable.
+    /// </remarks>
+    internal static IReadOnlyList<T> DiscoverImplementations<T>(SectionAssemblySnapshot snapshot) where T : class =>
+        [.. snapshot.Active
+            .SelectMany(a => a.GetTypes()
+                .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(T).IsAssignableFrom(t))
+                .Select(t => (Section: SectionName(a), Type: t)))
+            .OrderBy(x => x.Section, StringComparer.Ordinal)
+            .ThenBy(x => x.Type.FullName, StringComparer.Ordinal)
+            .Select(x => (T)Activator.CreateInstance(x.Type)!)];
+
+    /// <summary>The seam interfaces a contribution type implements — the marker itself is not one.</summary>
+    private static IEnumerable<Type> SeamInterfaces(Type contributionType) =>
+        contributionType.GetInterfaces()
+            .Where(i => i != typeof(ISectionContribution) && typeof(ISectionContribution).IsAssignableFrom(i));
 
     /// <summary>
     /// The resource marker type of every section that carries its own <c>.resx</c> set —
     /// the public <c>&lt;Section&gt;Resource</c> class beside it. Consumed by the boot
     /// localization diagnostic, which asserts each set actually resolves.
     /// </summary>
-    public static IReadOnlyList<Type> SectionResourceTypes() =>
-        [.. SectionAssemblies()
+    internal static IReadOnlyList<Type> SectionResourceTypes(SectionAssemblySnapshot snapshot) =>
+        [.. snapshot.Active
             .SelectMany(a => a.GetExportedTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false }
                         && t.Name.EndsWith("Resource", StringComparison.Ordinal))
@@ -59,8 +124,8 @@ public static class SectionDiscoveryExtensions
     /// <em>is</em> section Store, so one identity serves discovery, logging and the
     /// analyzers without anything having to declare it twice.
     /// </remarks>
-    private static IReadOnlyList<(string Name, ISection Section)> DiscoverSections() =>
-        [.. SectionAssemblies()
+    private static IReadOnlyList<(string Name, ISection Section)> DiscoverSections(SectionAssemblySnapshot snapshot) =>
+        [.. snapshot.Active
             .SelectMany(a => SectionEntryPoints(a)
                 .Select(t => (
                     Name: SectionName(a),
@@ -70,17 +135,9 @@ public static class SectionDiscoveryExtensions
             // carries a cross-section FK, so the contexts migrate independently.
             .OrderBy(s => s.Name, StringComparer.Ordinal)];
 
-    private static readonly Lazy<HashSet<Assembly>> SectionAssemblySet = new(() => [.. SectionAssemblies()]);
-
-    /// <summary>
-    /// True for a section assembly. Used by the MVC feature providers, which see one
-    /// type at a time and would otherwise re-walk the dependency graph per type.
-    /// </summary>
-    internal static bool IsSectionAssembly(Assembly assembly) => SectionAssemblySet.Value.Contains(assembly);
-
     /// <summary>The section a <paramref name="assembly"/> is: its name without the
     /// <c>Humans.</c> prefix.</summary>
-    private static string SectionName(Assembly assembly) =>
+    internal static string SectionName(Assembly assembly) =>
         assembly.GetName().Name!["Humans.".Length..];
 
     /// <summary>The <c>Section : ISection</c> entry points an assembly declares.</summary>

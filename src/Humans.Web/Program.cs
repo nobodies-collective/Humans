@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Reflection;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Hangfire;
 using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
@@ -18,6 +20,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Humans.Base.Configuration;
+using Humans.Base.Constants;
 using Humans.Base.Interfaces;
 using Humans.Web.Extensions;
 using Microsoft.Extensions.Caching.Memory;
@@ -26,7 +29,6 @@ using Humans.Base.Hosting;
 using Humans.Web.Services;
 using Humans.Web.Authorization;
 using Humans.Web.Health;
-using Humans.CityPlanning.Contracts;
 using Humans.Web.Middleware;
 using Microsoft.Extensions.Localization;
 using Npgsql;
@@ -38,6 +40,7 @@ using Humans.Web.Hosting;
 using Humans.Web.ModelBinders;
 using Humans.Web.Data;
 using Humans.Users.Contracts;
+using Humans.Web.Localization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -63,6 +66,13 @@ Log.Logger = logConfig.CreateLogger();
 
 builder.Host.UseSerilog();
 
+// Before anything composes from discovery: which sections this deployment runs, and a hard
+// stop if the allowlist deactivates one an active section consumes (#1081). One snapshot
+// per host, never a static — several hosts share a process in the integration suite, and a
+// shared active set composes one host's sections inside another.
+var sectionAssemblies = SectionAssemblySnapshot.For(builder.Configuration);
+builder.Services.AddSingleton(sectionAssemblies);
+
 // Fail fast on DI cycles/captive deps; factory lambdas still need smoke coverage.
 builder.Host.UseDefaultServiceProvider(options =>
 {
@@ -81,11 +91,9 @@ builder.Services.AddSingleton<IClock>(SystemClock.Instance);
 // Their non-Production gate moved with them into that section's Section.Register, which reads
 // HostDefaults.EnvironmentKey off the configuration passed to it and fails closed.
 
-// All environments: gate-terminal account management (provisioned from /Tickets/Admin/Gate)
-// + the per-source-IP sign-in failure throttle for /Account/GateLogin. Both are Shell's:
-// the terminal's Identity account and the /Account/GateLogin page belong to Auth, not to
-// the Gate section (whose own PIN throttle and mirror ledger moved with it at G5).
-builder.Services.AddScoped<GateTerminalAccountSeeder>();
+// All environments: the per-source-IP sign-in failure throttle for /Account/GateLogin.
+// Shell's: the /Account/GateLogin page belongs to Auth. The gate-terminal account seeder
+// moved to Humans.Tickets with /Tickets/Admin/Gate (nobodies-collective/Humans#1091).
 builder.Services.AddSingleton<GateLoginThrottle>();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -212,7 +220,7 @@ builder.Services.AddAuthentication()
     });
 
 // Canonical policies — see docs/authorization-inventory.md.
-builder.Services.AddHumansAuthorizationPolicies();
+builder.Services.AddHumansAuthorizationPolicies(sectionAssemblies);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation, RoleAssignmentClaimsTransformation>();
 
@@ -272,19 +280,19 @@ builder.Services.AddOpenTelemetry()
 
 builder.Services.AddSingleton(new ActivitySource(serviceName, serviceVersion));
 
-// "external" marks third-party reachability checks. They surface on /health for diagnostics
-// but are excluded from /health/ready — a vendor outage must never fail the readiness probe
-// and block or roll back a deploy.
-string[] external = ["external"];
+// HealthCheckTags.External tags third-party reachability checks — sections apply it to their
+// own checks below. They surface on /health for diagnostics but are excluded from
+// /health/ready — a vendor outage must never fail the readiness probe and block or roll back
+// a deploy.
 var healthChecks = builder.Services.AddHealthChecks()
     .AddNpgSql(sp => sp.GetRequiredService<NpgsqlDataSource>(), name: "postgresql")
-    .AddCheck<ConfigurationHealthCheck>("configuration")
-    .AddCheck<SmtpHealthCheck>("smtp", tags: external)
-    .AddCheck<GitHubHealthCheck>("github", tags: external)
-    .AddCheck<GoogleWorkspaceHealthCheck>("google-workspace", tags: external)
-    .AddCheck<AnthropicHealthCheck>("anthropic-api-reachable", tags: external)
-    .AddCheck<AgentDocsHealthCheck>("agent-grounding-docs")
-    .AddCheck<TicketVendorHealthCheck>("ticket-vendor", tags: external);
+    .AddCheck<ConfigurationHealthCheck>("configuration");
+
+// Sections add their own checks; the names are monitoring keys, so they stay with the owner.
+foreach (var contributor in SectionDiscoveryExtensions.DiscoverImplementations<ISectionHealthChecks>(sectionAssemblies))
+{
+    contributor.AddHealthChecks(healthChecks, builder.Configuration);
+}
 
 // Hangfire health check reads JobStorage.Current; only register it when
 // the rest of the Hangfire stack is wired (i.e. outside Testing).
@@ -293,7 +301,8 @@ if (!builder.Environment.IsEnvironment("Testing"))
     healthChecks.AddHangfire(options => options.MinimumAvailableServers = 1, name: "hangfire");
 }
 
-builder.Services.AddHumansInfrastructure(builder.Configuration, builder.Environment, configRegistry);
+builder.Services.AddHumansInfrastructure(
+    builder.Configuration, builder.Environment, sectionAssemblies, configRegistry);
 
 builder.Services.AddResponseCompression(options =>
 {
@@ -474,14 +483,15 @@ var mvcBuilder = builder.Services.AddControllersWithViews(options =>
     });
 
 // A section project's controllers are internal (nobodies-collective/Humans#866); MVC's
-// default provider only discovers public ones, and says nothing when it doesn't.
+// default provider only discovers public ones, and says nothing when it doesn't. Same
+// per-host snapshot the rest of composition read.
 mvcBuilder.ConfigureApplicationPartManager(apm =>
-    apm.FeatureProviders.Add(new SectionControllerFeatureProvider()));
+    apm.FeatureProviders.Add(new SectionControllerFeatureProvider(sectionAssemblies)));
 
 // …and the same for a section's view components, which MVC discovers through a separate,
 // equally public-only convention (Notifications' bell).
 mvcBuilder.ConfigureApplicationPartManager(apm =>
-    apm.FeatureProviders.Add(new SectionViewComponentFeatureProvider()));
+    apm.FeatureProviders.Add(new SectionViewComponentFeatureProvider(sectionAssemblies)));
 
 // DevLoginController depends on DevPersonaSeeder (non-Production only); exclude in Prod so
 // ValidateOnBuild passes and /dev/login/* 404s cleanly. Must be added after
@@ -528,6 +538,13 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
         }
         return null;
     }));
+
+    // Wrap every provider (the preference-based one above, plus the default query
+    // string/cookie/Accept-Language providers) so the parsing culture is always "en"
+    // regardless of which one wins — see UiCultureOnlyRequestCultureProvider (#1067).
+    options.RequestCultureProviders = options.RequestCultureProviders
+        .Select(provider => (IRequestCultureProvider)new UiCultureOnlyRequestCultureProvider(provider))
+        .ToList();
 });
 
 var app = builder.Build();
@@ -591,7 +608,7 @@ CurrentUserEnricher.StaticAccessor = app.Services.GetRequiredService<IHttpContex
 // the set renders as its raw key. Checking that the manifest the localizer will look
 // for is actually embedded needs no key-name convention and no culture, so a new
 // section adds nothing here.
-foreach (var resourceType in SectionDiscoveryExtensions.SectionResourceTypes())
+foreach (var resourceType in SectionDiscoveryExtensions.SectionResourceTypes(sectionAssemblies))
 {
     var expected = resourceType.FullName + ".resources";
     var embedded = resourceType.Assembly.GetManifestResourceNames();
@@ -607,6 +624,31 @@ foreach (var resourceType in SectionDiscoveryExtensions.SectionResourceTypes())
     {
         Log.Information("Localization OK: {Expected} embedded in {Assembly}",
             expected, resourceType.Assembly.GetName().Name);
+    }
+}
+
+// Authorization-policy diagnostic check (nobodies-collective/Humans#1076): every
+// PolicyNames constant must resolve to a policy actually registered — by Shell or by a
+// section's ISectionPolicies. A section that stops registering its policy (e.g. turned
+// off) must fail loud here, not 403 mysteriously wherever the policy is used.
+{
+    using var scope = app.Services.CreateScope();
+    var policyProvider = scope.ServiceProvider.GetRequiredService<IAuthorizationPolicyProvider>();
+    var policyNames = typeof(Humans.Base.Authorization.PolicyNames)
+        .GetFields(BindingFlags.Public | BindingFlags.Static)
+        .Where(f => f.IsLiteral && f.FieldType == typeof(string))
+        .Select(f => (Name: f.Name, Value: (string)f.GetRawConstantValue()!));
+
+    foreach (var (name, value) in policyNames)
+    {
+        var policy = await policyProvider.GetPolicyAsync(value);
+        if (policy is null)
+        {
+            Log.Error(
+                "AUTHORIZATION BROKEN: PolicyNames.{Name} has no registered policy. Its " +
+                "owning section may be missing, or its Policies contribution failed to register.",
+                name);
+        }
     }
 }
 
@@ -744,8 +786,8 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     // Readiness check - confirms our own stack (DB, config, Hangfire) is available.
-    // Third-party reachability ("external") is diagnostic-only on /health.
-    Predicate = r => !r.Tags.Contains("external")
+    // Third-party reachability (HealthCheckTags.External) is diagnostic-only on /health.
+    Predicate = r => !r.Tags.Contains(HealthCheckTags.External)
 });
 
 app.MapPrometheusScrapingEndpoint("/metrics");
@@ -791,7 +833,12 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.MapRazorPages();
-app.MapHub<CityPlanningHub>("/hubs/city-planning");
+
+// Sections map what routing cannot discover on its own — hubs and the like.
+foreach (var contributor in SectionDiscoveryExtensions.DiscoverImplementations<ISectionEndpoints>(sectionAssemblies))
+{
+    contributor.MapEndpoints(app);
+}
 
 // DB migrations run via DatabaseMigrationHostedService during StartAsync, before Hangfire takes locks.
 

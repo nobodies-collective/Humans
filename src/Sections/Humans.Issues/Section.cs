@@ -7,6 +7,7 @@ using Humans.Issues.Contracts;
 using Humans.Issues.Data;
 using Humans.Issues.Authorization;
 using Humans.Issues.Filters;
+using Humans.Issues.Jobs;
 using Humans.Issues.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
@@ -31,7 +32,6 @@ public sealed class Section : ISection
         services.AddSingleton<IIssuesRepository, IssuesRepository>();
         services.AddScoped<IssuesService>();
         services.AddScoped<IIssuesService>(sp => sp.GetRequiredService<IssuesService>());
-        services.AddScoped<IIssuesServiceRead>(sp => sp.GetRequiredService<IssuesService>());
         services.AddScoped<IIssuesRetention>(sp => sp.GetRequiredService<IssuesService>());
         // Owns the user-scoped issues / issue_comments tables → GDPR export contributor
         // (design-rules §8a).
@@ -49,5 +49,7 @@ public sealed class Section : ISection
             opts.ApiKey = Environment.GetEnvironmentVariable("ISSUES_API_KEY") ?? string.Empty;
         });
         services.AddScoped<IssuesApiKeyAuthFilter>();
+
+        services.AddScoped<CleanupIssuesJob>();
     }
 }
