@@ -44,7 +44,7 @@ binding is `SharedResource` *by design*, the first to send a Shell helper furthe
 `tests/Directory.Build.props` exclusion), and Development (the first whose `Section.Register`
 had to gate on the **host environment**, the first whose move took a block of markup out of a
 Shell view to keep a *type* internal rather than a resource key, and the first named by
-`typeof` from Shell's own production code), and Mailer (the first whose *whole* outward
+`typeof` from Shell's own production code), and MailerLite (the first whose *whole* outward
 surface is one `int`, the first whose vendor connector left `Humans.Infrastructure` without
 needing a reference back to it, and the first whose controller names its views by absolute
 path), and Gdpr (the first whose leaf exists because Base *implements* its contract at
@@ -284,10 +284,10 @@ Git Bash.)
    that pair is the whole accessibility convention, and HUM0034 enforces it. Ship only the
    folders the section has.
    **A controller that names its views by absolute path pins the folder layout** — an RCL's
-   compiled view paths are project-relative, so `View("~/Views/Mailer/Admin/Index.cshtml")`
-   keeps resolving only if `Views/Mailer/Admin/` moves verbatim rather than being tidied into
+   compiled view paths are project-relative, so `View("~/Views/MailerLite/Admin/Index.cshtml")`
+   keeps resolving only if `Views/MailerLite/Admin/` moves verbatim rather than being tidied into
    the `Views/<Controller>/` shape. Renaming it compiles, then 500s on every page and reads as
-   a routing bug (proven: Mailer). Migrations
+   a routing bug (proven: MailerLite). Migrations
    land at `Data/Migrations/` — their `namespace` line changes to the section's, which is the one
    sanctioned edit to a migration file (spec §7); say so in the PR. **Everything the section needs
    comes with it — no exceptions.**
@@ -310,6 +310,13 @@ Git Bash.)
    every string in the set degrades to its key at runtime. The boot diagnostic needs no
    per-section edit, **but only if `<Section>Resource` is `public`** — discovery reads
    `GetExportedTypes()` and skips an `internal` marker in silence.
+   - **A key you *write* is prefixed with the section name; a key you *move* keeps its name.**
+     New keys are `<Section>_…` — `Users_`, `Tickets_`, `CityPlanning_`
+     (`memory/code/resource-key-prefix-matches-section.md`). A carve is a move, not a rename:
+     renaming in flight touches six language files and every call site, and a missed one renders
+     raw with no error. Carry the old prefixes over and let the backlog show up in
+     `/section-doctor`'s conformance thread (`resource-key-prefix`), which reports it per section
+     and never backfills as a side effect.
    - **Carve the `.resx` block-aware, not line-by-line.** `SharedResource.resx` writes each entry
      on one line; the five translations do **not** — theirs are three lines
      (`<data …>` / `<value>…</value>` / `</data>`). A line-based filter that matches the opening
@@ -923,9 +930,9 @@ Git Bash.)
        reference `Humans.Infrastructure`, because that is where the file was.
        `MailerLiteClient` is a `Humans.Infrastructure/Services` file whose every dependency is
        either the ASP.NET shared framework (`IHttpClientFactory`) or `Humans.Application`
-       (`Extensions`, `Threading`), so `Humans.Mailer` took **no `Humans.Infrastructure`
+       (`Extensions`, `Threading`), so `Humans.MailerLite` took **no `Humans.Infrastructure`
        reference at all** — Scanner's table-less shape, reached by a section that had code in
-       Base's service folder on the way in (proven: Mailer).
+       Base's service folder on the way in (proven: MailerLite).
      - **…and a third disposition, when the connector is *replaceable*: give it its own
        section, and give the port to the section that owns the concern.** Agent's rule takes
        the connector into the section; Guide's leaves it in Base. Neither fits a vendor that is
@@ -1518,10 +1525,10 @@ Git Bash.)
    - **…and the opt-out is per *helper*, not per item group.** `CapturingLogger` was
      `Compile`-included in the same `ItemGroup` as `TestDbContextFactory`, inside the condition
      that excludes the table-less test projects — so a section with no EF on its compile path
-     that still wants an in-memory `ILogger` (Mailer's client asserts on its own 429 warning)
+     that still wants an in-memory `ILogger` (MailerLite's client asserts on its own 429 warning)
      could have neither, or take the EF package to get one. Split the group: `CapturingLogger`
      is unconditional, `TestDbContextFactory` keeps the exclusion list. Governance's "split the
-     helper before deciding", applied to an MSBuild item (proven: Mailer).
+     helper before deciding", applied to an MSBuild item (proven: MailerLite).
    - **A table-less section's test project must opt out of the shared EF fixture, not take an EF
      package to satisfy it.** `tests/Directory.Build.props` `Compile`-includes
      `TestDbContextFactory` (and `CapturingLogger`) into every test project but
@@ -1572,12 +1579,9 @@ Git Bash.)
     `<Section>DbContext` name, which `SectionMigrationsHistory.TableFor` turns into a live
     history-table name — move on schedule unchanged; record the mismatch on #1012 and carry on
     (proven: Events kept `EventGuideDbContext` and `event_*` tables).
-11. [ ] Enforcement: collapse the section's `reforge.surface-score.json` paths to
-    `src/Sections/Humans.<Section>/**` — **if the section has no bucket of its own, retarget the
-    stale path where it sits rather than inventing one**; Scanner's controller was one line in
-    the `Platform` catch-all, and adding a `Scanner` bucket would have been a scoring change on
-    top of a file move. Delete the section's `*ArchitectureTests.cs` assertions
-    the assembly boundary now subsumes.
+11. [ ] Enforcement: **nothing to do in `reforge.surface-score.json`** — sections are
+    assembly-derived, and the file carries only type classifications, no section blocks.
+    Delete the section's `*ArchitectureTests.cs` assertions the assembly boundary now subsumes.
     - **A `[Grandfathered]` attribute *moves with its type*; deleting it is the same mistake as
       deleting a baseline row.** The template used to say to delete them (⚠️ UNPROVEN — no
       moved section had any until Consent, which has two: `IConsentCacheInvalidator` and
@@ -1880,7 +1884,7 @@ Git Bash.)
       first `await foreach` NREs, so the stub is hand-written), and the page whose action calls
       the vendor *outside* a `try` is a 500 rather than the error banner its sibling degrades
       to — so "the pages handle a dead vendor" is not a substitute for the stub (proven:
-      Mailer).
+      MailerLite).
     - **The non-English case is not optional and is not decoration.** An English-only check
       passes whether or not the section's satellite assemblies shipped, because the neutral set
       is embedded in the main assembly and the fallback is silent. One request with

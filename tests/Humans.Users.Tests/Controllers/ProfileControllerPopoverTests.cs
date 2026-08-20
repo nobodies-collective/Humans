@@ -1,4 +1,5 @@
 using Humans.Users.Controllers;
+using Humans.Users.Services;
 using Humans.Users.Models;
 using System.Security.Claims;
 using AwesomeAssertions;
@@ -62,8 +63,11 @@ public class ProfileControllerPopoverTests
             userManager, contextAccessor, claimsFactory, identityOptions,
             NullLogger<SignInManager<User>>.Instance, schemeProvider, userConfirmation);
 
-        var localizer = Substitute.For<IStringLocalizer<SharedResource>>();
+        var localizer = Substitute.For<IStringLocalizer<UsersResource>>();
         localizer[Arg.Any<string>()].Returns(ci => new LocalizedString(ci.Arg<string>(), ci.Arg<string>()));
+
+        var sharedLocalizer = Substitute.For<IStringLocalizer<SharedResource>>();
+        sharedLocalizer[Arg.Any<string>()].Returns(ci => new LocalizedString(ci.Arg<string>(), ci.Arg<string>()));
 
         _controller = new ProfileController(
             _userService,
@@ -87,6 +91,7 @@ public class ProfileControllerPopoverTests
             new ConfigurationRegistry(),
             NullLogger<ProfileController>.Instance,
             localizer,
+            sharedLocalizer,
             Substitute.For<ITicketServiceRead>(),
             _teamService,
             Substitute.For<ICampaignService>(),
@@ -243,7 +248,7 @@ public class ProfileControllerPopoverTests
     }
 
     private static UserInfo BuildUserInfo(User user, Profile? profile, IReadOnlyList<UserEmail>? userEmails) =>
-        UserInfo.Create(
+        UserInfoFactory.Create(
             user: user,
             userEmails: userEmails ?? [],
             eventParticipations: [],
