@@ -260,6 +260,13 @@ internal sealed class CachingCampService(
         await InvalidateBySeasonAsync(seasonId, cancellationToken);
     }
 
+    public async Task SetSeasonStatusAsync(
+        Guid scopedCampId, Guid seasonId, CampSeasonStatus status, CancellationToken cancellationToken = default)
+    {
+        await WithInner(inner => inner.SetSeasonStatusAsync(scopedCampId, seasonId, status, cancellationToken));
+        await InvalidateBySeasonAsync(seasonId, cancellationToken);
+    }
+
     public async Task<CampUpdateResult> UpdateCampAsync(
         CampUpdateInput input, CancellationToken cancellationToken = default)
     {

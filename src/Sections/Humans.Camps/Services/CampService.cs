@@ -659,6 +659,36 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         }
     }
 
+    public async Task SetSeasonStatusAsync(
+        Guid scopedCampId, Guid seasonId, CampSeasonStatus status, CancellationToken cancellationToken = default)
+    {
+        var now = _clock.GetCurrentInstant();
+        var year = 0;
+
+        var found = await _repo.UpdateSeasonAsync(seasonId, season =>
+        {
+            if (season.CampId != scopedCampId)
+            {
+                throw new InvalidOperationException("Season does not belong to the specified camp.");
+            }
+
+            season.SetStatus(status, now);
+            year = season.Year;
+        }, cancellationToken);
+
+        if (!found)
+        {
+            throw new InvalidOperationException("Season not found.");
+        }
+
+        await _auditLog.LogAsync(
+            AuditAction.CampSeasonStatusChanged, nameof(CampSeason), seasonId,
+            $"Season {year} status set to {status}",
+            "CampService",
+            relatedEntityId: scopedCampId, relatedEntityType: nameof(Camp));
+
+    }
+
     public async Task ReactivateSeasonAsync(Guid seasonId, CancellationToken cancellationToken = default)
     {
         var now = _clock.GetCurrentInstant();
@@ -1102,6 +1132,9 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
     {
         var settings = await GetSettingsAsync(cancellationToken);
         var camp = await _repo.GetByIdAsync(campId, cancellationToken);
+        // Active AND Full both accept requests — Full is an informational label the lead
+        // sets to say "we look full," not an enforcement gate. Humans doesn't yet know
+        // everyone actually in the camp, so people still need to be able to request/join.
         var season = camp?.Seasons.FirstOrDefault(s =>
             s.Year == settings.PublicYear
             && (s.Status == CampSeasonStatus.Active || s.Status == CampSeasonStatus.Full));
@@ -1281,7 +1314,9 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
             return AddCampMemberOutcome.InvalidUser;
 
         var camp = await _repo.GetByIdAsync(campId, cancellationToken);
-        var openSeason = camp?.Seasons.FirstOrDefault(s => s.Status == CampSeasonStatus.Active);
+        // Full is informational only (Peter, 2026-08-20) — it must not block camp
+        // management, so a Full season is still usable here.
+        var openSeason = camp?.Seasons.FirstOrDefault(s => s.Status is CampSeasonStatus.Active or CampSeasonStatus.Full);
         if (openSeason is null)
             return AddCampMemberOutcome.NoActiveSeason;
 
@@ -1294,7 +1329,9 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         CancellationToken cancellationToken = default)
     {
         var camp = await _repo.GetByIdAsync(campId, cancellationToken);
-        var openSeason = camp?.Seasons.FirstOrDefault(s => s.Status == CampSeasonStatus.Active);
+        // Full is informational only (Peter, 2026-08-20) — it must not block camp
+        // management, so a Full season is still usable here.
+        var openSeason = camp?.Seasons.FirstOrDefault(s => s.Status is CampSeasonStatus.Active or CampSeasonStatus.Full);
         if (openSeason is null)
             return AssignCampRoleOutcome.SeasonNotFound;
 
