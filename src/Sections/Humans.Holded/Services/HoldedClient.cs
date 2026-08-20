@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Humans.Base.Extensions;
 using Humans.Base.Helpers;
 using Humans.Holded.Contracts;
@@ -18,6 +19,14 @@ internal sealed class HoldedClient : IHoldedClient
 {
     private const int DefaultRetryAfterSeconds = 5;
     private const int MaxRetryAfterSeconds = 60;
+
+    /// <summary>Every outbound payload omits its null members instead of sending them. Holded applies
+    /// each key a POST/PUT carries, so <c>"code":null</c> on a contact update blanks the tax id
+    /// already stored against that contact — and a creditor update supplies only the handful of
+    /// fields it means to change. Omission is "leave it alone", which is what every caller means;
+    /// nothing here ever clears a Holded field on purpose.</summary>
+    private static readonly JsonSerializerOptions OmitNulls =
+        new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
     // v2 ledger-entries dates arrive as DD/MM/YYYY, filtered on the *accounting* date; parsed to
     // Madrid midnight for a stable Instant.
@@ -70,7 +79,7 @@ internal sealed class HoldedClient : IHoldedClient
         };
 
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v2/purchases")
-        { Content = JsonContent.Create(payload) };
+        { Content = JsonContent.Create(payload, options: OmitNulls) };
         AttachAuth(req);
 
         using var resp = await SendAsync(req, ct);
@@ -162,7 +171,7 @@ internal sealed class HoldedClient : IHoldedClient
     {
         var payload = new { name, account_num = accountNum };
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v2/expenses-accounts")
-        { Content = JsonContent.Create(payload) };
+        { Content = JsonContent.Create(payload, options: OmitNulls) };
         AttachAuth(req);
         using var resp = await SendAsync(req, ct);
         var body = await resp.Content.ReadAsStringAsync(ct);
@@ -220,12 +229,23 @@ internal sealed class HoldedClient : IHoldedClient
     public async Task<string> UpsertContactAsync(HoldedContactInput input, CancellationToken ct = default)
     {
         // v2 contacts POST/PUT have no `custom_id` field (see HoldedContactInput.CustomId) — not sent.
+        // bill_address stays null when we hold no address parts, and OmitNulls then drops the key:
+        // an object of nulls, or the key with a null value, would both blank an address already on
+        // the contact.
+        object? billAddress =
+            string.IsNullOrWhiteSpace(input.Address) && string.IsNullOrWhiteSpace(input.CountryCode)
+                ? null
+                : new { address = input.Address, country_code = input.CountryCode };
+
         var payload = new
         {
             name = input.Name,
             trade_name = input.TradeName,
             type = input.Type,
             iban = input.Iban,
+            code = input.TaxCode,
+            email = input.Email,
+            bill_address = billAddress,
         };
 
         var isUpdate = !string.IsNullOrEmpty(input.ExistingContactId);
@@ -234,7 +254,7 @@ internal sealed class HoldedClient : IHoldedClient
             isUpdate
                 ? $"/api/v2/contacts/{input.ExistingContactId}"
                 : "/api/v2/contacts")
-        { Content = JsonContent.Create(payload) };
+        { Content = JsonContent.Create(payload, options: OmitNulls) };
         AttachAuth(req);
 
         using var resp = await SendAsync(req, ct);
@@ -244,6 +264,120 @@ internal sealed class HoldedClient : IHoldedClient
             ?? input.ExistingContactId
             ?? throw new HoldedTransientException("Holded contact upsert response missing id");
     }
+
+    /// <summary>The v2 path segment for a sales-document kind. Both kinds share the same payload
+    /// shape and the same create/approve/read pipeline; only this segment differs.</summary>
+    private static string SalesSegment(HoldedSalesDocumentKind kind) => kind switch
+    {
+        HoldedSalesDocumentKind.Invoice => "invoices",
+        HoldedSalesDocumentKind.SalesReceipt => "sales-receipts",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Holded sales-document kind."),
+    };
+
+    public async Task<string> CreateSalesDocumentAsync(
+        HoldedSalesDocumentKind kind, HoldedSalesDocumentInput input, CancellationToken ct = default)
+    {
+        using var req = new HttpRequestMessage(
+            HttpMethod.Post, $"/api/v2/{SalesSegment(kind)}")
+        { Content = JsonContent.Create(BuildSalesDocumentPayload(input), options: OmitNulls) };
+        AttachAuth(req);
+
+        using var resp = await SendAsync(req, ct);
+        var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct))
+            ?? throw new HoldedTransientException("Holded returned empty body");
+        return Prop(node, "id")?.GetValue<string>()
+            ?? throw new HoldedTransientException("Holded sales-document response missing id");
+    }
+
+    public async Task ApproveSalesDocumentAsync(
+        HoldedSalesDocumentKind kind, string documentId, CancellationToken ct = default)
+    {
+        using var req = new HttpRequestMessage(
+            HttpMethod.Post, $"/api/v2/{SalesSegment(kind)}/{documentId}/approve");
+        AttachAuth(req);
+        using var resp = await SendAsync(req, ct);
+    }
+
+    public async Task<IReadOnlyList<string>> FindSalesDocumentIdsByTagAsync(
+        HoldedSalesDocumentKind kind, string tag, CancellationToken ct = default)
+    {
+        const int pageSafetyCap = 200; // 40 000 documents — far above a small nonprofit's volume
+        var items = await GetPagedAsync($"/api/v2/{SalesSegment(kind)}?limit=200", pageSafetyCap, ct);
+        try
+        {
+            return items
+                .Where(n => ReadTags(Prop(n, "tags")).Contains(tag, StringComparer.Ordinal))
+                // A match without an id cannot be dropped: the caller reads an empty result as
+                // "nothing issued yet" and creates a second approved document.
+                .Select(n => Prop(n, "id")?.GetValue<string>() is { Length: > 0 } id
+                    ? id
+                    : throw new HoldedPermanentException(
+                        "Holded sales document is missing required field 'id' — refusing the page."))
+                .ToList();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException
+            or FormatException or OverflowException)
+        {
+            // Same normalization as ListPurchaseDocumentsAsync: the value that failed to parse
+            // belongs to the stored document, not to this request, so a retry cannot help.
+            throw new HoldedPermanentException(
+                $"Holded {SalesSegment(kind)} documents could not be searched.", ex);
+        }
+    }
+
+    public async Task<HoldedSalesDocumentDto> GetSalesDocumentAsync(
+        HoldedSalesDocumentKind kind, string documentId, CancellationToken ct = default)
+    {
+        using var req = new HttpRequestMessage(
+            HttpMethod.Get, $"/api/v2/{SalesSegment(kind)}/{documentId}");
+        AttachAuth(req);
+        using var resp = await SendAsync(req, ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        try
+        {
+            var node = JsonNode.Parse(body)
+                ?? throw new HoldedTransientException("Holded returned empty body");
+            return new HoldedSalesDocumentDto
+            {
+                Id = Prop(node, "id")?.GetValue<string>() ?? documentId,
+                DocNumber = Prop(node, "document_number")?.GetValue<string>() ?? "",
+                Subtotal = ReadDecimalV2(Prop(node, "subtotal")),
+                Tax = ReadDecimalV2(Prop(node, "tax")),
+                Total = ReadDecimalV2(Prop(node, "total")),
+                Status = Prop(node, "status")?.GetValue<string>(),
+                IsDraft = Prop(node, "draft")?.GetValue<bool>(),
+                RawJson = body,
+            };
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException
+            or FormatException or OverflowException)
+        {
+            // The doc is already created and approved at this point, so a retry would duplicate it.
+            // Permanent is the honest classification: the value that failed to parse belongs to the
+            // stored document, not to this request.
+            throw new HoldedPermanentException(
+                $"Holded {SalesSegment(kind)} document {documentId} could not be read.", ex);
+        }
+    }
+
+    private static object BuildSalesDocumentPayload(HoldedSalesDocumentInput input) => new
+    {
+        contact_id = input.ContactId,
+        contact_name = input.ContactName,
+        date = LocalDatePattern.Iso.Format(input.Date.InZone(MadridZone).Date),
+        description = input.Description,
+        notes = input.Notes,
+        tags = input.Tags,
+        currency = "EUR",
+        items = input.Lines.Select(l => new
+        {
+            name = l.Name,
+            units = l.Units,
+            price = l.Price,
+            taxes = l.Taxes,
+            account = l.AccountId,
+        }).ToList(),
+    };
 
     public async Task<HoldedContactDto> GetContactAsync(string contactId, CancellationToken ct = default)
     {
