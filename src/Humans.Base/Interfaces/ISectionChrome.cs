@@ -12,8 +12,17 @@ public static class ChromeSlots
     /// <summary>The member dashboard's contributed section area.</summary>
     public const string MemberDashboard = "member-dashboard";
 
+    /// <summary>The /Admin dashboard body's contributed section area.</summary>
+    public const string AdminDashboard = "admin-dashboard";
+
     /// <summary>The profileless-account (guest) page's contributed section area.</summary>
     public const string GuestPage = "guest-page";
+
+    /// <summary>Dropdown items in the signed-in user menu (_LoginPartial).</summary>
+    public const string UserMenu = "user-menu";
+
+    /// <summary>Just before the closing <c>&lt;/body&gt;</c> tag, for floating page-chrome widgets.</summary>
+    public const string BodyEnd = "body-end";
 }
 
 /// <summary>

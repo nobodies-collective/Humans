@@ -29,11 +29,12 @@ namespace Humans.Users;
 /// <c>InfrastructureServiceCollectionExtensions</c> (design §15 step 11).
 /// </para>
 /// <para>
-/// Two registrations did <b>not</b> come across. <c>IDashboardService</c> and
-/// <c>IAdminDashboardService</c> sat inside <c>AddUsersSection</c> but belong to Dashboard,
-/// a Base orchestrator pair that aggregates from every section's services; they moved to
-/// Shell's <c>ServiceCollectionExtensions</c> (Governance's rule — the section that owns the
-/// file is not always the section that owns the line).
+/// <c>IDashboardService</c> and <c>IAdminDashboardService</c> are both gone entirely — the
+/// member dashboard's content and the admin dashboard's tiles are section-contributed chrome
+/// now (nobodies-collective/Humans#1091). The admin-dashboard aggregator's pieces scattered to
+/// their owning sections: the tier-applications card to Governance, the preferred-language
+/// card and audience-segmentation diagnostic stayed here (<c>IUsersAudienceService</c>), and
+/// the Venn/UpSet set-membership card to Debug.
 /// </para>
 /// <para>
 /// The <c>CachingUserService</c> block is copied as-is and is deliberately not tidied: one
@@ -160,5 +161,9 @@ public sealed class Section : ISection
 
         services.AddScoped<ProcessAccountDeletionsJob>();
         services.AddScoped<SuspendNonCompliantMembersJob>();
+
+        // Audience-segmentation diagnostic for UsersAdminController.Audience — split off the
+        // deleted admin-dashboard aggregator at nobodies-collective/Humans#1091.
+        services.AddScoped<IUsersAudienceService, UsersAudienceService>();
     }
 }

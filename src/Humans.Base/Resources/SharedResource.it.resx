@@ -124,9 +124,6 @@
   <data name="Nav_OnboardingReview" xml:space="preserve">
     <value>Coda di revisione</value>
   </data>
-  <data name="Nav_Issues" xml:space="preserve">
-    <value>Segnalazioni</value>
-  </data>
   <data name="CookieBanner_Title" xml:space="preserve">
     <value>Informativa sui Cookie</value>
   </data>
@@ -378,33 +375,6 @@
   <data name="Dashboard_Subtitle" xml:space="preserve">
     <value>Ecco cosa succede.</value>
   </data>
-  <data name="Dashboard_AgreementSingular" xml:space="preserve">
-    <value>accordo da rivedere</value>
-  </data>
-  <data name="Dashboard_AgreementPlural" xml:space="preserve">
-    <value>accordi da rivedere</value>
-  </data>
-  <data name="Dashboard_SlotsSingular" xml:space="preserve">
-    <value>posto</value>
-  </data>
-  <data name="Dashboard_SlotsPlural" xml:space="preserve">
-    <value>posti</value>
-  </data>
-  <data name="Dashboard_GetInvolved" xml:space="preserve">
-    <value>Partecipa</value>
-  </data>
-  <data name="Dashboard_GetInvolvedSubtitle" xml:space="preserve">
-    <value>Non si costruisce da solo.</value>
-  </data>
-  <data name="Dashboard_ShiftsDescription" xml:space="preserve">
-    <value>Guarda cosa serve e iscriviti.</value>
-  </data>
-  <data name="Dashboard_TeamsDescription" xml:space="preserve">
-    <value>Trova la tua gente. O diventa la gente di qualcuno.</value>
-  </data>
-  <data name="Dashboard_CampsDescription" xml:space="preserve">
-    <value>I quartieri che fanno sentire Elsewhere come casa.</value>
-  </data>
   <data name="Dashboard_YourStuff" xml:space="preserve">
     <value>Le tue cose</value>
   </data>
@@ -422,9 +392,6 @@
   </data>
   <data name="Dashboard_PrivacyCardDescription" xml:space="preserve">
     <value>Controlla cosa possono vedere gli altri di te.</value>
-  </data>
-  <data name="Dashboard_GovernanceCardDescription" xml:space="preserve">
-    <value>Assemblee, elezioni, e le cose serie.</value>
   </data>
   <data name="Dashboard_TicketNotConfigured" xml:space="preserve">
     <value>Le info sui biglietti non sono ancora disponibili. Pazienza.</value>
@@ -460,75 +427,6 @@
   <data name="Dashboard_DeclareNotAttending" xml:space="preserve">
     <value>Non vengo quest'anno</value>
   </data>
-  <data name="Guest_Greeting" xml:space="preserve">
-    <value>Ciao, {0}.</value>
-  </data>
-  <data name="Guest_Subtitle" xml:space="preserve">
-    <value>Benvenuto/a su Humans — dove Nobodies Collective gestisce tutto per Elsewhere.</value>
-  </data>
-  <data name="Guest_GetInvolvedTitle" xml:space="preserve">
-    <value>Pronto/a a smettere di essere un fantasma?</value>
-  </data>
-  <data name="Guest_GetInvolvedDescription" xml:space="preserve">
-    <value>Ora esisti… ma nessuno ti vede. Crea il tuo profilo e improvvisamente:</value>
-  </data>
-  <data name="Guest_GetInvolvedBullet1" xml:space="preserve">
-    <value>Puoi unirti ai team</value>
-  </data>
-  <data name="Guest_GetInvolvedBullet2" xml:space="preserve">
-    <value>Puoi prendere turni</value>
-  </data>
-  <data name="Guest_GetInvolvedBullet3" xml:space="preserve">
-    <value>La gente sa chi sei</value>
-  </data>
-  <data name="Guest_GetInvolvedHint" xml:space="preserve">
-    <value>~2 minuti.</value>
-  </data>
-  <data name="Guest_CreateProfile" xml:space="preserve">
-    <value>Crea il mio profilo</value>
-  </data>
-  <data name="Guest_Explore" xml:space="preserve">
-    <value>Dai un'occhiata</value>
-  </data>
-  <data name="Guest_ExploreSubtitle" xml:space="preserve">
-    <value>Non serve un profilo. Solo curiosità.</value>
-  </data>
-  <data name="Guest_BarriosDescription" xml:space="preserve">
-    <value>I quartieri che la gente costruisce e abita durante l'evento</value>
-  </data>
-  <data name="Guest_TeamsDescription" xml:space="preserve">
-    <value>I team che fanno funzionare tutto — audio, sicurezza, costruzioni, tutto</value>
-  </data>
-  <data name="Guest_Legal" xml:space="preserve">
-    <value>Legale</value>
-  </data>
-  <data name="Guest_LegalDescription" xml:space="preserve">
-    <value>Privacy, termini, consensi — noioso ma importante</value>
-  </data>
-  <data name="Guest_AccountTitle" xml:space="preserve">
-    <value>Le tue cose</value>
-  </data>
-  <data name="Guest_AccountSubtitle" xml:space="preserve">
-    <value>Anche senza profilo, puoi gestire il tuo account e i tuoi dati.</value>
-  </data>
-  <data name="Guest_CommsTitle" xml:space="preserve">
-    <value>Comunicazioni</value>
-  </data>
-  <data name="Guest_CommsDescription" xml:space="preserve">
-    <value>Scegli quali email e notifiche ricevere da noi</value>
-  </data>
-  <data name="Guest_DataTitle" xml:space="preserve">
-    <value>I tuoi dati</value>
-  </data>
-  <data name="Guest_DataDescription" xml:space="preserve">
-    <value>Scarica tutto quello che abbiamo su di te — è tuo</value>
-  </data>
-  <data name="Guest_DeleteTitle" xml:space="preserve">
-    <value>Sparire</value>
-  </data>
-  <data name="Guest_DeleteDescription" xml:space="preserve">
-    <value>Richiedi la cancellazione dell'account — 30 giorni per cambiare idea</value>
-  </data>
   <data name="Guest_TicketsTitle" xml:space="preserve">
     <value>I tuoi biglietti</value>
   </data>
@@ -546,21 +444,6 @@
   </data>
   <data name="Guest_TicketsConfirmed" xml:space="preserve">
     <value>Hai un biglietto per l'evento.</value>
-  </data>
-  <data name="Guest_DeletionPendingTitle" xml:space="preserve">
-    <value>Stai uscendo</value>
-  </data>
-  <data name="Guest_DeletionRequestedOn" xml:space="preserve">
-    <value>Richiesto il {0}.</value>
-  </data>
-  <data name="Guest_DeletionHeldUntil" xml:space="preserve">
-    <value>Cancelleremo tutto dopo il {0} — aspettiamo la fine dell'evento.</value>
-  </data>
-  <data name="Guest_DeletionScheduledFor" xml:space="preserve">
-    <value>Tutto sparisce il {0}. Sul serio.</value>
-  </data>
-  <data name="Guest_DeletionCancelButton" xml:space="preserve">
-    <value>Ho cambiato idea</value>
   </data>
   <data name="Privacy_Title" xml:space="preserve">
     <value>Informativa sulla Privacy</value>
@@ -1601,35 +1484,8 @@
   <data name="Camp_Plural" xml:space="preserve">
     <value>Barrios</value>
   </data>
-  <data name="Agent_InputPlaceholder" xml:space="preserve">
-    <value>Chiedi come funziona il sistema…</value>
-  </data>
-  <data name="Agent_PanelTitle" xml:space="preserve">
-    <value>Assistente</value>
-  </data>
-  <data name="Agent_TermsLink" xml:space="preserve">
-    <value>Condizioni IA</value>
-  </data>
-  <data name="Agent_Send" xml:space="preserve">
-    <value>Invia</value>
-  </data>
-  <data name="Agent_ViewHistory" xml:space="preserve">
-    <value>Cronologia</value>
-  </data>
   <data name="Agent_WidgetButton" xml:space="preserve">
     <value>Apri l'assistente</value>
-  </data>
-  <data name="Help_WidgetButton" xml:space="preserve">
-    <value>Aiuto</value>
-  </data>
-  <data name="Help_Menu_TalkWithAgent" xml:space="preserve">
-    <value>Parla con l'Assistente</value>
-  </data>
-  <data name="Help_Menu_CreateIssue" xml:space="preserve">
-    <value>Crea segnalazione</value>
-  </data>
-  <data name="Help_Agent_IssueProposed" xml:space="preserve">
-    <value>Non posso rispondere a questo da solo. Ho preparato una segnalazione per il team — controllala e inviala, per favore.</value>
   </data>
   <data name="Nav_Agent" xml:space="preserve">
     <value>Assistente</value>
@@ -1772,39 +1628,6 @@
   </data>
   <data name="Todo_ShiftInfo_Action" xml:space="preserve">
     <value>Compila info turno</value>
-  </data>
-  <data name="GetInvolved_Title" xml:space="preserve">
-    <value>Partecipa</value>
-  </data>
-  <data name="GetInvolved_Intro" xml:space="preserve">
-    <value>L'evento funziona grazie agli humans. Scegli turni che si adattano ai tuoi orari — ogni ora conta.</value>
-  </data>
-  <data name="GetInvolved_Phase_Setup" xml:space="preserve">
-    <value>Montaggio</value>
-  </data>
-  <data name="GetInvolved_Phase_Setup_Desc" xml:space="preserve">
-    <value>Costruisci il sito prima dell'apertura. Lavoro fisico, orari flessibili, ideale per conoscere il team.</value>
-  </data>
-  <data name="GetInvolved_Phase_Event" xml:space="preserve">
-    <value>Evento</value>
-  </data>
-  <data name="GetInvolved_Phase_Event_Desc" xml:space="preserve">
-    <value>Fai funzionare tutto durante l'evento. Bar, ingressi, sicurezza, arte — ce n'è per tutti.</value>
-  </data>
-  <data name="GetInvolved_Phase_Strike" xml:space="preserve">
-    <value>Smontaggio</value>
-  </data>
-  <data name="GetInvolved_Phase_Strike_Desc" xml:space="preserve">
-    <value>Smonta tutto e non lasciare traccia. Lavoro soddisfacente, di solito impegno più breve.</value>
-  </data>
-  <data name="GetInvolved_UrgentShifts" xml:space="preserve">
-    <value>Turni che hanno bisogno di humans adesso</value>
-  </data>
-  <data name="GetInvolved_BrowseAllShifts" xml:space="preserve">
-    <value>Vedi tutti i turni</value>
-  </data>
-  <data name="GetInvolved_MyShifts" xml:space="preserve">
-    <value>I miei turni</value>
   </data>
   <data name="Unsub_Title" xml:space="preserve">
     <value>Annulla iscrizione e-mail</value>
@@ -2378,33 +2201,6 @@
   <data name="AdminDetail_ManageEmails" xml:space="preserve">
     <value>Gestisci email</value>
   </data>
-  <data name="Welcome_Title" xml:space="preserve">
-    <value>Benvenuto/a</value>
-  </data>
-  <data name="Welcome_Heading" xml:space="preserve">
-    <value>Ci sei.</value>
-  </data>
-  <data name="Welcome_Subtitle" xml:space="preserve">
-    <value>Il tuo biglietto per Elsewhere 2026 è confermato.</value>
-  </data>
-  <data name="Welcome_ShiftsTitle" xml:space="preserve">
-    <value>Ora facciamo succedere tutto insieme.</value>
-  </data>
-  <data name="Welcome_ShiftsBody" xml:space="preserve">
-    <value>Elsewhere non è un festival a cui partecipi — è uno che aiuti a costruire. Ogni human sceglie i turni: allestimento prima, operazione durante e smontaggio dopo.</value>
-  </data>
-  <data name="Welcome_ShiftsBody2" xml:space="preserve">
-    <value>Per vedere i turni e iscriverti, ti serve un account Humans. Ci vogliono solo un paio di minuti.</value>
-  </data>
-  <data name="Welcome_CTA" xml:space="preserve">
-    <value>Accedi o crea un account</value>
-  </data>
-  <data name="Welcome_Footer" xml:space="preserve">
-    <value>Hai già un account? Stesso pulsante — accedi e arrivi direttamente ai turni.</value>
-  </data>
-  <data name="Welcome_Contact" xml:space="preserve">
-    <value>Domande? Scrivici a</value>
-  </data>
   <data name="Profile_BuildStrip_Title" xml:space="preserve">
     <value>Build availability &amp; tracking</value>
     <comment>TODO: translate — copied from English</comment>
@@ -2425,9 +2221,6 @@
   <data name="Todo_DietaryMedical_Done" xml:space="preserve"><value>Thanks — we've got it</value></data>
   <data name="Todo_DietaryMedical_Action" xml:space="preserve"><value>Fill out</value></data>
   <data name="Todo_DietaryMedical_NoShift_Pending" xml:space="preserve"><value>Tell us about your food needs so we're ready when you sign up.</value></data>
-  <data name="DietaryMissingBanner_Title" xml:space="preserve"><value>We need your dietary info</value></data>
-  <data name="DietaryMissingBanner_Body" xml:space="preserve"><value>You're signed up for a long shift. The cantina can't plan your meals until you tell us your food preferences.</value></data>
-  <data name="DietaryMissingBanner_Cta" xml:space="preserve"><value>Tell us now</value></data>
   <data name="Profile_DietaryMedical_PageTitle" xml:space="preserve"><value>Dietary &amp; medical info</value></data>
   <data name="Profile_DietaryMedical_DietaryPreference_Label" xml:space="preserve"><value>Dietary preference</value></data>
   <data name="Profile_DietaryMedical_DietaryPreference_Omnivore" xml:space="preserve"><value>Omnivore</value></data>
