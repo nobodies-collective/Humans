@@ -143,6 +143,8 @@ First-party, GDPR-compliant surveys: author typed/branching multi-language surve
 ## Routing
 
 - **`/Survey/Admin/*`** — `SurveyAdminController` (BoardOrAdmin): index, builder, send, results, CSV/JSON export.
+  The builder's **Save and review recipients** action continues to the Send page; a Draft with
+  net-new recipients can be opened there before the separate invitation confirmation.
 - **`/Survey/Answer?t={token}`** — `SurveyController` invited wizard (token carries identity; never the current principal).
 - **`/Survey/{slug}`** — `SurveyController` public anonymous wizard. Literal segments `Admin`/`Answer` are **reserved slugs** and resolve before `{slug}`.
 - **`/api/surveys/*`** — `SurveysApiController` (key-authed, read-only).
@@ -173,7 +175,7 @@ First-party, GDPR-compliant surveys: author typed/branching multi-language surve
 - **Grid questions are bounded matrices.** A Grid has at least one localized row, one to five localized columns, and a `Single` or `Multiple` selection mode. Row and column keys are non-blank and unique. A required Grid is complete only when every row has a valid selection; `Single` permits exactly one column per row. Posted selections are normalized against the authored schema before autosave/submission.
 - **Grid questions may be branch targets, never branch sources.** A Grid can carry its own `ShowIf`, but author-save rejects any branch clause that references a Grid question.
 - **Grid result percentages are row-local.** Each cell's percentage uses respondents who answered that row as its denominator. Results retain the current authored matrix. CSV/JSON/Markdown export, the analysis API, and GDPR export retain raw stored row/column keys just as choice exports retain `SelectedOptionValues`, alongside best-effort labels in the survey's default culture; removed definitions fall back to their raw keys instead of hiding historical answers.
-- **Invitation send is idempotent and additive.** Each send resolves the audience, diffs against existing `(SurveyId, UserId)` invitations, and creates+emails only net-new recipients; nobody is double-invited and **sends never revoke**. Requires the survey Open with an audience. Invites are operational (`MessageCategory.System`, always-send) — surveys are never marketing.
+- **Invitation send is idempotent and additive.** Each send resolves the audience, diffs against existing `(SurveyId, UserId)` invitations, and creates+emails only net-new recipients; nobody is double-invited and **sends never revoke**. The Send page previews that exact net-new count, not the raw audience size. Requires the survey Open with a valid audience configuration (`Team` requires a team; `LoggedInSince` requires a cutoff date). Invites are operational (`MessageCategory.System`, always-send) — surveys are never marketing.
 - **Exactly one reminder.** The 7-day reminder fires once per invitee (Open survey, `Completed == false`, `SentAt ≥ 7 days ago`, `ReminderSentAt is null`), stamping `ReminderSentAt` so it never repeats.
 - **Public responses are always Anonymous + `InputMethod=Slug`.** The slug path requires `AllowAnonymous`; reserved slugs `admin`/`answer` are rejected by the builder and 404 on the answer path.
 <!-- wheat: docs/plans/2026-06-27-post-event-app-feedback-survey.md §1.2, §3, §4 -->
