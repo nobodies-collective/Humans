@@ -2,7 +2,6 @@ using Humans.Base.Controllers;
 using System.Globalization;
 using Humans.Surveys.Services;
 using Humans.Surveys.Domain;
-using Humans.Base.Extensions;
 using Humans.Surveys.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,12 +25,21 @@ internal sealed class SurveyController(
     ISurveyService surveyService,
     IUserServiceRead userService,
     IClock clock,
+    SurveyPreviewTokenProvider previewTokens,
     IStringLocalizer<SurveysResource> localizer,
     ILogger<SurveyController> logger) : HumansControllerBase(userService)
 {
     [HttpGet("Answer")]
     public async Task<IActionResult> Answer(string t, CancellationToken ct)
     {
+        if (previewTokens.Resolve(t) is { } preview)
+        {
+            return RedirectToAction(
+                nameof(SurveyAdminController.Preview),
+                "SurveyAdmin",
+                new { id = preview.SurveyId, culture = preview.Culture });
+        }
+
         var ctx = await surveyService.ResolveAnswerContextAsync(t, ct);
         if (ctx is null)
         {
@@ -108,7 +116,7 @@ internal sealed class SurveyController(
 
         // When the survey forbids anonymity, the only tier is Identified.
         var anonymity = editable.AllowAnonymous ? model.Anonymity : ResponseAnonymity.Identified;
-        var culture = ResolveCulture(model.Culture, editable.DefaultCulture);
+        var culture = SurveyPageViewModelFactory.ResolveCulture(model.Culture, editable.DefaultCulture);
 
         var state = BuildState(ctx, anonymity, culture);
         state.Started = true;
@@ -194,7 +202,7 @@ internal sealed class SurveyController(
             return View("Closed", new SurveyClosedViewModel { Reason = "closed" });
         }
 
-        var resolvedCulture = ResolveCulture(culture, editable.DefaultCulture);
+        var resolvedCulture = SurveyPageViewModelFactory.ResolveCulture(culture, editable.DefaultCulture);
         var state = new SurveyWizardState
         {
             SurveyId = ctx.SurveyId,
@@ -323,7 +331,11 @@ internal sealed class SurveyController(
             visible = SurveyWizardFlow.VisibleQuestionsOnPage(editable.Questions, state.CurrentPage, answerStates);
         }
 
-        var vm = BuildPageViewModel(route, state, editable, visible, answerStates);
+        var visiblePages = SurveyWizardFlow.OrderedPages(editable.Questions)
+            .Where(p => SurveyWizardFlow.VisibleQuestionsOnPage(editable.Questions, p, answerStates).Count > 0)
+            .ToList();
+        var vm = SurveyPageViewModelFactory.Build(
+            state, editable, visible, visiblePages, route.IsPublic, route.Key);
         return View("Page", vm);
     }
 
@@ -420,71 +432,8 @@ internal sealed class SurveyController(
 
     /// <summary>Picks a supported display culture, defaulting to the current UI culture then the survey's default.</summary>
     private static string ResolveCulture(string surveyDefault)
-        => ResolveCulture(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName, surveyDefault);
+        => SurveyPageViewModelFactory.ResolveCulture(
+            CultureInfo.CurrentUICulture.TwoLetterISOLanguageName,
+            surveyDefault);
 
-    private static string ResolveCulture(string? requested, string surveyDefault)
-    {
-        if (requested.IsSupportedCultureCode()) return requested!;
-        if (surveyDefault.IsSupportedCultureCode()) return surveyDefault;
-        return CultureCatalog.DefaultCultureCode;
-    }
-
-    /// <summary>Resolves a page's visible questions to display strings and counts the visible-page step position.</summary>
-    private static SurveyPageViewModel BuildPageViewModel(
-        WizardRoute route, SurveyWizardState state, SurveyEditInput editable,
-        IReadOnlyList<QuestionInput> visible, IReadOnlyDictionary<Guid, AnswerState> answers)
-    {
-        var visiblePages = SurveyWizardFlow.OrderedPages(editable.Questions)
-            .Where(p => SurveyWizardFlow.VisibleQuestionsOnPage(editable.Questions, p, answers).Count > 0)
-            .ToList();
-        var step = visiblePages.IndexOf(state.CurrentPage);
-
-        return new SurveyPageViewModel
-        {
-            Token = route.IsPublic ? string.Empty : route.Key,
-            IsPublic = route.IsPublic,
-            Slug = route.IsPublic ? route.Key : string.Empty,
-            Page = state.CurrentPage,
-            Title = editable.Title.Resolve(state.Culture, editable.DefaultCulture),
-            StepNumber = step < 0 ? 1 : step + 1,
-            TotalSteps = visiblePages.Count,
-            CanGoBack = step > 0,
-            IsLastStep = step >= 0 && step == visiblePages.Count - 1,
-            Questions = visible.Select(q => BuildPageQuestion(q, state, editable)).ToList(),
-        };
-    }
-
-    private static SurveyPageQuestion BuildPageQuestion(QuestionInput q, SurveyWizardState state, SurveyEditInput editable)
-    {
-        state.Answers.TryGetValue(q.Id!.Value.ToString(), out var prior);
-        return new SurveyPageQuestion
-        {
-            Id = q.Id!.Value,
-            Type = q.Type,
-            Prompt = q.Prompt.Resolve(state.Culture, editable.DefaultCulture),
-            HelpText = q.HelpText.Resolve(state.Culture, editable.DefaultCulture),
-            IsRequired = q.IsRequired,
-            RatingMin = q.RatingMin,
-            RatingMax = q.RatingMax,
-            RatingMinLabel = q.RatingMinLabel.Resolve(state.Culture, editable.DefaultCulture),
-            RatingMaxLabel = q.RatingMaxLabel.Resolve(state.Culture, editable.DefaultCulture),
-            Options = q.Options
-                .Select(o => new SurveyPageOption(o.Value, o.Label.Resolve(state.Culture, editable.DefaultCulture)))
-                .ToList(),
-            GridSelectionMode = q.GridSelectionMode,
-            GridRows = (q.GridRows ?? [])
-                .Select(row => new SurveyPageGridRow(
-                    row.Value,
-                    row.Label.Resolve(state.Culture, editable.DefaultCulture)))
-                .ToList(),
-            SelectedOptionValues = prior?.SelectedOptionValues ?? [],
-            GridSelections = prior?.GridSelections.ToDictionary(
-                kv => kv.Key,
-                kv => (IReadOnlyList<string>)kv.Value,
-                StringComparer.Ordinal)
-                ?? new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal),
-            TextValue = prior?.TextValue,
-            RatingValue = prior?.RatingValue,
-        };
-    }
 }
