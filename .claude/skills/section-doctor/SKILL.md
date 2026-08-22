@@ -54,6 +54,22 @@ sweep commit (Phase 5), idempotent by construction.
 
 `REPO_ROOT=$(git rev-parse --show-toplevel)`. Parse args; record start time (`date -u`).
 
+Getting a toolchain is the *environment's* job, not this skill's: a local run already has
+one, and the scheduled cloud run is told to bootstrap in its own prompt
+([`cloud-run-dotnet-bootstrap`](../../../memory/process/cloud-run-dotnet-bootstrap.md)).
+Nothing to do here.
+
+**What is this skill's job is the run you get when there is no compiler** — which is a real
+run, not a failed one. If `dotnet build` is unavailable (in a cloud container it announces
+itself as `CS9057`; `.claude/bootstrap-dotnet.sh --probe` writes the verdict down), then this
+is a **docs-only run**. A build that fails for any *other* reason is not this — it is a
+normal broken build, and the bootstrap reports it as `unknown — probe failed` rather than
+`NO` precisely so a run does not mistake one for the other. When it is genuinely `NO`: work the reading threads, keep strikes to docs, comments and resx,
+queue every code finding for the Needs-Peter block rather than editing C# you cannot compile,
+record each compiler-dependent thread as skipped-with-reason (3d's rule), and let the PR's CI
+be the compile gate. Say so in the run file's header and in the PR body — a run that could
+not build and does not say so reads as a run that found nothing to build.
+
 ## Phase 1: Worktree
 
 ```bash
