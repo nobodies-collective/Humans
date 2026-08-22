@@ -1,13 +1,13 @@
 ---
 name: section-doctor
-description: "Daily per-section review cycle driving a section toward the smallest, clearest form that still does everything it does today. Reads the global plan at docs/health/plan.md (replanning over every section when exhausted or stale), inventories every file in the section, derives the target shape before running any scan, then works parallel threads — shape, behavior/bugs, freshness, conformance, tests, prose/nav, inbox — into one ranked list and strikes it on a 2-3h budget. One PR per run; each run's report + Needs-Peter queue lives in its own docs/health/runs/ file; 'resume' applies Peter's answers later. Use for the morning section-improvement run, 'doctor <section>', or 'run section doctor'."
-argument-hint: "[resume] [--section=<Name>] [--budget=2.5h] [--replan]"
+description: "Daily per-section review cycle driving a section toward the smallest, clearest form that still does everything it does today. Selects its section live each run (reforge surface score, middle-out, via a focused selector subagent — no stored plan), inventories every file in the section, derives the target shape before running any scan, then works parallel threads — shape, behavior/bugs, freshness, conformance, tests, prose/nav, inbox — into one ranked list and strikes it on a 2-3h budget. One PR per run; each run's report + Needs-Peter queue lives in its own docs/health/runs/ file; 'resume' applies Peter's answers later. Use for the morning section-improvement run, 'doctor <section>', or 'run section doctor'."
+argument-hint: "[resume] [--section=<Name>] [--budget=2.5h]"
 ---
 
 # Section Doctor
 
 Full design: `docs/superpowers/specs/2026-08-17-section-doctor-design.md`. This file is
-self-amending — replan sweeps apply run lessons here; keep those edits terse and dated.
+self-amending — run sweeps apply merged run lessons here; keep those edits terse and dated.
 
 ## Purpose
 
@@ -38,18 +38,17 @@ to rewrite anything else about the section.
 
 **Concurrency contract (nobodies-collective/Humans#1069): a run writes no file that another
 concurrent run also writes.** Runs never merge themselves, so N unattended days mean N open PRs
-at once; every one must merge cleanly in any order. The only writers of shared files are replans,
-which are single-writer by construction (see Phase 2).
+at once; every one must merge cleanly in any order. The only shared-file writes are each run's
+sweep commit (Phase 5), idempotent by construction.
 
 ## Invocation
 
 | Form | Behavior |
 |---|---|
-| *(none)* | daily run: replan if needed, execute the next plan entry |
+| *(none)* | daily run: select a section live (Phase 2), doctor it |
 | `resume` | no new work — work the Needs-Peter queue (see Resume mode) |
-| `--section=<Name>` | skip the plan, doctor this section |
+| `--section=<Name>` | skip the selector, doctor this section |
 | `--budget=<duration>` | override budget (default 2.5h); wall-clock, checked between items |
-| `--replan` | force a fresh plan |
 
 ## Phase 0: Setup
 
@@ -67,11 +66,20 @@ WORKTREE=$REPO_ROOT/.worktrees/section-doctor-$TS  # cd here; all commands run i
 Scope is frozen at the branch point — never reconcile against `origin/main` mid-run. Scope every
 Glob/Grep to `$WORKTREE`.
 
-## Phase 2: Plan check
+Start the phase log now, and append one line at the start of each later phase (2, 3, 4, 5, 7) —
+Phase 7's cost report buckets the session transcript by these timestamps:
 
-**Find the live plan first.** Only replanning runs write `docs/health/plan.md`, and a replan
-run's PR may still be open (runs never merge), so the newest plan may exist only on that branch.
-Discover:
+```bash
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) phase1" >> $WORKTREE/.phase-log   # never committed
+```
+
+## Phase 2: Select the section
+
+Selection is computed live every run — nothing is stored. (`docs/health/plan.md` and the
+replan machinery are gone, 2026-08-22: a checked-in plan went stale whenever merges paused for
+long enough, and the runs must keep going unattended.)
+
+**Blocked set first** (main thread, cheap):
 
 ```bash
 gh pr list --repo peterdrier/Humans --state open --limit 200 --json number,headRefName,title \
@@ -80,73 +88,47 @@ gh pr list --repo peterdrier/Humans --state open --limit 200 --json number,headR
 
 (`--limit` is mandatory — `gh pr list` fetches only 30 by default and the prefix filter runs
 client-side in `--jq`, so an older open run silently drops out without it. `--search "head:..."`
-matches exact branch names, not prefixes — don't use it.) Read `docs/health/plan.md` from
-`origin/main` and from each open run branch tip; the copy with the newest anchor date wins.
-**Never commit another run's plan or run files into this run's branch** — a run commits only its
-own writes.
+matches exact branch names, not prefixes — don't use it.) The **blocked set** is the sections
+named by those open PRs' titles (`doctor(<Section>): …`): an open run PR must be dealt with
+before its section can be doctored again. If **every** section is blocked, report the open PRs
+and go straight to Phase 9 teardown — nothing has been written at this point, so the worktree
+is clean and `git worktree remove` succeeds without `--force`.
 
-Keep this result — the **blocked set** is the sections named by those open PRs' titles
-(`doctor(<Section>): …`).
+**Then dispatch the selector** — a focused **sonnet** subagent whose entire job is to return
+one section name (measured 2026-08-22: ~270k fresh + ~1.1M cached input tokens over 19 calls,
+≈$1.50 API-equivalent). It works read-only from `$WORKTREE`, reads nothing beyond the command
+output below and the sections' `Docs/health.md` files (tier-2 dates), and gets the blocked set
+passed in. Its brief:
 
-**Selection is fully derived — no tick marks, recompute it fresh every run:**
+1. `dotnet build Humans.slnx -v quiet` (an unbuilt solution silently under-reports Reforge
+   scores; the build also serves Phase 3/4), then `reforge surface-score --format compact`.
+2. Pool: every `src/Sections/` project, minus the blocked set. **Feature-active down-rank**:
+   sections touched by an open non-doctor PR (`gh pr list --repo peterdrier/Humans --state
+   open --limit 200 --json headRefName,files`, changed paths mapped to
+   `src/Sections/Humans.<X>/`) drop to the bottom of whichever tier they land in — picked
+   only when no non-active section is eligible there, but never excluded: an open feature PR
+   must not keep a section from ever being doctored.
+3. Tier: a section is previously-doctored iff `src/Sections/Humans.<X>/Docs/health.md` exists
+   on `origin/main` (any newer copy lives on an open PR, and that section is blocked anyway).
+   Never-doctored sections always outrank previously-doctored ones.
+4. While any eligible never-doctored section remains: rank that tier by score (feature-active
+   members set aside per step 2) and take the **median** — middle-out. The process proves
+   itself on mid-sized sections; the biggest and smallest get their turn once the middle has
+   been worked.
+5. Once every eligible section has been doctored: read each section's `Docs/health.md` for its
+   last-assessed date, then rank by days since that date combined with change volume since it
+   (`git log --stat` over the section's paths) — more and bigger changes come sooner. Judgment
+   call; no exact formula.
+6. Return exactly three fields and nothing else: `SECTION: <Name>`,
+   `TIER: never-doctored | re-doctor`, `RATIONALE:` (≤3 lines: pool size after exclusions,
+   what was blocked/skipped, why this pick).
 
-- A row is **done** when its section's `Docs/health.md` last-assessed date (read from
-  `origin/main` — any newer copy lives on an open PR, and that section is blocked anyway) is on
-  or after the plan's anchor date.
-- A row is **blocked** while its section is in the blocked set.
-- **Take the first plan row that is neither.** Done rows are finished for this cycle. Blocked
-  rows are passed over today and picked up on a later run once their PR merges — unless the
-  merge lands their `health.md` date past the anchor, which retires the row for this cycle,
-  exactly as it should (the section was just doctored).
+Sections passed over as blocked are noted in this run's run file under skipped
+(`<section> — open PR #N`); they need no other bookkeeping — the tier/staleness scan returns
+to them.
 
-Rows passed over as blocked are noted in this run's run file under skipped
-(`<section> — open PR #N`); they need no other bookkeeping — the date scan returns to them.
-
-**Replan when:** no `plan.md` exists, no row is selectable, `--replan`, or a merged change since
-the anchor materially reshapes an upcoming section (move/rename/major feature — routine churn is
-not staleness). Exception: if **every** section has an open run PR, there is nothing to plan —
-report the open PRs and go straight to Phase 9 teardown. Nothing has been written at this point,
-so the worktree is clean and `git worktree remove` succeeds without `--force`.
-
-**Replanning** (mid-level signals only — no deep reading). Replans are the only writers of
-shared files, and they are rare: a full-cycle plan outlasts ~2 weeks of 2×/day runs, scheduled
-invocations run one at a time, and a later run reads the open replan's plan from its branch
-(newest anchor wins) rather than writing its own. **No locking** (Peter's call, PR #1366) — if
-two replans ever do overlap, the cost is one hand-resolved conflict, not corruption.
-
-1. `dotnet build Humans.slnx -v quiet` first — an unbuilt solution silently under-reports
-   Reforge scores — then `reforge surface-score --format compact` for size + deltas. (The build
-   also serves Phase 3/4.) Each group's line carries `loc=`, `cogP95=` and `cogMax=` alongside
-   the score (reforge ≥0.29; an older reforge omits them — fall back to score-only ordering
-   below).
-2. Order **every** `src/Sections/` project into one full-cycle table (~42 rows ≈ 2–3 weeks at
-   2 runs/day): never-assessed first — score descending, but a section in the **top quartile of
-   `loc` or `cogP95`/`cogMax`** from the same call is promoted ahead of any same-scoring-bracket
-   peer that isn't: large-and-complex must not wait behind a small section that merely scores
-   higher (seed last-served from merged run files under `docs/health/runs/`), then last-assessed
-   ascending — stalest first, so a section merged yesterday sits at the end of the queue and
-   comes around again next cycle. Tiebreak: score growth since last assessment (+10% outranks
-   +3%), then LOC/complexity growth, then open issues per section,
-   `docs/architecture/debt-ledger.yml` items, churn under the section's paths.
-3. **Include blocked sections** — their PRs merge mid-cycle, and their recent assessment dates
-   put them at the end of the queue anyway. Exclude only sections with in-flight or
-   imminently-planned feature work (check the active sprint plan).
-4. Write anchor (commit + UTC date) and the full table to `docs/health/plan.md` — **no status
-   column**; done-ness stays derived. The plan is advisory — run-day findings may extend a
-   section's stay.
-5. **Sweep merged run files by anchor window:** the previous plan's anchor commit (from the
-   `plan.md` being replaced; if none exists, all of history) to this plan's new anchor bounds
-   the sweep — `git diff --name-only <prev-anchor>..origin/main -- docs/health/runs/`. For every
-   `## Sweep queue` item in those files, apply it — `lesson:` → this skill's Lessons, `debt:` →
-   `debt-ledger.yml`, `memory:` → the named atom + INDEX line — skipping any item already
-   present in its target (a late-merging run can straddle windows; idempotence beats
-   bookkeeping). **Never edit the swept run files** — resume is their only post-merge editor,
-   which is what keeps resume conflict-free. This sweep is the only path by which runs amend
-   shared files.
-
-Then select again from the new plan.
-
-Take the selected section (or `--section`). Sections are `src/Sections/` projects only.
+Take the selected section (or `--section`, which skips the selector but never the blocked
+set). Sections are `src/Sections/` projects only.
 
 **Never work a section in the blocked set.** A section with an open section-doctor PR has
 unmerged strikes that today's run cannot see — re-doctoring it duplicates work and produces
@@ -160,8 +142,9 @@ runs, because a target written after a linter run is a summary of the linter run
 Pass 2). This skill had it backwards until 2026-08-18, and the Finance run's "ideal shape" came
 out as a restatement of its reforge score — the failure that rule exists to prevent.
 
-Start `dotnet build Humans.slnx -v quiet` in the background now: reforge needs a built solution
-and 3d's tool threads need the build. Do not look at its output until 3d.
+The Phase 2 selector already built the solution on a normal run; only when it was skipped
+(`--section`) start `dotnet build Humans.slnx -v quiet` in the background now — reforge needs a
+built solution and 3d's tool threads need the build. Do not look at its output until 3d.
 
 ### 3a. Inventory — every file, assigned
 
@@ -236,7 +219,7 @@ fragile part (two runs running, every dispatched lane missed the window):
   detectors. No subagent context to duplicate, no idle-lane failure mode, and they run while the
   main thread reads. Reforge's run is `surface-score --format compact --group <Section>`,
   scoped to the section being doctored — its `loc=`/`cogP95=`/`cogMax=` fields are the source
-  for Phase 5's `## Size` snapshot, on every run, not only a replan's solution-wide call.
+  for Phase 5's `## Size` snapshot, on every run, not only the selector's solution-wide call.
 - **Judgment threads run on the main thread** — shape, behavior, prose. They are the expensive
   reading this whole run exists to do.
 - **Subagents only when a thread must read more than one context can hold**, and then with an
@@ -321,16 +304,17 @@ surfaces mid-run → stop striking, ship the assessment-only PR, note it in the 
 
 ## Phase 5: Bookkeeping
 
-**A run writes no shared file.** In the same worktree/PR, exactly two bookkeeping writes:
+**A run's shared-file writes are confined to the sweep commit below.** In the same
+worktree/PR, three bookkeeping writes:
 
 - The section's `Docs/health.md` history row (per-section; the blocked set guarantees at most
   one open run per section, so it cannot collide).
 - **This run's own file** — `docs/health/runs/<yyyy-mm-dd>-<Section>.md` (UTC date from the run
   timestamp; if the path already exists at the branch point, suffix `-<HHMMZ>`). Sections:
   run header (invocation, anchor commit, budget, `PR: pending`), assessment summary, worked,
-  skipped + why (including plan rows passed over as blocked), retro (Phase 6), `## Needs Peter`
-  checklist, `## Sweep queue` (`lesson:` / `debt:` / `memory:` items as plain bullets — the
-  next replan whose window covers this run's merge applies them; nothing ever ticks them).
+  skipped + why (including sections passed over as blocked), retro (Phase 6), `## Needs Peter`
+  checklist, `## Sweep queue` (`lesson:` / `debt:` / `memory:` items as plain bullets — a
+  later run's sweep applies them after this run merges; nothing ever ticks them).
 
   Plus three blocks that make the Purpose's three tests answerable rather than assertable:
 
@@ -350,20 +334,29 @@ surfaces mid-run → stop striking, ship the assessment-only PR, note it in the 
   reforge — stay; both 2026-08-18 Finance runs typed self-counts, and the one that was wrong
   nearly sent a refactor at a method with a live external caller.
 
+- **The sweep** — its own commit, and the only place a run touches shared files: for every
+  `## Sweep queue` item in merged run files under `docs/health/runs/` on `origin/main`, apply
+  it — `lesson:` → this skill's Lessons, `debt:` → `debt-ledger.yml`, `memory:` → the named
+  atom + INDEX line — skipping any item already present in its target (idempotence is the only
+  bookkeeping; there is no anchor window). **Never edit the swept run files** — resume is
+  their only post-merge editor, which is what keeps resume conflict-free. Two piled-up
+  unmerged runs can occasionally sweep the same item; the cost is one hand-resolved conflict,
+  not corruption (the no-locking trade of PR #1366).
+
 The runs directory **is** the log and the newest file **is** the last report. There is no
 `log.md`, `last-report.md`, or generated index — never recreate them — and daily runs never
-touch `docs/architecture/maintenance-log.md`. `plan.md` is written only by a replan (Phase 2).
+touch `docs/architecture/maintenance-log.md`.
 
 ## Phase 6: Retro + self-amend
 
-Four questions, answered honestly in the run file: what did the plan/rubric get wrong, what was
+Four questions, answered honestly in the run file: what did the selector/rubric get wrong, what was
 wasted motion, what did the assessment miss that striking revealed, and **what does the target
 diff say** — 3c regenerated the target and diffed it against the previous run's; a change means
 either the section moved or the earlier target was wrong, and which one it was is worth a line.
 Then:
 
-- **Mechanical lessons** → this run's `## Sweep queue` as `lesson:` one-liners; the next replan
-  applies them to this skill's files after this run merges. Never edit the skill's files
+- **Mechanical lessons** → this run's `## Sweep queue` as `lesson:` one-liners; a later run's
+  sweep applies them to this skill's files after this run merges. Never edit the skill's files
   directly mid-run — they are shared, and a concurrent run's edit is a guaranteed conflict.
 - **Judgment lessons** (rubric axes, thresholds, play choices) → the Needs-Peter block.
 - **Durable project rules** → `## Sweep queue` as `memory: <bucket>/<name> — <rule>`.
@@ -378,10 +371,26 @@ git push -u origin section-doctor/$TS
 gh pr create --repo peterdrier/Humans --base main --title "doctor(<Section>): <headline>" --body ...
 ```
 
-Body: assessment summary, worked/skipped bullets, and a **`## Needs Peter`** block — terse,
-numbered, answerable in a word or two. **The PR body is the authoritative queue while the PR is
-open** (resume reads it from there); the run file's copy carries it forward after merge. One PR
-per run; never merge.
+Body: assessment summary, worked/skipped bullets, a **`## Cost`** table (below), and a
+**`## Needs Peter`** block — terse, numbered, answerable in a word or two. **The PR body is the
+authoritative queue while the PR is open** (resume reads it from there); the run file's copy
+carries it forward after merge. One PR per run; never merge.
+
+**Cost report** — before creating the PR, run:
+
+```bash
+python .claude/skills/section-doctor/cost-report.py section-doctor/$TS $WORKTREE/.phase-log
+```
+
+It finds this run's own session transcript under `~/.claude/projects` (the model never sees its
+own usage in-band, but the harness logs every API call's tokens there), buckets the main thread
+by the phase log, adds one row per subagent transcript, and prints a markdown table with
+API-equivalent $. The table is a **Phase 1 → PR-creation cutoff, not a run total** — the PR
+create/backfill calls and any Phase 8 work land after measurement (the footer says so). Paste
+it as `## Cost` into the PR body and the run file (run-file copy lands
+with the backfill commit). The script never fails the run — on any discovery problem it prints
+`Cost: unmeasured (...)`; use that line as the table. Cloud-environment transcript layout is
+unverified — if the first routine run reports unmeasured, note it in Needs-Peter.
 
 Then backfill the real PR number over every `pending` reference (run file header, health history
 row), commit, push again.
@@ -433,17 +442,16 @@ Present the open items inline, then apply each answer:
 - Public-surface additions need Peter; dead-surface deletion is the job (reviewer-gated).
 - Explicit tagged model on every subagent. Never leave the branch red between commits.
 - **A run touches only:** the section's files (+ callers where a play requires), the section's
-  `Docs/health.md`, and its own `docs/health/runs/<date>-<Section>.md`. **A replanning run
-  additionally touches**: `docs/health/plan.md`, this skill's files,
-  `docs/architecture/debt-ledger.yml`, `memory/` — never the run files it sweeps. Nothing
-  writes `docs/architecture/maintenance-log.md`.
-- **`docs/architecture/section-conformance.yml` is read-only to every run**, replans included.
+  `Docs/health.md`, its own `docs/health/runs/<date>-<Section>.md`, and — in the sweep commit
+  only (Phase 5) — this skill's files, `docs/architecture/debt-ledger.yml`, `memory/`; never
+  the run files it sweeps. Nothing writes `docs/architecture/maintenance-log.md`.
+- **`docs/architecture/section-conformance.yml` is read-only to every run**, sweeps included.
   Rows are added and removed only at Peter's direction; a run that wants one proposes it in its
   Needs-Peter block.
 
 ## Lessons
 
-(Applied here by replan sweeps from merged run files' `lesson:` items — dated one-liners.)
+(Applied here by run sweeps from merged run files' `lesson:` items — dated one-liners.)
 
 - 2026-08-16: resx/XML edits must be structure-aware (python/XML tooling), never line-based sed
   — neutral resx was one-line-per-entry but all 5 language variants were multi-line; sed
