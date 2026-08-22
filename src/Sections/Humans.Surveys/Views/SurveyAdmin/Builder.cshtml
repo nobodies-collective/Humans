@@ -29,10 +29,7 @@
     @if (!Model.IsNew)
     {
         <div class="d-flex align-items-center gap-2">
-            <a asp-controller="SurveyAdmin" asp-action="Preview" asp-route-id="@Model.Id"
-               class="btn btn-outline-primary btn-sm" target="_blank" rel="noopener">
-                <i class="fa-solid fa-eye me-1"></i>Preview
-            </a>
+            <partial name="_SurveyPreviewMenu" model="@Model.Id!.Value" />
             <span class="badge @(Model.Status == SurveyStatus.Open ? "bg-success" : Model.Status == SurveyStatus.Closed ? "bg-secondary" : "bg-warning text-dark")">@Model.Status</span>
             @if (Model.Status != SurveyStatus.Open)
             {
@@ -81,7 +78,7 @@
         <div class="card-header py-2"><strong>Survey</strong></div>
         <div class="card-body">
             <partial name="_SurveyLocalizedField" model="@(new SurveyLocalizedFieldModel(nameof(Model.Title), "Title", Model.Title))" />
-            <partial name="_SurveyLocalizedField" model="@(new SurveyLocalizedFieldModel(nameof(Model.Intro), "Intro", Model.Intro, Multiline: true))" />
+            <partial name="_SurveyLocalizedField" model="@(new SurveyLocalizedFieldModel(nameof(Model.Intro), "Intro", Model.Intro, Multiline: true, Markdown: true))" />
             <partial name="_SurveyLocalizedField" model="@(new SurveyLocalizedFieldModel(nameof(Model.ThankYou), "Thank-you", Model.ThankYou, Multiline: true))" />
 
             <div class="row g-3 mt-1">
@@ -147,6 +144,21 @@
         </div>
     </div>
 
+    <div class="card mb-3">
+        <div class="card-header py-2"><strong>Invitation email</strong></div>
+        <div class="card-body">
+            <p class="small text-muted mb-2">
+                Customize the initial invitation. Humans adds the greeting, survey title, survey-link button,
+                and sign-off. The message supports Markdown formatting, but not images. Leave either field
+                blank to use the standard wording.
+            </p>
+            <partial name="_SurveyLocalizedField"
+                     model="@(new SurveyLocalizedFieldModel(nameof(Model.InvitationEmailSubject), "Email subject", Model.InvitationEmailSubject, MaxLength: 200))" />
+            <partial name="_SurveyLocalizedField"
+                     model="@(new SurveyLocalizedFieldModel(nameof(Model.InvitationEmailMessage), "Email message", Model.InvitationEmailMessage, Multiline: true, Markdown: true, MaxLength: 4000))" />
+        </div>
+    </div>
+
     <h2 class="h5">Questions</h2>
     <div id="questions-container">
         @foreach (var (q, i) in Model.Questions.Select((q, i) => (q, i)))
@@ -200,6 +212,14 @@
                 });
             }
 
+            function refreshVisibleMarkdownEditors() {
+                requestAnimationFrame(() => {
+                    document.querySelectorAll(
+                        '.survey-culture-field[data-culture="' + activeCulture + '"] .CodeMirror'
+                    ).forEach(el => el.CodeMirror?.refresh());
+                });
+            }
+
             function cultureInput(group, culture) {
                 return group.querySelector('.survey-culture-field[data-culture="' + culture + '"] input, ' +
                                            '.survey-culture-field[data-culture="' + culture + '"] textarea');
@@ -230,6 +250,7 @@
                     t.classList.toggle('btn-outline-secondary', t !== tab);
                 });
                 applyCulture();
+                refreshVisibleMarkdownEditors();
                 updateMissingBadges();
             }));
 
