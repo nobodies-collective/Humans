@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using AwesomeAssertions;
 using Humans.Surveys.Data;
 using Humans.Surveys.Domain;
+using Humans.Surveys.Services;
 using Humans.Integration.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -311,6 +312,63 @@ public class SurveyAdminControllerTests(HumansTestDatabase database) : Integrati
             .Questions.Should().ContainSingle().Subject;
         updatedQuestion.Options.Select(option => option.Id)
             .Should().BeEquivalentTo([columnId, secondColumnId]);
+    }
+
+    [HumansFact(Timeout = 60000)]
+    public async Task Preview_routes_render_the_shared_notice_from_SurveyAdminController()
+    {
+        await Factory.SignInAsFullyOnboardedAsync(Client, DevPersona.Admin);
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var token = await GetCreateTokenAsync();
+        var title = $"Preview render {Guid.NewGuid():N}";
+
+        var saveResp = await Client.PostAsync("/Survey/Admin/Save", BuildForm(
+            ("__RequestVerificationToken", token),
+            ("Title[en]", title),
+            ("Intro[en]", "Preview intro"),
+            ("ThankYou[en]", "Preview complete"),
+            ("Questions.Index", "question"),
+            ("Questions[question].Id", Guid.NewGuid().ToString()),
+            ("Questions[question].PageNumber", "1"),
+            ("Questions[question].Type", nameof(SurveyQuestionType.ShortText)),
+            ("Questions[question].Prompt[en]", "Preview question")), ct);
+        var surveyId = ExtractSurveyId(saveResp);
+
+        foreach (var route in new[]
+                 {
+                     $"/Survey/Admin/Preview/{surveyId}",
+                     $"/Survey/Admin/Preview/{surveyId}/Page?page=1",
+                     $"/Survey/Admin/Preview/{surveyId}/ThankYou",
+                 })
+        {
+            var response = await Client.GetAsync(route, ct);
+            response.StatusCode.Should().Be(HttpStatusCode.OK, because: $"{route} must render fully");
+            var html = await response.Content.ReadAsStringAsync(ct);
+            html.Should().Contain("Preview only.");
+            html.Should().Contain("Send preview email to me");
+
+            if (route.Contains("/Page", StringComparison.Ordinal))
+            {
+                Regex.IsMatch(
+                        html,
+                        "<fieldset[^>]*disabled=\"disabled\"[^>]*>.*?name=\"Answers\\[0\\]\\.TextValue\"",
+                        RegexOptions.IgnoreCase | RegexOptions.Singleline,
+                        TimeSpan.FromSeconds(2))
+                    .Should().BeTrue(
+                        because: "preview answer controls must be disabled so browsers cannot submit them into the query string");
+            }
+        }
+
+        using var scope = Factory.Services.CreateScope();
+        var previewTokens = scope.ServiceProvider.GetRequiredService<SurveyPreviewTokenProvider>();
+        var emailToken = previewTokens.Create(surveyId, "fr");
+        var emailEntry = await Client.GetAsync(
+            $"/Survey/Answer?t={Uri.EscapeDataString(emailToken)}", ct);
+        ((int)emailEntry.StatusCode).Should().BeOneOf(
+            (int)HttpStatusCode.Found, (int)HttpStatusCode.Redirect);
+        emailEntry.Headers.Location!.ToString()
+            .Should().Contain($"/Survey/Admin/Preview/{surveyId}")
+            .And.Contain("culture=fr");
     }
 
     private async Task<string> GetCreateTokenAsync()

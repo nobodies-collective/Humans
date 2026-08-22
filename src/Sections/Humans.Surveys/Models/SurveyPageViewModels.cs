@@ -19,6 +19,14 @@ internal sealed class SurveyPageViewModel
     /// <summary>The public slug (only set when <see cref="IsPublic"/>); drives the post route on the public path.</summary>
     public string Slug { get; init; } = string.Empty;
 
+    /// <summary>True for the protected, read-only admin preview flow.</summary>
+    public bool IsPreview { get; init; }
+
+    public Guid? PreviewSurveyId { get; init; }
+    public string PreviewCulture { get; init; } = string.Empty;
+    public int? PreviousPreviewPage { get; init; }
+    public int? NextPreviewPage { get; init; }
+
     /// <summary>The survey's raw page number this view renders (posted back so the server re-validates the right page).</summary>
     public int Page { get; init; }
 
@@ -69,6 +77,12 @@ internal sealed record SurveyPageOption(string Value, string Label);
 /// <summary>One resolved Grid row.</summary>
 internal sealed record SurveyPageGridRow(string Value, string Label);
 
+/// <summary>Pure presentation model for the shared author-preview notice.</summary>
+internal sealed record SurveyPreviewNoticeModel(
+    Guid SurveyId,
+    string Message,
+    string AdditionalCssClasses = "");
+
 /// <summary>Posted by one wizard page. <see cref="Answers"/> binds via indexed form fields.</summary>
 internal sealed class SurveyPageInputModel
 {
@@ -102,4 +116,6 @@ internal sealed class SurveyThankYouViewModel
 {
     public string Title { get; init; } = string.Empty;
     public string ThankYou { get; init; } = string.Empty;
+    public bool IsPreview { get; init; }
+    public Guid? PreviewSurveyId { get; init; }
 }
