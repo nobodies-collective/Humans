@@ -1,3 +1,4 @@
+using Humans.Base.Attributes;
 using Humans.Base.Extensions;
 using Humans.Surveys.Services;
 using Humans.Surveys.Domain;
@@ -10,6 +11,15 @@ namespace Humans.Surveys.Models;
 internal sealed class SurveyAdminIndexViewModel
 {
     public IReadOnlyList<SurveySummary> Surveys { get; init; } = [];
+}
+
+/// <summary>Side-effect-free preview of the current user's survey invitation email.</summary>
+internal sealed class SurveyEmailPreviewViewModel
+{
+    public Guid SurveyId { get; init; }
+    public string Recipient { get; init; } = string.Empty;
+    public string Subject { get; init; } = string.Empty;
+    public string HtmlBody { get; init; } = string.Empty;
 }
 
 /// <summary>A team choice for the audience picker.</summary>
@@ -26,6 +36,7 @@ internal sealed class SurveyIntroViewModel
 {
     public string Token { get; init; } = string.Empty;
     public string Title { get; init; } = string.Empty;
+    [MarkdownContent]
     public string Intro { get; init; } = string.Empty;
 
     /// <summary>The currently-selected language; the form posts it back so the wizard runs in it.</summary>
@@ -96,7 +107,9 @@ internal sealed record SurveyLocalizedFieldModel(
     string NamePrefix,
     string Label,
     IReadOnlyDictionary<string, string> Values,
-    bool Multiline = false);
+    bool Multiline = false,
+    int? MaxLength = null,
+    bool Markdown = false);
 
 /// <summary>One question card in the builder. <paramref name="Key"/> is the non-sequential indexer key (or the <c>__QKEY__</c> placeholder in the JS template).</summary>
 internal sealed record SurveyQuestionCardModel(string Key, SurveyQuestionBuilderViewModel Question);
@@ -127,6 +140,8 @@ internal sealed class SurveyBuilderViewModel
     public Dictionary<string, string> Title { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> Intro { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> ThankYou { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> InvitationEmailSubject { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> InvitationEmailMessage { get; set; } = new(StringComparer.Ordinal);
 
     public string DefaultCulture { get; set; } = CultureCatalog.DefaultCultureCode;
     public bool AllowAnonymous { get; set; }
@@ -161,6 +176,8 @@ internal sealed class SurveyBuilderViewModel
         new LocalizedText(Title),
         new LocalizedText(Intro),
         new LocalizedText(ThankYou),
+        new LocalizedText(InvitationEmailSubject),
+        new LocalizedText(InvitationEmailMessage),
         string.IsNullOrWhiteSpace(DefaultCulture) ? CultureCatalog.DefaultCultureCode : DefaultCulture,
         AllowAnonymous,
         ToInstant(OpensAt, zone),
@@ -181,6 +198,8 @@ internal sealed class SurveyBuilderViewModel
             Title = ToDict(e.Title),
             Intro = ToDict(e.Intro),
             ThankYou = ToDict(e.ThankYou),
+            InvitationEmailSubject = ToDict(e.InvitationEmailSubject),
+            InvitationEmailMessage = ToDict(e.InvitationEmailMessage),
             DefaultCulture = e.DefaultCulture,
             AllowAnonymous = e.AllowAnonymous,
             OpensAt = FromInstant(e.OpensAt, zone),
