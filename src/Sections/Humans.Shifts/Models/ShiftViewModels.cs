@@ -23,7 +23,9 @@ internal sealed class EventSettingsViewModel : IValidatableObject
     [Required]
     public string GateOpeningDate { get; set; } = string.Empty;
 
-    public int BuildStartOffset { get; set; } = -14;
+    // Build starts on the first-crew day; -14 sat after SetupWeekStartOffset and
+    // made this form's own two offset rules unsatisfiable.
+    public int BuildStartOffset { get; set; } = -25;
     public int EventEndOffset { get; set; } = 6;
     public int StrikeEndOffset { get; set; } = 9;
 
@@ -184,6 +186,18 @@ internal sealed class ShiftBrowseViewModel
     /// </summary>
     public List<string> FilterPeriods { get; set; } = [];
 
+    /// <summary>
+    /// Selected single-day filter (ISO date string), issue #889. Empty/null means "all days".
+    /// </summary>
+    public string? FilterDay { get; set; }
+
+    /// <summary>
+    /// Every calendar day that carries at least one browsable shift for the active
+    /// event, for the day-filter dropdown. Independent of the current department/tag/
+    /// period/day filters so the option list stays stable as the viewer filters.
+    /// </summary>
+    public List<DayFilterOption> DayOptions { get; set; } = [];
+
     public bool ShowFullShifts { get; set; }
     public Guid UserId { get; set; }
     public HashSet<Guid> UserSignupShiftIds { get; set; } = [];
@@ -283,6 +297,14 @@ internal sealed class RotaShiftGroup
     /// <summary>Total max volunteer slots across all shifts in this rota.</summary>
     public int TotalSlots { get; set; }
 }
+
+/// <summary>
+/// One selectable day for the Volunteering page's day-filter dropdown (issue #889).
+/// <see cref="SubPeriod"/> is populated only for <see cref="ShiftPeriod.Build"/> days
+/// that fall within one of the four named sub-windows (<see cref="BuildSubPeriodClassifier"/>);
+/// null for Event/Strike days and for build days outside those windows.
+/// </summary>
+internal sealed record DayFilterOption(LocalDate Date, ShiftPeriod Period, BuildSubPeriod? SubPeriod);
 
 internal sealed class ShiftDisplayItem
 {

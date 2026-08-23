@@ -349,7 +349,7 @@ internal sealed class CachingUserService(
         var legacyDisplayName = user.DisplayName;
         return current with
         {
-            BurnerName = ResolveBurnerName(legacyDisplayName, current.Profile),
+            BurnerName = ResolveBurnerName(user.BurnerName, legacyDisplayName, current.Profile),
             IsGdprAnonymized = string.Equals(
                 legacyDisplayName, UserInfo.GdprAnonymizedBurnerName, StringComparison.Ordinal),
             PreferredLanguage = user.PreferredLanguage,
@@ -374,10 +374,20 @@ internal sealed class CachingUserService(
         };
     }
 
-    private static string ResolveBurnerName(string legacyDisplayName, ProfileInfo? profile) =>
-        profile is not null && !string.IsNullOrWhiteSpace(profile.BurnerName)
+    /// <summary>
+    /// #1097 resolution order: <c>User.BurnerName</c> → <c>Profile.BurnerName</c> → the legacy
+    /// <c>User.DisplayName</c>. Cache-refresh twin of the same order in <c>UserInfo.Create</c>.
+    /// </summary>
+    private static string ResolveBurnerName(
+        string? userBurnerName, string legacyDisplayName, ProfileInfo? profile)
+    {
+        if (!string.IsNullOrWhiteSpace(userBurnerName))
+            return userBurnerName;
+
+        return profile is not null && !string.IsNullOrWhiteSpace(profile.BurnerName)
             ? profile.BurnerName
             : legacyDisplayName;
+    }
 
     // ==========================================================================
     // Inner delegation — every other IUserService method passes through and
@@ -453,11 +463,23 @@ internal sealed class CachingUserService(
         Guid targetUserId, CancellationToken ct = default)
     {
         await EnsureWarmedAsync(ct).ConfigureAwait(false);
+
+        // Transitive: A merged into B, then B later merged into C leaves A's
+        // row pointing at B, not C. Walk the tombstone chain to a fixed point
+        // rather than one hop, so C's read picks up {A, B}. `ids.Add` guards
+        // against a cyclic MergedToUserId chain (shouldn't happen, but would
+        // otherwise loop forever).
         var ids = new HashSet<Guid>();
-        foreach (var u in Values)
+        var frontier = new HashSet<Guid> { targetUserId };
+        while (frontier.Count > 0)
         {
-            if (u.MergedToUserId == targetUserId)
-                ids.Add(u.Id);
+            var next = new HashSet<Guid>();
+            foreach (var u in Values)
+            {
+                if (u.MergedToUserId is { } mergedTo && frontier.Contains(mergedTo) && ids.Add(u.Id))
+                    next.Add(u.Id);
+            }
+            frontier = next;
         }
         return ids;
     }
