@@ -52,7 +52,23 @@ sweep commit (Phase 5), idempotent by construction.
 
 ## Phase 0: Setup
 
-`REPO_ROOT=$(git rev-parse --show-toplevel)`. Parse args; record start time (`date -u`).
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+TS=$(date -u +%Y-%m-%dT%H%M%SZ)                 # the run's identity: branch, run dir, run file
+RUNDIR="${TMPDIR:-/tmp}/section-doctor/$TS"     # scratch — OUTSIDE the working tree
+mkdir -p "$RUNDIR"
+```
+
+Parse args; record start time (`date -u`).
+
+**Run scratch never lives in the worktree.** The phase log and the open-PR JSON are working notes,
+not deliverables, and a strike that runs `git add -A` commits anything sitting in the tree. The
+`.gitignore` entries for `/.phase-log` and `/.prs.json` stay as a backstop.
+
+**None of these variables survive between tool calls** — shell state is per-call, so `$TS`,
+`$RUNDIR` and `$WORKTREE` must be re-set at the top of any call that uses them. That is why every
+one of them derives from `$TS` alone, and why `$TS` is also the branch name: `section-doctor/$TS`
+is recoverable with `git rev-parse --abbrev-ref HEAD` at any point in the run.
 
 Getting a toolchain is the *environment's* job, not this skill's — a local run and the
 scheduled cloud run both start with the SDK, `dotnet-ef` and reforge already there. Never
@@ -71,8 +87,7 @@ reads as a run that found nothing to build.
 ## Phase 1: Worktree
 
 ```bash
-git fetch origin main
-TS=$(date -u +%Y-%m-%dT%H%M%SZ)
+git fetch origin main   # $TS was fixed in Phase 0 — branch, run dir and run file share it
 git worktree add $REPO_ROOT/.worktrees/section-doctor-$TS -b section-doctor/$TS origin/main
 WORKTREE=$REPO_ROOT/.worktrees/section-doctor-$TS  # cd here; all commands run inside
 ```
@@ -80,12 +95,32 @@ WORKTREE=$REPO_ROOT/.worktrees/section-doctor-$TS  # cd here; all commands run i
 Scope is frozen at the branch point — never reconcile against `origin/main` mid-run. Scope every
 Glob/Grep to `$WORKTREE`.
 
-Start the phase log now, and append one line at the start of each later phase (2, 3, 4, 5, 7) —
-Phase 7's cost report buckets the session transcript by these timestamps:
+Start the phase log now. Phase 7's cost report buckets the session transcript by these
+timestamps, and names each row by the **label**, not the phase id — a table of phase numbers
+tells its reader nothing about where the run's money went:
 
 ```bash
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) phase1" >> $WORKTREE/.phase-log   # never committed
+RUNDIR="${TMPDIR:-/tmp}/section-doctor/$TS"   # re-derive; nothing carries over between calls
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) phase1 worktree" >> "$RUNDIR/phase-log"
 ```
+
+**Write the line out in full at every phase boundary, through Phase 7.** Shell state does not
+survive between tool calls — a `mark()` helper defined here is gone by the next call, and so are
+`$RUNDIR`, `$TS` and `$WORKTREE`. Re-derive the path (or paste it literally) each time rather than
+relying on a variable set in an earlier call:
+
+| Phase | Line to append |
+|---|---|
+| 2 | `phase2 select section` |
+| 3 | `phase3 assess` |
+| 4 | `phase4 strike: <what>` — **once per strike item**, which turns the run's biggest row into a per-item breakdown |
+| 5 | `phase5 bookkeeping` |
+| 6 | `phase6 retro` |
+| 7 | `phase7 PR` |
+
+A phase that does not append is a phase nobody can price — its spend silently joins the row above
+it. If a marker was missed, append it late rather than not at all and say so in `## Threads`; an
+out-of-order log is still bucketed correctly (the report sorts by timestamp), a missing one is not.
 
 ## Phase 2: Select the section
 
@@ -97,7 +132,7 @@ long enough, and the runs must keep going unattended.)
 
 ```bash
 gh pr list --repo peterdrier/Humans --state open --limit 200 \
-  --json number,headRefName,title,files > $WORKTREE/.prs.json   # never committed
+  --json number,headRefName,title,files > "$RUNDIR/prs.json"   # scratch, outside the tree
 ```
 
 (`--limit` is mandatory — `gh pr list` fetches only 30 by default, so an older open run
@@ -109,7 +144,7 @@ MCP tools: `[{number, headRefName, title, files: [paths]}]` for all open PRs.
 sonnet subagent burning ~$1.50/run; a subagent remains only for the re-doctor judgment below):
 
 ```bash
-python .claude/skills/section-doctor/select-section.py --prs $WORKTREE/.prs.json
+python .claude/skills/section-doctor/select-section.py --prs "$RUNDIR/prs.json"
 ```
 
 It computes the **blocked set** (sections named by open `section-doctor/` PRs' titles,
@@ -126,9 +161,9 @@ It prints `SECTION:` / `TIER:` / `RATIONALE:` plus the full ranked table for the
 falls back to a LOC ranking (flagged in its output) when reforge is unusable. Act on its
 verdicts — never re-derive the maths in-band:
 
-- **`ALL BLOCKED`** (exit 3): report the open PRs and go straight to Phase 9 teardown —
-  nothing has been written at this point, so the worktree is clean and `git worktree remove`
-  succeeds without `--force`.
+- **`ALL BLOCKED`** (exit 3): report the open PRs and stop. This is the one path that removes the
+  worktree immediately (Phase 9) — nothing has been written yet, so it is clean and
+  `git worktree remove` succeeds without `--force`.
 - **`JUDGMENT REQUIRED`** (exit 2): every eligible section is previously-doctored. Only now
   dispatch a focused **sonnet** selector subagent, giving it the script's table: read each
   section's `Docs/health.md` for its last-assessed date, rank by days since that date combined
@@ -141,7 +176,7 @@ Sections passed over as blocked are noted in this run's run file under skipped
 to them.
 
 Take the selected section (or `--section`, which skips the selector but never the blocked
-set — check it with `select-section.py --prs $WORKTREE/.prs.json --blocked-only`). Sections
+set — check it with `select-section.py --prs "$RUNDIR/prs.json" --blocked-only`). Sections
 are `src/Sections/` projects only.
 
 **Never work a section in the blocked set.** A section with an open section-doctor PR has
@@ -344,7 +379,33 @@ executed after it. Budget checks are real
    `section-read-split`, `reuse-review` (against the section's own surface), the
    `.codex/skills/humans-refactor` lane process, a `debt-ledger.yml` item — or a direct fix.
 2. Fix it right — no surgical fixes. Reuse-first.
+
+   **A `dedup` or `collapse` item checks the shape it is collapsing *into*, not only the one it
+   is collapsing.** "Two branches differ in one attribute" is a valid trigger and says nothing
+   about whether the merged form is legal. Read the target form against
+   `docs/architecture/code-review-rules.md`'s hard-reject list and the section's own load-bearing
+   weirdness, and where a linter owns that shape (`.claude/razor-lint.sh` for views) run it on the
+   changed file rather than trusting it to fire later.
 3. `dotnet build Humans.slnx -v quiet`; targeted tests for the touched area.
+
+   **A test the run adds is only covered if some CI job actually runs it — check the filters, not
+   the suite.** Before writing "CI is the gate" about a new test, resolve its assembly against
+   every workflow's `dotnet test` invocation and confirm one of them would select it:
+
+   ```bash
+   grep -n 'dotnet test' -A4 .github/workflows/*.yml | grep -i 'filter\|dotnet test'
+   ```
+
+   `build.yml` runs `--filter "FullyQualifiedName!~Humans.Integration.Tests"`. **That exclusion is
+   deliberate and permanent** — `Humans.Integration.Tests` is the home of tests that cannot run
+   under CI at all, because they integrate with external things CI does not have
+   (`memory/process/integration-tests-are-not-ci-tests.md`). A test put there runs nowhere on any
+   branch, and that is the correct home only for a test which genuinely needs a live external
+   dependency. A test that must actually run belongs in `tests/Humans.<Section>.Tests/`.
+
+   **Unreachable → move it, or say plainly in the run file and the commit that it does not run**;
+   never report it as covered by CI. Never propose a CI job for that project, and never count its
+   tests as a coverage gap — the rule above settles it.
 4. Non-mechanical changes (deletions beyond plainly-dead code, structural moves) → second-opinion
    reviewer subagent, opus-tier, score-blind, default-reject: "name the concept that improved in
    one sentence." Reject → rework once; second reject → revert, record.
@@ -363,10 +424,30 @@ executed after it. Budget checks are real
 **Skip-and-queue classes** (never block the loop): schema/EF changes of any kind, public/interface
 surface *additions*, privilege changes, **mutating a GitHub issue** (closing, editing, relabelling
 or commenting on one — 3d's Inbox review recommends, Peter enacts), anything needing Peter's
-judgment → skip, queue for Phase 7's Needs-Peter block. Off-section debt discovered → this run's
-sweep queue (`debt:`), never chased, never written to the ledger directly. If in-flight feature
-work on this section surfaces mid-run → stop striking, ship the assessment-only PR, note it in
-the run file.
+judgment → skip, queue for Phase 7's Needs-Peter block. If in-flight feature work on this section
+surfaces mid-run → stop striking, ship the assessment-only PR, note it in the run file.
+
+**The Needs-Peter admission test.** An item is admitted only if **both** hold: *would two
+reasonable implementers do different things?* and *is the choice inside this section?* Anything
+failing either is not a decision, and a block padded with non-decisions buries the items that are:
+
+| Fails because | Goes instead to |
+|---|---|
+| There is one obvious answer — the run is telling, not asking | the ranked list; do it |
+| The choice sits in another section | this run's `## Sweep queue` |
+| It is a finding, not a fork | the findings list and the assessment summary |
+
+**Debt found and not fixed goes to a ledger, not a run file** — a run file is a dated artifact
+nobody re-reads (`memory/process/debt-ledger-additions.md`). *In-section*: append to
+`src/Sections/Humans.<X>/Docs/debt.yml`, creating it if absent. *Off-section*: this run's sweep
+queue (`debt:`), never chased mid-assessment; Phase 5's sweep writes it to the **owning section's**
+ledger after this run merges — debt belongs where the next reader of that section will meet it.
+
+**Section ledgers have no single writer, by design.** A sweep writes the ledger of whichever
+section owns the debt, so two runs can touch one ledger and their PRs can conflict. Appending to
+a YAML list rarely collides, and a conflict here is one hand-resolved hunk — the same no-locking
+trade the rest of the sweep machinery takes. Don't add locking, ownership checks, or a routing
+detour to avoid it.
 
 ## Phase 5: Bookkeeping
 
@@ -395,12 +476,13 @@ worktree/PR, three bookkeeping writes:
     (nobodies-collective/Humans#1465); a run that leaves them blank has decided that question for
     every run after it.
 
-    **A dispatched thread has its own cost; the main-run threads share one.** The phase log has a
-    single `phase3` boundary, so every main-thread call in Phase 3 lands in one `main:phase3`
-    bucket — spine, Shape and Behavior & bugs together. Write that one figure in each main row and
-    mark it `shared`. Never split it per lens: the split would be invented, and an invented number
-    is worse here than a coarse one. The Shape/Behavior question is settled by whole-run totals
-    against the baseline (Phase 7), not by attributing turns to lenses that interleave.
+    **A dispatched thread has its own cost; the main-run threads share one.** Phase 3 marks the
+    phase log once, so every main-thread call in it lands in the one `assess` row — spine, Shape
+    and Behavior & bugs together. Write that one figure in each main row and mark it `shared`.
+    Never split it per lens: the split would be invented, and an invented number is worse here
+    than a coarse one. (Phase 4 is the opposite case — it marks per strike item, so its rows are
+    already per-item and need no such caveat.) The Shape/Behavior question is settled by whole-run
+    totals against the baseline (Phase 7), not by attributing turns to lenses that interleave.
   - **`## Size`** — line count against the run's anchor for every section touched, and the net.
     Growth is reported with its reason, and consolidation that grows this section while shrinking
     another is stated as the trade it is. Include the section's reforge metrics snapshot (`loc`,
@@ -415,7 +497,9 @@ worktree/PR, three bookkeeping writes:
 
 - **The sweep** — its own commit, and the only place a run touches shared files: for every
   `## Sweep queue` item in merged run files under `docs/health/runs/` on `origin/main`, apply
-  it — `lesson:` → this skill's Lessons, `debt:` → `debt-ledger.yml`, `memory:` → the named
+  it — `lesson:` → this skill's Lessons, `debt:` → the owning section's
+  `src/Sections/Humans.<X>/Docs/debt.yml` where one section owns the fix and
+  `docs/architecture/debt-ledger.yml` otherwise, `memory:` → the named
   atom + INDEX line — skipping any item already present in its target (idempotence is the only
   bookkeeping; there is no anchor window). **Never edit the swept run files** — resume is
   their only post-merge editor, which is what keeps resume conflict-free. Two piled-up
@@ -458,13 +542,20 @@ carries it forward after merge. One PR per run; never merge.
 **Cost report** — before creating the PR, run:
 
 ```bash
-python .claude/skills/section-doctor/cost-report.py section-doctor/$TS $WORKTREE/.phase-log
+python .claude/skills/section-doctor/cost-report.py section-doctor/$TS "$RUNDIR/phase-log"
 ```
 
 It finds this run's own session transcript under `~/.claude/projects` (the model never sees its
 own usage in-band, but the harness logs every API call's tokens there), buckets the main thread
 by the phase log, adds one row per subagent transcript (named by the `thread:` marker its
-prompt opens with), and prints a markdown table with per-row model and API-equivalent $. The table is a **Phase 1 → PR-creation cutoff, not a run total** — the PR
+prompt opens with), and prints a markdown table with per-row model and API-equivalent $.
+
+**Rows are named by what the run was doing, not by phase number** — each row takes the label from
+its `mark` line, and the phase id is a trailing column. Phase 4's per-item marks give one row per
+strike, so the largest bucket reads as a breakdown rather than a lump. Whatever the table's rows
+are, they are what the reader gets; a run that marks lazily reports lazily.
+
+The table is a **Phase 1 → PR-creation cutoff, not a run total** — the PR
 create/backfill calls and any Phase 8 work land after measurement (the footer says so). Paste
 it as `## Cost` into the PR body and the run file, and fill Phase 5's `## Threads` model/cost
 columns from the same report (both land with the backfill commit). Compare the total against the
@@ -483,9 +574,23 @@ never AskUserQuestion) and apply answers as new commits + push, ticking each ans
 both the PR body and the run file. Unattended morning runs skip this; `resume` covers it.
 Unanswered items carry forward — never re-asked.
 
-## Phase 9: Teardown
+## Phase 9: Stand down — the worktree stays
 
-`cd $REPO_ROOT && git worktree remove $WORKTREE` (never `rm -rf`).
+**Stop working. Do not remove the worktree.** A run ends when its PR is merged or closed, not when
+it is opened — review arrives after Phase 7 (a BLOCK, bot findings, Peter working the Needs-Peter
+queue) and every one of those is answered by committing to this branch.
+
+Phase 9 writes nothing. Phase 7's backfill commit is the run's last write, and everything a later
+session needs is already derivable: the branch is `section-doctor/$TS`, its worktree is
+`$REPO_ROOT/.worktrees/section-doctor-$TS`, and the PR number is in the run file. `$RUNDIR` is
+scratch; leave it for the OS to reclaim. **Leave the worktree clean** — an uncommitted edit here
+never reaches the PR and makes the retained worktree dirty for whoever picks the review up.
+
+**Teardown happens when the PR reaches terminal state** — by `/merged`, or by hand with
+`git worktree remove $WORKTREE` from `$REPO_ROOT` (never a recursive delete).
+
+Phase 2's **`ALL BLOCKED`** exit is the one case that tears down immediately: no PR, no branch
+content, nothing to come back for.
 
 ## Resume mode
 
@@ -523,9 +628,11 @@ Present the open items inline, then apply each answer:
 - Public-surface additions need Peter; dead-surface deletion is the job (reviewer-gated).
 - Explicit tagged model on every subagent. Never leave the branch red between commits.
 - **A run touches only:** the section's files (+ callers where a play requires), the section's
-  `Docs/health.md`, its own `docs/health/runs/<date>-<Section>.md`, and — in the sweep commit
-  only (Phase 5) — this skill's files, `docs/architecture/debt-ledger.yml`, `memory/`; never
-  the run files it sweeps. Nothing writes `docs/architecture/maintenance-log.md`.
+  `Docs/health.md` and `Docs/debt.yml`, its own `docs/health/runs/<date>-<Section>.md`, and — in
+  the sweep commit only (Phase 5) — this skill's files, the debt ledgers (central, and any
+  section's whose debt the sweep is routing), `memory/`; never the run files it sweeps. Run
+  scratch goes to `$RUNDIR`, outside the worktree entirely. Nothing writes
+  `docs/architecture/maintenance-log.md`.
 - **Every GitHub issue is read-only to every run.** No close, edit, relabel or comment, on any
   issue, ever — 3d's Inbox review recommends and Peter enacts. A run's only GitHub writes are its
   own PR.
