@@ -44,7 +44,7 @@ internal partial interface ISurveyRepository : IRepository
     /// <summary>Submitted-response count per survey id (for the admin index). Drafts (<c>SubmittedAt is null</c>) excluded. Read-only.</summary>
     Task<IReadOnlyDictionary<Guid, int>> GetResponseCountsBySurveyAsync(CancellationToken ct = default);
 
-    /// <summary>User ids already invited to a survey (the idempotency ledger for the send wave). Read-only.</summary>
+    /// <summary>User ids whose invitation email has already been prepared (<c>SentAt != null</c>). Public-link participation rows with no email are excluded. Read-only.</summary>
     Task<IReadOnlySet<Guid>> GetInvitedUserIdsAsync(Guid surveyId, CancellationToken ct = default);
 
     /// <summary>All invitations for a survey (for the admin Send status list). No display ordering — caller sorts. Read-only.</summary>
@@ -52,6 +52,13 @@ internal partial interface ISurveyRepository : IRepository
 
     /// <summary>Inserts a single invitation row and saves (per-invite commit so the send wave is restartable).</summary>
     Task AddInvitationAndSaveAsync(SurveyInvitation invitation, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets or creates the one per-survey/user participation row. The unique database index is the
+    /// authority when concurrent public-start requests race.
+    /// </summary>
+    Task<SurveyInvitation> GetOrCreateParticipationAsync(
+        Guid surveyId, Guid userId, Instant createdAt, CancellationToken ct = default);
 
     /// <summary>
     /// Invitations due for the one-time 7-day reminder: their survey is <c>Open</c>, not yet
@@ -63,7 +70,11 @@ internal partial interface ISurveyRepository : IRepository
     /// <summary>Stamps an invitation's <c>ReminderSentAt</c> (the one-shot reminder ledger). No-op if the invitation is gone.</summary>
     Task SetReminderSentAsync(Guid invitationId, Instant at, CancellationToken ct = default);
 
-    /// <summary>Sets an invitation's <c>LatestEmailStatus</c>. No-op if the invitation does not exist.</summary>
+    /// <summary>
+    /// Sets an invitation's <c>LatestEmailStatus</c>. A first <c>Queued</c> transition also stamps
+    /// <c>SentAt</c>, upgrading a public-link participation row into an emailed invitation.
+    /// No-op if the invitation does not exist.
+    /// </summary>
     Task UpdateInvitationStatusAsync(Guid id, EmailOutboxStatus status, Instant at, CancellationToken ct = default);
 
     // ── Answering (wizard entry) ────────────────────────────────────────────
@@ -85,16 +96,41 @@ internal partial interface ISurveyRepository : IRepository
     // ── Answering (submit) ──────────────────────────────────────────────────
     /// <summary>
     /// Replaces a draft response's answers with <paramref name="answers"/> (load tracked, remove
-    /// existing, add new) and saves. When <paramref name="submittedAt"/> is non-null it also stamps
-    /// <c>SubmittedAt</c> (the Identified finalise). No-op if the response does not exist.
+    /// existing, add new), stamps the current entry path and culture, and saves. No-op if the response
+    /// has already been submitted.
     /// </summary>
-    Task SaveDraftAnswersAsync(Guid draftResponseId, IReadOnlyList<SurveyAnswer> answers, Instant? submittedAt, CancellationToken ct = default);
+    Task SaveDraftAnswersAsync(
+        Guid draftResponseId,
+        IReadOnlyList<SurveyAnswer> answers,
+        SurveyInputMethod inputMethod,
+        string culture,
+        CancellationToken ct = default);
 
     /// <summary>Inserts a response together with its answer graph and saves (CompletionTracked/Anonymous final submit).</summary>
     Task AddResponseWithAnswersAndSaveAsync(SurveyResponse response, CancellationToken ct = default);
 
-    /// <summary>Sets an invitation's <c>Completed</c> flag (no timestamp — see entity). No-op if the invitation is gone.</summary>
-    Task SetInvitationCompletedAsync(Guid invitationId, CancellationToken ct = default);
+    /// <summary>
+    /// Finalises an Identified draft and marks its participation complete in one save. No-op if the
+    /// participation is already complete.
+    /// </summary>
+    Task FinalizeIdentifiedResponseAsync(
+        Guid invitationId,
+        Guid draftResponseId,
+        IReadOnlyList<SurveyAnswer> answers,
+        Instant submittedAt,
+        SurveyInputMethod inputMethod,
+        string culture,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Stores an unlinkable CompletionTracked response, retires any Identified draft, and marks the
+    /// participation complete in one save. No-op if the participation is already complete.
+    /// </summary>
+    Task FinalizeCompletionTrackedResponseAsync(
+        Guid invitationId,
+        Guid userId,
+        SurveyResponse response,
+        CancellationToken ct = default);
 
     /// <summary>Sets an invitation's <c>Started</c> flag (no timestamp). No-op if the invitation is gone.</summary>
     Task MarkInvitationStartedAsync(Guid invitationId, CancellationToken ct = default);
@@ -113,4 +149,11 @@ internal partial interface ISurveyRepository : IRepository
     /// excluded — they are not personal data linkable to the user. No display ordering. Read-only.
     /// </summary>
     Task<IReadOnlyList<SurveyResponse>> GetIdentifiedResponsesForUserAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// GDPR Art. 17: de-identifies the user's responses — drops the UserId and
+    /// InvitationId links and demotes them to <see cref="ResponseAnonymity.Anonymous"/>
+    /// — and deletes their invitations. The answers stay as anonymous research data.
+    /// </summary>
+    Task<int> AnonymizeResponsesForUserAsync(Guid userId, CancellationToken ct = default);
 }

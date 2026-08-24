@@ -117,7 +117,11 @@ internal sealed class EmailOutboxRepository(IDbContextFactory<EmailDbContext> fa
                 && m.RetryCount < maxRetries
                 && (m.NextRetryAt == null || m.NextRetryAt <= now)
                 && (m.PickedUpAt == null || m.PickedUpAt < staleThreshold))
-            .OrderBy(m => m.CreatedAt) // arch:db-sort-ok outbox FIFO claim batch (Take)
+            // Time-sensitive mail jumps the queue: a human is blocked on it, and the
+            // bulk mail it would otherwise queue behind drains at 1 send/second
+            // (nobodies-collective/Humans#1122). FIFO still holds within each class.
+            .OrderBy(m => TimeSensitiveTemplates.Names.Contains(m.TemplateName) ? 0 : 1) // arch:db-sort-ok outbox priority claim batch (Take)
+            .ThenBy(m => m.CreatedAt) // arch:db-sort-ok outbox FIFO within priority class (Take)
             .Take(batchSize)
             .ToListAsync(ct);
     }
@@ -182,6 +186,19 @@ internal sealed class EmailOutboxRepository(IDbContextFactory<EmailDbContext> fa
         // but is not supported by the InMemory provider.
         var toDelete = await ctx.EmailOutboxMessages
             .Where(m => m.Status == EmailOutboxStatus.Sent && m.SentAt < cutoff)
+            .ToListAsync(ct);
+        if (toDelete.Count == 0) return 0;
+        ctx.EmailOutboxMessages.RemoveRange(toDelete);
+        await ctx.SaveChangesAsync(ct);
+        return toDelete.Count;
+    }
+
+    public async Task<int> DeleteForUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        // Load-then-RemoveRange for the same InMemory-provider reason as above.
+        var toDelete = await ctx.EmailOutboxMessages
+            .Where(m => m.UserId == userId)
             .ToListAsync(ct);
         if (toDelete.Count == 0) return 0;
         ctx.EmailOutboxMessages.RemoveRange(toDelete);

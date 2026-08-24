@@ -29,7 +29,7 @@ For each issue in the work order (sequentially, never parallel):
 
    b. **Spec change derived from user feedback.** The issue body includes an `fb:` feedback reference AND the change alters what the system does or allows beyond a mechanical fix — adds/removes a workflow step, changes eligibility rules, changes what data is shown or collected, adds a new public endpoint, changes a default behavior, removes a consent step. Per `memory/process/triage-protocol.md`.
 
-   When you stop, report: the specific concern, the line(s) that would need to change, a one-line summary of what changes for whom, and (if a privilege change) which user(s) would gain the capability. The orchestrator escalates to Peter; you do not. The pre-flight gate in `/execute-sprint` Step 2.5 should have caught these — if you're hitting this path, either the gate missed something or the spec was misleading. Either way, the worker is not the layer that decides.
+   When you stop, report: the specific concern, the line(s) that would need to change, a one-line summary of what changes for whom, and (if a privilege change) which user(s) would gain the capability. The orchestrator escalates to Peter; you do not. The orchestrator's pre-flight gates should have caught these — if you're hitting this path, either a gate missed something or the spec was misleading. Either way, the worker is not the layer that decides.
 
    Mechanical fixes from user feedback (typos, broken links, error-message wording, layout glitches, hidden stack traces, missing icons) do NOT trigger this — only spec/policy/capability changes do.
 4. Run `dotnet build Humans.slnx` — fix any build errors before proceeding.
@@ -134,6 +134,44 @@ Self-reviewed against CODE_REVIEW_RULES.md. No critical issues.
 - **Read the issue spec, not your own summary of it.** The failure this agent prevents is building something that sounds right but doesn't match the spec. Re-read the original spec every time you review.
 - **One commit per issue, plus fix commits.** Keep the history clean so individual issues can be traced.
 - **If the user sends a message, STOP and answer immediately.** Do not continue working while there's an unanswered question.
+
+## Unattended Mode (routine-fired cloud runs)
+
+When this agent runs from a sprint routine rather than a session Peter is watching
+(dispatched by the [`execute-sprint`](../skills/execute-sprint/SKILL.md) project skill), there
+is no one to escalate to: routine runs are fully autonomous with no permission prompts. The
+stop-and-report rules above still hold, but "the orchestrator escalates to Peter" is not
+available — escalation means recording, and the split of duties tightens:
+
+**The worker implements, commits, and reports. The orchestrator owns everything GitHub-side** —
+push, PR creation, ticking the tracking-issue checkbox, appending to its Needs-Peter block.
+Phase 4 does not apply: stop after the last commit and put the PR body content in your report.
+You need no GitHub access at all in this mode (`gh` is unavailable in cloud sessions anyway);
+never touch the tracking issue yourself.
+
+**Pre-implementation gates degrade to: skip the item, record it in your report for Needs-Peter,
+keep going.** **Post-commit review failures stay hard stops.** The distinction is whether code is
+already committed: Phase 1 step 5 commits each issue before Phase 2 reviews it, so a "skip" after
+a review failure would leave the failing implementation on the branch and carry it into the batch PR.
+
+- **Phase 1 escape valve (privilege / spec change)** — do not implement, do not commit. Record
+  the concern, the lines that would change, and who gains what capability; move to the next issue
+  in the work order. The batch continues.
+- **Unauthorized author** — `plan-sprint` marks these `GATED` at plan time and the orchestrator
+  never hands them to you. If one reaches you anyway, skip it and record that the gate leaked.
+- **Review gate exhausted (3 iterations, Phase 2 / 2.5 / 3)** — unchanged from the rules above:
+  **STOP.** The batch is blocked at that issue. Do not skip it, do not move to the next issue.
+  Report `BLOCKED` with the failing criterion; the orchestrator opens no PR for the batch and
+  nothing re-dispatches it on its own, since the batch is an input, not a discovery (§ Input,
+  and the template's § Batch selection).
+
+If a gate fires after that issue already has a commit — the escape valve missed it during
+exploration and caught it during implementation — `git revert` or reset that issue's commits before
+continuing, so the skipped work never reaches the PR.
+
+A skipped item leaves the batch checkbox unticked and is named in the PR body (by the
+orchestrator, from your report). Peter's answers are applied later by a `resume` run, as in
+`section-doctor`.
 
 ## Report Format
 

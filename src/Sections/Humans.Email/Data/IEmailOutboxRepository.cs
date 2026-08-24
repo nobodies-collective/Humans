@@ -96,6 +96,10 @@ internal interface IEmailOutboxRepository : IRepository
     /// processor: not yet sent, below the retry cap, past
     /// <see cref="EmailOutboxMessage.NextRetryAt"/>, and either never
     /// picked up or stale (older than <paramref name="staleThreshold"/>).
+    /// Rows whose <see cref="EmailOutboxMessage.TemplateName"/> is in
+    /// <see cref="TimeSensitiveTemplates.Names"/> are ordered ahead of all others
+    /// so they are not stuck behind a bulk backlog; ordering within each class is
+    /// FIFO by <see cref="EmailOutboxMessage.CreatedAt"/>.
     /// Returned entities are detached; to update, use
     /// <see cref="MarkPickedUpAsync"/> / <see cref="MarkSentAsync"/> /
     /// <see cref="MarkFailedAsync"/>.
@@ -142,4 +146,15 @@ internal interface IEmailOutboxRepository : IRepository
     /// <paramref name="cutoff"/>. Returns the number of rows deleted.
     /// </summary>
     Task<int> DeleteSentOlderThanAsync(Instant cutoff, CancellationToken ct = default);
+
+    // ==========================================================================
+    // GDPR Article 17 — used by EmailOutboxService.EraseForUserAsync
+    // ==========================================================================
+
+    /// <summary>
+    /// Deletes every outbox row attributed to <paramref name="userId"/>, whatever
+    /// its status — the rows carry the recipient's address, name and the rendered
+    /// message body. Returns the number of rows deleted.
+    /// </summary>
+    Task<int> DeleteForUserAsync(Guid userId, CancellationToken ct = default);
 }

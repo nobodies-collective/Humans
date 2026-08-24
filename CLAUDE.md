@@ -8,6 +8,10 @@ Membership management system for Nobodies Collective (Spanish nonprofit). Manage
 
 @docs/architecture/peters-hard-rules.md
 
+**Peter's working rules — how to behave while working (think-before-coding, simplicity first, surgical changes, brevity). Same authority and same no-LLM-edits policy as the hard rules:**
+
+@docs/architecture/peters-working-rules.md
+
 **Every section is its own project** — `src/Sections/Humans.<Section>/` (+ an optional `.Contracts` leaf), per nobodies-collective/Humans#866 (G5), all 42 of them. A section owns its `DbContext`, migrations and tables end-to-end (`Domain/`, `Services/`, `Data/`, `Controllers/`, `Views/`, its own `<Section>Resource` resx set) and registers its own DI from `Section.cs : ISection`. There is no shared `HumansDbContext` — deleted in nobodies-collective/Humans#858; every table belongs to exactly one section context.
 
 The old four-layer hub projects are gone: `src/Humans.Domain`, `src/Humans.Application`, `src/Humans.Infrastructure` and `src/Humans.UI` were all deleted over the course of G5. **The layers are roles now, not projects,** and three kinds of project are left:
@@ -79,7 +83,11 @@ dotnet run --project src/Humans.Web
 
 All changes go on a **feature branch in a worktree** (`.worktrees/<name>`) → PR to `origin/main` (squash if multiple commits). Promote to prod by batching on `origin/main` → PR to `upstream/main` (rebase merge) — use `/pr-prod`. Per-PR preview deploys at `https://{pr_id}.n.burn.camp` (DB `humans_pr_{N}` cloned from QA, dropped on close; dev login enabled, Admin persona included). Version check: `GET /api/version`.
 
-Rules: [`no-direct-to-main`](memory/process/no-direct-to-main.md) · [`issue-refs-qualified`](memory/process/issue-refs-qualified.md) · [`after-prod-merge-reset`](memory/process/after-prod-merge-reset.md) · [`cross-repo-pr-push-target`](memory/process/cross-repo-pr-push-target.md).
+Rules: [`always-open-a-pr`](memory/process/always-open-a-pr.md) · [`no-direct-to-main`](memory/process/no-direct-to-main.md) · [`issue-refs-qualified`](memory/process/issue-refs-qualified.md) · [`after-prod-merge-reset`](memory/process/after-prod-merge-reset.md) · [`cross-repo-pr-push-target`](memory/process/cross-repo-pr-push-target.md).
+
+## Review Findings
+
+Reviewer findings (Codex, Claude bot, Gemini, humans) are **hypotheses, not a work list**. Verify each against the code and judge whether it deserves a fix *before* changing anything — [`review-finding-triage`](memory/process/review-finding-triage.md). Every finding ends with a disposition reply in its thread (fixed / not fixing / issue opened): [`pr-review-feedback-handling`](memory/process/pr-review-feedback-handling.md).
 
 ## Doc Freshness
 
