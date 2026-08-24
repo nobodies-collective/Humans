@@ -6,8 +6,14 @@ argument-hint: "[resume] [--section=<Name>] [--budget=2.5h]"
 
 # Section Doctor
 
-Full design: `docs/superpowers/specs/2026-08-17-section-doctor-design.md`. This file is
-self-amending — run sweeps apply merged run lessons here; keep those edits terse and dated.
+Full design: `docs/superpowers/specs/2026-08-17-section-doctor-design.md`.
+
+**Only Peter edits this file.** A run proposes — it records lessons in its run file and its
+Needs-Peter block — and never amends its own instructions, in a sweep or otherwise. It is
+instructions, not a record: no shas, no dated post-mortems, no accounts of past runs. That
+history lives in the run files and the design spec. An issue reference earns its place only by
+naming a live contract or a baseline a phase is bound to — never as provenance for a rule that
+already stands on its own.
 
 ## Purpose
 
@@ -25,7 +31,8 @@ A run is judged on three things:
 - **Did the section get smaller and clearer without losing anything?** Line count is a fair proxy
   for the token weight every future reader, human or agent, pays to work here. Growth needs a
   stated reason — and cross-section consolidation is a good one, so the figure that matters is the
-  **net across every section the run touched**, not a per-section floor.
+  **net across every section the run touched**, not a per-section floor. That figure is GitHub's
+  diff stats on the run's PR; the run file never restates it (Phase 5).
 - **Was every file actually looked at?** A finding-driven pass finds only what sits next to what
   it already suspects. Full coverage is what makes this a review rather than a sweep — and it is
   where the bugs come from: Guide's and Finance's defects both surfaced because something read
@@ -70,6 +77,16 @@ not deliverables, and a strike that runs `git add -A` commits anything sitting i
 one of them derives from `$TS` alone, and why `$TS` is also the branch name: `section-doctor/$TS`
 is recoverable with `git rev-parse --abbrev-ref HEAD` at any point in the run.
 
+**Shell rules that break a run when missed:**
+
+- Write multi-line content — commit messages, run files — with `git commit -F <file>` or a
+  file-write tool, or a **quoted** heredoc. An unquoted heredoc executes backticks inside it, and
+  PowerShell here-string syntax (`@'…'@`) silently becomes part of the subject line under Git Bash.
+- Never run `dotnet build` and `dotnet test` against the same worktree at once — the test host
+  holds the output DLLs and the build burns MSB3026 retry rounds on locked files. One at a time.
+- Resolve every asserted path from the worktree root. A bare basename test reports a live file
+  missing and invites a repo-wide "fix" for a file that was never gone.
+
 Getting a toolchain is the *environment's* job, not this skill's — a local run and the
 scheduled cloud run both start with the SDK, `dotnet-ef` and reforge already there. Never
 install one. Stryker is **not** part of that toolchain: when `dotnet stryker` is unavailable,
@@ -84,6 +101,11 @@ that *fails* is not this — that is a normal broken build, diagnosed like any o
 the run file's header and in the PR body — a run that could not build and does not say so
 reads as a run that found nothing to build.
 
+**Every environment caveat is a dated per-session line, never a standing banner** —
+`2026-08-24 07:10Z session: no compiler in this container`. The caveat belongs to the session,
+not the run: the next session on this branch gets a different environment, and a banner reading
+"this run had no compiler" ends up sitting above compiler-confirmed strikes within the hour.
+
 ## Phase 1: Worktree
 
 ```bash
@@ -94,6 +116,9 @@ WORKTREE=$REPO_ROOT/.worktrees/section-doctor-$TS  # cd here; all commands run i
 
 Scope is frozen at the branch point — never reconcile against `origin/main` mid-run. Scope every
 Glob/Grep to `$WORKTREE`.
+
+**Scope history checks to a named branch or ref, never `git log --all`** — on a run with a blocked
+branch set, `--all` surfaces commit subjects from that set and is not blindfold-safe.
 
 Start the phase log now. Phase 7's cost report buckets the session transcript by these
 timestamps, and names each row by the **label**, not the phase id — a table of phase numbers
@@ -124,9 +149,9 @@ out-of-order log is still bucketed correctly (the report sorts by timestamp), a 
 
 ## Phase 2: Select the section
 
-Selection is computed live every run — nothing is stored. (`docs/health/plan.md` and the
-replan machinery are gone, 2026-08-22: a checked-in plan went stale whenever merges paused for
-long enough, and the runs must keep going unattended.)
+Selection is computed live every run — nothing is stored. There is no `docs/health/plan.md` and
+no replan machinery; never reintroduce either. A checked-in plan goes stale the moment merges
+pause, and these runs must keep going unattended.
 
 **Fetch the open-PR list once** (main thread, cheap):
 
@@ -140,8 +165,8 @@ silently drops out without it. `--search "head:..."` matches exact branch names,
 — don't use it.) In a cloud session without `gh`, write the same JSON shape from the GitHub
 MCP tools: `[{number, headRefName, title, files: [paths]}]` for all open PRs.
 
-**Then run the selector script** (scripted 2026-08-22 — the selection maths used to be a
-sonnet subagent burning ~$1.50/run; a subagent remains only for the re-doctor judgment below):
+**Then run the selector script** — the selection maths is scripted, not a subagent; a subagent
+remains only for the re-doctor judgment below:
 
 ```bash
 python .claude/skills/section-doctor/select-section.py --prs "$RUNDIR/prs.json"
@@ -179,6 +204,10 @@ Take the selected section (or `--section`, which skips the selector but never th
 set — check it with `select-section.py --prs "$RUNDIR/prs.json" --blocked-only`). Sections
 are `src/Sections/` projects only.
 
+**A low reforge score is not evidence the section is healthy.** The score measures structure, never
+correctness — the lowest-scoring section in the solution was failing open on access control. Nothing
+in the ranking rubric surfaces that, so never read a good score as a reason to look less hard.
+
 **Never work a section in the blocked set.** A section with an open section-doctor PR has
 unmerged strikes that today's run cannot see — re-doctoring it duplicates work and produces
 conflicting PRs. A `--section` naming a blocked section stops like the all-blocked case — merge
@@ -188,8 +217,8 @@ the open PR first, or use `resume` to work its Needs-Peter queue.
 
 Five stages, in this order. **The order is the point.** The target is derived *before* any scan
 runs, because a target written after a linter run is a summary of the linter run (`/simplify`,
-Pass 2). This skill had it backwards until 2026-08-18, and the Finance run's "ideal shape" came
-out as a restatement of its reforge score — the failure that rule exists to prevent.
+Pass 2) — an "ideal shape" that restates the reforge score is the failure this order exists to
+prevent.
 
 Phase 2's selector script already built the solution on a normal run; only when it was skipped
 (`--section`) start `dotnet build Humans.slnx -v quiet` in the background now — reforge needs a
@@ -213,14 +242,13 @@ file. The run file's `## File coverage` block records a disposition for every pa
 
 **`reviewed` means the file's names resolve, not that the file was opened.** For any file that
 names things — a doc, comment-bearing source, a csproj — record `reviewed` only after every code
-symbol, route and file path it names has been checked against the tree. This is mechanical: the
-2026-08-18 Finance benchmark marked files reviewed that still said a controller "stayed in
-Shell", carried an `IBudgetService` dependency the read-split had replaced, and pointed at a
-folder a job had moved out of — every miss was a name that no longer resolved.
+symbol, route and file path it names has been checked against the tree. This is mechanical, and
+it is what catches the doc that still names a controller's old home, a dependency a read-split
+replaced, or a folder a job moved out of.
 
 Why this is stage one: a finding-driven pass only finds what sits adjacent to what it already
-suspects. The 2026-08-18 Finance run skipped ~20 of 55 files and two instances of its own
-headline finding were sitting in two of them, reachable from no lane it ran.
+suspects, so instances of the run's own headline finding sit unreached in the files no lane
+opened.
 
 ### 3b. Behavior first, tool-free
 
@@ -266,12 +294,13 @@ the wall-clock / token / fragility balance:
 - **Tool threads run as background commands** — Stryker, InspectCode, reforge, conformance
   detectors. No subagent context to duplicate, no idle-lane failure mode, and they run while the
   main thread reads. Reforge's run is `surface-score --format compact --group <Section>`,
-  scoped to the section being doctored — its `loc=`/`cogP95=`/`cogMax=` fields are the source
-  for Phase 5's `## Size` snapshot, on every run, not only the selector's solution-wide call.
+  scoped to the section being doctored, on every run, not only the selector's solution-wide call.
+  Its score and `loc=`/`cogP95=`/`cogMax=` fields are the run's one durable number, and land in
+  the section's `Docs/health.md` (Phase 5).
 - **Dispatched threads are the default** (nobodies-collective/Humans#1465). A thread reads a lot
   and returns a little, and reading it on the main thread permanently raises the price of every
-  later turn in the run — the 2026-08-23 Onboarding run held ~184k context from Phase 3 to the
-  end, and cache reads alone were $65.87 of $93.30. **Small context dominates model choice**:
+  later turn in the run: cache reads on a run that carries Phase 3 to the end are the largest
+  line in its bill. **Small context dominates model choice**:
   moving a thread off main saves ~87%, swapping its model ~40%. Each dispatched thread gets an
   explicit tagged model (table below) and a deadline.
 - **Only the spine and the two judgment threads stay on main** — 3a–3c, Shape, Behavior & bugs,
@@ -305,9 +334,24 @@ each one.
 | **Comments** | Every comment in the section's inventory, rewritten or deleted. Cut what restates the next line, decision history, hedging, reassurance addressed to the next agent. **Cut test: a comment survives only if it carries something the code cannot say** | subagent (sonnet) |
 | **Inbox** | Section-tagged `debt-ledger.yml` items, open GitHub issues, in-app issues. Work or rank them — and **review** the open issues for validity / consistency / freshness / spec quality (below); off-section finds go to the run's sweep queue as `debt:`, never written to the ledger directly | subagent (sonnet) |
 
-**Every thread that does not run says so in the run file, with why.** A silent skip is how the
-2026-08-18 run left the whole mutation dimension unmeasured with nothing flagging it. A thread
-earns removal from this table only when several runs record it as "ran, found nothing".
+**Every thread that does not run says so in the run file, with why.** A silent skip leaves a whole
+dimension unmeasured with nothing flagging it. A thread earns removal from this table only when
+several runs record it as "ran, found nothing".
+
+**Per-thread rules worth the line:**
+
+- **Behavior & bugs** — read the section's auth paths by hand. A doc-code contradiction on gating
+  is invisible to grep and to every other thread.
+- **Tests** — always build the invariant matrix, including when the section looks well tested; the
+  gaps it finds are the invariants nobody thought to doubt. A new test that does not move the
+  mutants it was written for is not passing, it is undiscriminating — re-run the tool thread
+  against new tests before the PR. Stryker's `--coverage-analysis` is config-only, not a CLI flag,
+  and a section-scoped run must exclude `Data/Migrations` or migration bodies swamp the score.
+- **Freshness** — a trigger that resolves is not a trigger that works: check each path actually
+  carries the claim, not merely that it is live. Read a feature doc's "Out of scope" list against
+  its route table every time; it ages worse than the body.
+- **Prose & surface** — diff the resx key set against the keys the section's views reference. Dead
+  keys cluster where UI was removed, and it is the cheapest full-coverage signal without a compiler.
 
 #### Open-issue review (Inbox)
 
@@ -327,9 +371,10 @@ So review each one against **this run's own target shape and inventory**, on fou
   changes the answer or the scope?
 - **Spec quality** — are the acceptance criteria still meaningful? Is the section label present?
 
-Output is a **recommendation, never an action.** One line per reviewed issue in the run file's
-`## Needs Peter` checklist: the issue ref, a verdict of `close` / `edit` / `relabel` / `keep`, and
-the one-sentence reason.
+Output is a **recommendation, never an action.** Each reviewed issue becomes a numbered finding
+in the ranked list, carrying the issue ref, a verdict of `close` / `edit` / `relabel` / `keep`,
+and the one-sentence reason — that is the finding's one prose description (Phase 5). The
+`## Needs Peter` checklist then cites it by number and adds no prose of its own.
 
 **Hard constraint: a run may not mutate any GitHub issue.** No close, no edit, no relabel, no
 comment on another issue — including issues this run's own findings duplicate, and including a
@@ -356,8 +401,8 @@ Either symptom is a fail:
 On a fail, 3c was reverse-engineered from the defect list. Re-derive the target from 3b and
 re-rank — the scans are still good, the design isn't. Record the verdict in the run file either
 way, as a literal line — `Independence check: pass` or `Independence check: fail (re-derived)` —
-plus one sentence naming which items came from the target rather than a scan. The 2026-08-18
-Finance benchmark had the evidence in its run file and never wrote the verdict.
+plus one sentence naming which items came from the target rather than a scan. Evidence in the
+run file is not the verdict; write the verdict.
 
 ## Phase 4: Strike
 
@@ -411,15 +456,40 @@ executed after it. Budget checks are real
    one sentence." Reject → rework once; second reject → revert, record.
 5. **Doc fixes sweep the claim — by literal string, repo-wide**: when a strike removes or
    renames a route, type, method or path, or fixes a claim naming one, grep the whole repo for
-   the exact string and fix or enumerate every hit in the run file. Sweeping only the docs you
-   remember is how `POST /Finance/Creditors/Resync` survived in `authorization-inventory.md`
-   and `controller-architecture-audit.md` after two 2026-08-18 runs each removed it from
-   `Finance.md`.
+   the exact string and fix or enumerate every hit in the run file. Sweep the abbreviations too —
+   clearing every full-name hit and leaving the initialism standing in the same file is the usual
+   miss — and update the freshness trigger in the same pass.
+
+   Once a section doc is open at all, read it **end to end** against the code: fixing its headline
+   stale claim and leaving the smaller ones is not fixing the doc. Rebuild its Cross-Section
+   Dependencies from the `.csproj` project references, never from the prose. Verify any explanation
+   of why an unused member exists before writing it down — "nothing reads these" is often both the
+   true answer and a finding. Distrust "never crosses the boundary": for a section reading a shared
+   read-model the honest form names what is carried, what this code reads, and what the output
+   record exposes.
+
+   **When the doc and the code disagree and the code looks wrong, change neither** — the pair goes
+   to Needs-Peter together. Editing the doc to match a suspected defect cements it.
 6. **UI-affecting strikes get runtime verification**: render the changed page in the running app
    (`dotnet run` + browser/test-site) before the PR — a green build does not prove a cshtml/JS
    change works.
 7. Commit `doctor(<section>): <what>`. Full `dotnet test Humans.slnx -v quiet` before each push;
-   push every 3–5 items.
+   push every 3–5 items. When a reviewer gate could not be obtained, say so in the commit message
+   as well as the run file — a commit that lands unreviewed should say so where the diff is read.
+
+**File-format rules that only the build catches:**
+
+- **resx/XML edits are structure-aware** (python/XML tooling), never line-based sed. Neutral resx
+  is one entry per line but the language variants are multi-line, so sed corrupts them silently.
+- **Full-build before `dotnet ef migrations add` or `remove`.** With `--no-build` they read
+  whatever assembly the startup project last built, which generates empty migrations and lets
+  `remove --force` walk back an already-merged one. Recover a mis-removal with `git checkout` of
+  the Migrations folder, never by hand-editing.
+- **With no compiler, a C# doc-comment edit is safe only** if it adds no `<see cref>` and the run
+  verifies tag balance by parsing each `///` block as XML. CS1591 is suppressed, CS1574 is not,
+  and `TreatWarningsAsErrors` is on.
+- **A comment-only `.cs` edit is not score-neutral** — a doc comment on production code is
+  production LOC. Never call such a change "docs only".
 
 **Skip-and-queue classes** (never block the loop): schema/EF changes of any kind, public/interface
 surface *additions*, privilege changes, **mutating a GitHub issue** (closing, editing, relabelling
@@ -458,14 +528,30 @@ worktree/PR, three bookkeeping writes:
   one open run per section, so it cannot collide).
 - **This run's own file** — `docs/health/runs/<yyyy-mm-dd>-<Section>.md` (UTC date from the run
   timestamp; if the path already exists at the branch point, suffix `-<HHMMZ>`). Sections:
-  run header (invocation, anchor commit, budget, `PR: pending`), assessment summary, worked,
-  skipped + why (including sections passed over as blocked), retro (Phase 6), `## Needs Peter`
-  checklist — Phase 4's skipped classes plus 3d's open-issue recommendations, each
-  `<ref> — <close|edit|relabel|keep> — <reason>` — and `## Sweep queue` (`lesson:` / `debt:` /
-  `memory:` items as plain bullets — a later run's sweep applies them after this run merges;
-  nothing ever ticks them).
+  run header (invocation, anchor commit, budget, `PR: pending`), assessment summary, the ranked
+  findings list, worked, skipped + why (including sections passed over as blocked), retro
+  (Phase 6), `## Needs Peter` checklist — **`- [ ]` unanswered, `- [x]` answered and applied,
+  one item per line** — holding Phase 4's skipped classes, 3d's open-issue recommendations and
+  Phase 6's proposed edits, each `<finding #> — <the question, in a phrase>` — and `## Sweep queue`
+  (`debt:` / `memory:` items as plain bullets — a later run's sweep applies them after this run
+  merges; nothing ever ticks them). Lessons about this skill are **not** sweep-queue items: they
+  are Needs-Peter findings and nothing else (Phase 6).
 
-  Plus three blocks that make the Purpose's three tests answerable rather than assertable:
+  **One prose description per finding, where it was first written, and nowhere else.** For a 3e
+  finding that is the ranked list; for one raised later — a Phase 4 skip, a Phase 6 lesson, a
+  Phase 7 measurement gap — the block that raised it. Every other mention (assessment summary,
+  `## Skipped`, `## Needs Peter`, the PR body) cites the number and adds nothing a later ruling
+  could invalidate. A Needs-Peter ruling is a state change to a finding — "not a defect", "done",
+  "filed", "deferred" — and it lands on that one description, or the copies drift.
+
+  **A finding number is assigned once and never changes** — not on a reorder, not when an item is
+  struck, not when a ruling abolishes it. 3e numbers the ranked list; a finding raised after 3e
+  takes the next unused number as it is written, and no number is ever reused. Key Needs-Peter
+  items and PR-body references to the finding number, never to queue position: the two diverge the
+  moment either list is reordered, and a position-matched tick marks the wrong item.
+
+  Plus two blocks that make the Purpose's tests answerable rather than assertable — the size
+  test is answered by the PR's own diff stats:
 
   - **`## File coverage`** — a disposition for every path in the 3a inventory: `reviewed`,
     `changed` or `generated`. Not a summary; the list.
@@ -483,25 +569,35 @@ worktree/PR, three bookkeeping writes:
     than a coarse one. (Phase 4 is the opposite case — it marks per strike item, so its rows are
     already per-item and need no such caveat.) The Shape/Behavior question is settled by whole-run
     totals against the baseline (Phase 7), not by attributing turns to lenses that interleave.
-  - **`## Size`** — line count against the run's anchor for every section touched, and the net.
-    Growth is reported with its reason, and consolidation that grows this section while shrinking
-    another is stated as the trade it is. Include the section's reforge metrics snapshot (`loc`,
-    `cogP95`, `cogMax`) from 3d's reforge tool thread, so the run file states size/complexity at
-    assessment time, not just the git-diff delta.
 
   `no-derived-aggregates-in-docs` applies to the run file and `health.md` too: never count a
   list the same file carries ("15 contract methods" above the table of them, "52 paths" above
-  the coverage list). Measurements with a generator — Stryker scores, `git diff` line counts,
-  reforge — stay; both 2026-08-18 Finance runs typed self-counts, and the one that was wrong
-  nearly sent a refactor at a method with a live external caller.
+  the coverage list). Measurements with a generator — Stryker scores, reforge — stay. A typed
+  self-count that is wrong points a refactor at the wrong method.
+
+  **The run file never describes its own diff.** No size block, no insertions/deletions, no line
+  count of the branch or of the file itself: the commit that writes such a figure is a commit the
+  figure must count, so it is stale on write and no care fixes that. Link the PR instead —
+  GitHub's additions/deletions and the PR Surface Report are recomputed on every push and cannot
+  be wrong. The section's reforge score is the one durable number a run keeps, and its home is
+  `health.md`, not a description of the diff.
 
 - **The sweep** — its own commit, and the only place a run touches shared files: for every
   `## Sweep queue` item in merged run files under `docs/health/runs/` on `origin/main`, apply
-  it — `lesson:` → this skill's Lessons, `debt:` → the owning section's
+  it — `debt:` → the owning section's
   `src/Sections/Humans.<X>/Docs/debt.yml` where one section owns the fix and
   `docs/architecture/debt-ledger.yml` otherwise, `memory:` → the named
   atom + INDEX line — skipping any item already present in its target (idempotence is the only
-  bookkeeping; there is no anchor window). **Never edit the swept run files** — resume is
+  bookkeeping; there is no anchor window).
+
+  **The sweep never edits this skill, and never carries a lesson about it.** A proposed amendment
+  lives in one place only — the `## Needs Peter` block of the run that thought of it (Phase 6) —
+  and reaches the skill through Peter's answer there, inline (Phase 8) or via `resume` later. It is
+  never a sweep-queue item: the sweep has no anchor window, so an item it carries it would carry
+  again on every later run, re-asking a question Peter already closed with a tick the sweep cannot
+  see. **No unattended run edits its own instructions** — a skill that
+  rewrites itself while nobody is reading drifts with nothing to catch it, and the lessons it
+  appends are exactly the war stories that do not belong in instructions. **Never edit the swept run files** — resume is
   their only post-merge editor, which is what keeps resume conflict-free. Two piled-up
   unmerged runs can occasionally sweep the same item; the cost is one hand-resolved conflict,
   not corruption (the no-locking trade of PR #1366).
@@ -510,7 +606,7 @@ The runs directory **is** the log and the newest file **is** the last report. Th
 `log.md`, `last-report.md`, or generated index — never recreate them — and daily runs never
 touch `docs/architecture/maintenance-log.md`.
 
-## Phase 6: Retro + self-amend
+## Phase 6: Retro + propose amendments
 
 Four questions, answered honestly in the run file: what did the selector/rubric get wrong, what was
 wasted motion, what did the assessment miss that striking revealed, and **what does the target
@@ -518,9 +614,11 @@ diff say** — 3c regenerated the target and diffed it against the previous run'
 either the section moved or the earlier target was wrong, and which one it was is worth a line.
 Then:
 
-- **Mechanical lessons** → this run's `## Sweep queue` as `lesson:` one-liners; a later run's
-  sweep applies them to this skill's files after this run merges. Never edit the skill's files
-  directly mid-run — they are shared, and a concurrent run's edit is a guaranteed conflict.
+- **Mechanical lessons** → `## Needs Peter`, as a one-line proposed edit **naming the phase it
+  governs**, under its own finding number (Phase 5) — that block, and nowhere else; never the
+  sweep queue. Recording a lesson is the run's job; applying it to this skill is Peter's — never
+  edit the skill's files directly, mid-run or in a sweep. A lesson that names no phase is a war
+  story: leave it in the run file, which is where a run's history belongs.
 - **Judgment lessons** (rubric axes, thresholds, play choices) → the Needs-Peter block.
 - **Durable project rules** → `## Sweep queue` as `memory: <bucket>/<name> — <rule>`.
 
@@ -529,15 +627,25 @@ Phase 7's own PR-number backfill commit.
 
 ## Phase 7: PR
 
+**Self-review the run's own new prose first.** Every claim this run wrote about what a page
+shows — run file, PR body, section doc, spec, comment — is traced back to the `.cshtml` that
+renders it, not to the DTO that feeds it. A payload carrying a field is not a page displaying it.
+A reviewer here is not free, and text the run wrote this session is the text most likely to be wrong.
+
+**Run `dotnet format whitespace Humans.slnx --verify-no-changes` before pushing, not after CI says
+so.** A green build is not the formatting gate — collection-expression line breaks pass the build
+and the full test run, and fail code-quality.
+
 ```bash
 git push -u origin section-doctor/$TS
 gh pr create --repo peterdrier/Humans --base main --title "doctor(<Section>): <headline>" --body ...
 ```
 
 Body: assessment summary, worked/skipped bullets, a **`## Cost`** table (below), and a
-**`## Needs Peter`** block — terse, numbered, answerable in a word or two. **The PR body is the
-authoritative queue while the PR is open** (resume reads it from there); the run file's copy
-carries it forward after merge. One PR per run; never merge.
+**`## Needs Peter`** block — terse, numbered, answerable in a word or two, **citing findings by
+number rather than re-describing them** (Phase 5). **The PR body is the authoritative queue while
+the PR is open** (resume reads it from there); the run file's copy carries it forward after merge.
+One PR per run; never merge.
 
 **Cost report** — before creating the PR, run:
 
@@ -567,18 +675,28 @@ unverified — if the first routine run reports unmeasured, note it in Needs-Pet
 Then backfill the real PR number over every `pending` reference (run file header, health history
 row), commit, push again.
 
+**That backfill is the last bookkeeping push.** From here a push must change code, tests, or a
+doc a reader depends on. **Never push a commit whose entire content is a corrected figure or a
+restated status about the branch** — such a correction rides along with the next substantive
+commit, or is skipped. Every push costs a CI run, a preview deploy, a surface report and a review
+quota.
+
 ## Phase 8: Inline round (interactive runs only)
 
 If Peter is present, present the Needs-Peter items inline now (terse, numbered, plain prose —
 never AskUserQuestion) and apply answers as new commits + push, ticking each answered item in
-both the PR body and the run file. Unattended morning runs skip this; `resume` covers it.
-Unanswered items carry forward — never re-asked.
+both the PR body and the run file — Resume mode's grep gate applies here too. Unattended morning
+runs skip this; `resume` covers it. Unanswered items carry forward — never re-asked.
 
 ## Phase 9: Stand down — the worktree stays
 
 **Stop working. Do not remove the worktree.** A run ends when its PR is merged or closed, not when
 it is opened — review arrives after Phase 7 (a BLOCK, bot findings, Peter working the Needs-Peter
 queue) and every one of those is answered by committing to this branch.
+
+**A review bot's finding is a sample, not an instance.** Before fixing the reported line, grep the
+branch for the class of claim it is an example of — the type, the method, the abolished case.
+Fixing only the reported line leaves the siblings and looks resolved.
 
 Phase 9 writes nothing. Phase 7's backfill commit is the run's last write, and everything a later
 session needs is already derivable: the branch is `section-doctor/$TS`, its worktree is
@@ -605,10 +723,20 @@ or strike work.
    ```
    Each PR body's `## Needs Peter` block (authoritative for unmerged runs; their run files
    only exist on the PR branch).
-2. **Merged runs:** unticked `## Needs Peter` entries in `docs/health/runs/*.md` on
+2. **Merged runs:** unticked (`- [ ]`) `## Needs Peter` entries in `docs/health/runs/*.md` on
    `origin/main`.
 
-Present the open items inline, then apply each answer:
+Present the open items inline, then apply each answer. **A ruling is not applied until a grep
+says it is** — before ticking, grep the branch for the finding's distinguishing terms (the issue
+it was filed under, the method or type name, the abolished case) across **`.cs` as well as
+`.md`**. The grep is a completeness gate, not a licence to edit: only a ruling that makes the
+claim false — the case abolished, the method gone, the defect fixed — sends you to the hits, and
+then every hit is corrected, not just the one that prompted the finding. A `keep`, `not a defect`
+or `deferred` leaves those hits standing. **Every ruling lands on the finding either way** — the
+ranked entry records what Peter decided, so a rejected finding stops asserting a defect and a
+deferred one says it is deferred. That is the state change; the checklist only ticks. Doc comments
+are documentation and drift exactly like it, and counting the copies from memory always
+undercounts. Then tick the item — `- [ ]` becomes `- [x]`:
 
 - **Open-PR item** — commits on that item's PR branch (reuse its worktree, or recreate from the
   branch). Tick the item in **both** places: the PR body *and* the branch's run file — an
@@ -629,8 +757,9 @@ Present the open items inline, then apply each answer:
 - Explicit tagged model on every subagent. Never leave the branch red between commits.
 - **A run touches only:** the section's files (+ callers where a play requires), the section's
   `Docs/health.md` and `Docs/debt.yml`, its own `docs/health/runs/<date>-<Section>.md`, and — in
-  the sweep commit only (Phase 5) — this skill's files, the debt ledgers (central, and any
-  section's whose debt the sweep is routing), `memory/`; never the run files it sweeps. Run
+  the sweep commit only (Phase 5) — the debt ledgers (central, and any
+  section's whose debt the sweep is routing), `memory/`; never the run files it sweeps, and
+  **never this skill's own files** (Peter edits those; a run proposes in Needs-Peter). Run
   scratch goes to `$RUNDIR`, outside the worktree entirely. Nothing writes
   `docs/architecture/maintenance-log.md`.
 - **Every GitHub issue is read-only to every run.** No close, edit, relabel or comment, on any
@@ -640,136 +769,3 @@ Present the open items inline, then apply each answer:
   Rows are added and removed only at Peter's direction; a run that wants one proposes it in its
   Needs-Peter block.
 
-## Lessons
-
-(Applied here by run sweeps from merged run files' `lesson:` items — dated one-liners.)
-
-- 2026-08-16: resx/XML edits must be structure-aware (python/XML tooling), never line-based sed
-  — neutral resx was one-line-per-entry but all 5 language variants were multi-line; sed
-  corrupted them and only the build caught it.
-- 2026-08-16: keep a by-hand read of the section's auth paths in the assessment — the doc-code
-  contradiction on phase gating was invisible to grep and to every lane.
-- 2026-08-16 (retro round 2, Peter): the shakedown run stopped at 40 of 150 minutes with
-  strikeable items still ranked — hence the drain-the-list rule; and absorbed abilities were
-  going unused (Stryker, InspectCode, invariant matrix, claim sweep, runtime verify, inbox) —
-  hence the expanded lanes above.
-- 2026-08-17: **for a section whose input is content, run the real shipped content through the
-  real pipeline during the assessment.** Guide's two defects (an admin block served to anonymous;
-  two admin roles locked out of their own blocks) were both invisible to grep, to unit tests and
-  to every code-reading lane — they only appeared when the 28 real `docs/guide/*.md` files went
-  through the actual renderer and filter. Add a lane that feeds production content to the section.
-- 2026-08-17: **a low reforge score is not evidence the section is healthy.** Guide scores 8, the
-  lowest of any section, and was failing open on access control. The replan rubric ranks by score
-  growth and staleness; nothing in it would ever have surfaced Guide. Treat the score as a measure
-  of structure only, never of correctness.
-- 2026-08-17: never run `dotnet build` and `dotnet test` against the same worktree concurrently —
-  the test host holds the output DLLs and the build burns MSB3026 retry rounds on locked files.
-  One at a time per worktree.
-- 2026-08-17: commit messages via Bash must use `git commit -F <file>`; PowerShell here-string
-  syntax (`@'…'@`) silently becomes part of the subject line under Git Bash.
-- 2026-08-17: every dispatched lane missed the run window, and the Phase 4.4 reviewer gate could
-  not be obtained **at all** — four attempts across three agents (two `general-purpose` opus, one
-  `feature-dev:code-reviewer` opus), briefs shortened each time down to "reply with exactly three
-  lines", every one idling without an answer. Don't let a lane block a strike: give each a
-  deadline and work the ranked list meanwhile. When the gate does not report, work its checklist
-  on the main thread and **label it self-review in the PR and the Needs-Peter queue** — never
-  imply a review happened, and don't spend the run re-spawning reviewers.
-- 2026-08-17: lanes that report *after* the PR opens are still worth working — the run's PR is
-  open, so take a second pass and commit to it rather than dropping the findings. The tests lane's
-  invariant matrix caught an untested negative access rule (`POST /Guide/Refresh`) that the whole
-  first pass missed. **Always build the matrix**, even when the section looks well tested; the
-  gaps it finds are the invariants nobody thought to doubt.
-- 2026-08-18: a new test that does not move the mutants it was written for is not passing, it is
-  not discriminating. Re-run the tool thread against the new tests before the PR; Finance's
-  creditor-block boundary test passed for the wrong reason because the list unions three sources.
-- 2026-08-18: Stryker's `--coverage-analysis` is config-only, not a CLI flag, and a section-scoped
-  run must exclude `Data/Migrations` — migration bodies were 292 of 599 surviving mutants and made
-  the score unreadable. Write the config first.
-- 2026-08-18: when the reviewer gate cannot be obtained (there: a session-level instruction against
-  dispatching agents), say so in the commit message as well as the run file. A commit that lands
-  unreviewed should say so where the diff is read, not only where the run is.
-- 2026-08-18: `git log --all` is not blindfold-safe — on a run with a blocked branch set it
-  surfaced a commit subject from that set during an unrelated history check. Scope history checks
-  to a named branch or ref, never `--all`.
-- 2026-08-18: `dotnet ef migrations add/remove --no-build` reads whatever assembly the startup
-  project last built, so it generated an empty migration and then `remove --force` walked back an
-  already-merged one. Always full-build before either command; recover a mis-removal with
-  `git checkout` of the Migrations folder, never by hand-editing.
-- 2026-08-18: fixing a doc's headline stale claim is not fixing the doc. `Finance.md`'s route table
-  was corrected while eight smaller claims in the same file survived, four of them describing a
-  read-split that had already shipped. When a section doc is opened at all, read it end to end
-  against the code and fix every claim, not the worst one.
-- 2026-08-18: rebuild a section doc's Cross-Section Dependencies from its `.csproj` project
-  references, not from prose. `Finance.md` listed a Tickets dependency the section has not had
-  since the controller split, and named `IBudgetService` (read+write) where the code injects
-  `IBudgetServiceRead`.
-- 2026-08-18: run `dotnet format whitespace Humans.slnx --verify-no-changes` before the PR, not
-  after CI says so. Two new test files failed code-quality on collection-expression line breaks
-  that the local build and the full test run both pass through; a green build is not the
-  formatting gate.
-- 2026-08-22: check a repo-relative path with the repo-relative path. A bare test on the basename
-  `G5-SECTION-TEMPLATE.md` reported the live template missing and nearly produced a 65-file "fix";
-  the file was at `docs/sections/`. Resolve every asserted path from the worktree root.
-- 2026-08-22: write run files with a quoted heredoc or a file-write tool, never an unquoted one —
-  the run file's own sweep queue lost a code span to command substitution, because backticks inside
-  an unquoted heredoc are executed.
-- 2026-08-22: when a doc and the code disagree and the code looks wrong, change neither. Fixing the
-  doc to match a suspected defect cements it; the pair belongs in Needs-Peter together. Only sweep
-  a claim when the code is the side that is right.
-- 2026-08-22: with no compiler, C# doc-comment edits are still safe if they add no `<see cref>` and
-  the run verifies tag balance by parsing each `///` block as XML. `TreatWarningsAsErrors` is on and
-  CS1591 is suppressed but CS1574 is not, so a broken cref would break the build.
-- 2026-08-22: a feature doc's "Out of scope" list ages worse than its body — the drill-down Cantina
-  ships was sitting under "rejected as low-value" in the same file that documented its routes. Read
-  the out-of-scope list against the route table every time.
-- 2026-08-22: dead resource keys cluster where UI was removed, and they are the cheapest
-  full-coverage signal available without a compiler: diff the resx key set against the keys the
-  section's views actually reference.
-- 2026-08-22: a freshness trigger that resolves is not a freshness trigger that works. Cantina's
-  pointed at a Shifts interface file that exists and contains none of the code the doc asserts
-  about; check that each trigger path actually carries the claim, not merely that the path is live.
-- 2026-08-22: sweep a renamed concept by its abbreviations too. The `VolunteerEventProfile` sweep
-  cleared every full-name hit and left `VEP` standing in the same file, while also dropping the
-  freshness trigger that would have caught it later.
-- 2026-08-22: when a doc explains why an unused member exists, check that the explanation is true
-  before writing it. Two rounds were spent inventing rationales ("for the CSV") for daily payload
-  members that nothing reads; "nothing reads these" was both the correct answer and a finding.
-- 2026-08-22: when rewriting a spec to match reality, read the view, not the DTO. That run's new
-  acceptance criteria listed aggregates the payload carries and the page does not render; a
-  reviewer caught it, the run did not.
-- 2026-08-22: "never crosses the boundary" is almost always an overclaim for a section reading a
-  shared read-model. The honest form is "the field is carried, this code never reads it, and the
-  output record has no such property" — check which the code implements before repeating the claim.
-- 2026-08-23: a Needs-Peter ruling is a state change to a finding, and a finding is restated in the
-  findings list, the assessment summary, `## Skipped`, `## Size` and the PR body. Ticking is the
-  cheap half; propagating the changed status is the half that gets skipped. Two passes over one
-  queue both ticked correctly and both left four restatements stale.
-- 2026-08-23: resume must re-derive `## Size` before it finishes — the block is written at PR time
-  and every struck item invalidates it. Cantina's read net −94 against an actual net −135.
-- 2026-08-23: measure `## Size` against the PR's base sha, and name that sha in the table header.
-  The re-measurement meant to fix a stale Size block was itself taken against a commit on the
-  branch, so the corrected figures were also wrong; GitHub's own additions/deletions on the PR is
-  the free cross-check.
-- 2026-08-23: make `## Size` reconcile — component rows summing to the whole-branch row turns a
-  silent wrong number into a visible one. Neither wrong version of Cantina's table added up, and
-  nothing noticed until the rows were made to.
-- 2026-08-23: never freeze a figure that counts the commit writing it. A run file's own line count,
-  and the branch total containing it, are stale the instant they are typed; three successive
-  corrections failed on this. State the stable rows, and defer the self-referential ones to the
-  PR's own additions/deletions.
-- 2026-08-23: apply a ruling to the code comments, not just the prose docs. One ruling reached two
-  `.md` files and left six DTO doc comments describing the abolished case as real. Doc comments are
-  documentation and drift like it; grep the section's `.cs` files for the claim, not only its `.md`.
-- 2026-08-23: a reconciling Size table is the only bookkeeping that has ever caught its own error,
-  flagging a stated 515 deletions against an actual 516 within an hour of a commit that invalidated
-  an "exact and final" claim. Prose caught nothing, four times running. Make the rows sum, and never
-  write "final" about a branch that is still moving.
-- 2026-08-23: a comment-only edit to a `.cs` file is not score-neutral. Rewriting seven DTO doc
-  comments moved `locProd` from −56 to −49 and the branch's deletions from 515 to 516; a run that
-  calls such a change "docs only" and leaves its Size and reforge rows alone will misreport both.
-- 2026-08-23: when a review bot reports one stale claim, grep for its class before fixing the line.
-  Codex's `RollupItemDto` finding was one of seven instances of the same overclaim; fixing only the
-  reported line would have left six and looked resolved.
-- 2026-08-23: an environment caveat belongs to the session, not the run. "This run had no compiler"
-  was true when written and false an hour later, sitting above a section describing
-  compiler-confirmed strikes.
