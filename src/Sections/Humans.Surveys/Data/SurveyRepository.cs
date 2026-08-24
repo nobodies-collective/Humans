@@ -91,6 +91,7 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
         await using var ctx = await factory.CreateDbContextAsync(ct);
         var rows = await ctx.SurveyInvitations
             .AsNoTracking()
+            .Where(i => i.SentAt != null)
             .GroupBy(i => i.SurveyId)
             .Select(g => new { SurveyId = g.Key, Count = g.Count() })
             .ToListAsync(ct);
@@ -114,7 +115,7 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
         await using var ctx = await factory.CreateDbContextAsync(ct);
         var ids = await ctx.SurveyInvitations
             .AsNoTracking()
-            .Where(i => i.SurveyId == surveyId)
+            .Where(i => i.SurveyId == surveyId && i.SentAt != null)
             .Select(i => i.UserId)
             .ToListAsync(ct);
         return ids.ToHashSet();
@@ -137,12 +138,49 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
         await ctx.SaveChangesAsync(ct);
     }
 
+    public async Task<SurveyInvitation> GetOrCreateParticipationAsync(
+        Guid surveyId, Guid userId, Instant createdAt, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var existing = await ctx.SurveyInvitations
+            .FirstOrDefaultAsync(i => i.SurveyId == surveyId && i.UserId == userId, ct);
+        if (existing is not null) return existing;
+
+        var participation = new SurveyInvitation
+        {
+            Id = Guid.NewGuid(),
+            SurveyId = surveyId,
+            UserId = userId,
+            CreatedAt = createdAt,
+        };
+        ctx.SurveyInvitations.Add(participation);
+
+        try
+        {
+            await ctx.SaveChangesAsync(ct);
+            return participation;
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent Start POST may have won the unique (SurveyId, UserId) insert race.
+            // Re-read the canonical row; unrelated persistence failures still propagate.
+            ctx.ChangeTracker.Clear();
+            var raced = await ctx.SurveyInvitations
+                .FirstOrDefaultAsync(i => i.SurveyId == surveyId && i.UserId == userId, ct);
+            if (raced is not null) return raced;
+            throw;
+        }
+    }
+
     public async Task UpdateInvitationStatusAsync(Guid id, EmailOutboxStatus status, Instant at, CancellationToken ct = default)
     {
-        _ = at; // accepted for wave-call symmetry; the entity carries no email-status timestamp column.
         await using var ctx = await factory.CreateDbContextAsync(ct);
         var invitation = await ctx.SurveyInvitations.FirstOrDefaultAsync(i => i.Id == id, ct);
         if (invitation is null) return;
+        if (status == EmailOutboxStatus.Queued && invitation.SentAt is null)
+        {
+            invitation.SentAt = at;
+        }
         invitation.LatestEmailStatus = status;
         await ctx.SaveChangesAsync(ct);
     }
@@ -221,22 +259,27 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
     }
 
     public async Task SaveDraftAnswersAsync(
-        Guid draftResponseId, IReadOnlyList<SurveyAnswer> answers, Instant? submittedAt, CancellationToken ct = default)
+        Guid draftResponseId,
+        IReadOnlyList<SurveyAnswer> answers,
+        SurveyInputMethod inputMethod,
+        string culture,
+        CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
         var draft = await ctx.SurveyResponses
             .Include(r => r.Answers)
-            .FirstOrDefaultAsync(r => r.Id == draftResponseId, ct);
+            .FirstOrDefaultAsync(r => r.Id == draftResponseId && r.SubmittedAt == null, ct);
         if (draft is null) return;
 
         ctx.SurveyAnswers.RemoveRange(draft.Answers);
         foreach (var answer in answers)
         {
             answer.Response = draft;
-            draft.Answers.Add(answer);
+            ctx.SurveyAnswers.Add(answer);
         }
 
-        if (submittedAt is not null) draft.SubmittedAt = submittedAt;
+        draft.InputMethod = inputMethod;
+        draft.Culture = culture;
         await ctx.SaveChangesAsync(ct);
     }
 
@@ -247,11 +290,70 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
         await ctx.SaveChangesAsync(ct);
     }
 
-    public async Task SetInvitationCompletedAsync(Guid invitationId, CancellationToken ct = default)
+    public async Task FinalizeIdentifiedResponseAsync(
+        Guid invitationId,
+        Guid draftResponseId,
+        IReadOnlyList<SurveyAnswer> answers,
+        Instant submittedAt,
+        SurveyInputMethod inputMethod,
+        string culture,
+        CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
         var invitation = await ctx.SurveyInvitations.FirstOrDefaultAsync(i => i.Id == invitationId, ct);
-        if (invitation is null) return;
+        if (invitation is null)
+            throw new InvalidOperationException("Survey participation not found.");
+        if (invitation.Completed) return;
+
+        var draft = await ctx.SurveyResponses
+            .Include(r => r.Answers)
+            .FirstAsync(
+                r => r.Id == draftResponseId
+                     && r.InvitationId == invitationId
+                     && r.SubmittedAt == null,
+                ct);
+
+        ctx.SurveyAnswers.RemoveRange(draft.Answers);
+        foreach (var answer in answers)
+        {
+            answer.Response = draft;
+            ctx.SurveyAnswers.Add(answer);
+        }
+
+        draft.InputMethod = inputMethod;
+        draft.Culture = culture;
+        draft.SubmittedAt = submittedAt;
+        invitation.Completed = true;
+        await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task FinalizeCompletionTrackedResponseAsync(
+        Guid invitationId,
+        Guid userId,
+        SurveyResponse response,
+        CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var invitation = await ctx.SurveyInvitations
+            .FirstOrDefaultAsync(
+                i => i.Id == invitationId
+                     && i.SurveyId == response.SurveyId
+                     && i.UserId == userId,
+                ct);
+        if (invitation is null)
+            throw new InvalidOperationException("Survey participation not found.");
+        if (invitation.Completed) return;
+
+        var draft = await ctx.SurveyResponses
+            .FirstOrDefaultAsync(
+                r => r.SurveyId == response.SurveyId
+                     && r.UserId == userId
+                     && r.Anonymity == ResponseAnonymity.Identified
+                     && r.SubmittedAt == null,
+                ct);
+        if (draft is not null) ctx.SurveyResponses.Remove(draft);
+
+        ctx.SurveyResponses.Add(response);
         invitation.Completed = true;
         await ctx.SaveChangesAsync(ct);
     }
