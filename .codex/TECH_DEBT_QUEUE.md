@@ -1,14 +1,14 @@
 ﻿# Humans Tech Debt Queue
 
-Last updated: 2026-05-15
-Worktree: `H:\source\humans\.worktrees\techdebt-2026-05-15-codex-1`
-Branch: `techdebt/2026-05-15-codex-1`
+Last updated: 2026-08-25
+Worktree: `H:\source\Humans\.worktrees\techdebt-2026-08-25-codex-1`
+Branch: `techdebt/techdebt-2026-08-25-codex-1`
 
 This file is the durable work queue for autonomous tech-debt passes. Resume here before doing new discovery.
 
 ## Mission
 
-Clear or materially shrink the architecture baselines in `tests/Humans.Application.Tests/Architecture/Baselines` by making real code improvements, not by hiding violations. Use `docs/architecture/**` and `memory/architecture/**` as the target-state rules for finding additional debt after the obvious baseline queue is exhausted.
+Clear or materially shrink the live architecture baselines in `tests/Humans.Web.Tests/Architecture/Baselines` by making real code improvements, not by hiding violations. Use `docs/architecture/**` and `memory/architecture/**` as the target-state rules for finding additional debt after the obvious baseline queue is exhausted.
 
 The loop should continue until one of these is true:
 
@@ -63,22 +63,13 @@ dotnet test tests/Humans.Application.Tests/Humans.Application.Tests.csproj --no-
 
 Active entries as of this queue creation:
 
-| Baseline | Entries | Priority | Strategy |
-| --- | ---: | --- | --- |
-| `NoObsoleteNavReads.baseline.txt` | 231 | P1 | Remove real cross-domain nav reads by using owning services, IDs, and snapshots. Avoid entity/config forbidden paths. |
-| `NoBusinessLogicInControllers.baseline.txt` | 143 | P2 | Move orchestration/business decisions into application services or web presentation helpers. Do not just split methods for line count. |
-| `ApplicationServiceEntityReadReturns.baseline.txt` | 111 | P0 | Replace service read returns of EF/domain entities with DTOs/snapshots. This has been the highest-value productive lane. |
-| `DisplaySortInControllers.baseline.txt` | 105 | P3 | Move reusable domain ordering out of controllers; keep screen-only sort at web boundary if rule is noisy/intentional. |
-| `NoCrossSectionEfJoins.baseline.txt` | 26 | P1/P-blocked | Fix non-forbidden service/repository joins/includes. Entries in `EntityConfigurations/**` are blocked by storage limits. |
-| `NoDestructiveMigrationOps.baseline.txt` | 20 | Blocked by default | Migration-file entries are forbidden. Do not edit migrations; only classify/document unless a non-migration false positive appears. |
-| `CrossSectionRepositoryInjection.baseline.txt` | 1 | P1 | Replace cross-section repository injection with owning service call if not forbidden. |
-| `OnlyAuditLogRepositoryWritesAuditLogEntries.baseline.txt` | 1 | P1 | Route direct audit writes through audit service/repository owner. |
-| `NoConcurrencyTokens.baseline.txt` | 0 | Done | Keep at zero. |
-| `OnlyNotificationRepositoryWritesNotificationDbSets.baseline.txt` | 0 | Done | Keep at zero. |
+| Baseline | Priority | Strategy |
+| --- | --- | --- |
+| `ApplicationServiceEntityReadReturns.baseline.txt` | P0 | Replace service read returns of EF/domain entities with DTOs/snapshots. This remains the highest-value productive lane. |
+| `DisplaySortInControllers.baseline.txt` | P3 | Move reusable domain ordering out of controllers; keep screen-only sort at web boundary if rule is noisy/intentional. |
+| `NoDestructiveMigrationOps.baseline.txt` | Blocked by default | Migration-file entries are forbidden. Do not edit migrations; only classify/document unless a non-migration false positive appears. |
 
-Total active baseline entries: 640.
-
-Regenerate counts with:
+Get current counts with:
 
 ```powershell
 Get-ChildItem tests/Humans.Application.Tests/Architecture/Baselines -File |
@@ -2159,6 +2150,56 @@ Blocked:
 - None for this item.
 Next:
 - Continue with the highest-value safe remaining controller baseline item.
+
+## 2026-08-25 checkpoint - live Teams and Shifts entity-read cleanup
+Done:
+- Replaced volunteer export's event-settings entity reads with `IBurnSettingsService` DTO reads.
+- Removed unused Teams entity-list and parent-lookup service surfaces.
+- Replaced internal Teams membership consumers with `UserTeamMembershipInfo` projections and removed the legacy entity membership cache.
+- Synced the live queue metadata to `tests/Humans.Web.Tests/Architecture/Baselines`.
+Validation:
+- Shifts tests: 562 passed.
+- Teams tests: 255 passed.
+- Architecture ratchet: 4 passed.
+- Full solution build: 0 errors.
+- Full no-build sweep: all suites passed except one parallel-only missing-database log assertion; the test passes in isolation.
+Next:
+- Continue with the remaining 15 live service entity-read baseline entries; preserve admin mutation paths and avoid persistence-forbidden areas.
+
+Current remaining-entry classification:
+- Auth `FindUserByVerifiedEmailAsync`: Identity `UserManager` requires the entity for login relinking.
+- Events `GetCampEventAsync`, `GetUserEventAsync`, and `GetEventForModerationAsync`: callers perform validated read-then-mutate workflows.
+- Shifts settings, rota, shift, and signup reads: admin/settings mutations or full shift-overlap graph consumers; DTO replacement needs a command/read-model design, not a mechanical return-type change.
+- Teams `GetTeamByIdAsync` and `GetTeamEntityBySlugAsync`: remaining callers use admin/resource authorization and mutation-adjacent entity state.
+
+## 2026-08-25 checkpoint - missing-database log assertion reliability
+Done:
+- Made `MissingDatabase_StillRefusesToStart_AndLogsOneClearFatalLineNamingIt` wait briefly for the process-wide Serilog sink to publish the fatal event before asserting its rendered database name.
+- Removed a suite-wide parallel flake without changing the startup behavior under test.
+Validation:
+- Integration test in isolation: 1 passed.
+- Full integration assembly: 317 passed, 1 expected skip.
+Next:
+- Continue with the remaining live architecture entries; preserve guarded entity workflows and persistence boundaries.
+
+## 2026-08-25 checkpoint - remove stale obsolete-warning suppression
+Done:
+- Removed the no-op `CS0618` suppression from `AboutController`; its former `RoleAssignment` navigation-property references were already removed.
+Validation:
+- Humans.Web build: 0 warnings, 0 errors.
+- Service-boundary architecture tests: 4 passed.
+Next:
+- Continue auditing for similarly stale suppressions and safe boundary reductions.
+
+## 2026-08-25 checkpoint - narrow ProfileController obsolete suppression
+Done:
+- Removed the controller-wide `CS0618` suppression left over from removed RoleAssignment navigation reads.
+- Scoped the remaining suppression to the single legacy `User.GoogleEmailStatus` compatibility projection.
+Validation:
+- Humans.Web build: 0 errors.
+- ProfileController and service-boundary tests: 4 passed.
+Next:
+- Continue the autonomous audit loop while preserving intentional compatibility suppressions.
 
 ## 2026-05-15 checkpoint - team role management preservation
 Done:

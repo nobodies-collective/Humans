@@ -4,6 +4,7 @@ using Humans.Holded.Models;
 using Humans.Holded.Services;
 using Humans.Base.Authorization;
 using Humans.Base.Controllers;
+using Humans.Base.Attributes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Humans.Users.Contracts;
@@ -17,6 +18,7 @@ namespace Humans.Holded.Controllers;
 /// </summary>
 [Authorize(Policy = PolicyNames.FinanceAdminOrAdmin)]
 [Route("Holded")]
+[CrossSectionWrite("Syncs finance doc sync state while operating Holded admin actions.")]
 internal sealed class HoldedController(
     IUserServiceRead userService,
     IHoldedAdminService admin,

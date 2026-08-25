@@ -156,12 +156,6 @@ internal sealed class TeamService(
         CancellationToken cancellationToken = default) =>
         await LoadTeamsByIdAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<Team>> GetAllTeamsAsync(CancellationToken cancellationToken = default)
-    {
-        var teams = await repo.GetAllActiveAsync(cancellationToken);
-        return teams.ToList();
-    }
-
     // Team search is served from the cached TeamInfo snapshot in CachingTeamService — it must
     // never hit the DB. Reaching the inner service means a DI mistake. Mirrors
     // UserService.SearchUsersAsync (search is cache-only; there is no repository search).
@@ -301,9 +295,6 @@ internal sealed class TeamService(
             PendingRequestCount: pendingRequestCount);
     }
 
-    public async Task<IReadOnlyList<TeamMember>> GetUserTeamsAsync(Guid userId, CancellationToken cancellationToken = default) =>
-        await repo.GetActiveByUserIdAsync(userId, cancellationToken);
-
     /// <inheritdoc />
     public async Task<IReadOnlyList<UserTeamMembershipInfo>> GetUserTeamMembershipsAsync(
         Guid userId, CancellationToken cancellationToken = default)
@@ -319,7 +310,9 @@ internal sealed class TeamService(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var memberships = await GetUserTeamsAsync(userId, cancellationToken);
+        // Entities (not the flat GetUserTeamMembershipsAsync projection) so DisplayName can
+        // carry the parent-team prefix for sub-team rows on the My Teams page.
+        var memberships = await repo.GetActiveByUserIdAsync(userId, cancellationToken);
         var isBoardMember = await RoleAssignmentService.IsUserBoardMemberAsync(userId, cancellationToken);
 
         var coordinatorTeamIds = memberships
@@ -1814,11 +1807,6 @@ internal sealed class TeamService(
         }
     }
 
-    public Task<IReadOnlyDictionary<Guid, Team>> GetByIdsWithParentsAsync(
-        IReadOnlyCollection<Guid> teamIds,
-        CancellationToken cancellationToken = default) =>
-        repo.GetByIdsWithParentsAsync(teamIds, cancellationToken);
-
     // ==========================================================================
     // ITeamSeeding — the dev/demo fixture surface. Explicit implementations: the members of
     // the same names on this class return the section's entities, which cannot leave the
@@ -1996,8 +1984,8 @@ internal sealed class TeamService(
         CancellationToken cancellationToken)
     {
         // TeamMember fold via AddMemberToTeamAsync/RemoveMemberAsync (system teams skipped — reconciled by SystemTeamSyncJob).
-        var sourceMemberships = await GetUserTeamsAsync(sourceUserId, cancellationToken);
-        var targetMemberships = await GetUserTeamsAsync(targetUserId, cancellationToken);
+        var sourceMemberships = await GetUserTeamMembershipsAsync(sourceUserId, cancellationToken);
+        var targetMemberships = await GetUserTeamMembershipsAsync(targetUserId, cancellationToken);
         var targetTeamIds = targetMemberships.Select(m => m.TeamId).ToHashSet();
         var sourceTeamsById = await repo.GetByIdsWithParentsAsync(
             sourceMemberships.Select(m => m.TeamId).Distinct().ToList(), cancellationToken);

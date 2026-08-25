@@ -27,6 +27,7 @@ public class ExpenseReportServiceGdprTests
     private readonly IExpenseRepository _repo;
     private readonly IUserService _userService;
     private readonly IAuditLogService _auditLogService;
+    private readonly IHoldedFinanceService _holdedFinance = Substitute.For<IHoldedFinanceService>();
     private readonly IUserDataContributor _sut;
 
     public ExpenseReportServiceGdprTests()
@@ -52,11 +53,11 @@ public class ExpenseReportServiceGdprTests
             _repo,
             Substitute.For<IFileStorage>(),
             Substitute.For<IBudgetServiceRead>(),
-            Substitute.For<ITeamService>(),
+            Substitute.For<ITeamServiceRead>(),
             _userService,
             _auditLogService,
             Substitute.For<IHoldedClient>(),
-            Substitute.For<IHoldedFinanceService>(),
+            _holdedFinance,
             new FakeClock(FakeNow),
             NullLogger<ExpenseReportService>.Instance,
             Options.Create(new TravelReimbursementConfig()));

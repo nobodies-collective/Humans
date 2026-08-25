@@ -43,6 +43,14 @@ public interface ITeamServiceRead
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the department-scoped team IDs the user can coordinate for budget purposes:
+    /// top-level teams where the user is a direct coordinator or holds a management role,
+    /// plus their active child teams.
+    /// </summary>
+    Task<IReadOnlyCollection<Guid>> GetEffectiveBudgetCoordinatorTeamIdsAsync(
+        Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Checks if a user is a coordinator of a team.
     /// </summary>
     Task<bool> IsUserCoordinatorOfTeamAsync(
@@ -52,7 +60,8 @@ public interface ITeamServiceRead
 
     /// <summary>
     /// The user's active team memberships as flat rows — the cross-section projection of the
-    /// Teams-internal <c>GetUserTeamsAsync</c>, which returns <c>TeamMember</c> entities.
+    /// the Teams section's internal membership data, without returning <c>TeamMember</c>
+    /// entities.
     /// Same data source and same active-only filter; the team's name and slug are stitched in
     /// so the caller never navigates <c>TeamMember.Team</c>.
     /// </summary>
