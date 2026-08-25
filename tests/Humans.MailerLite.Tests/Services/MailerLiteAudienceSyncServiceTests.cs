@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
+using Xunit;
 
 namespace Humans.MailerLite.Tests.Services;
 
@@ -44,14 +45,19 @@ public class MailerLiteAudienceSyncServiceTests
             "g1", Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>());
     }
 
-    [HumansFact]
-    public async Task SyncAsync_UnsubscribedUser_ExcludedFromGroup()
+    // The invariant names three suppressed statuses, so all three are exercised here:
+    // testing only "unsubscribed" left bounced/junk pinned nowhere on the apply path.
+    [HumansTheory]
+    [InlineData("unsubscribed")]
+    [InlineData("bounced")]
+    [InlineData("junk")]
+    public async Task SyncAsync_SuppressedUser_ExcludedFromGroup(string status)
     {
         var userA = Guid.NewGuid();
         var audience = NewAudience("a-aud", "Humans - A", [userA]);
         SetupEmails((userA, "a@example.com"));
         SetupGroups(Group("g1", "Humans - A"));
-        SetupSubscribers(Subscriber("s1", "a@example.com", "unsubscribed"));
+        SetupSubscribers(Subscriber("s1", "a@example.com", status));
 
         var result = await NewService(audience).SyncAsync(audience, ct: Xunit.TestContext.Current.CancellationToken);
 
@@ -285,7 +291,7 @@ public class MailerLiteAudienceSyncServiceTests
               .Returns(subscribers.ToAsyncEnumerable());
 
     private static MailerLiteGroup Group(string id, string name) =>
-        new(id, name, Instant.FromUtc(2026, 1, 1, 0, 0), 0, 0, 0, 0, 0);
+        new(id, name, 0, 0, 0, 0, 0);
 
     private static MailerLiteSubscriber Subscriber(
         string id, string email, string status, string[]? inGroups = null) =>
