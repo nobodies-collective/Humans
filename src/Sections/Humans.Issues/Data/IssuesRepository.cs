@@ -54,7 +54,15 @@ internal sealed class IssuesRepository(IDbContextFactory<IssuesDbContext> factor
         if (f.ReporterUserId is { } rid) q = q.Where(i => i.ReporterUserId == rid);
         if (f.AssigneeUserId is { } aid) q = q.Where(i => i.AssigneeUserId == aid);
         if (!string.IsNullOrWhiteSpace(f.SearchText))
-            q = q.Where(i => i.Title.Contains(f.SearchText) || i.Description.Contains(f.SearchText));
+        {
+            // ILike, not Contains: Contains renders a case-sensitive match on Postgres, so
+            // "ticket" missed every issue titled "Ticket". Escape the term first — ILike reads
+            // '%' and '_' as wildcards, and a search for "100%" or "ABC_1" is a literal one.
+            // Same shape as Shifts' rota search.
+            var term = "%" + EscapeLikePattern(f.SearchText) + "%";
+            q = q.Where(i => EF.Functions.ILike(i.Title, term, "\\")
+                          || EF.Functions.ILike(i.Description, term, "\\"));
+        }
 
         // Visibility filter:
         //  - sectionFilter null = no constraint (Admin)
@@ -73,6 +81,12 @@ internal sealed class IssuesRepository(IDbContextFactory<IssuesDbContext> factor
             .Take(f.Limit)
             .ToListAsync(ct);
     }
+
+    private static string EscapeLikePattern(string value)
+        => value
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
 
     public async Task SaveTrackedIssueAsync(Issue issue, CancellationToken ct = default)
     {
@@ -171,14 +185,14 @@ internal sealed class IssuesRepository(IDbContextFactory<IssuesDbContext> factor
         return ownIssueIds.ToList();
     }
 
-    public async Task<IReadOnlyList<ExpiredIssueRow>> GetExpiredTerminalAsync(
+    public async Task<IReadOnlyList<Guid>> GetExpiredTerminalAsync(
         Instant cutoff, CancellationToken ct = default)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
         return await db.Issues
             .AsNoTracking()
             .Where(i => i.ResolvedAt != null && i.ResolvedAt <= cutoff)
-            .Select(i => new ExpiredIssueRow(i.Id, i.ScreenshotStoragePath))
+            .Select(i => i.Id)
             .ToListAsync(ct);
     }
 

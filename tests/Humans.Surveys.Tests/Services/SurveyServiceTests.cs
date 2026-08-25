@@ -2504,7 +2504,7 @@ public class SurveyServiceTests
     }
 
     [HumansFact]
-    public async Task GetResultsAsync_only_identified_responses_appear_in_drilldown_but_all_count_in_aggregates()
+    public async Task GetScopedResultsAsync_filters_aggregates_without_filtering_participation_or_drilldown()
     {
         var surveyId = Guid.NewGuid();
         var choiceId = Guid.NewGuid();
@@ -2535,18 +2535,35 @@ public class SurveyServiceTests
             .Returns(new ValueTask<IReadOnlyDictionary<Guid, UserInfo>>(
                 new Dictionary<Guid, UserInfo> { [identifiedUser] = UserInfoWithName(identifiedUser, "Sparkle") }));
 
-        var result = await CreateService().GetResultsAsync(surveyId, TestContext.Current.CancellationToken);
+        var service = CreateService();
+        var combined = await service.GetScopedResultsAsync(
+            surveyId, SurveyResultsScope.Combined, TestContext.Current.CancellationToken);
+        var unique = await service.GetScopedResultsAsync(
+            surveyId, SurveyResultsScope.Unique, TestContext.Current.CancellationToken);
+        var anonymous = await service.GetScopedResultsAsync(
+            surveyId, SurveyResultsScope.Anonymous, TestContext.Current.CancellationToken);
 
-        result.Should().NotBeNull();
-        result.ResponseCount.Should().Be(3);
-        // All three counted in the aggregate (2 yes, 1 no).
-        var choice = result.Questions.Single(q => q.QuestionId == choiceId);
-        choice.OptionCounts.Single(o => string.Equals(o.Value, "yes", StringComparison.Ordinal)).Count.Should().Be(2);
-        choice.OptionCounts.Single(o => string.Equals(o.Value, "no", StringComparison.Ordinal)).Count.Should().Be(1);
+        combined.Should().NotBeNull();
+        combined.SelectedResponseCount.Should().Be(3);
+        combined.Results.ResponseCount.Should().Be(3);
+        var combinedChoice = combined.Results.Questions.Single(q => q.QuestionId == choiceId);
+        combinedChoice.OptionCounts.Single(o => string.Equals(o.Value, "yes", StringComparison.Ordinal)).Count.Should().Be(2);
+        combinedChoice.OptionCounts.Single(o => string.Equals(o.Value, "no", StringComparison.Ordinal)).Count.Should().Be(1);
 
-        // Only the Identified response is in the drill-down, with the stitched name and resolved selected label.
-        result.IdentifiedRespondents.Should().ContainSingle();
-        var detail = result.IdentifiedRespondents[0];
+        unique!.SelectedResponseCount.Should().Be(2);
+        var uniqueChoice = unique.Results.Questions.Single(q => q.QuestionId == choiceId);
+        uniqueChoice.OptionCounts.Single(o => string.Equals(o.Value, "yes", StringComparison.Ordinal)).Count.Should().Be(2);
+        uniqueChoice.OptionCounts.Single(o => string.Equals(o.Value, "no", StringComparison.Ordinal)).Count.Should().Be(0);
+
+        anonymous!.SelectedResponseCount.Should().Be(1);
+        var anonymousChoice = anonymous.Results.Questions.Single(q => q.QuestionId == choiceId);
+        anonymousChoice.OptionCounts.Single(o => string.Equals(o.Value, "yes", StringComparison.Ordinal)).Count.Should().Be(0);
+        anonymousChoice.OptionCounts.Single(o => string.Equals(o.Value, "no", StringComparison.Ordinal)).Count.Should().Be(1);
+
+        // Participation and the Identified drill-down remain combined in every scope.
+        anonymous.Results.ResponseCount.Should().Be(3);
+        anonymous.Results.IdentifiedRespondents.Should().ContainSingle();
+        var detail = anonymous.Results.IdentifiedRespondents[0];
         detail.UserId.Should().Be(identifiedUser);
         detail.Name.Should().Be("Sparkle");
         detail.Answers.Should().ContainSingle();
@@ -2579,6 +2596,46 @@ public class SurveyServiceTests
 
         result!.IdentifiedRespondents.Should().ContainSingle();
         result.IdentifiedRespondents[0].Name.Should().Be(user.ToString());
+    }
+
+    [HumansFact]
+    public async Task GetResultsAsync_orders_identified_respondents_by_submission_time()
+    {
+        var surveyId = Guid.NewGuid();
+        var survey = SurveyWith(SurveyStatus.Closed, null, null);
+        typeof(Survey).GetProperty(nameof(Survey.Id))!.SetValue(survey, surveyId);
+        survey.Questions = new List<SurveyQuestion>();
+        _repo.GetByIdAsync(surveyId, Arg.Any<CancellationToken>()).Returns(survey);
+
+        var now = _clock.GetCurrentInstant();
+        var earlierUser = Guid.NewGuid();
+        var laterUser = Guid.NewGuid();
+        _repo.GetResponsesForResultsAsync(surveyId, Arg.Any<CancellationToken>())
+            .Returns(new List<SurveyResponse>
+            {
+                SubmittedResponse(
+                    surveyId, ResponseAnonymity.Identified, SurveyInputMethod.UserSpecificLink,
+                    now, laterUser),
+                SubmittedResponse(
+                    surveyId, ResponseAnonymity.Identified, SurveyInputMethod.UserSpecificLink,
+                    now - Duration.FromMinutes(5), earlierUser),
+            });
+        _repo.GetInvitedCountsBySurveyAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<Guid, int>());
+        _userService.GetUserInfosAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<IReadOnlyDictionary<Guid, UserInfo>>(
+                new Dictionary<Guid, UserInfo>
+                {
+                    [earlierUser] = UserInfoWithName(earlierUser, "Earlier"),
+                    [laterUser] = UserInfoWithName(laterUser, "Later"),
+                }));
+
+        var result = await CreateService().GetResultsAsync(surveyId, TestContext.Current.CancellationToken);
+
+        result!.IdentifiedRespondents.Select(respondent => respondent.Name)
+            .Should().ContainInOrder("Earlier", "Later");
+        result.IdentifiedRespondents.Select(respondent => respondent.SubmittedAt)
+            .Should().BeInAscendingOrder();
     }
 
     [HumansFact]

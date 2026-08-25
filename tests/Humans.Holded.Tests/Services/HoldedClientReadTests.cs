@@ -128,21 +128,25 @@ public class HoldedClientReadTests
     }
 
     [HumansFact]
-    public async Task ListDraftPurchaseIds_sends_approval_status_filter_and_returns_ids()
+    public async Task ListPurchaseDocuments_parses_the_draft_flag()
     {
-        string? capturedQuery = null;
-        var handler = new StubHandler(req =>
-        {
-            capturedQuery = req.RequestUri!.Query;
-            return Respond(HttpStatusCode.OK,
-                """{"items":[{"id":"d1"},{"id":"d2"}],"cursor":null,"has_more":false}""");
-        });
+        // Neither ?approval_status=draft nor ?draft=true reliably filters the live list endpoint
+        // (verified live, 2026-08-25), so approval state is read from each item's own `draft`
+        // field in the one full pull instead of a second sweep.
+        var json = """
+        {"items":[
+          {"id":"d1","document_number":"F001","date":"2026-05-14","total":"121.00","draft":false},
+          {"id":"d2","document_number":"F002","date":"2026-05-14","total":"50.00","draft":true},
+          {"id":"d3","document_number":"F003","date":"2026-05-14","total":"30.00"}
+        ],"cursor":null,"has_more":false}
+        """;
+        var client = Make(new StubHandler(_ => Respond(HttpStatusCode.OK, json)));
 
-        var client = Make(handler);
-        var ids = await client.ListDraftPurchaseIdsAsync(Xunit.TestContext.Current.CancellationToken);
+        var docs = await client.ListPurchaseDocumentsAsync(Xunit.TestContext.Current.CancellationToken);
 
-        capturedQuery.Should().Contain("approval_status=draft");
-        ids.Should().BeEquivalentTo(["d1", "d2"]);
+        docs.Single(d => string.Equals(d.Id, "d1", StringComparison.Ordinal)).IsDraft.Should().Be(false);
+        docs.Single(d => string.Equals(d.Id, "d2", StringComparison.Ordinal)).IsDraft.Should().Be(true);
+        docs.Single(d => string.Equals(d.Id, "d3", StringComparison.Ordinal)).IsDraft.Should().BeNull();
     }
 
     [HumansFact]
@@ -238,6 +242,27 @@ public class HoldedClientReadTests
             ct: Xunit.TestContext.Current.CancellationToken);
 
         capturedQuery.Should().Contain("account=40000004");
+    }
+
+    [HumansFact]
+    public async Task ListLedgerEntries_sends_end_date_one_day_past_the_inclusive_to()
+    {
+        // end_date is exclusive on the live API (probed 2026-08-25: an entry dated 25/08/2026 is
+        // absent with end_date=2026-08-25, present with end_date=2026-08-26), so the request must
+        // carry to+1 day for this method's own `to` parameter to stay inclusive.
+        string? capturedQuery = null;
+        var handler = new StubHandler(req =>
+        {
+            capturedQuery = req.RequestUri!.Query;
+            return Respond(HttpStatusCode.OK, """{"items":[],"cursor":null,"has_more":false}""");
+        });
+
+        var client = Make(handler);
+        await client.ListLedgerEntriesAsync(
+            new LocalDate(2026, 8, 20), new LocalDate(2026, 8, 25),
+            ct: Xunit.TestContext.Current.CancellationToken);
+
+        capturedQuery.Should().Contain("end_date=2026-08-26");
     }
 
     [HumansFact]

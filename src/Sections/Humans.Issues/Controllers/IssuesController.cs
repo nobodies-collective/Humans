@@ -10,6 +10,7 @@ using Humans.Issues.Models;
 using Humans.Issues.Services;
 using Humans.Base.Models;
 using Humans.Users.Contracts;
+using Microsoft.Extensions.Localization;
 
 namespace Humans.Issues.Controllers;
 
@@ -19,8 +20,8 @@ internal sealed class IssuesController(
     IIssuesService issues,
     IAuthorizationService authorization,
     IUserServiceRead users,
-    IUserServiceRead userService,
-    ILogger<IssuesController> logger) : HumansControllerBase(userService)
+    IStringLocalizer<IssuesResource> localizer,
+    ILogger<IssuesController> logger) : HumansControllerBase(users)
 {
     // Roles from claims (RoleAssignment → claims-transformation), NOT UserManager.GetRolesAsync (misses CampAdmin etc.).
     private List<string> ClaimsRoles() => User.Claims
@@ -66,7 +67,7 @@ internal sealed class IssuesController(
             SearchText: !string.IsNullOrWhiteSpace(search) ? search : null,
             Limit: 200);
 
-        var issues1 = await issues.GetIssueListAsync(filter, user.Id, roles, isAdmin);
+        var matches = await issues.GetIssueListAsync(filter, user.Id, roles, isAdmin);
 
         // Section dropdown: Admin sees all known sections; non-admins see the
         // sections their roles own (so they only filter inside their own queue).
@@ -93,7 +94,7 @@ internal sealed class IssuesController(
                 .ToList();
         }
 
-        var rows = issues1.Select(MapListItem).ToList();
+        var rows = matches.Select(MapListItem).ToList();
 
         var vm = new IssuePageViewModel
         {
@@ -103,7 +104,6 @@ internal sealed class IssuesController(
             SectionFilter = section,
             ReporterFilter = isAdmin ? reporter : null,
             SearchText = search,
-            CurrentUserId = user.Id,
             IsAdmin = isAdmin,
             SelectedIssueId = selected,
             SectionOptions = sectionOptions,
@@ -141,7 +141,7 @@ internal sealed class IssuesController(
         if (!ModelState.IsValid)
         {
             if (isAjax) return BadRequest(ModelState);
-            SetError("Please fill in the required fields.");
+            SetError(localizer["Issue_ValidationFailed"].Value);
             return View("New", model);
         }
 
@@ -165,14 +165,14 @@ internal sealed class IssuesController(
 
             if (isAjax) return Json(new { id = issue.Id });
 
-            SetSuccess("Issue filed.");
+            SetSuccess(localizer["Issue_Submitted"].Value);
             return RedirectToAction(nameof(Index), new { selected = issue.Id });
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to submit issue for user {UserId}", user.Id);
             if (isAjax) return StatusCode(500, new { error = "Failed to file issue" });
-            SetError("Failed to file issue.");
+            SetError(localizer["Issue_Error"].Value);
             return View("New", model);
         }
     }
@@ -217,7 +217,7 @@ internal sealed class IssuesController(
 
     private async Task PopulateAssigneeOptionsAsync(IssueDetailViewModel vm)
     {
-        var activeIds = (await users.GetAllUserInfosAsync().ConfigureAwait(false))
+        var activeIds = (await UserService.GetAllUserInfosAsync().ConfigureAwait(false))
             .Where(u => u.IsActive)
             .Select(u => u.Id)
             .ToList();
@@ -227,8 +227,8 @@ internal sealed class IssuesController(
         }
         else
         {
-            var users1 = await users.GetUserInfosAsync(activeIds);
-            vm.AssigneeOptions = users1.Values
+            var active = await UserService.GetUserInfosAsync(activeIds);
+            vm.AssigneeOptions = active.Values
                 .OrderBy(u => u.BurnerName, StringComparer.OrdinalIgnoreCase)
                 .Select(u => new AssigneeOption { Id = u.Id, DisplayName = u.BurnerName })
                 .ToList();
@@ -239,7 +239,7 @@ internal sealed class IssuesController(
         if (vm.AssigneeUserId.HasValue &&
             vm.AssigneeOptions.All(a => a.Id != vm.AssigneeUserId.Value))
         {
-            var inactiveInfo = await users.GetUserInfoAsync(vm.AssigneeUserId.Value);
+            var inactiveInfo = await UserService.GetUserInfoAsync(vm.AssigneeUserId.Value);
             vm.AssigneeOptions.Insert(0, new AssigneeOption
             {
                 Id = vm.AssigneeUserId.Value,
@@ -264,7 +264,7 @@ internal sealed class IssuesController(
 
         if (!ModelState.IsValid)
         {
-            SetError("Comment is required.");
+            SetError(localizer["Issue_Comment_PostFailed"].Value);
             return RedirectToAction(nameof(Index), new { selected = id });
         }
 
@@ -277,7 +277,7 @@ internal sealed class IssuesController(
                 senderIsReporter: isReporter,
                 resolveOnPost: model.ResolveOnPost && canHandle);
 
-            SetSuccess("Comment posted.");
+            SetSuccess(localizer["Issue_Comment_Posted"].Value);
         }
         catch (InvalidOperationException)
         {
@@ -289,7 +289,7 @@ internal sealed class IssuesController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to post comment on issue {IssueId}", id);
-            SetError("Failed to post comment.");
+            SetError(localizer["Issue_Comment_PostFailed"].Value);
         }
 
         return RedirectToAction(nameof(Index), new { selected = id });
@@ -312,11 +312,11 @@ internal sealed class IssuesController(
 
         if (result.Succeeded)
         {
-            SetSuccess("Status updated.");
+            SetSuccess(localizer["Issue_Status_Updated"].Value);
         }
         else
         {
-            SetError(result.ErrorMessage ?? "Failed to update status.");
+            SetError(localizer["Issue_Error"].Value);
         }
 
         return RedirectToAction(nameof(Index), new { selected = id });
@@ -339,11 +339,11 @@ internal sealed class IssuesController(
 
         if (result.Succeeded)
         {
-            SetSuccess("Assignee updated.");
+            SetSuccess(localizer["Issue_Assignee_Updated"].Value);
         }
         else
         {
-            SetError(result.ErrorMessage ?? "Failed to update assignee.");
+            SetError(localizer["Issue_Error"].Value);
         }
 
         return RedirectToAction(nameof(Index), new { selected = id });
@@ -364,11 +364,17 @@ internal sealed class IssuesController(
         var result = await issues.UpdateSectionWithResultAsync(id, model.Section, user.Id);
         if (result.Succeeded)
         {
-            SetSuccess("Section updated.");
+            SetSuccess(localizer["Issue_Section_Updated"].Value);
         }
         else
         {
-            SetError(result.ErrorMessage ?? "Failed to update section.");
+            // The only handler that still surfaces the service's own string: the section
+            // rejection ("cannot change section on a terminal issue") is the one failure
+            // reason a user can act on. It is English-only — localizing it needs the
+            // service to return a resource key, which rides with the pipeline collapse
+            // in Docs/health.md §5. The other three reasons are generic, so they use
+            // the localized message.
+            SetError(result.ErrorMessage ?? localizer["Issue_Error"].Value);
         }
 
         return RedirectToAction(nameof(Index), new { selected = id });
@@ -391,11 +397,11 @@ internal sealed class IssuesController(
 
         if (result.Succeeded)
         {
-            SetSuccess("GitHub issue linked.");
+            SetSuccess(localizer["Issue_GitHub_Linked"].Value);
         }
         else
         {
-            SetError(result.ErrorMessage ?? "Failed to link GitHub issue.");
+            SetError(localizer["Issue_Error"].Value);
         }
 
         return RedirectToAction(nameof(Index), new { selected = id });
@@ -406,7 +412,6 @@ internal sealed class IssuesController(
         Id = i.Id,
         Status = i.Status,
         Category = i.Category,
-        Section = i.Section,
         AreaLabel = AreaLabelMap.LabelFor(i.Section),
         Title = i.Title,
         ReporterUserId = i.ReporterUserId,
@@ -478,6 +483,6 @@ internal sealed class IssuesController(
         if (issue.AssigneeUserId is { } assigneeId) ids.Add(assigneeId);
         if (issue.ResolvedByUserId is { } resolvedById) ids.Add(resolvedById);
 
-        return await users.GetUserInfosAsync(ids);
+        return await UserService.GetUserInfosAsync(ids);
     }
 }
