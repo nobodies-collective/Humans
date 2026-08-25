@@ -150,7 +150,7 @@ First-party, GDPR-compliant surveys: author typed/branching multi-language surve
   net-new recipients can be opened there before the separate invitation confirmation.
 - **`/Survey/Answer?t={token}`** — `SurveyController` invited wizard (token carries identity; never the current principal).
 - **`/Survey/{slug}`** — `SurveyController` public wizard: logged-out visitors are Anonymous; logged-in Humans choose how they are represented. Literal segments `Admin`/`Answer` are **reserved slugs** and resolve before `{slug}`.
-- **`/api/surveys/*`** — `SurveysApiController` (key-authed, read-only).
+- **`/api/backdoor/surveys/*`** — `SurveysApiController` (key-authed, read-only).
 
 ## Actors & Roles
 
@@ -159,7 +159,7 @@ First-party, GDPR-compliant surveys: author typed/branching multi-language surve
 | BoardOrAdmin (`PolicyNames.BoardOrAdmin`) | Author surveys (builder), open/close, send invitations, view results + Identified drill-down, export CSV/JSON. |
 | Invited member | Answer their invited survey via the tokenised link; choose anonymity tier when `AllowAnonymous`; resume an unfinished Identified draft. Reachable even for non-members (`Survey` is in `MembershipRequiredFilter.ExemptControllers`; answer actions are `[AllowAnonymous]`). |
 | Public visitor | Logged out: always Anonymous. Logged in: choose Identified, CompletionTracked, or Anonymous. All public-link responses use `InputMethod=Slug`. |
-| API (key auth) | List surveys, get a definition, read responses (`?format=md`/json) and aggregates via `/api/surveys` — read-only; key from `SURVEY_API_KEY` (`SurveyApiKeyAuthFilter`; 503 when unset, 401 when wrong). |
+| API (key auth) | List surveys, get a definition, read responses (`?format=md`/json) and aggregates via `/api/backdoor/surveys` — read-only. The controller lives in `Humans.Backdoor` and reads this section through `ISurveyAnalysisRead` (nobodies-collective/Humans#1128); the key is the caller's personal one, 401 when missing, unknown or revoked. |
 
 ## Invariants
 
@@ -174,6 +174,7 @@ First-party, GDPR-compliant surveys: author typed/branching multi-language surve
   `UserId`/`InvitationId` are written on the response **only** for Identified. CompletionTracked flips the invitation's `Completed` flag (known from the wizard token) without persisting any link on the response.
 - **`Completed` is a boolean with no timestamp** and `survey_invitations` has no `UpdatedAt`: recording *when* a CompletionTracked invitee finished would correlate (user-linked) with the unattributed response's `SubmittedAt` and re-identify them.
 - **Resume is Identified-only.** An in-progress Identified response is a persisted draft (`SubmittedAt is null`), found by `(SurveyId, UserId, SubmittedAt is null)`. CompletionTracked/Anonymous carry no link, are held in session, and **restart** on reopen.
+- **A double-submit or refresh on an already-completed tracked invitation lands on the thank-you page, not a 500.** `AdvanceWizardAsync` treats `PrepareSubmissionAsync` reporting the invitation already `Completed` as a normal `Submitted` outcome (the controller clears the session and redirects); only the standalone `SubmitResponseAsync` entry point still throws on the same condition.
 - **Branching is server-side and authoritative.** A null `ShowIf` is visible; hidden questions are never treated as required; at submit the full branching is re-evaluated and answers to hidden questions are **dropped/rejected** (the client cannot smuggle them). Author-save rejects `ShowIf` forward-references (`SurveyBranchingEvaluator.ValidateNoForwardReferences`).
 - **Grid questions are bounded matrices.** A Grid has at least one localized row, one to five localized columns, and a `Single` or `Multiple` selection mode. Row and column keys are non-blank and unique. A required Grid is complete only when every row has a valid selection; `Single` permits exactly one column per row. Posted selections are normalized against the authored schema before autosave/submission.
 - **Grid questions may be branch targets, never branch sources.** A Grid can carry its own `ShowIf`, but author-save rejects any branch clause that references a Grid question.
@@ -210,7 +211,7 @@ First-party, GDPR-compliant surveys: author typed/branching multi-language surve
 
 ## Negative Access Rules
 
-- No code outside `SurveyRepository` (and `SurveyService` above it) **cannot** read/write `survey_*` tables; other sections **cannot** inject `ISurveyRepository` (pinned by `SurveyArchitectureTests`).
+- No code outside `SurveyRepository` (and `SurveyService` above it) **cannot** read/write `survey_*` tables; other sections **cannot** inject `ISurveyRepository` — it is `internal` (HUM0034), so cross-section injection does not compile.
 - Survey code **cannot** reach into other sections' data or repositories — cross-section data comes **only** through `IUserServiceRead`/`ITeamServiceRead`/`ITicketServiceRead`/`IShiftView`/`IUserEmailService`.
 - Results, exports, and the API **cannot** expose respondent identity for CompletionTracked or Anonymous responses — `UserId`/`UserName` are populated **only** for Identified rows (enforced server-side regardless of API params).
 - The system **cannot** store a completion timestamp for CompletionTracked responses (timing side-channel).
@@ -226,6 +227,7 @@ First-party, GDPR-compliant surveys: author typed/branching multi-language surve
 - When a response is submitted, the response + answers and `Invitation.Completed` are written in one save for Identified/CompletionTracked. **No audit entry** is written for the submission.
 - When the invited wizard advances past the intro, `Invitation.Started` is set; on the public path, `Survey.PublicStartedCount` is incremented.
 - When the GDPR export runs, `SurveyService` (as `IUserDataContributor`) contributes the user's **Identified** responses under `GdprExportSections.SurveyResponses`.
+- When Article 17 erasure runs, `EraseForUserAsync` deletes the user's `SurveyInvitation` rows and severs their Identified responses from the person (`UserId`/`InvitationId` dropped, `Anonymity` forced to `Anonymous`) — the answers themselves survive as an anonymous data point in the survey's results (Art. 17(3)(b)), which is what `ErasureDeclaration` names as partial retention for `GdprExportSections.SurveyResponses`.
 
 ## Cross-Section Dependencies
 
@@ -240,7 +242,7 @@ First-party, GDPR-compliant surveys: author typed/branching multi-language surve
 - **Data Protection:** `IDataProtectionProvider` via `ISurveyInviteTokenProvider` and
   `SurveyPreviewTokenProvider` — time-limited, tamper-evident invitation and preview tokens with
   distinct purposes (`/Survey/Answer?t={token}`).
-- **GDPR:** implements `IUserDataContributor` to export the user's Identified survey responses under `GdprExportSections.SurveyResponses`.
+- **GDPR:** implements `IUserDataContributor` to export the user's Identified survey responses under `GdprExportSections.SurveyResponses`, and to erase them on Article 17 request (invitation deleted, response demoted to Anonymous — see Triggers).
 
 ## Architecture
 
@@ -254,7 +256,7 @@ First-party, GDPR-compliant surveys: author typed/branching multi-language surve
 - **Decorator decision — no caching decorator.** Admin-authored, low-traffic, per-invitee writes — not a hot bulk-read path (Feedback/Issues rationale). Registered as a plain Scoped service.
 - **Cross-domain navs — none.** Survey references Users/Teams by **bare `Guid` FK columns only** (the clean `FeedbackReport.AgentConversationId` precedent / `memory/architecture/no-cross-section-ef-joins.md`), with **no `[Obsolete]` navs and no cross-section EF FK constraints** — Survey was born clean rather than inheriting the `[Obsolete]`-nav pattern `Issue`/`Feedback`/`Camp` originally shipped with (all three have since stripped those navs too — nobodies-collective/Humans#1188 for Issues, #996 for Feedback). The service resolves display data via the cross-section read interfaces and returns DTOs.
 - **Cross-section calls — the public interfaces this section consumes:** `IUserServiceRead`, `ITeamServiceRead`, `ITicketServiceRead`, `IShiftView`, `IUserEmailService`, `IEmailService`, `IEmailMessageFactory`, `IAuditLogService`, `IDataProtectionProvider` (via `ISurveyInviteTokenProvider`).
-- **Architecture test** — `tests/Humans.Surveys.Tests/SurveysArchitectureTests.cs` pins the section shape and the `ISurveyRepository` consumer allow-list. HUM0025 enforces single-owner table access; cross-section repository injection does not compile, `ISurveyRepository` being internal.
+- **Architecture test** — `tests/Humans.Surveys.Tests/SurveysArchitectureTests.cs` pins the section shape. HUM0025 enforces single-owner table access; cross-section repository injection does not compile, `ISurveyRepository` being internal — a per-consumer allow-list test would only assert absence ([`no-tests-for-absences`](../../../../memory/architecture/no-tests-for-absences.md)).
 
 ### Cross-section read interface
 

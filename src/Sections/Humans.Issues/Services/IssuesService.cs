@@ -14,7 +14,6 @@ using Humans.Base.Constants;
 using Humans.Issues.Contracts;
 using Humans.Issues.Data;
 using Humans.Issues.Domain;
-using Humans.Issues.Services.Dtos;
 
 namespace Humans.Issues.Services;
 
@@ -247,13 +246,16 @@ internal sealed class IssuesService(
         var issue = await repo.GetByIdAsync(issueId, ct)
             ?? throw new InvalidOperationException($"Issue {issueId} not found");
 
-        // Audit entries for the four Issue-related actions.
+        // Audit entries for the Issue-related actions. IssueCreated is written only by the
+        // machine path, where the filer and the reporter can differ, so it is the one place
+        // the thread can say who actually filed it.
         var auditEntries = await audit.GetFilteredEntriesAsync(
             entityType: AuditEntityTypes.Issue,
             entityId: issueId,
             userId: null,
             actions:
             [
+                AuditAction.IssueCreated,
                 AuditAction.IssueStatusChanged,
                 AuditAction.IssueAssigneeChanged,
                 AuditAction.IssueSectionChanged,
@@ -300,7 +302,7 @@ internal sealed class IssuesService(
 
     // ─── Mutations ───
 
-    public async Task<IssueComment> PostCommentAsync(
+    public async Task<IssueCommentInfo> PostCommentAsync(
         Guid issueId,
         Guid? senderUserId,
         string content,
@@ -359,7 +361,34 @@ internal sealed class IssuesService(
             await UpdateStatusAsync(issueId, IssueStatus.Resolved, senderUserId, ct);
         }
 
-        return comment;
+        return new IssueCommentInfo(comment.Id, comment.Content, comment.CreatedAt);
+    }
+
+    public async Task<Guid> CreateIssueAsync(
+        Guid reporterUserId,
+        IssueCategory category,
+        string title,
+        string description,
+        string? section,
+        LocalDate? dueDate = null,
+        Guid? actorUserId = null,
+        CancellationToken ct = default)
+    {
+        var issue = await SubmitIssueAsync(
+            reporterUserId, category, title, description, section,
+            pageUrl: null, userAgent: null, additionalContext: null, screenshot: null,
+            dueDate: dueDate, ct: ct);
+
+        // The in-app reporter is their own actor, so the issue row's ReporterUserId is the
+        // whole story there and creation goes unaudited. Here the two can differ, and the
+        // audit entry is the only place the filer is written down.
+        await LogAuditAsync(
+            AuditAction.IssueCreated, issue.Id, actorUserId,
+            actorUserId == reporterUserId
+                ? "Issue filed"
+                : $"Issue filed on behalf of {reporterUserId}");
+
+        return issue.Id;
     }
 
     public async Task UpdateStatusAsync(

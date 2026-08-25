@@ -2,7 +2,7 @@
   src/Sections/Humans.Monitor/**
 -->
 <!-- freshness:flag-on-change
-  Monitor's reference set is its whole reason to exist — review MonitorArchitectureTests.SectionReferencesOnlyBaseAndTheLeavesItConsumes when any ProjectReference is added.
+  Monitor's reference set is its whole reason to exist — review the reference list in Invariants below when any ProjectReference is added.
 -->
 
 # Monitor — Section Invariants
@@ -22,7 +22,7 @@ still lived in `Humans.Application` — both ends were Base — and became an as
 violation the moment GoogleIntegration went to G5 (nobodies-collective/Humans#866).
 
 `DriveActivityMonitorService` turned out to be the same shape one level down: it injects five
-sections' services (`IGoogleDriveActivityClient`, `ITeamResourceService`, `ISystemSettingsService`,
+sections' services (`IGoogleDriveActivityClient`, `ITeamResourceService`, `ISettingsService`,
 `IUserServiceRead`, `IAuditLogService`) and calls **no repository** — a cross-section
 orchestrator by the hard rules' own definition, sitting in `Services/GoogleIntegration/` on code
 locality alone.
@@ -37,7 +37,7 @@ horizontal.** It is a leaf consumer: it sits above both and nothing sits above i
   API and comparing actors; each one is written to the audit log as
   `AuditAction.AnomalousPermissionDetected`.
 - **Time-window dedup** — each scan processes only events since the last successful run,
-  persisted through `ISystemSettingsService` under the `DriveActivityMonitorJob` key. First run,
+  persisted through `ISettingsService` under the `DriveActivityMonitorJob` key. First run,
   or a missing marker, falls back to 24 hours.
 - **Google sync log** — GoogleIntegration's `google_sync_log` rows, shown for one resource or one
   human. Monitor does not read them: `SyncAudit.cshtml` emits `<vc:google-sync-log>` with the
@@ -49,7 +49,7 @@ horizontal.** It is a leaf consumer: it sits above both and nothing sits above i
 **Monitor owns no tables.** No `DbContext`, no repository, no migrations, no G4 gate. It reads
 Google through GoogleIntegration's connector abstraction, writes audit through
 `IAuditLogService`, renders the sync log through `<vc:google-sync-log>`, and stores its one piece of state
-(the last-run timestamp) in SystemSettings. `MonitorArchitectureTests.SectionOwnsNoDbContext` pins this.
+(the last-run timestamp) in SystemSettings ([`no-tests-for-absences`](../../../../memory/architecture/no-tests-for-absences.md): documentation, not a pinned assertion).
 
 ## Actors / Roles
 
@@ -64,11 +64,12 @@ registration moves into the section, policy registration does not).
 
 ## Invariants
 
-- **Monitor's reference set is the section's justification and is asserted, not documented.**
-  `MonitorArchitectureTests.SectionReferencesOnlyBaseAndTheLeavesItConsumes` fixes it at
-  `Humans.AuditLog.Contracts` + `Humans.SystemSettings.Contracts` (GoogleIntegration is still
-  Base-resident and arrives via `Humans.Application`). Every name added there is a section
-  Monitor now couples to.
+- **Monitor's reference set is the section's justification.** It is
+  `Humans.AuditLog.Contracts` + `Humans.Settings.Contracts` + `Humans.GoogleIntegration.Contracts`
+  (plus `Humans.GoogleIntegration` itself, so `SyncAudit.cshtml`'s `<vc:google-sync-log>` tag
+  helper binds). Every name added there is a section
+  Monitor now couples to — documentation, not a pinned assertion
+  ([`no-tests-for-absences`](../../../../memory/architecture/no-tests-for-absences.md)).
 - **Nothing depends on Monitor except Shell naming the job.** Its whole outward surface is
   `IDriveActivityMonitorService` in `Contracts/` — one method, returning `int` — consumed by
   `DriveActivityMonitorJob` beside it, home since the G5 jobs move
@@ -79,9 +80,8 @@ registration moves into the section, policy registration does not).
   section's public types only under `Contracts/`.
 - **The scan is best-effort and never throws to its caller.** `CheckDriveActivity` catches,
   logs at Error, and shows the operator an error banner; the recurring job records a failed run.
-- **No resource set.** One admin-only English page.
-  `MonitorArchitectureTests.SectionTypesTakeNoStringLocalizer` pins it, so the day someone adds
-  copy the build says "carve a resource set first".
+- **No resource set.** One admin-only English page — documentation, not a pinned
+  assertion ([`no-tests-for-absences`](../../../../memory/architecture/no-tests-for-absences.md)).
 
 ## Negative access rules
 
@@ -103,7 +103,7 @@ registration moves into the section, policy registration does not).
 |---|---|---|
 | out | GoogleIntegration | `IGoogleDriveActivityClient`, `ITeamResourceService`, `<vc:google-sync-log>` (render) |
 | out | AuditLog | `IAuditLogService` (write) |
-| out | SystemSettings | `ISystemSettingsService` (last-run marker) |
+| out | Settings | `ISettingsService` (last-run marker) |
 | out | Users | `IUserServiceRead` (resolve Google actors to humans) |
 | in | — | none; Shell names `DriveActivityMonitorJob`, which is in this project |
 

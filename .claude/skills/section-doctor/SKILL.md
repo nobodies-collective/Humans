@@ -183,8 +183,11 @@ build also serves Phase 3/4), runs `reforge surface-score --format compact`, and
 **median** of the ranked never-doctored tier — middle-out: the process proves itself on
 mid-sized sections; the biggest and smallest get their turn once the middle has been worked.
 It prints `SECTION:` / `TIER:` / `RATIONALE:` plus the full ranked table for the run file, and
-falls back to a LOC ranking (flagged in its output) when reforge is unusable. Act on its
-verdicts — never re-derive the maths in-band:
+an **`UPCOMING:`** line — the next 4 sections a repeat of this maths would pick, assuming each
+pick blocks itself and nothing else changes. That forecast is purely informational (it goes in
+the PR body, Phase 7): it is not stored, no later run reads or honours it, and tomorrow's run
+recomputing differently is expected. The script falls back to a LOC ranking (flagged in its
+output) when reforge is unusable. Act on its verdicts — never re-derive the maths in-band:
 
 - **`ALL BLOCKED`** (exit 3): report the open PRs and stop. This is the one path that removes the
   worktree immediately (Phase 9) — nothing has been written yet, so it is clean and
@@ -347,7 +350,10 @@ several runs record it as "ran, found nothing".
   mutants it was written for is not passing, it is undiscriminating — re-run the tool thread
   against new tests before the PR. Stryker's `--coverage-analysis` is config-only, not a CLI flag,
   and a section-scoped run must exclude `Data/Migrations` or migration bodies swamp the score.
-- **Freshness** — a trigger that resolves is not a trigger that works: check each path actually
+- **Freshness** — a doc claiming a test that does not exist is a doc to fix, never a test to
+  write. That instinct has fired twice (#1465, #1480) and both times the test would have been
+  an absence assertion — `memory/architecture/no-tests-for-absences.md`. A trigger that
+  resolves is not a trigger that works: check each path actually
   carries the claim, not merely that it is live. Read a feature doc's "Out of scope" list against
   its route table every time; it ages worse than the body.
 - **Prose & surface** — diff the resx key set against the keys the section's views reference. Dead
@@ -376,15 +382,38 @@ in the ranked list, carrying the issue ref, a verdict of `close` / `edit` / `rel
 and the one-sentence reason — that is the finding's one prose description (Phase 5). The
 `## Needs Peter` checklist then cites it by number and adds no prose of its own.
 
-**Hard constraint: a run may not mutate any GitHub issue.** No close, no edit, no relabel, no
-comment on another issue — including issues this run's own findings duplicate, and including a
-`keep`. A run's only writes are its own run file and its own PR (whose body and description it
-owns). Every recommendation is enacted by Peter, after review; this sits on Phase 4's
+**Hard constraint: a run may not mutate an existing GitHub issue.** No close, no edit, no
+relabel, no comment on another issue — including issues this run's own findings duplicate, and
+including a `keep`. Every such verdict is enacted by Peter, after review; this sits on Phase 4's
 skip-and-queue list beside schema changes and surface additions.
+
+**Opening a new issue on `peterdrier/Humans` is allowed** — it is a write of the run's own,
+like its run file and its PR (whose body and description it owns). Never upstream.
 
 Cap the pass at the section's open issues — recommendations are per-issue one-liners, so a large
 backlog costs the run one line each rather than a budget. Record the pass as ran or skipped in
 `## Threads` like every other thread; a review that did not happen says so, with why.
+
+**Prove reach per repo; suspend only the half you cannot reach.** Issues live on **both**
+`nobodies-collective/Humans` and `peterdrier/Humans` — most of them upstream. A cloud run's
+scope is often the fork alone, and an issue search against an out-of-scope repo returns 0
+**silently** rather than erroring, which is indistinguishable from a clean backlog. So before
+any issue work, probe **each** repo independently by reading an issue whose number you already
+hold — don't discover one by listing, which is the very call the probe exists to qualify:
+
+```bash
+gh issue view --repo nobodies-collective/Humans 1118
+gh issue view --repo peterdrier/Humans 1494
+```
+
+(the GitHub MCP `issue_read` where `gh` is absent — Phase 2's rule; the issue need not still
+be open, the read only has to prove access). A probe that fails for **any** reason — scope,
+auth, network, rate limit, missing tool — suspends that repo's half; don't reason about the
+cause, and don't infer one
+repo's reach from the other's. Suspending both is correct when both fail. `## Threads` then
+records what was actually covered, e.g. `Inbox: partial — upstream issues unreachable (scope:
+peterdrier/Humans)`. The ledger and in-app halves are unaffected. No run reports an empty or
+complete issue review it could not perform.
 
 ### 3e. Merge, rank, and check independence
 
@@ -641,7 +670,10 @@ git push -u origin section-doctor/$TS
 gh pr create --repo peterdrier/Humans --base main --title "doctor(<Section>): <headline>" --body ...
 ```
 
-Body: assessment summary, worked/skipped bullets, a **`## Cost`** table (below), and a
+Body: assessment summary, worked/skipped bullets, a one-line **next-up forecast** from Phase 2's
+`UPCOMING:` output — "Next 5 (non-binding): 1. <today's section> (this run) 2. … 5. …; each run
+recomputes live, so tomorrow may differ" — omitted when the selector was skipped (`--section`) or
+returned `JUDGMENT REQUIRED`, a **`## Cost`** table (below), and a
 **`## Needs Peter`** block — terse, numbered, answerable in a word or two, **citing findings by
 number rather than re-describing them** (Phase 5). **The PR body is the authoritative queue while
 the PR is open** (resume reads it from there); the run file's copy carries it forward after merge.

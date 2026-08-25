@@ -1,8 +1,8 @@
 using AwesomeAssertions;
-using Humans.Surveys.Data;
 using Humans.Surveys.Domain;
 using Humans.Surveys.Services;
 using Microsoft.Extensions.Localization;
+using Humans.Surveys.Contracts;
 
 namespace Humans.Surveys.Tests;
 
@@ -15,52 +15,16 @@ namespace Humans.Surveys.Tests;
 /// <c>ISurveyService_InheritsISurveyServiceRead</c> test is gone with the interface: the read
 /// interface shipped empty and no section ever consumed it, so the assembly boundary plus the
 /// one-interface contracts leaf is the whole cross-section story now (design §15 step 5/11).
-/// The no-nav and completion-privacy assertions carry over unchanged — they pin domain shape,
-/// not layering, and nothing about the move subsumes them.
+/// The no-nav assertions were dropped per memory/architecture/no-tests-for-absences.md.
+/// The completion-timing one stays: it is a re-identification guard, not a shape claim.
 /// </remarks>
 public class SurveysArchitectureTests
 {
     /// <summary>
-    /// Pins the set of types that may inject <see cref="ISurveyRepository"/>: the owning service
-    /// and the repository implementation. A new consumer taking the repository directly would
-    /// bypass the service layer and the single-writer rule for the <c>survey_*</c> tables.
+    /// A CompletionTracked invitation stays linked to its invitee while the response it
+    /// produced is anonymous. Any timestamp on the invitation correlates with that response's
+    /// <c>SubmittedAt</c> and re-identifies the respondent, so completion is a bare bool.
     /// </summary>
-    [HumansFact]
-    public void ISurveyRepository_HasNoUnexpectedConsumers()
-    {
-        var allowed = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "Humans.Surveys.Services.SurveyService",
-            "Humans.Surveys.Data.SurveyRepository",
-        };
-
-        var consumers = typeof(Section).Assembly.GetTypes()
-            .Where(t => t.GetConstructors()
-                .Any(c => c.GetParameters().Any(p => p.ParameterType == typeof(ISurveyRepository))))
-            .Select(t => t.FullName ?? t.Name)
-            .ToList();
-
-        consumers.Where(c => !allowed.Contains(c)).Should().BeEmpty(
-            because: "every read/write to the survey_* tables must go through SurveyService");
-    }
-
-    [HumansFact]
-    public void SurveyEntities_HaveNoCrossSectionNavigationProperties()
-    {
-        typeof(Survey).GetProperty("CreatedByUser").Should().BeNull(
-            because: "cross-domain references are bare Guid FKs with no nav (design-rules §6c); resolve via IUserServiceRead");
-        typeof(Survey).GetProperty("AudienceTeam").Should().BeNull(
-            because: "AudienceTeamId is a bare Guid; resolve the team via ITeamServiceRead");
-        typeof(SurveyInvitation).GetProperty("User").Should().BeNull();
-        typeof(SurveyResponse).GetProperty("User").Should().BeNull();
-
-        // FKs stay — only navs are absent.
-        typeof(Survey).GetProperty("CreatedByUserId").Should().NotBeNull();
-        typeof(Survey).GetProperty("AudienceTeamId").Should().NotBeNull();
-        typeof(SurveyInvitation).GetProperty("UserId").Should().NotBeNull();
-        typeof(SurveyResponse).GetProperty("UserId").Should().NotBeNull();
-    }
-
     [HumansFact]
     public void SurveyInvitation_RecordsCompletionAsBoolWithNoTimestamp()
     {

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Humans.Feedback.Domain;
 using Humans.Feedback.Models;
 using Humans.Feedback.Services;
-using Humans.Feedback.Services.Dtos;
+using Humans.Feedback.Contracts;
 using Humans.Base.Models;
 using Humans.Teams.Contracts;
 using Humans.Base.Authorization;
@@ -216,7 +216,10 @@ internal sealed class FeedbackController(
     {
         try
         {
-            await feedbackService.SetGitHubIssueNumberAsync(id, model.IssueNumber);
+            var (userMissing, user) = await RequireCurrentUserAsync();
+            if (userMissing is not null) return userMissing;
+
+            await feedbackService.SetGitHubIssueNumberAsync(id, model.IssueNumber, user.Id);
             SetSuccess("GitHub issue linked.");
         }
         catch (InvalidOperationException)
