@@ -145,6 +145,18 @@ internal sealed class HoldedClient : IHoldedClient
         }
     }
 
+    public async Task ApprovePurchaseDocumentAsync(string documentId, CancellationToken ct = default)
+    {
+        // POST with no body 411s through Holded's proxy without an explicit Content-Length — an
+        // empty content sets one, where leaving Content null (as ApproveSalesDocumentAsync does)
+        // does not.
+        using var req = new HttpRequestMessage(
+            HttpMethod.Post, $"/api/v2/purchases/{documentId}/approve")
+        { Content = new ByteArrayContent([]) };
+        AttachAuth(req);
+        using var resp = await SendAsync(req, ct);
+    }
+
     public async Task<IReadOnlyList<HoldedExpenseAccountDto>> ListExpenseAccountsAsync(
         CancellationToken ct = default)
     {
@@ -212,20 +224,6 @@ internal sealed class HoldedClient : IHoldedClient
         }
     }
 
-    public async Task<IReadOnlySet<string>> ListDraftPurchaseIdsAsync(CancellationToken ct = default)
-    {
-        const int pageSafetyCap = 200;
-        var items = await GetPagedAsync("/api/v2/purchases?approval_status=draft&limit=200", pageSafetyCap, ct);
-        // A draft without an id cannot be dropped: MapDoc marks any doc absent from this set
-        // as approved, so an incomplete set silently feeds a draft into the budget actuals.
-        return items
-            .Select(n => Prop(n, "id")?.GetValue<string>() is { Length: > 0 } id
-                ? id
-                : throw new HoldedPermanentException(
-                    "Holded item is missing required field 'id' — refusing the page."))
-            .ToHashSet(StringComparer.Ordinal);
-    }
-
     public async Task<string> UpsertContactAsync(HoldedContactInput input, CancellationToken ct = default)
     {
         // v2 contacts POST/PUT have no `custom_id` field (see HoldedContactInput.CustomId) — not sent.
@@ -237,18 +235,23 @@ internal sealed class HoldedClient : IHoldedClient
                 ? null
                 : new { address = input.Address, country_code = input.CountryCode };
 
+        var isUpdate = !string.IsNullOrEmpty(input.ExistingContactId);
+
+        // On update, `type` is omitted rather than sent (same OmitNulls trick as bill_address): a
+        // PUT carrying it flips a manually-created contact's type (e.g. a proveedor kept as
+        // "supplier" for a 400000xx account) to whatever Type defaults to, which mints a new
+        // 410000xx creditor account instead of reusing the existing one. Only a create needs to
+        // set a type at all.
         var payload = new
         {
             name = input.Name,
             trade_name = input.TradeName,
-            type = input.Type,
+            type = isUpdate ? null : input.Type,
             iban = input.Iban,
             code = input.TaxCode,
             email = input.Email,
             bill_address = billAddress,
         };
-
-        var isUpdate = !string.IsNullOrEmpty(input.ExistingContactId);
         using var req = new HttpRequestMessage(
             isUpdate ? HttpMethod.Put : HttpMethod.Post,
             isUpdate
@@ -668,6 +671,7 @@ internal sealed class HoldedClient : IHoldedClient
         Tax = ReadDecimalV2(Prop(n, "tax")),
         // Total feeds the budget actuals; an absent field must fail the page, not upsert 0.00.
         Total = ReadRequiredDecimalV2(Prop(n, "total"), "total"),
+        IsDraft = Prop(n, "draft")?.GetValue<bool>(),
         Currency = Prop(n, "currency")?.GetValue<string>() ?? "eur",
         Tags = ReadTags(Prop(n, "tags")),
         Lines = Arr(Prop(n, "lines")).Select(p => new HoldedPurchaseLineDto
