@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Caching.Memory;
 using NodaTime;
 using Humans.Base.Extensions;
@@ -8,7 +9,6 @@ using Humans.Base.Caching;
 using Humans.Feedback.Contracts;
 using Humans.Feedback.Data;
 using Humans.Feedback.Domain;
-using Humans.Feedback.Services.Dtos;
 using Humans.AuditLog.Contracts;
 using Humans.Email.Contracts;
 using Humans.Teams.Contracts;
@@ -40,7 +40,7 @@ internal sealed class FeedbackService(
     IFileStorage fileStorage,
     IMemoryCache cache,
     IClock clock,
-    ILogger<FeedbackService> logger) : IFeedbackServiceRead, IUserDataContributor, IUserMerge
+    ILogger<FeedbackService> logger) : IFeedbackServiceRead, IFeedbackTriage, IUserDataContributor, IUserMerge
 {
     private static readonly TimeSpan BadgeCacheDuration = TimeSpan.FromMinutes(2);
 
@@ -113,7 +113,8 @@ internal sealed class FeedbackService(
     }
 
     public async Task SetGitHubIssueNumberAsync(
-        Guid id, int? issueNumber, CancellationToken cancellationToken = default)
+        Guid id, int? issueNumber, Guid? actorUserId,
+        CancellationToken cancellationToken = default)
     {
         var report = await repository.FindForMutationAsync(id, cancellationToken)
             ?? throw new InvalidOperationException($"Feedback report {id} not found");
@@ -122,9 +123,25 @@ internal sealed class FeedbackService(
         report.UpdatedAt = clock.GetCurrentInstant();
 
         await repository.SaveTrackedReportAsync(report, cancellationToken);
+
+        // Audit after the business save so a rollback never leaves a ghost audit row.
+        var description =
+            $"Feedback {id} GitHub link: {(issueNumber.HasValue ? issueNumber.Value.ToString(CultureInfo.InvariantCulture) : "(cleared)")}";
+        if (actorUserId.HasValue)
+        {
+            await auditLogService.LogAsync(
+                AuditAction.FeedbackGitHubLinked, AuditEntityTypes.FeedbackReport, id,
+                description, actorUserId.Value);
+        }
+        else
+        {
+            await auditLogService.LogAsync(
+                AuditAction.FeedbackGitHubLinked, AuditEntityTypes.FeedbackReport, id,
+                description, "API");
+        }
     }
 
-    public async Task<FeedbackMessage> PostMessageAsync(
+    public async Task<FeedbackMessageInfo> PostMessageAsync(
         Guid reportId, Guid? senderUserId, string content,
         CancellationToken cancellationToken = default)
     {
@@ -154,7 +171,9 @@ internal sealed class FeedbackService(
         navBadge.Invalidate();
         logger.LogInformation(
             "Feedback admin reply posted on {ReportId} by {UserId}", reportId, senderUserId);
-        return message;
+        return new FeedbackMessageInfo(
+            message.Id, message.FeedbackReportId, message.SenderUserId,
+            SenderName: null, message.Content, message.CreatedAt);
     }
 
     private async Task SendAdminResponseEmailAsync(
