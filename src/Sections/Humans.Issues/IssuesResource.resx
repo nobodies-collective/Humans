@@ -83,12 +83,12 @@
   <data name="Issue_Description" xml:space="preserve"><value>Description</value></data>
   <data name="Issue_Description_Placeholder" xml:space="preserve"><value>What happened? What did you expect?</value></data>
   <data name="Issue_Attachment" xml:space="preserve"><value>Screenshot (optional)</value></data>
-  <data name="Issue_Attachment_Hint" xml:space="preserve"><value>PNG or JPEG, max 5 MB.</value></data>
+  <data name="Issue_Attachment_Hint" xml:space="preserve"><value>PNG, JPEG or WebP, max 10 MB.</value></data>
   <data name="Issue_FileIssue" xml:space="preserve"><value>File issue</value></data>
   <data name="Issue_FileAnIssue" xml:space="preserve"><value>File an issue</value></data>
   <data name="Issue_Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Issue_Widget_ToastSuccess" xml:space="preserve"><value>Thanks! Issue logged. View it here: {0}</value><comment>{0} = absolute URL path of the new issue</comment></data>
-  <data name="Issue_Widget_ToastValidationFailed" xml:space="preserve"><value>Could not file the issue. Please check the required fields and try again.</value></data>
+  <data name="Issue_ValidationFailed" xml:space="preserve"><value>Could not file the issue. Please check the required fields and try again.</value></data>
   <data name="Issue_Widget_ToastNetworkError" xml:space="preserve"><value>Something went wrong. Please try again.</value></data>
   <data name="Issue_Tips_Title" xml:space="preserve"><value>Tips for a good issue</value></data>
   <data name="Issue_Tips_Bullet1" xml:space="preserve"><value>Describe what you were trying to do.</value></data>
@@ -99,7 +99,6 @@
   <data name="Issue_Submitted" xml:space="preserve"><value>Issue submitted. Thanks!</value></data>
   <data name="Issue_Error" xml:space="preserve"><value>Something went wrong. Please try again.</value></data>
   <data name="Issue_Comment_Posted" xml:space="preserve"><value>Comment posted.</value></data>
-  <data name="Issue_Comment_Reopened" xml:space="preserve"><value>Issue reopened.</value></data>
   <data name="Issue_Comment_PostFailed" xml:space="preserve"><value>Could not post comment.</value></data>
   <data name="Issue_Status_Updated" xml:space="preserve"><value>Status updated.</value></data>
   <data name="Issue_Assignee_Updated" xml:space="preserve"><value>Assignee updated.</value></data>
@@ -108,8 +107,6 @@
   <data name="Enum_IssueCategory_Bug" xml:space="preserve"><value>Bug</value></data>
   <data name="Enum_IssueCategory_Feature" xml:space="preserve"><value>Feature</value></data>
   <data name="Enum_IssueCategory_Question" xml:space="preserve"><value>Question</value></data>
-  <data name="Issue_ColComments" xml:space="preserve"><value>Comments</value></data>
-  <data name="Issue_ColReporter" xml:space="preserve"><value>Reporter</value></data>
   <data name="Issue_ColStatus" xml:space="preserve"><value>Status</value></data>
   <data name="Issue_ColTitle" xml:space="preserve"><value>Title</value></data>
   <data name="Issue_ColUpdated" xml:space="preserve"><value>Updated</value></data>
