@@ -47,4 +47,10 @@ not an error in the PR — flagging it there is wrong, and each PR is not a dump
 discovering the next pre-existing violation. Peter, 2026-08-26: a third of Codex's findings
 were pre-existing counts; that class of finding is invalid unless the PR introduced the count.
 
+**And not ledger entries either.** A pre-existing derived count is never recorded in a debt
+ledger, run file, issue, or any other log. Its existence in its first form *is* the complete
+debt record; writing "doc X has a hand-maintained count" anywhere else creates exactly the
+shadow copy this rule forbids. Nothing shall refer to it as a problem other than the count
+itself, where it sits. It gets fixed only when a change touches that prose anyway.
+
 Related: [[reuse-first-change-discipline]], [[rules-maintenance]], [[review-finding-triage]].
