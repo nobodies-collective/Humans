@@ -45,6 +45,7 @@ public sealed class Section : ISection
         services.AddScoped<IHoldedRepository, Repository>();
         services.AddScoped<Service>();
         services.AddScoped<IHoldedFinanceService>(sp => sp.GetRequiredService<Service>());
+        services.AddScoped<IHoldedFinanceServiceRead>(sp => sp.GetRequiredService<Service>());
         // /Finance/Holded's read model. Internal — this section's own screen is the only consumer.
         services.AddScoped<IHoldedFinanceAdminService>(sp => sp.GetRequiredService<Service>());
         // Owns the user-scoped holded_creditor_contacts table → GDPR export contributor (design-rules §8a).

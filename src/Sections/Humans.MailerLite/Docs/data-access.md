@@ -22,7 +22,7 @@ and provisions matching accounts. No cache.
 No repository. `MailerLiteClient` is the MailerLite HTTP port, built over
 `IHttpClientFactory`: account and group reads (`GetAccountSummaryAsync`,
 `ListGroupsAsync`, `CreateGroupAsync`), subscriber reads
-(`ListSubscribersAsync`, `GetSubscriberAsync`), and the group-membership
+(`ListSubscribersAsync`), and the group-membership
 writes the audience sync drives (`AssignSubscriberToGroupAsync`,
 `UnassignSubscriberFromGroupAsync`, `BulkImportSubscribersToGroupAsync`,
 `RefreshAsync`). Retry timing uses `IClock`. No DB access, no `IMemoryCache`
@@ -50,7 +50,7 @@ Audience-membership computation classes under `MailerLite/Audiences/`:
 `HasShiftAudience`, `HasShiftSetupAudience`, `HasShiftEventAudience`,
 `HasShiftStrikeAudience`, `HasTicketAudience`, `MarketingAudience`,
 `MarketingNoTicketAudience`, `TicketNoShiftsAudience`, `MailerLiteAudienceBase`,
-`HasShiftInPeriodAudienceBase`.
+`ShiftViewAudienceBase`, `CurrentEventTicketHolders`.
 No repository; compute over read-split / section service interfaces
 (`ITicketServiceRead`, `IShiftView`, `IUserServiceRead`). No direct DB
 access, no cache.

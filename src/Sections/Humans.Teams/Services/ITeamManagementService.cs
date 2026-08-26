@@ -185,11 +185,6 @@ internal interface ITeamManagementService : ITeamService
     Task<Team?> GetTeamByIdAsync(Guid teamId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets all active teams.
-    /// </summary>
-    Task<IReadOnlyList<Team>> GetAllTeamsAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Gets the summarized team directory for anonymous or authenticated viewers.
     /// </summary>
     Task<TeamDirectoryResult> GetTeamDirectoryAsync(Guid? userId, CancellationToken cancellationToken = default);
@@ -199,11 +194,6 @@ internal interface ITeamManagementService : ITeamService
     /// Returns null when the team does not exist or is not visible to the viewer.
     /// </summary>
     Task<TeamDetailResult?> GetTeamDetailAsync(string slug, Guid? userId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets all teams the user is a member of.
-    /// </summary>
-    Task<IReadOnlyList<TeamMember>> GetUserTeamsAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the current user's team memberships with viewer-specific pending-request counts.
@@ -460,19 +450,6 @@ internal interface ITeamManagementService : ITeamService
     /// </summary>
     Task UnassignFromRoleAsync(
         Guid roleDefinitionId, Guid teamMemberId, Guid actorUserId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Loads the Team rows for the requested IDs <b>and</b> any referenced parent
-    /// teams, so the caller can resolve the "department" (parent or self) for each
-    /// team via dictionary lookups without navigating <c>team.ParentTeam</c>. Used
-    /// by the shift coordinator dashboard to stitch department rows in memory after
-    /// moving off a cross-domain <c>.Include(Rota).ThenInclude(Team).ThenInclude(ParentTeam)</c>
-    /// chain. Returned teams are not active-filtered — shifts/rotas may still
-    /// reference deactivated teams and the caller still needs the name.
-    /// </summary>
-    Task<IReadOnlyDictionary<Guid, Team>> GetByIdsWithParentsAsync(
-        IReadOnlyCollection<Guid> teamIds,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -223,7 +223,7 @@ Every `/Finance/*` route is gated on `PolicyNames.FinanceAdminOrAdmin`, declared
 - **SEPA payout is balance-based, and stamps nothing.** `POST /Finance/Sepa/Generate` builds a pain.001.001.09 credit-transfer file over selected *creditor balances*, never over expense reports — no report status, no member field and no `Paid` flag moves. Settlement closes the ordinary way: the treasurer books the payment in Holded and the next ledger sync zeroes the balance. A partial payout is legitimate; the remainder stays visible as owed.
 - A creditor row is **payable** only when it is bound to exactly one member, its balance is positive from the member's side, and its Holded contact carries an IBAN. `/Finance/Creditors` shows the reason instead of a checkbox for every other row, and `GenerateSepaPayoutAsync` re-derives the same three rules server-side — the page is display, not the gate.
 - **Generation is all-or-nothing.** One bad row — over the cap, over the balance, more than two decimals, below €0.01, an IBAN that fails its check digits, a duplicate `EndToEndId` — refuses the whole file with a message, and nothing is persisted. A partially-sent batch is far harder to reconcile than a re-run.
-- `Sepa:MaxPayoutPerTransfer` (default **€50**) is a hard server-side ceiling, not a UI hint. It is also the backstop against a decimal-separator misread: the amount box posts invariant text and `FinanceController.GenerateSepa` parses it invariantly rather than through model binding, which uses the request culture.
+- The per-transfer cap is entered on `/Finance/Creditors` and posted with the batch — the posted value is authoritative, not `Sepa:MaxPayoutPerTransfer` (default **€50**, the field's prefill only). `FinanceController.GenerateSepa` parses it invariantly, same reasoning as the amount boxes: an `<input type="number">` posts invariant text, and model binding would read it through the request culture. Unparseable or non-positive refuses the whole batch.
 - The organisation's own SEPA identity — `Sepa:CreditorName`, `Sepa:CreditorIban`, `Sepa:CreditorIdentifier` (the NIF + suffix presenter id) — is **configuration-bound and never inferred**. With any of them unset, `/Finance/Creditors` says payout is unavailable and names the missing keys instead of offering a button. `Sepa:CreditorBic` is optional per the Sabadell guide.
 - Every generated file is validated **in-process against the official ISO 20022 XSD** (embedded at `Resources/pain.001.001.09.xsd`) before it can reach a browser; `SepaPaymentFileBuilder.Build` returns only files that validate. The builder is pure — no IO, no clock, no configuration — so all of its rules are unit-tested directly.
 - `MsgId`, `PmtInfId` and `EndToEndId` are derived from the persisted row ids (`"M"`/`"P"` + the file id, `"E"` + the transfer id — 33 chars, inside the 35 cap). The transfer row is minted before the file is built and never changes, so the `EndToEndId` the bank quotes always points back at one row.
@@ -261,7 +261,7 @@ No Tickets dependency: the cash-flow view that had one is Budget's. Budget never
 **Status:** (A) — Finance has its own service, an owned repository, and an EF migration.
 **G5 (own project, `src/Sections/Humans.Finance` + `src/Sections/Humans.Finance.Contracts`) — 2026-08-09.**
 
-**Owning service:** `Service` (`Humans.Finance.Services`), exposed as `IHoldedFinanceService` from the contracts leaf
+**Owning service:** `Service` (`Humans.Finance.Services`), exposed as `IHoldedFinanceService` from the contracts leaf. `IHoldedFinanceServiceRead` carries the read-only subset for cross-section callers (`BudgetAdminController`, `Expenses.ExpensesController`); the write-capable `ExpenseReportService` and `Holded.HoldedController` are `[CrossSectionWrite]` and inject the full `IHoldedFinanceService` instead.
 **Pure matcher:** `HoldedMatcher` (static, no dependencies)
 **Owned repository:** `IHoldedRepository` / `Repository` (`Humans.Finance.Data`)  
 **Owned tables:** `holded_expense_docs`, `holded_category_map`, `holded_doc_sync_state`, `holded_creditor_contacts`  
@@ -301,8 +301,8 @@ No Tickets dependency: the cash-flow view that had one is Budget's. Budget never
 > - `Domain/HoldedCreditorContact.cs` — member → 400000xx binding (from #1021)
 > - `TotalPaid` / `LastPaymentDate` on `HoldedCreditorStatus` — aggregated straight off the debit lines; no payment row type leaves the service
 > - Ledger reads via `IHoldedService` (the mirror moved to the Holded section; sync is `SyncLedgerAsync` there)
-> - `IHoldedFinanceService.GetCreditorStatusAsync(int? supplierAccountNum)` / `GetCreditorLedgerAsync(int supplierAccountNum)` — Expenses→Finance read surface, derived from cached lines
-> - `IHoldedFinanceService.ListCreditorAccountsAsync` — returns `(Accounts, Unresolved)`; the `Unresolved` half is the bindings with no resolved 400000xx, surfaced on `/Finance/Creditors` for manual bind (nobodies-collective/Humans#972)
+> - `IHoldedFinanceServiceRead.GetCreditorStatusAsync(int? supplierAccountNum)` / `GetCreditorLedgerAsync(int supplierAccountNum)` — Expenses→Finance read surface, derived from cached lines
+> - `IHoldedFinanceServiceRead.ListCreditorAccountsAsync` — returns `(Accounts, Unresolved)`; the `Unresolved` half is the bindings with no resolved 400000xx, surfaced on `/Finance/Creditors` for manual bind (nobodies-collective/Humans#972)
 > - `IHoldedClient.GetContactAsync`, `ListContactsAsync`, `ListLedgerEntriesAsync`, `UpsertContactAsync` — Holded API surface
 
 ### Feature 2 — creditor reads over the Holded section's mirror

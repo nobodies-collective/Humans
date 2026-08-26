@@ -1,6 +1,9 @@
 using System.Reflection;
 using AwesomeAssertions;
+using Humans.Base.Authorization;
 using Humans.MailerLite.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Humans.MailerLite.Tests.Architecture;
 
@@ -67,6 +70,33 @@ public class MailerLiteArchitectureTests
             "audience keys collide");
         impls.Select(a => a.MailerLiteGroupName).Distinct(StringComparer.Ordinal).Count().Should().Be(impls.Count,
             "audience group names collide");
+    }
+
+    /// <summary>
+    /// The section's Negative Access Rule — non-admins cannot reach any /MailerLite/Admin/*
+    /// route — was pinned only by MailerLitePageRenderTests, which lives in
+    /// Humans.Integration.Tests and is excluded from CI by design
+    /// (memory/process/integration-tests-are-not-ci-tests.md). This reflection check runs in
+    /// CI, so removing the attribute fails the build rather than shipping an open admin page.
+    /// </summary>
+    [HumansFact]
+    public void EveryController_IsAdminOnly()
+    {
+        var controllers = SectionAssembly
+            .GetTypes()
+            .Where(t => typeof(Controller).IsAssignableFrom(t) && t is { IsAbstract: false })
+            .ToList();
+
+        controllers.Should().NotBeEmpty("the section has admin controllers to pin");
+
+        foreach (var controller in controllers)
+        {
+            var authorize = controller.GetCustomAttributes<AuthorizeAttribute>(inherit: true).ToList();
+            authorize.Should().ContainSingle(
+                $"{controller.Name} must carry exactly one [Authorize]");
+            authorize[0].Policy.Should().Be(PolicyNames.AdminOnly,
+                $"{controller.Name} gates /MailerLite/Admin/*, which is admin-only");
+        }
     }
 
     [HumansFact]
