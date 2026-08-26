@@ -23,18 +23,18 @@ public sealed class Section : ISection
     {
         services.AddSectionDbContext<NotificationsDbContext>(sentinelTable: "notifications");
 
-        // §15 repository pattern (issue #550). Singleton + IDbContextFactory so the
-        // services can inject it directly.
+        // Singleton over IDbContextFactory, so services can inject it directly
+        // while NotificationsDbContext stays Scoped.
         services.AddSingleton<INotificationRepository, NotificationRepository>();
 
         // DI cycle break: NotificationEmitter is a distinct type from
-        // NotificationService. TeamService and RoleAssignmentService depend on
-        // INotificationEmitter (= NotificationEmitter, no resolver dependency),
-        // which does NOT inject INotificationRecipientResolver. The resolver
-        // (which depends on ITeamService + IRoleAssignmentService) is only
-        // pulled in by NotificationService, so no edge closes the cycle.
+        // NotificationService, and injects only this section's repository plus
+        // preferences, clock, cache and logger. TeamService and
+        // RoleAssignmentService depend on INotificationEmitter rather than
+        // INotificationService, so their edge into Notifications terminates
+        // there instead of coming back out through IRoleAssignmentService.
+        // ValidateOnBuild at host startup is what enforces this; no test does.
         services.AddScoped<INotificationEmitter, NotificationEmitter>();
-        services.AddScoped<INotificationRecipientResolver, NotificationRecipientResolver>();
         services.AddScoped<NotificationService>();
         services.AddScoped<INotificationService>(sp => sp.GetRequiredService<NotificationService>());
         services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<NotificationService>());

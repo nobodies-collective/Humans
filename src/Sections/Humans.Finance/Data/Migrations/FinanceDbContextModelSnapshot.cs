@@ -255,6 +255,12 @@ namespace Humans.Finance.Data.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric(12,2)");
 
+                    b.Property<Instant?>("BookedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("BookedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("CreditorName")
                         .IsRequired()
                         .HasMaxLength(70)
@@ -262,6 +268,10 @@ namespace Humans.Finance.Data.Migrations
 
                     b.Property<Guid>("FileId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("HoldedPaymentRefs")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
 
                     b.Property<string>("Iban")
                         .IsRequired()

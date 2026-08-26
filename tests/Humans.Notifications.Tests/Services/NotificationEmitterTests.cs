@@ -20,8 +20,8 @@ namespace Humans.Notifications.Tests.Services;
 /// recipient-known dispatch surface that <see cref="INotificationEmitter"/>
 /// resolves to. The emitter is a separate concrete from
 /// <c>NotificationService</c> so that team / role-assignment services can
-/// inject the narrower interface without closing a DI cycle through
-/// <see cref="INotificationRecipientResolver"/>.
+/// inject the narrower interface without closing a DI cycle back through
+/// <c>IRoleAssignmentService</c>.
 /// </summary>
 public class NotificationEmitterTests : IDisposable
 {
@@ -35,8 +35,7 @@ public class NotificationEmitterTests : IDisposable
 
     public NotificationEmitterTests()
     {
-        // notifications/notification_recipients live in NotificationsDbContext
-        // since the Notifications peel (nobodies-collective/Humans#858);
+        // notifications/notification_recipients live in NotificationsDbContext;
         // communication_preferences stays on the main pile.
         var notificationsOptions = new DbContextOptionsBuilder<NotificationsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

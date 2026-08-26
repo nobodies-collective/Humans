@@ -25,20 +25,15 @@ public class NotificationsArchitectureTests
     // The DbContext-constructor-parameter check is covered by the generic
     // ApplicationServicesTakeNoDbContextRule for every Application service.
 
-    [HumansFact]
-    public void NotificationService_TakesRecipientResolver()
-    {
-        // The NotificationService reaches teams and role holders via a thin
-        // recipient-resolver adapter rather than directly injecting
-        // ITeamService/IRoleAssignmentService — those services inject
-        // INotificationService in the other direction, so a direct dependency
-        // here closes a circular DI graph that trips ValidateOnBuild at
-        // startup. The resolver exists solely to break that cycle.
-        var ctor = typeof(NotificationService).GetConstructors().Single();
-        var paramTypeNames = ctor.GetParameters().Select(p => p.ParameterType.Name).ToList();
-
-        paramTypeNames.Should().Contain("INotificationRecipientResolver");
-    }
+    // The DI-cycle invariant — RoleAssignmentService (Auth) and TeamService
+    // (Teams) inject INotificationEmitter rather than INotificationService, and
+    // NotificationEmitter injects nothing that leads back to either — is
+    // enforced by ValidateOnBuild / ValidateScopes at host startup
+    // (Humans.Web/Program.cs), not by a test here. A test for it would assert
+    // the absence of constructor parameters, which
+    // memory/architecture/no-tests-for-absences.md rejects: the list of things
+    // a type lacks is unbounded and such a test can only fail on the deliberate
+    // edit that would update it in the same commit.
 
     // ── NotificationInboxService ─────────────────────────────────────────────
 
