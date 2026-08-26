@@ -11,7 +11,9 @@ namespace Humans.Notifications.Contracts;
 /// Extends <see cref="INotificationEmitter"/> with role-based dispatch.
 /// Callers that already know their recipients should depend on
 /// <see cref="INotificationEmitter"/> instead — that narrower interface
-/// does not pull in <c>INotificationRecipientResolver</c>.
+/// is implemented by a type that injects neither
+/// <c>IRoleAssignmentService</c> nor <c>ITeamService</c>, so depending on it
+/// cannot close a DI cycle.
 /// </remarks>
 public interface INotificationService : IApplicationService, INotificationEmitter
 {

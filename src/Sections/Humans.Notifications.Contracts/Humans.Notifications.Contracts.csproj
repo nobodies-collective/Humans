@@ -19,9 +19,8 @@
     interfaces, and the enums those signatures name — NotificationSource,
     NotificationClass and NotificationPriority cannot follow the entities into the section's
     internal Domain/ because every emit call site outside the section names them
-    (design §15 step 5, Budget's rule). The inbox read models, the meter surface, the
-    recipient resolver and the repository have no consumer outside the section and stay
-    internal.
+    (design §15 step 5, Budget's rule). The inbox read models, the meter surface and the
+    repository have no consumer outside the section and stay internal.
 
     References Humans.Base only — the bottom of the graph.
   -->

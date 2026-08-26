@@ -22,9 +22,8 @@ Repository: `INotificationRepository`.
 |-----------|-----|------|-------|------------|
 | `NotificationBadge:{userId}` | 2 min | | | yes (on dispatch) |
 
-Cross-section calls via `INotificationEmitter`,
-`INotificationRecipientResolver`, `ICommunicationPreferenceService`,
-`IClock`. Implements `IUserMerge`.
+Cross-section calls via `INotificationEmitter`, `IRoleAssignmentService`,
+`ICommunicationPreferenceService`, `IClock`. Implements `IUserMerge`.
 
 ### NotificationEmitter (Scoped)
 
@@ -72,10 +71,6 @@ Cross-section calls via `IUserServiceRead`, `IGoogleSyncServiceRead`,
 `ITeamServiceRead`, `ITicketSync`, `IApplicationServiceRead`,
 `ICampServiceRead`. **No direct DB access** — every counter fans out
 through an owning-service interface call.
-
-### NotificationRecipientResolver (Scoped)
-
-No repository. Fan-out over `IRoleAssignmentService`. No DB access, no cache.
 
 ---
 
