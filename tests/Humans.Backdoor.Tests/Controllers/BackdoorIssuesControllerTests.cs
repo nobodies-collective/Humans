@@ -278,8 +278,10 @@ public class BackdoorIssuesControllerTests
     [HumansFact]
     public async Task PostComment_attributes_the_comment_to_the_key_owner()
     {
+        // Reporter-vs-handler classification (and its auto-reopen) is the service's
+        // invariant, derived from senderUserId — the controller only attributes.
         var issueId = Guid.NewGuid();
-        _issues.PostCommentAsync(issueId, KeyOwnerId, "From the triage agent", false, false, Arg.Any<CancellationToken>())
+        _issues.PostCommentAsync(issueId, KeyOwnerId, "From the triage agent", false, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new IssueCommentInfo(
                 Guid.NewGuid(), "From the triage agent", Instant.FromUtc(2026, 4, 29, 12, 0))));
 
@@ -290,9 +292,21 @@ public class BackdoorIssuesControllerTests
             issueId,
             senderUserId: KeyOwnerId,
             content: "From the triage agent",
-            senderIsReporter: false,
             resolveOnPost: false,
             ct: Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task PostComment_returns_NotFound_when_issue_missing()
+    {
+        var issueId = Guid.NewGuid();
+        _issues.PostCommentAsync(issueId, KeyOwnerId, "Hello?", false, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IssueCommentInfo>(
+                new InvalidOperationException($"Issue {issueId} not found")));
+
+        var result = await _sut.PostComment(issueId, new PostIssueCommentModel { Content = "Hello?" });
+
+        result.Should().BeOfType<NotFoundResult>();
     }
 
     [HumansFact]
