@@ -27,11 +27,27 @@ Happy path. When something needs fixing it gets more complicated.
 
 1. **A member enters an expense report** (`/Expenses`).
 2. **The department coordinator approves it**, setting a max if the report goes over what's
-   allocated. Only when the category has a budget coordinator — with none assigned, the report
-   goes straight to step 3 (`CategoryRequiresCoordinatorEndorsementAsync` in Expenses).
+   allocated — the coordinator knows their department better than the treasurer does. Only when
+   the category has a budget coordinator; with none assigned the report goes straight to step 3.
+   This step is the expected route, not an enforced gate: the treasurer can approve straight from
+   Submitted when there is a rush, and the approval's audit entry records that they did.
 3. **The treasurer (finance admin) also approves it.**
-4. **The report is uploaded to Holded** for the accountant, and because math. The member gets a
-   Holded contact with a creditor account (e.g. `40000004`).
+4. **The report is uploaded to Holded** for the accountant, and because math. **One purchase
+   document per receipt**: each invoice/receipt on the report becomes its own Holded purchase doc
+   carrying that one attachment, so what the accountant registers matches the underlying legal
+   documents one-to-one. The report's subject/note stays in Humans — each doc's description is its
+   receipt's description plus a reference back to the report. When the approvers capped the payout
+   below the receipts total, the receipts book in order until the cap runs out: the receipt the cap
+   lands inside books at face value with a negative "authorized maximum" adjustment on the same
+   account, and any receipt entirely past the cap is **not booked at all** — nothing is reimbursed
+   for it, so Holded holds no record of it (the report's own audit trail and detail view say so).
+   The member gets a Holded contact with a creditor account. A member without a contact yet is
+   created as an
+   *acreedor* (contact type `creditor`), which Holded mints in the **410 series** (e.g. `41000004`)
+   — deliberately apart from the **400-series** *proveedores*, the ordinary vendors paid by direct
+   invoice. Members onboarded before this carry a 400-series account and keep it; the binding, not
+   the range, is what ties an account to a member either way (`/Finance/Creditors` reads the whole
+   `40000000`–`41999999` block).
 5. **Holded tells Humans** that the member with that account is now owed, say, €132.45. Visible
    at the top of `/Expenses` and on `/Finance/Creditors`.
 6. **On pay day the treasurer selects who gets paid** on `/Finance/Creditors` and generates a

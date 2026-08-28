@@ -6,6 +6,7 @@ using Humans.Expenses.Services;
 using Humans.Expenses.Services.Dtos;
 using Humans.Base.Hosting;
 using Humans.Base.Models.Tables;
+using Humans.Expenses.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,9 +23,8 @@ namespace Humans.Expenses;
 /// The Holded HTTP client is <em>not</em> registered here. <c>IHoldedClient</c> belongs to the
 /// Holded section, which registers it; Expenses consumes it through
 /// <c>Humans.Holded.Contracts</c> (memory/architecture/vendor-connectors-own-sections.md).
-/// <c>HoldedExpenseOutboxJob</c> moved into <c>Contracts/</c> at G5 lane 5b-5
-/// (nobodies-collective/Humans#866) and drives <c>IExpenseReportBackgroundProcessor</c>; its
-/// registration and schedule are contributed via <c>SectionJobs.cs</c> (#1074's jobs seam).
+/// <c>HoldedExpenseOutboxJob</c> (<c>Jobs/</c>) drives <c>IExpenseReportBackgroundProcessor</c>;
+/// its registration and schedule are contributed via <c>SectionJobs.cs</c>.
 /// </remarks>
 public sealed class Section : ISection
 {
@@ -45,21 +45,14 @@ public sealed class Section : ISection
         // Resource-based handlers move into the section; the policies they satisfy stay in
         // Shell's AuthorizationPolicyExtensions (design §8's asymmetry, §15 step 6).
         services.AddScoped<IAuthorizationHandler, ExpenseReportAuthorizationHandler>();
-        services.AddScoped<IAuthorizationHandler, IbanAccessHandler>();
 
-        // The section owns its badge colours rather than Humans.UI holding a literal row per
-        // section enum: Base cannot name ExpenseReportStatus once the enum moves in here, and
-        // referencing the section's contracts leaf from Base to get it back is the trap that
-        // ends with Base knowing every section's vocabulary (Peter, 2026-08-09 —
-        // memory/architecture/base-ui-registries-are-section-populated.md).
-        EnumBadgeMap.Register(new Dictionary<Enum, string>
-        {
-            [ExpenseReportStatus.Draft] = "bg-secondary",
-            [ExpenseReportStatus.Submitted] = "bg-primary",
-            [ExpenseReportStatus.CoordinatorEndorsed] = "bg-info text-dark",
-            [ExpenseReportStatus.Approved] = "bg-success",
-            [ExpenseReportStatus.Withdrawn] = "bg-secondary",
-        });
+        // The section owns its badge colours rather than Base holding a literal row per section
+        // enum: Base cannot name ExpenseReportStatus, and referencing the section's contracts
+        // leaf from Base to get it back is the trap that ends with Base knowing every section's
+        // vocabulary (memory/architecture/base-ui-registries-are-section-populated.md).
+        // GetBadgeClass is the single source; the section's own views call it directly.
+        EnumBadgeMap.Register(
+            Enum.GetValues<ExpenseReportStatus>().ToDictionary(s => (Enum)s, s => s.GetBadgeClass()));
 
         services.AddScoped<HoldedExpenseOutboxJob>();
     }

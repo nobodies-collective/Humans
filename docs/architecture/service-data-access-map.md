@@ -78,7 +78,7 @@ The goal is to identify cross-section table overlap, duplicated caching, and cac
 > — and are resolved from their DI wiring in
 > each section's own `Section.cs` (`ISection.Register`). `src/Humans.Web/Extensions/Sections/` retains only `AdminSectionExtensions` and `AuthSectionExtensions`, neither of which registers a decorator.
 >
-> At ~500-user single-server scale this map is diagnostic, not gating —
+> At our small single-server scale this map is diagnostic, not gating —
 > **cross-section table reads are flagged as design-rule violations per
 > [`design-rules.md` §"Services own their data"](design-rules.md)**, but
 > serve as a backlog rather than a blocker.
@@ -238,7 +238,7 @@ Every table is owned by exactly one repository; there are no HUM0025
    | Key | Consuming section | Routed via |
    |-----|-------------------|------------|
    | `IsEmailSendingPaused` | Email | `EmailOutboxService` → `ISettingsService` |
-   | `DriveActivityMonitor:LastRunAt` | Google Integration | `DriveActivityMonitorService` → `ISettingsService` |
+   | `DriveActivityMonitor:LastRunAt` | Monitor | `DriveActivityMonitorService` → `ISettingsService` |
 
    New keys should be added to `SettingKeys` and accessed through
    `ISettingsService`. Both of those keys move to their own sections' settings
@@ -307,7 +307,7 @@ Every table is owned by exactly one repository; there are no HUM0025
     `EventService` respectively, each reading their own owned tables through
     their own repositories — `ShiftsDbContext` for Shifts,
     `EventGuideDbContext` for Events. The sequential (non-parallel) fan-out
-    pattern mirrors `GdprExportService` and `EarlyEntryService`: each
+    pattern mirrors `GdprService` and `EarlyEntryService`: each
     contributor uses its own DbContext instance, but EF
     `DbContext`/`IDbContextFactory` usage is not thread-safe within a single
     async flow, so contributors still run one at a time.

@@ -40,7 +40,7 @@ public class AgentServiceTests
             tokens.Add(t);
         }
 
-        // FIX 4 — use != null (not is not null pattern) to avoid expression tree issues
+        // != null (not "is not null"): the predicate is an expression tree.
         tokens.Should().ContainSingle(t => t.Finalizer != null);
         tokens.Last().Finalizer!.StopReason.Should().Be("rate_limited");
     }
@@ -525,6 +525,12 @@ public class AgentServiceTests
 
         await dispatcher.Received(1).DispatchAsync(
             Arg.Any<AnthropicToolCall>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+
+        // The replayed request must carry the truncated call's arguments rewritten to {}
+        // (ReplayableToolCalls) — the API rejects an unparseable tool_use block otherwise.
+        client.LastRequest!.Messages.SelectMany(m => m.ToolCalls ?? [])
+            .Should().ContainSingle(c => c.Id == "t1")
+            .Which.JsonArguments.Should().Be("{}");
 
         var streamedText = string.Concat(tokens.Where(t => t.TextDelta != null).Select(t => t.TextDelta));
         streamedText.Should().Contain("Teams are groups of volunteers",

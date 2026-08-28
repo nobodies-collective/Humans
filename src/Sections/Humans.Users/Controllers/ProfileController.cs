@@ -58,7 +58,7 @@ internal sealed class ProfileController(
     IShiftManagementServiceRead shiftMgmt,
     IShiftVolunteerProfiles shiftProfiles,
     IShiftView shiftView,
-    IGdprExportService gdprExportService,
+    IGdprService gdprExportService,
     IConfiguration configuration,
     ConfigurationRegistry configRegistry,
     ILogger<ProfileController> logger,
@@ -2163,7 +2163,7 @@ internal sealed class ProfileController(
 
         // PublicAll = name + bio + public ContactFields. Admin bit gated by code review.
         // Uncapped: return the full match set so relevance ranking surfaces the right person
-        // (a hard cap returned an arbitrary subset before sorting). Cheap at ~500 users.
+        // (a hard cap returned an arbitrary subset before sorting). Cheap at our small scale.
         var results = await _userService.SearchUsersAsync(
             q, PersonSearchFields.PublicAll, limit: int.MaxValue, ct);
 

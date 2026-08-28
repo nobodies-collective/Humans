@@ -35,7 +35,7 @@ For **each** finding, write the verdict before touching code. Burden of proof is
 | # | Gate | Fails when | Verdict |
 |---|------|-----------|---------|
 | 1 | **True?** Read the actual code at the cited lines, not the diff context. | The claim about what the code does is false. | `INVALID` 👎 |
-| 2 | **Reachable?** Write the concrete path: entry point → inputs → state → wrong outcome, using the app's real UI/routes/jobs. | The path needs a state the app never produces: violates an invariant enforced elsewhere, emailless user, concurrent writers at ~500 users/single server, malformed rows the app never writes, a `null` the constructor/EF/`[Required]` already excludes, a rollback path that never runs. | `IMPOSSIBLE` 👎 |
+| 2 | **Reachable?** Write the concrete path: entry point → inputs → state → wrong outcome, using the app's real UI/routes/jobs. | The path needs a state the app never produces: violates an invariant enforced elsewhere, emailless user, concurrent writers on a small single-server deployment, malformed rows the app never writes, a `null` the constructor/EF/`[Required]` already excludes, a rollback path that never runs. | `IMPOSSIBLE` 👎 |
 | 3 | **Posture?** Cross-check `memory/INDEX.md` HARD RULE / false-positive atoms. | It asks for pagination, concurrency tokens, check constraints, startup guards, defensive nulls, emailless handling, perf guards, or anything a hard-rule atom already rejects. | `WONTFIX` 👍 |
 | 4 | **Non-trivial?** | Style, naming, "consider", "might be clearer", log wording, comment text, a null-check on a value that can't be null, micro-perf, "add a test for X" where X is already covered by behaviour. | `WONTFIX` 👍 — no issue |
 | 5 | **In scope?** The cited lines are in this PR's diff hunks, or the behaviour was introduced by this PR. | Pre-existing code the PR only sits next to, moved, or renamed; a different section; a "while you're here". | `OUT-OF-SCOPE` 👍 → §5 unless P0/P1 |
@@ -84,7 +84,7 @@ Round 4 · PR #1234 · bar: P0/P1
 
 Then:
 
-1. **FIX rows only:** apply the fix; one commit per run, message listing each fixed finding. Build: `dotnet build Humans.slnx -v quiet`. Push (no force).
+1. **FIX rows only:** apply the fix; one commit per run, message listing each fixed finding, ending with a `Review-round: <n>` trailer — that trailer is what the five-round commit budget counts, so a round commit without one is a round spent invisibly (`memory/process/review-round-budget.md`). `<n>` is this commit's budget round (spent + 1, from the steward count), which is not §1's round: §1 counts bot review submissions to set the severity bar, the budget counts round commits. Build: `dotnet build Humans.slnx -v quiet`. Push (no force).
 2. **Every row:** reply in-thread with the verdict and one line of reasoning (`INVALID — line 88 is inside the `if (lead != null)` block`; `IMPOSSIBLE — a team without a lead can't be saved, see TeamService.ValidateAsync`; `DEFER — P2, out of round-4 bar, opened #N`), react, resolve. Nothing left open unless a live disagreement with Peter is pending.
 3. **Summary** to the user: round, counts per verdict, SHA pushed (if any), issues opened. If round ≥ 10, end with: "PR has hit the review ceiling — further bot rounds get no fixes."
 

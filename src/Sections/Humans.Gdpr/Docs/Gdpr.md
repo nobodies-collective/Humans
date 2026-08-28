@@ -3,46 +3,41 @@
   src/Sections/Humans.Gdpr.Contracts/**
 -->
 <!-- freshness:flag-on-change
-  The fan-out contract (IUserDataContributor / UserDataSlice / GdprExportSections) and the two failure rules the orchestrator enforces — never swallow a contributor exception, never accept a duplicate section name — review whenever the leaf or GdprExportService changes.
+  The fan-out contract (IUserDataContributor / UserDataSlice / GdprExportSections) and the failure rules the orchestrator enforces — never swallow a contributor exception, never accept a duplicate export section name, never leave an erasure section behind silently — review whenever the leaf or GdprService changes.
 -->
 
 # Gdpr — Section Invariants
 
-Written at the section's G5 move (nobodies-collective/Humans#866). The G0 audit
-(`docs/plans/2026-08-03-g0-first-audit/Gdpr.md`) recorded predicate 7 —
-"`docs/sections/Gdpr.md` exists" — as a flat **FAIL**; this file is that gap
-closed, transcribed from the code rather than from memory.
-
 ## Concepts
 
-- **Gdpr** is the GDPR **Article 15** export orchestrator. It owns no database
-  tables and no repository. Its entire substance is a fan-out: ask every
-  section that holds personal data for its slice, merge the slices into one
-  document, hand it back. It gained one controller at
-  nobodies-collective/Humans#1091 (`GuestDataController`) purely to host the
-  `/Guest/DownloadData` route — the route's own byte-identical move, not a
-  change to what the section computes.
+- **Gdpr** is the GDPR subject-rights orchestrator — both the **Article 15**
+  export and the **Article 17** erasure. It owns no database tables and no
+  repository. Its entire substance is two fan-outs over the same contributor
+  roster: ask every section that holds personal data for its slice and merge
+  the slices into one document (export), or run every section's erasure in turn
+  (erasure). Its one controller, `GuestDataController`, exists to host the
+  `/Guest/DownloadData` route and computes nothing.
 - **`IUserDataContributor`** is the fan-out contract (an `IFanout`, per
   `memory/architecture/orchestrator-marker.md`). Every service that owns
   user-scoped tables implements it and returns the personal data it — and only
-  it — owns. Every implementer is in an already-moved G5 section —
-  `Humans.Application` was emptied and deleted at G5 lane B6
-  (nobodies-collective/Humans#1347).
+  it — owns.
 - **`UserDataSlice`** is one contributor's answer: a stable JSON section name
   plus a payload. **`GdprExportSections`** holds those names as constants, so
   the document's top-level keys survive a contributor moving between services.
 - **`GdprExport`** is the envelope — an ISO-8601 UTC timestamp and the merged
   section bag, which is what the two controllers serialize to the download.
-- **Erasure shares the contract, not the orchestrator.** Since
-  nobodies-collective/Humans#853 `IUserDataContributor` also carries
-  `ErasureDeclaration` (a static `GdprExportSections` → retention-reason table;
-  `null` = erased in full) and `EraseForUserAsync`, so a section cannot export a
-  category without accounting for its deletion. The orchestration still lives
-  under **Users**: `IAccountDeletionService` / `AccountDeletionService`, driven
-  by `ProcessAccountDeletionsJob`, fans the erasure out over
-  `IEnumerable<IUserDataContributor>`. The 2026-08-03 frozen inventory assigns
-  "export/erasure" to Gdpr and the code still splits them; that is an open
-  ruling (G0 gap #2), unchanged here.
+- **Erasure shares the contract *and* the orchestrator.** `IUserDataContributor`
+  also carries `ErasureDeclaration` (a static `GdprExportSections` →
+  retention-reason table; `null` = erased in full) and `EraseForUserAsync`, so a
+  section cannot export a category without accounting for its deletion. Both
+  loops live here: `IGdprService.EraseForUserAsync` runs the erasure fan-out
+  (every contributor for one id) beside the export one. The **deletion
+  lifecycle** stays under Users — `IAccountDeletionService` /
+  `AccountDeletionService`, driven by `ProcessAccountDeletionsJob`, owns the
+  30-day grace period, ticket hold, audit entries and confirmation email. Users
+  resolves the merge chain and calls `EraseForUserAsync` per id, invalidating
+  each archived id's cache as its erasure completes. The loop moved to Gdpr, its
+  Users-only dependencies (the merge primitive, cache invalidation) did not.
 
 ## Routing
 
@@ -53,11 +48,12 @@ returns `File()` or a redirect.
 | Route | Controller action | Notes |
 |-------|------------------|-------|
 | `GET /Profile/Me/DownloadData` | `ProfileController` (Humans.Users) | For a human who has completed onboarding |
-| `GET /Guest/DownloadData` | `GuestDataController` (Humans.Gdpr) | For an authenticated account with no profile yet — moved here at nobodies-collective/Humans#1091, route unchanged |
+| `GET /Guest/DownloadData` | `GuestDataController` (Humans.Gdpr) | For an authenticated account with no profile yet |
 
-Both resolve `IGdprExportService` from the contracts leaf and serialize the
-result to a file download. `/Profile/Me/DownloadData` stays on Users — moving
-it would be a URL change, which is out of scope here too.
+Both resolve `IGdprService` from the contracts leaf and serialize the export
+result to a file download. `/Profile/Me/DownloadData` stays on Users: moving it
+would change a URL. Erasure has no route of its own — `AccountDeletionService`
+calls `EraseForUserAsync` per merge-chain id from the deletion paths.
 
 ## Actors & Roles
 
@@ -70,7 +66,18 @@ it would be a URL change, which is out of scope here too.
 
 - **The export is complete or it fails.** A contributor that throws is logged
   and the exception is re-thrown: omitting a category silently is worse than
-  failing the download.
+  failing the download. Erasure holds the same rule — a contributor that throws
+  aborts `EraseForUserAsync`, so the caller leaves its deletion markers set and
+  the whole cascade retries the next day rather than leaving data behind.
+- **Erasure runs the identity collapse last, and takes only an id.**
+  The contributor that owns `GdprExportSections.Account` erases last, so sections
+  that still need the human's addresses to reach an external processor (the
+  Workspace suspend) can resolve them; ordering is derived from the declarations,
+  not a pinned type list. `EraseForUserAsync` takes a single id — Users loops it
+  over the merge chain (archived ids first, survivor last) and invalidates each
+  id as it completes — so Gdpr keeps no dependency on the Users merge primitive
+  or its caches, and a mid-chain failure still leaves the already-erased ids'
+  caches dropped.
 - **Section names are unique across contributors.** A duplicate is a
   programming error and throws `InvalidOperationException` naming the section —
   it is not last-writer-wins.
@@ -79,8 +86,15 @@ it would be a URL change, which is out of scope here too.
   `Profile`) and the key is omitted. A collection section with no rows must
   return an empty list, which survives into the JSON as `[]` — downstream
   comparison tools and support procedures depend on that stability.
-- **The fan-out is sequential, never `Task.WhenAll`.** Contributors share the
-  scoped `HumansDbContext`, which is not thread-safe.
+- **The fan-out is sequential, never `Task.WhenAll`.** A deliberate simplicity
+  choice, not a correctness requirement any more: the original reason was that
+  every contributor read through one shared scoped `HumansDbContext`, which no
+  longer exists. Each section now has its own `DbContext` type, so no two
+  contributors touch the same instance — however each obtains it, by injection
+  or through `IDbContextFactory<T>`. `design-rules.md` §8a records the same
+  conclusion. One contributor at a time keeps failure attribution and log order
+  plain, and at this scale an export completes well under a second, so there is
+  nothing to win by changing it.
 - **No cross-section database reads.** A contributor reads only its own
   section's tables; data from another section arrives through that section's
   own contributor, never through an `Include` chain.
@@ -103,6 +117,10 @@ it would be a URL change, which is out of scope here too.
 - `ExportForUserAsync` writes no data and raises no notification. It logs one
   informational line per export (`user … exported their data (N sections)`) and
   one error line per contributor failure.
+- `EraseForUserAsync` writes through the contributors (each erases its own
+  section) and raises no notification itself — the audit entry and confirmation
+  email belong to the Users deletion lifecycle. It logs one error line per
+  contributor failure before re-throwing.
 - Adding a user-scoped section: add its section-name constants to
   `GdprExportSections`, implement `IUserDataContributor` on its owning service,
   register the forwarding factory beside that service, and add the type to
@@ -123,11 +141,10 @@ none of that cycles.
 
 ## Architecture
 
-**Owning services:** `GdprExportService` (`Humans.Gdpr.Services`, `internal
-sealed`) behind the public `IGdprExportService` on the leaf.
+**Owning services:** `GdprService` (`Humans.Gdpr.Services`, `internal
+sealed`) behind the public `IGdprService` on the leaf, exposing both
+`ExportForUserAsync` and `EraseForUserAsync`.
 **Owned tables:** none.
-**Status:** (A) Migrated. Own project since G5 (nobodies-collective/Humans#866).
-
 - `src/Sections/Humans.Gdpr` — one internal service, one `Section.cs`, this
   doc. No `Data/`, no migrations, no `Humans.Infrastructure` reference and no
   `Humans.UI` reference: nothing to persist and nothing to render.
@@ -136,17 +153,16 @@ sealed`) behind the public `IGdprExportService` on the leaf.
   consumer-in-Base test: Base does not merely call this section, it
   **implements** its contract.
 - No `Resources/` folder and no `GdprResource`: the section has no page copy at
-  all, so `SectionResourceTypes()` returns one fewer marker, and no type here
-  takes `IStringLocalizer<T>` for any `T` (Gate's strict form) — documentation,
+  all, so no type here takes `IStringLocalizer<T>` for any `T` — documentation,
   not a pinned assertion ([`no-tests-for-absences`](../../../../memory/architecture/no-tests-for-absences.md)).
-- The contributor forwarding factories deliberately did **not** move into
+- The contributor forwarding factories deliberately do **not** live in
   `Section.Register`: each
   `AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<X>())` belongs to
   the section that owns `X` and is registered beside it.
 - **Decorator decision:** no caching decorator. An export is a one-off download
   assembled from live data; caching it would be a privacy hazard, not a
   performance win.
-- **Known gap (G0 G3 gap #1, unchanged):** the contributor-coverage tests are
+- **Known gap (G0 G3 gap #1):** the contributor-coverage tests are
   reflection-based, so a new user-scoped section whose owning service never
   implements `IUserDataContributor` at all leaves nothing to enumerate and the
   suite passes vacuously. The guardrail is prose in `design-rules.md` §8a.

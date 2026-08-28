@@ -81,6 +81,10 @@ namespace Humans.Expenses.Data.Migrations
                     b.Property<Guid>("ExpenseReportId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("HoldedDocId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("LineType")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

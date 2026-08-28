@@ -19,8 +19,7 @@ namespace Humans.Surveys.Services;
 /// <summary>
 /// Application-layer <see cref="ISurveyService"/>. Plain Scoped service (no caching decorator, per
 /// spec §12). Cross-domain display data is stitched from <c>I…ServiceRead</c> interfaces — the
-/// repository never resolves user/team navs. Authoring lives here; send/submit/results/export/GDPR
-/// are added in their phases (constructor grows with them).
+/// repository never resolves user/team navs.
 /// </summary>
 internal sealed class SurveyService(
     ISurveyRepository repo,
@@ -240,6 +239,8 @@ internal sealed class SurveyService(
             Questions = questions,
         };
 
+        // Diffed against the no-tracking snapshot so the audit trail names what changed.
+        var changeSummary = DescribeSurveyChanges(existing, survey);
         try
         {
             await repo.UpdateAsync(survey, ct);
@@ -249,8 +250,71 @@ internal sealed class SurveyService(
             await DeleteFilesBestEffortAsync(prepared.NewStoragePaths, CancellationToken.None);
             throw;
         }
-        await auditLog.LogAsync(AuditAction.SurveyUpdated, AuditEntityTypes.Survey, surveyId, "Updated survey", actorUserId);
+        await auditLog.LogAsync(AuditAction.SurveyUpdated, AuditEntityTypes.Survey, surveyId, changeSummary, actorUserId);
     }
+
+    /// <summary>
+    /// Short field list for the SurveyUpdated audit entry — names only, no before/after values,
+    /// except the governance-relevant audience type and slug transitions. Question edits are
+    /// collapsed to counts; deep content (grid rows, images, branching) is not diffed, so an
+    /// update touching only those falls back to the bare "Updated survey".
+    /// </summary>
+    private static string DescribeSurveyChanges(Survey existing, Survey updated)
+    {
+        var changes = new List<string>();
+        if (!existing.Title.Equals(updated.Title)) changes.Add("title");
+        if (!existing.Intro.Equals(updated.Intro)) changes.Add("intro");
+        if (!existing.ThankYou.Equals(updated.ThankYou)) changes.Add("thank-you text");
+        if (!existing.InvitationEmailSubject.Equals(updated.InvitationEmailSubject)) changes.Add("invitation subject");
+        if (!existing.InvitationEmailMessage.Equals(updated.InvitationEmailMessage)) changes.Add("invitation message");
+        if (!string.Equals(existing.DefaultCulture, updated.DefaultCulture, StringComparison.OrdinalIgnoreCase))
+            changes.Add($"default culture ({existing.DefaultCulture} → {updated.DefaultCulture})");
+        if (existing.AllowAnonymous != updated.AllowAnonymous)
+            changes.Add(updated.AllowAnonymous ? "anonymous responses enabled" : "anonymous responses disabled");
+        if (existing.OpensAt != updated.OpensAt) changes.Add("opens-at");
+        if (existing.ClosesAt != updated.ClosesAt) changes.Add("closes-at");
+        if (existing.AudienceType != updated.AudienceType)
+            changes.Add($"audience ({existing.AudienceType?.ToString() ?? "none"} → {updated.AudienceType?.ToString() ?? "none"})");
+        else if (existing.AudienceTeamId != updated.AudienceTeamId || existing.AudienceLoggedInSince != updated.AudienceLoggedInSince)
+            changes.Add("audience");
+        if (!string.Equals(existing.PublicSlug, updated.PublicSlug, StringComparison.Ordinal))
+            changes.Add(existing.PublicSlug is null ? "public slug set"
+                : updated.PublicSlug is null ? "public slug removed"
+                : "public slug changed");
+
+        var oldQuestions = existing.Questions.ToDictionary(q => q.Id);
+        var newQuestions = updated.Questions.ToDictionary(q => q.Id);
+        var added = newQuestions.Keys.Count(id => !oldQuestions.ContainsKey(id));
+        var removed = oldQuestions.Keys.Count(id => !newQuestions.ContainsKey(id));
+        var edited = newQuestions.Values.Count(q =>
+            oldQuestions.TryGetValue(q.Id, out var old) && QuestionChanged(old, q));
+        if (added > 0) changes.Add($"{added} question(s) added");
+        if (removed > 0) changes.Add($"{removed} question(s) removed");
+        if (edited > 0) changes.Add($"{edited} question(s) edited");
+
+        return changes.Count == 0 ? "Updated survey" : $"Updated survey: {string.Join(", ", changes)}";
+    }
+
+    private static bool QuestionChanged(SurveyQuestion old, SurveyQuestion updated) =>
+        old.Type != updated.Type
+        || old.PageNumber != updated.PageNumber
+        || old.Order != updated.Order
+        || old.IsRequired != updated.IsRequired
+        || !old.Prompt.Equals(updated.Prompt)
+        || !old.HelpText.Equals(updated.HelpText)
+        || old.RatingMin != updated.RatingMin
+        || old.RatingMax != updated.RatingMax
+        || !old.RatingMinLabel.Equals(updated.RatingMinLabel)
+        || !old.RatingMaxLabel.Equals(updated.RatingMaxLabel)
+        || old.GridSelectionMode != updated.GridSelectionMode
+        || !OptionsEqual(old.Options, updated.Options);
+
+    private static bool OptionsEqual(ICollection<SurveyQuestionOption> old, ICollection<SurveyQuestionOption> updated) =>
+        old.Count == updated.Count
+        && old.OrderBy(o => o.Order).Zip(updated.OrderBy(o => o.Order))
+            .All(pair => pair.First.Order == pair.Second.Order
+                && string.Equals(pair.First.Value, pair.Second.Value, StringComparison.Ordinal)
+                && pair.First.Label.Equals(pair.Second.Label));
 
     public async Task<int> PreFillTranslationsAsync(
         Guid surveyId, IReadOnlyList<string> targetCultures, Guid actorUserId, CancellationToken ct = default)
@@ -495,13 +559,15 @@ internal sealed class SurveyService(
         var due = await repo.GetInvitationsDueForReminderAsync(cutoff, ct);
         if (due.Count == 0) return 0;
 
-        // Resolve emails + display info for the whole due set in one cross-section call each.
         var userIds = due.Select(i => i.UserId).Distinct().ToList();
         var emails = await userEmailService.GetNotificationTargetEmailsAsync(userIds, ct);
         var users = await userService.GetUserInfosAsync(userIds, ct);
 
-        // Title + default culture loaded once per distinct survey (few open surveys at this scale).
-        var titles = new Dictionary<Guid, (string Title, string DefaultCulture)>();
+        // Loaded once per distinct survey (few open surveys at this scale). The answer window is
+        // re-checked here rather than in the query: Open alone is not answerable, and reminding
+        // someone about a survey past its ClosesAt sends them to the Closed page — and spends their
+        // one ReminderSentAt stamp doing it.
+        var surveys = new Dictionary<Guid, (string Title, string DefaultCulture, bool Answerable)>();
 
         var reminded = 0;
         foreach (var inv in due)
@@ -514,13 +580,18 @@ internal sealed class SurveyService(
                 continue;
             }
 
-            if (!titles.TryGetValue(inv.SurveyId, out var meta))
+            if (!surveys.TryGetValue(inv.SurveyId, out var meta))
             {
                 var survey = await repo.GetByIdAsync(inv.SurveyId, ct);
                 if (survey is null) continue;
-                meta = (survey.Title.Resolve(survey.DefaultCulture, survey.DefaultCulture), survey.DefaultCulture);
-                titles[inv.SurveyId] = meta;
+                meta = (
+                    survey.Title.Resolve(survey.DefaultCulture, survey.DefaultCulture),
+                    survey.DefaultCulture,
+                    SurveyWizardFlow.IsAnswerable(survey.Status, survey.OpensAt, survey.ClosesAt, now));
+                surveys[inv.SurveyId] = meta;
             }
+
+            if (!meta.Answerable) continue;
 
             var culture = users.TryGetValue(inv.UserId, out var user) ? user.PreferredLanguage : meta.DefaultCulture;
             var name = user?.BurnerName ?? string.Empty;
@@ -637,7 +708,7 @@ internal sealed class SurveyService(
             Answers = [],
         };
 
-        // No audit log for individual response activity (privacy — Deviation #10).
+        // No audit log for individual response activity (privacy).
         await repo.AddResponseAsync(response, ct);
         return response.Id;
     }
@@ -1369,7 +1440,6 @@ internal sealed class SurveyService(
             .ToList();
     }
 
-    /// <summary>Maps an answer's selected option values to their resolved labels (falls back to the raw value when unknown).</summary>
     private static IReadOnlyList<string> ResolveSelectedLabels(
         SurveyAnswer answer, IReadOnlyDictionary<Guid, Dictionary<string, string>> optionLabels)
     {
@@ -1613,7 +1683,7 @@ internal sealed class SurveyService(
 
             default:
                 // Unknown audience type resolves to nobody, silently — the send would look like
-                // it worked while inviting no one. See issue #1065.
+                // it worked while inviting no one.
                 logger.SwitchDefaultWarn(type);
                 return new HashSet<Guid>();
         }

@@ -142,12 +142,15 @@ against the previous copy>
 1. <item — play — est. size>   ← unworked items carry to the next assessment
 
 ## History (last 3 assessments)
-| Date | Reforge | Outcome | PR |
+| Date | Outcome | PR |
 ```
 
 No counts in the scorecard (`memory/process/no-derived-aggregates-in-docs.md`): write the
-qualitative state, never a method total, test count, route count or section rank. The dated
-reforge score in the history table stays — a measurement with a generator, not a typed aggregate.
+qualitative state, never a method total, test count, route count or section rank. Amended
+2026-08-26 (peterdrier/Humans#1521): the reforge score leaves the history table too. It is a
+measurement with a generator, but the row is written mid-run and every commit after it moves the
+number, so the figure is stale on write and the skill's own rules forbid the commit that would
+correct it. The PR's surface report publishes the score against the head that shipped.
 
 ### `docs/health/plan.md` (global, written only by replans)
 
@@ -261,7 +264,7 @@ The plan is advisory — run-day findings can extend a section's stay.
   real `date` reads, never estimates. Doc fixes sweep the claim across `docs/guide/` and sibling
   docs; UI-affecting strikes get runtime verification in the running app. Non-mechanical changes
   (deletions beyond dead code, structural moves) get a second-opinion reviewer subagent
-  (opus-tier, score-blind, default-reject — refactor-swarm posture).
+  (fable-tier, score-blind, default-reject — refactor-swarm posture).
 - **5 Bookkeeping** — exactly two writes, both conflict-free: the `health.md` history row and
   this run's own `docs/health/runs/<date>-<Section>.md` (all in the worktree, same PR). No
   shared file is touched; daily runs never write `maintenance-log.md`.

@@ -16,7 +16,7 @@ Humans is the membership management system for Nobodies Collective, a Spanish no
 
 ## What makes Humans special?
 
-About 500 real people trust this system with their personal data, and a volunteer Board relies on it to run a legal Spanish asociación. Here's what we never compromise on.
+A few thousand real people trust this system with their personal data, and a volunteer Board relies on it to run a legal Spanish asociación. Here's what we never compromise on.
 
 ### 1. Sections own their data, end to end
 
@@ -32,7 +32,7 @@ Automated actions leave audit trails. An automation that acts invisibly is a bug
 
 ### 4. Small scale, simple systems
 
-~500 users, one server. Load the dataset into RAM instead of optimizing queries. No distributed coordination, no concurrency tokens or row versioning ([`no-concurrency-tokens`](memory/architecture/no-concurrency-tokens.md)), no pagination for its own sake. Complexity has to buy something at *this* scale, not an imagined one.
+A small user base, one server. Load the dataset into RAM instead of optimizing queries. No distributed coordination, no concurrency tokens or row versioning ([`no-concurrency-tokens`](memory/architecture/no-concurrency-tokens.md)), no pagination for its own sake. Complexity has to buy something at *this* scale, not an imagined one.
 
 ## Peter's rules
 
@@ -73,8 +73,8 @@ Terminology matters here — the full ubiquitous language lives in [`CONTEXT.md`
 1. **Conflating Volunteer with Application.** These are separate concepts and the most common conceptual mistake in this codebase. Volunteers are ~100% of users and never touch the `Application` entity; tier applications are the exception, not the model.
 2. **Hand-editing state to make a red light go away.** No `--no-verify`, no suppressing errors, no deleting "stuck" state, no editing the database or deployed config by hand. The fix lives in code, configuration, or re-provisioning. If the only path you can see goes through a manual state edit or a bypass flag, stop and ask — offering the shortcut as one option among several is itself the violation. "Broken" is sometimes the correct state to leave something in.
 3. **Mid-chain migration surgery.** Migrations are per-section and shipped ones are immutable. After your branch merges main, `dotnet ef migrations remove` on your in-flight migrations is unsafe — regenerate the branch's migrations as one consolidated migration instead ([`migration-regen-after-rebase`](memory/architecture/migration-regen-after-rebase.md)).
-4. **Trampling parallel sessions.** Several agent sessions work this repo at once. Work only in your own worktree (`.worktrees/<name>`), never assume the main checkout is idle or yours, and never clean up state — worktrees, branches, stashes — you didn't create.
-5. **Committing straight to main.** Every change goes on a feature branch in a worktree, then a PR ([`no-direct-to-main`](memory/process/no-direct-to-main.md)). `origin/main` auto-deploys to QA; there is no such thing as a commit too small for a PR. One carve-out: a change confined to `memory/**` may go straight to `origin/main` — the atom has the details.
+4. **Trampling parallel sessions.** On a local machine several agent sessions share one clone: work only in your own worktree (`.worktrees/<name>`), never assume the main checkout is idle or yours, and never clean up state — worktrees, branches, stashes — you didn't create. A Claude Code cloud run (`CLAUDE_CODE_REMOTE=true`) is a single-session ephemeral container with nobody to trample, so it works in the repo root and skips the worktree — [`always-use-worktree`](memory/process/always-use-worktree.md) carries both cases.
+5. **Committing straight to main.** Every change goes on a feature branch, then a PR ([`no-direct-to-main`](memory/process/no-direct-to-main.md)). `origin/main` auto-deploys to QA; there is no such thing as a commit too small for a PR. One carve-out: a change confined to `memory/**` may go straight to `origin/main` — the atom has the details.
 
 ## Hit every surface
 
@@ -102,6 +102,7 @@ dotnet run --project src/Humans.Web
 ```
 
 - `-v quiet` is mandatory — default verbosity floods the context for no benefit ([`dotnet-verbosity-quiet`](memory/process/dotnet-verbosity-quiet.md)).
+- `Humans.Integration.Tests` is local-only (Peter's machine) and self-skips under CI/cloud — skipped entries in a full-solution run are the design, never a finding ([`integration-tests-are-not-ci-tests`](memory/process/integration-tests-are-not-ci-tests.md)).
 - Scope testing to the change's blast radius ([`scoped-inner-loop-tests`](memory/process/scoped-inner-loop-tests.md)): docs-only changes need no build or tests; a single-section change is gated by that section's test project (`dotnet test tests/Humans.<Section>.Tests -v quiet`, seconds — CI runs the full suite anyway); cross-section surface or an unclear radius gets `tests/Humans.Application.Tests` plus the full `dotnet test Humans.slnx -v quiet` gate before the PR.
 - Analyzers enforce the call-site rules (repository access, service boundaries). A red analyzer is the answer, not an obstacle — grandfathered and baselined violations are documented tech debt and never justify a new one.
 - Version check on a deployed instance: `GET /api/version`.
@@ -113,7 +114,7 @@ dotnet run --project src/Humans.Web
 - Two remotes: `origin` = `peterdrier/Humans` (fork; QA auto-deploys from its main) and `upstream` = `nobodies-collective/Humans` (production). Feature branches PR to `origin/main` (squash). Promotion to production batches `origin/main` → `upstream/main` and is the one PR that needs Peter's explicit go-ahead. Details: [`cross-repo-pr-push-target`](memory/process/cross-repo-pr-push-target.md) · [`after-prod-merge-reset`](memory/process/after-prod-merge-reset.md).
 - Qualify issue references across repos: `nobodies-collective/Humans#123`, never a bare `#123` ([`issue-refs-qualified`](memory/process/issue-refs-qualified.md)).
 - Reviewer findings — Codex, Claude bot, Gemini, humans — are hypotheses, not a work list. Verify each against the code before changing anything ([`review-finding-triage`](memory/process/review-finding-triage.md)); every finding ends with a disposition reply in its thread ([`pr-review-feedback-handling`](memory/process/pr-review-feedback-handling.md)).
-- Before acting on any CI or review event on a PR you opened, read [`.claude/skills/steward/SKILL.md`](.claude/skills/steward/SKILL.md). Unattended review rounds are capped at five post-PR commits ([`review-round-budget`](memory/process/review-round-budget.md)) — past that, stop and surface it.
+- Before acting on any CI or review event on a PR you opened, read [`.claude/skills/steward/SKILL.md`](.claude/skills/steward/SKILL.md). Unattended review rounds are capped at five review-round commits — bot/CI response commits only, not the PR's own deliverable ([`review-round-budget`](memory/process/review-round-budget.md)) — past that, stop and surface it.
 
 ## How it works
 

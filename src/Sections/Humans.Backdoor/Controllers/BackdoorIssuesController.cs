@@ -128,8 +128,7 @@ internal sealed class BackdoorIssuesController(
             var comment = await issues.PostCommentAsync(
                 issueId: id,
                 senderUserId: ActorUserId,
-                content: model.Content,
-                senderIsReporter: false);
+                content: model.Content);
 
             logger.LogInformation("Comment {CommentId} posted on issue {IssueId} via API", comment.Id, id);
             return Ok(new
