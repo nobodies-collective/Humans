@@ -422,6 +422,130 @@ public class SurveyServiceTests
             "en", false, null, null,
             audience, teamId, loggedInSince, null, []);
 
+    /// <summary>Entity matching <see cref="Input"/> field-for-field, so an unchanged update diffs empty.</summary>
+    private static Survey ExistingSurveyMatchingInput(Guid id) => new()
+    {
+        Id = id,
+        Title = L("Title"),
+        Intro = L("Intro"),
+        ThankYou = L("Thanks"),
+        InvitationEmailSubject = LocalizedText.Empty,
+        InvitationEmailMessage = LocalizedText.Empty,
+        DefaultCulture = "en",
+        AllowAnonymous = false,
+        Status = SurveyStatus.Draft,
+        Questions = [],
+    };
+
+    [HumansFact]
+    public async Task UpdateAsync_audit_names_the_changed_fields()
+    {
+        var id = Guid.NewGuid();
+        var actor = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Survey?>(ExistingSurveyMatchingInput(id)));
+        var input = new SurveyEditInput(
+            L("Title"), L("Intro"), L("Thanks"),
+            LocalizedText.Empty, LocalizedText.Empty,
+            "en", true, null, null, null, null, null, "town-hall",
+            [Q("How was it?", SurveyQuestionType.ShortText, page: 1, order: 1)]);
+
+        await CreateService().UpdateAsync(id, input, actor);
+
+        await _audit.Received(1).LogAsync(
+            AuditAction.SurveyUpdated, "Survey", id,
+            Arg.Is<string>(d =>
+                d.Contains("anonymous responses enabled") &&
+                d.Contains("public slug set") &&
+                d.Contains("1 question(s) added")),
+            actor);
+    }
+
+    [HumansFact]
+    public async Task UpdateAsync_audit_counts_a_rating_label_only_edit()
+    {
+        var id = Guid.NewGuid();
+        var qid = Guid.NewGuid();
+        var existing = ExistingSurveyMatchingInput(id);
+        existing.Questions =
+        [
+            new SurveyQuestion
+            {
+                Id = qid,
+                SurveyId = id,
+                PageNumber = 1,
+                Order = 1,
+                Type = SurveyQuestionType.Rating,
+                Prompt = L("Rate it"),
+                RatingMin = 1,
+                RatingMax = 5,
+                RatingMinLabel = L("Bad"),
+                RatingMaxLabel = L("Great"),
+            },
+        ];
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Survey?>(existing));
+        var input = Input(new QuestionInput(
+            qid, 1, 1, SurveyQuestionType.Rating,
+            L("Rate it"), LocalizedText.Empty, false, 1, 5,
+            L("Poor"), L("Great"), null, []));
+
+        await CreateService().UpdateAsync(id, input, Guid.NewGuid());
+
+        await _audit.Received(1).LogAsync(
+            AuditAction.SurveyUpdated, "Survey", id,
+            Arg.Is<string>(d => d.Contains("1 question(s) edited")), Arg.Any<Guid>());
+    }
+
+    [HumansFact]
+    public async Task UpdateAsync_audit_counts_a_grid_selection_mode_only_edit()
+    {
+        var id = Guid.NewGuid();
+        var qid = Guid.NewGuid();
+        var existing = ExistingSurveyMatchingInput(id);
+        existing.Questions =
+        [
+            new SurveyQuestion
+            {
+                Id = qid,
+                SurveyId = id,
+                PageNumber = 1,
+                Order = 1,
+                Type = SurveyQuestionType.Grid,
+                Prompt = L("Availability"),
+                GridSelectionMode = GridSelectionMode.Single,
+                GridRows = [new SurveyGridRow("monday", L("Monday"))],
+                Options = [new SurveyQuestionOption { Id = Guid.NewGuid(), Order = 1, Value = "morning", Label = L("Morning") }],
+            },
+        ];
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Survey?>(existing));
+        var input = Input(GridInput(
+            qid,
+            mode: GridSelectionMode.Multiple,
+            columns: [Opt("morning", "Morning", 1)],
+            rows: [new GridRowInput("monday", L("Monday"))]));
+
+        await CreateService().UpdateAsync(id, input, Guid.NewGuid());
+
+        await _audit.Received(1).LogAsync(
+            AuditAction.SurveyUpdated, "Survey", id,
+            Arg.Is<string>(d => d.Contains("1 question(s) edited")), Arg.Any<Guid>());
+    }
+
+    [HumansFact]
+    public async Task UpdateAsync_audit_stays_bare_when_nothing_changed()
+    {
+        var id = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Survey?>(ExistingSurveyMatchingInput(id)));
+
+        await CreateService().UpdateAsync(id, Input(), Guid.NewGuid());
+
+        await _audit.Received(1).LogAsync(
+            AuditAction.SurveyUpdated, "Survey", id, "Updated survey", Arg.Any<Guid>());
+    }
+
     [HumansTheory]
     [InlineData("admin")]
     [InlineData("Admin")]
