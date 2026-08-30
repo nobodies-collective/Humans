@@ -392,7 +392,6 @@ public sealed class BudgetServiceTests
         ticketingGroup.Categories.Select(c => c.Name).Should()
             .BeEquivalentTo("Ticket Revenue", "Processing Fees");
 
-        // Single audit log entry for the year creation.
         var auditEntries = await ctx.BudgetAuditLogs
             .Where(a => a.BudgetYearId == year.Id)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -434,7 +433,6 @@ public sealed class BudgetServiceTests
         years.Single(y => string.Equals(y.Year, "2026", StringComparison.Ordinal)).Status
             .Should().Be(BudgetYearStatus.Active);
 
-        // Both status transitions audited.
         var auditEntries = await ctx2.BudgetAuditLogs
             .Where(a => a.FieldName == nameof(BudgetYear.Status))
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -630,12 +628,9 @@ public sealed class BudgetServiceTests
         projectedRevenueItems.Should().NotBeEmpty();
     }
 
-    // Regression test for Codex P1 (PR #298 review): projected line items were
-    // being computed from stale projection parameters because the plan was
-    // pre-built in the service before UpdateProjectionFromActuals ran in the
-    // repo. The fix moves materialization into the repo atomic op AFTER the
-    // projection is updated from actuals, so projected items reflect the
-    // newly-learned average price / fee percentages in the same sync.
+    // Guards the ordering invariant: materialization runs in the repo AFTER
+    // UpdateProjectionFromActuals, so projected items use the newly-learned
+    // average price / fee percentages rather than the pre-sync ones.
     [HumansFact]
     public async Task SyncTicketingActualsAsync_projected_items_use_post_update_avg_price_not_pre_sync_value()
     {
@@ -671,11 +666,8 @@ public sealed class BudgetServiceTests
 
         // Projected: revenue items must reflect the new AvgPrice of 50.
         // Given 5 tickets/day * 7 days = 35 tickets/week at 50 = 1750/week.
-        // The first projected week includes an initial burst if start date hadn't passed,
-        // but in this setup the projection start (Apr 6) is the current-week Monday
-        // (Apr 6 is after today 2026-03-31), so the initial burst IS included.
-        // To keep the test precise and independent of burst math, just assert that
-        // every projected week's revenue divides evenly by 50 (the new learned price).
+        // Assert divisibility by 50 rather than exact totals: independent of
+        // initial-burst math.
         var projectedItems = await ctx.BudgetLineItems
             .Where(li => li.BudgetCategoryId == revenueCatId
                 && li.Description.StartsWith("Projected:"))
