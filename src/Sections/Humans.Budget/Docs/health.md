@@ -8,9 +8,10 @@ Holds the asociación's plan for a fiscal year's money: how much each department
 workstream intends to raise or spend, in what categories, and when. Finance admins build
 and manage the plan (years, groups, categories); department coordinators fill in the line
 items for their own departments; every member can see a high-level summary. Ticket-sale
-actuals flow in nightly and replace hand-typed guesses; projected future ticket weeks are
-re-forecast from those actuals. Every change to the plan is recorded in an append-only
-audit trail the Board can read. Cash-flow views answer "when does the money move, and do
+actuals flow in nightly and replace the auto-generated projections (hand-entered line
+items are never touched); projected future ticket weeks are re-forecast from those
+actuals. Every change to the plan is recorded in an append-only audit trail the Board
+can read — except the two ticketing sync paths, currently outside it (see Seams). Cash-flow views answer "when does the money move, and do
 we run out?" including the VAT the association will settle each quarter.
 
 ## The shapes
@@ -65,11 +66,13 @@ The shapes imply exactly the layered split that exists:
 
 ## Seams
 
-- **Closed-year gate vs the ticketing paths.** The invariant above is the target;
-  `SyncTicketingActualsAsync` and `RefreshTicketingProjectionsAsync` do not call the gate
-  today, so the nightly job and admin refresh can mutate a closed year's ticketing items.
-  Gate them or amend the invariant — Peter's call (finding 5, 2026-08-30 run,
-  peterdrier/Humans#1565); neither side changed until then.
+- **The ticketing paths sit outside the section's cross-cutting guarantees.** This is one
+  class, not one-offs: `SyncTicketingActualsAsync` and `RefreshTicketingProjectionsAsync`
+  neither call the closed-year gate (finding 5) nor write `BudgetAuditLog` rows for the
+  line items they mutate (finding 22) — the nightly job and admin refresh can change a
+  closed year's ticketing items invisibly. Bring the pair under the guarantees or exempt
+  them in the invariants — Peter's call (2026-08-30 run, peterdrier/Humans#1565); neither
+  side changed until then.
 - **Ticketing-group deny vs the handler.** The coordinator invariant's "never in ticketing
   groups" half is not enforced: `BudgetAuthorizationHandler` has no `IsTicketingGroup`
   check, masked today by null `TeamId` on scaffolded ticketing categories (finding 6, same
