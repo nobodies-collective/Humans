@@ -48,7 +48,8 @@ The shapes imply exactly the layered split that exists:
 
 - At most one `Active` year: activating a Draft auto-closes any other Active year, with
   audit entries for both transitions.
-- A `Closed` year is read-only: every repository mutation gates on it and refuses.
+- A `Closed` year is read-only: repository mutations gate on it and refuse (the ticketing
+  sync pair and the year-metadata rename sit outside the gate today — see Seams).
 - Every create/update/delete of a year, group, category, line item, or projection writes a
   `BudgetAuditLog` row in the same transaction; the log is append-only (no update/delete
   surface exists, §12).
@@ -72,6 +73,11 @@ The shapes imply exactly the layered split that exists:
   line items they mutate (finding 22) — the nightly job and admin refresh can change a
   closed year's ticketing items invisibly. Bring the pair under the guarantees or exempt
   them in the invariants — Peter's call (2026-08-30 run, peterdrier/Humans#1565); neither
+  side changed until then.
+- **Closed-year metadata edits are ungated.** `UpdateYearAsync` — the Edit Year rename
+  form, which renders for Closed years too — never calls the closed-year gate, so a Closed
+  year's identifier and name can still change (audited, but ungated; finding 23). Same
+  ruling class as finding 5: gate it or exempt year-metadata edits — Peter's call, neither
   side changed until then.
 - **Ticketing-group deny vs the handler.** The coordinator invariant's "never in ticketing
   groups" half is not enforced: `BudgetAuthorizationHandler` has no `IsTicketingGroup`
