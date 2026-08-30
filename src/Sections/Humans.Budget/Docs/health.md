@@ -41,8 +41,8 @@ The shapes imply exactly the layered split that exists:
 - One singleton `BudgetRepository` (`IDbContextFactory`): each mutation is one atomic
   method that writes its audit rows in the same `SaveChanges`. The projected-week
   materialization lives here so it runs against post-sync projection parameters.
-- Contracts leaf carries only what external callers read: 5 read methods, the seeder
-  hook, the DTO records, two enums.
+- Contracts leaf carries only what external callers read: the read methods, the seeder
+  hook, the DTO records, the enums.
 
 ## Invariants
 
@@ -84,10 +84,10 @@ The shapes imply exactly the layered split that exists:
 ## Deliberately not done
 
 - No caching decorator: admin-only, low-traffic (same rationale as Governance/User/Feedback).
-- No `I<X>ServiceRead` widening: the contracts leaf stays at the 5 methods Expenses and the
-  two Base consumers actually call; the other ~36 members stay internal.
+- No `I<X>ServiceRead` widening: the contracts leaf stays at exactly the methods Expenses
+  and the Base consumers actually call; the other `IBudgetService` members stay internal.
 - `ITicketingBudgetService` stays single-member (the job's test seam); the admin controller
-  deliberately injects the concrete `TicketingBudgetService` for its other three calls.
+  deliberately injects the concrete `TicketingBudgetService` for its other calls.
 - No cross-domain navs (`Team`, `ResponsibleTeam`, `ActorUser` were deleted, #1188): labels
   are stitched in-memory via `ITeamServiceRead` / `IUserServiceRead`.
 - No pagination beyond the audit log's top-500.
