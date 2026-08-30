@@ -15,15 +15,15 @@ we run out?" including the VAT the association will settle each quarter.
 
 ## The shapes
 
-| Question | Surface | Count |
-|---|---|---|
-| What does the plan look like, for what I'm allowed to see? | `/Budget`, `/Budget/Summary`, `/Budget/Category/{id}`; `/Finance`, `/Finance/Years/{id}`, `/Finance/Categories/{id}` | 6 GET |
-| Change my department's line items (coordinator) | `/Budget/LineItems/*` | 3 POST |
-| Manage the plan tree (admin: year lifecycle, groups, categories, line items) | `/Finance/Years/*`, `/Finance/Groups/*`, `/Finance/Categories/*`, `/Finance/LineItems/*`, `/Finance/Admin` | 1 GET + 14 POST |
-| Feed ticket actuals in / re-forecast | `/Finance/TicketingBudget/{yearId}/Sync`, `/Finance/TicketingProjection/{groupId}/Update`, `/Finance/Years/{id}/EnsureTicketingGroup`, nightly `budget-ticketing-sync` job | 3 POST + 1 job |
-| When does money move? | `/Finance/CashFlow` (weekly/monthly, VAT settlements, runway) | 1 GET |
-| Who changed what? | `/Finance/AuditLog/{yearId?}` | 1 GET |
-| Cross-section reads (Expenses, Base ticket query, Shell seeder) | `IBudgetServiceRead` (5 methods), `IBudgetDemoSeeder` (1) | contracts leaf |
+| Question | Surface |
+|---|---|
+| What does the plan look like, for what I'm allowed to see? | `/Budget`, `/Budget/Summary`, `/Budget/Category/{id}`; `/Finance`, `/Finance/Years/{id}`, `/Finance/Categories/{id}` |
+| Change my department's line items (coordinator) | `/Budget/LineItems/*` |
+| Manage the plan tree (admin: year lifecycle, groups, categories, line items) | `/Finance/Years/*`, `/Finance/Groups/*`, `/Finance/Categories/*`, `/Finance/LineItems/*`, `/Finance/Admin` |
+| Feed ticket actuals in / re-forecast | `/Finance/TicketingBudget/{yearId}/Sync`, `/Finance/TicketingProjection/{groupId}/Update`, `/Finance/Years/{id}/EnsureTicketingGroup`, nightly `budget-ticketing-sync` job |
+| When does money move? | `/Finance/CashFlow` (weekly/monthly, VAT settlements, runway) |
+| Who changed what? | `/Finance/AuditLog/{yearId?}` |
+| Cross-section reads (Expenses, Base ticket query, Shell seeder) | `IBudgetServiceRead`, `IBudgetDemoSeeder` (contracts leaf) |
 
 ## Structure
 
@@ -65,7 +65,16 @@ The shapes imply exactly the layered split that exists:
 
 ## Seams
 
-- None open. (The 2026-08-18 `NoActiveYear.cshtml` missing-links debt was found already
+- **Closed-year gate vs the ticketing paths.** The invariant above is the target;
+  `SyncTicketingActualsAsync` and `RefreshTicketingProjectionsAsync` do not call the gate
+  today, so the nightly job and admin refresh can mutate a closed year's ticketing items.
+  Gate them or amend the invariant — Peter's call (finding 5, 2026-08-30 run,
+  peterdrier/Humans#1565); neither side changed until then.
+- **Ticketing-group deny vs the handler.** The coordinator invariant's "never in ticketing
+  groups" half is not enforced: `BudgetAuthorizationHandler` has no `IsTicketingGroup`
+  check, masked today by null `TeamId` on scaffolded ticketing categories (finding 6, same
+  run and PR).
+- (The 2026-08-18 `NoActiveYear.cshtml` missing-links debt was found already
   built — `HoldedAccounts`, `HoldedUnmatched`, `Creditors` links exist — and its
   `Docs/debt.yml` entry removed this run.)
 
