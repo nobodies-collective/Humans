@@ -15,23 +15,24 @@ namespace Humans.Budget.Data;
 /// Follows the §15b Singleton + <c>IDbContextFactory</c> pattern: every method
 /// opens its own short-lived <c>DbContext</c>, performs its work, and saves
 /// atomically within that context's lifetime. There is no cross-method unit of
-/// work: callers cannot stage writes through the repository and then
+/// work — callers can no longer stage writes through the repository and then
 /// flush with a shared <c>SaveChanges</c>. Multi-entity operations that must
 /// be atomic (e.g., creating a year with its default groups and categories)
 /// are exposed as single high-level repository methods that do the whole
 /// materialization inside one <c>DbContext</c>.
 /// <para>
-/// <c>budget_audit_logs</c> is append-only per §12 — the only surface is the
-/// three reads (<see cref="GetAuditLogAsync"/>,
-/// <see cref="GetAuditLogEntriesForUserAsync"/>,
-/// <see cref="GetAuditLogEntriesForUserIdsAsync"/>). Audit entries are written
-/// inside each mutation method so they commit in the same <c>SaveChanges</c>
-/// as the business change.
+/// <c>budget_audit_logs</c> is append-only per §12 — only
+/// <see cref="AddAuditLogAsync"/>, <see cref="GetAuditLogAsync"/>, and
+/// <see cref="GetAuditLogEntriesForUserAsync"/> are exposed. Audit entries are
+/// written via dedicated repository methods alongside the business mutation so
+/// both commit inside the same <c>SaveChanges</c>.
 /// </para>
 /// </remarks>
 internal interface IBudgetRepository : IRepository
 {
+    // ==========================================================================
     // Budget Years — reads
+    // ==========================================================================
 
     /// <summary>
     /// Returns every budget year. Includes groups and categories (read-only,
@@ -50,7 +51,9 @@ internal interface IBudgetRepository : IRepository
     /// </summary>
     Task<BudgetYear?> GetActiveYearAsync(CancellationToken ct = default);
 
+    // ==========================================================================
     // Budget Years — atomic mutations
+    // ==========================================================================
 
     /// <summary>
     /// Creates a new budget year and seeds it with the standard scaffolding:
@@ -140,7 +143,9 @@ internal interface IBudgetRepository : IRepository
         Instant now,
         CancellationToken ct = default);
 
+    // ==========================================================================
     // Budget Groups — atomic mutations
+    // ==========================================================================
 
     /// <summary>
     /// Creates a non-scaffold budget group, writes the create audit entry,
@@ -180,7 +185,9 @@ internal interface IBudgetRepository : IRepository
         Instant now,
         CancellationToken ct = default);
 
+    // ==========================================================================
     // Budget Categories — reads
+    // ==========================================================================
 
     /// <summary>
     /// Returns a single category with its full detail graph (group, year,
@@ -188,7 +195,9 @@ internal interface IBudgetRepository : IRepository
     /// </summary>
     Task<BudgetCategory?> GetCategoryByIdAsync(Guid id, CancellationToken ct = default);
 
+    // ==========================================================================
     // Budget Categories — atomic mutations
+    // ==========================================================================
 
     /// <summary>
     /// Creates a category in a budget group, writes the create audit entry,
@@ -230,14 +239,18 @@ internal interface IBudgetRepository : IRepository
         Instant now,
         CancellationToken ct = default);
 
+    // ==========================================================================
     // Budget Line Items — reads
+    // ==========================================================================
 
     /// <summary>
     /// Returns a single line item (detached), or null.
     /// </summary>
     Task<BudgetLineItem?> GetLineItemByIdAsync(Guid id, CancellationToken ct = default);
 
+    // ==========================================================================
     // Budget Line Items — atomic mutations
+    // ==========================================================================
 
     /// <summary>
     /// Creates a line item under a category, writes the create audit entry,
@@ -271,7 +284,9 @@ internal interface IBudgetRepository : IRepository
         Instant now,
         CancellationToken ct = default);
 
+    // ==========================================================================
     // Ticketing Projection — reads
+    // ==========================================================================
 
     /// <summary>
     /// Returns the ticketing projection for a budget group (read-only).
@@ -284,7 +299,9 @@ internal interface IBudgetRepository : IRepository
     /// </summary>
     Task<BudgetGroup?> GetGroupByIdAsync(Guid groupId, CancellationToken ct = default);
 
+    // ==========================================================================
     // Ticketing Projection — atomic mutations
+    // ==========================================================================
 
     /// <summary>
     /// Updates every projection parameter on a ticketing group's projection
@@ -337,7 +354,9 @@ internal interface IBudgetRepository : IRepository
         Instant now,
         CancellationToken ct = default);
 
+    // ==========================================================================
     // Audit Log — reads (append-only; no update/delete per §12)
+    // ==========================================================================
 
     /// <summary>
     /// Returns the most recent 500 audit log entries, optionally filtered by
@@ -364,7 +383,9 @@ internal interface IBudgetRepository : IRepository
         IReadOnlyCollection<Guid> userIds, CancellationToken ct = default);
 }
 
+// ==========================================================================
 // Input DTOs for atomic mutations
+// ==========================================================================
 
 /// <summary>
 /// Input for <see cref="IBudgetRepository.CreateYearWithScaffoldAsync"/>.
@@ -381,7 +402,7 @@ internal sealed record BudgetYearDraft(
 
 /// <summary>
 /// Minimal team reference for budget scaffolding. The Budget section reads
-/// team identities through <see cref="Humans.Teams.Contracts.ITeamServiceRead"/>
+/// team identities through <see cref="Humans.Teams.Contracts.ITeamService"/>
 /// — this record is the in-memory snapshot passed into repository-side mutations
 /// so the repository never has to cross the Teams section's ownership boundary.
 /// </summary>

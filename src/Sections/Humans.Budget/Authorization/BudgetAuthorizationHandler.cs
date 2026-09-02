@@ -1,6 +1,7 @@
 using Humans.Base.Authorization;
 using System.Security.Claims;
 using Humans.Budget.Contracts;
+using Humans.Budget.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Budget.Authorization;
@@ -17,7 +18,7 @@ namespace Humans.Budget.Authorization;
 ///
 /// Also denies edits on restricted groups and deleted budget years for non-admin users.
 /// </summary>
-internal sealed class BudgetAuthorizationHandler(IBudgetServiceRead budgetService)
+internal sealed class BudgetAuthorizationHandler(IBudgetService budgetService)
     : AuthorizationHandler<BudgetOperationRequirement, BudgetCategorySnapshot>
 {
     protected override async Task HandleRequirementAsync(

@@ -12,8 +12,7 @@ internal sealed record AnswerState(
     IReadOnlyList<string> Options,
     string? Text,
     int? Rating,
-    IReadOnlyDictionary<string, IReadOnlyList<string>>? Grid = null,
-    RankedAnswer? Ranked = null)
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? Grid = null)
 {
     /// <summary>An empty/unanswered state.</summary>
     public static AnswerState None { get; } = new([], null, null);
@@ -23,8 +22,7 @@ internal sealed record AnswerState(
         Options.Any(s => !string.IsNullOrEmpty(s))
         || !string.IsNullOrWhiteSpace(Text)
         || Rating is not null
-        || Grid?.Values.Any(values => values.Count > 0) == true
-        || Ranked is { } ranked && (ranked.RankGroups.Any(group => group.Count > 0) || ranked.Rejected.Count > 0);
+        || Grid?.Values.Any(values => values.Count > 0) == true;
 }
 
 /// <summary>
@@ -139,8 +137,7 @@ internal static class SurveyWizardFlow
                     a.GridSelections.ToDictionary(
                         kv => kv.Key,
                         kv => (IReadOnlyList<string>)kv.Value,
-                        StringComparer.Ordinal),
-                    a.RankedValue);
+                        StringComparer.Ordinal));
             }
         }
 
@@ -161,7 +158,6 @@ internal static class SurveyWizardFlow
                     : kv.Value.GridSelections.ToDictionary(
                         pair => pair.Key,
                         pair => (IReadOnlyList<string>)pair.Value,
-                        StringComparer.Ordinal),
-                kv.Value.RankedValue))
+                        StringComparer.Ordinal)))
             .ToList();
 }

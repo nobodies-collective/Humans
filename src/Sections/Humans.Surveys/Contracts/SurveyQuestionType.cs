@@ -13,5 +13,4 @@ public enum SurveyQuestionType
     Rating = 4,
     Grid = 5,
     Information = 6,
-    RankedChoice = 7,
 }

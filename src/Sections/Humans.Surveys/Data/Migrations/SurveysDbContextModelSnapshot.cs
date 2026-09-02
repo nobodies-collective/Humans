@@ -74,9 +74,6 @@ namespace Humans.Surveys.Data.Migrations
                         .HasColumnType("jsonb")
                         .HasDefaultValueSql("'{}'::jsonb");
 
-                    b.Property<bool?>("IsAsociadoVote")
-                        .HasColumnType("boolean");
-
                     b.Property<Instant?>("OpensAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -129,9 +126,6 @@ namespace Humans.Surveys.Data.Migrations
 
                     b.Property<Guid>("QuestionId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("RankedValue")
-                        .HasColumnType("jsonb");
 
                     b.Property<int?>("RatingValue")
                         .HasColumnType("integer");
@@ -233,12 +227,6 @@ namespace Humans.Surveys.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("jsonb")
                         .HasDefaultValueSql("'{}'::jsonb");
-
-                    b.Property<string>("RankedSettings")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("RankedUnavailableOptionValues")
-                        .HasColumnType("jsonb");
 
                     b.Property<int?>("RatingMax")
                         .HasColumnType("integer");
