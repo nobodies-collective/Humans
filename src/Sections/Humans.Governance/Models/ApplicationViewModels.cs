@@ -60,11 +60,9 @@ internal sealed class ApplicationCreateViewModel
 
     [Required]
     [StringLength(2000, MinimumLength = 50)]
-    [Display(Name = "Why do you want to join?")]
     public string Motivation { get; set; } = string.Empty;
 
     [StringLength(1000)]
-    [Display(Name = "Additional Information (optional)")]
     public string? AdditionalInfo { get; set; }
 
     /// <summary>
@@ -80,6 +78,5 @@ internal sealed class ApplicationCreateViewModel
     public string? RoleUnderstanding { get; set; }
 
     [Required]
-    [Display(Name = "I confirm that the information provided is accurate")]
     public bool ConfirmAccuracy { get; set; }
 }

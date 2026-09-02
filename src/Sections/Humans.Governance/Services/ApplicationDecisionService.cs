@@ -727,7 +727,7 @@ internal sealed class ApplicationDecisionService(
                 title,
                 [application.UserId],
                 body: body,
-                actionUrl: "/Governance/MyApplications",
+                actionUrl: "/Governance/Applications",
                 actionLabel: "View application",
                 cancellationToken: cancellationToken);
         }
