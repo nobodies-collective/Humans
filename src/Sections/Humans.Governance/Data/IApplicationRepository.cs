@@ -18,28 +18,18 @@ namespace Humans.Governance.Data;
 /// </remarks>
 internal interface IApplicationRepository : IRepository
 {
-    /// <summary>
-    /// Loads a single application by id, including its aggregate-local
-    /// <c>StateHistory</c> and <c>BoardVotes</c> collections.
-    /// </summary>
     Task<MemberApplication?> GetByIdAsync(Guid applicationId, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns every application for a user, ordered by <c>SubmittedAt</c>
-    /// descending. Aggregate-local <c>StateHistory</c> is included.
+    /// Ordered by <c>SubmittedAt</c> descending, with <c>StateHistory</c>.
     /// </summary>
     Task<IReadOnlyList<MemberApplication>> GetByUserIdAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
-    /// True if the user has a pending (Submitted) application. Used by
-    /// <c>SubmitAsync</c> to enforce the "one pending application per user"
-    /// invariant.
+    /// Backs the "one pending application per user" invariant in <c>SubmitAsync</c>.
     /// </summary>
     Task<bool> AnySubmittedForUserAsync(Guid userId, CancellationToken ct = default);
 
-    /// <summary>
-    /// Count applications in a given status.
-    /// </summary>
     Task<int> CountByStatusAsync(ApplicationStatus status, CancellationToken ct = default);
 
     /// <summary>
@@ -55,13 +45,9 @@ internal interface IApplicationRepository : IRepository
         int pageSize,
         CancellationToken ct = default);
 
-    /// <summary>
-    /// Persists a new application.
-    /// </summary>
     Task AddAsync(MemberApplication application, CancellationToken ct = default);
 
     /// <summary>
-    /// Persists changes to an existing application (e.g. Withdraw).
     /// Does NOT delete BoardVotes — see <see cref="FinalizeAsync"/> for the
     /// approve/reject transactional commit.
     /// </summary>
@@ -84,33 +70,21 @@ internal interface IApplicationRepository : IRepository
     /// </summary>
     Task<IReadOnlyList<Guid>> GetVoterIdsForApplicationAsync(Guid applicationId, CancellationToken ct = default);
 
-    /// <summary>
-    /// Returns the user ids from <paramref name="userIds"/> that have a pending
-    /// (Submitted) application. Read-only.
-    /// </summary>
     Task<IReadOnlySet<Guid>> GetUserIdsWithSubmittedAsync(
         IReadOnlyCollection<Guid> userIds, CancellationToken ct = default);
 
-    /// <summary>
-    /// Returns the single Submitted application for the given user, or null
-    /// if none. Read-only.
-    /// </summary>
     Task<MemberApplication?> GetSubmittedForUserAsync(
         Guid userId, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns every Submitted application, including aggregate-local
-    /// <c>BoardVotes</c>, ordered by tier then <c>SubmittedAt</c>. Read-only.
+    /// Includes <c>BoardVotes</c>; ordered by tier then <c>SubmittedAt</c>.
     /// </summary>
     Task<IReadOnlyList<MemberApplication>> GetAllSubmittedWithVotesAsync(
         CancellationToken ct = default);
 
     /// <summary>
-    /// Upserts a board vote: if a vote row exists for the
-    /// (applicationId, boardMemberUserId) pair, updates its
-    /// <see cref="BoardVote.Vote"/>/<see cref="BoardVote.Note"/>/
-    /// <see cref="BoardVote.UpdatedAt"/>; otherwise inserts a new row with the
-    /// provided values. Persists atomically.
+    /// One row per (applicationId, boardMemberUserId): an existing vote is
+    /// overwritten, never appended to. Persists atomically.
     /// </summary>
     Task UpsertBoardVoteAsync(
         Guid applicationId,
@@ -120,16 +94,11 @@ internal interface IApplicationRepository : IRepository
         Instant now,
         CancellationToken ct = default);
 
-    /// <summary>
-    /// Returns the number of Submitted applications that the given board
-    /// member has not yet voted on.
-    /// </summary>
     Task<int> GetUnvotedCountForBoardMemberAsync(
         Guid boardMemberUserId, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns aggregate counts used by the admin dashboard's tier
-    /// application block. All counts exclude <see cref="ApplicationStatus.Withdrawn"/>.
+    /// All counts exclude <see cref="ApplicationStatus.Withdrawn"/>.
     /// </summary>
     Task<ApplicationAdminStats> GetAdminStatsAsync(CancellationToken ct = default);
 
@@ -157,10 +126,6 @@ internal interface IApplicationRepository : IRepository
     Task MarkRenewalReminderSentAsync(
         Guid applicationId, Instant sentAt, CancellationToken ct = default);
 
-    // ==========================================================================
-    // System team sync support (issue #570 — §15 Google-writing jobs)
-    // ==========================================================================
-
     /// <summary>
     /// Returns the distinct user ids of every Approved application for
     /// <paramref name="tier"/> whose term is still active on
@@ -170,25 +135,15 @@ internal interface IApplicationRepository : IRepository
     Task<IReadOnlyList<Guid>> GetActiveApprovedTierUserIdsAsync(
         MembershipTier tier, LocalDate today, CancellationToken ct = default);
 
-    /// <summary>
-    /// Does the user have an Approved application for <paramref name="tier"/>
-    /// whose term is still active on <paramref name="today"/>?
-    /// </summary>
     Task<bool> HasActiveApprovedTierAsync(
         Guid userId, MembershipTier tier, LocalDate today, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns per-user active-approved non-Volunteer tier assignments
-    /// excluding <paramref name="excludeTier"/>. Each entry is the first
-    /// (UserId, MembershipTier) row encountered. Used by the system team
-    /// sync's tier-downgrade calculation.
+    /// Active-approved non-Volunteer tiers other than <paramref name="excludeTier"/>,
+    /// one arbitrary row per user. Drives the system team sync's downgrade.
     /// </summary>
     Task<IReadOnlyDictionary<Guid, MembershipTier>> GetOtherActiveTierAssignmentsAsync(
         MembershipTier excludeTier, LocalDate today, CancellationToken ct = default);
-
-    // ==========================================================================
-    // Account-merge fold
-    // ==========================================================================
 
     /// <summary>
     /// GDPR Art. 17: clears the applicant's own free text (motivation, additional

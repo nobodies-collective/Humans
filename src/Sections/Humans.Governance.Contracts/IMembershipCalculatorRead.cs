@@ -14,9 +14,6 @@ public interface IMembershipCalculatorRead
     /// </summary>
     Task<bool> HasAllRequiredConsentsAsync(Guid userId, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Gets the document versions that a user is missing consent for.
-    /// </summary>
     Task<IReadOnlyList<Guid>> GetMissingConsentVersionsAsync(Guid userId, CancellationToken cancellationToken = default);
 
     /// <summary>

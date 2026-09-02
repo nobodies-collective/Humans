@@ -23,8 +23,8 @@ internal sealed class MembershipCalculator(
 
     private IConsentServiceRead ConsentService => serviceProvider.GetRequiredService<IConsentServiceRead>();
 
-    // Request-scoped memo (the service is Scoped): several dashboard chrome components ask
-    // for the same user's snapshot in one render (nobodies-collective/Humans#1091 review).
+    // Request-scoped memo — relies on the service being registered Scoped; several dashboard
+    // chrome components ask for the same user's snapshot in one render.
     private readonly Dictionary<Guid, MembershipSnapshot> _snapshotMemo = [];
 
     public async Task<MembershipStatus> ComputeStatusAsync(
