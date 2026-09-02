@@ -44,7 +44,7 @@ Both tiers run on synchronized 2-year terms that expire on December 31 of the ne
 
 As an active Volunteer you can apply for **Colaborador** (active contributor with project and event responsibilities) or **Asociado** (voting member with governance rights). If you are already a Colaborador, you can apply to upgrade to Asociado. Both require a Board vote and grant a 2-year term on approval.
 
-Go to `/Governance/Applications/Create`, pick the tier, and fill in a **motivation** (required) and any **additional info** for the Board (optional). Your current tier and access stay the same while the Board reviews. You cannot submit a second application for the same tier while one is pending.
+Go to `/Governance/Applications/Create`, pick the tier, and fill in a **motivation** (required) and any **additional info** for the Board (optional). Your current tier and access stay the same while the Board reviews. While one application is pending you cannot submit another, of any tier.
 
 If you applied inline during initial signup, that form was a one-shot. After onboarding, `/Governance/Applications/Create` is the only way to apply.
 
