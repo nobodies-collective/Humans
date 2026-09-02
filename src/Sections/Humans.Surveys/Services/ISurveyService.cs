@@ -23,6 +23,9 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
     /// <summary>Loads a survey's full editable graph for the builder, or null if not found.</summary>
     Task<SurveyDetail?> GetForEditAsync(Guid surveyId, CancellationToken ct = default);
 
+    /// <summary>Whether any draft or submitted answer has frozen counting-affecting ranked settings.</summary>
+    Task<bool> HasSavedAnswersAsync(Guid surveyId, CancellationToken ct = default);
+
     /// <summary>Creates a Draft survey from the builder input; returns the new survey id.</summary>
     Task<Guid> CreateAsync(SurveyEditInput input, Guid actorUserId, CancellationToken ct = default);
 
@@ -61,6 +64,12 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
     /// <summary>Per-invite delivery/participation status for the admin Send page, with display names stitched in. Unsorted — caller sorts.</summary>
     Task<IReadOnlyList<SurveyInviteStatus>> GetInviteStatusesAsync(Guid surveyId, CancellationToken ct = default);
 
+    /// <summary>The current Human's official entry link for an Open survey: their unspent invitation, or the public slug fallback.</summary>
+    Task<SurveyOfficialLink?> GetOfficialLinkAsync(
+        Guid surveyId,
+        Guid userId,
+        CancellationToken ct = default);
+
     /// <summary>
     /// Job-driven sweep: sends the one-time 7-day reminder to every invitee of an Open survey who
     /// hasn't completed and hasn't already been reminded (<c>SentAt</c> ≥ 7 days ago). Stamps
@@ -74,6 +83,9 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
     /// Identified draft), or null when the token is invalid/expired or the invitation/survey is gone.
     /// </summary>
     Task<SurveyAnswerContext?> ResolveAnswerContextAsync(string token, CancellationToken ct = default);
+
+    /// <summary>Whether the Human currently holds active, approved Asociado voting rights.</summary>
+    Task<bool> IsEligibleAsociadoAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
     /// Creates (or, idempotently, returns the existing) Identified in-progress draft response for the
@@ -147,12 +159,42 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
         Guid surveyId,
         SurveyResultsScope scope,
         CancellationToken ct = default);
+
+    Task SetRankedAvailabilityAsync(
+        Guid surveyId,
+        Guid questionId,
+        IReadOnlyList<string> unavailableValues,
+        Guid actorUserId,
+        CancellationToken ct = default);
+
 }
+
+internal sealed record SurveyOfficialLink(string? InvitationToken, string? PublicSlug);
 
 internal sealed record SurveyScopedResults(
     SurveyResultsView Results,
     int SelectedResponseCount,
-    SurveyResultsScope Scope);
+    SurveyResultsScope Scope,
+    bool IsEmbargoed = false,
+    IReadOnlyDictionary<Guid, RankedQuestionResult>? RankedQuestions = null);
+
+internal sealed record RankedQuestionResult(
+    IReadOnlyList<RankedCandidateResult> Candidates,
+    RankedMethodResult OriginalOfficialResult,
+    RankedMethodResult CurrentOfficialResult,
+    IReadOnlyList<RankedMethodResult> Methods,
+    IReadOnlyList<PairwiseContest> Pairwise,
+    IReadOnlyList<string> OriginalPreferenceCycle,
+    IReadOnlyList<string> CurrentPreferenceCycle,
+    IReadOnlyList<string> UnavailableValues);
+
+internal sealed record RankedCandidateResult(
+    string Value,
+    string Label,
+    bool IsAvailable,
+    int RejectionCount,
+    double RejectionPercent);
+internal sealed record RankedMethodResult(string Method, string? WinnerValue, string? WinnerLabel, bool TieBreakUsed);
 
 internal enum SurveyResultsScope
 {
@@ -181,7 +223,8 @@ internal sealed record SurveyEditInput(
     Guid? AudienceTeamId,
     Instant? AudienceLoggedInSince,
     string? PublicSlug,
-    IReadOnlyList<QuestionInput> Questions);
+    IReadOnlyList<QuestionInput> Questions,
+    bool IsAsociadoVote = false);
 
 /// <summary>One question in the builder graph.</summary>
 internal sealed record QuestionInput(
@@ -200,7 +243,9 @@ internal sealed record QuestionInput(
     IReadOnlyList<OptionInput> Options,
     GridSelectionMode? GridSelectionMode = null,
     IReadOnlyList<GridRowInput>? GridRows = null,
-    IReadOnlyList<InformationImageInput>? InformationImages = null);
+    IReadOnlyList<InformationImageInput>? InformationImages = null,
+    RankedQuestionSettings? RankedSettings = null,
+    IReadOnlyList<string>? RankedUnavailableOptionValues = null);
 
 /// <summary>One choice option in the builder graph. <c>Value</c> is the stable machine key.</summary>
 internal sealed record OptionInput(
@@ -254,7 +299,8 @@ internal sealed record SurveyAnswerContext(
     Guid UserId,
     SurveyDetail Definition,
     IReadOnlyList<SurveyDraftAnswer> DraftAnswers,
-    bool HasResumableDraft);
+    bool HasResumableDraft,
+    bool IsEligible = true);
 
 /// <summary>
 /// A survey resolved from its public slug: the survey id plus the reused editable definition
@@ -278,7 +324,8 @@ internal sealed record SurveyDraftAnswer(
     IReadOnlyList<string> SelectedOptionValues,
     string? TextValue,
     int? RatingValue,
-    IReadOnlyDictionary<string, IReadOnlyList<string>>? GridSelections = null);
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? GridSelections = null,
+    RankedAnswer? RankedValue = null);
 
 /// <summary>
 /// A finalised wizard submission. Identity columns (<c>UserId</c>/<c>InvitationId</c>) are written on
@@ -303,7 +350,8 @@ internal sealed record SurveyAnswerInput(
     IReadOnlyList<string> SelectedOptionValues,
     string? TextValue,
     int? RatingValue,
-    IReadOnlyDictionary<string, IReadOnlyList<string>>? GridSelections = null);
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? GridSelections = null,
+    RankedAnswer? RankedValue = null);
 
 /// <summary>
 /// Per-session state of the answering wizard. The Web layer JSON-serialises it into the HTTP session
@@ -338,6 +386,7 @@ internal sealed class SurveyWizardAnswer
 {
     public List<string> SelectedOptionValues { get; set; } = [];
     public Dictionary<string, List<string>> GridSelections { get; set; } = new(StringComparer.Ordinal);
+    public RankedAnswer? RankedValue { get; set; }
     public string? TextValue { get; set; }
     public int? RatingValue { get; set; }
 }
@@ -350,6 +399,9 @@ internal enum SurveyWizardOutcome
 
     /// <summary>The survey is not Open or is outside its answer window.</summary>
     Closed,
+
+    /// <summary>The Human no longer holds active, approved Asociado voting rights.</summary>
+    Ineligible,
 
     /// <summary>Required visible questions are unanswered; the state stays on the posted page.</summary>
     ValidationFailed,
