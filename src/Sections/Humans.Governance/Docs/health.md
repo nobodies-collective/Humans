@@ -135,4 +135,4 @@ Settled decisions. Do not re-litigate.
 
 | Run | Date | Headline | PR |
 |---|---|---|---|
-| 1 | 2026-09-02 | First doctoring: dead `/Governance/MyApplications` notification link, dead cross-section read surface, doc and comment truth | pending |
+| 1 | 2026-09-02 | Term expiry shown wrong on both member pages; dead `/Governance/MyApplications` notification link; three dead surfaces; doc and comment truth | peterdrier/Humans#1580 |

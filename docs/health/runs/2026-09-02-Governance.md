@@ -4,7 +4,7 @@
 - **Anchor commit:** `f2a1a3fb` (`origin/main`)
 - **Branch:** `section-doctor/2026-09-02T071811Z` (cloud run, repo root — no worktree)
 - **Budget:** 2.5h, single PR.
-- **PR:** pending
+- **PR:** peterdrier/Humans#1580
 
 ## Assessment summary
 
