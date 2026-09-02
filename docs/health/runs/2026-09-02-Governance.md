@@ -63,6 +63,20 @@ Value = bug surface removed, then concepts removed, then words removed.
 | 20 | **Controller authorization attributes unpinned.** The policies themselves are tested; that these controllers and actions carry them is not. | med | **section ledger** |
 | 21 | **Unprefixed resx keys** in `GovernanceResource.resx`. Reported, not backfilled — a prefix rename is a rename, not a doctor strike. | low | **no change** |
 
+Raised after 3e, so each takes the next unused number. Numbers are assigned once and never
+reused; `## Needs Peter` cites them rather than restating them.
+
+| # | Finding | Value | Disposition |
+|---|---|---|---|
+| 22 | **The threads contract and `no-derived-aggregates-in-docs` disagree.** The contract asks each thread row for a findings count; the row already enumerates its findings, so that count is the shadow copy the atom forbids — and the atom is marked HARD RULE. The mode and model columns went in; the count did not. | — | **Needs Peter** |
+| 23 | **Phase 3 amendment: never pipe a `reforge` scan through `head`.** `audit-surface` orders by symbol, not by value, so truncation drops evidence from the middle rather than the tail; this run's first pass lost zero-caller entries that way. | — | **Needs Peter** |
+| 24 | **Phase 4 amendment: check for a near-identical live name before proposing a delete.** `HasAnyExpiredConsentsAsync` (dead, on the concrete class) and `HasAnyExpiredConsentsForTeamAsync` (live, on the interface) differ by one word; the reviewer caught the wrong home. | — | **Needs Peter** |
+| 25 | **Does scoped-inner-loop testing apply to doctor strikes?** This run spent a large slice of its budget on solution-wide builds it did not need. | — | **Needs Peter** |
+| 26 | **Both remotes in this container point at production**, and a run has already pushed a branch there. | — | **Needs Peter** |
+| 27 | **Removing the `[Display(Name = …)]` attributes made the DataAnnotations validation text worse.** `[Required]`/`[StringLength]` on `Motivation` and `AdditionalInfo` interpolate the metadata display name, which is now the CLR name — "The Motivation field is required." Not a localization regression: neither the message template nor the old display names resolve against `SharedResource`, so this text was raw English in all six cultures before and after. The real defect underneath is older and larger — see the section ledger. | med | **section ledger** |
+| 28 | **One label, two destinations.** The member-dashboard tile is titled `Nav_Governance` but links to `GovernanceApplications/Index`, while the user dropdown and the profile page use the same `Nav_Governance` label for `Governance/Index`. Neither is a dead end; the same words lead two places. | low | **section ledger** |
+| 29 | **InspectCode Tier 1/2 cannot run in a cloud doctor run.** Nothing installs it in the container, so the Prose & surface lens is structurally half-runnable here. Either the skill should install it, or Phase 3d should say the tier check is a local-only half and stop counting a cloud run's silence as coverage. | — | **Needs Peter** |
+
 ## Worked
 
 Findings 1–12, one commit per strike:
@@ -130,32 +144,22 @@ state machine or a listener on it.
   halves of one unbuilt flow: the state machine and entity implement a `Submitted →
   Submitted` re-entry carrying reviewer notes, nothing reaches it, and `ReviewStartedAt`
   rides through DTOs to views as a permanent blank. Build the flow, or delete both?
-- [ ] The threads contract asks for a findings **count** per row, but the row already
-  enumerates the findings, so the count is exactly the shadow copy
-  [`no-derived-aggregates-in-docs`](../../../memory/process/no-derived-aggregates-in-docs.md)
-  forbids — and that atom is marked HARD RULE. This run added the mode and model columns and
-  left the count out. Which rule wins?
-- [ ] Phase 3 amendment: never pipe a `reforge` scan through `head`. `audit-surface` orders
-  its output by symbol, not by value, so a truncated read drops evidence from the middle of
-  the list rather than the tail; this run's first pass lost zero-caller entries that way.
-  Redirect to a file and grep it.
-- [ ] Phase 4 amendment: before proposing to delete a member, check whether a near-identical
-  name on the same type is the live one. `HasAnyExpiredConsentsAsync` (dead, on the concrete
-  class) and `HasAnyExpiredConsentsForTeamAsync` (live, on the interface, called from
-  `ComputeStatusAsync`) differ by one word; the reviewer caught the wrong home.
-- [ ] Amendment from the retro: this run spent a large slice of its budget on solution-wide
-  builds it did not need. If the skill's scoped-inner-loop guidance is meant to apply to
-  doctor strikes as well as to ordinary work, saying so in Phase 4 would buy back most of that.
-- [ ] **This container ships both remotes pointing at production, and a run has already pushed
-  a branch there.** In this cloud run `origin` *and* `upstream` were both
-  `https://github.com/nobodies-collective/Humans`, so the `git push -u origin <branch>` this
-  run's review round performed created `section-doctor/2026-09-02T071811Z` on the production
-  repo. The commit was re-pushed to `peterdrier/Humans` and reached the PR, but the stray
-  branch on production cannot be removed from here — every delete refspec is dropped by the
-  environment's git relay. `section-doctor/2026-08-29T071612Z` is still on production too, so
-  this is not the first run to hit it. Two things for Peter: delete both stray branches, and
-  decide where the guard belongs — a Phase 0 assertion that `origin` resolves to
-  `peterdrier/Humans` before any push would catch it at the start of the run rather than after.
+- [ ] Finding 22 — which rule wins, the threads contract's findings count or
+  [`no-derived-aggregates-in-docs`](../../../memory/process/no-derived-aggregates-in-docs.md)?
+- [ ] Finding 23 — take the Phase 3 amendment (redirect a `reforge` scan to a file, never
+  `head` it)?
+- [ ] Finding 24 — take the Phase 4 amendment (check for a near-identical live name before
+  proposing a delete)?
+- [ ] Finding 25 — does the scoped-inner-loop guidance apply to doctor strikes? Saying so in
+  Phase 4 buys back most of this run's build time.
+- [ ] Finding 26 — two things: delete the stray branches
+  `section-doctor/2026-09-02T071811Z` and `section-doctor/2026-08-29T071612Z` from
+  `nobodies-collective/Humans` (this run cannot; the environment's git relay drops every
+  delete refspec), and decide whether Phase 0 should assert that `origin` resolves to
+  `peterdrier/Humans` before any push. In this container `origin` *and* `upstream` were both
+  the production URL, and the 2026-08-29 branch shows this run was not the first to hit it.
+- [ ] Finding 29 — should the skill install InspectCode for cloud runs, or should Phase 3d
+  record Tier 1/2 as a local-only half of the Prose & surface lens?
 
 ## Sweep queue
 
@@ -302,18 +306,29 @@ Also read, outside the inventory, because a strike made them false:
 | Freshness | subagent (`doctor-reader`) | opus, effort low | 11, and the doc-drift inputs to 9 and 10 |
 | Conformance | main (mechanical detectors, no subagent) | opus | none — layout PASS, `audit-auth` PASS, `ownership-violations` 0 |
 | Tests | subagent (`doctor-reader`) | opus, effort low | 5, 17–20 |
-| Prose & surface | main, **partial** | opus | 21 |
+| Prose & surface | main (doctor pass + review round 5) | opus | 21, 28, 29 |
 | History | subagent (`doctor-reader`) | opus, effort low | 12 — false narrations, and cuts with trim-to text |
 | Comments | subagent (`doctor-reader`) | opus, effort low | 8 and 12 — the falsehoods, the cuts, and a keeps list the cuts respected |
 | Inbox | subagent (`doctor-reader`) | opus, effort low | none — `peterdrier/Humans` has open issues #1576, #1562 and #1554, none Governance; no Governance rows in `debt-ledger.yml`; the section had no `Docs/debt.yml` |
 
-**Prose & surface ran partially, and that is a hole in this run.** Dead resources and the
-resource-key prefix check were done (finding 21). InspectCode Tier 1/2 was not run, and nav
-quality — dead ends, backlinks, discoverability from `AdminNavTree` — was not examined at all,
-so no claim is made about it either way. The next run on Governance should start there.
+**Prose & surface ran in two passes**, the second in review round 5 after the gap below was
+caught. Dead resources and the resource-key prefix check ran in the doctor pass (finding 21).
+Nav quality ran in round 5 and is now complete. InspectCode Tier 1/2 did **not** run, for a
+reason that is not a judgement call: no InspectCode is installed in this container — no
+`inspectcode` or `jb` on `PATH`, and `dotnet tool list --global` is empty. The run environment
+ships the .NET SDK, `dotnet-ef` and `reforge` only. A cloud run can therefore never satisfy
+that half of the lens, which is a fact about the skill's environment rather than about
+Governance; recorded as finding 29.
 
-No other thread was skipped. Findings counts are deliberately absent — see the Needs-Peter
-item on the threads contract.
+Nav result — no dead ends and no missing backlinks. Every page has an inbound link from
+outside itself and a way back out: `/Governance` from the user dropdown
+(`_LoginPartial.cshtml`) and twice from the profile page; `/Governance/Applications` from the
+member-dashboard tile, breadcrumbing up; `Create` from seven call sites, cancelling to
+`Index`; `Details` from the list rows, with a back button; `Admin` and `BoardVoting` from the
+`AdminNavTree` sidebar contribution, with `_AdminLayout`'s sidebar as the exit; both detail
+pages breadcrumb to their lists. One inconsistency fell out of the pass and is finding 28.
+
+No other thread was skipped. Findings counts are deliberately absent — see finding 22.
 
 Independence check: **pass**. Findings 1, 4, 14 and 15 came from the target shape rather
 than from a scan; findings 1 and 2, the highest-value items, came from reading views
