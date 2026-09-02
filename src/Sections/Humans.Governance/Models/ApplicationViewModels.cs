@@ -1,5 +1,6 @@
 using Humans.Users.Contracts;
 using Humans.Governance.Contracts;
+using NodaTime;
 using System.ComponentModel.DataAnnotations;
 
 namespace Humans.Governance.Models;
@@ -18,6 +19,7 @@ internal sealed class ApplicationSummaryViewModel
     public MembershipTier MembershipTier { get; set; }
     public DateTime SubmittedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
+    public LocalDate? TermExpiresAt { get; set; }
     public string StatusBadgeClass { get; set; } = "bg-secondary";
 }
 
