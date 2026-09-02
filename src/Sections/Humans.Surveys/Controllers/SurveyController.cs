@@ -51,6 +51,11 @@ internal sealed class SurveyController(
 
         var editable = ctx.Definition.Editable;
 
+        if (!ctx.IsEligible)
+        {
+            return View("Closed", new SurveyClosedViewModel { Reason = "ineligible-asociado" });
+        }
+
         if (!IsAnswerable(ctx.Definition))
         {
             return View("Closed", new SurveyClosedViewModel { Reason = "closed" });
@@ -77,6 +82,7 @@ internal sealed class SurveyController(
                         StringComparer.Ordinal) ?? new(StringComparer.Ordinal),
                     TextValue = a.TextValue,
                     RatingValue = a.RatingValue,
+                    RankedValue = a.RankedValue,
                 };
             }
 
@@ -95,6 +101,7 @@ internal sealed class SurveyController(
             AllowAnonymous = editable.AllowAnonymous,
             ShowAnonymitySelector = editable.AllowAnonymous,
             HasResumableDraft = ctx.HasResumableDraft,
+            IsAsociadoVote = editable.IsAsociadoVote,
         };
         return View("Intro", vm);
     }
@@ -110,6 +117,11 @@ internal sealed class SurveyController(
         }
 
         var editable = ctx.Definition.Editable;
+
+        if (!ctx.IsEligible)
+        {
+            return View("Closed", new SurveyClosedViewModel { Reason = "ineligible-asociado" });
+        }
 
         // Re-gate on the POST: the intro may have been loaded just before the window closed.
         if (!IsAnswerable(ctx.Definition))
@@ -246,6 +258,7 @@ internal sealed class SurveyController(
                             pair => pair.Key,
                             pair => pair.Value.ToList(),
                             StringComparer.Ordinal),
+                    RankedValue = answer.RankedValue,
                 };
             }
         }
@@ -396,6 +409,12 @@ internal sealed class SurveyController(
         {
             return View("Closed", new SurveyClosedViewModel { Reason = "closed" });
         }
+        if (editable.IsAsociadoVote
+            && (state.UserId is not { } userId
+                || !await surveyService.IsEligibleAsociadoAsync(userId, ct)))
+        {
+            return View("Closed", new SurveyClosedViewModel { Reason = "ineligible-asociado" });
+        }
 
         var answerStates = SurveyWizardFlow.ToAnswerStates(state.Answers);
 
@@ -446,7 +465,8 @@ internal sealed class SurveyController(
                         group => (IReadOnlyList<string>)group
                             .SelectMany(row => row.SelectedColumnValues ?? [])
                             .ToList(),
-                        StringComparer.Ordinal)))
+                        StringComparer.Ordinal),
+                ToRankedAnswer(a.RankedOptions)))
             .ToList();
 
         var result = await surveyService.AdvanceWizardAsync(state, model.Page, model.Back, posted, ct);
@@ -458,6 +478,10 @@ internal sealed class SurveyController(
 
             case SurveyWizardOutcome.Closed:
                 return View("Closed", new SurveyClosedViewModel { Reason = "closed" });
+
+            case SurveyWizardOutcome.Ineligible:
+                route.Clear(HttpContext.Session);
+                return View("Closed", new SurveyClosedViewModel { Reason = "ineligible-asociado" });
 
             case SurveyWizardOutcome.ValidationFailed:
                 foreach (var id in result.MissingRequired)
@@ -478,6 +502,34 @@ internal sealed class SurveyController(
                 route.Save(HttpContext.Session, state);
                 return RedirectToAction(route.PageAction, route.PageRouteValues);
         }
+    }
+
+    private static RankedAnswer? ToRankedAnswer(IReadOnlyList<SurveyPostedRankedOption>? rows)
+    {
+        if (rows is null || rows.Count == 0) return null;
+        var ranked = rows
+            .Select(row => new
+            {
+                Row = row,
+                Rank = int.TryParse(
+                    row.Selection,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var rank) && rank > 0
+                        ? (int?)rank
+                        : null,
+            })
+            .Where(item => item.Rank is not null && !string.IsNullOrWhiteSpace(item.Row.OptionValue))
+            .GroupBy(item => item.Rank!.Value)
+            .OrderBy(group => group.Key)
+            .Select(group => (IReadOnlyList<string>)group.Select(item => item.Row.OptionValue).ToList())
+            .ToList();
+        var rejected = rows
+            .Where(row => string.Equals(row.Selection, "reject", StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(row.OptionValue))
+            .Select(row => row.OptionValue)
+            .ToList();
+        return ranked.Count == 0 && rejected.Count == 0 ? null : new RankedAnswer(ranked, rejected);
     }
 
     /// <summary>
