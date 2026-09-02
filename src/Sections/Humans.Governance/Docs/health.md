@@ -15,8 +15,8 @@ Unrelated jobs live here.
 **Tier membership.** A volunteer asks to become a Colaborador or an Asociado. They write a
 motivation (and, for Asociado, what they have contributed and what they think the role is).
 The Board reads the request, each Board member records a position on it, and an Admin closes
-it at a Board meeting — approved or not. Approval grants the tier for a term that runs to the
-end of the next odd year, puts the person in the matching system team, tells them by email and
+it at a Board meeting — approved or not. Approval grants the tier for a term that runs to
+31 December of the first odd year at least two years out, puts the person in the matching system team, tells them by email and
 in-app, and leaves an audit entry. Ninety days before a term runs out the person is reminded to
 re-apply. Individual Board positions are destroyed the moment the decision is made; only the
 Board's collective note and the meeting date survive.

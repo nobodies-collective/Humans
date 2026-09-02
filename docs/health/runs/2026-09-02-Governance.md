@@ -13,10 +13,10 @@ max=14, maxClassLoc=612 `ApplicationDecisionService`) — the median never-docto
 by score. The target shape
 ([`health.md`](../../../src/Sections/Humans.Governance/Docs/health.md), written this run
 before any scan) finds unrelated things under one roof: the `applications` aggregate
-(tier applications → Board votes → Admin finalization → a term to the end of the next odd
-year) and a membership-standing calculator that owns no table, shares no entity with the
-aggregate, and answers a different question for the rest of the app. That split is real
-and load-bearing, not a defect; it is written down so the next reader meets it deliberately.
+(tier applications → Board votes → Admin finalization → a term to 31 December of the first
+odd year at least two years out) and a membership-standing calculator that owns no table,
+shares no entity with the aggregate, and answers a different question for the rest of the
+app. That split is real and load-bearing, not a defect; it is written down so the next reader meets it deliberately.
 
 **The section had live member-facing bugs, and no scan found them.**
 The term-expiry date shown on both member-facing pages was recomputed in Razor from
@@ -52,7 +52,7 @@ Value = bug surface removed, then concepts removed, then words removed.
 | 9 | **Governance.md drift** — a `BoardController` row and prose (`authorization.md` already said no such class exists); an architecture test file at a path that does not exist; `IProfileService` / `IProfileService.GetTierCountsAsync` / `ITeamService` / `IUserService` / `ILegalDocumentSyncService` / `IConsentService` named where the code injects the `…Read` variants; a grandfathering bullet naming retired jobs and claiming consumers read governance tables directly (`reforge ownership-violations` reports zero); "one pending per tier" where the code enforces one per person, any tier. | med | **worked** |
 | 10 | **Feature-doc and guide drift** — a board-voting tier filter documented across the feature docs and never built; "stays as Volunteer" on rejection, which changes no tier; "reverts to Volunteer" on lapse, which downgrades to another held tier first; `/Governance/Applications` given as the submit route (it is `/Create`); a "nightly" system-team sync that runs hourly; the wrong policy on `/Users/Admin/Roles`. | med | **worked** |
 | 11 | **Freshness triggers.** `authorization.md` and `data-access.md` had no trigger block at all, so nothing could ever flag them; no doc in the section was triggered by the Contracts leaf; and docs listed `Services/TermExpiryCalculator.cs`, already inside the section glob. | med | **worked** |
-| 12 | **~150 lines of comment that restate the code or narrate history.** Which lane a file moved in, which PR added a line, what "was already arriving transitively"; and the xmldoc summaries and `<param>` lines that say the member's name back ("Unique identifier for the application", "Approves this application"). Where a provenance clause wrapped a live constraint, the constraint stayed. | low | **worked** |
+| 12 | **Comments that restate the code or narrate history.** Which lane a file moved in, which PR added a line, what "was already arriving transitively"; and the xmldoc summaries and `<param>` lines that say the member's name back ("Unique identifier for the application", "Approves this application"). Where a provenance clause wrapped a live constraint, the constraint stayed. | low | **worked** |
 | 13 | **`humans.asociados` counts approved applications of both tiers** and publishes them as "Approved asociado members" — `GovernanceMetricsService` reads `applicationStats.Approved`, which excludes only Withdrawn. Defensible definitions — people currently holding an active Asociado term; approved Asociado applications ever; the profile tier count the sidebar already shows — and no way to pick from the code. | med | **noted → Needs Peter** |
 | 14 | **`Application.ReviewStartedAt` is never set.** Private setter, no writer, yet DTOs and views carry it to the page as a permanent blank. It belongs to the unbuilt request-more-info flow (target §5), so it is reported, not removed. | low | **noted → Needs Peter** |
 | 15 | **`RequestMoreInfo` is unreachable.** The state machine permits `Submitted → Submitted` with reviewer notes and `Application` implements it, but no route, service method or UI reaches it. A seam, not dead code — target §5. | low | **noted → Needs Peter** |
@@ -297,23 +297,24 @@ Also read, outside the inventory, because a strike made them false:
 
 | Thread | How it ran | Model | Findings folded in |
 |---|---|---|---|
+| Shape | main | opus | 4, 14, 15 — and the target shape itself, written before any scan |
+| Behavior & bugs | main | opus | 1, 2, 6, 7 |
 | Freshness | subagent (`doctor-reader`) | opus, effort low | 11, and the doc-drift inputs to 9 and 10 |
+| Conformance | main (mechanical detectors, no subagent) | opus | none — layout PASS, `audit-auth` PASS, `ownership-violations` 0 |
 | Tests | subagent (`doctor-reader`) | opus, effort low | 5, 17–20 |
+| Prose & surface | main, **partial** | opus | 21 |
 | History | subagent (`doctor-reader`) | opus, effort low | 12 — false narrations, and cuts with trim-to text |
 | Comments | subagent (`doctor-reader`) | opus, effort low | 8 and 12 — the falsehoods, the cuts, and a keeps list the cuts respected |
-| Conformance | main (mechanical detectors, no subagent) | — | none — layout PASS, `audit-auth` PASS, `ownership-violations` 0 |
 | Inbox | subagent (`doctor-reader`) | opus, effort low | none — `peterdrier/Humans` has open issues #1576, #1562 and #1554, none Governance; no Governance rows in `debt-ledger.yml`; the section had no `Docs/debt.yml` |
 
-No thread was skipped. Findings counts are deliberately absent — see the Needs-Peter item on
-the threads contract.
+**Prose & surface ran partially, and that is a hole in this run.** Dead resources and the
+resource-key prefix check were done (finding 21). InspectCode Tier 1/2 was not run, and nav
+quality — dead ends, backlinks, discoverability from `AdminNavTree` — was not examined at all,
+so no claim is made about it either way. The next run on Governance should start there.
+
+No other thread was skipped. Findings counts are deliberately absent — see the Needs-Peter
+item on the threads contract.
 
 Independence check: **pass**. Findings 1, 4, 14 and 15 came from the target shape rather
 than from a scan; findings 1 and 2, the highest-value items, came from reading views
 and service code by hand, and `reforge audit-surface` reported neither.
-
-## Size
-
-reforge score 626 → 603; loc 3888 at the start of the run. The run removed the dead
-surfaces, the comment bulk, and the resx entries behind the dead switch arm; it added the
-service-seam tests, the localized Create labels, and the target shape doc. The PR's Surface
-Report carries the measured deltas.
