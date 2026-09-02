@@ -130,9 +130,19 @@ state machine or a listener on it.
   halves of one unbuilt flow: the state machine and entity implement a `Submitted →
   Submitted` re-entry carrying reviewer notes, nothing reaches it, and `ReviewStartedAt`
   rides through DTOs to views as a permanent blank. Build the flow, or delete both?
-- [ ] **Notification titles and bodies are hardcoded English** (finding 16). Fixing that is
-  a decision about which culture a notification renders in, which belongs to the
-  notification path rather than to Governance.
+- [ ] The threads contract asks for a findings **count** per row, but the row already
+  enumerates the findings, so the count is exactly the shadow copy
+  [`no-derived-aggregates-in-docs`](../../../memory/process/no-derived-aggregates-in-docs.md)
+  forbids — and that atom is marked HARD RULE. This run added the mode and model columns and
+  left the count out. Which rule wins?
+- [ ] Phase 3 amendment: never pipe a `reforge` scan through `head`. `audit-surface` orders
+  its output by symbol, not by value, so a truncated read drops evidence from the middle of
+  the list rather than the tail; this run's first pass lost zero-caller entries that way.
+  Redirect to a file and grep it.
+- [ ] Phase 4 amendment: before proposing to delete a member, check whether a near-identical
+  name on the same type is the live one. `HasAnyExpiredConsentsAsync` (dead, on the concrete
+  class) and `HasAnyExpiredConsentsForTeamAsync` (live, on the interface, called from
+  `ComputeStatusAsync`) differ by one word; the reviewer caught the wrong home.
 - [ ] Amendment from the retro: this run spent a large slice of its budget on solution-wide
   builds it did not need. If the skill's scoped-inner-loop guidance is meant to apply to
   doctor strikes as well as to ordinary work, saying so in Phase 4 would buy back most of that.
@@ -153,35 +163,149 @@ Findings 17–20 are in-section and went straight to
 [`src/Sections/Humans.Governance/Docs/debt.yml`](../../../src/Sections/Humans.Governance/Docs/debt.yml)
 this run, not here — the queue carries off-section debt only.
 
+Phase 5's sweep also dropped, rather than applied, one item from the merged 2026-08-28 Agent
+run: a note that `AgentService.RunTurnAsync` and `AnthropicClient.StreamAsync` score high but
+are the load-bearing streaming loops that section's target shape blesses. It names no defect
+and no remedy, so a debt inbox would serve it to `/debt-sweep` forever to be re-declined each
+time. The observation survives where it belongs — in the 2026-08-28 Agent run file and that
+section's target shape.
+
 - `debt: Notifications — every Governance decision notification's title and body is a hardcoded English interpolated string (ApplicationDecisionService.ApproveAsync/RejectAsync). The recipient's PreferredLanguage is already used for the matching email, so the notification path is the odd one out; which culture an in-app notification renders in is that section's call, not Governance's (finding 16, /section-doctor on Governance 2026-09-02).`
-- `lesson: 2026-09-02 — never pipe a reforge scan through head. audit-surface's output is ordered by symbol, not by value, so a truncated read drops evidence from the middle of the list rather than the tail; this run's first pass lost several zero-caller entries that way. Redirect to a file and grep it.`
-- `lesson: 2026-09-02 — before proposing to delete a member, check whether a near-identical name on the same type is the live one. HasAnyExpiredConsentsAsync (dead, concrete class) and HasAnyExpiredConsentsForTeamAsync (live, on the interface, called from ComputeStatusAsync) differ by one word; the run's proposal named the wrong home for the dead one and the reviewer caught it.`
-- `lesson: 2026-09-02 — a view that recomputes something a pure function already computes is a bug waiting, not a duplication smell. Two Razor blocks re-derived the term-expiry year from ResolvedAt and disagreed with TermExpiryCalculator by two years; nothing in the build, the tests or any scan could see it, because both sides compile. When a target shape says "one pure function", grep for the arithmetic, not the function name.`
+- `memory: code/no-recomputing-a-pure-function-in-a-view — a view that recomputes something a pure function already computes is a bug waiting, not a duplication smell. Both sides compile, so nothing in the build, the tests or any scan can see the disagreement. Carry the computed value through the DTO instead (finding 1, /section-doctor on Governance 2026-09-02).`
 
 ## File coverage
 
-Every file under `src/Sections/Humans.Governance/**` and
-`src/Sections/Humans.Governance.Contracts/**` was read by at least one thread, excluding
-`obj/**`, `bin/**`, `Data/Migrations/*.Designer.cs` and
-`Data/Migrations/GovernanceDbContextModelSnapshot.cs` (generated). The shipped baseline
-migration `20260809124929_BaselineGovernance.cs` was read and deliberately left untouched.
+The 3a inventory at anchor `f2a1a3fb`, plus `docs/guide/Governance.md`. `.Designer.cs` and the
+model snapshot are `generated` — 3a's only exemptions; the shipped baseline migration is not
+exempt and was read.
 
-Also read: `tests/Humans.Governance.Tests/**`, the section's six `Docs/` files,
-`docs/guide/Governance.md`, and the cross-section docs the strikes made false
-(`src/Sections/Humans.Onboarding/Docs/Onboarding.md`,
+| Path | Disposition |
+|---|---|
+| `docs/guide/Governance.md` | changed |
+| `src/Sections/Humans.Governance.Contracts/ApplicationStatus.cs` | changed |
+| `src/Sections/Humans.Governance.Contracts/Humans.Governance.Contracts.csproj` | changed |
+| `src/Sections/Humans.Governance.Contracts/IApplicationDecisionService.cs` | changed |
+| `src/Sections/Humans.Governance.Contracts/IApplicationServiceRead.cs` | changed |
+| `src/Sections/Humans.Governance.Contracts/IMembershipCalculatorRead.cs` | changed |
+| `src/Sections/Humans.Governance.Contracts/MembershipPartition.cs` | reviewed |
+| `src/Sections/Humans.Governance.Contracts/MembershipSnapshot.cs` | reviewed |
+| `src/Sections/Humans.Governance.Contracts/MembershipStatus.cs` | changed |
+| `src/Sections/Humans.Governance.Contracts/MembershipStatusLabels.cs` | reviewed |
+| `src/Sections/Humans.Governance/Controllers/GovernanceApplicationsController.cs` | changed |
+| `src/Sections/Humans.Governance/Controllers/GovernanceBoardVotingController.cs` | changed |
+| `src/Sections/Humans.Governance/Controllers/GovernanceController.cs` | changed |
+| `src/Sections/Humans.Governance/Data/ApplicationRepository.cs` | changed |
+| `src/Sections/Humans.Governance/Data/Configurations/ApplicationConfiguration.cs` | reviewed |
+| `src/Sections/Humans.Governance/Data/Configurations/ApplicationStateHistoryConfiguration.cs` | reviewed |
+| `src/Sections/Humans.Governance/Data/Configurations/BoardVoteConfiguration.cs` | reviewed |
+| `src/Sections/Humans.Governance/Data/GovernanceDbContext.cs` | changed |
+| `src/Sections/Humans.Governance/Data/GovernanceDbContextFactory.cs` | reviewed |
+| `src/Sections/Humans.Governance/Data/IApplicationRepository.cs` | changed |
+| `src/Sections/Humans.Governance/Data/Migrations/20260809124929_BaselineGovernance.Designer.cs` | generated |
+| `src/Sections/Humans.Governance/Data/Migrations/20260809124929_BaselineGovernance.cs` | reviewed |
+| `src/Sections/Humans.Governance/Data/Migrations/GovernanceDbContextModelSnapshot.cs` | generated |
+| `src/Sections/Humans.Governance/Docs/Governance.md` | changed |
+| `src/Sections/Humans.Governance/Docs/authorization.md` | changed |
+| `src/Sections/Humans.Governance/Docs/data-access.md` | changed |
+| `src/Sections/Humans.Governance/Docs/debt.yml` | changed |
+| `src/Sections/Humans.Governance/Docs/features/asociado-applications.md` | changed |
+| `src/Sections/Humans.Governance/Docs/features/board-voting.md` | changed |
+| `src/Sections/Humans.Governance/Docs/features/membership-status.md` | changed |
+| `src/Sections/Humans.Governance/Docs/features/membership-tiers.md` | changed |
+| `src/Sections/Humans.Governance/Docs/health.md` | changed |
+| `src/Sections/Humans.Governance/Domain/Application.cs` | changed |
+| `src/Sections/Humans.Governance/Domain/ApplicationStateHistory.cs` | changed |
+| `src/Sections/Humans.Governance/Domain/ApplicationTrigger.cs` | changed |
+| `src/Sections/Humans.Governance/Domain/BoardVote.cs` | changed |
+| `src/Sections/Humans.Governance/Domain/VoteChoice.cs` | changed |
+| `src/Sections/Humans.Governance/GovernanceResource.ca.resx` | changed |
+| `src/Sections/Humans.Governance/GovernanceResource.cs` | changed |
+| `src/Sections/Humans.Governance/GovernanceResource.de.resx` | changed |
+| `src/Sections/Humans.Governance/GovernanceResource.es.resx` | changed |
+| `src/Sections/Humans.Governance/GovernanceResource.fr.resx` | changed |
+| `src/Sections/Humans.Governance/GovernanceResource.it.resx` | changed |
+| `src/Sections/Humans.Governance/GovernanceResource.resx` | changed |
+| `src/Sections/Humans.Governance/Humans.Governance.csproj` | changed |
+| `src/Sections/Humans.Governance/Jobs/TermRenewalReminderJob.cs` | changed |
+| `src/Sections/Humans.Governance/Models/AdminApplicationViewModels.cs` | reviewed |
+| `src/Sections/Humans.Governance/Models/ApplicationViewModels.cs` | changed |
+| `src/Sections/Humans.Governance/Models/BoardVotingViewModels.cs` | reviewed |
+| `src/Sections/Humans.Governance/Models/GovernanceViewModels.cs` | changed |
+| `src/Sections/Humans.Governance/Properties/AssemblyInfo.cs` | reviewed |
+| `src/Sections/Humans.Governance/Section.cs` | changed |
+| `src/Sections/Humans.Governance/SectionAdminNav.cs` | changed |
+| `src/Sections/Humans.Governance/SectionChrome.cs` | changed |
+| `src/Sections/Humans.Governance/SectionJobs.cs` | changed |
+| `src/Sections/Humans.Governance/SectionMemberDashboard.cs` | changed |
+| `src/Sections/Humans.Governance/SectionThingsToDo.cs` | reviewed |
+| `src/Sections/Humans.Governance/Services/ApplicationDecisionService.cs` | changed |
+| `src/Sections/Humans.Governance/Services/AuditEntityTypes.cs` | reviewed |
+| `src/Sections/Humans.Governance/Services/Dtos/ApplicationAdminDetailDto.cs` | reviewed |
+| `src/Sections/Humans.Governance/Services/Dtos/ApplicationAdminRowDto.cs` | reviewed |
+| `src/Sections/Humans.Governance/Services/Dtos/ApplicationStateHistoryDto.cs` | reviewed |
+| `src/Sections/Humans.Governance/Services/Dtos/ApplicationUserDetailDto.cs` | changed |
+| `src/Sections/Humans.Governance/Services/Dtos/BoardVoteRow.cs` | changed |
+| `src/Sections/Humans.Governance/Services/Dtos/BoardVotingDashboardData.cs` | changed |
+| `src/Sections/Humans.Governance/Services/Dtos/BoardVotingDashboardRow.cs` | reviewed |
+| `src/Sections/Humans.Governance/Services/Dtos/BoardVotingDetailData.cs` | changed |
+| `src/Sections/Humans.Governance/Services/GovernanceIndexService.cs` | changed |
+| `src/Sections/Humans.Governance/Services/GovernanceMetricsService.cs` | changed |
+| `src/Sections/Humans.Governance/Services/IGovernanceIndexService.cs` | changed |
+| `src/Sections/Humans.Governance/Services/IMembershipCalculator.cs` | changed |
+| `src/Sections/Humans.Governance/Services/IMembershipQuery.cs` | changed |
+| `src/Sections/Humans.Governance/Services/MembershipCalculator.cs` | changed |
+| `src/Sections/Humans.Governance/Services/MembershipQuery.cs` | changed |
+| `src/Sections/Humans.Governance/Services/TermExpiryCalculator.cs` | reviewed |
+| `src/Sections/Humans.Governance/ViewComponents/GovernanceApplicationsTileViewComponent.cs` | reviewed |
+| `src/Sections/Humans.Governance/ViewComponents/MemberTermStatusViewComponent.cs` | reviewed |
+| `src/Sections/Humans.Governance/ViewComponents/PendingConsentsAlertViewComponent.cs` | reviewed |
+| `src/Sections/Humans.Governance/ViewComponents/TierApplicationsCardViewComponent.cs` | changed |
+| `src/Sections/Humans.Governance/Views/Governance/Applications/Admin.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Governance/Applications/AdminDetail.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Governance/Applications/Create.cshtml` | changed |
+| `src/Sections/Humans.Governance/Views/Governance/Applications/Details.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Governance/Applications/Index.cshtml` | changed |
+| `src/Sections/Humans.Governance/Views/Governance/BoardVoting/Detail.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Governance/BoardVoting/Index.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Governance/BoardVoting/_ViewStart.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Governance/Index.cshtml` | changed |
+| `src/Sections/Humans.Governance/Views/Shared/Components/GovernanceApplicationsTile/Default.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Shared/Components/MemberTermStatus/Default.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Shared/Components/PendingConsentsAlert/Default.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Shared/Components/TierApplicationsCard/Default.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Shared/_ApplicationHistory.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Shared/_ApplicationResponseSections.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/Shared/_ApplicationsListContent.cshtml` | reviewed |
+| `src/Sections/Humans.Governance/Views/_ViewImports.cshtml` | reviewed |
+| `tests/Humans.Governance.Tests/Data/ApplicationRepositoryTests.cs` | reviewed |
+| `tests/Humans.Governance.Tests/Domain/ApplicationTests.cs` | reviewed |
+| `tests/Humans.Governance.Tests/Enums/EnumStringStabilityTests.cs` | reviewed |
+| `tests/Humans.Governance.Tests/Humans.Governance.Tests.csproj` | reviewed |
+| `tests/Humans.Governance.Tests/Infrastructure/UserInfoFixtures.cs` | reviewed |
+| `tests/Humans.Governance.Tests/Services/ApplicationDecisionServiceTests.cs` | reviewed |
+| `tests/Humans.Governance.Tests/Services/GovernanceIndexServiceTests.cs` | changed |
+| `tests/Humans.Governance.Tests/Services/MembershipCalculatorTests.cs` | changed |
+| `tests/Humans.Governance.Tests/Services/MembershipPartitionTests.cs` | reviewed |
+| `tests/Humans.Governance.Tests/Services/TermExpiryCalculatorTests.cs` | reviewed |
+
+Also read, outside the inventory, because a strike made them false:
+`src/Sections/Humans.Onboarding/Docs/Onboarding.md`,
 `src/Sections/Humans.Users/Docs/features/profiles.md`,
-`docs/architecture/dependency-graph.md`).
+`docs/architecture/dependency-graph.md`.
 
 ## Threads
 
-| Thread | Findings folded in |
-|---|---|
-| Freshness | 11, and the doc-drift inputs to 9 and 10 |
-| Tests | 5, 17–20 |
-| History | 12 — false narrations, and cuts with trim-to text |
-| Comments | 8 and 12 — the falsehoods, the cuts, and a keeps list the cuts respected |
-| Conformance | none — layout PASS, `audit-auth` PASS, `ownership-violations` 0 |
-| Inbox | none — `peterdrier/Humans` has open issues #1576, #1562 and #1554, none Governance; no Governance rows in `debt-ledger.yml`; the section had no `Docs/debt.yml` |
+| Thread | How it ran | Model | Findings folded in |
+|---|---|---|---|
+| Freshness | subagent (`doctor-reader`) | opus, effort low | 11, and the doc-drift inputs to 9 and 10 |
+| Tests | subagent (`doctor-reader`) | opus, effort low | 5, 17–20 |
+| History | subagent (`doctor-reader`) | opus, effort low | 12 — false narrations, and cuts with trim-to text |
+| Comments | subagent (`doctor-reader`) | opus, effort low | 8 and 12 — the falsehoods, the cuts, and a keeps list the cuts respected |
+| Conformance | main (mechanical detectors, no subagent) | — | none — layout PASS, `audit-auth` PASS, `ownership-violations` 0 |
+| Inbox | subagent (`doctor-reader`) | opus, effort low | none — `peterdrier/Humans` has open issues #1576, #1562 and #1554, none Governance; no Governance rows in `debt-ledger.yml`; the section had no `Docs/debt.yml` |
+
+No thread was skipped. Findings counts are deliberately absent — see the Needs-Peter item on
+the threads contract.
 
 Independence check: **pass**. Findings 1, 4, 14 and 15 came from the target shape rather
 than from a scan; findings 1 and 2, the highest-value items, came from reading views

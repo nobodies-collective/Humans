@@ -80,7 +80,10 @@ Nothing that is only called from inside the section belongs on an interface.
   for it commit together.
 - After finalization no individual vote survives — only `DecisionNote` and `BoardMeetingDate`.
 - Approval sets a term expiring 31 December of the first odd year at least two years out.
-- `application_state_history` is append-only: the repository offers no update or delete for it.
+- `application_state_history` is append-only in normal operation: the repository offers no
+  update or delete for it. GDPR erasure is the one exception — `ScrubFreeTextForUserAsync`
+  nulls `Notes` on the rows of the person's own applications and on the rows they authored
+  as a Board member. Nothing else ever mutates a history row.
 - Casting a vote is Board-only; finalizing is Admin-only; every admin read is Board-or-Admin;
   a person can only ever fetch or withdraw their own application.
 - Erasure keeps the tier/status/date skeleton and clears every free text the person wrote or
