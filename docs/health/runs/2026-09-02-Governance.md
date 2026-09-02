@@ -136,6 +136,16 @@ state machine or a listener on it.
 - [ ] Amendment from the retro: this run spent a large slice of its budget on solution-wide
   builds it did not need. If the skill's scoped-inner-loop guidance is meant to apply to
   doctor strikes as well as to ordinary work, saying so in Phase 4 would buy back most of that.
+- [ ] **This container ships both remotes pointing at production, and a run has already pushed
+  a branch there.** In this cloud run `origin` *and* `upstream` were both
+  `https://github.com/nobodies-collective/Humans`, so the `git push -u origin <branch>` this
+  run's review round performed created `section-doctor/2026-09-02T071811Z` on the production
+  repo. The commit was re-pushed to `peterdrier/Humans` and reached the PR, but the stray
+  branch on production cannot be removed from here — every delete refspec is dropped by the
+  environment's git relay. `section-doctor/2026-08-29T071612Z` is still on production too, so
+  this is not the first run to hit it. Two things for Peter: delete both stray branches, and
+  decide where the guard belongs — a Phase 0 assertion that `origin` resolves to
+  `peterdrier/Humans` before any push would catch it at the start of the run rather than after.
 
 ## Sweep queue
 
