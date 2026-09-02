@@ -10,7 +10,7 @@ the layout the section's behavior implies. Run history is at the bottom.
 
 ## 1. What the section does
 
-Two jobs live here.
+Unrelated jobs live here.
 
 **Tier membership.** A volunteer asks to become a Colaborador or an Asociado. They write a
 motivation (and, for Asociado, what they have contributed and what they think the role is).
@@ -37,29 +37,29 @@ The external surface, grouped by the question each group answers.
 | S3 | *What is still on the Board's plate?* | contracts read surface + admin pages | `GetUnvotedApplicationCountAsync`, `GetPendingApplicationCountAsync`, `GetAdminStatsAsync`; `GET /Governance/Applications/Admin[/{id}]`, `GET /Governance/BoardVoting[/{id}]` |
 | S4 | *Move one application along its state machine* | write surface + own pages | `ValidateSubmission`, `SubmitAsync`, `UpdateDraftApplicationAsync`, withdraw, cast vote, approve, reject; `POST /Governance/Applications/Create`, `POST /Governance/Applications/Withdraw/{id}`, `POST /Governance/BoardVoting/Vote`, `POST /Governance/BoardVoting/Finalize` |
 | S5 | *Who needs a renewal nudge, and has it gone out?* | write surface, job-only | `GetExpiringApplicationsNeedingReminderAsync`, `GetPendingApplicationUserTiersAsync`, `MarkRenewalReminderSentAsync`; `TermRenewalReminderJob` |
-| S6 | *Is this person in good standing, and what are they missing?* | membership-calculator read surface | the whole of `IMembershipCalculatorRead` — consent completeness (per person, per team, batched), the consolidated snapshot, the six-bucket partition, required-team resolution |
+| S6 | *Is this person in good standing, and what are they missing?* | membership-calculator read surface | the whole of `IMembershipCalculatorRead` — consent completeness (per person, per team, batched), the consolidated snapshot, the standing partition, required-team resolution |
 | S7 | *GDPR and identity plumbing* | crosscut contracts | `IUserDataContributor` export + erasure declaration, `IUserMerge` re-FK |
 
 Load-bearing consequence of the grouping: **S6 shares no data, no entity and no caller shape
 with S1–S5.** It owns no table, reads nothing this section writes, and answers a question about
 consent and profile state. Everything else here is the `applications` aggregate. A reader
-arriving at this section meets two unrelated things.
+arriving at this section meets things that have nothing to do with each other.
 
 ## 3. Structure
 
 Written fresh from the shapes, not from today's folders.
 
 - **`applications` aggregate** — `Application` (+ `ApplicationStateHistory`, `BoardVote` as
-  aggregate-local children), one repository as the sole reader/writer of the three tables, one
+  aggregate-local children), one repository as the sole reader/writer of its tables, one
   service holding the state-machine rules and the fan-out to email / notifications / audit /
   system teams. S1–S5 and S7 are all this.
 - **Term arithmetic** — one pure function (`TermExpiryCalculator`); no state, no dependencies.
 - **Membership standing** — one calculator (S6) with a query adapter under it whose only reason
   to exist is breaking the DI cycle through `ISystemTeamSync`. No repository, no table.
-- **Presentation** — three controllers, one per audience (own applications, Board voting, the
+- **Presentation** — one controller per audience (own applications, Board voting, the
   section index); view components for the member dashboard and the admin dashboard; one nav
   contribution; one job contribution.
-- **Contracts leaf** — exactly what lives outside the section: the read surface, the six members
+- **Contracts leaf** — exactly what lives outside the section: the read surface, the members
   the renewal job drives, the membership-calculator read surface, the DTOs those signatures
   name, and `ApplicationStatus`.
 
@@ -94,7 +94,7 @@ Specified but not built. Reserved, not ranked, not to be built by a doctor run.
 - **Request-more-info.** The state machine permits a `Submitted → Submitted` re-entry carrying
   reviewer notes, and the entity implements it, but no route, service method or UI reaches it.
   `Application.ReviewStartedAt` belongs to the same unbuilt flow: it has a private setter,
-  nothing sets it, and two DTOs and two views carry it through to the page as a permanent blank.
+  nothing sets it, and DTOs and views carry it through to the page as a permanent blank.
 - **Colaborador-before-Asociado.** The Create page defaults the radio to Asociado for an
   approved Colaborador, but no rule requires the order. Whether one should exist is not settled.
 
@@ -115,12 +115,12 @@ Specified but not built. Reserved, not ranked, not to be built by a doctor run.
 Settled decisions. Do not re-litigate.
 
 - `IMembershipQuery` looks like a pointless pass-through over `ITeamServiceRead` and
-  `IRoleAssignmentService`. It is not: injecting those two directly closes a DI cycle through
+  `IRoleAssignmentService`. It is not: injecting them directly closes a DI cycle through
   `ISystemTeamSync` and trips `ValidateOnBuild`. Same for the lazy `IConsentServiceRead`
   resolve through `IServiceProvider` inside `MembershipCalculator`.
 - `TermRenewalReminderJob` is `public` in a section assembly (HUM0034 makes that an error for
   everything else) because Shell names the concrete type when it schedules it.
-- `Humans.Governance` references two whole sections — `Humans.Consent` and `Humans.Onboarding` —
+- `Humans.Governance` references whole sections — `Humans.Consent` and `Humans.Onboarding` —
   for their resource markers alone. Both are acyclic and disclosed in the csproj.
 - The Contracts leaf exists as a separate project, not a folder, because Base-resident consumers
   read through it; a folder inside the section would make Base reference a section.
@@ -135,4 +135,4 @@ Settled decisions. Do not re-litigate.
 
 | Run | Date | Headline | PR |
 |---|---|---|---|
-| 1 | 2026-09-02 | Term expiry shown wrong on both member pages; dead `/Governance/MyApplications` notification link; three dead surfaces; doc and comment truth | peterdrier/Humans#1580 |
+| 1 | 2026-09-02 | Term expiry shown wrong on both member pages; dead `/Governance/MyApplications` notification link; dead surface removed; doc and comment truth | peterdrier/Humans#1580 |
