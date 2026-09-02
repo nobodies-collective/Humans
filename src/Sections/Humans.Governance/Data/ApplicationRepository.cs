@@ -137,15 +137,6 @@ internal sealed class ApplicationRepository(IDbContextFactory<GovernanceDbContex
                 a => a.UserId == userId && a.Status == ApplicationStatus.Submitted,
                 ct), ct);
 
-    public async Task<IReadOnlyList<MembershipTier>> GetApprovedTiersForUserAsync(
-        Guid userId, CancellationToken ct = default) =>
-        await WithContextAsync(async ctx => await ctx.Applications
-            .AsNoTracking()
-            .Where(a => a.UserId == userId && a.Status == ApplicationStatus.Approved)
-            .Select(a => a.MembershipTier)
-            .Distinct()
-            .ToListAsync(ct), ct);
-
     public async Task<IReadOnlyList<MemberApplication>> GetAllSubmittedWithVotesAsync(
         CancellationToken ct = default) =>
         await WithContextAsync(async ctx => await ctx.Applications

@@ -102,13 +102,6 @@ internal interface IApplicationRepository : IRepository
         Guid userId, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns the distinct Approved-status membership tiers for a user.
-    /// Read-only.
-    /// </summary>
-    Task<IReadOnlyList<MembershipTier>> GetApprovedTiersForUserAsync(
-        Guid userId, CancellationToken ct = default);
-
-    /// <summary>
     /// Returns every Submitted application, including aggregate-local
     /// <c>BoardVotes</c>, ordered by tier then <c>SubmittedAt</c>. Read-only.
     /// </summary>

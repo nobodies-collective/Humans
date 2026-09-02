@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 using Humans.Base.Constants;
+using Humans.Base.Interfaces;
 using Humans.Base.Enums;
 using Humans.Consent.Contracts;
 using Humans.Governance.Contracts;
@@ -14,11 +15,11 @@ internal sealed class MembershipCalculator(
     IUserServiceRead userService,
     ILegalDocumentSyncServiceRead legalDocumentSyncService,
     IServiceProvider serviceProvider,
-    IClock clock) : IMembershipCalculator
+    IClock clock) : IMembershipCalculatorRead, IOrchestrator
 {
     // IMembershipQuery (not ITeamService/IRoleAssignmentService) breaks DI cycle through ISystemTeamSync.
 
-    // Lazy IConsentServiceRead resolve — ConsentService depends on IMembershipCalculator.
+    // Lazy IConsentServiceRead resolve — ConsentService depends on IMembershipCalculatorRead.
 
     private IConsentServiceRead ConsentService => serviceProvider.GetRequiredService<IConsentServiceRead>();
 
@@ -125,11 +126,6 @@ internal sealed class MembershipCalculator(
         var consentedVersionIds = await ConsentService.GetConsentedVersionIdsAsync(userId, ct);
         return requiredVersions.All(v => consentedVersionIds.Contains(v.Id));
     }
-
-    public Task<bool> HasAnyExpiredConsentsAsync(
-        Guid userId,
-        CancellationToken cancellationToken = default) =>
-        HasAnyExpiredConsentsForTeamAsync(userId, SystemTeamIds.Volunteers, cancellationToken);
 
     public async Task<bool> HasAnyExpiredConsentsForTeamAsync(
         Guid userId,

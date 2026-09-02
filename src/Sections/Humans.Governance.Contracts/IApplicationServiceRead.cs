@@ -38,14 +38,6 @@ public interface IApplicationServiceRead
         Guid userId, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns the distinct Approved-status tier values for a user. Used by
-    /// the consent-check flow to decide which system-team syncs to run after
-    /// a clear-consent-check action.
-    /// </summary>
-    Task<IReadOnlyList<MembershipTier>> GetApprovedTiersForUserAsync(
-        Guid userId, CancellationToken ct = default);
-
-    /// <summary>
     /// Returns the number of Submitted applications that the given board
     /// member has not yet voted on. Used by the per-board-member voting badge.
     /// </summary>

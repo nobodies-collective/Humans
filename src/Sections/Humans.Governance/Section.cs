@@ -40,13 +40,12 @@ public sealed class Section : ISection
 
         services.AddScoped<IGovernanceIndexService, GovernanceIndexService>();
 
-        // Query adapter breaks the circular DI graph between IMembershipCalculator
-        // and ITeamService / IRoleAssignmentService (both of which inject
+        // Query adapter breaks the circular DI graph between MembershipCalculator
+        // and ITeamServiceRead / IRoleAssignmentService (both of which inject
         // ISystemTeamSync, whose implementation injects IMembershipCalculatorRead back).
         // Only MembershipCalculator depends on the query adapter.
         services.AddScoped<IMembershipQuery, MembershipQuery>();
         services.AddScoped<MembershipCalculator>();
-        services.AddScoped<IMembershipCalculator>(sp => sp.GetRequiredService<MembershipCalculator>());
         services.AddScoped<IMembershipCalculatorRead>(sp => sp.GetRequiredService<MembershipCalculator>());
 
         // Base cannot name a moved section's enums, so the section pushes its badge rows into

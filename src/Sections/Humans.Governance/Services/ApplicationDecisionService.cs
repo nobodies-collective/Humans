@@ -410,10 +410,6 @@ internal sealed class ApplicationDecisionService(
                 application.Motivation);
     }
 
-    public Task<IReadOnlyList<MembershipTier>> GetApprovedTiersForUserAsync(
-        Guid userId, CancellationToken ct = default) =>
-        repository.GetApprovedTiersForUserAsync(userId, ct);
-
     public async Task<BoardVotingDashboardData> GetBoardVotingDashboardAsync(
         CancellationToken ct = default)
     {

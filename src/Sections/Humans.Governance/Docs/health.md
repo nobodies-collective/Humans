@@ -32,7 +32,7 @@ The external surface, grouped by the question each group answers.
 
 | # | Question shape | Where it is answered | Surface |
 |---|---|---|---|
-| S1 | *What tier applications does this person have, and what happened to them?* | contracts read surface + own pages | `GetUserApplicationsAsync`, `GetSubmittedApplicationForUserAsync`, `GetUserIdsWithPendingApplicationAsync`, `GetApprovedTiersForUserAsync`; `GET /Governance`, `GET /Governance/Applications`, `GET /Governance/Applications/Details/{id}` |
+| S1 | *What tier applications does this person have, and what happened to them?* | contracts read surface + own pages | `GetUserApplicationsAsync`, `GetSubmittedApplicationForUserAsync`, `GetUserIdsWithPendingApplicationAsync`; `GET /Governance`, `GET /Governance/Applications`, `GET /Governance/Applications/Details/{id}` |
 | S2 | *Does this person hold an active tier today?* | contracts read surface | `HasActiveApprovedTierAsync`, `GetActiveApprovedTierUserIdsAsync`, `GetOtherActiveTierAssignmentsAsync` |
 | S3 | *What is still on the Board's plate?* | contracts read surface + admin pages | `GetUnvotedApplicationCountAsync`, `GetPendingApplicationCountAsync`, `GetAdminStatsAsync`; `GET /Governance/Applications/Admin[/{id}]`, `GET /Governance/BoardVoting[/{id}]` |
 | S4 | *Move one application along its state machine* | write surface + own pages | `ValidateSubmission`, `SubmitAsync`, `UpdateDraftApplicationAsync`, withdraw, cast vote, approve, reject; `POST /Governance/Applications/Create`, `POST /Governance/Applications/Withdraw/{id}`, `POST /Governance/BoardVoting/Vote`, `POST /Governance/BoardVoting/Finalize` |
