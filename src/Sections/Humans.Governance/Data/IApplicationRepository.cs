@@ -9,14 +9,12 @@ namespace Humans.Governance.Data;
 
 /// <summary>
 /// Repository for the Governance aggregate (<c>applications</c>,
-/// <c>application_state_histories</c>, <c>board_votes</c>). The only non-test
+/// <c>application_state_history</c>, <c>board_votes</c>). The only non-test
 /// file that may touch those DbSets.
 /// </summary>
 /// <remarks>
-/// Returns entities with aggregate-local navigation collections
-/// (<c>StateHistory</c>, <c>BoardVotes</c>) eagerly loaded when appropriate,
-/// but never cross-domain navs — those are FK-only after the migration.
-/// See <c>docs/architecture/design-rules.md</c> §3 for the canonical shape.
+/// Aggregate-local navs only (<c>StateHistory</c>, <c>BoardVotes</c>), eagerly
+/// loaded where the caller needs them; never cross-domain navs.
 /// </remarks>
 internal interface IApplicationRepository : IRepository
 {
@@ -40,8 +38,7 @@ internal interface IApplicationRepository : IRepository
     Task<bool> AnySubmittedForUserAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
-    /// Count applications in a given status. Used by the admin dashboard
-    /// and the Board daily digest.
+    /// Count applications in a given status.
     /// </summary>
     Task<int> CountByStatusAsync(ApplicationStatus status, CancellationToken ct = default);
 
@@ -82,8 +79,8 @@ internal interface IApplicationRepository : IRepository
 
     /// <summary>
     /// Returns the distinct user ids of every Board member who has cast a
-    /// vote on this application. Used by the caching decorator to
-    /// invalidate per-voter voting badges after a successful finalize.
+    /// vote on this application, so the per-voter voting badges can be
+    /// invalidated after a successful finalize.
     /// </summary>
     Task<IReadOnlyList<Guid>> GetVoterIdsForApplicationAsync(Guid applicationId, CancellationToken ct = default);
 
@@ -194,15 +191,6 @@ internal interface IApplicationRepository : IRepository
     // ==========================================================================
 
     /// <summary>
-    /// Bulk-moves <c>Application</c> rows from <paramref name="sourceUserId"/>
-    /// to <paramref name="targetUserId"/>. Plain re-FK — applications are
-    /// historical records that may exist on both sides (e.g. a Colaborador
-    /// application from 2024 on source plus another on target across years);
-    /// every row is preserved. <c>UpdatedAt</c> is stamped to
-    /// <paramref name="updatedAt"/>. Returns the count of <c>Application</c>
-    /// rows attributed to <paramref name="targetUserId"/> after the move.
-    /// </summary>
-    /// <summary>
     /// GDPR Art. 17: clears the applicant's own free text (motivation, additional
     /// info, contribution, role understanding) and the reviewer prose attached to
     /// their applications, leaving the tier/status/date skeleton the association
@@ -210,6 +198,11 @@ internal interface IApplicationRepository : IRepository
     /// </summary>
     Task<int> ScrubFreeTextForUserAsync(Guid userId, Instant updatedAt, CancellationToken ct = default);
 
+    /// <summary>
+    /// Plain re-FK: no conflict rule, no dedup — every row is preserved,
+    /// because a person may hold applications on both sides. Returns the count
+    /// attributed to <paramref name="targetUserId"/> after the move.
+    /// </summary>
     Task<int> ReassignApplicationsToUserAsync(
         Guid sourceUserId,
         Guid targetUserId,

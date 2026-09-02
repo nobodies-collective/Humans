@@ -10,8 +10,7 @@ namespace Humans.Governance.Data;
 /// <summary>
 /// EF-backed implementation of <see cref="IApplicationRepository"/>. The only
 /// non-test file that touches <c>DbContext.Applications</c>,
-/// <c>DbContext.BoardVotes</c>, or <c>DbContext.ApplicationStateHistories</c>
-/// after the Governance migration lands.
+/// <c>DbContext.BoardVotes</c> or <c>DbContext.ApplicationStateHistories</c>.
 /// </summary>
 internal sealed class ApplicationRepository(IDbContextFactory<GovernanceDbContext> factory) : IApplicationRepository
 {

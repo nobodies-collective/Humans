@@ -46,7 +46,7 @@ public interface IApplicationServiceRead
 
     /// <summary>
     /// Returns the aggregate statistics for the admin dashboard's tier
-    /// application block. Counts exclude <see cref="Domain.Enums.ApplicationStatus.Withdrawn"/>.
+    /// application block. Counts exclude <see cref="ApplicationStatus.Withdrawn"/>.
     /// </summary>
     Task<ApplicationAdminStats> GetAdminStatsAsync(CancellationToken ct = default);
 

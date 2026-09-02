@@ -393,7 +393,6 @@ internal sealed class ApplicationDecisionService(
             History: history);
     }
 
-    // Onboarding-section support methods — Governance owns application/board-vote tables (design-rules §2c).
     public Task<IReadOnlySet<Guid>> GetUserIdsWithPendingApplicationAsync(
         IReadOnlyCollection<Guid> userIds, CancellationToken ct = default) =>
         repository.GetUserIdsWithSubmittedAsync(userIds, ct);
