@@ -84,7 +84,7 @@ The structural rules the layout has to keep:
 Stated so a violation is recognisable:
 
 - A presented key resolves to exactly one person, and that person becomes the request principal.
-  No key, unknown key, revoked key → 401, all three indistinguishable.
+  No key, unknown key, revoked key → 401, all indistinguishable.
 - The database never holds a plaintext key: SHA-256 hash plus a 12-character display prefix.
 - A key authenticates only while its owner is **both** in Admin or Board **and** in
   `UserState.Active` — tested at issue, at rotate, and on every single request. Failing the test
