@@ -148,4 +148,4 @@ Essential complexity and settled decisions, so later runs stop re-litigating the
 
 | Run | Date | Headline | PR |
 |---|---|---|---|
-| section-doctor | 2026-09-03 | First doctoring: unclamped `?limit=` reaching SQL, a dead project reference, and the untested feedback controller | peterdrier/Humans#pending |
+| section-doctor | 2026-09-03 | First doctoring: unclamped `?limit=` reaching SQL, a dead project reference, and the untested feedback controller | peterdrier/Humans#1586 |
