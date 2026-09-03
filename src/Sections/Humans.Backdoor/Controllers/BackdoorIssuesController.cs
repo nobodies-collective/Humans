@@ -10,13 +10,11 @@ using NodaTime;
 namespace Humans.Backdoor.Controllers;
 
 /// <summary>
-/// The in-app issue queue, for an agent running triage. Was <c>/api/issues</c> in the Issues
-/// section before the machine surfaces consolidated here (nobodies-collective/Humans#1128).
+/// The in-app issue queue, for an agent running triage.
 /// </summary>
 /// <remarks>
 /// Every write passes <c>ActorUserId</c> — the human the presented key belongs to, resolved by
-/// <see cref="BackdoorApiKeyAuthFilter"/>. Before #1128 these calls passed <c>null</c> and the
-/// audit thread could not say who acted.
+/// <see cref="BackdoorApiKeyAuthFilter"/>.
 /// </remarks>
 [ApiController]
 [Route("api/backdoor/issues")]
@@ -65,7 +63,6 @@ internal sealed class BackdoorIssuesController(
         if (issue is null) return NotFound();
 
         var thread = await issues.GetThreadAsync(id);
-        // ReporterEmail sourced from UserInfo (not User.Email) — keeps shape parity with the list endpoint. See PR 618.
         var displayUsers = await GetIssueDisplayUsersAsync(issue);
         return Ok(MapDetail(issue, thread, displayUsers));
     }
@@ -140,7 +137,6 @@ internal sealed class BackdoorIssuesController(
         }
         catch (InvalidOperationException)
         {
-            // 404 on missing — log Warning per always-log-problems.
             logger.LogWarning("Issue {IssueId} not found during API PostComment", id);
             return NotFound();
         }
@@ -162,7 +158,6 @@ internal sealed class BackdoorIssuesController(
         }
         catch (InvalidOperationException)
         {
-            // 404 on missing — log Warning per always-log-problems.
             logger.LogWarning("Issue {IssueId} not found during API UpdateStatus", id);
             return NotFound();
         }
@@ -183,7 +178,6 @@ internal sealed class BackdoorIssuesController(
         }
         catch (InvalidOperationException)
         {
-            // 404 on missing — log Warning per always-log-problems.
             logger.LogWarning("Issue {IssueId} not found during API UpdateAssignee", id);
             return NotFound();
         }
@@ -204,7 +198,6 @@ internal sealed class BackdoorIssuesController(
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase))
         {
-            // 404 on missing — log Warning per always-log-problems.
             logger.LogWarning("Issue {IssueId} not found during API UpdateSection: {Reason}", id, ex.Message);
             return NotFound();
         }
@@ -231,7 +224,6 @@ internal sealed class BackdoorIssuesController(
         }
         catch (InvalidOperationException)
         {
-            // 404 on missing — log Warning per always-log-problems.
             logger.LogWarning("Issue {IssueId} not found during API SetGitHubIssue", id);
             return NotFound();
         }

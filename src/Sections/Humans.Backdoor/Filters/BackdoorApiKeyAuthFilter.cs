@@ -9,8 +9,7 @@ namespace Humans.Backdoor.Filters;
 /// <summary>
 /// The one <c>X-Api-Key</c> gate on <c>/api/backdoor/*</c>. Resolves the presented key to
 /// the human it was issued to and installs that human as the request principal, so every
-/// read is attributable and every write records a real actor instead of <c>null</c>
-/// (nobodies-collective/Humans#1128).
+/// read is attributable and every write records a real actor instead of <c>null</c>.
 /// </summary>
 /// <remarks>
 /// 401 covers both a missing header and an unknown or revoked key — deliberately
@@ -22,7 +21,6 @@ internal sealed class BackdoorApiKeyAuthFilter(IBackdoorApiKeyService keys) : IA
 {
     public const string ApiKeyHeaderName = "X-Api-Key";
 
-    /// <summary>The <c>AuthenticationType</c> stamped on the identity a key produces.</summary>
     public const string AuthenticationScheme = BackdoorAuthentication.SchemeName;
 
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)

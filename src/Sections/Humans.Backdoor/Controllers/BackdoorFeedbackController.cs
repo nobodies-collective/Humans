@@ -9,14 +9,11 @@ using Microsoft.AspNetCore.Mvc;
 namespace Humans.Backdoor.Controllers;
 
 /// <summary>
-/// The feedback queue, for an agent working the thread. Was <c>/api/feedback</c> in the
-/// Feedback section before the machine surfaces consolidated here
-/// (nobodies-collective/Humans#1128).
+/// The feedback queue, for an agent working the thread.
 /// </summary>
 /// <remarks>
 /// Every mutation carries <c>ActorUserId</c> — the human the presented key belongs
-/// to, resolved by <see cref="BackdoorApiKeyAuthFilter"/>. Before #1128 they passed
-/// <c>null</c>, so an API reply showed up in the thread as nobody.
+/// to, resolved by <see cref="BackdoorApiKeyAuthFilter"/>.
 /// </remarks>
 [ApiController]
 [Route("api/backdoor/feedback")]
@@ -102,7 +99,6 @@ internal sealed class BackdoorFeedbackController(
         }
         catch (InvalidOperationException)
         {
-            // 404 on missing — log Warning per always-log-problems.
             logger.LogWarning("Feedback {FeedbackId} not found during API PostMessage", id);
             return NotFound();
         }
@@ -123,7 +119,6 @@ internal sealed class BackdoorFeedbackController(
         }
         catch (InvalidOperationException)
         {
-            // 404 on missing — log Warning per always-log-problems.
             logger.LogWarning("Feedback {FeedbackId} not found during API UpdateStatus", id);
             return NotFound();
         }
@@ -144,7 +139,6 @@ internal sealed class BackdoorFeedbackController(
         }
         catch (InvalidOperationException)
         {
-            // 404 on missing — log Warning per always-log-problems.
             logger.LogWarning("Feedback {FeedbackId} not found during API UpdateAssignment", id);
             return NotFound();
         }
@@ -165,7 +159,6 @@ internal sealed class BackdoorFeedbackController(
         }
         catch (InvalidOperationException)
         {
-            // 404 on missing — log Warning per always-log-problems.
             logger.LogWarning("Feedback {FeedbackId} not found during API SetGitHubIssue", id);
             return NotFound();
         }
