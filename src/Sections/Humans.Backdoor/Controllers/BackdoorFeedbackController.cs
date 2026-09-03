@@ -24,6 +24,9 @@ internal sealed class BackdoorFeedbackController(
     ILogger<BackdoorFeedbackController> logger)
     : ApiControllerBase(users)
 {
+    /// <summary>Ceiling on <c>?limit=</c>, matching the section's other list endpoints.</summary>
+    private const int MaxLimit = 1000;
+
     /// <summary>The key owner, as recorded on everything this controller writes.</summary>
     private Guid ActorUserId => GetCurrentUserId() ?? Guid.Empty;
 
@@ -33,7 +36,8 @@ internal sealed class BackdoorFeedbackController(
         [FromQuery] FeedbackCategory? category,
         [FromQuery] int limit = 50)
     {
-        var reports = await feedback.GetFeedbackListAsync(status, category, limit: limit);
+        var reports = await feedback.GetFeedbackListAsync(
+            status, category, limit: Math.Clamp(limit, 1, MaxLimit));
         return Ok(reports.Select(MapSummary));
     }
 

@@ -1,5 +1,11 @@
 <!-- freshness:triggers
   src/Sections/Humans.Backdoor/**
+  src/Humans.Web/Authorization/MembershipRequiredFilter.cs
+  src/Humans.Web/Authorization/NameRequiredFilter.cs
+  src/Sections/Humans.Agent/Contracts/IAgentTranscriptRead.cs
+  src/Sections/Humans.Feedback/Contracts/IFeedbackTriage.cs
+  src/Sections/Humans.Issues.Contracts/IIssueTriage.cs
+  src/Sections/Humans.Surveys/Contracts/ISurveyAnalysisRead.cs
 -->
 <!-- freshness:flag-on-change
   Re-read the surface table and the auth model whenever a controller, the key service or the auth filter changes: the routes are a published contract for agents, and the "one key = one human" rule is the whole point of the section.
@@ -43,7 +49,7 @@ The machine surface. Every key-authed API an agent talks to lives here, under `/
 | Route | Access | Serves |
 |-------|--------|--------|
 | `/api/backdoor/logs` | read | The in-memory log ring (`InMemoryLogSink`, Base) |
-| `/api/backdoor/agent` | read | Agent conversation transcripts, via `IAgentTranscriptRead` |
+| `/api/backdoor/agent/conversations` | read | Agent conversation transcripts — list, one conversation, its messages — via `IAgentTranscriptRead` |
 | `/api/backdoor/issues` | read + write | The issue queue, via `IIssueTriage` |
 | `/api/backdoor/feedback` | read + write | The feedback queue, via `IFeedbackTriage` |
 | `/api/backdoor/surveys` | read | Survey definitions, responses and aggregates, via `ISurveyAnalysisRead` |

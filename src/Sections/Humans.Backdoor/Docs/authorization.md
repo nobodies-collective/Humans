@@ -3,7 +3,7 @@
 | Controller | Scope | Roles | Source |
 |---|---|---|---|
 | `BackdoorController` (`/Backdoor`) | Class | `Admin` | `PolicyNames.AdminOnly` (`Index`, `Issue`, `Rotate`, `Revoke` all inherit) |
-| `BackdoorAgentController` | Class | `[ServiceFilter(typeof(BackdoorApiKeyAuthFilter))]` (personal-key auth) | `BackdoorApiKeyAuthFilter` (key-authed agent transcript read API at `/api/backdoor/agent` — `List`; reads `Humans.Agent` through `IAgentTranscriptRead`) |
+| `BackdoorAgentController` | Class | `[ServiceFilter(typeof(BackdoorApiKeyAuthFilter))]` (personal-key auth) | `BackdoorApiKeyAuthFilter` (key-authed agent transcript read API at `/api/backdoor/agent/conversations` — `List`, `Get`, `GetMessages`; reads `Humans.Agent` through `IAgentTranscriptRead`) |
 | `BackdoorFeedbackController` | Class | `[ServiceFilter(typeof(BackdoorApiKeyAuthFilter))]` (personal-key auth) | `BackdoorApiKeyAuthFilter` (key-authed read+write API at `/api/backdoor/feedback`; reads and triages `Humans.Feedback` through `IFeedbackTriage`) |
 | `BackdoorIssuesController` | Class | `[ServiceFilter(typeof(BackdoorApiKeyAuthFilter))]` (personal-key auth) | `BackdoorApiKeyAuthFilter` (key-authed read+write API at `/api/backdoor/issues`; reads and triages `Humans.Issues` through `IIssueTriage`) |
 | `BackdoorLogsController` | Class | `[ServiceFilter(typeof(BackdoorApiKeyAuthFilter))]` (personal-key auth) | `BackdoorApiKeyAuthFilter` (key-authed log-tail read API at `/api/backdoor/logs`; reads `InMemoryLogSink`, `Humans.Base`) |

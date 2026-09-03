@@ -25,12 +25,13 @@ Cross-section calls via `IRoleAssignmentService` (Admin/Board eligibility),
 (GDPR export slice `GdprExportSections.BackdoorApiKeys`, hash excluded),
 `IUserMerge` (folds an eliminated account's keys onto the survivor).
 
-The four `/api/backdoor/*` machine APIs (`agent`, `issues`, `feedback`,
-`surveys`) are thin controller orchestrators over another section's
-contracts interface (`IAgentTranscriptRead`, `IIssueTriage`,
+Four of the five `/api/backdoor/*` machine APIs (`agent`, `issues`,
+`feedback`, `surveys`) are thin controller orchestrators over another
+section's contracts interface (`IAgentTranscriptRead`, `IIssueTriage`,
 `IFeedbackTriage`, `ISurveyAnalysisRead`) — Backdoor's own repository is
 never touched by them, and they carry no `###` heading here since each is
-documented in the section that owns the interface.
+documented in the section that owns the interface. The fifth, `logs`, reads
+`InMemoryLogSink` from `Humans.Base` and owns no data either.
 
 ---
 

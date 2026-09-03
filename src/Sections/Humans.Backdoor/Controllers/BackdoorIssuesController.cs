@@ -25,6 +25,9 @@ internal sealed class BackdoorIssuesController(
     ILogger<BackdoorIssuesController> logger)
     : ApiControllerBase(users)
 {
+    /// <summary>Ceiling on <c>?limit=</c>, matching the section's other list endpoints.</summary>
+    private const int MaxLimit = 1000;
+
     /// <summary>The key owner, as recorded on everything this controller writes.</summary>
     private Guid ActorUserId => GetCurrentUserId() ?? Guid.Empty;
 
@@ -45,7 +48,7 @@ internal sealed class BackdoorIssuesController(
             ReporterUserId: reporter,
             AssigneeUserId: assignee,
             SearchText: string.IsNullOrWhiteSpace(search) ? null : search,
-            Limit: limit);
+            Limit: Math.Clamp(limit, 1, MaxLimit));
 
         var rows = await issues.GetIssueListAsync(
             filter,
