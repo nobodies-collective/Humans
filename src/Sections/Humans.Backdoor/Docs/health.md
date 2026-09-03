@@ -143,3 +143,9 @@ Essential complexity and settled decisions, so later runs stop re-litigating the
   detach a deleted admin from a key that still belongs to someone else.
 - **The migrations-history table is `__EFMigrationsHistory_Backdoor`.** One database, one
   connection; the split is a code-side partition of the EF model.
+
+## History
+
+| Run | Date | Headline | PR |
+|---|---|---|---|
+| section-doctor | 2026-09-03 | First doctoring: unclamped `?limit=` reaching SQL, a dead project reference, and the untested feedback controller | peterdrier/Humans#pending |
