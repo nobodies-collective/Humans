@@ -19,7 +19,7 @@ The key stops working the moment its holder stops being an active Admin or Board
 not deleted when that happens — it is refused, so restoring the role or lifting the suspension
 brings it back.
 
-What the key opens is a small, fixed set of read and write surfaces borrowed from four other
+What the key opens is a small, fixed set of read and write surfaces borrowed from other
 parts of the app plus the log tail: the in-memory logs, agent conversation transcripts, the
 issue queue, the feedback queue, and survey definitions with their responses and aggregates.
 None of that data is this section's; it owns only the keys.
@@ -31,23 +31,23 @@ listed. The grouping is what makes collapse and duplication visible.
 
 | # | Shape | Where it appears | Notes |
 |---|---|---|---|
-| S1 | **Credential lifecycle** — allocate, rotate, revoke, list | `/Backdoor` (4 admin actions) | The section's own domain. HTML, cookie-authed, Admin-only |
+| S1 | **Credential lifecycle** — allocate, rotate, revoke, list | `/Backdoor` | The section's own domain. HTML, cookie-authed, Admin-only |
 | S2 | **Authenticate a machine** — presented secret → a person | one authorization filter | The single gate; everything under S3–S6 hangs off it |
-| S3 | **List a queue, filtered** — parse and clamp query, delegate, project | logs, agent conversations, issues, feedback, surveys | 5 endpoints, one shape |
-| S4 | **Fetch one item in full** — delegate, 404 on missing, project | issue, feedback report, conversation, survey definition, survey aggregates | 5 endpoints, one shape |
-| S5 | **Fetch one item's sub-collection** — re-fetch parent, 404, project the collection | issue comments, feedback messages, conversation messages, survey responses | 4 endpoints; the parent re-fetch is the price of a 404 |
-| S6 | **Append to an item's thread** — validate model, delegate, echo the new row | issue comment, feedback message | 2 endpoints, one shape |
-| S7 | **Patch one field on an item** — delegate `(id, value, actor)`, `{success:true}`, 404 on missing | issue status / assignee / section / github-issue; feedback status / assignment / github-issue | **7 endpoints, one shape** — the section's largest block of repetition |
-| S8 | **Create an item** | issue create | 1 endpoint |
+| S3 | **List a queue, filtered** — parse and clamp query, delegate, project | logs, agent conversations, issues, feedback, surveys | One shape |
+| S4 | **Fetch one item in full** — delegate, 404 on missing, project | issue, feedback report, conversation, survey definition, survey aggregates | One shape |
+| S5 | **Fetch one item's sub-collection** — re-fetch parent, 404, project the collection | issue comments, feedback messages, conversation messages, survey responses | The parent re-fetch is the price of a 404 |
+| S6 | **Append to an item's thread** — validate model, delegate, echo the new row | issue comment, feedback message | One shape |
+| S7 | **Patch one field on an item** — delegate `(id, value, actor)`, `{success:true}`, 404 on missing | issue status / assignee / section / github-issue; feedback status / assignment / github-issue | **One shape** — and the section's largest block of repetition |
+| S8 | **Create an item** | issue create | |
 | F1 | **User-data fan-outs** — export slice, erasure, merge fold | the key service | Owed because `backdoor_api_keys` is user-keyed |
 
-Two facts follow from the table and drive everything below:
+What follows from the table drives everything below:
 
 - **S1 + S2 + F1 is the whole of Backdoor's own logic.** Everything under S3–S8 is translation:
   parse, delegate to another section's contracts interface, shape JSON. A rule that lives in a
   controller here is a rule in the wrong section.
-- **S7 is seven near-identical bodies across two controllers.** The right shape is one
-  expression of the patch pipeline per controller, not seven.
+- **S7 is one near-identical body per patch endpoint, spread across the controllers that
+  carry it.** The right shape is one expression of the patch pipeline per controller.
 
 ## 3. Structure
 
@@ -69,10 +69,11 @@ Controllers/        BackdoorController          — S1, HTML, Admin cookie
 Views/Backdoor/     one page
 ```
 
-Two structural rules the layout has to keep:
+The structural rules the layout has to keep:
 
 - **The project references exactly the assemblies its types come from.** Backdoor is a leaf that
-  reaches four sections; every one of those references is load-bearing or it is not there. A
+  reaches the sections it serves; every one of those references is load-bearing or it is not
+  there. A
   reference retained "because the section is served here" is dead weight that widens the graph.
 - **A request-shaping default that can never fire is not a safety net.** S2 guarantees a
   principal before any S3–S8 body runs; a controller that also carries a fallback for its
@@ -98,14 +99,14 @@ Stated so a violation is recognisable:
 - A key-authed principal carries the Backdoor scheme and no role or state claims, and the
   Shell's onboarding gates let it through rather than redirecting a JSON client to HTML.
 - Erasure hard-deletes the person's own keys and detaches them from anyone else's as both
-  creator and revoker. Merge re-points all three columns onto the survivor.
+  creator and revoker. Merge re-points every one of those columns onto the survivor.
 
 ## 5. Seams
 
 Specified-but-unbuilt work. Not built here, not ranked — reserved so items touching it are
 shaped by it.
 
-- **Per-key scope.** A key is all-or-nothing across the five surfaces today. Nothing in the model
+- **Per-key scope.** A key is all-or-nothing across every surface it opens today. Nothing in the model
   says a key could be read-only or single-surface, and nothing has asked for it.
 - **Viewer fidelity on the served queues.** The issue queue is fetched as a full admin regardless
   of whether the key's owner is an Admin or only a Board member. Whether the machine surface is
@@ -118,22 +119,23 @@ shaped by it.
   hash probe at a handful of requests per minute.
 - **No resource set.** Every string on the one page is English admin plumbing, read only by full
   Admins — the same call Debug makes.
-- **No shared base controller for the machine surface.** Five controllers over six shapes looks
-  like a base class; it would be one, in Base, serving one section, and would put the patch
+- **No shared base controller for the machine surface.** A controller per served section, over
+  shapes they share, looks like a base class; it would be one, in Base, serving one section, and would put the patch
   pipeline further from the rules it enforces. Collapse within a controller, not across them.
 - **No auto-revocation on ineligibility.** Refusal is reversible and a transient role gap must
   not destroy a credential.
-- **No FK constraints on the three user columns.** Cross-section Guids by rule.
+- **No FK constraints on the user columns.** Cross-section Guids by rule.
 
 ## Load-bearing weirdness
 
 Essential complexity and settled decisions, so later runs stop re-litigating them:
 
-- **The section exists to hold routes that came from five other sections.** `/api/backdoor/logs`
+- **The section exists to hold routes that came from other sections.** `/api/backdoor/logs`
   was Debug's, `/agent` was Agent's, `/issues` was Issues', `/feedback` was Feedback's,
   `/surveys` was Surveys'. Consolidating them is what made one auth model possible; the
   controllers living away from the data they serve is the point, not drift.
-- **`Humans.Backdoor` references four section assemblies.** That is legal precisely because
+- **`Humans.Backdoor` references the section assemblies it serves.** That is legal precisely
+  because
   each is reached only through a public contracts interface and nothing references Backdoor
   back — the graph stays acyclic because this section is a leaf.
 - **The account-state half of eligibility is not redundant with the role half.** Suspension
