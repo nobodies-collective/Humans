@@ -32,7 +32,7 @@ listed. The grouping is what makes collapse and duplication visible.
 | # | Shape | Where it appears | Notes |
 |---|---|---|---|
 | S1 | **Credential lifecycle** — allocate, rotate, revoke, list | `/Backdoor` | The section's own domain. HTML, cookie-authed, Admin-only |
-| S2 | **Authenticate a machine** — presented secret → a person | one authorization filter | The single gate; everything under S3–S6 hangs off it |
+| S2 | **Authenticate a machine** — presented secret → a person | one authorization filter | The single gate; the filter is class-scoped on every machine controller, so all of S3–S8 hangs off it |
 | S3 | **List a queue, filtered** — parse and clamp query, delegate, project | logs, agent conversations, issues, feedback, surveys | One shape |
 | S4 | **Fetch one item in full** — delegate, 404 on missing, project | issue, feedback report, conversation, survey definition, survey aggregates | One shape |
 | S5 | **Fetch one item's sub-collection** — re-fetch parent, 404, project the collection | issue comments, feedback messages, conversation messages, survey responses | The parent re-fetch is the price of a 404 |
