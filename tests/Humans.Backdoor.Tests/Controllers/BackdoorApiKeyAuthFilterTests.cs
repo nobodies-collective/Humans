@@ -33,7 +33,7 @@ public class BackdoorApiKeyAuthFilterTests
     }
 
     [HumansFact]
-    public async Task Unknown_or_revoked_key_is_401()
+    public async Task Unresolvable_key_is_401()
     {
         // No 503 "not configured" branch any more: keys are rows, not deploy-time config,
         // so an empty table is an unauthorized caller, not a broken server.

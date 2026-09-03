@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NSubstitute;
 using System.Security.Claims;
+using Xunit;
 
 namespace Humans.Backdoor.Tests.Controllers;
 
@@ -333,5 +334,48 @@ public class BackdoorIssuesControllerTests
         var result = await _sut.UpdateStatus(issueId, new UpdateIssueStatusModel { Status = IssueStatus.Resolved });
 
         result.Should().BeOfType<NotFoundResult>();
+    }
+
+    // ==========================================================================
+    // What the machine surface is allowed to see
+    // ==========================================================================
+
+    /// <summary>
+    /// The queue is fetched as a full admin whoever the key belongs to, so a Board-only key
+    /// holder sees rows the Issues UI would scope away from them. Pinned because it is a
+    /// deliberate-looking choice nothing states: change it and this test is the conversation.
+    /// </summary>
+    [HumansFact]
+    public async Task List_reads_the_queue_with_full_admin_visibility()
+    {
+        StubList();
+
+        await _sut.List(status: null, category: null, section: null, assignee: null);
+
+        await _issues.Received(1).GetIssueListAsync(
+            Arg.Any<IssueListFilter>(),
+            viewerUserId: Guid.Empty,
+            viewerRoles: Arg.Is<IReadOnlyList<string>>(r => r.Count == 0),
+            viewerIsAdmin: true,
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// The raw query value reaches a SQL <c>LIMIT</c> through <see cref="IssueListFilter"/>,
+    /// so the controller clamps it.
+    /// </summary>
+    [HumansTheory]
+    [InlineData(-1, 1)]
+    [InlineData(0, 1)]
+    [InlineData(50, 50)]
+    [InlineData(5000, 1000)]
+    public async Task List_clamps_the_limit(int requested, int expected)
+    {
+        IssueListFilter? captured = null;
+        StubList(f => captured = f);
+
+        await _sut.List(status: null, category: null, section: null, assignee: null, limit: requested);
+
+        captured!.Limit.Should().Be(expected);
     }
 }
