@@ -20,11 +20,15 @@ attempts, and lets an admin watch the whole queue, pause it, retry a stuck messa
 throw one away.
 
 Two kinds of mail get special treatment. Mail a human is *sitting waiting for* — a
-login link, a verification code, workspace credentials — skips the queue and is sent
-at once, because everything else drains at one message a second and a backlog would
-lock them out. Mail to a human the organisation has just erased is sent without being
-written down at all, because writing it down would recreate the personal data the
-erasure just removed.
+login link, a verification code, workspace credentials — is written down like
+everything else, but instead of waiting for the next minute's drain it starts one
+straight away, and it is picked up ahead of the other waiting mail when that drain
+runs. It is a shorter wait, not a bypass: a paused queue still stops it, and so does
+an unreachable scheduler, in which case the ordinary tick delivers it within the
+minute. The hurry is because everything else drains at one message a second and a
+backlog would lock them out. Mail to a human the organisation has just erased is sent
+without being written down at all, because writing it down would recreate the personal
+data the erasure just removed.
 
 The section is also the place a person can see what the organisation has emailed
 them, and the place that hands their mail history over on a data-export request and
