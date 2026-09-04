@@ -25,7 +25,10 @@ everything else, but instead of waiting for the next minute's drain it starts on
 straight away, and it is picked up ahead of the other waiting mail when that drain
 runs. It is a shorter wait, not a bypass: a paused queue still stops it, and so does
 an unreachable scheduler, in which case the ordinary tick delivers it within the
-minute. The hurry is because everything else drains at one message a second and a
+minute. Event-lifecycle mail gets half of that treatment — it starts a drain
+straight away but is not ordered ahead of anything once the drain runs — because
+the two switches are set independently. That split is unintended; which half
+should change is a decision for Peter. The hurry is because everything else drains at one message a second and a
 backlog would lock them out. Mail to a human the organisation has just erased is sent
 without being written down at all, because writing it down would recreate the personal
 data the erasure just removed.
@@ -141,7 +144,7 @@ their future callers are shaped by them.
 Settled decisions and essential complexity — stop re-litigating these.
 
 - **`EmailSettings` lives in `Humans.Base.Configuration` and is bound in Shell**, not in
-  `Section.Register`. Auth, Profiles, a Consent job and this section's own SMTP health
+  `Section.Register`. Auth, Users, a Consent job and this section's own SMTP health
   check all read it. It is Base configuration the section is merely named after.
 - **`EmailOutboxStatus` lives in `Humans.Base.Enums`.** Campaigns and Surveys persist it
   on their own tables, so it is shared vocabulary, not section-internal.
