@@ -159,4 +159,4 @@ Settled decisions and essential complexity — stop re-litigating these.
 
 | Run | Date | Headline | PR |
 |---|---|---|---|
-| section-doctor | 2026-09-04 | First doctoring: unsanitized markdown in two email bodies, 12 dead resource keys, doc set corrected against four deleted projects | peterdrier/Humans#pending |
+| section-doctor | 2026-09-04 | First doctoring: unsanitized markdown in two email bodies, 12 dead resource keys, doc set corrected against four deleted projects | peterdrier/Humans#1587 |
