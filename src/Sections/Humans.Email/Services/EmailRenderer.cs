@@ -21,11 +21,6 @@ internal sealed class EmailRenderer(
 {
     private readonly EmailSettings _settings = settings.Value;
 
-    // The 70 Email_* keys came home with this file at the section's G5 move: it is the
-    // only renderer of any of them, so "carve by renderer" (design §15 step 3b) pointed
-    // the whole set at the section rather than leaving it in SharedResource.
-    private readonly IStringLocalizer _localizer = localizer;
-
     public EmailContent RenderApplicationSubmitted(Guid applicationId, string applicantName)
     {
         // Admin email — always English, no culture switch
@@ -304,10 +299,10 @@ internal sealed class EmailRenderer(
             L("Email_WorkspaceCredentials_Subject"),
             Lf("Email_WorkspaceCredentials_Body", HtmlEncode(userName), HtmlEncode(workspaceEmail), HtmlEncode(tempPassword))));
 
-    private string L(string key) => _localizer[key].Value;
+    private string L(string key) => localizer[key].Value;
 
     private string Lf(string key, params object[] args) =>
-        string.Format(CultureInfo.CurrentCulture, _localizer[key].Value, args);
+        string.Format(CultureInfo.CurrentCulture, localizer[key].Value, args);
 
     private CultureScope WithCulture(string? culture)
     {
