@@ -1,17 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Email's cross-section surface, carved into its own leaf project because Base and Shell
-    both consume it: services and jobs in Base build messages through IEmailMessageFactory
-    and send them through IEmailService, and Shell's ProfileController and
-    UsersAdminController read a human's outbox through IEmailOutboxServiceRead. A
-    Contracts/ *folder* inside Humans.Email would therefore make Base reference a section
-    and cycle (memory/architecture/section-project-cycle-fix.md).
+    Email's cross-section surface, carved into its own leaf project because most sections
+    that do anything for a human tell them about it by mail: they build a message through
+    IEmailMessageFactory and send it through IEmailService. A section may not reference
+    another section's implementation project, so putting these types in a Contracts/
+    *folder* inside Humans.Email would leave every one of those callers with no way to name
+    them (memory/architecture/section-project-cycle-fix.md — split the upstream section's
+    contracts downward, never promote the shared type into Base). Shell consumes the leaf
+    too, composing the HangfireImmediateOutboxProcessor -> IImmediateOutboxProcessor ->
+    OutboxEmailService chain in EmailInfrastructureExtensions.
+
+    Base is *not* among the consumers: its single ProjectReference is Humans.Users.Contracts
+    and it names no type from this project.
 
     IEmailOutboxProcessor / IEmailOutboxRetention no longer earn their place here: their
-    only consumers, ProcessEmailOutboxJob and CleanupEmailOutboxJob, are now section-side,
-    as is IImmediateOutboxProcessor's implementation. All three could move inward once
-    something confirms Shell does not name them; see Docs/health.md §5.
+    only consumers, ProcessEmailOutboxJob and CleanupEmailOutboxJob, are now section-side.
+    Both could move inward; IImmediateOutboxProcessor could not, because Shell registers it.
+    See Docs/health.md §5.
 
     Everything with no consumer outside the section stays internal: the outbox admin
     surface (IEmailOutboxService), the renderer, the body composer, the SMTP transport,

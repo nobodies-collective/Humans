@@ -44,11 +44,11 @@ Every external entry point, grouped by the question it answers.
 | **Describe a message** | `IEmailMessageFactory` — one typed builder per message type | The whole cross-section width of the section: every other section names a builder here rather than composing an `EmailMessage` itself. |
 | **Show me a message without sending it** | `IEmailPreviewServiceRead.RenderSystemMessage` | Always-send system messages only; opt-outable ones are refused because their footer is recipient-specific. |
 | **What have we sent this person?** | `IEmailOutboxServiceRead` — per-user list, per-user count, dashboard stats | Consumed by Shell's profile and user-admin pages and the admin tile. |
-| **Drain the queue / prune the queue** | `IEmailOutboxProcessor`, `IEmailOutboxRetention`, `IImmediateOutboxProcessor` | Job-facing. The first two have no consumer outside the section any more. |
+| **Drain the queue / prune the queue** | `IEmailOutboxProcessor`, `IEmailOutboxRetention`, `IImmediateOutboxProcessor` | Job-facing. The first two have no consumer outside the section any more; Shell registers the third. |
 | **Admin operates the queue** | `IEmailOutboxService` (internal) behind `/Email/EmailOutbox` — pause, resume, retry, discard | Section-internal; `EmailController` is its only caller. |
 | **Admin reads the templates** | `/Email/EmailPreview` | A gallery of rendered templates across the six cultures. |
 
-Inside, four collaborators do the work, in this order: **renderer** (words) →
+Inside, the work runs in this order: **renderer** (words) →
 **factory** (words + routing policy) → **send service** (opt-out, wrap, log row) →
 **processor** (transport, retry, mirror). Two leaves hang off it: the **body
 composer** (the branded wrapper, shared by send and preview) and the **transport**
@@ -62,11 +62,11 @@ Written fresh from the shapes, not from today's folder listing.
   time-sensitive. Nothing else; there is one entity.
 - **`Data/`** — the context, the entity configuration, and the one repository that is
   allowed to touch it. Every query the section needs is a named method here.
-- **`Services/`** — the four collaborators above plus the two leaves, each behind an
-  internal interface, plus the internal admin surface.
-- **`Contracts/` (leaf project)** — exactly the seven types other sections name, and
-  the payload records those methods take.
-- **`Jobs/`** — two scheduler shims with no logic in them.
+- **`Services/`** — the collaborators and leaves above, each behind an internal
+  interface, plus the internal admin surface.
+- **`Contracts/` (leaf project)** — exactly the types other sections name, and the
+  payload records those methods take. Nothing else belongs on it.
+- **`Jobs/`** — the scheduler shims, with no logic in them.
 - **`Controllers/` + `Views/` + `Models/`** — the two admin pages. No localized copy:
   they are admin-side.
 - **`EmailResource.*.resx`** — the transactional email copy in six cultures. This is
@@ -116,8 +116,9 @@ their future callers are shaped by them.
   filtered index for "one email of each template per signup". Nothing writes the column
   and nothing queries the index; the dedup was specified and never built.
 - **A moved-inward job contract.** `IEmailOutboxProcessor` and `IEmailOutboxRetention`
-  sit on the public leaf but have no consumer outside the section since the jobs came
-  in. They can move inward once something confirms Shell does not name them.
+  sit on the public leaf but have no consumer outside the section since the jobs came in —
+  Shell names neither. They can move inward whenever someone wants the churn.
+  `IImmediateOutboxProcessor` cannot follow them: Shell registers its implementation.
 
 ## 6. Deliberately not done
 
@@ -151,8 +152,9 @@ Settled decisions and essential complexity — stop re-litigating these.
   need an interface to substitute.
 - **The repository is a Singleton over `IDbContextFactory`** so the same instance serves
   Scoped services and the recurring drain alike.
-- **Load-mutate-save instead of `ExecuteUpdate`/`ExecuteDelete`** in three repository
-  methods, so the EF InMemory provider the unit tests use still exercises the path.
+- **Load-mutate-save instead of `ExecuteUpdate`/`ExecuteDelete`** in the repository's
+  bulk-write methods, so the EF InMemory provider the unit tests use still exercises the
+  path. Each carries a comment saying so.
 - **`HangfireImmediateOutboxProcessor` is public under `Contracts/`** because Shell
   registers it, and it is not an `IRecurringJob`, so the `Jobs/` carve-out does not
   claim it.
