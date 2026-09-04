@@ -96,8 +96,11 @@ structure, not an exception within it.
 - Only `AdminOnly` reaches the outbox dashboard and the preview gallery. A human sees
   their own outbox and nobody else's.
 - Every value interpolated into an email body is either HTML-encoded or passed through
-  the canonical sanitizing markdown renderer. No caller-supplied text reaches a body as
-  raw HTML.
+  the canonical sanitizing markdown renderer. No text authored by a member reaches a body
+  as raw HTML. The one body that is not a template with values interpolated into it — a
+  campaign's `EmailBodyTemplate`, which *is* the copy — is `AdminOnly`-authored and
+  rendered as markdown with raw HTML intact, on purpose; the codes and names substituted
+  into it are encoded.
 - Every user-facing string in an email body resolves through `EmailResource`, in all
   six cultures.
 - An outbox row is personal data: it is exported under Article 15 and destroyed under
@@ -165,4 +168,4 @@ Settled decisions and essential complexity — stop re-litigating these.
 
 | Run | Date | Headline | PR |
 |---|---|---|---|
-| section-doctor | 2026-09-04 | First doctoring: unsanitized markdown in two email bodies, 12 dead resource keys, doc set corrected against four deleted projects | peterdrier/Humans#1587 |
+| section-doctor | 2026-09-04 | First doctoring: unsanitized markdown in the feedback-response and issue-comment bodies, dead resource keys retired, doc set corrected against deleted projects | peterdrier/Humans#1587 |
