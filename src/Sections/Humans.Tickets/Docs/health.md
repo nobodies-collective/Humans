@@ -46,9 +46,9 @@ The layout these shapes imply:
 - Controllers per audience: admin dashboard, member transfer wizard, admin transfer queue,
   contacts import, gate credential, onsite roster. Each translates and formats only; the view
   models it needs are the service DTOs or thin projections of them, not parallel copies.
-- Member-facing views localized through the section's own resx set; admin views unlocalized.
-  The transfer wizard, status card and guest-orders card meet this; the stub and holdings
-  components are still hardcoded English.
+- Member-facing views localized; admin views unlocalized. The transfer wizard uses the section's
+  own resx set (`TicketsResource`); the status card and guest-orders card use the shared
+  `Dashboard_*`/`Guest_*` keys; the stub and holdings components are still hardcoded English.
 
 ## Invariants
 
