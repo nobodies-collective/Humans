@@ -130,4 +130,4 @@ The layout these shapes imply:
 
 | Run | Date | Headline | PR |
 |---|---|---|---|
-| section-doctor | 2026-09-05 | First doctoring: invariant doc rebuilt against the code, narration purged, two dead resx keys cut, sync-cursor test pinned | peterdrier/Humans#pending |
+| section-doctor | 2026-09-05 | First doctoring: invariant doc rebuilt against the code, narration purged, two dead resx keys cut, sync-cursor test pinned | peterdrier/Humans#1589 |
