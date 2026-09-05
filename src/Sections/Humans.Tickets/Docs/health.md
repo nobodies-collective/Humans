@@ -19,7 +19,7 @@ member's yearly participation record.
 
 | Shape | Members | Notes |
 |---|---|---|
-| Mirror the vendor | `TicketSyncService.SyncAsync` (+ full re-sync), `ticket-sync` job, `POST /Tickets/Sync`, `POST /Tickets/FullResync`, `TicketSyncState` | One pipeline: fetch orders + check-ins → upsert → email-match → Stripe fee enrichment → VAT split → code redemption → participation reconcile. Incremental by `LastSyncAt` cursor |
+| Mirror the vendor | `TicketSyncService.SyncOrdersAndAttendeesAsync` (+ full re-sync), `ticket-sync` job, `POST /Tickets/Sync`, `POST /Tickets/FullResync`, `TicketSyncState` | One pipeline: fetch orders + check-ins → upsert → email-match → Stripe fee enrichment → VAT split → code redemption → participation reconcile. Incremental by `LastSyncAt` cursor |
 | "Does this human hold a ticket" | `ITicketServiceRead` (`GetTicketOrdersAsync`, `GetUserTicketHoldingsAsync`, `[SurfaceBudget(2)]`) fed by `ITicketRepository.HasEventTicketAsync` and the private `ComputeUserTicketCountAsync` | One question over the match paths (`MatchedUserId`, then verified-email fallback); one projection callers derive from |
 | Member holds & transfers | `/Tickets/Transfers` (Index, Confirm, Submit, Cancel), `<vc:my-ticket-stubs>`, `<vc:ticket-holdings>`, `<vc:ticket-stub>`, `<vc:member-ticket-status>`, `<vc:guest-ticket-orders>` | One wizard + one stub renderer reused by homepage, profile and wizard |
 | Admin transfer processing | `/Tickets/Admin/Transfers` (Index?tab, Detail/{id}, Decide with action ∈ process/retry/approve/reject), `ITicketTransferQueue.GetPendingCountAsync` | One state machine: Pending → Approved / Rejected / Cancelled; vendor void-to-hold + reissue is the automated path, mark-successful the manual one |
@@ -28,7 +28,7 @@ member's yearly participation record.
 | Contact import | `/Tickets/Admin/Contacts` (preview → apply) | Plan/apply over unmatched attendees: attach verified / replace unverified / create user |
 | Participation | `IUserParticipationBackfillService` via `/Tickets/Participation/Backfill` (Admin only) | CSV backfill; the reconcile itself lives in the sync pipeline |
 | Discount codes for Campaigns | `ITicketDiscountCodes` | Vendor port pass-through so Campaigns never names the vendor |
-| GDPR | `IUserDataContributor` export; `ITicketPiiErasure` tombstone scrub | Buyer/attendee names + emails tombstoned, rows kept for finance |
+| GDPR | `IUserDataContributor` on `TicketQueryService` (export + `EraseForUserAsync` tombstone scrub) | Buyer/attendee names + emails tombstoned, rows kept for finance |
 | Cache seam | `ITicketCacheInvalidator` (poked by sync, merge fold, transfer transitions) | Owned by the singleton decorator; slices: Orders (warmed), UserHoldings (5 min), per-event vendor summary (IMemoryCache) |
 | Health | `TicketVendorHealthCheck` | Vendor reachability probe |
 
@@ -62,17 +62,20 @@ The layout these shapes imply:
   approve or reject; a `VoidSucceededIssueFailed` request accepts only retry or mark-successful.
 - The manual approval path mutates no attendee rows; the automated path writes the swapped rows
   itself; every transition audits (`TicketTransferRequested/Cancelled/Approved/AutoFailed/Rejected`).
-- Sync is idempotent and cursor-driven; a failed sync leaves `SyncStatus = Error` with the
-  message on the singleton row, never a half-applied cursor.
+- Sync is idempotent and cursor-driven; a non-transient failure leaves `SyncStatus = Error` with
+  the message on the singleton row, a transient vendor error (no status or 5xx) restores `Idle`
+  and returns empty, and neither moves `LastSyncAt`.
 - `ParticipationStatus.Attended` is write-once; sync derives Ticketed/Attended from attendee
   rows and removes Ticketed when no valid ticket remains.
 - Erasure tombstones name/email on order and attendee rows and never deletes them; the vendor
   ids stay so finance and sync keep reconciling.
-- `Board` reads every admin page but triggers no sync, export, decision or code generation;
-  `ParticipationBackfill` and `FullResync` are Admin only; the gate-terminal account reaches
-  only `ScannerAccess`.
-- `TicketsConfigured == false` short-circuits every member card and the dashboard to the
-  not-configured state; nothing else changes.
+- `Board` reads the dashboard and its reporting tabs (`TicketAdminBoardOrAdmin`) and the onsite
+  roster (`ScannerAccess`) but triggers no sync or export; the transfer queue, contacts import
+  and gate credential pages are `TicketAdminOrAdmin`; `ParticipationBackfill` and `FullResync`
+  are Admin only; the gate-terminal account reaches only `ScannerAccess`.
+- `TicketVendorSettings.IsConfigured == false` short-circuits the member status card, the
+  dashboard and the health check to the not-configured state and makes the sync job and service
+  no-ops; the stub and holdings components still render whatever rows exist.
 
 ## Seams
 
