@@ -25,7 +25,7 @@ references `Humans.Tickets` directly to name the port).
 `TicketAttendees`, `TicketSyncStates`, `TicketTransferRequests`.
 
 The section's public surface is small: `ITicketServiceRead` (2 members,
-`[SurfaceBudget(2)]`), `ITicketSync` (2), `ITicketTransferQueue` (1),
+no `SurfaceBudget` pinned), `ITicketSync` (2), `ITicketTransferQueue` (1),
 `ITicketDiscountCodes` (1), `ITicketVendorMirror` (1). `TicketDashboardDtos`
 (24 public types), the transfer wizard, and the admin decision DTOs are
 `internal`. Campaigns' grant waves call `ITicketDiscountCodes.GenerateAsync`

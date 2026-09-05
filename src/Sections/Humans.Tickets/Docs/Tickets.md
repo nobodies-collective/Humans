@@ -159,7 +159,7 @@ Sender-initiated transfer request. `OriginalTicketAttendeeId` FK → `ticket_att
 
 ### TicketDashboardStats cache (ghost cache key)
 
-`CacheKeys.TicketDashboardStats` is **invalidator-only**. `TicketQueryService.GetDashboardStatsAsync` is the canonical producer of the `TicketDashboardStats` DTO and is called fresh on every `TicketController.Index` request — `CachingTicketQueryService.GetDashboardStatsAsync` is a pass-through to the inner. The cache key and the `Metadata` row (5 min, Static) exist so a future caching wrapper can be added without renaming things. Treat this as a documented placeholder, not a live cache; see `docs/architecture/service-data-access-map.md` for the cross-cutting rule.
+`CacheKeys.TicketDashboardStats` is a **ghost key**: nothing reads, writes or evicts it. `TicketQueryService.GetDashboardStatsAsync` is the canonical producer of the `TicketDashboardStats` DTO and is called fresh on every `TicketController.Index` request — `CachingTicketQueryService.GetDashboardStatsAsync` is a pass-through to the inner. The cache key and the `Metadata` row (5 min, Static) exist so a future caching wrapper can be added without renaming things. Treat this as a documented placeholder, not a live cache; see `docs/architecture/service-data-access-map.md` for the cross-cutting rule.
 
 ## Cross-Section Dependencies
 
@@ -181,8 +181,8 @@ Outbound (what Tickets injects; the project references are the authority — `Hu
 
 Inbound (who injects `Humans.Tickets.Contracts`):
 
-- **`ITicketServiceRead`** (`GetTicketOrdersAsync`, `GetUserTicketHoldingsAsync`; `[SurfaceBudget(2)]`) — Users (profile, guest orders, account deletion hold, audiences), MailerLite audiences, Shifts, Surveys, Teams admin, Budget, Gate (`GateService` barcode admits), Scanner (`/Scanner/Tickets` lookup card), Agent. Read-only; nobody writes back.
-- **`ITicketDiscountCodes`** — Campaigns' grant waves. **`ITicketVendorMirror`** — Gate's `GateVendorCheckInJob` mirrors admits to the vendor (best-effort, behind `Gate:VendorMirrorEnabled`, default off; Gate's own `gate_scan_events` remains the dedupe authority). **`ITicketSync`** — Notifications' `NotificationMeterProvider`. **`ITicketTransferQueue.GetPendingCountAsync`** — consumed only by this section's own `SectionAdminNav` badge; no cross-section caller today.
+- **`ITicketServiceRead`** (`GetTicketOrdersAsync`, `GetUserTicketHoldingsAsync`; no `SurfaceBudget` pinned) — Users (profile, guest orders, account deletion hold, audiences), MailerLite audiences, Shifts, Surveys, Teams admin, Budget, Gate (`GateService` barcode admits), Scanner (`/Scanner/Tickets` lookup card), Agent. Read-only; nobody writes back.
+- **`ITicketDiscountCodes`** — Campaigns' grant waves. **`ITicketVendorMirror`** — Gate's `GateVendorCheckInJob` mirrors admits to the vendor (best-effort, behind `Gate:VendorMirrorEnabled`, default off; Gate's own `gate_scan_events` remains the dedupe authority). **`ITicketSync`** — Notifications' `NotificationMeterProvider`. **`ITicketTransferQueue.CountPendingAsync`** — consumed only by this section's own `SectionAdminNav` badge; no cross-section caller today.
 
 ## Architecture
 
@@ -231,7 +231,7 @@ because ticket admins are who rotate that credential. Whether it eventually land
 
 **Stripe connector:** `IStripeService` (`Humans.Stripe`) wraps the Stripe SDK and is consumed by `TicketSyncService` for fee enrichment.
 
-**Public surface:** the `Humans.Tickets.Contracts` leaf publishes `ITicketServiceRead` (`[SurfaceBudget(2)]`), `ITicketSync`,
+**Public surface:** the `Humans.Tickets.Contracts` leaf publishes `ITicketServiceRead`, `ITicketSync`,
 `ITicketTransferQueue`, `ITicketDiscountCodes` and `ITicketVendorMirror`. The `TicketDashboardDtos` surface, the transfer wizard and the admin decision DTOs are internal.
 Tickets ships both a `.Contracts` leaf *and* a `Contracts/` folder: the
 leaf carries what cross-section consumers need, the folder carries public surface that is ASP.NET plumbing
@@ -258,6 +258,6 @@ The Tickets→Budget bridge is Budget's: `Humans.Budget.Services.TicketingBudget
 
 - New cross-section data needs always go through the owning section's interface — `ICampaignService`, `IUserServiceRead` / `IUserService`, `IUserEmailService`, `ITeamServiceRead`, `IBurnSettingsService`, `IBudgetServiceRead`, `ICampServiceRead`, `IRoleAssignmentService`, `IEarlyEntryService`. The `MatchedUser` nav properties have been stripped from both entities; do not re-add them. Project by `MatchedUserId` in memory via `IUserServiceRead.GetUserInfosAsync`.
 - `IMemoryCache` is owned by `CachingTicketQueryService` (the decorator) only, and only for the per-event `TicketEventSummary:{eventId}` entry. The inner `TicketQueryService` and write-side `TicketSyncService` are cache-free; sync invalidates the per-event summary via `ITicketCacheInvalidator.InvalidateVendorEventSummary` and clears tracked ticket slices via `ITicketCacheInvalidator.InvalidateAll`. Other Tickets-section services (e.g. `TicketTransferService`) that need to invalidate after a write call `ITicketCacheInvalidator.InvalidateAfterTransfer(senderUserId, receiverUserId)` instead of touching `IMemoryCache` directly. Do not push `IMemoryCache` into controllers, view components, or other domain services. New invalidation seams go on `ITicketCacheInvalidator` (not `ITicketServiceRead`) so the budgeted query surface doesn't grow each time a new write site is added.
-- The `TicketDashboardStats` cache key remains invalidator-only (see *TicketDashboardStats cache* under Triggers). The decorator doesn't read-through-cache that DTO; `GetDashboardStatsAsync` still hits the repository on each render — on-demand staleness on the dashboard during sync windows is currently acceptable.
+- The `TicketDashboardStats` cache key remains a ghost key (see *TicketDashboardStats cache* under Triggers). The decorator doesn't read-through-cache that DTO; `GetDashboardStatsAsync` still hits the repository on each render — on-demand staleness on the dashboard during sync windows is currently acceptable.
 - When extending the Tickets→Budget bridge, remember it lives in Budget: source new read data from `ITicketServiceRead` (adding methods there only if the existing `GetTicketOrdersAsync` read model is insufficient), and edit `TicketingBudgetService` in `src/Sections/Humans.Budget/Services/`. Projection/line-item writes stay Budget-owned.
 - The vendor split is doctrinal: business code talks to `ITicketVendorService` and never to "Ticket Tailor" directly. Any new vendor capability needs an interface method first, then a `TicketTailorService` impl plus a deterministic `StubTicketVendorService` impl so dev/preview environments still exercise the call.
