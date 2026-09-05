@@ -174,7 +174,7 @@ Outbound (what Tickets injects; the project references are the authority — `Hu
 - **Budget:** `IBudgetServiceRead` — `GetActiveYearAsync` + `ComputeBudgetSummary` feed the dashboard's break-even calculation. The Tickets→Budget bridge is Budget's: `Humans.Budget.Services.TicketingBudgetService` reads through `ITicketServiceRead` and writes through Budget's `IBudgetService`.
 - **EarlyEntry:** `IEarlyEntryService.GetForUserAsync` — the viewer's own earliest entry date on the holder-facing stub surfaces (see Invariants).
 - **Stripe:** `IStripeService.GetPaymentDetailsAsync` populates `PaymentMethod` / `PaymentMethodDetail` / `StripeFee` / `ApplicationFee` per order. Configured via `STRIPE_TICKETS_KEY`; if `IsConfigured` is false, enrichment is skipped silently and the dashboard's fee breakdown stays empty.
-- **Audit:** `IAuditLogService.LogAsync` — the five transfer actions above plus `TicketContactsImported`. `<vc:audit-log>` on the transfer detail page is the AuditLog section's component.
+- **Audit:** `IAuditLogService.LogAsync` — the transfer actions above plus `TicketContactsImported`. `<vc:audit-log>` on the transfer detail page is the AuditLog section's component.
 - **Email:** `IEmailService.SendAsync` with `IEmailMessageFactory` (`TicketTransferRequested`, `TicketTransferTeamNotification`, `TicketTransferDecision`).
 - **GDPR:** `TicketQueryService` implements `IUserDataContributor` — export slices `TicketOrders` and `TicketAttendeeMatches`; erasure tombstones as described under Triggers.
 - **Users (account merge, inbound-by-registration):** `TicketSyncService` implements `IUserMerge`; `AccountMergeService.FoldAsync` calls `ReassignAsync`, which delegates to `ITicketRepository.ReassignToUserAsync`.
@@ -231,9 +231,8 @@ because ticket admins are who rotate that credential. Whether it eventually land
 
 **Stripe connector:** `IStripeService` (`Humans.Stripe`) wraps the Stripe SDK and is consumed by `TicketSyncService` for fee enrichment.
 
-**Public surface:** the `Humans.Tickets.Contracts` leaf publishes seven members across five interfaces — `ITicketServiceRead` (2,
-`[SurfaceBudget(2)]`), `ITicketSync` (2), `ITicketTransferQueue` (1), `ITicketDiscountCodes` (1)
-and `ITicketVendorMirror` (1). The `TicketDashboardDtos` surface, the transfer wizard and the admin decision DTOs are internal.
+**Public surface:** the `Humans.Tickets.Contracts` leaf publishes `ITicketServiceRead` (`[SurfaceBudget(2)]`), `ITicketSync`,
+`ITicketTransferQueue`, `ITicketDiscountCodes` and `ITicketVendorMirror`. The `TicketDashboardDtos` surface, the transfer wizard and the admin decision DTOs are internal.
 Tickets ships both a `.Contracts` leaf *and* a `Contracts/` folder: the
 leaf carries what cross-section consumers need, the folder carries public surface that is ASP.NET plumbing
 (`TicketStubViewComponent`) or the vendor port. The split is a judgement about what cross-section consumers should

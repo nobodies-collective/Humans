@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Tickets' cross-section surface, carved into its own leaf project because nine other
+    Tickets' cross-section surface, carved into its own leaf project because other
     sections (Users, Shifts, Budget, Gate, Scanner, MailerLite, Teams, Surveys, Agent) read
     a human's holdings or the order projection through ITicketServiceRead, and Notifications
     reads ITicketSync. A Contracts/ *folder* inside Humans.Tickets would make each of them

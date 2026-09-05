@@ -158,10 +158,12 @@ Cross-section calls via `IUserServiceRead`, `IUserEmailService`,
 `ITicketVendorService` (`ProcessTransferAsync` / `RetryReissueAsync` run the
 automated TicketTailor void(-to-hold)+reissue; the next ticket sync
 reconciles local attendee rows). Invalidates ticket caches via
-`ITicketCacheInvalidator` (`InvalidateAfterTransfer`, called on every
-transition — request, cancel, approve, process/retry success or failure,
-reject — because pending state is baked into the holdings slice and approval
-mutates the cached order projection's transfer detail).
+`ITicketCacheInvalidator` (`InvalidateAfterTransfer`, called wherever cached
+data changed — request, cancel, approve, reject, a process/retry success, and
+the partial case where the void committed and the attendee was voided locally
+(sender only). A void failure changes nothing locally and does not invalidate.
+Pending state is baked into the holdings slice and approval mutates the cached
+order projection's transfer detail).
 Transfers of gate-checked-in tickets are refused — `CheckedInAt` respected.
 No `IMemoryCache` directly.
 

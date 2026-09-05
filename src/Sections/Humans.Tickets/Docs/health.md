@@ -7,7 +7,7 @@ Written fresh each section-doctor run (Phase 3c), before any scan. History rows 
 The org sells event tickets on an outside vendor's site. This section mirrors the vendor's
 orders, issued tickets and gate scans into Humans, and works out which human each ticket
 belongs to by matching the attendee email against members' verified emails. From that mirror it
-answers three audiences. Members see whether they hold a ticket, who is on it, and can hand a
+answers its audiences. Members see whether they hold a ticket, who is on it, and can hand a
 ticket they hold to another member — the ticket team completes the swap with the vendor and
 both people are emailed. The ticket team sees sales, revenue, fees, VAT and donations, who has
 not bought yet, which discount codes were redeemed, a live roster of who is on site, and can
@@ -20,16 +20,16 @@ member's yearly participation record.
 | Shape | Members | Notes |
 |---|---|---|
 | Mirror the vendor | `TicketSyncService.SyncAsync` (+ full re-sync), `ticket-sync` job, `POST /Tickets/Sync`, `POST /Tickets/FullResync`, `TicketSyncState` | One pipeline: fetch orders + check-ins → upsert → email-match → Stripe fee enrichment → VAT split → code redemption → participation reconcile. Incremental by `LastSyncAt` cursor |
-| "Does this human hold a ticket" | `ITicketServiceRead` (`GetTicketOrdersAsync`, `GetUserTicketHoldingsAsync`, `[SurfaceBudget(2)]`) fed by `ITicketRepository.HasEventTicketAsync` and the private `ComputeUserTicketCountAsync` | One question over two match paths (`MatchedUserId`, then verified-email fallback); one projection callers derive from |
+| "Does this human hold a ticket" | `ITicketServiceRead` (`GetTicketOrdersAsync`, `GetUserTicketHoldingsAsync`, `[SurfaceBudget(2)]`) fed by `ITicketRepository.HasEventTicketAsync` and the private `ComputeUserTicketCountAsync` | One question over the match paths (`MatchedUserId`, then verified-email fallback); one projection callers derive from |
 | Member holds & transfers | `/Tickets/Transfers` (Index, Confirm, Submit, Cancel), `<vc:my-ticket-stubs>`, `<vc:ticket-holdings>`, `<vc:ticket-stub>`, `<vc:member-ticket-status>`, `<vc:guest-ticket-orders>` | One wizard + one stub renderer reused by homepage, profile and wizard |
 | Admin transfer processing | `/Tickets/Admin/Transfers` (Index?tab, Detail/{id}, Decide with action ∈ process/retry/approve/reject), `ITicketTransferQueue.GetPendingCountAsync` | One state machine: Pending → Approved / Rejected / Cancelled; vendor void-to-hold + reissue is the automated path, mark-successful the manual one |
-| Reporting | `/Tickets` (dashboard), `/Tickets/Orders`, `/Tickets/Attendees`, `/Tickets/Codes`, `/Tickets/SalesAggregates`, `/Tickets/WhoHasntBought`, two CSV exports, `/Tickets/GateList` (placeholder) | Paged list ×3 (search/sort/filter), aggregates ×2, one "who hasn't" cross-join with Users/Teams/Governance |
+| Reporting | `/Tickets` (dashboard), `/Tickets/Orders`, `/Tickets/Attendees`, `/Tickets/Codes`, `/Tickets/SalesAggregates`, `/Tickets/WhoHasntBought`, the CSV exports, `/Tickets/GateList` (placeholder) | Paged lists (search/sort/filter), aggregates, one "who hasn't" cross-join with Users/Teams/Governance |
 | Onsite & gate tooling | `/Tickets/Admin/Onsite`, `/Tickets/Admin/Gate` (set/rotate gate-terminal password); barcode → stub for Scanner/Gate is a projection over `GetTicketOrdersAsync` | One roster join, one credential rotation |
 | Contact import | `/Tickets/Admin/Contacts` (preview → apply) | Plan/apply over unmatched attendees: attach verified / replace unverified / create user |
 | Participation | `IUserParticipationBackfillService` via `/Tickets/Participation/Backfill` (Admin only) | CSV backfill; the reconcile itself lives in the sync pipeline |
 | Discount codes for Campaigns | `ITicketDiscountCodes` | Vendor port pass-through so Campaigns never names the vendor |
 | GDPR | `IUserDataContributor` export; `ITicketPiiErasure` tombstone scrub | Buyer/attendee names + emails tombstoned, rows kept for finance |
-| Cache seam | `ITicketCacheInvalidator` (poked by sync, merge fold, transfer transitions) | Owned by the singleton decorator; three slices: Orders (warmed), UserHoldings (5 min), per-event vendor summary (IMemoryCache) |
+| Cache seam | `ITicketCacheInvalidator` (poked by sync, merge fold, transfer transitions) | Owned by the singleton decorator; slices: Orders (warmed), UserHoldings (5 min), per-event vendor summary (IMemoryCache) |
 | Health | `TicketVendorHealthCheck` | Vendor reachability probe |
 
 ## Structure
@@ -38,7 +38,7 @@ The layout these shapes imply:
 
 - One vendor port (`ITicketVendorService` in `Contracts/`), one adapter project
   (`Humans.TicketTailor`), and the Tickets leaf never names the vendor.
-- One sync service owning the pipeline end to end; one repository over the four tables
+- One sync service owning the pipeline end to end; one repository over the tables
   (`ticket_orders`, `ticket_attendees`, `ticket_sync_state`, `ticket_transfer_requests`) plus one
   transfer repository over the request table's own reads and writes.
 - One query service behind `ITicketService` (admin) and `ITicketServiceRead` (cross-section),
@@ -88,7 +88,7 @@ The layout these shapes imply:
 ## Deliberately not done
 
 - No vendor-agnostic transfer abstraction beyond the port: the void-to-hold + reissue sequence
-  is TicketTailor's, and the port exposes exactly those two calls.
+  is TicketTailor's, and the port exposes exactly those calls.
 - No read-through cache on the dashboard stats; on-demand staleness during sync is accepted.
 - No pagination-free admin lists: orders/attendees are the one place the dataset is large
   enough that paging buys something.
