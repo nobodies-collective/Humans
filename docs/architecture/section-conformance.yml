@@ -73,6 +73,10 @@ rules:
       violation. Widened to Section[A-Za-z]*\.cs. Note the intended direction is the other
       way: those classes are to be merged back into Section.cs implementing several
       interfaces, at which point the wider regex costs nothing and matches anyway.
+      2026-09-14 (Peter, via /section-doctor on Finance): this layout is a convention, not a
+      rule. Sections should be consistent, but a detector-1 hit (a loose *Options.cs, a
+      Helpers/ or Extensions/ folder) is advisory — report it as such, never as a finding
+      or a Needs-Peter item, and never move files or queue a move over it.
 
   - id: resource-key-prefix
     title: >-

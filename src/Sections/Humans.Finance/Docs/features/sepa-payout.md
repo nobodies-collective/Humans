@@ -179,10 +179,10 @@ Server-side, all-or-nothing:
 
 ## IBAN handling
 
-The unmasked IBAN exists in exactly two places: the generated XML and `sepa_payout_transfers.Iban`.
-Everything else — logs, audit descriptions, the page, and even the cross-section
-`HoldedCreditorAccountRow` — carries `IbanFormatter.Mask(...)` output only. Builder error messages
-mask the IBAN they name.
+The unmasked IBAN is stored only as sent: the generated XML and `sepa_payout_transfers.Iban`.
+Logs, audit descriptions, the SEPA page and the cross-section `HoldedCreditorAccountRow` carry
+`IbanFormatter.Mask(...)` output only; builder error messages mask the IBAN they name. An admin
+screen (`/Finance/CreditorStatement`) and the member's own view may show it in full.
 
 ## GDPR
 

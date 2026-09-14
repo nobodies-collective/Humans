@@ -145,7 +145,8 @@ What the shapes say about the inside:
   the schema before it is stored.
 - A transfer books at most once. A second attempt is a no-op that says so, not a second payment.
 - A raw IBAN lives in the bank file, in the transfer row behind it, and in the contact write that
-  hands it to Holded. Every log line, audit entry and screen shows it masked.
+  hands it to Holded. Every log line, audit entry and cross-section row shows it masked. A screen
+  shows it in full only to an admin (the creditor statement) or to the member whose IBAN it is.
 - Erasure removes the member's contact link and nothing else. The Holded contact is Holded's
   record; the payout files and transfers are the accounting record, and both stay.
 - Finance touches no Budget, Holded or Tickets table — only their contracts.
@@ -163,9 +164,6 @@ Specified, not built. Not ranked, not struck; items touching these callers are s
   repository write.
 - **`holded_*` tables under a section called Finance** (nobodies-collective/Humans#1012). A rename is
   schema work, deferred wholesale.
-- **The creditor statement shows the IBAN raw** (`Views/Finance/CreditorStatement.cshtml`). The
-  invariant in §4 says every screen masks it; whether the view masks or the invariant narrows is
-  open (run 2026-09-06, finding 1).
 - **Booking is not cancellable mid-flight.** `BookSepaTransferAsync` takes no cancellation token by
   design — a half-posted payment is worse than a slow one — so the whole posting loop runs to the
   end once started.
