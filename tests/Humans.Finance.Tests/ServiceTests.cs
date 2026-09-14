@@ -380,7 +380,7 @@ public class HoldedFinanceServiceTests
     {
         var first = Guid.NewGuid();
         var second = Guid.NewGuid();
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal> { [40000004] = -10m });
         // Two members on the same account number — only UserId is unique in the DB, and the automatic
         // push paths record what Holded assigned rather than refusing, so this state is reachable.
@@ -406,7 +406,7 @@ public class HoldedFinanceServiceTests
         // contact id with a null 400000xx indefinitely. Keyed on the number alone the account would
         // render "unbound" while this member holds it — and could not be unbound from that page.
         var userId = Guid.NewGuid();
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal>());
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
         {
@@ -433,7 +433,7 @@ public class HoldedFinanceServiceTests
         // rows, hiding the contact-id half of the invariant FindConflictingBinding enforces on writes.
         var first = Guid.NewGuid();
         var second = Guid.NewGuid();
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal>());
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
         {
@@ -962,7 +962,7 @@ public class HoldedFinanceServiceTests
     [HumansFact]
     public async Task ListCreditorAccounts_NamesRowsFromHolded_AndIncludesContactsWithNoLedgerActivity()
     {
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal> { [40000004] = -40m });
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>());
         _client.ListContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedContactDto>
@@ -990,7 +990,7 @@ public class HoldedFinanceServiceTests
     [HumansFact]
     public async Task ListCreditorAccounts_HoldedUnavailable_StillReturnsCachedRowsWithBlankNames()
     {
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal> { [40000004] = -40m });
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>());
         // The real client wraps HTTP failures — assert against what production actually throws.
@@ -1008,7 +1008,7 @@ public class HoldedFinanceServiceTests
     [HumansFact]
     public async Task ListCreditorAccounts_UnexpectedClientFailure_Propagates()
     {
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal>());
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>());
         // Only vendor-call failures degrade to blank names; a bug must not be silently absorbed.
@@ -1024,7 +1024,7 @@ public class HoldedFinanceServiceTests
     [HumansFact]
     public async Task ListCreditorAccounts_UnreadableHoldedResponse_DegradesToBlankNames()
     {
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal> { [40000004] = -40m });
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>());
         // A malformed body is still a vendor failure — /Finance/Creditors has no try/catch, so letting
@@ -1041,7 +1041,7 @@ public class HoldedFinanceServiceTests
     public async Task ListCreditorAccounts_BoundAccountWithNoHoldedContact_YieldsRowWithBlankName()
     {
         var userId = Guid.NewGuid();
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal>());
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
         {
@@ -1520,7 +1520,7 @@ public class HoldedFinanceServiceTests
     {
         // Holded numbers every supplier contact, so the block bounds are the only thing separating a
         // member's creditor account from an ordinary org vendor. Both ends are members' accounts.
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal>
             {
                 [39999999] = -1m,
@@ -1969,7 +1969,7 @@ public class HoldedFinanceServiceTests
     {
         var userId = Guid.NewGuid();
         // The mirror keeps Holded's sign: negative = the organisation owes the member.
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal> { [40000004] = -owed });
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
         {
@@ -2198,7 +2198,7 @@ public class HoldedFinanceServiceTests
     private Guid SeedTwoContactsOnOneAccount()
     {
         var userId = Guid.NewGuid();
-        _holded.GetAccountBalancesAsync(Arg.Any<int?>(), Arg.Any<CancellationToken>())
+        _holded.GetAccountBalancesAsync(Arg.Any<CancellationToken>())
             .Returns(new Dictionary<int, decimal> { [40000004] = -30m });
         _repo.GetCreditorContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedCreditorContact>
         {
