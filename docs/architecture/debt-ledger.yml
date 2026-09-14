@@ -409,6 +409,9 @@ inbox:
   - added: 2026-09-05
     what: "docs/architecture/dependency-graph.md predates the Monitor carve-out: the DriveMon node (DriveActivityMonitorService) is still styled :::google and the graph has no Monitor section, though src/Sections/Humans.Monitor owns the service now. The freshness-catalog entry for this graph fires on src/Sections/*/Services/**, so the next /freshness-sweep regeneration should carry it; recorded so it is not lost if that pass is skipped (finding 20, /section-doctor on Settings 2026-08-28)."
     review: light
+  - added: 2026-09-06
+    what: "docs/architecture/freshness-catalog.yml has no Settings entry — add one covering src/Sections/Humans.Settings/** and src/Sections/Humans.Settings.Contracts/** (finding 14, /section-doctor on Settings 2026-08-28; swept 2026-09-06)."
+    review: light
   - added: 2026-09-10
     what: ".claude/skills/test-site/SKILL.md names /Profile/Emails and /Profile/Privacy; the live routes are /Profile/Me/Emails and /Profile/Me/Privacy (finding 19, /section-doctor on Consent 2026-08-31; swept in by /section-doctor on Rideshare 2026-09-10)."
     review: light
