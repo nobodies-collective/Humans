@@ -62,7 +62,7 @@ Finance's own page's.
 | **B — What was spent** | Pull the invoices; the per-category total, what didn't attribute, and how the pull went | `SyncAsync`, `GetActualsForYearAsync`, `GetUnmatchedAsync`, `GetDocSyncInfoAsync`, `GetConnectorOverviewAsync` | Nightly job; Budget's year page; Finance's own pages; the Holded admin screen |
 | **C — Whose account is this** | Which Holded creditor account is this member's — set it, correct it, clear it | `GetCreditorContactByUserAsync`, `EnsureCreditorContactAsync`, `SetCreditorAccountNumAsync`, `SetCreditorContactAsync`, `ClearCreditorContactAsync` | Expenses' push path; Finance's own page |
 | **D — What is owed** | What does the org owe this member, and what is the journal behind it | `GetCreditorStatusAsync`, `GetCreditorLedgerAsync`, `ListCreditorAccountsAsync` | Expenses' member and admin views; Finance's own page |
-| **E — Paying it** | Make the bank file for these accounts; what files exist; record that one transfer was paid | `GenerateSepaPayoutAsync`, `GetSepaPayoutsAsync`, `BookSepaTransferAsync` | Finance's own pages only |
+| **E — Paying it** | Is payout configured at all; make the bank file for these accounts; what files exist; record that one transfer was paid | `GetSepaPayoutSettings`, `GenerateSepaPayoutAsync`, `GetSepaPayoutsAsync`, `BookSepaTransferAsync` | Finance's own pages only |
 | **F — The member's data** | What Finance holds about this member; forget them | `ContributeForUserAsync`, `EraseForUserAsync` | Gdpr, on the member's behalf |
 
 What the grouping shows:
