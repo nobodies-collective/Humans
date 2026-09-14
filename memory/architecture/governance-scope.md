@@ -1,6 +1,6 @@
 ---
 name: Governance is tier applications, board voting, and assembly votes
-description: The Governance section owns Colaborador/Asociado applications, Board voting on them, and binding assembly votes of the association — nothing else. Do not file features (nav groups, docs, code) under Governance because Board members happen to use them; audience is not ownership.
+description: "Governance owns only Colaborador/Asociado applications, Board voting on them, and binding assembly votes. Don't file a feature under Governance because the Board uses it — audience isn't ownership."
 ---
 
 The Governance section is exactly: **tier applications** (Colaborador/Asociado, the `Application` entity), **Board voting** on them, and **assembly votes** (binding, recorded votes of the Asociados on motions — spec `src/Sections/Humans.Governance/Docs/features/assembly-votes.md`, decided by Peter 2026-09-10). Its tables are `applications`, `application_state_history`, `board_votes`, and the `assembly_*` tables (`assembly_votes`, `assembly_vote_options`, `assembly_vote_roster`, `assembly_ballots`, `assembly_ballot_history`, `assembly_vote_peeks`).

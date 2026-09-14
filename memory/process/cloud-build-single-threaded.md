@@ -1,6 +1,6 @@
 ---
 name: Razor errors on untouched .cshtml files in a cloud container are a toolchain fault, never your views
-description: On Claude Code cloud runs, `dotnet build Humans.slnx` can report RZ1021/CS1010/CS0103 on valid, untouched .cshtml files across many sections — MVC tag helpers silently dropped by the container's damaged SDK, with stale MSBuild nodes keeping the bad state alive. Recover with `dotnet build-server shutdown` plus `MSBUILDDISABLENODEREUSE=1`, and a clean SDK in the scratchpad when that is not enough. Do NOT "fix" the views, and do NOT run `dotnet clean`.
+description: "In a Claude Code cloud container, Razor errors (RZ1021/CS1010/CS0103) on untouched `.cshtml` are a damaged SDK: `dotnet build-server shutdown` + `MSBUILDDISABLENODEREUSE=1`, never edit views or `dotnet clean`."
 ---
 
 On a `CLAUDE_CODE_REMOTE=true` cloud container the build can fail on `.cshtml` files **your
