@@ -1,7 +1,6 @@
 using Humans.Auth.Contracts;
 using Humans.AuditLog.Contracts;
 using Humans.Base.Constants;
-using Humans.Base.Extensions;
 using Humans.Base.Helpers;
 using Humans.Email.Contracts;
 using Humans.Notifications.Contracts;
@@ -37,7 +36,6 @@ internal sealed partial class WorkgroupService
         w.AppliedAt,
         w.RegisteredAt,
         w.EndedAt,
-        w.DormantSince,
         w.Members
             .OrderBy(m => m.Role == WorkgroupMemberRole.Coordinator ? 0 : 1)
             .ThenBy(m => m.JoinedAt)
@@ -96,6 +94,16 @@ internal sealed partial class WorkgroupService
     private async Task<Workgroup> RequireAsync(Guid workgroupId, CancellationToken ct) =>
         await repository.GetWorkgroupAsync(workgroupId, ct)
             ?? throw new WorkgroupRuleException(WorkgroupErrorKeys.NotFound);
+
+    /// <summary>
+    /// A soft-deleted meeting is gone as far as member work goes. The row stays so the roster's
+    /// history holds, not so a replayed POST can edit it or delete it twice — and since both of
+    /// those now audit, a second pass would put an event in the trail that never happened.
+    /// </summary>
+    private async Task<WorkgroupMeeting> RequireLiveMeetingAsync(Guid meetingId, CancellationToken ct) =>
+        await repository.GetMeetingAsync(meetingId, ct) is { DeletedAt: null } meeting
+            ? meeting
+            : throw new WorkgroupRuleException(WorkgroupErrorKeys.NotFound);
 
     /// <summary>Member mutations are frozen before registration and once the group ends.</summary>
     private static void RequireAcceptsMemberWork(Workgroup w)
@@ -408,24 +416,6 @@ internal sealed partial class WorkgroupService
 
     // ── Shared transitions ────────────────────────────────────────────────
 
-    /// <summary>Activity since the inquiry clears its flag once it has actually occurred (§13).</summary>
-    private async Task ClearDormancyFlagAsync(
-        Workgroup w, Instant activityAt, Instant now, Guid? actorUserId, CancellationToken ct)
-    {
-        if (w.DormantSince is not { } flaggedAt || activityAt < flaggedAt || activityAt > now)
-            return;
-
-        w.DormantSince = null;
-        w.UpdatedAt = now;
-        await repository.UpdateWorkgroupAsync(w, ct);
-
-        var description = $"Cleared the dormancy inquiry from {flaggedAt.ToIso8601()} after activity at {activityAt.ToIso8601()}";
-        if (actorUserId is { } actor)
-            await AuditAsync(AuditAction.WorkgroupDormancyCleared, w, description, actor);
-        else
-            await AuditJobAsync(AuditAction.WorkgroupDormancyCleared, w, description);
-    }
-
     /// <summary>
     /// The one place a group ends, whether a member marked it done or the Secretary closed
     /// it: Dormant with a reason, the log entry, the audit entry, the coordinators told, and
@@ -443,7 +433,6 @@ internal sealed partial class WorkgroupService
         w.DormantReason = reason;
         w.Reasons = Trimmed(reasons) ?? w.Reasons;
         w.EndedAt = now;
-        w.DormantSince = null;
         w.UpdatedAt = now;
         await repository.UpdateWorkgroupAsync(w, ct);
 

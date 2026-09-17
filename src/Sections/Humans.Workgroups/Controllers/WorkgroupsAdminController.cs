@@ -157,8 +157,8 @@ internal sealed class WorkgroupsAdminController(
     // ── Plumbing ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Admin POSTs all land back on the queue. Messages are plain English on purpose: these
-    /// pages are localization-exempt (§19).
+    /// Admin POSTs all land back on the queue. A rule failure on a reasons form re-renders
+    /// the queue with the text still in the box instead of discarding it.
     /// </summary>
     private async Task<IActionResult> ActAsync(
         Func<Guid, Task> action, string success, CancellationToken ct,

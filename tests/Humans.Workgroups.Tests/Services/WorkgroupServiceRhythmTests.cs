@@ -1,15 +1,12 @@
 using AwesomeAssertions;
 using Humans.AuditLog.Contracts;
-using Humans.Base.Extensions;
 using Humans.Notifications.Contracts;
-using Humans.Workgroups.Data;
 using Humans.Workgroups.Domain;
 using Humans.Workgroups.Services;
 using Humans.Workgroups.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NSubstitute;
-using Xunit;
 
 namespace Humans.Workgroups.Tests.Services;
 
@@ -20,172 +17,6 @@ namespace Humans.Workgroups.Tests.Services;
 /// </summary>
 public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
 {
-    [HumansFact]
-    public async Task ScheduledMeeting_KeepsInquiryUntilItsStart_ThenClearsAndAuditsOnce()
-    {
-        var now = Clock.GetCurrentInstant();
-        var flaggedAt = now.Minus(Duration.FromDays(14));
-        var group = await SeedWorkgroupAsync(
-            registeredAt: now.Minus(Duration.FromDays(90)), dormantSince: flaggedAt);
-        var member = group.Members.Single().UserId;
-        var start = now.Plus(Duration.FromDays(3));
-        await NewService().CreateMeetingAsync(group.Id, member,
-            new WorkgroupMeetingSave("Sync", start, start.Plus(Duration.FromHours(1)), null, null, false, null), Ct);
-
-        await NewService().RunDailyRhythmAsync(Ct);
-        await using (var ctx = OpenContext())
-            (await ctx.Workgroups.SingleAsync(w => w.Id == group.Id, Ct)).DormantSince.Should().Be(flaggedAt);
-
-        Clock.Advance(Duration.FromDays(3));
-        await NewService().RunDailyRhythmAsync(Ct);
-        await NewService().RunDailyRhythmAsync(Ct);
-
-        await using (var ctx = OpenContext())
-        {
-            var stored = await ctx.Workgroups.SingleAsync(w => w.Id == group.Id, Ct);
-            stored.DormantSince.Should().BeNull();
-            stored.Status.Should().Be(WorkgroupStatus.Active);
-        }
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupDormancyCleared, AuditEntityTypes.Workgroup, group.Id,
-            Arg.Is<string>(description => description.Contains(flaggedAt.ToIso8601(), StringComparison.Ordinal)
-                && description.Contains(start.ToIso8601(), StringComparison.Ordinal)),
-            WorkgroupService.WorkgroupRhythmJobName);
-        await AuditLog.DidNotReceive().LogAsync(
-            AuditAction.WorkgroupDormancyCleared, Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<string>(), member);
-    }
-
-    [HumansTheory]
-    [InlineData(-2, false)]
-    [InlineData(-1, true)]
-    [InlineData(0, true)]
-    [InlineData(2, false)]
-    public async Task EditingMeeting_ClearsInquiryOnlyForActivitySinceTheInquiry(int startsInDays, bool shouldClear)
-    {
-        var now = Clock.GetCurrentInstant();
-        var flaggedAt = now.Minus(Duration.FromDays(1));
-        var group = await SeedWorkgroupAsync(dormantSince: flaggedAt);
-        var meeting = await AddMeetingAsync(group.Id, now.Plus(Duration.FromDays(10)));
-        var member = group.Members.Single().UserId;
-        var start = now.Plus(Duration.FromDays(startsInDays));
-
-        await NewService().UpdateMeetingAsync(meeting.Id, member,
-            new WorkgroupMeetingSave("Sync", start, start.Plus(Duration.FromHours(1)), null, null, false, null), Ct);
-
-        await using var ctx = OpenContext();
-        var stored = await ctx.Workgroups.SingleAsync(w => w.Id == group.Id, Ct);
-        stored.DormantSince.Should().Be(shouldClear ? null : flaggedAt);
-        await AuditLog.Received(shouldClear ? 1 : 0).LogAsync(
-            AuditAction.WorkgroupDormancyCleared, AuditEntityTypes.Workgroup, group.Id,
-            Arg.Any<string>(), member);
-    }
-
-    [HumansFact]
-    public async Task AddingAMeetingBeforeTheInquiry_DoesNotClearIt()
-    {
-        var now = Clock.GetCurrentInstant();
-        var flaggedAt = now.Minus(Duration.FromDays(1));
-        var group = await SeedWorkgroupAsync(dormantSince: flaggedAt);
-        var start = now.Minus(Duration.FromDays(2));
-
-        await NewService().CreateMeetingAsync(group.Id, group.Members.Single().UserId,
-            new WorkgroupMeetingSave("Old meeting", start, start.Plus(Duration.FromHours(1)), null, null, false, null), Ct);
-
-        await using var ctx = OpenContext();
-        (await ctx.Workgroups.SingleAsync(w => w.Id == group.Id, Ct)).DormantSince.Should().Be(flaggedAt);
-    }
-
-    [HumansFact]
-    public async Task FailedClear_DoesNotAuditOrLoseInquiry_AndTheNextPassRetries()
-    {
-        var now = Clock.GetCurrentInstant();
-        var flaggedAt = now.Minus(Duration.FromDays(1));
-        var group = await SeedWorkgroupAsync(dormantSince: flaggedAt);
-        await AddMeetingAsync(group.Id, now);
-        var realRepository = new WorkgroupRepository(DbFactory);
-        var repository = Substitute.For<IWorkgroupRepository>();
-        repository.GetGraphAsync(Arg.Any<CancellationToken>())
-            .Returns(call => realRepository.GetGraphAsync(call.Arg<CancellationToken>()));
-        var attempts = 0;
-        var events = new List<string>();
-        repository.UpdateWorkgroupAsync(Arg.Any<Workgroup>(), Arg.Any<CancellationToken>())
-            .Returns(async call =>
-            {
-                if (++attempts == 1)
-                    throw new InvalidOperationException("Simulated write failure");
-                await realRepository.UpdateWorkgroupAsync(call.Arg<Workgroup>(), call.Arg<CancellationToken>());
-                events.Add("saved");
-            });
-        AuditLog.When(a => a.LogAsync(
-            AuditAction.WorkgroupDormancyCleared, AuditEntityTypes.Workgroup, group.Id,
-            Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName)).Do(_ => events.Add("audited"));
-
-        await NewService(repository).RunDailyRhythmAsync(Ct);
-
-        await using (var ctx = OpenContext())
-            (await ctx.Workgroups.SingleAsync(w => w.Id == group.Id, Ct)).DormantSince.Should().Be(flaggedAt);
-        events.Should().BeEmpty();
-
-        await NewService(repository).RunDailyRhythmAsync(Ct);
-        await NewService(repository).RunDailyRhythmAsync(Ct);
-
-        await using (var ctx = OpenContext())
-            (await ctx.Workgroups.SingleAsync(w => w.Id == group.Id, Ct)).DormantSince.Should().BeNull();
-        events.Should().Equal("saved", "audited");
-        attempts.Should().Be(2);
-    }
-
-    [HumansFact]
-    public async Task LateDailyPass_StartsANewInquiryWhenActivityWasAlreadySixtyDaysAgo()
-    {
-        var now = Clock.GetCurrentInstant();
-        var group = await SeedWorkgroupAsync(
-            registeredAt: now.Minus(Duration.FromDays(180)), dormantSince: now.Minus(Duration.FromDays(100)));
-        await AddMeetingAsync(group.Id, now.Minus(Duration.FromDays(60)));
-
-        await NewService().RunDailyRhythmAsync(Ct);
-
-        await using var ctx = OpenContext();
-        (await ctx.Workgroups.SingleAsync(w => w.Id == group.Id, Ct)).DormantSince.Should().Be(now);
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupDormancyCleared, AuditEntityTypes.Workgroup, group.Id,
-            Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupDormancyFlagged, AuditEntityTypes.Workgroup, group.Id,
-            Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
-    }
-
-    [HumansFact]
-    public async Task FutureMeeting_DoesNotPostponeUpdateOrDormancyNotices()
-    {
-        var now = Clock.GetCurrentInstant();
-        var workgroup = await SeedWorkgroupAsync(registeredAt: now.Minus(Duration.FromDays(90)));
-        await AddMeetingAsync(workgroup.Id, now.Plus(Duration.FromDays(90)));
-
-        await NewService().RunDailyRhythmAsync(Ct);
-
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, workgroup.Id,
-            Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
-        await using var ctx = OpenContext();
-        (await ctx.Workgroups.SingleAsync(w => w.Id == workgroup.Id, Ct)).DormantSince.Should().Be(now);
-    }
-
-    [HumansFact]
-    public async Task FutureMeeting_DoesNotHideAnExistingCloseCandidate()
-    {
-        var now = Clock.GetCurrentInstant();
-        var workgroup = await SeedWorkgroupAsync(
-            registeredAt: now.Minus(Duration.FromDays(90)), dormantSince: now.Minus(Duration.FromDays(14)));
-        await AddMeetingAsync(workgroup.Id, now.Plus(Duration.FromDays(90)));
-
-        await NewService().RunDailyRhythmAsync(Ct);
-
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupCloseCandidateFlagged, AuditEntityTypes.Workgroup, workgroup.Id,
-            Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
-    }
-
     [HumansFact]
     public async Task ThirtyDaysSilent_NudgesCoordinators_AndAudits()
     {
@@ -204,6 +35,22 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
     }
 
     [HumansFact]
+    public async Task FutureMeeting_DoesNotPostponeTheUpdateNudge()
+    {
+        var now = Clock.GetCurrentInstant();
+        var workgroup = await SeedWorkgroupAsync(registeredAt: now.Minus(Duration.FromDays(90)));
+        await AddMeetingAsync(workgroup.Id, now.Plus(Duration.FromDays(90)));
+
+        await NewService().RunDailyRhythmAsync(Ct);
+
+        // Only a meeting that has actually started counts as a sign of life: a group cannot
+        // put the nudge off by scheduling something three months out.
+        await AuditLog.Received(1).LogAsync(
+            AuditAction.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, workgroup.Id,
+            Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
+    }
+
+    [HumansFact]
     public async Task TwentyNineDaysSilent_DoesNotNudge()
     {
         await SeedWorkgroupAsync(registeredAt: Clock.GetCurrentInstant().Minus(Duration.FromDays(29)));
@@ -216,70 +63,23 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
     }
 
     [HumansFact]
-    public async Task SixtyDaysSilent_FlagsDormancy_SetsDormantSinceOnce_AndAudits()
+    public async Task SixtyDaysSilent_NudgesAndNothingElse()
     {
         var workgroup = await SeedWorkgroupAsync(registeredAt: Clock.GetCurrentInstant().Minus(Duration.FromDays(60)));
 
         await NewService().RunDailyRhythmAsync(Ct);
 
-        await using var ctx = OpenContext();
-        var reloaded = await ctx.Workgroups.SingleAsync(w => w.Id == workgroup.Id, Ct);
-        reloaded.DormantSince.Should().Be(Clock.GetCurrentInstant());
-        // Sixty days is also a multiple of thirty, so the monthly nudge fires the same pass.
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupDormancyFlagged, AuditEntityTypes.Workgroup, workgroup.Id,
-            Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
+        // Sixty days is a multiple of thirty, so the monthly nudge fires — and that is the
+        // whole of it. Going quiet is not the section's to notice; ending a group is the
+        // Board's decision, taken on the Board's own reading of the register.
         await AuditLog.Received(1).LogAsync(
             AuditAction.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, workgroup.Id,
             Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
 
-        // The job never decides the group's fate — only a human closes it.
-        reloaded.Status.Should().Be(WorkgroupStatus.Active);
-    }
-
-    [HumansFact]
-    public async Task DormancyFlag_DoesNotFireTwice()
-    {
-        var now = Clock.GetCurrentInstant();
-        var workgroup = await SeedWorkgroupAsync(
-            registeredAt: now.Minus(Duration.FromDays(90)), dormantSince: now.Minus(Duration.FromDays(1)));
-
-        await NewService().RunDailyRhythmAsync(Ct);
-
-        await AuditLog.DidNotReceive().LogAsync(
-            AuditAction.WorkgroupDormancyFlagged, Arg.Any<string>(), Arg.Any<Guid>(),
-            Arg.Any<string>(), Arg.Any<string>());
-    }
-
-    [HumansFact]
-    public async Task FourteenDaysAfterDormancyFlag_StillSilent_RaisesACloseCandidate()
-    {
-        var now = Clock.GetCurrentInstant();
-        var workgroup = await SeedWorkgroupAsync(
-            registeredAt: now.Minus(Duration.FromDays(90)), dormantSince: now.Minus(Duration.FromDays(14)));
-
-        await NewService().RunDailyRhythmAsync(Ct);
-
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupCloseCandidateFlagged, AuditEntityTypes.Workgroup, workgroup.Id,
-            Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
-
         await using var ctx = OpenContext();
-        (await ctx.Workgroups.SingleAsync(w => w.Id == workgroup.Id, Ct)).Status.Should().Be(WorkgroupStatus.Active);
-    }
-
-    [HumansFact]
-    public async Task CloseCandidate_DoesNotFireAgainTheDayAfter()
-    {
-        var now = Clock.GetCurrentInstant();
-        var workgroup = await SeedWorkgroupAsync(
-            registeredAt: now.Minus(Duration.FromDays(90)), dormantSince: now.Minus(Duration.FromDays(15)));
-
-        await NewService().RunDailyRhythmAsync(Ct);
-
-        await AuditLog.DidNotReceive().LogAsync(
-            AuditAction.WorkgroupCloseCandidateFlagged, Arg.Any<string>(), Arg.Any<Guid>(),
-            Arg.Any<string>(), Arg.Any<string>());
+        var reloaded = await ctx.Workgroups.SingleAsync(w => w.Id == workgroup.Id, Ct);
+        reloaded.Status.Should().Be(WorkgroupStatus.Active);
+        (await ctx.LogEntries.AnyAsync(e => e.WorkgroupId == workgroup.Id, Ct)).Should().BeFalse();
     }
 
     [HumansFact]
@@ -312,78 +112,24 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
             Arg.Any<string>(), Arg.Any<string>());
     }
 
-    // ── DormantSince clears on a sign of life ────────────────────────────
-
-    [HumansFact]
-    public async Task AnUpdateEntry_ClearsTheDormancyFlag()
-    {
-        var now = Clock.GetCurrentInstant();
-        var workgroup = await SeedWorkgroupAsync(dormantSince: now.Minus(Duration.FromDays(1)));
-        var member = workgroup.Members.Single().UserId;
-
-        await NewService().AddLogEntryAsync(
-            workgroup.Id, member,
-            new WorkgroupLogEntrySave(WorkgroupLogKind.Update, now.InUtc().Date, null, "Making progress"), Ct);
-        await NewService().RunDailyRhythmAsync(Ct);
-
-        await using var ctx = OpenContext();
-        (await ctx.Workgroups.SingleAsync(w => w.Id == workgroup.Id, Ct)).DormantSince.Should().BeNull();
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupDormancyCleared, AuditEntityTypes.Workgroup, workgroup.Id,
-            Arg.Any<string>(), member);
-    }
-
-    [HumansFact]
-    public async Task ANoteEntry_DoesNotClearTheDormancyFlag()
-    {
-        var now = Clock.GetCurrentInstant();
-        var workgroup = await SeedWorkgroupAsync(dormantSince: now.Minus(Duration.FromDays(1)));
-        var member = workgroup.Members.Single().UserId;
-
-        await NewService().AddLogEntryAsync(
-            workgroup.Id, member,
-            new WorkgroupLogEntrySave(WorkgroupLogKind.Note, now.InUtc().Date, null, "Just a note"), Ct);
-
-        await using var ctx = OpenContext();
-        (await ctx.Workgroups.SingleAsync(w => w.Id == workgroup.Id, Ct)).DormantSince.Should().NotBeNull();
-    }
-
-    [HumansFact]
-    public async Task AMeeting_ClearsTheDormancyFlag()
-    {
-        var now = Clock.GetCurrentInstant();
-        var workgroup = await SeedWorkgroupAsync(dormantSince: now.Minus(Duration.FromDays(1)));
-        var member = workgroup.Members.Single().UserId;
-
-        await NewService().CreateMeetingAsync(
-            workgroup.Id, member,
-            new WorkgroupMeetingSave("Sync", now, now.Plus(Duration.FromHours(1)), null, null, false, null), Ct);
-        await NewService().RunDailyRhythmAsync(Ct);
-
-        await using var ctx = OpenContext();
-        (await ctx.Workgroups.SingleAsync(w => w.Id == workgroup.Id, Ct)).DormantSince.Should().BeNull();
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupDormancyCleared, AuditEntityTypes.Workgroup, workgroup.Id,
-            Arg.Any<string>(), member);
-    }
-
     [HumansFact]
     public async Task OneGroupsFailure_DoesNotStopThePassForTheRest()
     {
-        // A group with no coordinators at all still has to be walked without throwing.
-        var quiet = await SeedWorkgroupAsync(
+        var failing = await SeedWorkgroupAsync(
             name: "Silent", driveFolderId: "folder-silent",
             registeredAt: Clock.GetCurrentInstant().Minus(Duration.FromDays(30)));
         var alsoQuiet = await SeedWorkgroupAsync(
             name: "Also Silent", driveFolderId: "folder-also-silent",
             registeredAt: Clock.GetCurrentInstant().Minus(Duration.FromDays(30)));
 
+        // The first group's turn throws mid-action; the pass has to swallow it and carry on.
+        AuditLog.When(x => x.LogAsync(
+                Arg.Any<AuditAction>(), Arg.Any<string>(), failing.Id, Arg.Any<string>(), Arg.Any<string>()))
+            .Do(_ => throw new InvalidOperationException("the audit log is down for this group"));
+
         var act = () => NewService().RunDailyRhythmAsync(Ct);
 
         await act.Should().NotThrowAsync();
-        await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, quiet.Id,
-            Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
         await AuditLog.Received(1).LogAsync(
             AuditAction.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, alsoQuiet.Id,
             Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);

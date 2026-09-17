@@ -14,7 +14,10 @@ internal sealed class Workgroup
     /// <summary>Register name; year instances carry the year in the name.</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Unique; generated from <see cref="Name"/>, admin-editable.</summary>
+    /// <summary>
+    /// Generated from <see cref="Name"/>, admin-editable. The index is plain: uniqueness is
+    /// the service's reservation loop, not a constraint.
+    /// </summary>
     public string Slug { get; set; } = string.Empty;
 
     /// <summary>Markdown, sanitized on render.</summary>
@@ -51,13 +54,6 @@ internal sealed class Workgroup
     public Instant? RegisteredAt { get; set; }
 
     public Instant? EndedAt { get; set; }
-
-    /// <summary>
-    /// Set by the daily job on sixty days' silence and cleared by the next Update or
-    /// Meeting. Distinct from the Dormant <see cref="Status"/>: this is the inquiry flag,
-    /// not the end of the group.
-    /// </summary>
-    public Instant? DormantSince { get; set; }
 
     public Instant CreatedAt { get; init; }
 
