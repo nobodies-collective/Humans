@@ -13,7 +13,7 @@ namespace Humans.Calendar.Contracts;
 /// tag helper is generated — Shell's widget gallery renders it as
 /// <c>&lt;vc:user-calendar&gt;</c> and Users' admin detail invokes it by name. An
 /// internal view component ships the element as inert literal markup with a green
-/// build (design §15 step 6; HUM0034's carve-out is the folder).
+/// build (HUM0034's carve-out is the folder).
 /// </remarks>
 public sealed class UserCalendarViewComponent(
     IICalFeedService feed,
@@ -28,7 +28,7 @@ public sealed class UserCalendarViewComponent(
             var ct = HttpContext.RequestAborted;
             var user = await users.GetUserInfoAsync(userId, ct);
             model.HasFeedToken = user?.ICalToken is not null;
-            model.Items = await feed.GetFeedItemsAsync(userId, ct);
+            model.Items = await feed.GetFeedItemsAsync(user?.Id ?? userId, ct);
         }
         catch (Exception ex)
         {

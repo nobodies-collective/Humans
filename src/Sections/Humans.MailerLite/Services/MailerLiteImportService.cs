@@ -64,7 +64,8 @@ internal sealed class MailerLiteImportService(
             }
 
             // 2. Verified match — count distinct owners so uniqueness drift surfaces as Ambiguous.
-            var verifiedUserIds = await userEmails.GetDistinctVerifiedUserIdsAsync(s.Email, ct);
+            var verifiedUserIds = (await userEmails.FindByAddressAsync(s.Email, aliased: true, verifiedOnly: true, ct))
+                .Select(r => r.UserId).Distinct().ToList();
             if (verifiedUserIds.Count > 1)
             {
                 decisions.Add(new SubscriberDecision(s.Email, s.Status,
@@ -73,7 +74,7 @@ internal sealed class MailerLiteImportService(
             }
             if (verifiedUserIds.Count == 1)
             {
-                var targetId = await ResolveTombstoneAsync(verifiedUserIds[0], ct);
+                var targetId = (await users.GetUserInfoAsync(verifiedUserIds[0], ct))?.Id ?? verifiedUserIds[0];
                 var existing = await prefs.GetPreferenceOrNullAsync(targetId, MessageCategory.Marketing, ct);
                 var outcome = ClassifyVerifiedMatch(s, existing);
                 decisions.Add(new SubscriberDecision(s.Email, s.Status,
@@ -82,11 +83,12 @@ internal sealed class MailerLiteImportService(
             }
 
             // 3. Unverified match
-            var row = await userEmails.FindAnyEmailRowByAddressAsync(s.Email, ct);
-            if (row is var (uid, emailId))
+            var row = (await userEmails.FindByAddressAsync(s.Email, aliased: true, verifiedOnly: false, ct))
+                .FirstOrDefault();
+            if (row is not null)
             {
                 decisions.Add(new SubscriberDecision(s.Email, s.Status,
-                    SubscriberOutcome.ReplaceUnverifiedEmail, uid, emailId, null));
+                    SubscriberOutcome.ReplaceUnverifiedEmail, row.UserId, row.Id, null));
                 continue;
             }
 
@@ -142,19 +144,6 @@ internal sealed class MailerLiteImportService(
         return mlOptedOut
             ? SubscriberOutcome.VerifiedFlipToOptOut
             : SubscriberOutcome.VerifiedFlipToOptIn;
-    }
-
-    private async Task<Guid> ResolveTombstoneAsync(Guid userId, CancellationToken ct)
-    {
-        var visited = new HashSet<Guid> { userId };
-        var current = userId;
-        while (true)
-        {
-            var user = await users.GetUserInfoAsync(current, ct);
-            if (user?.MergedToUserId is not Guid next) return current;
-            if (!visited.Add(next)) return current;
-            current = next;
-        }
     }
 
     public async Task<ImportResult> ApplyAsync(

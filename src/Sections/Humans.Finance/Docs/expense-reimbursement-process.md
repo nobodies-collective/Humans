@@ -66,7 +66,8 @@ Happy path. When something needs fixing it gets more complicated.
    inside Holded: booking (step 10) puts a payment on the same treasury account with the same
    amount, and Holded's reconciliation links movement to payment there.
 10. **Humans tells Holded which creditor account each transfer settles** — the treasurer clicks
-    **Book** on `/Finance/Sepa`, which posts the payment against the member's open purchase docs,
+    **Book** on `/Finance/Sepa`, which posts payments against the member's open purchase docs and
+    one journal entry for anything else the balance was built from (a loan the member made, say),
     so the €123 lands on account `40000004` and the math adds up to zero. Booking is a manual
     per-transfer click today; the next ledger sync after it is what updates the cached balance.
 11. **When it all adds up to zero, we're done.** After that post-booking sync, the balance
@@ -90,8 +91,7 @@ robbed, automation everywhere else.**
   tracked in Humans), and Humans never writes journal entries by hand — settlement goes through
   Holded's own payment API so the accountant sees a normal ledger.
 
-## Status (2026-08-26)
+## Status (2026-09-06)
 
-Steps 1–8 are live in production. Steps 9–11 — the booking screen (`/Finance/Sepa`,
-nobodies-collective/Humans#1141) — are on QA under test, verified with a real €50 payout the
-treasurer sent himself.
+Steps 1–11 are in production: the booking screen (`/Finance/Sepa`, nobodies-collective/Humans#1141)
+is on `upstream/main`.

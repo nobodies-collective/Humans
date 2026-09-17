@@ -8,11 +8,16 @@ using Humans.Users.Contracts;
 namespace Humans.Auth.Services;
 
 /// <summary>
-/// The magic-link sign-in orchestrator. Moved out of <c>Humans.Application</c> at
-/// nobodies-collective/Humans#866 G5 lane 4b-2i: the Base floor ruling of 2026-08-14 makes a
-/// section's leaf reference legal from anywhere, so "it injects Humans.Email.Contracts" stopped
-/// being a reason for Auth's own sign-in path to live in the hub.
+/// The magic-link sign-in orchestrator. Owns no table: its only persistent state is
+/// <c>User.MagicLinkSentAt</c>, written through <see cref="UserManager{TUser}"/>. Token
+/// minting and URL shape sit behind <see cref="IMagicLinkUrlBuilder"/>; replay and cooldown
+/// state behind <see cref="IMagicLinkRateLimiter"/>, so this type names no <c>DbContext</c>,
+/// no <c>IDataProtectionProvider</c> and no <c>IMemoryCache</c>.
 /// </summary>
+/// <remarks>
+/// It sends through <c>Humans.Email.Contracts</c> — a vertical section's leaf, legal from a
+/// horizontal since Peter's Base-floor decision of 2026-08-14.
+/// </remarks>
 internal sealed class MagicLinkService(
     UserManager<User> userManager,
     IUserEmailService userEmailService,
@@ -30,7 +35,8 @@ internal sealed class MagicLinkService(
 
     public async Task SendMagicLinkAsync(string email, string? returnUrl, CancellationToken ct = default)
     {
-        var userEmail = await userEmailService.FindVerifiedEmailWithUserAsync(email, ct);
+        var userEmail = (await userEmailService.FindByAddressAsync(email, aliased: true, verifiedOnly: true, ct))
+            .FirstOrDefault();
         if (userEmail is not null)
         {
             var ownerUser = await userManager.FindByIdAsync(userEmail.UserId.ToString());
@@ -68,7 +74,7 @@ internal sealed class MagicLinkService(
         }
 
         // Replay-prevention: consume token for its lifetime.
-        if (!await rateLimiter.TryConsumeLoginTokenAsync(token, TokenLifetime))
+        if (!await rateLimiter.TryConsumeTokenAsync(token, TokenLifetime))
         {
             logger.LogInformation("Magic link login: token already used for user {UserId}", userId);
             return null;
@@ -89,9 +95,30 @@ internal sealed class MagicLinkService(
         return payload;
     }
 
+    public async Task<string?> VerifyAndConsumeSignupTokenAsync(
+        string token, string? expectedEmail = null, CancellationToken ct = default)
+    {
+        var payload = VerifySignupToken(token, expectedEmail);
+        if (payload is null)
+            return null;
+
+        // Replay-prevention: consume token for its lifetime, as the login path does.
+        if (!await rateLimiter.TryConsumeTokenAsync(token, TokenLifetime))
+        {
+            logger.LogInformation("Magic link signup: token already used for email {Email}",
+                expectedEmail ?? "unknown");
+            return null;
+        }
+
+        return payload;
+    }
+
+    public void ReleaseSignupToken(string token) => rateLimiter.ReleaseTokenReservation(token);
+
     public async Task<User?> FindUserByVerifiedEmailAsync(string email, CancellationToken ct = default)
     {
-        var userEmail = await userEmailService.FindVerifiedEmailWithUserAsync(email, ct);
+        var userEmail = (await userEmailService.FindByAddressAsync(email, aliased: true, verifiedOnly: true, ct))
+            .FirstOrDefault();
         if (userEmail is null)
             return null;
 

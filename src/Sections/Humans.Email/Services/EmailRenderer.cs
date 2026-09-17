@@ -8,6 +8,8 @@ using Microsoft.Extensions.Options;
 
 using Humans.Events.Contracts;
 
+using NodaTime;
+
 namespace Humans.Email.Services;
 
 /// <summary>
@@ -20,11 +22,6 @@ internal sealed class EmailRenderer(
     ILogger<EmailRenderer> logger) : IEmailRenderer
 {
     private readonly EmailSettings _settings = settings.Value;
-
-    // The 70 Email_* keys came home with this file at the section's G5 move: it is the
-    // only renderer of any of them, so "carve by renderer" (design §15 step 3b) pointed
-    // the whole set at the section rather than leaving it in SharedResource.
-    private readonly IStringLocalizer _localizer = localizer;
 
     public EmailContent RenderApplicationSubmitted(Guid applicationId, string applicantName)
     {
@@ -171,7 +168,7 @@ internal sealed class EmailRenderer(
     public EmailContent RenderFeedbackResponse(string userName, string originalDescription, string responseMessage, string reportLink, string? culture = null)
         => RenderLocalized(culture, () =>
         {
-            var responseHtml = Markdig.Markdown.ToHtml(responseMessage);
+            var responseHtml = SanitizedMarkdownRenderer.Render(responseMessage, allowImages: false);
             return new EmailContent(
                 L("Email_FeedbackResponse_Subject"),
                 Lf("Email_FeedbackResponse_Body", HtmlEncode(userName), HtmlEncode(originalDescription), responseHtml, HtmlEncode(reportLink)));
@@ -180,7 +177,7 @@ internal sealed class EmailRenderer(
     public EmailContent RenderIssueComment(string displayName, string issueTitle, string commentContent, string issueLink, string? culture = null)
         => RenderLocalized(culture, () =>
         {
-            var commentHtml = Markdig.Markdown.ToHtml(commentContent);
+            var commentHtml = SanitizedMarkdownRenderer.Render(commentContent, allowImages: false);
             var fullLink = issueLink.StartsWith("http", StringComparison.OrdinalIgnoreCase)
                 ? issueLink
                 : $"{_settings.BaseUrl.TrimEnd('/')}{(issueLink.StartsWith('/') ? "" : "/")}{issueLink}";
@@ -304,10 +301,10 @@ internal sealed class EmailRenderer(
             L("Email_WorkspaceCredentials_Subject"),
             Lf("Email_WorkspaceCredentials_Body", HtmlEncode(userName), HtmlEncode(workspaceEmail), HtmlEncode(tempPassword))));
 
-    private string L(string key) => _localizer[key].Value;
+    private string L(string key) => localizer[key].Value;
 
     private string Lf(string key, params object[] args) =>
-        string.Format(CultureInfo.CurrentCulture, _localizer[key].Value, args);
+        string.Format(CultureInfo.CurrentCulture, localizer[key].Value, args);
 
     private CultureScope WithCulture(string? culture)
     {
@@ -400,7 +397,7 @@ internal sealed class EmailRenderer(
         var markdown = markdownBody
             .Replace("{{Code}}", encodedCode, StringComparison.Ordinal)
             .Replace("{{Name}}", encodedName, StringComparison.Ordinal);
-        var renderedBody = Markdig.Markdown.ToHtml(markdown);
+        var renderedBody = SanitizedMarkdownRenderer.Render(markdown, allowImages: false);
 
         // Subject is a plain-text field; no HTML encoding required.
         var renderedSubject = subject
@@ -533,4 +530,94 @@ internal sealed class EmailRenderer(
                     """);
         }
     }
+
+    public EmailContent RenderWorkgroupNotice(WorkgroupNoticeRequest request)
+        => RenderLocalized(request.Culture, () =>
+        {
+            var greeting = string.IsNullOrEmpty(request.RecipientName)
+                ? L("Email_WorkgroupNotice_Greeting_Generic")
+                : Lf("Email_WorkgroupNotice_Greeting_Named", HtmlEncode(request.RecipientName));
+            // Two forms of the same name: subjects are plain text, bodies are HTML. Encoding
+            // once for both would put "Health &amp; Safety" in the subject line.
+            var name = request.WorkgroupName;
+            var nameHtml = HtmlEncode(request.WorkgroupName);
+            var url = $"{_settings.BaseUrl}/Workgroups/{request.WorkgroupSlug}";
+            var detail = HtmlEncode(request.Detail ?? "");
+
+            return request.Kind switch
+            {
+                WorkgroupNoticeKind.Applied => new EmailContent(
+                    Lf("Email_WorkgroupNotice_Applied_Subject", name),
+                    Lf("Email_WorkgroupNotice_Applied_Body", greeting, nameHtml, url)),
+                WorkgroupNoticeKind.Referred => new EmailContent(
+                    Lf("Email_WorkgroupNotice_Referred_Subject", name),
+                    Lf("Email_WorkgroupNotice_Referred_Body", greeting, nameHtml, url)),
+                WorkgroupNoticeKind.Registered => new EmailContent(
+                    Lf("Email_WorkgroupNotice_Registered_Subject", name),
+                    Lf("Email_WorkgroupNotice_Registered_Body", greeting, nameHtml, url)),
+                WorkgroupNoticeKind.Refused => new EmailContent(
+                    Lf("Email_WorkgroupNotice_Refused_Subject", name),
+                    Lf("Email_WorkgroupNotice_Refused_Body", greeting, nameHtml,
+                        string.IsNullOrEmpty(request.Detail) ? "" : Lf("Email_ReasonLine", detail), url)),
+                WorkgroupNoticeKind.Withdrawn => new EmailContent(
+                    Lf("Email_WorkgroupNotice_Withdrawn_Subject", name),
+                    Lf("Email_WorkgroupNotice_Withdrawn_Body", greeting, nameHtml,
+                        string.IsNullOrEmpty(request.Detail) ? "" : Lf("Email_ReasonLine", detail), url)),
+                WorkgroupNoticeKind.Ended => new EmailContent(
+                    Lf("Email_WorkgroupNotice_Ended_Subject", name),
+                    Lf("Email_WorkgroupNotice_Ended_Body", greeting, nameHtml, url)),
+                WorkgroupNoticeKind.Reactivated => new EmailContent(
+                    Lf("Email_WorkgroupNotice_Reactivated_Subject", name),
+                    Lf("Email_WorkgroupNotice_Reactivated_Body", greeting, nameHtml, url)),
+                WorkgroupNoticeKind.CoordinatorsChanged => new EmailContent(
+                    Lf("Email_WorkgroupNotice_CoordinatorsChanged_Subject", name),
+                    Lf("Email_WorkgroupNotice_CoordinatorsChanged_Body", greeting, nameHtml, url)),
+                WorkgroupNoticeKind.DormancyInquiry => new EmailContent(
+                    Lf("Email_WorkgroupNotice_DormancyInquiry_Subject", name),
+                    Lf("Email_WorkgroupNotice_DormancyInquiry_Body", greeting, nameHtml, detail, url)),
+                WorkgroupNoticeKind.Delivered => new EmailContent(
+                    Lf("Email_WorkgroupNotice_Delivered_Subject", name),
+                    Lf("Email_WorkgroupNotice_Delivered_Body", greeting, nameHtml, detail, url)),
+                WorkgroupNoticeKind.DispositionRecorded => new EmailContent(
+                    Lf("Email_WorkgroupNotice_DispositionRecorded_Subject", name),
+                    Lf("Email_WorkgroupNotice_DispositionRecorded_Body", greeting, nameHtml, detail, url)),
+                _ => throw new InvalidOperationException(
+                    $"WorkgroupNotice does not support kind {request.Kind}")
+            };
+        });
+
+    /// <summary>
+    /// Webmail has no Humans origin, so a root-relative path in an email resolves against the
+    /// reader's own host. Callers pass the in-app path; the absolute link is built here, the
+    /// same way survey and team links are.
+    /// </summary>
+    private string AbsoluteUrl(string path) =>
+        $"{_settings.BaseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
+
+    public EmailContent RenderAssemblyVoteOpened(string userName, string voteTitle, LocalDateTime closesAt, bool isOfficial, string voteUrl, string? culture = null)
+        => RenderLocalized(culture, () =>
+        {
+            var indicativeHtml = isOfficial ? "" : L("Email_AssemblyVote_IndicativeNote");
+            return new EmailContent(
+                Lf("Email_AssemblyVoteOpened_Subject", voteTitle),
+                Lf("Email_AssemblyVoteOpened_Body", HtmlEncode(userName), HtmlEncode(voteTitle), HtmlEncode(closesAt.ToDateTime()), AbsoluteUrl(voteUrl), indicativeHtml));
+        });
+
+    public EmailContent RenderAssemblyVoteReminder(string userName, string voteTitle, LocalDateTime closesAt, bool isOfficial, string voteUrl, string? culture = null)
+        => RenderLocalized(culture, () =>
+        {
+            var indicativeHtml = isOfficial ? "" : L("Email_AssemblyVote_IndicativeNote");
+            return new EmailContent(
+                Lf("Email_AssemblyVoteReminder_Subject", voteTitle),
+                Lf("Email_AssemblyVoteReminder_Body", HtmlEncode(userName), HtmlEncode(voteTitle), HtmlEncode(closesAt.ToDateTime()), AbsoluteUrl(voteUrl), indicativeHtml));
+        });
+
+    public EmailContent RenderAssemblyVoteCancelled(string userName, string voteTitle, string reason, string? culture = null)
+        => RenderLocalized(culture, () =>
+        {
+            var reasonHtml = Lf("Email_ReasonLine", HtmlEncode(reason));
+            return new EmailContent(
+                Lf("Email_AssemblyVoteCancelled_Subject", voteTitle),
+                Lf("Email_AssemblyVoteCancelled_Body", HtmlEncode(userName), HtmlEncode(voteTitle), reasonHtml));
+        });
 }

@@ -10,9 +10,10 @@ directly. Owns `CalendarEvents`, `CalendarEventExceptions`. The inner
 `Humans.Calendar.Services.CachingCalendarService` (Singleton decorator
 inheriting `TrackedCache<Guid, CalendarEventInfo>`, warmed on startup).
 The decorator exposes the cross-section read surface as
-`ICalendarServiceRead`; writes delegate to the inner service then refresh
-the affected event row. `CalendarRepository` does not join the `Teams`
-table — the service stitches team names via `ITeamServiceRead` at the
+`ICalendarServiceRead` and is its only implementation — it answers them
+from its snapshot, so the inner does not implement that interface at all. Writes
+delegate to the inner service then refresh the affected event row. `CalendarRepository` does not join the `Teams`
+table — the decorator stitches team names via `ITeamServiceRead` at the
 application layer.
 
 ### CalendarService (Scoped — wrapped by CachingCalendarService Singleton decorator)
@@ -24,8 +25,10 @@ Repository: `ICalendarRepository`.
 | CalendarEvents | R/W |
 | CalendarEventExceptions | R/W |
 
-Cross-section calls via `ITeamService`, `IAuditLogService`,
-`ICalendarOccurrenceExpander`.
+Cross-section calls via `IAuditLogService`. Team names are stitched by the
+decorator (`ITeamServiceRead`), on the read path the inner does not serve.
+Recurrence expansion is in-section and static (`CalendarOccurrenceExpander`),
+not an injected dependency.
 
 ### CachingCalendarService (Singleton, `Humans.Calendar.Services`)
 
@@ -35,7 +38,9 @@ Cross-section calls via `ITeamService`, `IAuditLogService`,
 
 Implements `ICalendarService`, `ICalendarServiceRead`. Resolves the keyed
 Scoped inner per-call; resolves `ITeamServiceRead` for occurrence team
-names. Surfaced on `/Debug/CacheStats`.
+names, and (when `teamId` is null) `IEnumerable<ICalendarFeedContributor>`
+for community-calendar items — fanned out fresh per call, never cached, and
+never routed through the repository. Surfaced on `/Debug/CacheStats`.
 
 ---
 
@@ -63,8 +68,13 @@ reads `UserInfo.ICalToken` from the `CachingUserService` TrackedCache) and
 Current `ICalendarFeedContributor` implementations (registered by their owning
 sections in each section's own `Section.cs`):
 
-- **`ShiftSignupService`** (Shifts) — the user's Confirmed **and** Pending shift signups (pending get a "(pending)" summary suffix); Cancelled/Bailed/NoShow history is excluded.
-- **`EventService`** (Events) — approved event-guide entries the user has favourited (moderation un-approval drops an event from the feed without touching the favourite row). No hosting/ownership path.
+- **`ShiftSignupService`** (Shifts) — the user's Confirmed **and** Pending shift signups (pending get a "(pending)" summary suffix); Cancelled/Bailed/NoShow history is excluded. `GetPublicItemsForWindowAsync` returns `[]` — nothing public yet.
+- **`EventService`** (Events) — approved event-guide entries the user has favourited (moderation un-approval drops an event from the feed without touching the favourite row). No hosting/ownership path. `GetPublicItemsForWindowAsync` returns `[]` — nothing public yet.
+
+`GetPublicItemsForWindowAsync` results are consumed by `CachingCalendarService.GetOccurrencesInWindowAsync`
+(Calendar section, above), not by `ICalFeedService` — the two fan-outs share the
+interface and contributor registrations but serve different surfaces (personal
+feed vs. community calendar).
 
 Sequential fan-out, matching `GdprService` and `EarlyEntryService`.
 `ShiftSignupService` reads via `ShiftsDbContext` and `EventService` via

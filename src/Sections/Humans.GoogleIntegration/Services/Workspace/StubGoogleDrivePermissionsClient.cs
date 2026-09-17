@@ -2,10 +2,9 @@ namespace Humans.GoogleIntegration.Services.Workspace;
 
 /// <summary>
 /// Dev/test <see cref="IGoogleDrivePermissionsClient"/> that keeps an
-/// in-memory store of folders and permissions so the Application-layer sync
-/// service can exercise Drive flows without a Google service account. Per
-/// the §15 connector pattern, the Application-layer service runs against
-/// this stub — there is no "stub service" variant.
+/// in-memory store of folders and permissions so the sync service can exercise Drive
+/// flows without a Google service account. The real service runs against this stub —
+/// there is no separate stub service.
 /// </summary>
 internal sealed class StubGoogleDrivePermissionsClient(ILogger<StubGoogleDrivePermissionsClient> logger)
     : IGoogleDrivePermissionsClient
@@ -116,6 +115,27 @@ internal sealed class StubGoogleDrivePermissionsClient(ILogger<StubGoogleDrivePe
         }
     }
 
+    public Task<GoogleClientError?> UpdatePermissionAsync(
+        string fileId,
+        string permissionId,
+        string role,
+        CancellationToken ct = default)
+    {
+        logger.LogInformation("[STUB] Update permission {PermId} to {Role} on {FileId}", permissionId, role, fileId);
+        lock (_gate)
+        {
+            if (!_permissionsByFile.TryGetValue(fileId, out var perms))
+                return Task.FromResult<GoogleClientError?>(new GoogleClientError(404, "file not found"));
+
+            var index = perms.FindIndex(p => string.Equals(p.Id, permissionId, StringComparison.Ordinal));
+            if (index < 0)
+                return Task.FromResult<GoogleClientError?>(new GoogleClientError(404, "permission not found"));
+
+            perms[index] = perms[index] with { Role = role };
+            return Task.FromResult<GoogleClientError?>(null);
+        }
+    }
+
     public Task<DrivePermissionDeleteResult> DeletePermissionAsync(
         string fileId,
         string permissionId,
@@ -189,6 +209,22 @@ internal sealed class StubGoogleDrivePermissionsClient(ILogger<StubGoogleDrivePe
 
             _filesById[fileId] = file with { InheritedPermissionsDisabled = disabled };
             return Task.FromResult<GoogleClientError?>(null);
+        }
+    }
+
+    public Task<DriveFolderCreateResult> CreateFolderAsync(
+        string parentFolderId,
+        string name,
+        CancellationToken ct = default)
+    {
+        logger.LogInformation("[STUB] Create folder '{Name}' under {ParentFolderId}", name, parentFolderId);
+
+        lock (_gate)
+        {
+            var id = $"stubfolder-{_nextFileId++}";
+            _filesById[id] = new StubFile(id, name, parentFolderId, DriveId: null, InheritedPermissionsDisabled: null);
+            _permissionsByFile[id] = [];
+            return Task.FromResult(new DriveFolderCreateResult(id, Error: null));
         }
     }
 

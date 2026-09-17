@@ -8,8 +8,9 @@ namespace Humans.Calendar.Services;
 
 /// <summary>
 /// Orchestrator: fans the personal iCal feed out across <see cref="ICalendarFeedContributor"/>s
-/// into one VCALENDAR. Sequential, not Task.WhenAll: contributors share the
-/// scoped section DbContexts which are not thread-safe (same as GdprService).
+/// into one VCALENDAR. Sequential, not Task.WhenAll — not for safety (each contributor's
+/// factory-created context is safe to run concurrently, design-rules §8a) but for consistency
+/// with the other contributor fan-outs.
 /// </summary>
 internal sealed class ICalFeedService(
     IUserServiceRead users,
@@ -46,9 +47,12 @@ internal sealed class ICalFeedService(
 
     public async Task<string?> GetFeedIcsAsync(Guid userId, Guid token, CancellationToken ct = default)
     {
+        // #1704: the read resolves merges forward, so a tombstone id answers with the survivor.
+        // Comparing the row back against the requested id keeps the documented contract that a
+        // merged user's feed is a 404 — no oracle telling the holder of an old URL who absorbed
+        // the account, and no feed served under an id that no longer names a human.
         var user = await users.GetUserInfoAsync(userId, ct);
-        if (user is null || user.MergedToUserId is not null
-            || user.ICalToken is null || user.ICalToken.Value != token)
+        if (user is null || user.Id != userId || user.ICalToken is null || user.ICalToken.Value != token)
         {
             return null;
         }

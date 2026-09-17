@@ -100,5 +100,32 @@ public enum NotificationSource
     IssueAssigned = 31,
 
     /// <summary>A new issue was submitted (notifies admins + section role-holders).</summary>
-    IssueSubmitted = 32
+    IssueSubmitted = 32,
+
+    /// <summary>Someone expressed interest in a ride offer, or a driver answered a ride request.</summary>
+    RideshareInterestReceived = 33,
+
+    /// <summary>The posting owner accepted a rideshare interest.</summary>
+    RideshareInterestAccepted = 34,
+
+    /// <summary>The posting owner declined a rideshare interest (neutral wording, no reason).</summary>
+    RideshareInterestDeclined = 35,
+
+    /// <summary>An assembly vote opened and the roster was notified.</summary>
+    AssemblyVoteOpened = 36,
+
+    /// <summary>A working group applied, was referred, or the Board owes it a decision.</summary>
+    WorkgroupRegistrationPending = 37,
+
+    /// <summary>A working group's registration was decided: registered, refused, withdrawn, ended or reactivated.</summary>
+    WorkgroupRegistrationDecided = 38,
+
+    /// <summary>The reporting rhythm: monthly update due, dormancy inquiry, or a status update requested.</summary>
+    WorkgroupReportingDue = 39,
+
+    /// <summary>A working group published a document, opened comments, answered a comment, or delivered.</summary>
+    WorkgroupDocumentActivity = 40,
+
+    /// <summary>The Board recorded its written disposition on a delivered document.</summary>
+    WorkgroupDispositionRecorded = 41,
 }

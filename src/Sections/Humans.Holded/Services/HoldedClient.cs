@@ -207,6 +207,53 @@ internal sealed class HoldedClient : IHoldedClient
         return UnconfirmedPaymentRefPrefix + documentId;
     }
 
+    public async Task<string> PostLedgerEntryAsync(
+        LocalDate date, int debitAccount, int creditAccount, decimal amount, string description,
+        CancellationToken ct = default)
+    {
+        // Same wire rule as payments: amounts are decimal strings, accounts are ledger numbers.
+        // The date goes out ISO — DD/MM/YYYY is only how ledger-entries *reads* come back. Verified
+        // live 2026-09: entries POSTed as 2026-03-31 read back as 31/03/2026.
+        var money = amount.ToString("F2", CultureInfo.InvariantCulture);
+        var payload = new
+        {
+            date = LocalDatePattern.Iso.Format(date),
+            notes = description,
+            lines = new[]
+            {
+                new { account = debitAccount, description, debit = money, credit = "0.00" },
+                new { account = creditAccount, description, debit = "0.00", credit = money },
+            },
+        };
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v2/ledger-entries")
+        { Content = JsonContent.Create(payload, options: OmitNulls) };
+        AttachAuth(req);
+
+        using var resp = await SendAsync(req, ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        string? id = null;
+        try
+        {
+            id = JsonNode.Parse(body)?["id"]?.GetValue<string>();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException
+            or FormatException or OverflowException)
+        {
+            _logger.LogWarning(ex,
+                "Holded accepted a ledger entry (debit {Debit}, credit {Credit}, {Amount}) but its response could not be parsed.",
+                debitAccount, creditAccount, money);
+        }
+
+        if (!string.IsNullOrWhiteSpace(id)) return id;
+
+        // Posted, like the payment case: a throw here would let the caller post it again.
+        _logger.LogWarning(
+            "Holded accepted a ledger entry (debit {Debit}, credit {Credit}, {Amount}) without a readable id; recording it as unconfirmed.",
+            debitAccount, creditAccount, money);
+        return UnconfirmedPaymentRefPrefix + "entry";
+    }
+
     public async Task<IReadOnlyList<HoldedExpenseAccountDto>> ListExpenseAccountsAsync(
         CancellationToken ct = default)
     {
@@ -576,7 +623,7 @@ internal sealed class HoldedClient : IHoldedClient
         catch (Exception ex) when (ex is JsonException or InvalidOperationException
             or FormatException or OverflowException or UnparsableValueException)
         {
-            // As in ListPurchaseDocumentsPageAsync — permanent, and the whole page fails rather
+            // As in ListPurchaseDocumentsAsync — permanent, and the whole page fails rather
             // than skipping the line. Creditor and account balances are summed from these debits
             // and credits, so a quietly dropped line reads as a settled entry that never happened.
             throw new HoldedPermanentException(
@@ -587,14 +634,18 @@ internal sealed class HoldedClient : IHoldedClient
     public async Task<IReadOnlyList<HoldedAccountDto>> ListAccountingAccountsAsync(
         CancellationToken ct = default)
     {
-        const int pageSafetyCap = 5; // 267 accounts today, unpaginated — plenty of headroom
+        const int pageSafetyCap = 5; // a few hundred accounts, unpaginated in practice — headroom
         var items = await GetPagedAsync("/api/v2/accounting-accounts?limit=200", pageSafetyCap, ct);
         try
         {
             return items.Select(n => new HoldedAccountDto
             {
                 Id = Prop(n, "id")?.GetValue<string>() ?? "",
-                Number = ReadInt(Prop(n, "number")) ?? 0,
+                // Required, like the ledger line's `account`: the number IS the account's identity
+                // here — it keys the mirror, picks the PGC group and drives the POV flip. A
+                // manufactured 0 would enter the chart as an "Unclassified" account with a
+                // sign-flipped balance and be reconciled against Holded every night.
+                Number = ReadRequiredInt(Prop(n, "number"), "number"),
                 Name = Prop(n, "name")?.GetValue<string>() ?? "",
                 Group = Prop(n, "group")?.GetValue<string>(),
                 Debit = ReadDecimalV2(Prop(n, "debit")),
@@ -660,7 +711,7 @@ internal sealed class HoldedClient : IHoldedClient
             AttachAuth(req);
             // Forward the real caller (ListLedgerEntriesAsync, ListContactsAsync, …) — SendAsync's own
             // [CallerMemberName] would otherwise record every paginated endpoint as "GetPagedAsync",
-            // collapsing the call log's per-endpoint breakdown (used by the admin overview, Task 7).
+            // collapsing the call log's per-endpoint breakdown the admin overview renders.
             using var resp = await SendAsync(req, ct, caller);
             await using var stream = await resp.Content.ReadAsStreamAsync(ct);
             var root = await JsonNode.ParseAsync(stream, cancellationToken: ct);

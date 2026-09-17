@@ -49,6 +49,17 @@ in-process `IEnumerable<IGoogleGroupMembershipSource>` (currently only
 `IGoogleRemovalNotificationService`, `IGoogleGroupSyncScheduler`. No
 direct DB access, no cache.
 
+### GoogleDriveAccessSyncService (Scoped)
+
+No repository directly — operates over the `IGoogleDrivePermissionsClient`
+connector and the in-process `IEnumerable<IGoogleDriveAccessSource>` (empty
+until a consumer section registers one, e.g. Workgroups). Cross-section calls
+via `IUserServiceRead`, `IUserEmailService`, `ISyncSettingsService`,
+`IAuditLogService`, `IGoogleRemovalNotificationService`,
+`IGoogleDriveAccessSyncScheduler`. No direct DB access, no cache. Mirrors
+`GoogleGroupSyncService` for source-claimed Drive folders; the Teams-keyed
+`google_resources` Drive path stays on `GoogleWorkspaceSyncService`.
+
 ### GoogleAdminService (Scoped)
 
 No repository — no DbContext
@@ -108,8 +119,8 @@ side (`IGoogleSyncLogViewer`) backing `<vc:google-sync-log>`, and
 at Error and swallowed so a sync never fails on its own bookkeeping. The
 contributor read is uncapped, unlike the 200-row display reads. Cross-section
 calls: `ITeamResourceService` (resource display names) and
-`IUserServiceRead.GetMergedSourceIdsAsync` (chain-follow merge tombstones on
-per-user reads). No cache.
+`IUserServiceRead.GetUserInfoAsync`, whose `UserInfo.AllUserIds` chain-follows
+merge tombstones on per-user reads. No cache.
 
 ### GoogleSyncHistoryMigrationService (Scoped, `internal`)
 

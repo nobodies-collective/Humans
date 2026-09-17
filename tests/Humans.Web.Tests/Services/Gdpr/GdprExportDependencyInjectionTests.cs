@@ -60,6 +60,7 @@ public class GdprExportDependencyInjectionTests
         typeof(UsersUserService),
         typeof(ProfilesAccountMergeService),
         SectionType("Humans.Governance.Services.ApplicationDecisionService"),
+        SectionType("Humans.Governance.Services.AssemblyVoteService"),
         SectionType("Humans.Consent.Services.ConsentService"),
         typeof(TeamService),
         SectionType("Humans.Auth.Services.RoleAssignmentService"),
@@ -82,7 +83,11 @@ public class GdprExportDependencyInjectionTests
         SectionType("Humans.GoogleIntegration.Services.GoogleSyncLogService"),
         SectionType("Humans.MailerLite.Services.MailerLiteGdprContributor"),
         SectionType("Humans.Email.Services.EmailOutboxService"),
-        SectionType("Humans.Backdoor.Services.BackdoorApiKeyService")
+        SectionType("Humans.Backdoor.Services.BackdoorApiKeyService"),
+        // The caching decorator, not RideshareService: erasure empties cached rows.
+        SectionType("Humans.Rideshare.Services.CachingRideshareService"),
+        // Likewise the decorator, not WorkgroupService: erasure and the merge fold change cached rows.
+        SectionType("Humans.Workgroups.Services.CachingWorkgroupService")
     ];
 
     /// <summary>

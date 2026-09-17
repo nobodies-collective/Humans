@@ -20,7 +20,7 @@ internal sealed class UserService(
     IRoleAssignmentClaimsCacheInvalidator roleAssignmentClaimsInvalidator,
     IFileStorage fileStorage,
     IClock clock,
-    ILogger<UserService> logger) : IUserService, IUserDataContributor
+    ILogger<UserService> logger) : IUserServiceInternal, IUserDataContributor
 {
     private static readonly TrackedLock[] ProfileStubLocks = Enumerable
         .Range(0, 32)
@@ -31,6 +31,18 @@ internal sealed class UserService(
         ProfileStubLocks[(uint)userId.GetHashCode() % (uint)ProfileStubLocks.Length];
 
     // --- User reads ---
+
+    /// <summary>
+    /// The inner service reads rows, it does not resolve merge chains — only
+    /// <c>CachingUserService</c> sees the whole graph. So raw and redirecting reads
+    /// are the same thing here, and the redirect is tested through the decorator.
+    /// </summary>
+    public ValueTask<UserInfo?> GetRawUserInfoAsync(Guid userId, CancellationToken ct = default) =>
+        GetUserInfoAsync(userId, ct);
+
+    /// <inheritdoc cref="GetRawUserInfoAsync" />
+    public Task<IReadOnlyCollection<UserInfo>> GetAllRawUserInfosAsync(CancellationToken ct = default) =>
+        GetAllUserInfosAsync(ct);
 
     public async ValueTask<UserInfo?> GetUserInfoAsync(Guid userId, CancellationToken ct = default)
     {
@@ -630,8 +642,9 @@ internal sealed class UserService(
         if (!new EmailAddressAttribute().IsValid(email))
             throw new ValidationException("Please enter a valid email address.");
 
-        var existing = await repo.FindUserEmailByNormalizedEmailAsync(normalizedEmail, alternateEmail, ct);
-        if (existing is not null && existing.UserId == userId)
+        var rows = await repo.GetUserEmailsByAddressAsync(normalizedEmail, alternateEmail, ct);
+        var existing = rows.FirstOrDefault(e => e.UserId == userId);
+        if (existing is not null)
         {
             if (command.IgnoreExisting)
                 return new UserEmailAddResult(existing.Id, Added: false, IsConflict: false);
@@ -639,7 +652,7 @@ internal sealed class UserService(
             throw new ValidationException("This email address is already in your account.");
         }
 
-        var isConflict = existing is not null && existing.UserId != userId && existing.IsVerified;
+        var isConflict = rows.Any(e => e.UserId != userId && e.IsVerified);
 
         _ = await repo.GetByIdAsync(userId, ct)
             ?? throw new InvalidOperationException("User not found.");
@@ -1262,13 +1275,6 @@ internal sealed class UserService(
         await repo.ReassignEventParticipationToUserAsync(mergedFromUserId, mergedToUserId, ct);
         await repo.ReassignSubAggregatesToUserAsync(mergedFromUserId, mergedToUserId, now, ct);
     }
-
-    public Task<IReadOnlySet<Guid>> GetMergedSourceIdsAsync(
-        Guid targetUserId, CancellationToken ct = default) =>
-        throw new NotSupportedException(
-            "GetMergedSourceIdsAsync is only meaningful through CachingUserService — " +
-            "scans the cached UserInfo snapshot for MergedToUserId tombstones. If this is " +
-            "being called on the inner UserService it indicates a DI registration mistake.");
 
     public async Task<IReadOnlyList<Guid>> GetUsersWithLoginsButNoEmailsAsync(CancellationToken ct = default)
     {

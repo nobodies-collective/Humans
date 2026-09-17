@@ -17,7 +17,7 @@ using Humans.Tickets.Services.Dtos;
 namespace Humans.Tickets.Services;
 
 /// <summary>
-/// Tickets read service (inner) behind <c>CachingTicketQueryService</c> decorator (§15 / T-07).
+/// Tickets read service (inner) behind <c>CachingTicketQueryService</c> decorator (§15).
 /// </summary>
 internal sealed class TicketQueryService(
     ITicketRepository ticketRepository,
@@ -39,17 +39,14 @@ internal sealed class TicketQueryService(
         if (matchedCount > 0)
             return matchedCount;
 
-        // Fallback: verified-emails ↔ attendee-emails, compared in-memory for consistent casing.
-        var verifiedEmails = await userEmailService.GetVerifiedEmailsForUserAsync(userId);
-        if (verifiedEmails.Count == 0)
-            return 0;
-
+        // Fallback: attendee emails against the same verified-email → user index the sync
+        // matches with, so an alias verified by two users counts for neither, as in sync.
         var attendeeEmails = await ticketRepository.GetValidAttendeeEmailsAsync();
         if (attendeeEmails.Count == 0)
             return 0;
 
-        var verifiedSet = verifiedEmails.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return attendeeEmails.Count(verifiedSet.Contains);
+        var (lookup, _) = VerifiedEmailLookup.Build(await userService.GetAllUserInfosAsync());
+        return attendeeEmails.Count(email => lookup.TryGetValue(email, out var owner) && owner == userId);
     }
 
     public async Task<IReadOnlyList<TicketOrderInfo>> GetTicketOrdersAsync(CancellationToken ct = default)
@@ -304,6 +301,18 @@ internal sealed class TicketQueryService(
         };
     }
 
+    private static readonly DateTimeZone MadridZone = DateTimeZoneProviders.Tzdb["Europe/Madrid"];
+
+    /// <summary>
+    /// Accounting month of a purchase, in Europe/Madrid — the zone the association books in,
+    /// so a 00:30 UTC purchase on the 1st is not reported against the previous month.
+    /// </summary>
+    private static (int Year, int Month) MonthKey(Instant purchasedAt)
+    {
+        var d = purchasedAt.InZone(MadridZone).Date;
+        return (d.Year, d.Month);
+    }
+
     public async Task<TicketSalesAggregates> GetSalesAggregatesAsync()
     {
         var orders = await ticketRepository.GetPaidOrderSalesRowsAsync();
@@ -355,6 +364,41 @@ internal sealed class TicketQueryService(
             })
             .ToList();
 
+        var refunded = await ticketRepository.GetRefundedOrderRowsAsync();
+        var refundedByMonth = refunded
+            .GroupBy(r => MonthKey(r.PurchasedAt))
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var paidByMonth = orders.GroupBy(o => MonthKey(o.PurchasedAt)).ToDictionary(g => g.Key, g => g.ToList());
+        var monthlySales = paidByMonth.Keys.Union(refundedByMonth.Keys)
+            .OrderBy(k => k)
+            .Select(k =>
+            {
+                var paid = paidByMonth.GetValueOrDefault(k) ?? [];
+                var refundedRows = refundedByMonth.GetValueOrDefault(k) ?? [];
+                return new MonthlySalesAggregate
+                {
+                    MonthLabel = $"{k.Year:D4}-{k.Month:D2}",
+                    OrderCount = paid.Count,
+                    TicketsSold = paid.Sum(o => o.AttendeeCount),
+                    GrossRevenue = paid.Sum(o => o.TotalAmount),
+                    Donations = paid.Sum(o => o.DonationAmount),
+                    VipDonations = paid.Sum(o => o.VipDonations),
+                    VatAmount = paid.Sum(o => o.VatAmount),
+                    // Built over the live seats the way TicketSyncService.ComputeOrderVat builds
+                    // the VAT base — Σ min(price, threshold) less the discount, floored per order.
+                    // TotalAmount cannot stand in: a transfer voids a seat and adds a live
+                    // replacement at the same price without changing the order total.
+                    TicketIncomeInclVat = paid.Sum(o =>
+                        Math.Max(0m, o.LiveSeatGross - o.VipDonations - o.DiscountAmount)),
+                    // A refund returns the gross, never the processing fees already charged.
+                    StripeFees = paid.Sum(o => o.StripeFee ?? 0m) + refundedRows.Sum(r => r.StripeFee ?? 0m),
+                    ApplicationFees = paid.Sum(o => o.ApplicationFee ?? 0m)
+                                      + refundedRows.Sum(r => r.ApplicationFee ?? 0m),
+                    RefundedGross = refundedRows.Sum(r => r.TotalAmount),
+                };
+            })
+            .ToList();
+
         var attendees = await ticketRepository.GetPaidAttendeeTypePriceRowsAsync();
 
         var byTicketType = attendees
@@ -373,6 +417,7 @@ internal sealed class TicketQueryService(
         {
             WeeklySales = weeklySales,
             QuarterlySales = quarterlySales,
+            MonthlySales = monthlySales,
             ByTicketType = byTicketType,
             ByDiscountCampaign = await BuildDiscountCampaignAggregatesAsync(),
         };
@@ -774,7 +819,8 @@ internal sealed class TicketQueryService(
                 HasPendingOutgoingTransfer: pendingByAttendee.ContainsKey(a.Id),
                 PendingTransferRequestId: pendingByAttendee.TryGetValue(a.Id, out var transferId)
                     ? transferId
-                    : null))
+                    : null,
+                CheckedInAt: a.CheckedInAt))
             .ToList();
 
         var ticketCount = await ComputeUserTicketCountAsync(userId);

@@ -6,21 +6,18 @@ using MemberApplication = Humans.Governance.Domain.Application;
 namespace Humans.Governance.Data;
 
 /// <summary>
-/// Per-section database context for the Governance section
-/// (nobodies-collective/Humans#858): maps only <c>applications</c>,
+/// Per-section database context: maps only <c>applications</c>,
 /// <c>application_state_history</c> and <c>board_votes</c>, with its own
 /// <c>__EFMigrationsHistory_Governance</c> table and migrations under
-/// <c>Migrations/Governance/</c>. Same database, same connection — the split is
-/// a code-side partition of the EF model.
+/// <c>Data/Migrations/</c>. Same database, same connection — the split is a
+/// code-side partition of the EF model.
 /// </summary>
 /// <remarks>
-/// Internal-sealed like every section context (issue #750): repositories
-/// are the only consumers. Configurations are applied explicitly (not by
-/// assembly scanning) so this model can never accrete another section's tables.
-/// Applicants and voting Board members are bare Guid references, so the
-/// Identity tables stay in <see cref="UsersDbContext"/> and are deliberately
-/// absent here. These are Colaborador/Asociado tier applications only —
-/// volunteer onboarding does not run through this section.
+/// Configurations are applied explicitly, not by assembly scanning, so this
+/// model can never accrete another section's tables. Applicants and voting
+/// Board members are bare Guid references, so the Users section's Identity
+/// tables are deliberately absent here. These are Colaborador/Asociado tier
+/// applications only — volunteer onboarding does not run through this section.
 /// </remarks>
 internal sealed class GovernanceDbContext(DbContextOptions<GovernanceDbContext> options)
     : DbContext(options)
@@ -28,6 +25,12 @@ internal sealed class GovernanceDbContext(DbContextOptions<GovernanceDbContext> 
     public DbSet<MemberApplication> Applications => Set<MemberApplication>();
     public DbSet<ApplicationStateHistory> ApplicationStateHistories => Set<ApplicationStateHistory>();
     public DbSet<BoardVote> BoardVotes => Set<BoardVote>();
+    public DbSet<AssemblyVote> AssemblyVotes => Set<AssemblyVote>();
+    public DbSet<AssemblyVoteOption> AssemblyVoteOptions => Set<AssemblyVoteOption>();
+    public DbSet<AssemblyVoteRoster> AssemblyVoteRosterEntries => Set<AssemblyVoteRoster>();
+    public DbSet<AssemblyBallot> AssemblyBallots => Set<AssemblyBallot>();
+    public DbSet<AssemblyBallotHistory> AssemblyBallotHistories => Set<AssemblyBallotHistory>();
+    public DbSet<AssemblyVotePeek> AssemblyVotePeeks => Set<AssemblyVotePeek>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -36,5 +39,11 @@ internal sealed class GovernanceDbContext(DbContextOptions<GovernanceDbContext> 
         builder.ApplyConfiguration(new ApplicationConfiguration());
         builder.ApplyConfiguration(new ApplicationStateHistoryConfiguration());
         builder.ApplyConfiguration(new BoardVoteConfiguration());
+        builder.ApplyConfiguration(new AssemblyVoteConfiguration());
+        builder.ApplyConfiguration(new AssemblyVoteOptionConfiguration());
+        builder.ApplyConfiguration(new AssemblyVoteRosterConfiguration());
+        builder.ApplyConfiguration(new AssemblyBallotConfiguration());
+        builder.ApplyConfiguration(new AssemblyBallotHistoryConfiguration());
+        builder.ApplyConfiguration(new AssemblyVotePeekConfiguration());
     }
 }

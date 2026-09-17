@@ -7,7 +7,7 @@ Business requirements, user stories, data model, and workflows for each feature 
 | Document | Description |
 |----------|-------------|
 | [Event Guide Management](../src/Sections/Humans.Events/Docs/features/Events-feature.md) | Submission, moderation, and publication of camp and individual events for the digital and print event guide |
-| [In-App Guide Browser](../src/Sections/Humans.Guide/Docs/features/27-guide-browser.md) | Read-only `/Events/Browse` view letting logged-in humans discover, filter, favourite, and schedule approved events without leaving Humans |
+| [In-App Guide Browser](../src/Sections/Humans.Events/Docs/features/27-guide-browser.md) | Read-only `/Events/Browse` view letting logged-in humans discover, filter, favourite, and schedule approved events without leaving Humans |
 | [Google Group Membership Sync](../src/Sections/Humans.GoogleIntegration/Docs/features/43-google-group-membership-sync.md) | Expected-state reconciliation of Google Group memberships from `IGoogleGroupMembershipSource` plugins, with daily and scoped retry passes |
 | [Volunteer Tracking](../src/Sections/Humans.Shifts/Docs/features/47-volunteer-tracking.md) | `/Shifts/Dashboard/VolunteerTracking` heatmap surfacing build-period gaps and declared-but-unbooked volunteers for the VC |
 | [Active User Metrics](features/global/active-user-metrics.md) | Distinct authenticated users tracked by trailing window (5m / 1h / 24h), surfaced as Prometheus gauges plus three tiles on `/Admin` |
@@ -23,7 +23,7 @@ Business requirements, user stories, data model, and workflows for each feature 
 | [City Planning](../src/Sections/Humans.CityPlanning/Docs/features/city-planning.md) | Real-time collaborative aerial-map polygon tool for camp leads to stake out their barrio before the event |
 | [Client Stats (Debug)](../src/Sections/Humans.Debug/Docs/features/client-stats.md) | `/Debug/ClientStats` screen showing, since process start, the OS / browser / device-type mix of visitors, their screen-resolution distribution, and HTTP response status-code tallies — all in-memory, no DB |
 | [HTTP Errors (Debug)](../src/Sections/Humans.Debug/Docs/features/http-errors.md) | `/Debug/HttpErrors` screen showing the last 1000 error responses (status > 399) with per-request detail: when, code, method, URL, IP, authenticated user, and classified User-Agent — all in-memory, no DB |
-| [Email Flag Violations — Admin & Self Remediation](../src/Sections/Humans.Email/Docs/features/email-flag-violations-remediation.md) | Recovery surface for stuck `UserEmail` IsGoogle/IsPrimary duplicates with admin scan page and self-service clear actions |
+| [Email Flag Violations — Admin & Self Remediation](../src/Sections/Humans.Users/Docs/features/email-flag-violations-remediation.md) | Recovery surface for stuck `UserEmail` IsGoogle/IsPrimary duplicates with admin scan page and self-service clear actions |
 | [Feature 21: Email Outbox](../src/Sections/Humans.Email/Docs/features/email-outbox.md) | Outbox pattern for reliable transactional email delivery with retry and crash recovery |
 | [`[ExpiresOn]` — Hard removal deadlines](features/global/expires-on-deadline.md) | Analyzer-enforced removal deadlines that escalate deprecation warnings to errors on a fixed date |
 | [Feedback System](../src/Sections/Humans.Feedback/Docs/features/feedback-system.md) | Retired (nobodies-collective/Humans#977) — closed to new reports and Admin-only; superseded by Issues |
@@ -33,7 +33,7 @@ Business requirements, user stories, data model, and workflows for each feature 
 | [GDPR Data Export](features/global/gdpr-export.md) | Self-service download fulfilling GDPR Article 15 right to a copy of all personal data held |
 | [Global Search (`/Search`)](features/global/global-search.md) | Single-entry magnifying-glass search that fans out across humans, teams, camps, shifts, and (when `Features:Events` is on) approved events |
 | [Section Activation](features/global/section-activation.md) | `ISection.IsActive` defaults to true so every section assembly ships active by default; a section opts itself out by overriding it, with no configuration key or name list |
-| [F-13: Drive Activity Monitoring](../src/Sections/Humans.GoogleIntegration/Docs/features/drive-activity-monitoring.md) | Detection and logging of Google Shared Drive permission changes made outside the system |
+| [F-13: Drive Activity Monitoring](../src/Sections/Humans.Monitor/Docs/features/drive-activity-monitoring.md) | Detection and logging of Google Shared Drive permission changes made outside the system |
 | [Google Integration](../src/Sections/Humans.GoogleIntegration/Docs/features/google-integration.md) | Integration with Google Workspace Shared Drives and Google Groups for managing team shared resources |
 | [Google Removal Notifications](../src/Sections/Humans.GoogleIntegration/Docs/features/google-removal-notifications.md) | Email notifications to addresses removed from Google Groups or Drive permissions, distinguishing loss-of-access from secondary-email cleanup |
 | [Workspace Account Provisioning](../src/Sections/Humans.GoogleIntegration/Docs/features/workspace-account-provisioning.md) | Admin-driven creation of @nobodies.team Google Workspace accounts linked to a human's profile |
@@ -58,8 +58,8 @@ Business requirements, user stories, data model, and workflows for each feature 
 | [Profile Search Detail (Picker Row Enrichment)](../src/Sections/Humans.Users/Docs/features/profile-search-detail.md) | Second-line context plus avatar in the shared human picker so Playa-name collisions can be disambiguated |
 | [Profiles](../src/Sections/Humans.Users/Docs/features/profiles.md) | Personal information management distinguishing legal names from public "burner names" with location data for event planning |
 | [Public Coordinator Popover](../src/Sections/Humans.Users/Docs/features/public-coordinator-popover.md) | Anonymous-visible reduced popover on public team pages surfacing only avatar, BurnerName, and coordinator role labels via an `AllowAnonymous` `/Profile/{id}/PublicPopover` endpoint |
-| [Scanner — Barcode (Phase 1)](../src/Sections/Humans.Scanner/Docs/features/scanner-barcode.md) | Camera-based in-app barcode/QR decoder for staff to inspect TicketTailor ticket stubs (decode only, no check-in) |
-| [Scanner — Gate Terminal Login](../src/Sections/Humans.Scanner/Docs/features/gate-terminal-login.md) | Shared gate-terminal account (well-known GUID, no email or roles) so any shift volunteer can operate the ticket-lookup kiosk without tying the device to a personal login or granting admin powers |
+| [Scanner — Barcode](../src/Sections/Humans.Scanner/Docs/features/scanner-barcode.md) | Camera-based in-app barcode/QR decoder for staff to inspect TicketTailor ticket stubs (decode only, no check-in) |
+| [Scanner — Gate Terminal Login](../src/Sections/Humans.Scanner/Docs/features/gate-terminal-login.md) | Shared gate-terminal account (well-known GUID, no email or roles) so any shift volunteer can operate the gate kiosk without tying the device to a personal login or granting admin powers |
 | [Coordinator Roles](../src/Sections/Humans.Shifts/Docs/features/coordinator-roles.md) | Consent Coordinator and Volunteer Coordinator roles adding structured safety and facilitation gates to onboarding |
 | [Day Filter](../src/Sections/Humans.Shifts/Docs/features/day-filter.md) | Dropdown on `/Shifts` letting volunteers jump to a specific calendar day, filtering the shift list and surfacing open shifts first |
 | [Department Coverage Pies](../src/Sections/Humans.Shifts/Docs/features/department-coverage-pies.md) | A row of conic-gradient discs above `/Shifts`, one per department, showing percentage-filled and acting as a clickable department filter |
@@ -122,6 +122,7 @@ Terse, authoritative invariant docs for each major section: concepts, data model
 | [Monitor](../src/Sections/Humans.Monitor/Docs/Monitor.md) | Operator-facing monitoring of the Google Workspace estate: detect unrequested permission changes, and show the Google-sync audit trail for one resource or one human |
 | [Notifications](../src/Sections/Humans.Notifications/Docs/Notifications.md) | In-app notification fan-out (stored events plus per-user inbox) and live meter counts (computed) |
 | [Onboarding](../src/Sections/Humans.Onboarding/Docs/Onboarding.md) | Pure orchestrator over Profiles, Consent, Teams, and Governance — owns no tables |
+| [Rideshare](../src/Sections/Humans.Rideshare/Docs/Rideshare.md) | Members-only map board for organizing rides to and from the burn — offers, requests, and a lightweight interest lifecycle, no booking or payment |
 | [Scanner](../src/Sections/Humans.Scanner/Docs/Scanner.md) | In-browser camera tools for barcode decode (`/Scanner/Barcode`) and read-only ticket lookup (`/Scanner/Tickets`); no owned tables |
 | [Search](../src/Sections/Humans.Search/Docs/Search.md) | Orchestrator behind the global `/Search` page — fans out to five sections' read surfaces, scores each independently, owns no tables |
 | [Shifts](../src/Sections/Humans.Shifts/Docs/Shifts.md) | Event shifts, rotas, signups, range blocks, event settings, general availability, and per-event volunteer profiles |
@@ -130,6 +131,7 @@ Terse, authoritative invariant docs for each major section: concepts, data model
 | [Survey](../src/Sections/Humans.Surveys/Docs/Surveys.md) | First-party, GDPR-compliant surveys: author typed/branching multi-language surveys, send tokenised email invitations to a resolved audience, collect responses across three anonymity tiers (invite link or public slug), and read results in-app, via CSV/JSON export, or a key-authed analysis API |
 | [Teams](../src/Sections/Humans.Teams/Docs/Teams.md) | Departments and sub-teams, join requests, role definitions, team pages, and linked Google resources |
 | [Tickets](../src/Sections/Humans.Tickets/Docs/Tickets.md) | External ticket vendor sync (orders + attendees), Stripe-fee enrichment, auto-matching by email, event-participation derivation |
+| [Ticket Tailor](../src/Sections/Humans.TicketTailor/Docs/TicketTailor.md) | The Ticket Tailor adapter behind Tickets' vendor port: live client in Production, deterministic stub everywhere else; owns no tables and no UI |
 | [Tour](../src/Sections/Humans.Tour/Docs/Tour.md) | Public marketing page — what Humans is, in plain language, for visitors evaluating the platform |
 | [Users](../src/Sections/Humans.Users/Docs/Users.md) | Merges the old Users and Profiles docs: the User/Identity aggregate (provisioning, unsubscribe, event participation) plus per-human personal data (profile, contact fields, emails, communication preferences) |
 

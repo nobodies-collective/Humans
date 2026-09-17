@@ -222,7 +222,7 @@ internal sealed class ClassifierHarness
     /// </summary>
     public Dictionary<string, IReadOnlyList<Guid>> VerifiedOwners { get; } = [];
 
-    /// <summary>userId → merged-to userId for tombstone chain.</summary>
+    /// <summary>userId → merged-to userId; the user read resolves the chain forward.</summary>
     public Dictionary<Guid, Guid> MergedToTargets { get; } = [];
 
     /// <summary>email → (userId, emailId) for unverified-row matches.</summary>
@@ -232,45 +232,41 @@ internal sealed class ClassifierHarness
 
     public ClassifierHarness()
     {
-        // IUserEmailService.GetDistinctVerifiedUserIdsAsync: returns the list of
-        // verified owners. VerifiedOwners (multi) wins over VerifiedMatches (single).
+        // IUserEmailService.FindByAddressAsync: verified owners come from VerifiedOwners
+        // (multi wins over the single VerifiedMatches entry); the unverified pass returns
+        // the AnyEmailRows row for the address.
         _userEmails
-            .GetDistinctVerifiedUserIdsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .FindByAddressAsync(Arg.Any<string>(), true, Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci =>
             {
                 var email = (string)ci[0];
-                if (VerifiedOwners.TryGetValue(email, out var owners))
-                    return Task.FromResult(owners);
-                if (VerifiedMatches.TryGetValue(email, out var uid))
-                    return Task.FromResult<IReadOnlyList<Guid>>([uid]);
-                return Task.FromResult<IReadOnlyList<Guid>>([]);
-            });
-
-        // IUserEmailService.FindAnyEmailRowByAddressAsync: returns a match when the email is in AnyEmailRows.
-        _userEmails
-            .FindAnyEmailRowByAddressAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(ci =>
-            {
-                var email = (string)ci[0];
+                var verifiedOnly = (bool)ci[2];
+                if (verifiedOnly)
+                {
+                    if (VerifiedOwners.TryGetValue(email, out var owners))
+                        return Task.FromResult<IReadOnlyList<UserEmailRowSnapshot>>(
+                            owners.Select(o => UserEmailFixtures.Row(o, email)).ToList());
+                    if (VerifiedMatches.TryGetValue(email, out var uid))
+                        return Task.FromResult<IReadOnlyList<UserEmailRowSnapshot>>([UserEmailFixtures.Row(uid, email)]);
+                    return Task.FromResult<IReadOnlyList<UserEmailRowSnapshot>>([]);
+                }
                 if (AnyEmailRows.TryGetValue(email, out var row))
-                    return Task.FromResult<(Guid, Guid)?>(row);
-                return Task.FromResult<(Guid, Guid)?>(null);
+                    return Task.FromResult<IReadOnlyList<UserEmailRowSnapshot>>(
+                        [UserEmailFixtures.Row(row.Item1, email, verified: false, id: row.Item2)]);
+                return Task.FromResult<IReadOnlyList<UserEmailRowSnapshot>>([]);
             });
 
-        // IUserService.GetUserInfoAsync: returns a tombstoned user when there's an entry in MergedToTargets.
+        // IUserService.GetUserInfoAsync resolves merge chains forward itself (#1704): asking
+        // for a tombstone id hands back the surviving row, never the tombstone.
         _users
             .GetUserInfoAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(ci =>
             {
                 var userId = (Guid)ci[0];
-                if (MergedToTargets.TryGetValue(userId, out var targetId))
-                    return new ValueTask<UserInfo?>(UserInfo.Create(
-                        new User { Id = userId, MergedToUserId = targetId },
-                        [], [], [], null, []));
-                // Live user — no tombstone.
+                while (MergedToTargets.TryGetValue(userId, out var targetId))
+                    userId = targetId;
                 return new ValueTask<UserInfo?>(UserInfo.Create(
-                    new User { Id = userId, MergedToUserId = null },
-                    [], [], [], null, []));
+                    new User { Id = userId }, [], [], [], null, []));
             });
 
         // Default: no pref row for any user. SetMarketingPref overrides per-user.

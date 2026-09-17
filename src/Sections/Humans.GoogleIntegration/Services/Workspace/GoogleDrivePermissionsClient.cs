@@ -13,8 +13,7 @@ namespace Humans.GoogleIntegration.Services.Workspace;
 /// Talks to the Google Drive v3 API using the configured service account.
 /// This is the only file that imports <c>Google.Apis.*</c> for Drive
 /// folder and permission management performed by
-/// <c>GoogleWorkspaceSyncService</c>; the Application-layer sync service
-/// (coming in §15 Part 2b) never sees SDK types.
+/// <c>GoogleWorkspaceSyncService</c>.
 /// </summary>
 /// <remarks>
 /// Every request is issued with <c>SupportsAllDrives = true</c> per the
@@ -128,6 +127,30 @@ internal sealed class GoogleDrivePermissionsClient(
             return new DrivePermissionMutationResult(
                 DrivePermissionCreateOutcome.Failed,
                 Error: new GoogleClientError(ex.Error?.Code ?? 0, ex.Error?.Message));
+        }
+    }
+
+    public async Task<GoogleClientError?> UpdatePermissionAsync(
+        string fileId,
+        string permissionId,
+        string role,
+        CancellationToken ct = default)
+    {
+        using var _ = logger.TimeOperation();
+        try
+        {
+            var drive = await GetDriveServiceAsync(ct);
+            var request = drive.Permissions.Update(new SdkPermission { Role = role }, fileId, permissionId);
+            request.SupportsAllDrives = true;
+            await request.ExecuteAsync(ct);
+            return null;
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            logger.LogDebug(ex,
+                "Google API error updating permission {PermissionId} to {Role} on {FileId}: Code={Code} Message={Message}",
+                permissionId, role, fileId, ex.Error?.Code, ex.Error?.Message);
+            return new GoogleClientError(ex.Error?.Code ?? 0, ex.Error?.Message);
         }
     }
 
@@ -252,6 +275,39 @@ internal sealed class GoogleDrivePermissionsClient(
         }
     }
 
+    public async Task<DriveFolderCreateResult> CreateFolderAsync(
+        string parentFolderId,
+        string name,
+        CancellationToken ct = default)
+    {
+        using var _ = logger.TimeOperation();
+        try
+        {
+            var drive = await GetDriveServiceAsync(ct);
+            var metadata = new SdkFile
+            {
+                Name = name,
+                MimeType = "application/vnd.google-apps.folder",
+                Parents = [parentFolderId]
+            };
+
+            var request = drive.Files.Create(metadata);
+            request.SupportsAllDrives = true;
+            request.Fields = "id";
+            var file = await request.ExecuteAsync(ct);
+            return new DriveFolderCreateResult(file.Id, Error: null);
+        }
+        catch (Google.GoogleApiException ex)
+        {
+            logger.LogWarning(ex,
+                "Google API error creating folder '{Name}' under {ParentFolderId}: Code={Code} Message={Message}",
+                name, parentFolderId, ex.Error?.Code, ex.Error?.Message);
+            return new DriveFolderCreateResult(
+                FolderId: null,
+                Error: new GoogleClientError(ex.Error?.Code ?? 0, ex.Error?.Message));
+        }
+    }
+
     /// <summary>
     /// Classifies an HTTP 400 error as a duplicate-permission case (safe to
     /// treat as idempotent success) vs. any other bad-request failure
@@ -352,7 +408,15 @@ internal sealed class GoogleDrivePermissionsClient(
             Type: p.Type,
             Role: p.Role,
             EmailAddress: p.EmailAddress,
-            HasInheritedComponent: hasInheritedComponent);
+            HasInheritedComponent: hasInheritedComponent)
+        {
+            HasDirectComponent = p.PermissionDetails is not { Count: > 0 } ||
+                p.PermissionDetails.Any(d => d.Inherited == false),
+            InheritedRoles = p.PermissionDetails?
+                .Where(d => d.Inherited == true)
+                .Select(d => d.Role)
+                .ToArray() ?? []
+        };
     }
 
     private async Task<DriveService> GetDriveServiceAsync(CancellationToken ct)

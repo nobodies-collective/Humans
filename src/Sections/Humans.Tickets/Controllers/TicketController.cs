@@ -1,3 +1,4 @@
+using CsvHelper;
 using Hangfire;
 using Humans.Base.Csv;
 using Humans.Tickets.Contracts;
@@ -176,12 +177,6 @@ internal sealed class TicketController(
         return View(model);
     }
 
-    [HttpGet("GateList")]
-    public IActionResult GateList()
-    {
-        return View();
-    }
-
     [HttpGet("WhoHasntBought")]
     public async Task<IActionResult> WhoHasntBought(
         string? search, string? filterTeam = null, string? filterTier = null,
@@ -245,6 +240,21 @@ internal sealed class TicketController(
                 Donations = q.Donations,
                 VatAmount = q.VatAmount,
                 VipDonations = q.VipDonations,
+            }).ToList(),
+            MonthlySales = aggregates.MonthlySales.Select(m => new MonthlySalesRow
+            {
+                MonthLabel = m.MonthLabel,
+                OrderCount = m.OrderCount,
+                TicketsSold = m.TicketsSold,
+                GrossRevenue = m.GrossRevenue,
+                Donations = m.Donations,
+                VipDonations = m.VipDonations,
+                VatAmount = m.VatAmount,
+                StripeFees = m.StripeFees,
+                ApplicationFees = m.ApplicationFees,
+                RefundedGross = m.RefundedGross,
+                TicketIncomeInclVat = m.TicketIncomeInclVat,
+                TicketIncomeExVat = m.TicketIncomeExVat,
             }).ToList(),
             ByTicketType = aggregates.ByTicketType.Select(t => new TicketTypeSalesRow
             {
@@ -379,4 +389,41 @@ internal sealed class TicketController(
         });
         return File(bytes, "text/csv", "orders-export.csv");
     }
+
+    /// <summary>
+    /// Monthly ticket-income recap for the accountant: gross split into
+    /// taxable ticket income, 10% VAT and VAT-free donations, plus fees and
+    /// refunded gross so it ties to the Stripe statement.
+    /// </summary>
+    [HttpGet("Export/AccountantReport")]
+    [Authorize(Policy = PolicyNames.TicketAdminOrAdmin)]
+    public async Task<IActionResult> ExportAccountantReport()
+    {
+        var months = (await ticketQueryService.GetSalesAggregatesAsync()).MonthlySales;
+
+        var bytes = HumansCsv.WriteBytes(csv =>
+        {
+            csv.WriteRow("Month", "Orders", "Tickets", "Gross Collected", "Standalone Donations", "VIP Donations",
+                "Ticket Income incl VAT", "VAT 10%", "Ticket Income ex VAT", "Stripe Fees", "Ticket Tailor Fees",
+                "Refunded Orders Gross");
+            foreach (var m in months)
+            {
+                WriteAccountantRow(csv, m.MonthLabel, m.OrderCount, m.TicketsSold, m.GrossRevenue, m.Donations,
+                    m.VipDonations, m.TicketIncomeInclVat, m.VatAmount, m.TicketIncomeExVat, m.StripeFees,
+                    m.ApplicationFees, m.RefundedGross);
+            }
+            WriteAccountantRow(csv, "Total", months.Sum(m => m.OrderCount), months.Sum(m => m.TicketsSold),
+                months.Sum(m => m.GrossRevenue), months.Sum(m => m.Donations), months.Sum(m => m.VipDonations),
+                months.Sum(m => m.TicketIncomeInclVat), months.Sum(m => m.VatAmount),
+                months.Sum(m => m.TicketIncomeExVat), months.Sum(m => m.StripeFees),
+                months.Sum(m => m.ApplicationFees), months.Sum(m => m.RefundedGross));
+        });
+        return File(bytes, "text/csv", "ticket-income-by-month.csv");
+    }
+
+    private static void WriteAccountantRow(CsvWriter csv, string label, int orders, int tickets, decimal gross,
+        decimal donations, decimal vipDonations, decimal ticketIncomeInclVat, decimal vat,
+        decimal ticketIncomeExVat, decimal stripeFees, decimal ttFees, decimal refundedGross)
+        => csv.WriteRow(label, orders, tickets, gross, donations, vipDonations,
+            ticketIncomeInclVat, vat, ticketIncomeExVat, stripeFees, ttFees, refundedGross);
 }

@@ -11,7 +11,6 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
 {
     public async Task<Survey?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        // Order applied by the service/consumer (display-sort lives above the repository).
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.Surveys
             .AsNoTracking()
@@ -22,7 +21,6 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
 
     public async Task<IReadOnlyList<Survey>> GetAllSummariesAsync(CancellationToken ct = default)
     {
-        // No display ordering here — the admin controller sorts the index (hard rule).
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.Surveys
             .AsNoTracking()
@@ -96,6 +94,42 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
         await ctx.SaveChangesAsync(ct);
     }
 
+    public async Task SubmitForApprovalAsync(Guid id, Instant submittedAt, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var survey = await ctx.Surveys.FirstOrDefaultAsync(s => s.Id == id, ct);
+        if (survey is null) return;
+        survey.Status = SurveyStatus.PendingApproval;
+        survey.SubmittedAt = submittedAt;
+        survey.RejectionNote = null;
+        survey.UpdatedAt = submittedAt;
+        await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task ApproveAsync(Guid id, Instant approvedAt, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var survey = await ctx.Surveys.FirstOrDefaultAsync(s => s.Id == id, ct);
+        if (survey is null) return;
+        survey.Status = SurveyStatus.Open;
+        survey.SubmittedAt = null;
+        survey.RejectionNote = null;
+        survey.UpdatedAt = approvedAt;
+        await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task RejectAsync(Guid id, string note, Instant rejectedAt, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        var survey = await ctx.Surveys.FirstOrDefaultAsync(s => s.Id == id, ct);
+        if (survey is null) return;
+        survey.Status = SurveyStatus.Draft;
+        survey.SubmittedAt = null;
+        survey.RejectionNote = note;
+        survey.UpdatedAt = rejectedAt;
+        await ctx.SaveChangesAsync(ct);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, int>> GetInvitedCountsBySurveyAsync(CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
@@ -133,7 +167,6 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
 
     public async Task<IReadOnlyList<SurveyInvitation>> GetInvitationsAsync(Guid surveyId, CancellationToken ct = default)
     {
-        // No display ordering here — the controller sorts the Send status list (hard rule).
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.SurveyInvitations
             .AsNoTracking()
@@ -197,8 +230,7 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
 
     public async Task<IReadOnlyList<SurveyInvitation>> GetInvitationsDueForReminderAsync(Instant cutoff, CancellationToken ct = default)
     {
-        // No display ordering — the service sweeps the result (hard rule). Uses the
-        // (SurveyId, Completed, SentAt) index. Joins to the survey's status (repo owns both tables).
+        // Uses the (SurveyId, Completed, SentAt) index. Joins to the survey's status (repo owns both tables).
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.SurveyInvitations
             .AsNoTracking()
@@ -248,7 +280,6 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
 
     public async Task<SurveyResponse?> GetDraftResponseAsync(Guid surveyId, Guid userId, CancellationToken ct = default)
     {
-        // No display ordering here — answer order is reconstructed by question (caller/wizard).
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.SurveyResponses
             .AsNoTracking()
@@ -379,7 +410,6 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
 
     public async Task<IReadOnlyList<SurveyResponse>> GetResponsesForResultsAsync(Guid surveyId, CancellationToken ct = default)
     {
-        // No display ordering here — aggregation/sorting lives in the service (hard rule).
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.SurveyResponses
             .AsNoTracking()
@@ -398,7 +428,6 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
 
     public async Task<IReadOnlyList<SurveyResponse>> GetIdentifiedResponsesForUserAsync(Guid userId, CancellationToken ct = default)
     {
-        // No display ordering here — the GDPR contributor shapes/orders the payload (hard rule).
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.SurveyResponses
             .AsNoTracking()
@@ -430,6 +459,52 @@ internal sealed partial class SurveyRepository(IDbContextFactory<SurveysDbContex
             .Where(i => i.UserId == userId)
             .ToListAsync(ct);
         ctx.SurveyInvitations.RemoveRange(invitations);
+
+        return await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Survey>> GetSurveysAuthoredByAsync(
+        Guid userId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+        // Questions are included because the GDPR export reports a question count off this
+        // graph; without it AsNoTracking hands back surveys whose Questions are empty.
+        return await ctx.Surveys
+            .AsNoTracking()
+            .Include(s => s.Questions)
+            .Where(s => s.CreatedByUserId == userId)
+            .ToListAsync(ct);
+    }
+
+    public async Task<int> ClearAuthorshipForUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+
+        var surveys = await ctx.Surveys.Where(s => s.CreatedByUserId == userId).ToListAsync(ct);
+        foreach (var survey in surveys)
+        {
+            // CreatedByUserId is init-only and non-nullable — Guid.Empty is this section's
+            // "nobody", the same value an unattributed survey carries.
+            ctx.Entry(survey).Property(nameof(Survey.CreatedByUserId)).CurrentValue = Guid.Empty;
+            survey.RejectionNote = null;
+        }
+
+        return await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task<int> ReassignAuthorshipAsync(
+        Guid fromUserId, Guid toUserId, Instant now, CancellationToken ct = default)
+    {
+        await using var ctx = await factory.CreateDbContextAsync(ct);
+
+        var surveys = await ctx.Surveys.Where(s => s.CreatedByUserId == fromUserId).ToListAsync(ct);
+        foreach (var survey in surveys)
+        {
+            // Same init-only property as the erasure, set the same way — here to the survivor
+            // rather than to Guid.Empty.
+            ctx.Entry(survey).Property(nameof(Survey.CreatedByUserId)).CurrentValue = toUserId;
+            survey.UpdatedAt = now;
+        }
 
         return await ctx.SaveChangesAsync(ct);
     }

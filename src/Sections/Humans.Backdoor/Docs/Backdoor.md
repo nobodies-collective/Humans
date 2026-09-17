@@ -1,5 +1,12 @@
 <!-- freshness:triggers
   src/Sections/Humans.Backdoor/**
+  src/Humans.Web/Authorization/MembershipRequiredFilter.cs
+  src/Humans.Web/Authorization/NameRequiredFilter.cs
+  src/Sections/Humans.Agent/Contracts/IAgentTranscriptRead.cs
+  src/Sections/Humans.Feedback/Contracts/IFeedbackTriage.cs
+  src/Sections/Humans.Issues.Contracts/IIssueTriage.cs
+  src/Sections/Humans.Surveys/Contracts/ISurveyAnalysisRead.cs
+  src/Sections/Humans.Store/Contracts/IStoreAccountingRead.cs
 -->
 <!-- freshness:flag-on-change
   Re-read the surface table and the auth model whenever a controller, the key service or the auth filter changes: the routes are a published contract for agents, and the "one key = one human" rule is the whole point of the section.
@@ -13,7 +20,7 @@ The machine surface. Every key-authed API an agent talks to lives here, under `/
 
 - A **Backdoor API key** is a credential issued to a *person*, not a service. Its plaintext exists only at the moment of issue; the database keeps a SHA-256 hash and a 12-character display prefix.
 - **Issue / rotate / revoke** are the whole lifecycle. There is no "read the key back" — a lost key is rotated.
-- The **machine surface** is the five read/write APIs Backdoor owns. Each is a thin orchestrator over another section's public contracts interface; Backdoor owns no domain data beyond its keys.
+- The **machine surface** is the six read/write APIs Backdoor owns. Each is a thin orchestrator over another section's public contracts interface; Backdoor owns no domain data beyond its keys.
 
 ## Data Model
 
@@ -43,10 +50,12 @@ The machine surface. Every key-authed API an agent talks to lives here, under `/
 | Route | Access | Serves |
 |-------|--------|--------|
 | `/api/backdoor/logs` | read | The in-memory log ring (`InMemoryLogSink`, Base) |
-| `/api/backdoor/agent` | read | Agent conversation transcripts, via `IAgentTranscriptRead` |
+| `/api/backdoor/agent/conversations` | read | Agent conversation transcripts — list, one conversation, its messages — via `IAgentTranscriptRead` |
 | `/api/backdoor/issues` | read + write | The issue queue, via `IIssueTriage` |
 | `/api/backdoor/feedback` | read + write | The feedback queue, via `IFeedbackTriage` |
 | `/api/backdoor/surveys` | read | Survey definitions, responses and aggregates, via `ISurveyAnalysisRead` |
+| `/api/backdoor/store/order-lines?year=` | read | One row per Store order line of the year — camp and team orders — with effective price, VAT, revenue account and invoice number, via `IStoreAccountingRead` |
+| `/api/backdoor/store/payments?year=` | read | One row per `Paid` Store payment of the year (refunds negative) with its Stripe payment intent id, via `IStoreAccountingRead` |
 | `/Backdoor` | Admin UI | Allocate, rotate and revoke keys |
 
 Authentication is the `X-Api-Key` header on every `/api/backdoor/*` request. There is no cookie path in and no anonymous endpoint.
@@ -55,18 +64,20 @@ Authentication is the `X-Api-Key` header on every `/api/backdoor/*` request. The
 
 | Actor | Capabilities |
 |-------|--------------|
-| Holder of an active key | Everything the five APIs expose, acting as themselves |
+| Holder of an active key | Everything the APIs expose to that person, acting as themselves and scoped to their own roles |
 | Board member | May be issued a key |
 | Admin | All Board capabilities. Additionally: allocate, rotate and revoke anyone's key from `/Backdoor` |
 
 ## Invariants
 
-- A key resolves to exactly one human, and that human is installed as the request principal (`ClaimTypes.NameIdentifier`), so every write records a real actor and every log line is enriched with them.
+- A key resolves to exactly one human, and that human is installed as the request principal — `ClaimTypes.NameIdentifier` plus one `ClaimTypes.Role` claim per active role assignment — so every write records a real actor and every log line is enriched with them. Only the Issues queue read consults those role claims to scope its result (see below); Agent, Feedback, Logs, Store, and Surveys reads do not.
+- Every `/api/backdoor/issues/*` route is fetched as the key's owner — id, roles and admin flag — so a Board-only key lists the Board-only queue, and an issue whose id it happens to hold but whose queue would not list it is a 404 to read, to comment on and to patch. Issues enforces that itself, on the same `IssueSectionRouting.CanHandle` the browser reads, so a key reaches exactly as far as its holder does in the browser.
 - The database never holds a plaintext key. `BackdoorApiKeyService` hashes on the way in and compares hashes on the way out.
 - A key only works for a full Admin or a Board member **whose account state is `Active`** — checked at issue, at rotation, **and on every authentication**. A role that expires, is revoked, or is swept by account deletion stops the key working on the next request, and so does suspension, which moves `users.State` while deliberately leaving role assignments standing. The row is refused, not revoked, so restoring the role or lifting the suspension restores the key. The admin page shows such a key as **Disabled** and withholds Rotate, since rotation applies the same test.
 - Issue and revoke both write an audit entry naming the key and its owner (`BackdoorApiKeyIssued` / `BackdoorApiKeyRevoked`); a rotation is recorded as a revoke followed by an issue.
 - Every controller here is an orchestrator: it calls another section's contracts interface and formats the result. None of them touch a repository or a `DbContext` other than through `IBackdoorApiKeyRepository`.
-- A key-authed principal carries the `BackdoorApiKey` authentication scheme (`BackdoorAuthentication.SchemeName`). It never passes through the Shell's claims transformation, so it carries no role or state claims — and the Shell's onboarding gates (`NameRequiredFilter`, `MembershipRequiredFilter`) skip it rather than redirecting a JSON client to an HTML page.
+- A key-authed principal carries the `BackdoorApiKey` authentication scheme (`BackdoorAuthentication.SchemeName`). It never passes through the Shell's claims transformation, so its role claims come from the auth filter's own lookup and it carries no state claims — and the Shell's onboarding gates (`NameRequiredFilter`, `MembershipRequiredFilter`) skip it rather than redirecting a JSON client to an HTML page.
+- Every `PATCH /api/backdoor/{issues,feedback}/{id}/*` answers the same way whichever field moved: `{success:true}`, 404 for a missing item, 422 carrying the service's reason for a rejected change.
 
 ## Negative Access Rules
 
@@ -93,6 +104,7 @@ Authentication is the `X-Api-Key` header on every `/api/backdoor/*` request. The
 - **Feedback**: reads and triages via `IFeedbackTriage` (`Humans.Feedback.Contracts`).
 - **Issues**: reads and triages via `IIssueTriage` (`Humans.Issues.Contracts`).
 - **Surveys**: reads definitions, exports and aggregates via `ISurveyAnalysisRead` (`Humans.Surveys.Contracts`).
+- **Store**: reads the accounting export — order lines and settled payments per year — via `IStoreAccountingRead` (`Humans.Store.Contracts`). Any active key may read; there is no role scoping.
 - **Auth**: `IRoleAssignmentService.IsUserAdminAsync` / `IsUserBoardMemberAsync` for key eligibility, and `GetActiveUserIdsInRoleAsync` for the admin page's recipient list — narrowed there to active accounts, so the dropdown never offers someone the service would refuse and each listed key shows whether it still authenticates.
 - **AuditLog**: `IAuditLogService.LogAsync` for the key lifecycle.
 - **Gdpr**: `IUserDataContributor` — `backdoor_api_keys` is user-keyed, so the section owes an Article 15 slice (`GdprExportSections.BackdoorApiKeys`, hash excluded) and an Article 17 erasure.

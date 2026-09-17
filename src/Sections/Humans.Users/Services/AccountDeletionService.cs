@@ -1,3 +1,4 @@
+using Humans.Users.Services;
 using Humans.Base.Attributes;
 using Humans.Auth.Contracts;
 using Humans.AuditLog.Contracts;
@@ -17,11 +18,7 @@ namespace Humans.Application.Services.Users.AccountLifecycle;
 // Orchestrates user/profile deletion cascade — sits above User/Profile so foundational services stay dependency-free of Teams/Shifts/Tickets.
 [CrossSectionWrite("GDPR erasure revokes the user's team memberships and early-entry grants.")]
 internal sealed class AccountDeletionService(
-    IUserService userService,
-    // Merge-chain resolution goes through the read contract, matching every other caller of
-    // GetMergedSourceIdsAsync (AuditLog, Consent, Budget) — the primitive is only answerable
-    // by the caching decorator, which is what IUserServiceRead resolves to.
-    IUserServiceRead userServiceRead,
+    IUserServiceInternal userService,
     IUserEmailService userEmailService,
     ITeamService teamService,
     IRoleAssignmentService roleAssignmentService,
@@ -41,7 +38,7 @@ internal sealed class AccountDeletionService(
 
     public async Task<DeletionRequestResult> RequestDeletionAsync(Guid userId, CancellationToken ct = default)
     {
-        var user = await userService.GetUserInfoAsync(userId, ct);
+        var user = await userService.GetRawUserInfoAsync(userId, ct);
         if (user is null)
             return new DeletionRequestResult(false, "NotFound");
 
@@ -59,16 +56,13 @@ internal sealed class AccountDeletionService(
             eligibleAfter = ticketHoldings.PostEventHoldDate;
         }
 
-        // 1. Persist deletion-pending fields on User.
         await userService.SetDeletionPendingAsync(userId, now, deletionDate, eligibleAfter, ct);
 
-        // 2. Revoke team memberships immediately — user loses access during grace period.
+        // User loses access during grace period.
         var endedMemberships = await teamService.RevokeAllMembershipsAsync(userId, ct);
 
-        // 3. Revoke governance roles.
         var endedRoles = await roleAssignmentService.RevokeAllActiveAsync(userId, ct);
 
-        // 4. Audit.
         await auditLogService.LogAsync(
             AuditAction.MembershipsRevokedOnDeletionRequest, nameof(User), userId,
             $"Revoked {endedMemberships} team membership(s) and {endedRoles} role assignment(s) on deletion request",
@@ -79,7 +73,6 @@ internal sealed class AccountDeletionService(
             "Revoked {MembershipCount} memberships and {RoleCount} roles immediately",
             userId, deletionDate, eligibleAfter, endedMemberships, endedRoles);
 
-        // 5. Send deletion confirmation email.
         var notificationEmails = await userEmailService.GetNotificationTargetEmailsAsync([userId], ct);
         var notificationEmail = notificationEmails.GetValueOrDefault(userId) ?? user.Email;
         if (notificationEmail is not null)
@@ -92,7 +85,7 @@ internal sealed class AccountDeletionService(
                 ct);
         }
 
-        // 6. Drop shift-authorization cache so coordinator privilege reverts immediately (parity with Purge/AnonymizeExpired).
+        // Drop shift-authorization cache so coordinator privilege reverts immediately (parity with Purge/AnonymizeExpired).
         shiftAuthorizationInvalidator.Invalidate(userId);
         shiftViewInvalidator.InvalidateUser(userId);
 
@@ -104,7 +97,7 @@ internal sealed class AccountDeletionService(
 
     public async Task<OnboardingResult> CancelDeletionAsync(Guid userId, CancellationToken ct = default)
     {
-        var user = await userService.GetUserInfoAsync(userId, ct);
+        var user = await userService.GetRawUserInfoAsync(userId, ct);
         if (user is null)
             return new OnboardingResult(false, "NotFound");
 
@@ -122,7 +115,7 @@ internal sealed class AccountDeletionService(
 
     public async Task<OnboardingResult> PurgeAsync(Guid userId, Guid? actorId = null, CancellationToken ct = default)
     {
-        if (await userService.GetUserInfoAsync(userId, ct) is null)
+        if (await userService.GetRawUserInfoAsync(userId, ct) is null)
             return new OnboardingResult(false, "NotFound");
 
         // Same Article 17 fan-out as the expiry path — an admin purge must not
@@ -168,7 +161,7 @@ internal sealed class AccountDeletionService(
         Guid userId, CancellationToken ct = default)
     {
         // Capture identity slice BEFORE any writes — caller still needs it if the cascade throws.
-        var user = await userService.GetUserInfoAsync(userId, ct);
+        var user = await userService.GetRawUserInfoAsync(userId, ct);
         if (user is null)
             return null;
 
@@ -229,26 +222,17 @@ internal sealed class AccountDeletionService(
 
     /// <summary>
     /// Every archived id folded into <paramref name="userId"/>, with the survivor itself
-    /// last. Walks transitively — an A→B→C chain leaves A pointing at B —
-    /// over the single canonical primitive
-    /// (<see cref="IUserServiceRead.GetMergedSourceIdsAsync"/>). Typically returns one id.
+    /// last. The order is the contract, not <see cref="UserInfo.MergedUserIds"/>'s: erasure
+    /// runs contributors per id and a contributor that throws partway must leave every id
+    /// before it erased, so the survivor goes last. Typically returns one archived id.
+    /// <para>
+    /// Read raw, not through the redirecting read: erasing a tombstone id directly must
+    /// erase that one row, not jump to the living survivor and take the whole human with it.
+    /// </para>
     /// </summary>
     private async Task<IReadOnlyList<Guid>> MergeChainAsync(Guid userId, CancellationToken ct)
     {
-        var sources = new List<Guid>();
-        var seen = new HashSet<Guid> { userId };
-        var frontier = new Queue<Guid>([userId]);
-
-        while (frontier.Count > 0)
-        {
-            foreach (var sourceId in await userServiceRead.GetMergedSourceIdsAsync(frontier.Dequeue(), ct))
-            {
-                if (!seen.Add(sourceId)) continue;
-                sources.Add(sourceId);
-                frontier.Enqueue(sourceId);
-            }
-        }
-
-        return [.. sources, userId];
+        var info = await userService.GetRawUserInfoAsync(userId, ct);
+        return info is null ? [userId] : [.. info.MergedUserIds, userId];
     }
 }

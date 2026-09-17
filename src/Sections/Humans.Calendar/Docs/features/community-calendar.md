@@ -14,7 +14,7 @@ Nobodies Collective teams coordinate through meetings, workshops, and gatherings
 ## Scope — Slice 1 (v1)
 
 - Month view (`/Calendar`), list view (`/Calendar/List` — same month window, flat list), and agenda (upcoming events) view (`/Calendar/Agenda`); switched via the `_CalendarViewPills` partial
-- Team-filtered view — show only events from selected team(s), plus a per-team page at `/Calendar/Team/{teamId}`
+- Team-filtered view — `?teamId` narrows month/list/agenda to one team, plus a per-team page at `/Calendar/Team/{teamId}` (see US-39.2: no picker UI ships)
 - Single and recurring events (RFC 5545 recurrence rules)
 - Cancel or override individual occurrences without deleting the entire series
 - Team-owned events; any authenticated human can create, edit, or delete events for any team
@@ -25,13 +25,23 @@ Nobodies Collective teams coordinate through meetings, workshops, and gatherings
 
 The following are explicitly deferred to future slices:
 
-- **Module aggregation** (Shifts contributing shift events, Camps contributing camp dates, Budget contributing budget review events, etc. via `ICalendarContributor` interface)
 - **Audience scoping** (private events, visibility rules per team)
-- **iCal export feed** (`.ics` for subscriptions)
+- **An `.ics` subscription feed of the community calendar.** The shipped `/api/ical` feed is the personal one and emits none of these events.
 - **Public view** (anonymous/unauthenticated calendar)
 - **Personal calendar digest and notifications** ("your upcoming events" email)
 - **RSVP and attendance tracking**
 - **Event categories, colors, custom fields**
+
+## Module Aggregation
+
+`ICalendarFeedContributor.GetPublicItemsForWindowAsync` lets another section feed the
+month grid, list, and agenda with its own public items, merged in memory with
+`calendar_events` occurrences and marked by `Source`. Shifts and Events implement
+the method today but return an empty list — nothing public to contribute yet.
+Contributor items carry no team, so they only appear on the unfiltered
+(`?teamId` absent) calendar; a team-filtered view or the per-team page shows
+Calendar's own events only. The personal iCal feed (`GetCalendarItemsForUserAsync`)
+is a separate call on the same interface and is unaffected.
 
 ## User Stories
 
@@ -53,11 +63,10 @@ The following are explicitly deferred to future slices:
 **So that** I can focus on teams I care about
 
 **Acceptance Criteria:**
-- Team filter dropdown or multi-select widget
-- Can select one or more teams
-- "All Teams" option shows all events
-- Filter persists in the session or browser storage
-- Filtered view updates immediately
+- Single-team filter via the `?teamId` query parameter, plus a per-team page at `/Calendar/Team/{teamId}`
+- No `teamId` shows all events
+
+**Not shipped** (the original criteria; kept as the open remainder of this story): a filter widget in any view, multi-team select, and filter persistence across requests.
 
 ### US-39.3: Create Team Event
 **As an** authenticated human
@@ -69,7 +78,8 @@ The following are explicitly deferred to future slices:
 - Support single event or recurring (select recurrence frequency, interval, until date)
 - Save creates the event and redirects to event details
 - Required fields: title, team, start date/time
-- If recurring, show preview of next 5 occurrences
+
+**Not shipped:** the recurrence preview of the next 5 occurrences on the create form. Occurrences are only listed after the event exists, on its detail page.
 
 ### US-39.4: Edit or Delete Team Event
 **As an** authenticated human
@@ -80,6 +90,7 @@ The following are explicitly deferred to future slices:
 - Edit button visible on every event detail page (no role gate)
 - Edit form prefilled with current values
 - Can change title, description, date/time, recurrence, owning team
+- Shortening or changing recurrence removes obsolete occurrences even if their text or end was edited. Only occurrences moved to a different start/date remain independently positioned; repeating the original start does not count as a move.
 - Delete button with confirmation
 - After save/delete, redirect to calendar view
 - Every change recorded in the audit log (actor + timestamp)
@@ -91,7 +102,7 @@ The following are explicitly deferred to future slices:
 
 **Acceptance Criteria:**
 - On a recurring event, show "Manage Occurrences" or similar UI
-- List next 10 upcoming occurrences
+- List the next 5 upcoming occurrences
 - Per-occurrence actions: cancel, reschedule (change time/title)
 - Cancelled occurrence is hidden from calendar view
 - Rescheduled occurrence shows new time; recurrence rule unchanged
@@ -109,8 +120,11 @@ CalendarEvent
 ├── Description: string? (4000)
 ├── Location: string? (500)
 ├── LocationUrl: string? (2000)
-├── StartUtc: Instant (required)
+├── StartUtc: Instant? (required for timed events)
 ├── EndUtc: Instant? (required iff IsAllDay = false)
+├── StartDate: LocalDate? (all-day inclusive start)
+├── EndDateExclusive: LocalDate? (all-day exclusive end)
+├── RecurrenceUntilDate: LocalDate? (all-day recurrence bound)
 ├── IsAllDay: bool (default false)
 ├── RecurrenceRule: string? (RFC 5545 RRULE, e.g., "FREQ=WEEKLY;BYDAY=MO")
 ├── RecurrenceTimezone: string? (IANA timezone, e.g., "Europe/Madrid")
@@ -126,7 +140,10 @@ CalendarEvent
 CalendarEventException
 ├── Id: Guid
 ├── EventId: Guid (FK → CalendarEvent, cascade-delete)
-├── OriginalOccurrenceStartUtc: Instant (the occurrence being modified)
+├── OriginalOccurrenceStartUtc: Instant? (timed occurrence identity)
+├── OriginalOccurrenceDate: LocalDate? (all-day occurrence identity)
+├── OverrideStartDate: LocalDate?
+├── OverrideEndDateExclusive: LocalDate?
 ├── IsCancelled: bool (true = skip this occurrence in calendar view)
 ├── OverrideTitle: string? (200; null = use parent event title)
 ├── OverrideDescription: string? (4000)
@@ -140,7 +157,7 @@ CalendarEventException
 └── Navigation: Event
 ```
 
-Unique on `(EventId, OriginalOccurrenceStartUtc)`. `Validate()` requires the row to either cancel the occurrence or override at least one field. A query filter mirrors the parent event's soft-delete so exceptions of deleted events are never returned.
+Timed identities are unique on `(EventId, OriginalOccurrenceStartUtc)`; date identities are unique on `(EventId, OriginalOccurrenceDate)`. `Validate()` requires the row to either cancel the occurrence or override at least one field. A query filter mirrors the parent event's soft-delete so exceptions of deleted events are never returned.
 
 ## Authorization
 
@@ -154,7 +171,7 @@ No resource-based authorization handler, no `CalendarEditor` policy. If upfront 
 
 ## Timezones & DST
 
-Every recurring event is tied to an IANA timezone (e.g., `"Europe/Madrid"`, `"Europe/Berlin"`). When expanding occurrences (e.g., a weekly 19:00 meeting):
+Every timed recurring event is tied to an IANA timezone (e.g., `"Europe/Madrid"`, `"Europe/Berlin"`). When expanding occurrences (e.g., a weekly 19:00 meeting):
 
 1. Recurrence rule is expanded in the event's configured timezone using `Ical.Net`
 2. Each occurrence start/end is calculated in that timezone, respecting DST transitions
@@ -162,6 +179,8 @@ Every recurring event is tied to an IANA timezone (e.g., `"Europe/Madrid"`, `"Eu
 4. When rendering to the user's browser, occurrences are converted to their local timezone (via JavaScript or `NodaTime` if server-rendered)
 
 This ensures a recurring "19:00 weekly on Monday" stays at 19:00 local time even when daylight saving changes occur.
+
+All-day events carry only `LocalDate` ranges, including their recurrence bounds and override identities. Expansion preserves calendar-day duration across DST; views never convert these dates into viewer timezones. The occurrence editor accepts dates only, and the service rejects times. Existing instant-based all-day rows are projected to dates using their original zone (Madrid for one-off events); ordinary saves write dates. A series with saved exceptions retains its timed/all-day type.
 
 ## Related Features
 

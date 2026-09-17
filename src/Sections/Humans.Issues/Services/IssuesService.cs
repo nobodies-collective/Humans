@@ -204,10 +204,37 @@ internal sealed class IssuesService(
 
     // ─── Reads ───
 
-    public async Task<IssueDetail?> GetIssueByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<IssueDetail?> GetIssueByIdAsync(Guid id, IssueViewer viewer, CancellationToken ct = default)
     {
         var issue = await repo.GetByIdAsync(id, ct);
-        return issue is null ? null : MapDetail(issue);
+        return issue is null || !CanSee(issue, viewer) ? null : MapDetail(issue);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="viewer"/> may handle the issue: mutate it, or comment on it as
+    /// someone other than its reporter.
+    /// </summary>
+    private static bool CanHandle(Issue issue, IssueViewer viewer) =>
+        IssueSectionRouting.CanHandle(issue.Section, viewer.Roles);
+
+    /// <summary>
+    /// Whether <paramref name="viewer"/> may see the issue at all — the same test the queue
+    /// applies row by row: a handler, or the person who reported it.
+    /// </summary>
+    private static bool CanSee(Issue issue, IssueViewer viewer) =>
+        CanHandle(issue, viewer) || issue.ReporterUserId == viewer.UserId;
+
+    /// <summary>
+    /// The issue, tracked for mutation, once <paramref name="viewer"/> is established as a
+    /// handler. Out of reach and gone are the same answer, so an id cannot be used to probe
+    /// for issues the caller's queue would never list.
+    /// </summary>
+    private async Task<Issue> FindHandleableAsync(Guid issueId, IssueViewer viewer, CancellationToken ct)
+    {
+        var issue = await repo.FindForMutationAsync(issueId, ct);
+        return issue is not null && CanHandle(issue, viewer)
+            ? issue
+            : throw new InvalidOperationException($"Issue {issueId} not found");
     }
 
     private static IssueDetail MapDetail(Issue issue) => new(
@@ -233,18 +260,16 @@ internal sealed class IssuesService(
 
     public async Task<IReadOnlyList<IssueListSnapshot>> GetIssueListAsync(
         IssueListFilter filter,
-        Guid viewerUserId,
-        IReadOnlyList<string> viewerRoles,
-        bool viewerIsAdmin,
+        IssueViewer viewer,
         CancellationToken ct = default)
     {
         IReadOnlySet<string>? sectionFilter = null;
         Guid? reporterFallback = null;
 
-        if (!viewerIsAdmin)
+        if (!viewer.IsAdmin)
         {
-            sectionFilter = IssueSectionRouting.SectionsForRoles(viewerRoles);
-            reporterFallback = viewerUserId;
+            sectionFilter = IssueSectionRouting.SectionsForRoles(viewer.Roles);
+            reporterFallback = viewer.UserId;
         }
 
         var issues = await repo.GetListAsync(filter, sectionFilter, reporterFallback, ct);
@@ -293,10 +318,11 @@ internal sealed class IssuesService(
     }
 
     public async Task<IReadOnlyList<IssueThreadEvent>> GetThreadAsync(
-        Guid issueId, CancellationToken ct = default)
+        Guid issueId, IssueViewer viewer, CancellationToken ct = default)
     {
-        var issue = await repo.GetByIdAsync(issueId, ct)
-            ?? throw new InvalidOperationException($"Issue {issueId} not found");
+        var issue = await repo.GetByIdAsync(issueId, ct);
+        if (issue is null || !CanSee(issue, viewer))
+            throw new InvalidOperationException($"Issue {issueId} not found");
 
         // Audit entries for the Issue-related actions. IssueCreated is written only by the
         // machine path, where the filer and the reporter can differ, so it is the one place
@@ -356,16 +382,20 @@ internal sealed class IssuesService(
 
     public async Task<IssueCommentInfo> PostCommentAsync(
         Guid issueId,
+        IssueViewer viewer,
         Guid? senderUserId,
         string content,
         bool resolveOnPost = false,
         CancellationToken ct = default)
     {
-        var issue = await repo.FindForMutationAsync(issueId, ct)
-            ?? throw new InvalidOperationException($"Issue {issueId} not found");
+        var issue = await repo.FindForMutationAsync(issueId, ct);
+        if (issue is null || !CanSee(issue, viewer))
+            throw new InvalidOperationException($"Issue {issueId} not found");
 
-        // Derived here, not caller-supplied: reporter status drives auto-reopen and
-        // notification routing, and every door must get identical behavior.
+        // A reporter may comment on their own issue but not resolve it; resolving is a
+        // handler's move, so the flag is dropped rather than refused.
+        var viewerCanHandle = CanHandle(issue, viewer);
+
         var senderIsReporter = senderUserId is not null && senderUserId == issue.ReporterUserId;
 
         var now = clock.GetCurrentInstant();
@@ -378,8 +408,6 @@ internal sealed class IssuesService(
             CreatedAt = now
         };
 
-        // Reporter posting on a terminal issue auto-reopens to Open and clears
-        // the resolved fields.
         var statusChangedToOpen = false;
         if (senderIsReporter && issue.Status.IsTerminal())
         {
@@ -411,9 +439,9 @@ internal sealed class IssuesService(
             "Comment posted on issue {IssueId} by {UserId} (reporter: {Reporter})",
             issueId, senderUserId, senderIsReporter);
 
-        if (resolveOnPost && !issue.Status.IsTerminal())
+        if (resolveOnPost && viewerCanHandle && !issue.Status.IsTerminal())
         {
-            await UpdateStatusAsync(issueId, IssueStatus.Resolved, senderUserId, ct);
+            await UpdateStatusAsync(issueId, viewer, IssueStatus.Resolved, senderUserId, ct);
         }
 
         return new IssueCommentInfo(comment.Id, comment.Content, comment.CreatedAt);
@@ -447,11 +475,10 @@ internal sealed class IssuesService(
     }
 
     public async Task UpdateStatusAsync(
-        Guid issueId, IssueStatus newStatus, Guid? actorUserId,
+        Guid issueId, IssueViewer viewer, IssueStatus newStatus, Guid? actorUserId,
         CancellationToken ct = default)
     {
-        var issue = await repo.FindForMutationAsync(issueId, ct)
-            ?? throw new InvalidOperationException($"Issue {issueId} not found");
+        var issue = await FindHandleableAsync(issueId, viewer, ct);
 
         var oldStatus = issue.Status;
         if (oldStatus == newStatus) return;
@@ -489,13 +516,14 @@ internal sealed class IssuesService(
 
     public async Task<IssueMutationResult> UpdateStatusWithResultAsync(
         Guid issueId,
+        IssueViewer viewer,
         IssueStatus newStatus,
         Guid? actorUserId,
         CancellationToken ct = default)
     {
         try
         {
-            await UpdateStatusAsync(issueId, newStatus, actorUserId, ct);
+            await UpdateStatusAsync(issueId, viewer, newStatus, actorUserId, ct);
             return IssueMutationResult.Success();
         }
         catch (InvalidOperationException ex)
@@ -511,11 +539,10 @@ internal sealed class IssuesService(
     }
 
     public async Task UpdateAssigneeAsync(
-        Guid issueId, Guid? newAssigneeUserId, Guid? actorUserId,
+        Guid issueId, IssueViewer viewer, Guid? newAssigneeUserId, Guid? actorUserId,
         CancellationToken ct = default)
     {
-        var issue = await repo.FindForMutationAsync(issueId, ct)
-            ?? throw new InvalidOperationException($"Issue {issueId} not found");
+        var issue = await FindHandleableAsync(issueId, viewer, ct);
 
         if (issue.AssigneeUserId == newAssigneeUserId) return;
 
@@ -535,6 +562,11 @@ internal sealed class IssuesService(
             ? (users1!.TryGetValue(newAssigneeUserId.Value, out var nu) ? nu.BurnerName : newAssigneeUserId.Value.ToString())
             : "Unassigned";
 
+        // Store the resolved id: a merged-away assignee id would point the issue at a tombstone.
+        if (newAssigneeUserId is { } requested && users1!.TryGetValue(requested, out var resolved))
+            newAssigneeUserId = resolved.Id;
+        if (issue.AssigneeUserId == newAssigneeUserId) return;
+
         issue.AssigneeUserId = newAssigneeUserId;
         issue.UpdatedAt = clock.GetCurrentInstant();
         await repo.SaveTrackedIssueAsync(issue, ct);
@@ -551,13 +583,14 @@ internal sealed class IssuesService(
 
     public async Task<IssueMutationResult> UpdateAssigneeWithResultAsync(
         Guid issueId,
+        IssueViewer viewer,
         Guid? newAssigneeUserId,
         Guid? actorUserId,
         CancellationToken ct = default)
     {
         try
         {
-            await UpdateAssigneeAsync(issueId, newAssigneeUserId, actorUserId, ct);
+            await UpdateAssigneeAsync(issueId, viewer, newAssigneeUserId, actorUserId, ct);
             return IssueMutationResult.Success();
         }
         catch (InvalidOperationException ex)
@@ -573,13 +606,14 @@ internal sealed class IssuesService(
     }
 
     public async Task UpdateSectionAsync(
-        Guid issueId, string? newSection, Guid? actorUserId,
+        Guid issueId, IssueViewer viewer, string? newSection, Guid? actorUserId,
         CancellationToken ct = default)
     {
         newSection = NormalizeSection(newSection);
 
-        var issue = await repo.FindForMutationAsync(issueId, ct)
-            ?? throw new InvalidOperationException($"Issue {issueId} not found");
+        // Authorized against the section the issue is in, not the one it is going to — the
+        // same test the browser applies, where a handler routes an issue out of their queue.
+        var issue = await FindHandleableAsync(issueId, viewer, ct);
 
         if (string.Equals(issue.Section, newSection, StringComparison.Ordinal)) return;
 
@@ -607,13 +641,14 @@ internal sealed class IssuesService(
 
     public async Task<IssueMutationResult> UpdateSectionWithResultAsync(
         Guid issueId,
+        IssueViewer viewer,
         string? newSection,
         Guid? actorUserId,
         CancellationToken ct = default)
     {
         try
         {
-            await UpdateSectionAsync(issueId, newSection, actorUserId, ct);
+            await UpdateSectionAsync(issueId, viewer, newSection, actorUserId, ct);
             return IssueMutationResult.Success();
         }
         catch (InvalidOperationException ex)
@@ -629,11 +664,10 @@ internal sealed class IssuesService(
     }
 
     public async Task SetGitHubIssueNumberAsync(
-        Guid issueId, int? githubIssueNumber, Guid? actorUserId,
+        Guid issueId, IssueViewer viewer, int? githubIssueNumber, Guid? actorUserId,
         CancellationToken ct = default)
     {
-        var issue = await repo.FindForMutationAsync(issueId, ct)
-            ?? throw new InvalidOperationException($"Issue {issueId} not found");
+        var issue = await FindHandleableAsync(issueId, viewer, ct);
 
         if (issue.GitHubIssueNumber == githubIssueNumber) return;
 
@@ -648,13 +682,14 @@ internal sealed class IssuesService(
 
     public async Task<IssueMutationResult> SetGitHubIssueNumberWithResultAsync(
         Guid issueId,
+        IssueViewer viewer,
         int? githubIssueNumber,
         Guid? actorUserId,
         CancellationToken ct = default)
     {
         try
         {
-            await SetGitHubIssueNumberAsync(issueId, githubIssueNumber, actorUserId, ct);
+            await SetGitHubIssueNumberAsync(issueId, viewer, githubIssueNumber, actorUserId, ct);
             return IssueMutationResult.Success();
         }
         catch (InvalidOperationException ex)
@@ -671,19 +706,17 @@ internal sealed class IssuesService(
 
     // ─── Counts & badge/dashboard queries ───
 
-    public async Task<int> GetActionableCountForViewerAsync(
-        Guid viewerUserId, IReadOnlyList<string> viewerRoles, bool viewerIsAdmin,
-        CancellationToken ct = default)
+    public async Task<int> GetActionableCountForViewerAsync(IssueViewer viewer, CancellationToken ct = default)
     {
-        var cacheKey = CacheKeys.IssuesBadge(viewerUserId);
+        var cacheKey = CacheKeys.IssuesBadge(viewer.UserId);
         return await cache.GetOrCreateAsync(cacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = BadgeCacheDuration;
 
-            if (viewerIsAdmin) return await repo.CountActionableAsync(null, null, ct);
+            if (viewer.IsAdmin) return await repo.CountActionableAsync(null, null, ct);
 
-            var sections = IssueSectionRouting.SectionsForRoles(viewerRoles);
-            return await repo.CountActionableAsync(sections, viewerUserId, ct);
+            var sections = IssueSectionRouting.SectionsForRoles(viewer.Roles);
+            return await repo.CountActionableAsync(sections, viewer.UserId, ct);
         });
     }
 
@@ -866,7 +899,8 @@ internal sealed class IssuesService(
             await SendCommentEmailAsync(issue, comment, ct);
         }
 
-        if (recipients.Count == 0) return;
+        var targets = await ResolveRecipientsAsync(recipients, comment.SenderUserId, ct);
+        if (targets.Count == 0) return;
 
         try
         {
@@ -875,7 +909,7 @@ internal sealed class IssuesService(
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
                 subject,
-                recipients.ToList(),
+                targets,
                 body: comment.Content,
                 actionUrl: link,
                 actionLabel: "View issue",
@@ -925,7 +959,8 @@ internal sealed class IssuesService(
         var recipients = new HashSet<Guid>();
         if (issue.ReporterUserId != actorUserId) recipients.Add(issue.ReporterUserId);
         if (issue.AssigneeUserId is { } aid && aid != actorUserId) recipients.Add(aid);
-        if (recipients.Count == 0) return;
+        var targets = await ResolveRecipientsAsync(recipients, actorUserId, ct);
+        if (targets.Count == 0) return;
 
         try
         {
@@ -934,7 +969,7 @@ internal sealed class IssuesService(
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
                 $"Issue status changed: {issue.Title}",
-                recipients.ToList(),
+                targets,
                 body: $"Status: {oldStatus} → {newStatus}",
                 actionUrl: $"/Issues/{issue.Id}",
                 actionLabel: "View issue",
@@ -1004,6 +1039,24 @@ internal sealed class IssuesService(
                 "Failed to resolve IssueSubmitted notifications for issue {IssueId}",
                 issue.Id);
         }
+    }
+
+    /// <summary>
+    /// In-app notifications are keyed by user id, so a stored reporter or assignee id that has
+    /// since been merged away is delivered to its survivor, and self-exclusion is judged on the
+    /// resolved id. Role-holder ids are live already; resolving them is a no-op.
+    /// </summary>
+    private async Task<List<Guid>> ResolveRecipientsAsync(
+        IEnumerable<Guid> userIds, Guid? exclude, CancellationToken ct)
+    {
+        var ids = userIds.Distinct().ToList();
+        if (ids.Count == 0) return [];
+        var infos = await users.GetUserInfosAsync(ids, ct);
+        return ids
+            .Select(id => infos.TryGetValue(id, out var info) ? info.Id : id)
+            .Where(id => id != exclude)
+            .Distinct()
+            .ToList();
     }
 
     private async Task DispatchAssignedNotificationAsync(

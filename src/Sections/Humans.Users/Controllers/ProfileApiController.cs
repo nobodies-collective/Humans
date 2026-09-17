@@ -50,9 +50,11 @@ internal sealed class ProfileApiController(
         // endpoint. Only triggers when the query looks like an email.
         if (allowEmail && q.Contains('@', StringComparison.Ordinal))
         {
-            var matchedUserId = await userEmailService.GetUserIdByExactEmailAsync(q, ct);
-            if (matchedUserId is null)
+            var owners = (await userEmailService.FindByAddressAsync(q, aliased: false, verifiedOnly: true, ct))
+                .Select(r => r.UserId).Distinct().ToList();
+            if (owners.Count != 1)
                 return Ok(Array.Empty<HumanLookupSearchResult>());
+            Guid? matchedUserId = owners[0];
 
             var matchedInfo = await _userService.GetUserInfoAsync(matchedUserId.Value, ct);
             if (matchedInfo?.Profile is null || matchedInfo.Profile.RejectedAt is not null)
@@ -121,6 +123,7 @@ internal sealed class ProfileApiController(
         var info = await _userService.GetUserInfoAsync(userId, ct);
         if (info?.Profile is null || info.Profile.RejectedAt is not null)
             return NotFound();
+        userId = info.Id; // a merged-away id answers as its survivor
 
         var detail = await GetSharedDetailAsync(
             userId,

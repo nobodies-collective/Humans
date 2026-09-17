@@ -9,11 +9,8 @@ using Humans.Users.Contracts;
 namespace Humans.GoogleIntegration.Services;
 
 /// <summary>
-/// The Google sync outbox drain. Lifted verbatim out of
-/// <c>Humans.Infrastructure/Jobs/ProcessGoogleSyncOutboxJob</c> at the section's G5 move:
-/// the job injected this section's two repositories directly, both of which are now internal,
-/// so the queue semantics moved in beside them and the job kept the Hangfire shim and its
-/// job-level metric (G5-SECTION-TEMPLATE.md step 6b, <c>EmailOutboxProcessor</c>'s shape).
+/// The Google sync outbox drain. <c>ProcessGoogleSyncOutboxJob</c> is the Hangfire shim around
+/// it and owns the job-level metric.
 /// </summary>
 /// <remarks>
 /// SyncSettings enforcement is handled by the gateway methods in
@@ -55,6 +52,9 @@ internal sealed class GoogleSyncOutboxProcessor(
         var users = await userService.GetUserInfosAsync(userIds, cancellationToken);
         var userEmailLookup = users.ToDictionary(
             kvp => kvp.Key, kvp => kvp.Value.Email ?? "unknown");
+        // An event queued for a since-merged id was carried out for its survivor (the sync
+        // service resolves), so the Google email status lands on the survivor too.
+        Guid ResolvedUserId(Guid id) => users.TryGetValue(id, out var info) ? info.Id : id;
         var teamsById = await teamService.GetTeamsAsync(cancellationToken);
         var teamNameLookup = teamIds
             .Where(teamsById.ContainsKey)
@@ -98,7 +98,7 @@ internal sealed class GoogleSyncOutboxProcessor(
                     if (activeResources.Count > 0)
                     {
                         await userService.TrySetGoogleEmailStatusFromSyncAsync(
-                            outboxEvent.UserId, GoogleEmailStatus.Valid, cancellationToken);
+                            ResolvedUserId(outboxEvent.UserId), GoogleEmailStatus.Valid, cancellationToken);
                     }
                 }
             }
@@ -122,7 +122,7 @@ internal sealed class GoogleSyncOutboxProcessor(
                     ex.Error?.Code);
 
                 await userService.TrySetGoogleEmailStatusFromSyncAsync(
-                    outboxEvent.UserId, GoogleEmailStatus.Rejected, cancellationToken);
+                    ResolvedUserId(outboxEvent.UserId), GoogleEmailStatus.Rejected, cancellationToken);
 
                 // Failure stays visible via the "Failed Google sync events" meter and
                 // the /Google/SyncOutbox admin page (with per-event Retry) — no per-event

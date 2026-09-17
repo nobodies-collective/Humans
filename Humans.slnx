@@ -54,6 +54,7 @@
     <Project Path="src/Sections/Humans.Monitor/Humans.Monitor.csproj" />
     <Project Path="src/Sections/Humans.Notifications/Humans.Notifications.csproj" />
     <Project Path="src/Sections/Humans.Notifications.Contracts/Humans.Notifications.Contracts.csproj" />
+    <Project Path="src/Sections/Humans.Rideshare/Humans.Rideshare.csproj" />
     <Project Path="src/Sections/Humans.Scanner/Humans.Scanner.csproj" />
     <Project Path="src/Sections/Humans.Search/Humans.Search.csproj" />
     <Project Path="src/Sections/Humans.Shifts.Contracts/Humans.Shifts.Contracts.csproj" />
@@ -71,6 +72,7 @@
     <Project Path="src/Sections/Humans.Tour/Humans.Tour.csproj" />
     <Project Path="src/Sections/Humans.Users/Humans.Users.csproj" />
     <Project Path="src/Sections/Humans.Users.Contracts/Humans.Users.Contracts.csproj" />
+    <Project Path="src/Sections/Humans.Workgroups/Humans.Workgroups.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <File Path="tests/Directory.Build.props" />
@@ -110,6 +112,7 @@
     <Project Path="tests/Humans.MailerLite.Tests/Humans.MailerLite.Tests.csproj" />
     <Project Path="tests/Humans.Monitor.Tests/Humans.Monitor.Tests.csproj" />
     <Project Path="tests/Humans.Notifications.Tests/Humans.Notifications.Tests.csproj" />
+    <Project Path="tests/Humans.Rideshare.Tests/Humans.Rideshare.Tests.csproj" />
     <Project Path="tests/Humans.Scanner.Tests/Humans.Scanner.Tests.csproj" />
     <Project Path="tests/Humans.Search.Tests/Humans.Search.Tests.csproj" />
     <Project Path="tests/Humans.Store.Tests/Humans.Store.Tests.csproj" />
@@ -119,8 +122,10 @@
     <Project Path="tests/Humans.Teams.Tests/Humans.Teams.Tests.csproj" />
     <Project Path="tests/Humans.TicketTailor.Tests/Humans.TicketTailor.Tests.csproj" />
     <Project Path="tests/Humans.Tickets.Tests/Humans.Tickets.Tests.csproj" />
+    <Project Path="tests/Humans.Tour.Tests/Humans.Tour.Tests.csproj" />
     <Project Path="tests/Humans.Settings.Tests/Humans.Settings.Tests.csproj" />
     <Project Path="tests/Humans.Users.Tests/Humans.Users.Tests.csproj" />
+    <Project Path="tests/Humans.Workgroups.Tests/Humans.Workgroups.Tests.csproj" />
     <Project Path="tests/Humans.Web.Tests/Humans.Web.Tests.csproj" />
   </Folder>
   <Folder Name="/build/">

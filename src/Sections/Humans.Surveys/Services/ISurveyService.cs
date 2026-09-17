@@ -7,15 +7,15 @@ using NodaTime;
 namespace Humans.Surveys.Services;
 
 /// <summary>
-/// Survey section service: authoring (create/update/open/close), and — added in later phases —
-/// send, submit, results, export and GDPR contribution. Implements the
-/// <see cref="IApplicationService"/> marker. Read methods return DTOs, never EF entities.
+/// Survey section service: authoring, sending, the answering wizard, submission, results, export
+/// and the GDPR contribution. Implements the <see cref="IApplicationService"/> marker. Read
+/// methods return DTOs, never EF entities.
 /// </summary>
 /// <remarks>
-/// Two consumers live outside the section: the reminder job in Base, which sees
-/// <see cref="Contracts.ISurveyReminderSender"/>, and the Backdoor machine API, which sees
-/// <see cref="ISurveyAnalysisRead"/> (nobodies-collective/Humans#1128). Everything else here
-/// — authoring, sending, the wizard, submission — has no caller outside Surveys.
+/// The only consumer outside the section is the Backdoor machine API, which sees
+/// <see cref="ISurveyAnalysisRead"/> (nobodies-collective/Humans#1128); the section's own
+/// reminder job sees <see cref="Contracts.ISurveyReminderSender"/>. Everything else here —
+/// authoring, sending, the wizard, submission — has no caller outside Surveys.
 /// </remarks>
 internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
 {
@@ -35,8 +35,8 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
     /// <summary>
     /// Machine-translates the survey's authored content (title, intro, thank-you, invitation copy,
     /// prompts, help, rating/option/Grid-row labels) from its default culture into every <paramref name="targetCultures"/>
-    /// entry that is still blank — existing text is never overwritten (spec §6.1: pre-fill, then the
-    /// author reviews). Returns the number of fields filled; 0 means nothing was missing.
+    /// entry that is still blank — existing text is never overwritten. Returns the number of fields
+    /// filled; 0 means nothing was missing.
     /// </summary>
     Task<int> PreFillTranslationsAsync(
         Guid surveyId, IReadOnlyList<string> targetCultures, Guid actorUserId, CancellationToken ct = default);
@@ -46,6 +46,22 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
 
     /// <summary>Transitions Open → Closed.</summary>
     Task CloseAsync(Guid surveyId, Guid actorUserId, CancellationToken ct = default);
+
+    // ── Self-service approval gate (Workgroups design §11) ───────────────────
+    /// <summary>Survey list scoped to the viewer: Board/Admin see every survey; anyone else sees only their own.</summary>
+    Task<IReadOnlyList<SurveyAdminSummary>> GetAdminSummariesAsync(SurveyViewer viewer, CancellationToken ct = default);
+
+    /// <summary>Surveys awaiting Board/Admin approval, oldest submission first, with the author's display name.</summary>
+    Task<IReadOnlyList<SurveyPendingApprovalItem>> GetPendingApprovalQueueAsync(CancellationToken ct = default);
+
+    /// <summary>Transitions Draft → PendingApproval. Author-only — enforced here as the state machine's source of truth.</summary>
+    Task SubmitForApprovalAsync(Guid surveyId, Guid actorUserId, CancellationToken ct = default);
+
+    /// <summary>Transitions PendingApproval → Open and sends the invitation wave in the same step. Board/Admin only — enforced here.</summary>
+    Task<SendResult> ApproveAndSendAsync(Guid surveyId, SurveyViewer viewer, CancellationToken ct = default);
+
+    /// <summary>Transitions PendingApproval → Draft, recording the Board's note. Board/Admin only — enforced here.</summary>
+    Task RejectAsync(Guid surveyId, SurveyViewer viewer, string note, CancellationToken ct = default);
 
     // ── Invitations ────────────────────────────────────────────────────────
     /// <summary>
@@ -161,11 +177,19 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
         CancellationToken ct = default);
 
     // ── Results ────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Results for one anonymity scope, or null if not found. While an Asociado vote is Open the
+    /// result is participation-only (<c>IsEmbargoed</c>); after close it carries unattributed ballots.
+    /// </summary>
     Task<SurveyScopedResults?> GetScopedResultsAsync(
         Guid surveyId,
         SurveyResultsScope scope,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Strikes ranked options from the count of a Closed survey. Rewrites no stored ballot;
+    /// audit-logged as a survey update.
+    /// </summary>
     Task SetRankedAvailabilityAsync(
         Guid surveyId,
         Guid questionId,
@@ -219,8 +243,35 @@ internal enum SurveyResultsScope
 
 // ── Authoring DTOs (co-located) ─────────────────────────────────────────────
 
-/// <summary>A survey loaded for editing: identity + status + the editable graph.</summary>
-internal sealed record SurveyDetail(Guid Id, SurveyStatus Status, SurveyEditInput Editable);
+/// <summary>A survey loaded for editing: identity + status + owner + the editable graph.</summary>
+internal sealed record SurveyDetail(
+    Guid Id,
+    SurveyStatus Status,
+    SurveyEditInput Editable,
+    Guid CreatedByUserId = default,
+    string? RejectionNote = null);
+
+/// <summary>The current viewer for author-scoped survey visibility: Board/Admin see every survey.</summary>
+internal readonly record struct SurveyViewer(Guid UserId, bool IsBoardOrAdmin);
+
+/// <summary>One row on the (author-scoped) admin index.</summary>
+internal sealed record SurveyAdminSummary(
+    Guid Id,
+    string Title,
+    SurveyStatus Status,
+    int InvitedCount,
+    int ResponseCount,
+    Guid CreatedByUserId,
+    Instant? SubmittedAt,
+    string? RejectionNote);
+
+/// <summary>One row on the Board/Admin approval queue.</summary>
+internal sealed record SurveyPendingApprovalItem(
+    Guid Id,
+    string Title,
+    Guid CreatedByUserId,
+    string CreatedByName,
+    Instant? SubmittedAt);
 
 /// <summary>Everything the builder edits. Question/option <c>Id</c> null = new (assigned on save).</summary>
 internal sealed record SurveyEditInput(

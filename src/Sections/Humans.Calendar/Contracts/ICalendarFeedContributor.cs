@@ -1,4 +1,5 @@
 using Humans.Base.Interfaces;
+using NodaTime;
 
 namespace Humans.Calendar.Contracts;
 
@@ -16,8 +17,7 @@ namespace Humans.Calendar.Contracts;
 /// <para>
 /// Lives under Calendar's <c>Contracts/</c> because a contributor fan-out inverts
 /// the dependency arrow: implementers reference Calendar, Calendar references none
-/// of them, so the folder is enough and no <c>.Contracts</c> leaf is needed
-/// (nobodies-collective/Humans#866, G5 lane 4b-2c).
+/// of them, so the folder is enough and no <c>.Contracts</c> leaf is needed.
 /// </para>
 /// </summary>
 public interface ICalendarFeedContributor : IFanout
@@ -29,4 +29,12 @@ public interface ICalendarFeedContributor : IFanout
     /// timezone). Implementations must be read-only.
     /// </summary>
     Task<IReadOnlyList<CalendarFeedItem>> GetCalendarItemsForUserAsync(Guid userId, CancellationToken ct);
+
+    /// <summary>
+    /// Returns every public calendar item this contributor owns that overlaps the
+    /// window [<paramref name="from"/>, <paramref name="to"/>] — items everyone may
+    /// see on the community calendar, not just one user's own. Implementations must
+    /// be read-only, and return an empty list when they have nothing public to add.
+    /// </summary>
+    Task<IReadOnlyList<CalendarFeedItem>> GetPublicItemsForWindowAsync(Instant from, Instant to, CancellationToken ct);
 }

@@ -40,7 +40,7 @@ Nobodies Collective uses Google Workspace for collaboration. The system integrat
 - All API calls use `SupportsAllDrives = true`
 
 > The system does not create Drive folders. Linking is the only way a Drive
-> resource enters the system (`ITeamResourceService.LinkDriveFolderAsync`);
+> resource enters the system (`ITeamResourceService.LinkDriveResourceAsync`);
 > only Google Groups are provisioned automatically.
 
 ### US-7.2: Automatic Access Grants
@@ -73,7 +73,7 @@ Nobodies Collective uses Google Workspace for collaboration. The system integrat
 **So that** I can troubleshoot access issues and verify correctness
 
 **Acceptance Criteria:**
-- Sync status page at `/Teams/Sync` shows all active resources (accessible to TeamsAdmin, Board, Admin)
+- Sync status page at `/Google/Sync` shows all active resources (accessible to TeamsAdmin, Board, Admin)
 - Tabbed interface: Google Drive tab and Google Groups tab
 - Per-tab preview loads via AJAX (read-only API calls)
 - Summary cards per tab: Total Resources, In Sync, Drifted, Errors
@@ -155,6 +155,12 @@ Collision handling is fail-closed. If more than one source claims the same group
 `ReconcileAllAsync` is the daily and bulk-preview/bulk-execute path. It loads all claims, hydrates expected users once for the pass, and reports per-group errors without scheduling scoped retries. `ReconcileOneAsync` is the scoped path used by Hangfire requests after membership/email changes and by per-row Execute in the UI; when scoped Execute hits a Google API failure, it schedules another scoped Hangfire attempt after the retry delay.
 
 Group sync requests use Hangfire instead of in-process retry. Team membership and email changes commit first, then enqueue scoped group reconciliation by group key. This keeps Google API failures outside the Teams transaction and makes retries visible and independently executable.
+
+## Source-Owned Drive Access
+
+`GoogleDriveAccessSyncService` reconciles folder claims from `IGoogleDriveAccessSource`, including Workgroups. A Google permission can combine inherited access with a direct grant. This path preserves both components and updates direct role changes in place. Desired access never falls below the highest inherited role; dormancy, departure and retirement reduce excess direct access to that floor. An equal-floor permission needs no further mutation whether Google returns it as mixed or purely inherited.
+
+Pure direct extras are deleted. Mixed grants are never deleted and their role reduction does not send a total-removal notice. Role updates record success or failure in the Google sync log. Preview and `None` make no changes; `AddOnly` permits additions and elevations, while downgrades and removals require `AddAndRemove`. The legacy Teams Drive path retains its inherited-permission exclusion.
 
 ## Data Model
 
@@ -280,7 +286,7 @@ public class SyncPreviewResult
 All Drive resources in this system are on Shared Drives. This has important implications for permission management:
 
 ### Inherited vs Direct Permissions
-- **Inherited permissions** come from the Shared Drive itself (e.g., all drive members get access to all folders). These are NOT managed by this system and are excluded from drift detection and sync.
+- **Inherited permissions** come from the Shared Drive or parent folders. The system preserves this access; the source-claimed reconciler tracks its role as the minimum permitted role when updating a mixed grant.
 - **Direct permissions** are set on individual folders within the Shared Drive. These ARE managed by this system.
 
 ### Permission Filtering Logic
@@ -291,9 +297,10 @@ When listing permissions, the system uses `permissionDetails` from the Drive API
 // 2. Role is not "owner"
 // 3. Has a valid email address
 // 4. Is not a service account (.iam.gserviceaccount.com)
-// 5. Has NO inherited component (permissionDetails.Any(d => d.Inherited) == false) —
-//    a permission with a mix of direct and inherited detail entries is excluded
-//    too, since Drive still 403s deleting it at this level (#945)
+// 5. Legacy Teams-keyed path: has NO inherited component.
+//    Source-claimed path: has a direct component; mixed grants require a known
+//    inherited floor and are updated in place, never deleted at the child
+//    (nobodies-collective/Humans#945). Floor-only grants need no mutation.
 ```
 
 ### API Requirements
@@ -432,8 +439,7 @@ Separate interface from IGoogleSyncService for linking/validation (not provision
 public interface ITeamResourceService
 {
     Task<IReadOnlyList<GoogleResource>> GetTeamResourcesAsync(Guid teamId, ...);
-    Task<LinkResourceResult> LinkDriveFolderAsync(Guid teamId, string folderUrl, ...);
-    Task<LinkResourceResult> LinkDriveFileAsync(Guid teamId, string fileUrl, ...);
+    Task<LinkResourceResult> LinkDriveResourceAsync(Guid teamId, string url, ...);
     Task<LinkResourceResult> LinkGroupAsync(Guid teamId, string groupEmail, ...);
     Task UnlinkResourceAsync(Guid resourceId, ...);
     Task<bool> CanManageTeamResourcesAsync(Guid teamId, Guid userId, ...);
@@ -509,7 +515,7 @@ Actions (on `TeamAdminController`, `src/Sections/Humans.Teams/Controllers/`):
 ## Sync Status Page
 
 ### Route: `/Google/Sync`
-Accessible to TeamsAdmin, Board, and Admin. Shows drift across all active resources with a tabbed interface (Google Drive / Google Groups). Formerly at `/Teams/Sync`.
+Accessible to TeamsAdmin, Board, and Admin. Shows drift across all active resources with a tabbed interface (Google Drive / Google Groups).
 
 | Route | Method | Auth | Action |
 |-------|--------|------|--------|
@@ -531,14 +537,12 @@ Drifted resources shown first, then in-sync.
 ### Sync Settings Page
 
 #### Route: `/Google/SyncSettings`
-Admin-only page for configuring per-service sync modes. Formerly at `/Google/SyncSettings`.
+Admin-only page for configuring per-service sync modes.
 
 | Route | Method | Action |
 |-------|--------|--------|
 | `/Google/SyncSettings` | GET | View current sync mode per service |
 | `/Google/SyncSettings` | POST | Update sync mode for a service |
-
-> **Note:** The legacy `/Admin/GoogleSync` route (combined sync preview/apply) has been removed. All sync operations are now at `/Google/Sync`.
 
 ## Stub Implementations
 
@@ -566,7 +570,7 @@ Process: Calls SyncResourcesByTypeAsync / ReconcileAllAsync with SyncAction.Exec
 
 **Per-phase fault isolation:** Each top-level phase (DriveFolder sync, DriveFile sync, Group membership reconcile, Drive folder path updates, Inherited access enforcement, Group settings check) runs independently. A failure in one phase does not abort the others. After all phases complete, the job records `google_resource_reconciliation / partial_failure` in metrics and dispatches a single `SyncError` Admin alert listing which phases failed. If all phases succeed, the metric is `success` and no error alert fires.
 
-**Drive folder path updates:** After permission sync, the job calls `UpdateDriveFolderPathsAsync` to fetch the current folder name and parent chain for each active Drive resource via the Drive API (`files.get` with `fields=name,parents`). If a folder has been renamed or moved, `GoogleResource.Name` is updated to reflect the full logical path (e.g. "Shared Drive / Department / Subfolder"). This keeps the `/Teams/Sync` page accurate without requiring manual intervention.
+**Drive folder path updates:** After permission sync, the job calls `UpdateDriveFolderPathsAsync` to fetch the current folder name and parent chain for each active Drive resource via the Drive API (`files.get` with `fields=name,parents`). If a folder has been renamed or moved, `GoogleResource.Name` is updated to reflect the full logical path (e.g. "Shared Drive / Department / Subfolder"). This keeps the `/Google/Sync` page accurate without requiring manual intervention.
 
 > Jobs are active but mode-gated: each service must have its sync mode set to AddOnly or AddAndRemove at `/Google/SyncSettings` before the job will modify Google resources.
 
@@ -610,11 +614,11 @@ On Google API error (resource sync):
 | Invalid email (400) | Permanent — mark user email rejected |
 | Permission denied (403) | Permanent — no Google account for address, mark rejected |
 | Folder not found | Resource marked inactive — an admin re-links the folder |
-| Inherited permission delete | Excluded from the removal set before the delete is ever attempted — any permission with an inherited component (not just fully-inherited ones) is skipped. If Drive still 403s on a race (inheritance changed between list and delete), the failure is classified terminal, logged once, and not retried until the next reconciliation pass (#945) |
+| Inherited permission delete | Any permission with an inherited component is excluded from deletion. Source-owned Drive reconciliation can instead reduce a direct elevation to the inherited floor, as described above. If Drive still 403s on a delete race (inheritance changed between list and delete), the failure is classified terminal, logged once, and not retried until the next reconciliation pass (nobodies-collective/Humans#945) |
 
 ### Failed-Sync Admin Meter
 
-Failed Google sync health surfaces to Admins as a notification meter (`NotificationMeterProvider`), backed by `IGoogleSyncServiceRead.GetFailedSyncEventCountAsync` — the count of unprocessed outbox events carrying a non-null `LastError`. The meter links to `/Google/Sync`. (There is no longer a daily admin digest reporting these counts; that job was retired.)
+Failed Google sync health surfaces to Admins as a notification meter (`NotificationMeterProvider`), backed by `IGoogleSyncServiceRead.GetFailedSyncEventCountAsync` — the count of unprocessed outbox events carrying a non-null `LastError`. The meter links to `/Google/Sync`.
 
 ## Security Considerations
 
@@ -671,4 +675,4 @@ Failed Google sync health surfaces to Admins as a notification meter (`Notificat
 - [Teams](../../../Humans.Teams/Docs/features/Teams-feature.md) - Triggers Google Group provisioning and access sync
 - [Background Jobs](../../../../../docs/features/global/background-jobs.md) - Resource sync job
 - [Authentication](../../../Humans.Auth/Docs/features/authentication.md) - User Google identity
-- [Drive Activity Monitoring](drive-activity-monitoring.md) - Anomalous permission detection
+- [Drive Activity Monitoring](../../../Humans.Monitor/Docs/features/drive-activity-monitoring.md) - Anomalous permission detection

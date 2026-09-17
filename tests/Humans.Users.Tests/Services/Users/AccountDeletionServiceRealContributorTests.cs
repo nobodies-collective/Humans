@@ -23,7 +23,7 @@ namespace Humans.Users.Tests.Services.Users;
 /// <summary>
 /// <see cref="AccountDeletionServiceTests"/> substitutes every contributor, which is
 /// why a second identity collapse layered on top of the Account contributor's went
-/// unnoticed (nobodies-collective/Humans#853). These run the orchestrator with the
+/// unnoticed. These run the orchestrator with the
 /// real <see cref="UserService"/> as both <see cref="IUserService"/> and the Account
 /// <see cref="IUserDataContributor"/>, over the harness's in-memory store, so the
 /// row the purge leaves behind is asserted rather than assumed.
@@ -55,12 +55,6 @@ public sealed class AccountDeletionServiceRealContributorTests : ServiceTestHarn
         _ticketQueryService.GetUserTicketHoldingsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new UserTicketHoldings(0, []));
 
-        // The real UserService cannot answer the merge-chain lookup (that primitive only
-        // exists on the caching decorator), and these accounts have no merge history.
-        var userServiceRead = Substitute.For<IUserServiceRead>();
-        userServiceRead.GetMergedSourceIdsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(new HashSet<Guid>());
-
         // Gdpr's real erasure loop is internal to Humans.Gdpr and this section-test may not
         // see it. Stand in for it with a forwarding substitute that runs the real
         // UserService Account contributor for the id — the point of these tests is what
@@ -72,7 +66,6 @@ public sealed class AccountDeletionServiceRealContributorTests : ServiceTestHarn
 
         _service = new AccountDeletionService(
             _userService,
-            userServiceRead,
             Substitute.For<IUserEmailService>(),
             _teamService,
             Substitute.For<IRoleAssignmentService>(),

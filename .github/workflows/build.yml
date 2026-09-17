@@ -65,6 +65,8 @@ env:
     StoreDbContext:src/Sections/Humans.Store
     MailerLiteDbContext:src/Sections/Humans.MailerLite
     BackdoorDbContext:src/Sections/Humans.Backdoor
+    RideshareDbContext:src/Sections/Humans.Rideshare
+    WorkgroupsDbContext:src/Sections/Humans.Workgroups
 
 jobs:
   build:
@@ -94,6 +96,14 @@ jobs:
 
     - name: Build
       run: dotnet build Humans.slnx --no-restore --configuration Release
+
+    - name: Setup Node for browser module tests
+      uses: actions/setup-node@v7
+      with:
+        node-version: '24'
+
+    - name: Test section browser modules
+      run: node --test 'tests/Humans.*.Tests/Browser/*.test.*'
 
     - name: Test
       # --blame-hang-timeout 2m is the CI hang guard: if the test host stalls

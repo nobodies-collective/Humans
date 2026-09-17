@@ -50,6 +50,7 @@ The goal is to identify cross-section table overlap, duplicated caching, and cac
 > | `EventGuideDbContext` | `EventGuideSettings`, `EventCategories`, `EventVenues`, `Events`, `EventModerationActions`, `EventPreferences`, `EventFavourites` (own project, `src/Sections/Humans.Events/`; the Shifts-owned `EventSettings` / `EventParticipations` tables deliberately stay off this context, despite the name collision) |
 > | `StoreDbContext` | `StoreProducts`, `StoreOrders`, `StoreOrderLines`, `StorePayments`, `StoreInvoices`, `StoreTreasurySyncStates` (own project, `src/Sections/Humans.Store/`) |
 > | `BackdoorDbContext` | `backdoor_api_keys` (own project, `src/Sections/Humans.Backdoor/`) |
+> | `RideshareDbContext` | `RideshareTrips`, `RideshareRequests`, `RideshareInterests`, `RideshareSettings` (own project, `src/Sections/Humans.Rideshare/`, table names `rideshare_trips` / `rideshare_requests` / `rideshare_interests` / `rideshare_settings`) |
 >
 > Each context applies its `IEntityTypeConfiguration` classes explicitly (no
 > assembly scanning), so a section's model can never accrete another
@@ -179,7 +180,7 @@ Every table is owned by exactly one repository; there are no HUM0025
    `ICampServiceRead`, `ITicketServiceRead`, `IGoogleSyncServiceRead`
    (consumed by `NotificationMeterProvider` for failed-sync-event counts),
    `ICampaignServiceRead` (consumed by `TicketQueryService`),
-   `IEventServiceRead` (consumed by `CampEventsViewComponent`
+   `IEventServiceRead` (consumed by `EventsCardViewComponent`
    for the camp detail page's events card),
    `ICityPlanningServiceRead` (exposes `GetSettingsAsync` /
    `GetRegistrationInfoAsync` / `IsCityPlanningTeamMemberAsync` — current
@@ -296,8 +297,9 @@ Every table is owned by exactly one repository; there are no HUM0025
     repository. `IGoogleTranslationService` (GoogleIntegration section)
     is the translation bridge for the admin pre-fill helper. No
     cross-section table reads. There is no `ISurveyServiceRead` — no other
-    section consumes one; the section's only outbound contract is the
-    single-member `Humans.Surveys.Contracts.ISurveyReminderSender`.
+    section consumes one; the section's outbound contracts are the
+    single-member `ISurveyReminderSender` (its own reminder job) and
+    `ISurveyAnalysisRead` (Backdoor's machine API).
 
 13. **ICalFeed is a pure fan-out orchestrator.** `ICalFeedService`
     owns no repository and touches no table directly. Token validation
@@ -411,7 +413,8 @@ separately below the key table.
 | `TrackedCache<Guid, UserConsentInfo>` | Consent | `Consent.UserConsentInfo` | Per-User | CachingConsentService lazy load | `IConsentCacheInvalidator` (synchronous per-user evict on submit) |
 | `TrackedCache<Guid, LegalDocumentInfo>` | Legal | `Legal.LegalDocumentInfo` | Per-Entity | CachingLegalDocumentSyncService warmup + lazy load | `ILegalDocumentCacheInvalidator.InvalidateAll` (called directly by `LegalDocumentSyncService` after each write) |
 | `TrackedCache<Guid, RoleAssignmentRow>` | Auth | `Auth.RoleAssignmentRow` | Per-Entity | CachingRoleAssignmentService warmup + lazy load | `IRoleAssignmentCacheInvalidator.InvalidateAll` (service-level) |
-| `TrackedCache<Guid, UserEarlyEntry?>` | Early Entry | `EarlyEntry.UserEarlyEntry` | Per-User (negative-result safe) | CachingEarlyEntryService lazy load | `IEarlyEntryInvalidator.InvalidateUser` / `InvalidateAll` (ShiftManagementService, ShiftSignupService, CampService, TeamService) |
+| `TrackedCache<Guid, UserEarlyEntry?>` | Early Entry | `EarlyEntry.UserEarlyEntry` | Per-User (negative-result safe) | CachingEarlyEntryService lazy load | `IEarlyEntryInvalidator.InvalidateUser` / `InvalidateAll` (ShiftSignupService, CampService, TeamService) |
+| `TrackedCache<int, RideshareSnapshot>` | Rideshare | `Rideshare.Snapshot` | Per-Year | CachingRideshareService lazy load | full `Clear()` after every delegated write |
 
 ### Cache Issues / Notes
 

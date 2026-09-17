@@ -20,14 +20,11 @@ namespace Humans.Consent.Services;
 /// consent-banner check (which reads
 /// <see cref="GetConsentedVersionIdsAsync"/>) must not observe a stale
 /// "still required" entry. The override here calls the inner submit,
-/// then evicts the affected user(s) <b>before</b> returning.
+/// then refreshes the affected user(s) via ReplaceAsync <b>before</b> returning.
 /// </para>
 /// <para>
-/// Cache is lazy — no startup warmup. An eager full-user-base
-/// repo round-trip is cheap, but the lazy path is plenty for the
-/// consent-banner workload (the banner only fires for users who have
-/// outstanding required consents; the cache fills on first banner
-/// render). Adding warmup later is mechanical.
+/// Cache is lazy — no startup warmup; the consent-banner workload fills
+/// it on first render.
 /// </para>
 /// <para>
 /// Reads that depend on the consented-version set
@@ -58,9 +55,9 @@ internal sealed class CachingConsentService(
     public const string InnerServiceKey = "consent-inner";
 
     // ILegalDocumentSyncService and IClock are Singletons — inject directly.
-    // _scopeFactory is still needed to resolve the keyed Scoped inner
-    // IConsentService and Scoped IUserService for the SubmitConsent /
-    // pass-through / chain-resolve paths.
+    // scopeFactory is still needed to resolve the keyed Scoped inner
+    // IConsentService and Scoped IUserServiceRead for the SubmitConsent /
+    // pass-through paths.
 
     // ==========================================================================
     // Reads served from cache
@@ -86,7 +83,7 @@ internal sealed class CachingConsentService(
         // dict (no scope, no inner call). Misses are resolved via a SINGLE
         // bulk inner call — not a per-id loop into LoadRowAsync, which
         // would open N DI scopes and do N rounds of repo + IUserService
-        // calls. Issue #747.
+        // calls.
         var result = new Dictionary<Guid, IReadOnlySet<Guid>>(userIds.Count);
         // Dedupe misses: duplicate ids in userIds must not redo merge/source
         // resolution work in the inner bulk call. Tracked via a HashSet
@@ -178,7 +175,7 @@ internal sealed class CachingConsentService(
     /// refresh here would race the redirect and serve a stale "still
     /// required" banner on the next page.
     ///
-    /// <para>Post-#587, the right primitive on a <c>warmOnStartup: false</c>
+    /// <para>The right primitive on a <c>warmOnStartup: false</c>
     /// cache for a known-mutated row is <see cref="TrackedCache{TKey,TValue}.ReplaceAsync"/>:
     /// it drives <see cref="LoadRowAsync"/> and atomically swaps in the
     /// fresh value (or tombstones the key if the loader returns null).
@@ -190,17 +187,16 @@ internal sealed class CachingConsentService(
         string ipAddress, string userAgent, CancellationToken ct = default)
     {
         ConsentSubmitResult result;
-        IReadOnlySet<Guid> sourceIds;
+        IReadOnlyList<Guid> chainIds;
 
-        // Resolve the merge-chain source ids OUTSIDE the submit so we know
-        // every cache key affected by this write, then refresh all of them
-        // inline below. We also need the SAME source-id set the inner uses
-        // to decide AlreadyConsented; resolving it once here and trusting
-        // the inner is consistent (both go through IUserService).
+        // Resolve the human's full id list OUTSIDE the submit so we know every cache
+        // key affected by this write, then refresh all of them inline below. It is the
+        // SAME list the inner uses to decide AlreadyConsented; resolving it once here
+        // and trusting the inner is consistent (both go through IUserService).
         await using (var scope = scopeFactory.CreateAsyncScope())
         {
             var userService = scope.ServiceProvider.GetRequiredService<IUserServiceRead>();
-            sourceIds = await userService.GetMergedSourceIdsAsync(userId, ct);
+            chainIds = (await userService.GetUserInfoAsync(userId, ct))?.AllUserIds ?? [userId];
 
             var inner = scope.ServiceProvider.GetRequiredKeyedService<IConsentService>(InnerServiceKey);
             result = await inner.SubmitConsentAsync(
@@ -212,9 +208,10 @@ internal sealed class CachingConsentService(
         // cache entry is still correct.
         if (result.Success)
         {
-            await ReplaceAsync(userId, ct).ConfigureAwait(false);
-            foreach (var sourceId in sourceIds)
-                await ReplaceAsync(sourceId, ct).ConfigureAwait(false);
+            // The id submitted with is refreshed even when it is not in the list (a stale
+            // read); every id of the human is refreshed because every one is a cache key.
+            foreach (var id in chainIds.Contains(userId) ? chainIds : [userId, .. chainIds])
+                await ReplaceAsync(id, ct).ConfigureAwait(false);
         }
 
         return result;
@@ -253,18 +250,11 @@ internal sealed class CachingConsentService(
     protected override async ValueTask<UserConsentInfo?> LoadRowAsync(
         Guid userId, CancellationToken ct)
     {
-        // Resolve the source-id chain BEFORE the repo read so we know whether
-        // the union path or the single-id path applies — same logic as the
-        // inner ConsentService's GetChainFollowIdsAsync, lifted to warm time
-        // so it does not run on every read.
+        // The inner service chain-follows merge ids itself; this loader just
+        // reads through it.
         var versions = await WithInner(inner => inner.GetConsentedVersionIdsAsync(userId, ct));
 
-        // Defensively freeze with a copy on every load. The repo currently
-        // returns a fresh HashSet, but we don't trust that across future
-        // changes: if a repo impl ever retains and mutates the returned
-        // set (e.g., adds an internal cache layer), our cached entry would
-        // alias to it. Always-copy makes the cached snapshot independent of
-        // the repo's lifetime semantics. Cost is trivial at our small scale.
+        // Copy so the cached snapshot never aliases the inner service's set.
         var frozen = new HashSet<Guid>(versions);
         return new UserConsentInfo(userId, frozen);
     }

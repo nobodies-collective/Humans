@@ -1,3 +1,4 @@
+using Humans.Users.Services;
 using Humans.Base.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +12,7 @@ namespace Humans.Users.Controllers;
 [Authorize(Policy = PolicyNames.AdminOnly)]
 [Route("Profile/Admin/Backfill")]
 internal sealed class ProfileBackfillAdminController(
-    IUserService userService,
+    IUserServiceInternal userService,
     ILogger<ProfileBackfillAdminController> logger) : HumansControllerBase(userService)
 {
     [HttpGet("")]
@@ -47,7 +48,7 @@ internal sealed class ProfileBackfillAdminController(
     private async Task<IReadOnlyList<MissingProfileRow>> GetUsersMissingProfileAsync(CancellationToken ct)
     {
         IReadOnlyList<MissingProfileRow> rows = (await userService.GetAllUserInfosAsync(ct).ConfigureAwait(false))
-            .Where(u => u.Profile is null && !u.IsTombstone)
+            .Where(u => u.Profile is null)
             .Select(u => new MissingProfileRow(
                 u.Id,
                 u.Email ?? string.Empty,

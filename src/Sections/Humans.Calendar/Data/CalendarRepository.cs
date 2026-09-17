@@ -7,42 +7,13 @@ namespace Humans.Calendar.Data;
 /// <summary>
 /// EF-backed implementation of <see cref="ICalendarRepository"/>. The only
 /// non-test file that touches the Calendar-owned DbSets
-/// (<c>CalendarEvents</c>, <c>CalendarEventExceptions</c>) after the Calendar
-/// §15 migration (issue #569) lands. Uses
+/// (<c>CalendarEvents</c>, <c>CalendarEventExceptions</c>). Uses
 /// <see cref="IDbContextFactory{TContext}"/> so the repository can be
 /// registered as Singleton while <c>CalendarDbContext</c> remains Scoped.
-/// The owning team is a bare Guid — not in this model at all; the service
-/// stitches team names via
-/// <see cref="Application.Interfaces.Teams.ITeamService"/>.
+/// The owning team is a bare Guid — not in this model at all.
 /// </summary>
 internal sealed class CalendarRepository(IDbContextFactory<CalendarDbContext> factory) : ICalendarRepository
 {
-    // ==========================================================================
-    // Reads
-    // ==========================================================================
-
-    public async Task<IReadOnlyList<CalendarEvent>> GetEventsInWindowAsync(
-        Instant from,
-        Instant to,
-        Guid? teamId,
-        CancellationToken ct = default)
-    {
-        await using var ctx = await factory.CreateDbContextAsync(ct);
-
-        var query = ctx.CalendarEvents
-            .AsNoTracking()
-            .Include(e => e.Exceptions)
-            .Where(e => e.StartUtc <= to
-                && (e.RecurrenceUntilUtc == null || e.RecurrenceUntilUtc >= from));
-
-        if (teamId is { } t)
-        {
-            query = query.Where(e => e.OwningTeamId == t);
-        }
-
-        return await query.ToListAsync(ct);
-    }
-
     public async Task<CalendarEvent?> GetEventByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
@@ -61,10 +32,6 @@ internal sealed class CalendarRepository(IDbContextFactory<CalendarDbContext> fa
             .ToListAsync(ct);
     }
 
-    // ==========================================================================
-    // Writes — CalendarEvent
-    // ==========================================================================
-
     public async Task AddAsync(CalendarEvent ev, CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
@@ -78,7 +45,7 @@ internal sealed class CalendarRepository(IDbContextFactory<CalendarDbContext> fa
         CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
-        var ev = await ctx.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id, ct);
+        var ev = await ctx.CalendarEvents.Include(e => e.Exceptions).FirstOrDefaultAsync(e => e.Id == id, ct);
         if (ev is null)
         {
             return false;
@@ -107,17 +74,13 @@ internal sealed class CalendarRepository(IDbContextFactory<CalendarDbContext> fa
         return (ev.OwningTeamId, ev.Title);
     }
 
-    // ==========================================================================
-    // Writes — CalendarEventException
-    // ==========================================================================
-
     public async Task UpsertExceptionAsync(
         Guid eventId,
-        Instant originalOccurrenceStartUtc,
+        Instant? originalOccurrenceStartUtc,
         Guid createdByUserId,
         Instant now,
         Action<CalendarEventException> apply,
-        CancellationToken ct = default)
+        CancellationToken ct = default, LocalDate? originalDate = null)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
 
@@ -129,7 +92,8 @@ internal sealed class CalendarRepository(IDbContextFactory<CalendarDbContext> fa
         var existing = await ctx.CalendarEventExceptions
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(
-                x => x.EventId == eventId && x.OriginalOccurrenceStartUtc == originalOccurrenceStartUtc,
+                x => x.EventId == eventId && ((originalDate != null && x.OriginalOccurrenceDate == originalDate) ||
+                    (originalOccurrenceStartUtc != null && x.OriginalOccurrenceStartUtc == originalOccurrenceStartUtc)),
                 ct);
 
         if (existing is null)
@@ -150,6 +114,8 @@ internal sealed class CalendarRepository(IDbContextFactory<CalendarDbContext> fa
             existing.UpdatedAt = now;
         }
 
+        existing.OriginalOccurrenceDate = originalDate;
+        existing.OriginalOccurrenceStartUtc = originalDate is null ? originalOccurrenceStartUtc : null;
         apply(existing);
 
         var errors = existing.Validate();

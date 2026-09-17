@@ -1,3 +1,9 @@
+using Humans.Calendar.Services;
+using Humans.Calendar.Services.Dtos;
+using Humans.AuditLog.Contracts;
+using Microsoft.Extensions.Logging.Abstractions;
+using NodaTime.Testing;
+using NSubstitute;
 using AwesomeAssertions;
 using Humans.Calendar.Domain;
 using Humans.Calendar.Data;
@@ -26,6 +32,142 @@ public sealed class CalendarRepositoryTests : IDisposable
         _dbContext = new CalendarDbContext(options);
         _repo = new CalendarRepository(new TestDbContextFactory<CalendarDbContext>(options));
     }
+
+    [HumansTheory]
+    [Xunit.InlineData("FREQ=DAILY;COUNT=3")]
+    [Xunit.InlineData("FREQ=DAILY;UNTIL=20260330")]
+    public async Task AllDayService_PersistsOnlyDatesAndExpandsAcrossDst(string rule)
+    {
+        var service = CreateService();
+        var date = new LocalDate(2026, 3, 28);
+        var result = await service.CreateEventWithResultAsync(new CreateCalendarEventDto(
+            "All day", null, null, null, Guid.NewGuid(), null, null, true, rule, null,
+            date, date.PlusDays(1)), Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        result.Succeeded.Should().BeTrue(result.ErrorMessage);
+        var stored = await _repo.GetEventByIdAsync(result.Event!.Id, Xunit.TestContext.Current.CancellationToken);
+        stored!.StartUtc.Should().BeNull();
+        stored.EndUtc.Should().BeNull();
+        stored.StartDate.Should().Be(date);
+        stored.RecurrenceUntilUtc.Should().BeNull();
+        stored.RecurrenceUntilDate.Should().Be(new LocalDate(2026, 3, 31));
+        var info = (await service.GetEventInfoAsync(stored.Id, Xunit.TestContext.Current.CancellationToken))!;
+        var resultOccurrences = CalendarOccurrenceExpander.Expand([info],
+            Instant.FromUtc(2026, 3, 27, 0, 0), Instant.FromUtc(2026, 3, 31, 0, 0),
+            new Dictionary<Guid, string>(), NullLogger.Instance);
+        resultOccurrences.Should().HaveCount(3);
+    }
+
+    [HumansFact]
+    public async Task AllDayService_RejectsTimedOverridesAndInvalidDateRanges()
+    {
+        var ev = BuildEvent();
+        ev.IsAllDay = true;
+        ev.StartUtc = null; ev.EndUtc = null;
+        ev.StartDate = new LocalDate(2026, 3, 28); ev.EndDateExclusive = ev.StartDate.Value.PlusDays(1);
+        ev.RecurrenceRule = "FREQ=DAILY";
+        await _repo.AddAsync(ev, Xunit.TestContext.Current.CancellationToken);
+        var service = CreateService();
+        var timed = new OverrideOccurrenceDto(Instant.FromUtc(2026, 3, 28, 14, 0),
+            Instant.FromUtc(2026, 3, 28, 16, 0), null, null, null, null);
+        var rejectTime = () => service.OverrideOccurrenceAsync(ev.Id, null, timed, Guid.NewGuid(),
+            Xunit.TestContext.Current.CancellationToken, ev.StartDate);
+        await rejectTime.Should().ThrowAsync<InvalidOperationException>();
+        var invalid = timed with
+        {
+            OverrideStartUtc = null,
+            OverrideEndUtc = null,
+            OverrideStartDate = ev.StartDate,
+            OverrideEndDateExclusive = ev.StartDate
+        };
+        var rejectRange = () => service.OverrideOccurrenceAsync(ev.Id, null, invalid, Guid.NewGuid(),
+            Xunit.TestContext.Current.CancellationToken, ev.StartDate);
+        await rejectRange.Should().ThrowAsync<InvalidOperationException>();
+        (await _repo.GetEventByIdAsync(ev.Id, Xunit.TestContext.Current.CancellationToken))!.Exceptions.Should().BeEmpty();
+    }
+
+    [HumansFact]
+    public async Task AllDayService_MovesAndCancelsDateOccurrence_UpdatingOneRow()
+    {
+        var ev = BuildEvent();
+        ev.IsAllDay = true; ev.StartUtc = null; ev.EndUtc = null;
+        ev.StartDate = new LocalDate(2026, 3, 28); ev.EndDateExclusive = ev.StartDate.Value.PlusDays(1);
+        ev.RecurrenceRule = "FREQ=DAILY";
+        await _repo.AddAsync(ev, Xunit.TestContext.Current.CancellationToken);
+        var service = CreateService();
+        await service.OverrideOccurrenceAsync(ev.Id, null,
+            new OverrideOccurrenceDto(null, null, "Moved", null, null, null,
+                new LocalDate(2026, 4, 1)), Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken, ev.StartDate);
+        await service.CancelOccurrenceAsync(ev.Id, null, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken, ev.StartDate);
+        var stored = (await _repo.GetEventByIdAsync(ev.Id, Xunit.TestContext.Current.CancellationToken))!.Exceptions.Should().ContainSingle().Subject;
+        stored.IsCancelled.Should().BeTrue();
+        stored.OriginalOccurrenceDate.Should().Be(ev.StartDate);
+        stored.OriginalOccurrenceStartUtc.Should().BeNull();
+    }
+
+    [HumansFact]
+    public async Task AllDayService_CancelsLegacyExceptionByDate_WithoutDuplicatingIt()
+    {
+        var ev = BuildEvent();
+        ev.IsAllDay = true; ev.RecurrenceRule = "FREQ=DAILY"; ev.RecurrenceTimezone = "Europe/Madrid";
+        var date = new LocalDate(2026, 3, 29);
+        var old = date.AtStartOfDayInZone(DateTimeZoneProviders.Tzdb["Europe/Madrid"]).ToInstant();
+        await _repo.AddAsync(ev, Xunit.TestContext.Current.CancellationToken);
+        await _repo.UpsertExceptionAsync(ev.Id, old, Guid.NewGuid(), old,
+            x => x.OverrideStartUtc = old.Plus(Duration.FromHours(14)), Xunit.TestContext.Current.CancellationToken);
+        await CreateService().CancelOccurrenceAsync(ev.Id, null, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken, date);
+        var stored = (await _repo.GetEventByIdAsync(ev.Id, Xunit.TestContext.Current.CancellationToken))!.Exceptions.Should().ContainSingle().Subject;
+        stored.IsCancelled.Should().BeTrue();
+        stored.OriginalOccurrenceDate.Should().Be(date);
+        stored.OriginalOccurrenceStartUtc.Should().BeNull();
+        stored.OverrideStartUtc.Should().BeNull();
+    }
+
+    [HumansFact]
+    public async Task AllDayService_EditingLegacySeries_PreservesExceptionDatesInOriginalZone()
+    {
+        var zone = DateTimeZoneProviders.Tzdb["Asia/Tokyo"];
+        var day = new LocalDate(2026, 3, 29);
+        var ev = BuildEvent();
+        ev.IsAllDay = true; ev.RecurrenceRule = "FREQ=DAILY"; ev.RecurrenceTimezone = zone.Id;
+        ev.StartUtc = day.AtStartOfDayInZone(zone).ToInstant();
+        ev.EndUtc = day.PlusDays(1).AtStartOfDayInZone(zone).ToInstant();
+        await _repo.AddAsync(ev, Xunit.TestContext.Current.CancellationToken);
+        await _repo.UpsertExceptionAsync(ev.Id, ev.StartUtc, Guid.NewGuid(), ev.StartUtc.Value,
+            x => x.IsCancelled = true, Xunit.TestContext.Current.CancellationToken);
+        var service = CreateService();
+        var result = await service.UpdateEventWithResultAsync(ev.Id, new UpdateCalendarEventDto(
+            "Edited", null, null, null, ev.OwningTeamId, null, null, true, "FREQ=DAILY", null,
+            day, day.PlusDays(1)), Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        result.Succeeded.Should().BeTrue(result.ErrorMessage);
+        var stored = (await _repo.GetEventByIdAsync(ev.Id, Xunit.TestContext.Current.CancellationToken))!;
+        stored.StartUtc.Should().BeNull();
+        stored.RecurrenceTimezone.Should().BeNull();
+        stored.Exceptions.Should().ContainSingle().Subject.OriginalOccurrenceDate.Should().Be(day);
+        var changeType = await service.UpdateEventWithResultAsync(ev.Id, new UpdateCalendarEventDto(
+            "Timed", null, null, null, ev.OwningTeamId, ev.StartUtc, ev.EndUtc, false, "FREQ=DAILY", zone.Id),
+            Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        changeType.Succeeded.Should().BeFalse();
+        changeType.ErrorMessage.Should().Be("Calendar_CannotChangeEventType");
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("FREQ=HOURLY")]
+    [Xunit.InlineData("FREQ=DAILY;BYHOUR=14")]
+    [Xunit.InlineData("FREQ=DAILY;UNTIL=20260330T140000Z")]
+    public async Task AllDayService_RejectsRulesThatIntroduceTimes(string rule)
+    {
+        var result = await CreateService().CreateEventWithResultAsync(new CreateCalendarEventDto(
+            "All day", null, null, null, Guid.NewGuid(), null, null, true, rule, null,
+            new LocalDate(2026, 3, 28), new LocalDate(2026, 3, 29)),
+            Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        result.Succeeded.Should().BeFalse();
+        (await _repo.GetAllAsync(Xunit.TestContext.Current.CancellationToken)).Should().BeEmpty();
+    }
+
+    private CalendarService CreateService() => new(_repo,
+        new FakeClock(Instant.FromUtc(2026, 3, 1, 0, 0)),
+        Substitute.For<IAuditLogService>(),
+        NullLogger<CalendarService>.Instance);
 
     public void Dispose()
     {
@@ -85,54 +227,15 @@ public sealed class CalendarRepositoryTests : IDisposable
     }
 
     // ==========================================================================
-    // GetEventsInWindowAsync
+    // GetAllAsync
     // ==========================================================================
 
-    [HumansFact]
-    public async Task GetEventsInWindowAsync_FiltersByOverlap()
-    {
-        var inside = BuildEvent(
-            start: Instant.FromUtc(2026, 6, 15, 17, 0),
-            end: Instant.FromUtc(2026, 6, 15, 18, 0));
-        var outside = BuildEvent(
-            start: Instant.FromUtc(2027, 1, 1, 0, 0),
-            end: Instant.FromUtc(2027, 1, 1, 1, 0));
-
-        await _repo.AddAsync(inside, Xunit.TestContext.Current.CancellationToken);
-        await _repo.AddAsync(outside, Xunit.TestContext.Current.CancellationToken);
-
-        var events = await _repo.GetEventsInWindowAsync(
-            from: Instant.FromUtc(2026, 6, 1, 0, 0),
-            to: Instant.FromUtc(2026, 7, 1, 0, 0),
-            teamId: null, ct: Xunit.TestContext.Current.CancellationToken);
-
-        events.Should().ContainSingle(e => e.Id == inside.Id);
-        events.Should().NotContain(e => e.Id == outside.Id);
-    }
+    // GetAllAsync is the section's only bulk read since the SQL window query was retired:
+    // the Singleton cache warms from it and every window read is answered off that snapshot.
+    // These two cases were previously covered only against the window query.
 
     [HumansFact]
-    public async Task GetEventsInWindowAsync_FiltersByTeam()
-    {
-        var teamA = Guid.NewGuid();
-        var teamB = Guid.NewGuid();
-
-        var a = BuildEvent(teamId: teamA);
-        var b = BuildEvent(teamId: teamB);
-
-        await _repo.AddAsync(a, Xunit.TestContext.Current.CancellationToken);
-        await _repo.AddAsync(b, Xunit.TestContext.Current.CancellationToken);
-
-        var events = await _repo.GetEventsInWindowAsync(
-            from: Instant.FromUtc(2026, 1, 1, 0, 0),
-            to: Instant.FromUtc(2027, 1, 1, 0, 0),
-            teamId: teamA, ct: Xunit.TestContext.Current.CancellationToken);
-
-        events.Should().ContainSingle(e => e.Id == a.Id);
-        events.Should().NotContain(e => e.Id == b.Id);
-    }
-
-    [HumansFact]
-    public async Task GetEventsInWindowAsync_IncludesExceptions()
+    public async Task GetAllAsync_IncludesExceptions()
     {
         var ev = BuildEvent();
         await _repo.AddAsync(ev, Xunit.TestContext.Current.CancellationToken);
@@ -144,13 +247,25 @@ public sealed class CalendarRepositoryTests : IDisposable
             now: Instant.FromUtc(2026, 4, 10, 0, 0),
             apply: x => x.IsCancelled = true, ct: Xunit.TestContext.Current.CancellationToken);
 
-        var events = await _repo.GetEventsInWindowAsync(
-            from: Instant.FromUtc(2026, 1, 1, 0, 0),
-            to: Instant.FromUtc(2027, 1, 1, 0, 0),
-            teamId: null, ct: Xunit.TestContext.Current.CancellationToken);
+        var events = await _repo.GetAllAsync(Xunit.TestContext.Current.CancellationToken);
 
         events.Should().ContainSingle();
         events[0].Exceptions.Should().ContainSingle(x => x.IsCancelled);
+    }
+
+    [HumansFact]
+    public async Task GetAllAsync_HidesSoftDeleted()
+    {
+        var kept = BuildEvent();
+        var deleted = BuildEvent();
+        await _repo.AddAsync(kept, Xunit.TestContext.Current.CancellationToken);
+        await _repo.AddAsync(deleted, Xunit.TestContext.Current.CancellationToken);
+
+        await _repo.SoftDeleteAsync(deleted.Id, Instant.FromUtc(2026, 4, 10, 0, 0), Xunit.TestContext.Current.CancellationToken);
+
+        var events = await _repo.GetAllAsync(Xunit.TestContext.Current.CancellationToken);
+
+        events.Should().ContainSingle(e => e.Id == kept.Id);
     }
 
     // ==========================================================================
@@ -278,6 +393,72 @@ public sealed class CalendarRepositoryTests : IDisposable
             apply: _ => { }, ct: Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    // ==========================================================================
+    // Soft-delete query filters
+    // ==========================================================================
+
+    // CalendarEventException carries its own filter (ex => ex.Event.DeletedAt == null),
+    // so exception rows hanging off a soft-deleted event are hidden too. Without it a
+    // deleted series' cancellations and overrides keep surfacing.
+    [HumansFact]
+    public async Task Exceptions_OfASoftDeletedEvent_AreHiddenByTheQueryFilter()
+    {
+        var ev = BuildEvent();
+        ev.Exceptions.Add(new CalendarEventException
+        {
+            Id = Guid.NewGuid(),
+            EventId = ev.Id,
+            OriginalOccurrenceStartUtc = Instant.FromUtc(2026, 6, 15, 17, 0),
+            IsCancelled = true,
+            CreatedByUserId = Guid.NewGuid(),
+            CreatedAt = Instant.FromUtc(2026, 4, 1, 12, 0),
+            UpdatedAt = Instant.FromUtc(2026, 4, 1, 12, 0),
+        });
+        await _repo.AddAsync(ev, Xunit.TestContext.Current.CancellationToken);
+
+        (await _dbContext.CalendarEventExceptions.CountAsync(Xunit.TestContext.Current.CancellationToken))
+            .Should().Be(1);
+
+        await _repo.SoftDeleteAsync(ev.Id, Instant.FromUtc(2026, 5, 1, 0, 0), Xunit.TestContext.Current.CancellationToken);
+        _dbContext.ChangeTracker.Clear();
+
+        (await _dbContext.CalendarEventExceptions.CountAsync(Xunit.TestContext.Current.CancellationToken))
+            .Should().Be(0, because: "the exception filter mirrors its parent's soft delete");
+        (await _dbContext.CalendarEventExceptions.IgnoreQueryFilters()
+            .CountAsync(Xunit.TestContext.Current.CancellationToken))
+            .Should().Be(1, because: "the row is filtered, not deleted");
+    }
+
+    // Load-bearing weirdness: UpsertExceptionAsync's existence lookup calls
+    // IgnoreQueryFilters() on purpose. If the parent is soft-deleted between a caller's
+    // pre-check and this write, the filtered lookup would miss the existing row and the
+    // insert would collide with the unique (EventId, OriginalOccurrenceStartUtc) index.
+    [HumansFact]
+    public async Task UpsertExceptionAsync_UpdatesTheExistingRow_EvenWhenTheParentIsSoftDeleted()
+    {
+        var ev = BuildEvent();
+        await _repo.AddAsync(ev, Xunit.TestContext.Current.CancellationToken);
+
+        var occurrence = Instant.FromUtc(2026, 6, 15, 17, 0);
+        await _repo.UpsertExceptionAsync(
+            ev.Id, occurrence, Guid.NewGuid(), Instant.FromUtc(2026, 4, 2, 12, 0),
+            x => x.IsCancelled = true, Xunit.TestContext.Current.CancellationToken);
+
+        await _repo.SoftDeleteAsync(ev.Id, Instant.FromUtc(2026, 5, 1, 0, 0), Xunit.TestContext.Current.CancellationToken);
+        _dbContext.ChangeTracker.Clear();
+
+        var act = async () => await _repo.UpsertExceptionAsync(
+            ev.Id, occurrence, Guid.NewGuid(), Instant.FromUtc(2026, 5, 2, 12, 0),
+            x => x.OverrideTitle = "Moved", Xunit.TestContext.Current.CancellationToken);
+        await act.Should().NotThrowAsync(because: "the lookup ignores query filters, so it updates rather than re-inserting");
+
+        _dbContext.ChangeTracker.Clear();
+        var rows = await _dbContext.CalendarEventExceptions.IgnoreQueryFilters()
+            .Where(x => x.EventId == ev.Id).ToListAsync(Xunit.TestContext.Current.CancellationToken);
+        rows.Should().ContainSingle();
+        rows[0].OverrideTitle.Should().Be("Moved");
     }
 
     // ==========================================================================

@@ -226,6 +226,12 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
     [HumansFact]
     public async Task SyncOrdersAndAttendeesAsync_NonTransientError_SetsErrorState()
     {
+        // A failed sync must not move the cursor: the next run re-fetches from the last success.
+        var lastSuccess = Instant.FromUtc(2026, 2, 1, 0, 0);
+        var seeded = await TicketsDb.TicketSyncStates.FirstAsync(s => s.Id == 1, Xunit.TestContext.Current.CancellationToken);
+        seeded.LastSyncAt = lastSuccess;
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+
         _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Throws(new HttpRequestException("Unauthorized", null, System.Net.HttpStatusCode.Unauthorized));
 
@@ -237,6 +243,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
             .FirstAsync(s => s.Id == 1, Xunit.TestContext.Current.CancellationToken);
         syncState.SyncStatus.Should().Be(TicketSyncStatus.Error);
         syncState.LastError.Should().Be("Unauthorized");
+        syncState.LastSyncAt.Should().Be(lastSuccess);
     }
 
     // ==========================================================================
@@ -337,6 +344,72 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
 
         var order = await TicketsDb.TicketOrders.SingleAsync(Xunit.TestContext.Current.CancellationToken);
         order.VatAmount.Should().Be(28.64m);
+    }
+
+    [HumansFact]
+    public async Task SyncOrdersAndAttendeesAsync_ComputesVatOnAmountPaidAfterDiscount()
+    {
+        // 315 list-price ticket bought for 100 with a 215 discount code: VAT is on the 100 collected.
+        var orders = new List<VendorOrderDto>
+        {
+            MakeOrderDto("ord_disc", "Buyer", "buyer@example.com", totalAmount: 100m, discountCode: "CODE")
+                with { DiscountAmount = 215m }
+        };
+        var tickets = new List<VendorTicketDto>
+        {
+            MakeTicketDto("tkt_disc", "ord_disc", "Buyer", "buyer@example.com", 315m)
+        };
+
+        _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(orders);
+        _vendorService.GetIssuedTicketsAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(tickets);
+
+        await _service.SyncOrdersAndAttendeesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var order = await TicketsDb.TicketOrders.SingleAsync(Xunit.TestContext.Current.CancellationToken);
+        order.VatAmount.Should().Be(9.09m);
+    }
+
+    [HumansFact]
+    public void ComputeOrderVat_DiscountReducesTicketBaseNotVipDonation()
+    {
+        // VIP 400 + regular 315, discount 100: base = (315 + 315) - 100 = 530 -> VAT 48.18; donation 85 untouched.
+        var order = MakePaidOrder(discountAmount: 100m, prices: [400m, 315m]);
+
+        TicketSyncService.ComputeOrderVat(order).Should().Be(48.18m);
+    }
+
+    [HumansFact]
+    public void ComputeOrderVat_DiscountLargerThanTicketBaseGivesZero()
+    {
+        var order = MakePaidOrder(discountAmount: 500m, prices: [315m]);
+
+        TicketSyncService.ComputeOrderVat(order).Should().Be(0m);
+    }
+
+    private static TicketOrder MakePaidOrder(decimal? discountAmount, decimal[] prices)
+    {
+        var orderId = Guid.NewGuid();
+        return new TicketOrder
+        {
+            Id = orderId,
+            VendorOrderId = "ord_unit",
+            PaymentStatus = TicketPaymentStatus.Paid,
+            DiscountAmount = discountAmount,
+            Attendees = prices.Select((p, i) => new TicketAttendee
+            {
+                Id = Guid.NewGuid(),
+                VendorTicketId = $"tkt_unit_{i}",
+                TicketOrderId = orderId,
+                TicketOrder = null!,
+                AttendeeName = $"A{i}",
+                TicketTypeName = "T",
+                Price = p,
+                Status = TicketAttendeeStatus.Valid,
+                VendorEventId = "ev_test",
+            }).ToList(),
+        };
     }
 
     [HumansFact(Timeout = 10000)]
@@ -660,8 +733,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
             DiscountCode: discountCode,
             PaymentStatus: paymentStatus,
             VendorDashboardUrl: null,
-            PurchasedAt: Instant.FromUtc(2026, 2, 15, 10, 0),
-            Tickets: []);
+            PurchasedAt: Instant.FromUtc(2026, 2, 15, 10, 0));
     }
 
     private static VendorTicketDto MakeTicketDto(

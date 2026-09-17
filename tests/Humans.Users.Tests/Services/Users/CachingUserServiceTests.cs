@@ -12,18 +12,18 @@ using Humans.Users.Data;
 namespace Humans.Users.Tests.Services.Users;
 
 /// <summary>
-/// Issue #703. Tests pinning the CachingUserService decorator contract: dict
+/// Tests pinning the CachingUserService decorator contract: dict
 /// hit on cold/warm, write-then-read consistency, concurrent reads, and that
 /// each of the 8 contributing tables flows through to UserInfo.
 /// </summary>
 public class CachingUserServiceTests
 {
-    private readonly IUserService _inner = Substitute.For<IUserService>();
+    private readonly IUserServiceInternal _inner = Substitute.For<IUserServiceInternal>();
 
     private CachingUserService CreateSut()
     {
         var services = new ServiceCollection();
-        services.AddKeyedScoped<IUserService>(CachingUserService.InnerServiceKey, (_, _) => _inner);
+        services.AddKeyedScoped<IUserServiceInternal>(CachingUserService.InnerServiceKey, (_, _) => _inner);
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
         return new CachingUserService(
             scopeFactory, NullLogger<CachingUserService>.Instance);
@@ -210,10 +210,10 @@ public class CachingUserServiceTests
     [HumansFact]
     public async Task GetUserInfosAsync_ColdCache_WarmsBeforeFallback_DoesNotLoadPerKey()
     {
-        // Issue #743 regression. On cold cache, GetUserInfosAsync(ids) must
-        // trigger the bulk WarmAllAsync exactly once instead of issuing a
-        // per-id LoadRowAsync for each requested userId (which would emit
-        // 7 SELECTs per user via the inner service on each miss).
+        // On cold cache, GetUserInfosAsync(ids) must trigger the bulk
+        // WarmAllAsync exactly once instead of issuing a per-id LoadRowAsync
+        // for each requested userId (which would emit 7 SELECTs per user via
+        // the inner service on each miss).
         var userA = SampleUser();
         var userB = SampleUser();
         var userC = SampleUser();
@@ -373,16 +373,12 @@ public class CachingUserServiceTests
     }
 
     [HumansFact]
-    public void UserInfo_DoesNotCarryProfilePictureData_OrYearOfBirth()
+    public void ProfileInfo_CarriesBirthdayWithoutYear()
     {
-        // Pin the design choices from issue #703:
-        //  - ProfilePictureData (the large blob on Profile) is intentionally NOT
-        //    projected into UserInfo / ProfileInfo.
-        //  - The full DateOfBirth is NOT carried; only BirthdayDay + BirthdayMonth.
+        // Birthday carries month and day only; the full DateOfBirth never reaches the snapshot.
         var profileInfoType = typeof(ProfileInfo);
         var props = profileInfoType.GetProperties().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
 
-        props.Should().NotContain("ProfilePictureData");
         props.Should().NotContain("DateOfBirth");
         props.Should().NotContain("Year");
         props.Should().Contain("BirthdayDay");
@@ -392,10 +388,8 @@ public class CachingUserServiceTests
     [HumansFact]
     public async Task GetUserInfosAsync_WarmCache_ServesFromDict_ZeroInnerCalls()
     {
-        // nobodies-collective/Humans#979. GetByIdsAsync (the User-entity-returning
-        // batched lookup, and CachingUserService.RehydrateUser) were removed —
-        // GetUserInfosAsync is the sole batched lookup. Once the cache is fully
-        // warmed, further batched reads must never call the inner service.
+        // GetUserInfosAsync is the sole batched lookup; a fully warm cache
+        // must never call the inner service.
         var userId = Guid.NewGuid();
         var info = SampleUserInfo(userId, "Cached");
 
@@ -419,8 +413,7 @@ public class CachingUserServiceTests
     [HumansFact]
     public async Task GetUserInfosAsync_PartialHit_OnlyMissesDelegated()
     {
-        // nobodies-collective/Humans#979. Warm hits served from dict, misses
-        // loaded per-id from the inner service.
+        // Warm hits served from the dict, misses loaded per-id from the inner service.
         var hitId = Guid.NewGuid();
         var missId = Guid.NewGuid();
 
@@ -651,10 +644,10 @@ public class CachingUserServiceTests
         _inner.GetUserInfoAsync(info.Id, Arg.Any<CancellationToken>())
             .Returns(new ValueTask<UserInfo?>(info));
         await sut.GetUserInfoAsync(info.Id, Xunit.TestContext.Current.CancellationToken);
-        // SearchUsersAsync / GetAllUserInfos / GetAllParticipationsForYearAsync /
-        // GetMergedSourceIdsAsync gate on IsWarmedUp — these search tests seed
-        // a single entry directly via GetUserInfoAsync instead of driving a
-        // full WarmAllAsync, so flip the flag manually here.
+        // SearchUsersAsync / GetAllUserInfos / GetAllParticipationsForYearAsync gate on
+        // IsWarmedUp — these search tests seed a single entry directly via
+        // GetUserInfoAsync instead of driving a full WarmAllAsync, so flip the flag
+        // manually here.
         sut.MarkWarmedForTesting();
     }
 
@@ -813,8 +806,8 @@ public class CachingUserServiceTests
         // The by-id fast path skips the PersonSearchFields mask, which only governs which
         // text fields are matched — it does NOT skip the eligibility gate. A rejected
         // profile is as unresolvable by GUID as it is by name
-        // (SearchUsersAsync_PublicAll_ExcludesRejected), so the global-search ruling on
-        // nobodies-collective/Humans#985 never hands out a rejected human's id.
+        // (SearchUsersAsync_PublicAll_ExcludesRejected): global search never hands
+        // out a rejected human's id.
         var userId = Guid.NewGuid();
         var sut = CreateSut();
         await PrimeAsync(sut, BuildSearchableUserInfo(userId, burnerName: "Alice", isRejected: true));
@@ -1271,69 +1264,279 @@ public class CachingUserServiceTests
     }
 
     // ==================================================================
-    // GetMergedSourceIdsAsync — issue nobodies-collective/Humans#1100
+    // Merge chain: MergedUserIds and the raw reads (#1704)
     // ==================================================================
 
-    [HumansFact]
-    public async Task GetMergedSourceIdsAsync_FollowsTransitiveChain()
-    {
-        // A merged into B, then B later merged into C: A's row still points
-        // at B (only B's row was rewritten to point at C), so a one-hop scan
-        // from C would miss A. The primitive must walk to a fixed point.
-        var aId = Guid.NewGuid();
-        var bId = Guid.NewGuid();
-        var cId = Guid.NewGuid();
+    /// <summary>Row builder for chain tests: a plain row, a merge tombstone, or a GDPR-erased row.</summary>
+    private static UserInfo ChainRow(Guid id, Guid? mergedTo = null, bool gdprErased = false) =>
+        UserInfoFactory.Create(
+            new User
+            {
+                Id = id,
+                PreferredLanguage = "en",
+                DisplayName = gdprErased ? UserInfo.GdprAnonymizedBurnerName : "Row",
+                MergedToUserId = mergedTo,
+                // GDPR erasure reuses MergedAt while leaving MergedToUserId null.
+                MergedAt = mergedTo is not null || gdprErased ? Instant.FromUtc(2026, 1, 1, 0, 0) : null,
+                State = gdprErased ? UserState.Deleted : mergedTo is not null ? UserState.Merged : UserState.Active,
+            },
+            userEmails: [], eventParticipations: [], externalLogins: [],
+            profile: null, contactFields: [], profileLanguages: [],
+            volunteerHistory: [], communicationPreferences: []);
 
-        var userA = UserInfoFactory.Create(
-            new User { Id = aId, PreferredLanguage = "en", MergedToUserId = bId },
-            userEmails: [], eventParticipations: [], externalLogins: [],
-            profile: null, contactFields: [], profileLanguages: [],
-            volunteerHistory: [], communicationPreferences: []);
-        var userB = UserInfoFactory.Create(
-            new User { Id = bId, PreferredLanguage = "en", MergedToUserId = cId },
-            userEmails: [], eventParticipations: [], externalLogins: [],
-            profile: null, contactFields: [], profileLanguages: [],
-            volunteerHistory: [], communicationPreferences: []);
-        var userC = UserInfoFactory.Create(
-            new User { Id = cId, PreferredLanguage = "en" },
-            userEmails: [], eventParticipations: [], externalLogins: [],
-            profile: null, contactFields: [], profileLanguages: [],
-            volunteerHistory: [], communicationPreferences: []);
+    /// <summary>A→B→C chain plus an unrelated GDPR-erased row D.</summary>
+    private (Guid A, Guid B, Guid C, Guid D) SeedChain()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var c = Guid.NewGuid();
+        var d = Guid.NewGuid();
 
         _inner.GetAllUserInfosAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<UserInfo> { userA, userB, userC });
+            .Returns(new List<UserInfo>
+            {
+                ChainRow(a, mergedTo: b),
+                ChainRow(b, mergedTo: c),
+                ChainRow(c),
+                ChainRow(d, gdprErased: true),
+            });
 
-        var sut = CreateSut();
-
-        var ids = await sut.GetMergedSourceIdsAsync(cId, Xunit.TestContext.Current.CancellationToken);
-
-        ids.Should().BeEquivalentTo([aId, bId]);
+        return (a, b, c, d);
     }
 
     [HumansFact]
-    public async Task GetMergedSourceIdsAsync_NoMerges_ReturnsEmpty()
+    public async Task MergedUserIds_CarriesTheWholeChainTransitively()
     {
-        var targetId = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
+        // A merged into B, then B merged into C: A's row still points at B, so a
+        // one-hop scan from C would miss A. C must carry both, sorted.
+        var (a, b, c, _) = SeedChain();
+        var sut = CreateSut();
 
-        var target = UserInfoFactory.Create(
-            new User { Id = targetId, PreferredLanguage = "en" },
-            userEmails: [], eventParticipations: [], externalLogins: [],
-            profile: null, contactFields: [], profileLanguages: [],
-            volunteerHistory: [], communicationPreferences: []);
-        var other = UserInfoFactory.Create(
-            new User { Id = otherId, PreferredLanguage = "en" },
-            userEmails: [], eventParticipations: [], externalLogins: [],
-            profile: null, contactFields: [], profileLanguages: [],
-            volunteerHistory: [], communicationPreferences: []);
+        var survivor = await sut.GetRawUserInfoAsync(c, Xunit.TestContext.Current.CancellationToken);
 
+        survivor!.MergedUserIds.Should().Equal(new[] { a, b }.Order());
+    }
+
+    [HumansFact]
+    public async Task MergedUserIds_OnAMidChainRow_CarriesOnlyWhatIsBehindIt()
+    {
+        var (a, b, c, _) = SeedChain();
+        var sut = CreateSut();
+
+        var midChain = await sut.GetRawUserInfoAsync(b, Xunit.TestContext.Current.CancellationToken);
+
+        midChain!.MergedToUserId.Should().Be(c, "the raw read shows the row as stored");
+        midChain.MergedUserIds.Should().Equal(a);
+    }
+
+    [HumansFact]
+    public async Task MergedUserIds_IsEmptyForTheHeadOfAChain()
+    {
+        var (a, _, _, _) = SeedChain();
+        var sut = CreateSut();
+
+        var head = await sut.GetRawUserInfoAsync(a, Xunit.TestContext.Current.CancellationToken);
+
+        head!.MergedUserIds.Should().BeEmpty("nothing was merged into A");
+    }
+
+    [HumansFact]
+    public async Task GetUserInfoAsync_ResolvesAMergedAwayIdForwardToTheSurvivor()
+    {
+        var (a, _, c, _) = SeedChain();
+        var sut = CreateSut();
+
+        var resolved = await sut.GetUserInfoAsync(a, Xunit.TestContext.Current.CancellationToken);
+
+        resolved!.Id.Should().Be(c, "outside Users a merge chain does not exist");
+    }
+
+    [HumansFact]
+    public async Task GetUserInfosAsync_KeysByTheRequestedIdAndValuesByTheSurvivor()
+    {
+        // Asked for all three ids of an A→B→C chain: three entries, every one of them C.
+        // Keying by the survivor instead would turn infos[a] into a miss, which is the
+        // failure this change exists to remove.
+        var (a, b, c, _) = SeedChain();
+        var sut = CreateSut();
+
+        var infos = await sut.GetUserInfosAsync([a, b, c], Xunit.TestContext.Current.CancellationToken);
+
+        infos.Keys.Should().BeEquivalentTo([a, b, c]);
+        infos.Values.Select(i => i.Id).Should().AllBeEquivalentTo(c);
+    }
+
+    [HumansFact]
+    public async Task GetUserInfoAsync_ResolvesAGdprErasedIdToItsOwnRow()
+    {
+        // Erasure reuses MergedAt but leaves MergedToUserId null: there is no survivor to
+        // redirect to, and every AuditLog/Consent/Budget row referencing them must still
+        // render "Deleted User" rather than nothing.
+        var (_, _, _, d) = SeedChain();
+        var sut = CreateSut();
+
+        var erased = await sut.GetUserInfoAsync(d, Xunit.TestContext.Current.CancellationToken);
+
+        erased!.Id.Should().Be(d);
+        erased.State.Should().Be(UserState.Deleted);
+        erased.IsGdprAnonymized.Should().BeTrue();
+    }
+
+    [HumansFact]
+    public async Task GetAllUserInfosAsync_OmitsTombstonesOfBothKinds()
+    {
+        var (a, b, c, d) = SeedChain();
+        var sut = CreateSut();
+
+        var all = await sut.GetAllUserInfosAsync(Xunit.TestContext.Current.CancellationToken);
+
+        all.Select(u => u.Id).Should().BeEquivalentTo([c],
+            "one entry per living human — merge tombstones and erased rows both drop out");
+        all.Select(u => u.Id).Should().NotContain([a, b, d]);
+    }
+
+    [HumansFact]
+    public async Task GetUserInfoAsync_ResolvesForwardThroughAMergeThatLandedAfterWarmup()
+    {
+        var (_, _, c, _) = SeedChain();
+        var sut = CreateSut();
+        await sut.GetUserInfoAsync(c, Xunit.TestContext.Current.CancellationToken);
+
+        var e = Guid.NewGuid();
+        _inner.GetUserInfoAsync(e, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<UserInfo?>(ChainRow(e, mergedTo: c)));
+        await sut.InvalidateAsync(e, Xunit.TestContext.Current.CancellationToken);
+
+        (await sut.GetUserInfoAsync(e, Xunit.TestContext.Current.CancellationToken))!
+            .Id.Should().Be(c);
+    }
+
+    [HumansFact]
+    public async Task GetUserInfoAsync_OnACyclicChain_ReturnsWithoutHanging()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
         _inner.GetAllUserInfosAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<UserInfo> { target, other });
+            .Returns(new List<UserInfo> { ChainRow(a, mergedTo: b), ChainRow(b, mergedTo: a) });
 
         var sut = CreateSut();
 
-        var ids = await sut.GetMergedSourceIdsAsync(targetId, Xunit.TestContext.Current.CancellationToken);
+        var resolved = await sut.GetUserInfoAsync(a, Xunit.TestContext.Current.CancellationToken);
 
-        ids.Should().BeEmpty();
+        resolved!.Id.Should().Be(b, "the walk stops at the first repeat rather than looping");
+    }
+
+    [HumansFact]
+    public async Task GetAllRawUserInfosAsync_IncludesEveryRowTombstonesAndAll()
+    {
+        var (a, b, c, d) = SeedChain();
+        var sut = CreateSut();
+
+        var all = await sut.GetAllRawUserInfosAsync(Xunit.TestContext.Current.CancellationToken);
+
+        all.Select(u => u.Id).Should().BeEquivalentTo([a, b, c, d]);
+    }
+
+    [HumansFact]
+    public async Task MergeIndex_IsRebuiltAfterACacheMutation()
+    {
+        // A merge that lands after startup arrives as a per-entry refresh, not a re-warm.
+        // A one-shot backfill would never see it.
+        var (a, b, c, _) = SeedChain();
+        var sut = CreateSut();
+
+        (await sut.GetRawUserInfoAsync(c, Xunit.TestContext.Current.CancellationToken))!
+            .MergedUserIds.Should().Equal(new[] { a, b }.Order());
+
+        var e = Guid.NewGuid();
+        _inner.GetUserInfoAsync(e, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<UserInfo?>(ChainRow(e, mergedTo: c)));
+        await sut.InvalidateAsync(e, Xunit.TestContext.Current.CancellationToken);
+
+        (await sut.GetRawUserInfoAsync(c, Xunit.TestContext.Current.CancellationToken))!
+            .MergedUserIds.Should().Equal(new[] { a, b, e }.Order());
+    }
+
+    [HumansFact]
+    public async Task MergeIndex_TerminatesOnACyclicChain()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        _inner.GetAllUserInfosAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<UserInfo> { ChainRow(a, mergedTo: b), ChainRow(b, mergedTo: a) });
+
+        var sut = CreateSut();
+
+        var rowA = await sut.GetRawUserInfoAsync(a, Xunit.TestContext.Current.CancellationToken);
+
+        rowA!.MergedUserIds.Should().Equal([b], "the cycle guard stops the walk, it does not hang");
+    }
+
+    // ==================================================================
+    // AllUserIds and tombstones in search (#1704)
+    // ==================================================================
+
+    [HumansFact]
+    public async Task AllUserIds_OnAResolvedRecord_ListsTheSurvivorFirstThenTheWholeChain()
+    {
+        // A caller holding the archived id A reads through it and gets C's record; the ids to
+        // union its own rows over are C's, never A's.
+        var (a, b, c, _) = SeedChain();
+        var sut = CreateSut();
+
+        var resolved = await sut.GetUserInfoAsync(a, Xunit.TestContext.Current.CancellationToken);
+
+        resolved!.Id.Should().Be(c);
+        resolved.AllUserIds.Should().Equal([c, .. new[] { a, b }.Order()]);
+    }
+
+    [HumansFact]
+    public async Task AllUserIds_OnARowNothingWasMergedInto_IsJustItself()
+    {
+        var (a, _, _, _) = SeedChain();
+        var sut = CreateSut();
+
+        var raw = await sut.GetRawUserInfoAsync(a, Xunit.TestContext.Current.CancellationToken);
+
+        raw!.AllUserIds.Should().Equal(a);
+    }
+
+    [HumansFact]
+    public async Task SearchUsersAsync_OmitsMergeTombstones()
+    {
+        // A hit is an id callers act on. The survivor row carries the same person, so the
+        // archived row never surfaces beside it.
+        var survivorId = Guid.NewGuid();
+        var archivedId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, BuildSearchableUserInfo(survivorId, burnerName: "Twin Peaks"));
+        await PrimeAsync(sut, BuildSearchableUserInfo(archivedId, burnerName: "Twin Peaks") with
+        {
+            MergedToUserId = survivorId,
+            MergedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+        });
+
+        var results = await sut.SearchUsersAsync("Twin", PersonSearchFields.PublicAll, ct: Xunit.TestContext.Current.CancellationToken);
+
+        results.Select(r => r.UserId).Should().Equal(survivorId);
+    }
+
+    [HumansFact]
+    public async Task SearchUsersAsync_ByExactId_ResolvesAnArchivedIdToItsSurvivor()
+    {
+        // An id pasted from an audit trail may be one that was merged away since.
+        var survivorId = Guid.NewGuid();
+        var archivedId = Guid.NewGuid();
+        var sut = CreateSut();
+        await PrimeAsync(sut, BuildSearchableUserInfo(survivorId, burnerName: "Survivor"));
+        await PrimeAsync(sut, BuildSearchableUserInfo(archivedId, burnerName: "Archived") with
+        {
+            MergedToUserId = survivorId,
+            MergedAt = Instant.FromUtc(2026, 1, 1, 0, 0),
+        });
+
+        var results = await sut.SearchUsersAsync(archivedId.ToString(), PersonSearchFields.PublicAll, ct: Xunit.TestContext.Current.CancellationToken);
+
+        results.Should().ContainSingle().Which.UserId.Should().Be(survivorId);
     }
 }

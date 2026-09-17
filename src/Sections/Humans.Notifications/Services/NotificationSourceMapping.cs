@@ -42,6 +42,15 @@ internal static class NotificationSourceMapping
         NotificationSource.IssueStatusChanged => MessageCategory.System,
         NotificationSource.IssueAssigned => MessageCategory.System,
         NotificationSource.IssueSubmitted => MessageCategory.System,
+        NotificationSource.RideshareInterestReceived => MessageCategory.System,
+        NotificationSource.RideshareInterestAccepted => MessageCategory.System,
+        NotificationSource.RideshareInterestDeclined => MessageCategory.System,
+        NotificationSource.WorkgroupRegistrationPending => MessageCategory.Governance,
+        NotificationSource.WorkgroupRegistrationDecided => MessageCategory.Governance,
+        NotificationSource.WorkgroupReportingDue => MessageCategory.Governance,
+        NotificationSource.WorkgroupDocumentActivity => MessageCategory.Governance,
+        NotificationSource.WorkgroupDispositionRecorded => MessageCategory.Governance,
+        NotificationSource.AssemblyVoteOpened => MessageCategory.Governance,
         _ => MessageCategory.System
     };
 }

@@ -65,7 +65,7 @@ public sealed record UserExternalLoginInfo(
 
 /// <summary>
 /// Immutable projection of <see cref="Profile"/> carried inside <see cref="UserInfo"/>. Picture bytes excluded
-/// (served via ProfileController.Picture); only birthday day+month carried (no year).
+/// (served via ProfileViewController.Picture); only birthday day+month carried (no year).
 /// </summary>
 public sealed record ProfileInfo(
     Guid Id,
@@ -127,7 +127,7 @@ public sealed record ProfileInfo(
 
 /// <summary>
 /// Canonical "everything-about-a-person" cached read-model spanning User + Profile sections — see #703.
-/// Built by <see cref="Create"/> from 8 contributing tables. Sensitive fields ride along; visibility filtering is view-layer.
+/// Built by <see cref="Create"/> from the contributing tables. Sensitive fields ride along; visibility filtering is view-layer.
 /// </summary>
 public sealed record UserInfo(
     Guid Id,
@@ -161,6 +161,33 @@ public sealed record UserInfo(
     /// for access; <see cref="UserState.Active"/> is the only state with full app access.
     /// </summary>
     public UserState State { get; init; }
+
+    /// <summary>
+    /// Every id whose <see cref="MergedToUserId"/> chain passes through this row,
+    /// transitively, sorted by id. In an A→B→C merge chain, C carries <c>[A, B]</c>.
+    /// Empty for a row nothing was merged into.
+    /// <para>
+    /// This is the single answer to "which archived accounts are this human" — the
+    /// rows AuditLog, Consent, Budget, Expenses and Governance's assembly-vote rosters
+    /// deliberately keep keyed to the archived id. Callers union by these ids; nobody
+    /// walks a chain.
+    /// </para>
+    /// <para>
+    /// Stamped by the Users caching decorator, the only thing that sees the whole graph.
+    /// A record built straight from one row (<see cref="Create"/>) always has <c>[]</c>.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<Guid> MergedUserIds { get; init; } = [];
+
+    /// <summary>
+    /// Every id this human has held: <see cref="Id"/> first, then <see cref="MergedUserIds"/>.
+    /// The list a per-user read of an append-only table queries by (audit rows, consent
+    /// records, roster rows and ballots stay keyed to the archived id on purpose). Seeded from
+    /// this record's own id, never from the id the caller asked with: the cross-section reads
+    /// resolve a tombstone forward, so the id asked with may be one of the archived ones and
+    /// the survivor's own rows would otherwise be the ones left out.
+    /// </summary>
+    public IReadOnlyList<Guid> AllUserIds => MergedUserIds.Count == 0 ? [Id] : [Id, .. MergedUserIds];
 
     /// <summary>
     /// Canonical profile picture URL. Custom upload served from the file share via
@@ -343,7 +370,7 @@ public sealed record UserInfo(
         && !IsTombstone;
 
     /// <summary>
-    /// Builds <see cref="UserInfo"/> from the projections of the 8 contributing tables;
+    /// Builds <see cref="UserInfo"/> from the projections of the contributing tables;
     /// snapshotting + ordering happen here so the cached payload is immutable. The six
     /// Profile-side entities are internal to <c>Humans.Users</c>, so the entity-taking factory is
     /// <c>Humans.Users.Services.UserInfoFactory</c> and this overload names none of them — it

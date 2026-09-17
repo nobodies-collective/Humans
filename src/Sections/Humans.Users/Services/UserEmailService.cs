@@ -11,7 +11,7 @@ namespace Humans.Users.Services;
 
 internal sealed class UserEmailService(
     IUserRepository repository,
-    IUserService userService,
+    IUserServiceInternal userService,
     UserManager<User> userManager,
     IClock clock,
     IAuditLogService auditLogService,
@@ -105,7 +105,8 @@ internal sealed class UserEmailService(
         if (!new EmailAddressAttribute().IsValid(email))
             throw new ValidationException("Please enter a valid email address.");
 
-        if (await repository.UserEmailExistsForUserAsync(userId, normalizedEmail, alternateEmail, cancellationToken))
+        var held = await repository.GetUserEmailsByAddressAsync(normalizedEmail, alternateEmail, cancellationToken);
+        if (held.Any(e => e.UserId == userId))
             throw new ValidationException("This email address is already in your account.");
 
         if (await MergeService.HasPendingForUserAndEmailAsync(
@@ -160,10 +161,7 @@ internal sealed class UserEmailService(
         if (!isValid)
             throw new ValidationException("The verification link has expired or is invalid.");
 
-        var normalizedPendingEmail = EmailNormalization.NormalizeForComparison(pendingEmail.Email);
-        var alternatePendingEmail = GetAlternateComparableEmail(normalizedPendingEmail);
-        var conflictingEmail = await repository.GetConflictingVerifiedUserEmailAsync(
-            pendingEmail.Id, normalizedPendingEmail, alternatePendingEmail, cancellationToken);
+        var conflictingEmail = await FindVerifiedRowHeldElsewhereAsync(pendingEmail, cancellationToken);
 
         if (conflictingEmail is not null)
         {
@@ -209,10 +207,7 @@ internal sealed class UserEmailService(
         }
 
         // Mirror VerifyEmailAsync duplicate-handling: create merge request when address verified on another account.
-        var normalizedPendingEmail = EmailNormalization.NormalizeForComparison(pendingEmail.Email);
-        var alternatePendingEmail = GetAlternateComparableEmail(normalizedPendingEmail);
-        var conflictingEmail = await repository.GetConflictingVerifiedUserEmailAsync(
-            pendingEmail.Id, normalizedPendingEmail, alternatePendingEmail, cancellationToken);
+        var conflictingEmail = await FindVerifiedRowHeldElsewhereAsync(pendingEmail, cancellationToken);
 
         if (conflictingEmail is not null)
         {
@@ -327,15 +322,11 @@ internal sealed class UserEmailService(
             cancellationToken);
     }
 
-    public Task RemoveAllEmailsAsync(
-        Guid userId, CancellationToken cancellationToken = default) =>
-        repository.RemoveAllUserEmailsForUserAsync(userId, cancellationToken);
-
     /// <inheritdoc />
     public async Task ReassignAsync(Guid mergedFromUserId, Guid mergedToUserId, Guid actorUserId, Instant now,
         CancellationToken ct)
     {
-        // Caller invalidates cache AFTER the ambient TransactionScope commits — see AccountMergeService.AcceptAsync.
+        // Caller invalidates the cache after this completes.
         await repository.ReassignUserEmailsToUserAsync(
             mergedFromUserId, mergedToUserId, now, ct);
     }
@@ -358,64 +349,15 @@ internal sealed class UserEmailService(
     public async Task<string?> GetNobodiesTeamEmailAsync(
         Guid userId, CancellationToken cancellationToken = default)
     {
-        var info = await userService.GetUserInfoAsync(userId, cancellationToken);
+        // #1704: raw. The sole consumer is GDPR erasure, which runs per id down the merge
+        // chain and therefore asks about tombstones. A merge moves the addresses to the
+        // survivor, so a tombstone owns none — and resolving forward would answer with the
+        // survivor's Workspace address and suspend a living human's mailbox.
+        var info = await userService.GetRawUserInfoAsync(userId, cancellationToken);
         return info?.UserEmails
             .FirstOrDefault(e => e.IsVerified
                 && e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
             ?.Email;
-    }
-
-    public async Task<bool> HasNobodiesTeamEmailAsync(
-        Guid userId, CancellationToken cancellationToken = default)
-    {
-        var info = await userService.GetUserInfoAsync(userId, cancellationToken);
-        return info?.UserEmails.Any(e => e.IsVerified
-            && e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase)) ?? false;
-    }
-
-    public Task<string?> GetVerifiedEmailAddressAsync(
-        Guid userId, Guid emailId, CancellationToken cancellationToken = default) =>
-        repository.GetVerifiedUserEmailAddressAsync(userId, emailId, cancellationToken);
-
-    public async Task<Dictionary<Guid, bool>> GetNobodiesTeamEmailStatusByUserAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var infos = await userService.GetAllUserInfosAsync(cancellationToken);
-        var result = new Dictionary<Guid, bool>();
-        foreach (var info in infos)
-        {
-            var nobodies = info.UserEmails
-                .Where(e => e.IsVerified
-                    && e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            if (nobodies.Count == 0) continue;
-            result[info.Id] = nobodies.Any(e => e.IsPrimary);
-        }
-        return result;
-    }
-
-    public async Task<Dictionary<Guid, string>> GetNobodiesTeamEmailsByUserIdsAsync(
-        IEnumerable<Guid> userIds, CancellationToken cancellationToken = default)
-    {
-        var userIdSet = userIds.ToHashSet();
-        if (userIdSet.Count == 0)
-            return new Dictionary<Guid, string>();
-
-        var infos = await userService.GetUserInfosAsync(userIdSet.ToList(), cancellationToken);
-        var result = new Dictionary<Guid, string>();
-        foreach (var (uid, info) in infos)
-        {
-            // Primary-first then any verified — same ordering as the prior repo-driven query (IsPrimary desc, CreatedAt asc).
-            var pick = info.UserEmails
-                .Where(e => e.IsVerified
-                    && e.Email.EndsWith("@nobodies.team", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(e => e.IsPrimary)
-                .Select(e => e.Email)
-                .FirstOrDefault();
-            if (pick is not null)
-                result[uid] = pick;
-        }
-        return result;
     }
 
     public async Task<IReadOnlyDictionary<Guid, string>> GetNotificationTargetEmailsAsync(
@@ -424,58 +366,45 @@ internal sealed class UserEmailService(
         if (userIds.Count == 0)
             return new Dictionary<Guid, string>();
 
+        // #1704: resolve first, then look up. A merge tombstone's own address is the
+        // merged-<id>@merged.local sentinel Identity needs for uniqueness, and its
+        // notification-target rows moved to the survivor at merge time — so asking by the
+        // requested id would mail a sentinel that bounces. The key stays the requested id;
+        // the address is the resolved human's.
+        var resolved = await userService.GetUserInfosAsync(userIds, cancellationToken);
         var allNotificationTargets = await repository.GetAllNotificationTargetUserEmailsAsync(cancellationToken);
 
         var result = new Dictionary<Guid, string>(userIds.Count);
         foreach (var userId in userIds)
         {
-            if (allNotificationTargets.TryGetValue(userId, out var email))
-                result[userId] = email;
-        }
+            if (!resolved.TryGetValue(userId, out var user))
+                continue;
 
-        // Fall back to User.Email (Identity) for users without a notification-target row.
-        var missing = userIds.Where(id => !result.ContainsKey(id)).ToList();
-        if (missing.Count > 0)
-        {
-            var users = await userService.GetUserInfosAsync(missing, cancellationToken);
-            foreach (var userId in missing)
-            {
-                if (users.TryGetValue(userId, out var user) && !string.IsNullOrEmpty(user.Email))
-                    result[userId] = user.Email;
-            }
+            if (allNotificationTargets.TryGetValue(user.Id, out var email))
+                result[userId] = email;
+            // Fall back to User.Email (Identity) for users without a notification-target row.
+            else if (!string.IsNullOrEmpty(user.Email))
+                result[userId] = user.Email;
         }
 
         return result;
     }
 
-    public async Task<UserEmailWithUser?> FindVerifiedEmailWithUserAsync(
-        string email, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<UserEmailRowSnapshot>> FindByAddressAsync(
+        string email, bool aliased, bool verifiedOnly, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = EmailNormalization.NormalizeForComparison(email);
-        var alternateEmail = GetAlternateComparableEmail(normalizedEmail);
-        return await repository.FindVerifiedUserEmailWithUserAsync(normalizedEmail, alternateEmail, cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<Guid>> GetDistinctVerifiedUserIdsAsync(
-        string email, CancellationToken cancellationToken = default)
-    {
-        // Matches against the cached UserInfo snapshot's verified emails; EmailsMatch handles
-        // gmail/googlemail aliasing on both sides, so no separate alternate-form lookup is needed.
+        // EmailsMatch folds gmail/googlemail on both sides, so the aliased form needs no
+        // separate alternate-address pass.
+        email = email.Trim();
         var infos = await userService.GetAllUserInfosAsync(cancellationToken);
         return infos
-            .Where(i => i.UserEmails.Any(e => e.IsVerified && EmailNormalization.EmailsMatch(e.Email, email)))
-            .Select(i => i.Id)
+            .SelectMany(i => i.UserEmails
+                .Where(e => (!verifiedOnly || e.IsVerified) &&
+                            (aliased
+                                ? EmailNormalization.EmailsMatch(e.Email, email)
+                                : string.Equals(e.Email, email, StringComparison.OrdinalIgnoreCase)))
+                .Select(e => ToSnapshot(i.Id, e)))
             .ToList();
-    }
-
-    public async Task<Guid?> GetUserIdByVerifiedEmailAsync(
-        string email, CancellationToken cancellationToken = default)
-    {
-        var infos = await userService.GetAllUserInfosAsync(cancellationToken);
-        return infos
-            .FirstOrDefault(i => i.UserEmails.Any(e =>
-                e.IsVerified && string.Equals(e.Email, email, StringComparison.OrdinalIgnoreCase)))
-            ?.Id;
     }
 
     public Task<IReadOnlyList<Guid>> GetUserIdsByEmailPrefixAndSuffixAsync(
@@ -483,19 +412,6 @@ internal sealed class UserEmailService(
         string suffix,
         CancellationToken cancellationToken = default) =>
         repository.GetUserIdsByUserEmailPrefixAndSuffixAsync(prefix, suffix, cancellationToken);
-
-    public async Task<Guid?> GetUserIdByExactEmailAsync(string email, CancellationToken ct = default)
-    {
-        // Returns null on zero matches OR ambiguous matches; only non-null when exactly one user verified-holds the address.
-        // No gmail/googlemail aliasing here (exact match only), matching the retired repo method's contract.
-        var infos = await userService.GetAllUserInfosAsync(ct);
-        var userIds = infos
-            .Where(i => i.UserEmails.Any(e =>
-                e.IsVerified && string.Equals(e.Email, email, StringComparison.OrdinalIgnoreCase)))
-            .Select(i => i.Id)
-            .ToList();
-        return userIds.Count == 1 ? userIds[0] : null;
-    }
 
     public async Task<string?> GetPrimaryEmailAsync(Guid userId, CancellationToken ct = default)
     {
@@ -523,7 +439,11 @@ internal sealed class UserEmailService(
     public async Task<IReadOnlyList<UserEmailRowSnapshot>> GetEntitiesByUserIdAsync(
         Guid userId, CancellationToken cancellationToken = default)
     {
-        var info = await userService.GetUserInfoAsync(userId, cancellationToken);
+        // #1704: raw, unlike the DTO reads above. These snapshots carry the owner id, and the
+        // callers edit and delete the rows by it, so the rows and the id labelling them have to
+        // come from the same user — a resolving read would hand a tombstone's caller the
+        // survivor's rows stamped with the archived id.
+        var info = await userService.GetRawUserInfoAsync(userId, cancellationToken);
         if (info is null) return [];
         return info.UserEmails.Select(e => ToSnapshot(userId, e)).ToList();
     }
@@ -549,11 +469,12 @@ internal sealed class UserEmailService(
         if (userIds.Count == 0)
             return new Dictionary<Guid, IReadOnlyList<UserEmailRowSnapshot>>();
 
-        var infos = await userService.GetUserInfosAsync(userIds, cancellationToken);
-        var result = new Dictionary<Guid, IReadOnlyList<UserEmailRowSnapshot>>(infos.Count);
-        foreach (var (uid, info) in infos)
+        // Raw, like the singular read above: each id gets its own rows, stamped with itself.
+        var result = new Dictionary<Guid, IReadOnlyList<UserEmailRowSnapshot>>(userIds.Count);
+        foreach (var uid in userIds.Distinct())
         {
-            if (info.UserEmails.Count == 0) continue;
+            var info = await userService.GetRawUserInfoAsync(uid, cancellationToken);
+            if (info is null || info.UserEmails.Count == 0) continue;
             result[uid] = info.UserEmails.Select(e => ToSnapshot(uid, e)).ToList();
         }
         return result;
@@ -570,14 +491,6 @@ internal sealed class UserEmailService(
             .Where(kv => userIds.Contains(kv.Key))
             .ToDictionary(kv => kv.Key, kv => kv.Value);
     }
-
-    public Task<Guid?> GetOtherUserIdHavingEmailAsync(
-        string email, Guid excludeUserId, CancellationToken cancellationToken = default)
-        => repository.GetOtherUserIdHavingUserEmailAsync(email, excludeUserId, cancellationToken);
-
-    public Task<bool> IsEmailLinkedToAnyUserAsync(
-        string email, CancellationToken cancellationToken = default) =>
-        repository.AnyUserEmailWithEmailAsync(email, cancellationToken);
 
     public async Task<IReadOnlyList<UserEmailMatch>> MatchByEmailsAsync(
         IReadOnlyCollection<string> emails, CancellationToken cancellationToken = default)
@@ -660,27 +573,16 @@ internal sealed class UserEmailService(
             cancellationToken);
     }
 
-    /// <inheritdoc />
-    public async Task<Guid?> FindAnyUserIdByEmailAsync(
-        string email, CancellationToken cancellationToken = default)
+    // Write paths read the table, not the cache: the merge-request decision must see the
+    // row state as of this call. Any verified row for the same address on another row id
+    // — the same user's or another user's — is the conflict.
+    private async Task<UserEmail?> FindVerifiedRowHeldElsewhereAsync(
+        UserEmail pendingEmail, CancellationToken cancellationToken)
     {
-        var normalizedEmail = EmailNormalization.NormalizeForComparison(email);
-        var alternateEmail = GetAlternateComparableEmail(normalizedEmail);
-        var match = await repository.FindUserEmailByNormalizedEmailAsync(
-            normalizedEmail, alternateEmail, cancellationToken);
-        return match?.UserId;
-    }
-
-    /// <inheritdoc />
-    public async Task<(Guid UserId, Guid EmailId)?> FindAnyEmailRowByAddressAsync(
-        string email, CancellationToken cancellationToken = default)
-    {
-        var normalizedEmail = EmailNormalization.NormalizeForComparison(email);
-        var alternateEmail = GetAlternateComparableEmail(normalizedEmail);
-        var match = await repository.FindUserEmailByNormalizedEmailAsync(
-            normalizedEmail, alternateEmail, cancellationToken);
-        if (match is null) return null;
-        return (match.UserId, match.Id);
+        var normalized = EmailNormalization.NormalizeForComparison(pendingEmail.Email);
+        var rows = await repository.GetUserEmailsByAddressAsync(
+            normalized, GetAlternateComparableEmail(normalized), cancellationToken);
+        return rows.FirstOrDefault(e => e.IsVerified && e.Id != pendingEmail.Id);
     }
 
     /// <inheritdoc />
@@ -814,9 +716,9 @@ internal sealed class UserEmailService(
     {
         // Orphans are UserEmail rows whose UserId is missing or merged. Iterating UserInfo can't find rows for
         // non-existent users, so the repo's full-table scan is still required here.
+        // GetAllUserInfosAsync is already one entry per living human — tombstones are omitted.
         var allEmails = await repository.GetAllUserEmailsAsync(ct);
         var liveUserIds = (await userService.GetAllUserInfosAsync(ct).ConfigureAwait(false))
-            .Where(u => u.MergedToUserId is null)
             .Select(u => u.Id)
             .ToHashSet();
 
@@ -946,8 +848,9 @@ internal sealed class UserEmailService(
         // Cross-user check before any mutation. Normalize via gmail/googlemail alternate so dot-aliases can't bypass the displacement gate.
         var normalizedClaim = EmailNormalization.NormalizeForComparison(claimEmail);
         var alternateClaim = GetAlternateComparableEmail(normalizedClaim);
-        var blocker = await repository.FindOtherUsersVerifiedUserEmailRowAsync(
-            normalizedClaim, alternateClaim, userId, cancellationToken);
+        var blocker = (await repository.GetUserEmailsByAddressAsync(
+                normalizedClaim, alternateClaim, cancellationToken))
+            .FirstOrDefault(e => e.IsVerified && e.UserId != userId);
 
         // 2. CrossUserBlocked: another user verified-holds the claim and provider's claim is unverified — no mutation, audit the attempt.
         if (blocker is not null && !claimEmailVerified)

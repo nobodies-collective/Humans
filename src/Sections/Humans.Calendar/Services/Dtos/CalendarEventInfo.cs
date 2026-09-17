@@ -5,17 +5,16 @@ namespace Humans.Calendar.Services.Dtos;
 /// <summary>
 /// Immutable projection of a <see cref="Humans.Calendar.Domain.CalendarEvent"/>
 /// row, embedding its per-occurrence <see cref="Exceptions"/> collection.
-/// Owned by the Calendar §15 caching decorator (T-08); cache key is
-/// <see cref="Id"/>.
+/// Owned by the caching decorator; cache key is <see cref="Id"/>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Cache shape: the decorator holds <em>all</em> non-soft-deleted events keyed
 /// by id. Window queries (<c>GetOccurrencesInWindowAsync</c>) snapshot-scan
-/// this dict and filter in-memory by the same predicate the SQL prefilter uses
-/// (<c>StartUtc &lt;= to AND (RecurrenceUntilUtc == null || RecurrenceUntilUtc &gt;= from)</c>).
+/// this dict and filter by date bounds for all-day series or instant bounds for timed
+/// series. Rows with exceptions survive the prefilter because overrides can move outside it.
 /// Expansion + exception merging stay in the service layer
-/// (<see cref="Services.Calendar.CalendarOccurrenceExpander"/>).
+/// (<see cref="CalendarOccurrenceExpander"/>).
 /// </para>
 /// <para>
 /// Exception writes (<c>CancelOccurrenceAsync</c> / <c>OverrideOccurrenceAsync</c>)
@@ -23,19 +22,10 @@ namespace Humans.Calendar.Services.Dtos;
 /// is keyed by the <em>parent</em> event id — these writes evict the parent
 /// <see cref="CalendarEventInfo"/> entry, NOT a separate exception row. The
 /// next read repopulates the parent (with its refreshed <see cref="Exceptions"/>
-/// list) through <see cref="ICalendarServiceRead.GetEventInfoAsync"/>.
+/// list) through <see cref="ICalendarService.GetEventInfoAsync"/>.
 /// </para>
 /// <para>
-/// Future load: the personal iCal feed (<c>/api/ical</c>, keyed by
-/// <c>User.ICalToken</c>) ships with Shifts + Events contributors today; if the
-/// Calendar section joins the fanout it will read the same window expansion
-/// path that this cache backs, so the snapshot-scan design absorbs that
-/// traffic without a second cache.
-/// </para>
-/// <para>
-/// Memory budget: small nonprofit with low calendar write volume; at any
-/// realistic event count (hundreds, not thousands) this projection fits in
-/// well under the §15 50 MB-per-projection budget.
+/// The projection must stay well under the §15 50 MB-per-projection budget.
 /// </para>
 /// </remarks>
 internal sealed record CalendarEventInfo(
@@ -45,7 +35,7 @@ internal sealed record CalendarEventInfo(
     string? Location,
     string? LocationUrl,
     Guid OwningTeamId,
-    Instant StartUtc,
+    Instant? StartUtc,
     Instant? EndUtc,
     bool IsAllDay,
     string? RecurrenceRule,
@@ -54,21 +44,26 @@ internal sealed record CalendarEventInfo(
     Guid CreatedByUserId,
     Instant CreatedAt,
     Instant UpdatedAt,
-    IReadOnlyList<CalendarEventExceptionInfo> Exceptions);
+    IReadOnlyList<CalendarEventExceptionInfo> Exceptions,
+    LocalDate? StartDate = null,
+    LocalDate? EndDateExclusive = null,
+    LocalDate? RecurrenceUntilDate = null);
 
 /// <summary>
 /// Immutable projection of a single <c>calendar_event_exceptions</c> row,
 /// carried inside <see cref="CalendarEventInfo.Exceptions"/>. Never cached
-/// independently — see the <c>InvalidateEvent</c> note on
-/// <see cref="CalendarEventInfo"/>.
+/// independently — the parent event is the eviction unit.
 /// </summary>
 internal sealed record CalendarEventExceptionInfo(
     Guid Id,
-    Instant OriginalOccurrenceStartUtc,
+    Instant? OriginalOccurrenceStartUtc,
     bool IsCancelled,
     Instant? OverrideStartUtc,
     Instant? OverrideEndUtc,
     string? OverrideTitle,
     string? OverrideDescription,
     string? OverrideLocation,
-    string? OverrideLocationUrl);
+    string? OverrideLocationUrl,
+    LocalDate? OriginalOccurrenceDate = null,
+    LocalDate? OverrideStartDate = null,
+    LocalDate? OverrideEndDateExclusive = null);

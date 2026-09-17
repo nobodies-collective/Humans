@@ -17,8 +17,8 @@ using NodaTime;
 namespace Humans.Surveys.Services;
 
 /// <summary>
-/// Application-layer <see cref="ISurveyService"/>. Plain Scoped service (no caching decorator, per
-/// spec §12). Cross-domain display data is stitched from <c>I…ServiceRead</c> interfaces — the
+/// Application-layer <see cref="ISurveyService"/>. Plain Scoped service (no caching decorator).
+/// Cross-domain display data is stitched from <c>I…ServiceRead</c> interfaces — the
 /// repository never resolves user/team navs.
 /// </summary>
 internal sealed class SurveyService(
@@ -35,7 +35,7 @@ internal sealed class SurveyService(
     IEmailMessageFactory emailMessages,
     ISurveyInviteTokenProvider tokenProvider,
     IGoogleTranslationService translation,
-    IFileStorage fileStorage) : ISurveyService, ISurveyReminderSender, IUserDataContributor
+    IFileStorage fileStorage) : ISurveyService, ISurveyReminderSender, IUserDataContributor, IUserMerge
 {
     private const int InvitationEmailSubjectMaxLength = 200;
     private const int InvitationEmailMessageMaxLength = 4000;
@@ -59,7 +59,8 @@ internal sealed class SurveyService(
             s.Title.Resolve(s.DefaultCulture, s.DefaultCulture),
             s.Status,
             invited.GetValueOrDefault(s.Id),
-            responses.GetValueOrDefault(s.Id))).ToList();
+            responses.GetValueOrDefault(s.Id),
+            s.CreatedByUserId)).ToList();
     }
 
     public async Task<SurveyOfficialLink?> GetOfficialLinkAsync(
@@ -157,7 +158,7 @@ internal sealed class SurveyService(
             ToQuestionInputs(s),
             s.IsAsociadoVote == true);
 
-        return new SurveyDetail(s.Id, s.Status, input);
+        return new SurveyDetail(s.Id, s.Status, input, s.CreatedByUserId, s.RejectionNote);
     }
 
     public Task<bool> HasSavedAnswersAsync(Guid surveyId, CancellationToken ct = default)
@@ -520,6 +521,10 @@ internal sealed class SurveyService(
         var status = await repo.GetStatusAsync(surveyId, ct)
             ?? throw new InvalidOperationException("Survey not found.");
         if (status == SurveyStatus.Open) return;
+        // A submission pending approval can only become Open via ApproveAndSendAsync — that is
+        // the one step that also sends invitations and records the approval (Workgroups §11).
+        if (status == SurveyStatus.PendingApproval)
+            throw new InvalidOperationException("A survey pending approval must be approved or rejected, not opened directly.");
         if (status == SurveyStatus.Closed)
         {
             var survey = await repo.GetByIdAsync(surveyId, ct)
@@ -542,6 +547,113 @@ internal sealed class SurveyService(
         await auditLog.LogAsync(AuditAction.SurveyClosed, AuditEntityTypes.Survey, surveyId, "Closed survey", actorUserId);
     }
 
+    public async Task<IReadOnlyList<SurveyAdminSummary>> GetAdminSummariesAsync(SurveyViewer viewer, CancellationToken ct = default)
+    {
+        var surveys = await repo.GetAllSummariesAsync(ct);
+        var scoped = viewer.IsBoardOrAdmin
+            ? surveys
+            : surveys.Where(s => s.CreatedByUserId == viewer.UserId).ToList();
+        if (scoped.Count == 0) return [];
+
+        var invited = await repo.GetInvitedCountsBySurveyAsync(ct);
+        var responses = await repo.GetResponseCountsBySurveyAsync(ct);
+
+        return scoped.Select(s => new SurveyAdminSummary(
+            s.Id,
+            s.Title.Resolve(s.DefaultCulture, s.DefaultCulture),
+            s.Status,
+            invited.GetValueOrDefault(s.Id),
+            responses.GetValueOrDefault(s.Id),
+            s.CreatedByUserId,
+            s.SubmittedAt,
+            s.RejectionNote)).ToList();
+    }
+
+    public async Task<IReadOnlyList<SurveyPendingApprovalItem>> GetPendingApprovalQueueAsync(CancellationToken ct = default)
+    {
+        var pending = (await repo.GetAllSummariesAsync(ct))
+            .Where(s => s.Status == SurveyStatus.PendingApproval)
+            .ToList();
+        if (pending.Count == 0) return [];
+
+        var authorIds = pending.Select(s => s.CreatedByUserId).Distinct().ToList();
+        var authors = await userService.GetUserInfosAsync(authorIds, ct);
+
+        return pending
+            .OrderBy(s => s.SubmittedAt)
+            .Select(s => new SurveyPendingApprovalItem(
+                s.Id,
+                s.Title.Resolve(s.DefaultCulture, s.DefaultCulture),
+                s.CreatedByUserId,
+                authors.TryGetValue(s.CreatedByUserId, out var author) ? author.BurnerName : s.CreatedByUserId.ToString(),
+                s.SubmittedAt))
+            .ToList();
+    }
+
+    public async Task SubmitForApprovalAsync(Guid surveyId, Guid actorUserId, CancellationToken ct = default)
+    {
+        var survey = await repo.GetByIdAsync(surveyId, ct)
+            ?? throw new InvalidOperationException("Survey not found.");
+        if (survey.CreatedByUserId != actorUserId)
+            throw new InvalidOperationException("Only the survey's author may submit it for approval.");
+        if (survey.Status != SurveyStatus.Draft)
+            throw new InvalidOperationException("Only a Draft survey can be submitted for approval.");
+
+        var now = clock.GetCurrentInstant();
+        await repo.SubmitForApprovalAsync(surveyId, now, ct);
+        await auditLog.LogAsync(AuditAction.SurveySubmittedForApproval, AuditEntityTypes.Survey, surveyId,
+            $"Submitted survey '{survey.Title.Resolve(survey.DefaultCulture, survey.DefaultCulture)}' for approval", actorUserId);
+    }
+
+    public async Task<SendResult> ApproveAndSendAsync(Guid surveyId, SurveyViewer viewer, CancellationToken ct = default)
+    {
+        if (!viewer.IsBoardOrAdmin)
+            throw new InvalidOperationException("Only Board/Admin may approve a survey.");
+        var survey = await repo.GetByIdAsync(surveyId, ct)
+            ?? throw new InvalidOperationException("Survey not found.");
+        if (survey.Status != SurveyStatus.PendingApproval)
+            throw new InvalidOperationException("Only a survey pending approval can be approved.");
+
+        // Send validates the audience, and Open is not a state the author can edit out of — so a
+        // misconfigured audience has to fail here, before approval is persisted, leaving the
+        // survey in the queue where the Board can reject it back to the author.
+        ValidateAudienceConfiguration(
+            survey.AudienceType, survey.AudienceTeamId, survey.AudienceLoggedInSince, requireAudience: true);
+
+        var now = clock.GetCurrentInstant();
+        await repo.ApproveAsync(surveyId, now, ct);
+        await auditLog.LogAsync(AuditAction.SurveyApproved, AuditEntityTypes.Survey, surveyId,
+            $"Approved survey '{survey.Title.Resolve(survey.DefaultCulture, survey.DefaultCulture)}'; sending invitations",
+            viewer.UserId, relatedEntityId: survey.CreatedByUserId, relatedEntityType: AuditEntityTypes.User);
+
+        // CancellationToken.None, not ct: approval is persisted, and the invitation send is an
+        // outbound write to the mail provider — a request-scoped token that fires mid-send
+        // would leave the survey Open with a partial invitation set
+        // (memory/architecture/cancellation-token-propagation.md).
+        return await SendInvitesAsync(surveyId, viewer.UserId, CancellationToken.None);
+    }
+
+    public async Task RejectAsync(Guid surveyId, SurveyViewer viewer, string note, CancellationToken ct = default)
+    {
+        if (!viewer.IsBoardOrAdmin)
+            throw new InvalidOperationException("Only Board/Admin may reject a survey.");
+        if (string.IsNullOrWhiteSpace(note))
+            throw new InvalidOperationException("A rejection note is required.");
+        var survey = await repo.GetByIdAsync(surveyId, ct)
+            ?? throw new InvalidOperationException("Survey not found.");
+        if (survey.Status != SurveyStatus.PendingApproval)
+            throw new InvalidOperationException("Only a survey pending approval can be rejected.");
+
+        var now = clock.GetCurrentInstant();
+        var trimmedNote = note.Trim();
+        if (trimmedNote.Length > 4000)
+            throw new InvalidOperationException("A rejection note must be 4000 characters or fewer.");
+        await repo.RejectAsync(surveyId, trimmedNote, now, ct);
+        await auditLog.LogAsync(AuditAction.SurveyRejected, AuditEntityTypes.Survey, surveyId,
+            $"Rejected survey '{survey.Title.Resolve(survey.DefaultCulture, survey.DefaultCulture)}': {trimmedNote}",
+            viewer.UserId, relatedEntityId: survey.CreatedByUserId, relatedEntityType: AuditEntityTypes.User);
+    }
+
     public async Task<int> PreviewAudienceCountAsync(Guid surveyId, CancellationToken ct = default)
     {
         var survey = await repo.GetByIdAsync(surveyId, ct);
@@ -555,7 +667,7 @@ internal sealed class SurveyService(
         var recipients = await ResolveRecipientIdsAsync(
             audienceType, survey.AudienceTeamId, survey.AudienceLoggedInSince, ct);
         if (recipients.Count == 0) return 0;
-        var alreadyInvited = await repo.GetInvitedUserIdsAsync(surveyId, ct);
+        var alreadyInvited = await InvitedUserIdsResolvedAsync(surveyId, ct);
         var completedPublicParticipants = (await repo.GetInvitationsAsync(surveyId, ct))
             .Where(invitation => invitation.SentAt is null && invitation.Completed)
             .Select(invitation => invitation.UserId);
@@ -576,7 +688,7 @@ internal sealed class SurveyService(
         var now = clock.GetCurrentInstant();
         var target = await ResolveRecipientIdsAsync(
             audienceType, survey.AudienceTeamId, survey.AudienceLoggedInSince, ct);
-        var alreadyInvited = await repo.GetInvitedUserIdsAsync(surveyId, ct);
+        var alreadyInvited = await InvitedUserIdsResolvedAsync(surveyId, ct);
         var participationRows = await repo.GetInvitationsAsync(surveyId, ct);
         var completedPublicParticipants = participationRows
             .Where(invitation => invitation.SentAt is null && invitation.Completed)
@@ -658,6 +770,20 @@ internal sealed class SurveyService(
         return new SendResult(invitationsCreated, emailsQueued, failed);
     }
 
+    /// <summary>
+    /// Invited ids plus, for any that has since been merged away, its survivor. Invitations are
+    /// never re-pointed on merge, so the audience (live ids) is compared against both, or the
+    /// survivor is invited a second time to a survey their archived id already holds.
+    /// </summary>
+    private async Task<HashSet<Guid>> InvitedUserIdsResolvedAsync(Guid surveyId, CancellationToken ct)
+    {
+        var invited = (await repo.GetInvitedUserIdsAsync(surveyId, ct)).ToHashSet();
+        if (invited.Count == 0) return invited;
+        foreach (var info in (await userService.GetUserInfosAsync(invited.ToList(), ct)).Values)
+            invited.Add(info.Id);
+        return invited;
+    }
+
     public async Task<int> SendDueRemindersAsync(CancellationToken ct = default)
     {
         var now = clock.GetCurrentInstant();
@@ -679,6 +805,17 @@ internal sealed class SurveyService(
         var reminded = 0;
         foreach (var inv in due)
         {
+            // An invitation held by a since-merged id belongs to the survivor's past: the
+            // survivor's own invitation (if any) carries the reminder, and for an Asociado vote
+            // this token could no longer answer. Left unstamped and skipped, like a missing email.
+            if (users.TryGetValue(inv.UserId, out var holder) && holder.Id != inv.UserId)
+            {
+                logger.LogInformation(
+                    "Invitation {InvitationId} belongs to merged user {UserId}; skipping reminder",
+                    inv.Id, inv.UserId);
+                continue;
+            }
+
             if (!emails.TryGetValue(inv.UserId, out var email))
             {
                 logger.LogWarning(
@@ -794,7 +931,13 @@ internal sealed class SurveyService(
     }
 
     public async Task<bool> IsEligibleAsociadoAsync(Guid userId, CancellationToken ct = default)
-        => IsEligibleAsociado(await userService.GetUserInfoAsync(userId, ct));
+    {
+        // Every caller passes an id a draft, invitation or response is stored under. A merged-away
+        // id resolves to an eligible survivor, but answering under the archived id would let one
+        // Asociado hold two ballots, so eligibility requires the stored id to be the live one.
+        var info = await userService.GetUserInfoAsync(userId, ct);
+        return info is not null && info.Id == userId && IsEligibleAsociado(info);
+    }
 
     public async Task<Guid> StartIdentifiedDraftAsync(
         Guid surveyId,
@@ -1626,7 +1769,25 @@ internal sealed class SurveyService(
             })
             .ToList();
 
-        return [new UserDataSlice(GdprExportSections.SurveyResponses, shaped)];
+        // Authoring is open to any approved human, so a member's own surveys are their
+        // personal data too — Drafts nobody else can see included.
+        var authored = (await repo.GetSurveysAuthoredByAsync(userId, ct))
+            .OrderBy(s => s.CreatedAt)
+            .Select(s => new
+            {
+                Survey = s.Title.Resolve(s.DefaultCulture, s.DefaultCulture),
+                Status = s.Status.ToString(),
+                s.RejectionNote,
+                CreatedAt = s.CreatedAt.ToIso8601(),
+                QuestionCount = s.Questions.Count
+            })
+            .ToList();
+
+        return
+        [
+            new UserDataSlice(GdprExportSections.SurveyResponses, shaped),
+            new UserDataSlice(GdprExportSections.AuthoredSurveys, authored)
+        ];
     }
 
     private static readonly IReadOnlyDictionary<string, string?> Erasure =
@@ -1636,7 +1797,11 @@ internal sealed class SurveyService(
                 "Partially retained: the invitation is deleted and the response is severed from " +
                 "the person (UserId and InvitationId dropped, Anonymity forced to Anonymous), but " +
                 "the answers themselves survive as an anonymous data point in the survey's " +
-                "results — GDPR Art. 17(3)(b). They are no longer attributable to anyone."
+                "results — GDPR Art. 17(3)(b). They are no longer attributable to anyone.",
+            [GdprExportSections.AuthoredSurveys] =
+                "Partially retained: the authorship link is dropped and any Board rejection note " +
+                "deleted, but the survey and its questions survive as the association's own " +
+                "record of what it asked — GDPR Art. 17(3)(b)."
         };
 
     public IReadOnlyDictionary<string, string?> ErasureDeclaration => Erasure;
@@ -1645,8 +1810,19 @@ internal sealed class SurveyService(
     /// The identity link is dropped and the response demoted to Anonymous — the
     /// answers survive as anonymous research data that is no longer personal data.
     /// </summary>
-    public Task EraseForUserAsync(Guid userId, CancellationToken ct) =>
-        repo.AnonymizeResponsesForUserAsync(userId, ct);
+    public async Task EraseForUserAsync(Guid userId, CancellationToken ct)
+    {
+        await repo.AnonymizeResponsesForUserAsync(userId, ct);
+        await repo.ClearAuthorshipForUserAsync(userId, ct);
+    }
+
+    /// <summary>
+    /// Account merge: authorship follows the survivor. Responses and invitations are keyed by
+    /// the account merge's own paths; only the authored surveys need re-FKing here.
+    /// </summary>
+    public Task ReassignAsync(
+        Guid mergedFromUserId, Guid mergedToUserId, Guid actorUserId, Instant now, CancellationToken ct)
+        => repo.ReassignAuthorshipAsync(mergedFromUserId, mergedToUserId, now, ct);
 
     /// <summary>Aggregates one question across the submitted responses per its type (counts/distribution/free-text).</summary>
     private static QuestionAggregate BuildQuestionAggregate(
@@ -2102,14 +2278,15 @@ internal sealed class SurveyService(
                 {
                     // "Logged in on or after the cutoff" = LastLoginAt >= cutoff; null LastLoginAt never
                     // matches (predates tracking). Deliberately no IsApproved filter — mid-onboarding
-                    // users belong in this audience (nobodies-collective/Humans#894) — but tombstones
-                    // (GDPR-anonymized/merged), deletion-pending users, and accounts walled off by
-                    // state (rejected/suspended — they can't reach the survey) are never invited.
+                    // users belong in this audience (nobodies-collective/Humans#894) — but
+                    // deletion-pending users and accounts walled off by state
+                    // (rejected/suspended — they can't reach the survey) are never invited.
+                    // Tombstones are already absent: GetAllUserInfosAsync omits them (#1704).
                     if (loggedInSince is null) return new HashSet<Guid>();
                     var users = await userService.GetAllUserInfosAsync(ct);
                     return users
                         .Where(u => u.LastLoginAt is { } lastLogin && lastLogin >= loggedInSince.Value)
-                        .Where(u => !u.IsGdprAnonymized && !u.IsDeletionPending && !u.IsMerged)
+                        .Where(u => !u.IsDeletionPending)
                         .Where(u => u.State is not (UserState.Rejected or UserState.Suspended or UserState.AdminSuspended))
                         .Select(u => u.Id)
                         .ToHashSet();
@@ -2127,7 +2304,7 @@ internal sealed class SurveyService(
     {
         var users = await userService.GetAllUserInfosAsync(ct);
         return users
-            .Where(u => u.IsApproved && !u.IsGdprAnonymized && !u.IsDeletionPending && !u.IsMerged)
+            .Where(u => u.IsApproved && !u.IsDeletionPending)
             .Select(u => u.Id)
             .ToList();
     }

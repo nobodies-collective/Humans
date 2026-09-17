@@ -1,10 +1,13 @@
+using Humans.Users.Contracts;
 using Humans.Base.Interfaces;
 using Humans.Gdpr.Contracts;
 using Humans.Base.Hosting;
+using Humans.Surveys.Authorization;
 using Humans.Surveys.Contracts;
 using Humans.Surveys.Data;
 using Humans.Surveys.Jobs;
 using Humans.Surveys.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,7 +16,7 @@ namespace Humans.Surveys;
 /// <summary>
 /// Surveys' DI entry point, at the project root by convention. Discovered by Shell —
 /// nothing names it, so it needs no section prefix. Plain Scoped service (Feedback/Issues
-/// pattern) — no caching decorator, per the section design spec §12.
+/// pattern) — no caching decorator.
 /// </summary>
 /// <remarks>
 /// <c>SendSurveyReminderJob</c> drives <see cref="ISurveyReminderSender"/>. Its
@@ -33,10 +36,13 @@ public sealed class Section : ISection
         // Owns the user-scoped survey_responses/survey_invitations tables → GDPR export
         // contributor (design-rules §8a).
         services.AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<SurveyService>());
+        services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<SurveyService>());
         services.AddScoped<ISurveyInviteTokenProvider, SurveyInviteTokenProvider>();
         services.AddScoped<SurveyPreviewTokenProvider>();
         services.AddScoped<ISurveyPreviewEmailService, SurveyPreviewEmailService>();
 
         services.AddScoped<SendSurveyReminderJob>();
+
+        services.AddSingleton<IAuthorizationHandler, SurveyAuthorizationHandler>();
     }
 }

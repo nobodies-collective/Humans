@@ -3,10 +3,8 @@ namespace Humans.GoogleIntegration.Services.Workspace;
 /// <summary>
 /// Narrow connector over the Google Drive v3 API scoped to the folder- and
 /// permission-management operations performed by <c>GoogleWorkspaceSyncService</c>.
-/// Implementations live in <c>Humans.Infrastructure</c>; the Application-layer
-/// sync service (coming in §15 Part 2b, issue #575) depends only on this
-/// interface so that <c>Humans.Application</c> stays free of
-/// <c>Google.Apis.*</c> imports (design-rules §13).
+/// Shape-neutral so the service layer never names a <c>Google.Apis.*</c> type
+/// (design-rules §13).
 /// </summary>
 /// <remarks>
 /// All Drive operations run with <c>SupportsAllDrives = true</c> per the
@@ -41,6 +39,17 @@ internal interface IGoogleDrivePermissionsClient
     Task<DrivePermissionMutationResult> CreatePermissionAsync(
         string fileId,
         string userEmail,
+        string role,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Changes a permission's role in place. Unlike delete/recreate, this supports
+    /// reducing a direct elevation on a mixed permission to its inherited floor.
+    /// Returns null on success or the Google API error on failure.
+    /// </summary>
+    Task<GoogleClientError?> UpdatePermissionAsync(
+        string fileId,
+        string permissionId,
         string role,
         CancellationToken ct = default);
 
@@ -88,6 +97,17 @@ internal interface IGoogleDrivePermissionsClient
     Task<SharedDriveMetadataResult> GetSharedDriveAsync(
         string driveId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a new folder named <paramref name="name"/> directly under
+    /// <paramref name="parentFolderId"/>. Used by
+    /// <c>IGoogleSyncService.CreateSubfolderAsync</c> when a section
+    /// provisions a new Drive folder (e.g. a Workgroups group folder).
+    /// </summary>
+    Task<DriveFolderCreateResult> CreateFolderAsync(
+        string parentFolderId,
+        string name,
+        CancellationToken ct = default);
 }
 
 /// <summary>
@@ -125,16 +145,22 @@ internal sealed record DrivePermissionListResult(
 /// this item and also inherited from a parent folder), and Drive's
 /// <c>permissions.delete</c> still 403s on those as "cannot delete an
 /// inherited permission." Only a permission with zero inherited components
-/// is safely deletable at this level — the system must skip any permission
-/// with an inherited component during reconciliation, not just fully-
-/// inherited ones.
+/// is safely deletable at this level. Direct elevations on a mixed permission
+/// can instead be updated without reducing the inherited role.
 /// </param>
 internal sealed record DrivePermission(
     string? Id,
     string? Type,
     string? Role,
     string? EmailAddress,
-    bool HasInheritedComponent);
+    bool HasInheritedComponent)
+{
+    /// <summary>Whether Google reports a grant made directly on this item.</summary>
+    public bool HasDirectComponent { get; init; } = !HasInheritedComponent;
+
+    /// <summary>The inherited role floor comes from these components, not the effective Role.</summary>
+    public IReadOnlyList<string?> InheritedRoles { get; init; } = HasInheritedComponent ? [Role] : [];
+}
 
 /// <summary>
 /// Outcome of <see cref="IGoogleDrivePermissionsClient.CreatePermissionAsync"/>.
@@ -216,3 +242,9 @@ internal sealed record SharedDriveMetadataResult(SharedDriveMetadata? Drive, Goo
 /// its display name.
 /// </summary>
 internal sealed record SharedDriveMetadata(string Id, string Name);
+
+/// <summary>
+/// Outcome of <see cref="IGoogleDrivePermissionsClient.CreateFolderAsync"/>.
+/// Exactly one of <see cref="FolderId"/> or <see cref="Error"/> is non-null.
+/// </summary>
+internal sealed record DriveFolderCreateResult(string? FolderId, GoogleClientError? Error);

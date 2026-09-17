@@ -20,6 +20,8 @@ public sealed class HumanSummaryViewComponent(IUserServiceRead userService, ITea
     public async Task<IViewComponentResult> InvokeAsync(Guid userId)
     {
         var info = await userService.GetUserInfoAsync(userId);
+        if (info is not null)
+            userId = info.Id; // team memberships below are keyed by the live id
         if (info is null)
         {
             return View("Default", new ProfileSummaryViewModel
@@ -60,7 +62,7 @@ public sealed class HumanSummaryViewComponent(IUserServiceRead userService, ITea
         var hiddenTeams = memberships.Where(m => m.TeamInfo.IsHidden).Select(m => m.TeamInfo.Name).ToList();
 
         var effectivePictureUrl = profile.HasCustomPicture
-            ? Url.Action(nameof(ProfileController.Picture), "Profile",
+            ? Url.Action(nameof(ProfileViewController.Picture), "ProfileView",
                 new { id = profile.Id, v = profile.UpdatedAt.ToUnixTimeTicks() })
             : info.ProfilePictureUrl;
 
