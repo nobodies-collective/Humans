@@ -536,7 +536,7 @@ Stored as string via `HasConversion<string>()`. `IsAlwaysOn()` covers System and
 
 ## Routing
 
-Self-service profile functionality lives under `/Profile`, split by shape across `ProfileController` (own profile), `ProfileEmailsController` (own and admin email grids) and `ProfileViewController` (other members' profiles, messaging, search), each `[Authorize]` class-wide; human administration lives under `/Users/Admin`. GET unless noted; POSTs carry an anti-forgery token.
+Self-service profile functionality lives under `/Profile`, split by shape across `ProfileController` (own profile), `ProfileEmailsController` (own and admin email grids) and `ProfileViewController` (other members' profiles, messaging, search), each `[Authorize]` class-wide; human administration lives under `/Users/Admin`. Own-profile maintenance and own-email actions are individually exempt from the membership-state gate, so suspension, rejection, or pending deletion does not block self-service. `Deleted` and `Merged` accounts cannot use recovery exemptions, including name entry: a lingering session reaches only the status wall, session/language routes, and existing anonymous endpoints. Cleared names never send these tombstones back to onboarding. Other-profile views, authenticated popovers, search, messaging, and admin email actions require `Active` state as well as their existing action-specific permissions. Public pictures, public coordinator popovers, and token-based email verification retain `[AllowAnonymous]`. GET unless noted; POSTs carry an anti-forgery token.
 
 | Route | Purpose |
 |-------|---------|
@@ -639,7 +639,7 @@ Admin-only flows for the section's cross-account hygiene (the `/Profile/Admin/*`
 - Regular humans **cannot** view suspended profiles.
 - Regular humans **cannot** edit another human's profile.
 - Regular humans **cannot** see contact fields above their access level on other humans' profiles.
-- Non-active humans (still onboarding) **cannot** view other humans' profiles or send messages.
+- Non-active humans **cannot** use authenticated other-profile views, popovers, search, messaging, or admin email actions, even if they retain an admin or Board role. Public picture and coordinator-popover routes remain available. An active viewer can still see a suspended target's basic identity through authenticated popovers.
 - Any Admin **cannot** purge their own account.
 - Purge **cannot** run in production environments (gate on `IWebHostEnvironment`).
 - Admins **cannot** establish a new OAuth link on a user's behalf — there is no admin `Link` action under `/Profile/{id}/Admin/Emails/*`. Google authenticates whoever is at the keyboard, and admins must never hold user credentials; linking requires the target user's own session (`POST /Profile/Me/Emails/Link/{provider}`). Admins may `Unlink` existing provider-attached rows (that operates on already-stored data, no OAuth flow).
