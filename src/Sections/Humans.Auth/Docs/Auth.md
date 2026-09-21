@@ -13,10 +13,10 @@
   src/Humans.Base/Models/AccessMatrixData.cs
   src/Sections/**/SectionAccessMatrix.cs
   src/Humans.Base/ViewComponents/AccessMatrixViewComponent.cs
-  src/Sections/Humans.Email/EmailResource*.resx
+  src/Sections/Humans.Auth/AuthResource*.resx
 -->
 <!-- freshness:flag-on-change
-  Role-assignment temporal invariants, magic-link rate-limit/replay rules, role-name constants, and the access-matrix mechanism (§"Access Matrix UI" — AccessMatrixViewComponent over the static rows sections contribute through ISectionAccessMatrix, no DB table) — review when Auth services, role constants, claims transformation, or the access-matrix component/source change. The Email resx is here for one reason: Email_MagicLinkSignup_Body promises the recipient the link works only once, and this doc asserts the code keeps that promise — reword the copy and this doc goes stale.
+  Role-assignment temporal invariants, magic-link rate-limit/replay rules, role-name constants, and the access-matrix mechanism (§"Access Matrix UI" — AccessMatrixViewComponent over the static rows sections contribute through ISectionAccessMatrix, no DB table) — review when Auth services, role constants, claims transformation, or the access-matrix component/source change. The Auth resx is here for one reason: Auth_Email_MagicLinkSignup_Body promises the recipient the link works only once, and this doc asserts the code keeps that promise — reword the copy and this doc goes stale.
 -->
 
 # Auth — Section Invariants
@@ -143,6 +143,7 @@ The auth surface is mid-transition. Phase by phase:
 ## Cross-Section Dependencies
 
 - **Users/Identity:** `IUserServiceRead.GetUserInfosAsync` — display names for assignee/creator stitched in memory (design-rules §6b). `IUserEmailService.FindByAddressAsync` — verified email → owning user for magic-link login.
+- **Email:** Auth owns its two sign-in templates — `AuthEmails` (internal) builds each `EmailMessage` from Auth's own `Auth_Email_*` keys in `AuthResource`, rendered in the recipient's culture via `CultureScope`; `AuthEmailPreviews` (`IEmailPreviewContributor`, registered in `Section.Register`) lists both at `/Email/EmailPreview`. Both keep their `TimeSensitiveTemplates` names (`magic_link_login`, `magic_link_signup`) so the outbox still drains a sign-in link immediately. Email supplies transport only — `IEmailService.SendAsync` (`memory/architecture/email-templates-live-in-sender.md`, peterdrier/Humans#1651).
 - **Teams:** `ISystemTeamSync.SyncBoardTeamAsync` — Board system team's membership mirrors current `Board` role assignments.
 - **Governance:** Tier applications and board voting flows are a separate concern. Governance concerns association-level affairs; Auth concerns who-has-what-role within the running system. `role_assignments` is owned by Auth, not Governance.
 - **Notifications:** `Humans.Notifications.Contracts.INotificationEmitter` (the narrow per-user dispatch surface — `INotificationService` extends it but Auth only needs the emitter) — best-effort in-app notifications on role changes.

@@ -64,7 +64,7 @@ The recipient set is computed once per dispatch:
 
 ## Email Template (per recipient)
 
-Shape (template in `IEmailRenderer`):
+Shape (template in `ShiftsEmails`):
 
 ```
 Dear {BurnerName},
@@ -107,8 +107,8 @@ No new entities or migrations. The feature is pure orchestration over existing t
 
 - `IShiftManagementRepository.GetRotaAsync(rotaId, RotaReadShape.View, ct)` — loads the rota with shifts, `EventSettings`, and signups in one read; active signups are filtered in memory for grouping.
 - `IUserService.GetUserInfosAsync(userIds, ct)` — recipient name/email/culture lookup.
-- `IEmailService.SendAsync(IEmailMessageFactory.CoordinatorRotaMessage(request), ct)` — outbox enqueue.
-- `IEmailRenderer` — rendering for the new template.
+- `IEmailService.SendAsync(ShiftsEmails.CoordinatorRotaMessage(request), ct)` — outbox enqueue.
+- `ShiftsEmails` — the section's own builder for the template (copy in `ShiftsResource*.resx`).
 - `AuditAction.CoordinatorRotaMessageSent` — new audit action value.
 
 ## Workflow
@@ -146,7 +146,7 @@ Failure paths
 
 - **Section:** Shifts.
 - **Layering:** new orchestrator service `RotaCoordinatorMessageService` lives in Application; no EF types leak across the boundary; recipient set computed via existing repository abstractions; rendering + delivery delegated to the Email service surface; controller is thin and authorization-gated.
-- **Cross-section dependencies:** Users (`IUserService`), Email (`IEmailService`, `IEmailRenderer`), AuditLog (`IAuditLogService`). All consumed through Application interfaces — no direct DbContext access.
+- **Cross-section dependencies:** Users (`IUserService`), Email (`IEmailService`), AuditLog (`IAuditLogService`). All consumed through Application interfaces — no direct DbContext access.
 - **Caching:** none (one-shot dispatch path; per-recipient lookups bounded by signup count).
 
 ## Related Features

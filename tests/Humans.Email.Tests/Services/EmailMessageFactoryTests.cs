@@ -1,73 +1,22 @@
-using Humans.Users.Contracts;
 using AwesomeAssertions;
-using Humans.Email.Contracts;
 using Humans.Email.Services;
+using Humans.Users.Contracts;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using NSubstitute.Extensions;
-using Humans.Tickets.Contracts;
 
 namespace Humans.Email.Tests.Services;
 
 /// <summary>
-/// Tests the per-type policy stamped by <see cref="EmailMessageFactory"/> around the
-/// pure <see cref="IEmailRenderer"/> — template name, opt-out category, reply-to,
-/// recipient routing, and the campaign user/grant ids. The shared
-/// transport (opt-out, unsubscribe, wrapping, enqueue) is covered by
-/// <see cref="OutboxEmailServiceTests"/>.
+/// Email's one remaining template, built by <see cref="EmailMessageFactory"/>: the
+/// content it renders and the policy it stamps (template name, opt-out category,
+/// reply-to). Every other section's templates are tested in that section's own test
+/// project (peterdrier/Humans#1651). The shared transport (opt-out, unsubscribe,
+/// wrapping, enqueue) is covered by <see cref="OutboxEmailServiceTests"/>.
 /// </summary>
 public sealed class EmailMessageFactoryTests
 {
-    private readonly IEmailRenderer _renderer = Substitute.For<IEmailRenderer>();
-    private readonly EmailMessageFactory _factory;
-
-    public EmailMessageFactoryTests()
-    {
-        // Any render returns known content so assertions focus on the stamped policy.
-        _renderer.ReturnsForAll(new EmailContent("Subj", "<p>Body</p>"));
-        _factory = new EmailMessageFactory(_renderer);
-    }
-
-    [HumansFact]
-    public void ReConsentsRequired_IsAlwaysSend_NullCategory()
-    {
-        var msg = _factory.ReConsentsRequired("a@x.com", "Alice", ["Doc"], "en");
-
-        msg.TemplateName.Should().Be("reconsents_required");
-        msg.Category.Should().BeNull();
-    }
-
-    [HumansFact]
-    public void EmailVerification_IsAlwaysSend_NullCategory()
-    {
-        var msg = _factory.EmailVerification("a@x.com", "Alice", "https://verify", isConflict: true, "en");
-
-        msg.TemplateName.Should().Be("email_verification");
-        msg.Category.Should().BeNull();
-        _renderer.Received(1).RenderEmailVerification("Alice", "a@x.com", "https://verify", true, "en");
-    }
-
-    [HumansFact]
-    public void SurveyInvitation_forwards_custom_copy_and_preserves_policy()
-    {
-        var msg = _factory.SurveyInvitation(
-            "a@x.com",
-            "Alice",
-            "Availability",
-            "token",
-            "fr",
-            "Choose a date",
-            "Tell us what works.");
-
-        msg.TemplateName.Should().Be("survey_invitation");
-        msg.Category.Should().Be(MessageCategory.System);
-        _renderer.Received(1).RenderSurveyInvitation(
-            "Alice",
-            "Availability",
-            "token",
-            "fr",
-            "Choose a date",
-            "Tell us what works.");
-    }
+    private readonly EmailMessageFactory _factory = CreateFactory();
 
     [HumansFact]
     public void FacilitatedMessage_WithContactInfo_SetsReplyToSender()
@@ -75,8 +24,10 @@ public sealed class EmailMessageFactoryTests
         var msg = _factory.FacilitatedMessage(
             "rcpt@x.com", "Rcpt", "Sender", "Hi", includeContactInfo: true, senderEmail: "sender@x.com", "en");
 
+        msg.TemplateName.Should().Be("facilitated_message");
         msg.Category.Should().Be(MessageCategory.FacilitatedMessages);
         msg.ReplyTo.Should().Be("sender@x.com");
+        msg.HtmlBody.Should().Contain("mailto:sender@x.com");
     }
 
     [HumansFact]
@@ -86,117 +37,39 @@ public sealed class EmailMessageFactoryTests
             "rcpt@x.com", "Rcpt", "Sender", "Hi", includeContactInfo: false, senderEmail: "sender@x.com", "en");
 
         msg.ReplyTo.Should().BeNull();
+        msg.HtmlBody.Should().Contain("Email_FacilitatedMessage_NoContactInfo");
     }
 
     [HumansFact]
-    public void CoordinatorRotaMessage_RoutesRepliesToCoordinator_VolunteerUpdates()
+    public void FacilitatedMessage_renders_markdown_instead_of_html_encoded_plain_text()
     {
-        var request = new CoordinatorRotaMessageRequest(
-            RecipientEmail: "rcpt@x.com",
-            RecipientName: "Rcpt",
-            SenderName: "Coord",
-            SenderEmail: "coord@x.com",
-            RotaName: "Gate",
-            MessageText: "Hello",
-            ShiftLines: ["Mon"],
-            Culture: "en");
+        var msg = _factory.FacilitatedMessage(
+            "rcpt@x.com", "Recipient", "Sender",
+            "**Hi there** — see [this](https://example.com)\r\n\r\nSecond line",
+            includeContactInfo: false, senderEmail: null);
 
-        var msg = _factory.CoordinatorRotaMessage(request);
-
-        msg.RecipientEmail.Should().Be("rcpt@x.com");
-        msg.TemplateName.Should().Be("coordinator_rota_message");
-        msg.Category.Should().Be(MessageCategory.VolunteerUpdates);
-        msg.ReplyTo.Should().Be("coord@x.com");
+        msg.HtmlBody.Should().Contain("<p><strong>Hi there</strong>");
+        msg.HtmlBody.Should().Contain("<a href=\"https://example.com\">this</a>");
+        msg.HtmlBody.Should().Contain("<p>Second line</p>");
+        msg.HtmlBody.Should().NotContain("&lt;strong&gt;");
+        msg.HtmlBody.Should().NotContain("<br");
     }
 
-    [HumansFact]
-    public void MagicLinkSignup_UsesAddressAsName()
+    private static EmailMessageFactory CreateFactory()
     {
-        var msg = _factory.MagicLinkSignup("new@x.com", "https://link", "en");
-
-        msg.RecipientEmail.Should().Be("new@x.com");
-        msg.RecipientName.Should().Be("new@x.com");
-        msg.TemplateName.Should().Be("magic_link_signup");
-        msg.Category.Should().BeNull();
-    }
-
-    [HumansFact]
-    public void TicketTransferTeamNotification_RoutesToTicketsInbox_System()
-    {
-        var msg = _factory.TicketTransferTeamNotification(
-            "Sender", "Receiver", "rx@x.com", "Ticket #1", "reason", "https://review");
-
-        msg.RecipientEmail.Should().Be(TicketConstants.TicketsTeamEmail);
-        msg.RecipientName.Should().Be("Ticket team");
-        msg.TemplateName.Should().Be("ticket_transfer_team");
-        msg.Category.Should().Be(MessageCategory.System);
-    }
-
-    [HumansFact]
-    public void TicketTransferDecision_TemplateReflectsOutcome()
-    {
-        _factory.TicketTransferDecision("a@x.com", "A", successful: true, "T", "Rx", null, "en")
-            .TemplateName.Should().Be("ticket_transfer_completed");
-
-        _factory.TicketTransferDecision("a@x.com", "A", successful: false, "T", "Rx", "why", "en")
-            .TemplateName.Should().Be("ticket_transfer_cancelled");
-    }
-
-    [HumansFact]
-    public void GoogleGroupRemoval_StampsSystem()
-    {
-        var msg = _factory.GoogleGroupRemovalLossOfAccess("a@x.com", "Alice", "Group", "g@x.com", "en");
-
-        msg.TemplateName.Should().Be("google_group_removal_loss_of_access");
-        msg.Category.Should().Be(MessageCategory.System);
-    }
-
-    [HumansFact]
-    public void WorkgroupNotice_StampsGovernanceAndRecipient()
-    {
-        var request = new WorkgroupNoticeRequest(
-            RecipientEmail: "coord@x.com",
-            RecipientName: "Coord",
-            Kind: WorkgroupNoticeKind.Registered,
-            WorkgroupName: "Safety",
-            WorkgroupSlug: "safety",
-            Culture: "en");
-
-        var msg = _factory.WorkgroupNotice(request);
-
-        msg.RecipientEmail.Should().Be("coord@x.com");
-        msg.RecipientName.Should().Be("Coord");
-        msg.Subject.Should().Be("Subj");
-        msg.HtmlBody.Should().Be("<p>Body</p>");
-        msg.TemplateName.Should().Be("workgroup_notice_registered");
-        msg.Category.Should().Be(MessageCategory.Governance);
-        _renderer.Received(1).RenderWorkgroupNotice(request);
-    }
-
-    [HumansFact]
-    public void WorkgroupNotice_TemplateNamePerKind()
-    {
-        var expected = new Dictionary<WorkgroupNoticeKind, string>
+        var strings = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [WorkgroupNoticeKind.Applied] = "workgroup_notice_applied",
-            [WorkgroupNoticeKind.Referred] = "workgroup_notice_referred",
-            [WorkgroupNoticeKind.Registered] = "workgroup_notice_registered",
-            [WorkgroupNoticeKind.Refused] = "workgroup_notice_refused",
-            [WorkgroupNoticeKind.Withdrawn] = "workgroup_notice_withdrawn",
-            [WorkgroupNoticeKind.Ended] = "workgroup_notice_ended",
-            [WorkgroupNoticeKind.Reactivated] = "workgroup_notice_reactivated",
-            [WorkgroupNoticeKind.CoordinatorsChanged] = "workgroup_notice_coordinators_changed",
-            [WorkgroupNoticeKind.DormancyInquiry] = "workgroup_notice_dormancy_inquiry",
-            [WorkgroupNoticeKind.Delivered] = "workgroup_notice_delivered",
-            [WorkgroupNoticeKind.DispositionRecorded] = "workgroup_notice_disposition_recorded",
+            ["Email_FacilitatedMessage_Subject"] = "Humans Message from: {0}",
+            ["Email_FacilitatedMessage_Body"] =
+                "<p>Hi {0},</p><p>{1} sent you a message:</p>{2}{3}",
         };
-
-        foreach (var (kind, templateName) in expected)
+        var localizer = Substitute.For<IStringLocalizer<EmailResource>>();
+        localizer[Arg.Any<string>()].Returns(call =>
         {
-            var msg = _factory.WorkgroupNotice(new WorkgroupNoticeRequest(
-                "a@x.com", "A", kind, "Safety", "safety", Culture: "en"));
+            var key = call.Arg<string>();
+            return new LocalizedString(key, strings.GetValueOrDefault(key, key));
+        });
 
-            msg.TemplateName.Should().Be(templateName, because: $"{kind} keys its own metric");
-        }
+        return new EmailMessageFactory(localizer, NullLogger<EmailMessageFactory>.Instance);
     }
 }

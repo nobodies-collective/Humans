@@ -326,9 +326,6 @@ inbox:
     id: CENTRAL-64
     what: "docs/architecture/service-data-access-map.md's table-ownership table carries the same stale Settings claim as CENTRAL-63: 'settings_event has no consumers yet — it is populated by /Settings/Admin/Carry and read by nothing until the sections are pointed at it'. Both halves are false since nobodies-collective/Humans#1630 and nobodies-collective/Humans#1631. The row above it, 'EventSettings | Shifts | ShiftRepository', is now the Shifts-local knobs row only and reads as if it were still the app-wide one. Central doc, not a section file (/section-doctor on Settings 2026-09-21)."
     review: light
-  - added: 2026-09-20
-    what: "Email still hosts every sending section's templates. The scaffold of peterdrier/Humans#1651 landed CultureScope, IEmailPreviewContributor and a public TimeSensitiveTemplates, but the 16 per-section migrations and the teardown are not done: IEmailRenderer / IEmailMessageFactory / EmailContent still exist, 71 Email_* keys x 6 cultures still live in EmailResource.*.resx, EmailController still holds the legacy static preview table, and Humans.Email(.Contracts) still reference Events, Tickets and Campaigns contracts. Governance moves first; ownership map, per-section PR shape and gates are in the issue. Governed by memory/architecture/email-templates-live-in-sender.md."
-    review: panel
   - added: 2026-09-18
     id: CENTRAL-55
     what: "docs/guide/Glossary.md has no entry for assembly vote, the Governance lane that landed 2026-09-14 (peterdrier/Humans#1649), so the guide's own vocabulary page omits a term the Governance guide page now uses throughout. The file is shared guide input rather than section-owned (/section-doctor on Governance 2026-09-18)."
@@ -510,11 +507,6 @@ inbox:
   - added: 2026-09-10
     id: CENTRAL-37
     what: "The HUM0028 theme's caller-map note above says the LegalDocument cache invalidation runs via an EF interceptor; it has been direct service-side InvalidateAll() calls since nobodies-collective/Humans#751 (finding 19, /section-doctor on Consent 2026-08-31; swept in by /section-doctor on Rideshare 2026-09-10)."
-    review: light
-    root: CENTRAL-57
-  - added: 2026-09-10
-    id: CENTRAL-38
-    what: "docs/sections/G5-SECTION-TEMPLATE.md:341 claims the renderer lives at Humans.Infrastructure/Services/EmailRenderer.cs; it lives in the Email section (src/Sections/Humans.Email/Services/EmailRenderer.cs). Found fixing Feedback's copy of the same claim (/section-doctor on Feedback 2026-08-31; swept in by /section-doctor on Rideshare 2026-09-10)."
     review: light
     root: CENTRAL-57
   - added: 2026-09-10
