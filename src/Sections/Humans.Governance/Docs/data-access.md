@@ -45,7 +45,7 @@ Repository: `IApplicationRepository`.
 Cross-section calls via `IUserService`, `IRoleAssignmentService`,
 `IEmailService`, `IUserEmailService`, `INotificationEmitter`,
 `ISystemTeamSync`, `IAuditLogService`, `IHumansMetrics`,
-`IEmailMessageFactory`. Implements `IApplicationDecisionService` (which
+and the section's own `GovernanceEmails` builder. Implements `IApplicationDecisionService` (which
 extends `IApplicationServiceRead`), `IUserDataContributor`, `IUserMerge`.
 `EraseForUserAsync` calls `IApplicationRepository.ScrubFreeTextForUserAsync`,
 which clears the applicant's own free text (motivation, additional info,
@@ -71,7 +71,7 @@ No cache, no caching decorator — one vote at a time and ~120 voters.
 
 Cross-section calls via `IUserServiceRead`, `IUserEmailService`,
 `IRoleAssignmentService`, `ITeamServiceRead`, `IEmailService`,
-`IEmailMessageFactory`, `INotificationEmitter`,
+the section's own `GovernanceEmails` builder, `INotificationEmitter`,
 `INotificationAutoResolve`, `IAuditLogService`, `IGoogleTranslationService`,
 `IClock`. Implements
 `IAssemblyVoteService`, `IUserDataContributor`, `IUserMerge`. Nothing on
@@ -133,6 +133,20 @@ No repository. Read-only fan-out over `ITeamServiceRead`,
 No repository. Read-only assembly of the governance index view over
 `IApplicationServiceRead`, `ILegalDocumentService`, `IUserServiceRead`.
 No DB access, no cache.
+
+### GovernanceEmails (Scoped, internal)
+
+No repository. Pure builder — reads `GovernanceResource` (via
+`IStringLocalizer<GovernanceResource>`) and `EmailSettings`, writes
+nothing. Returns `EmailMessage` values for `ApplicationDecisionService`
+and `AssemblyVoteService` to pass to `IEmailService.SendAsync`. No DB
+access, no cache.
+
+### GovernanceEmailPreviews (Scoped)
+
+No repository. Read-only gallery contributor (`IEmailPreviewContributor`,
+`Section.cs:88`) — builds one sample per template via `GovernanceEmails`
+for `/Email/EmailPreview`. No DB access, no cache.
 
 ---
 
