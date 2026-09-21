@@ -569,7 +569,7 @@
                         </div>
                         <span class="wg-card-path">src/Sections/Humans.Calendar/Contracts/UserCalendarViewComponent.cs</span>
                     </div>
-                    <div class="wg-card-note">Admin view of a human's personal iCal feed — the exact items /api/ical serializes (shift signups + favourited events). Never shows the secret feed URL.</div>
+                    <div class="wg-card-note">Admin view of a human's personal iCal feed — the exact items /api/ical serializes (shift signups, favourited events, and meetings of the active workgroups they belong to). Never shows the secret feed URL.</div>
                     @ParamsBlock(
                         ("userId", "<code>Guid</code> — required")
                     )
@@ -855,6 +855,28 @@
                 <div class="wg-card">
                     <div class="wg-card-header">
                         <div>
+                            <span class="wg-card-name">&lt;vc:user-parts&gt;</span>
+                            <span class="wg-card-kind kind-vc">ViewComponent</span>
+                        </div>
+                        <span class="wg-card-path">src/Sections/Humans.Users/ViewComponents/UserPartsViewComponent.cs + each contributing section&#39;s Section.cs</span>
+                    </div>
+                    <div class="wg-card-note">
+                        The section-contributed parts of a profile page, merged from every active section's
+                        <code>IUserPart</code> descriptors for the target user and rendered in weight order (Events' card is
+                        the reference contributor). Users names no contributor; a contributor that throws is logged and skipped.
+                        Renders nothing when no section contributes.
+                    </div>
+                    @ParamsBlock(
+                        ("user-id", "<code>Guid</code>, required: the profile being viewed, never the viewer")
+                    )
+                    <div class="wg-card-example">
+                        <vc:user-parts user-id="@Model.CurrentUserId" />
+                    </div>
+                </div>
+
+                <div class="wg-card">
+                    <div class="wg-card-header">
+                        <div>
                             <span class="wg-card-name">&lt;vc:access-matrix&gt;</span>
                             <span class="wg-card-kind kind-vc">ViewComponent</span>
                         </div>
@@ -862,7 +884,7 @@
                     </div>
                     <div class="wg-card-note">Section-help bundle: guide markdown + glossary + access matrix. Renders nothing for sections with no help content registered.</div>
                     @ParamsBlock(
-                        ("section", "<code>string</code> — section key from <code>AccessMatrixDefinitions.Sections</code> (e.g. teams, shifts, profile)")
+                        ("section", "<code>string</code> — access-matrix key a section contributes through <code>ISectionAccessMatrix</code> (e.g. Teams, Shifts, Profile)")
                     )
                     <div class="wg-card-example">
                         <vc:access-matrix section="Teams" />
@@ -1122,6 +1144,38 @@
                             <i class="fa-solid fa-circle-info me-1"></i> Open Markdown help
                         </button>
                         @await Html.PartialAsync("_MarkdownHelp")
+                    </div>
+                </div>
+
+                <div class="wg-card">
+                    <div class="wg-card-header">
+                        <div>
+                            <span class="wg-card-name">_EmailComposer.cshtml</span>
+                            <span class="wg-card-kind kind-pa">Partial</span>
+                        </div>
+                        <span class="wg-card-path">src/Humans.Base/Views/Shared/_EmailComposer.cshtml</span>
+                    </div>
+                    <div class="wg-card-note">
+                        Shared human-composed-email component: optional subject field, an EasyMDE Markdown body
+                        (<code>&lt;markdown-editor&gt;</code>), and a "Preview" button showing the exact branded,
+                        sanitized send via <code>/Email/PreviewMarkdown</code> (no outbox row is created). Every
+                        compose form — profile message, camp contact, rota messages, survey invitation, feedback
+                        reply, issue comment, campaign — renders through this one component.
+                    </div>
+                    @ParamsBlock(
+                        ("@@model", "<code>EmailComposerViewModel</code> — BodyName/BodyValue/BodyLabel/BodyRows/BodyRequired/BodyMaxLength/BodyHelpText/BodyPlaceholder/BodyLabelVisuallyHidden, optional SubjectName/SubjectValue/SubjectLabel/SubjectRequired/SubjectMaxLength, Category (a <code>MessageCategory</code> name — drives the placeholder unsubscribe footer in the preview), and PreviewSubjectName/PreviewModalId/IncludePreviewModal for hosts with more than one instance on a page or that inject this partial via AJAX (Feedback/Issues)")
+                    )
+                    <div class="wg-card-example">
+                        @await Html.PartialAsync("_EmailComposer", new Humans.Base.Models.EmailComposerViewModel
+                        {
+                            SubjectName = "widget-gallery-email-subject",
+                            SubjectValue = "A message from the gallery",
+                            SubjectLabel = "Subject",
+                            BodyName = "widget-gallery-email-body",
+                            BodyValue = "**Hello** — this is a _preview_ of a human-composed email.",
+                            BodyLabel = "Message",
+                            Category = nameof(Humans.Users.Contracts.MessageCategory.FacilitatedMessages),
+                        })
                     </div>
                 </div>
             </section>

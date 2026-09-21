@@ -55,7 +55,6 @@
   <data name="Survey_Start" xml:space="preserve"><value>Start</value></data>
   <data name="Survey_Continue" xml:space="preserve"><value>Continue</value></data>
   <data name="Survey_PageOf" xml:space="preserve"><value>Page {0} of {1}</value></data>
-  <data name="Survey_RequiredAlert" xml:space="preserve"><value>Please answer the required questions before continuing.</value></data>
   <data name="Survey_QuestionRequired" xml:space="preserve"><value>This question is required.</value></data>
   <data name="Survey_ValidationAlert" xml:space="preserve"><value>Please check the highlighted answers before continuing.</value></data>
   <data name="Survey_AnswerInvalid" xml:space="preserve"><value>Please check this answer and try again.</value></data>
@@ -148,7 +147,7 @@
   <data name="Survey_Admin_Builder_SlugPlaceholder" xml:space="preserve"><value>e.g. feedback-2026</value></data>
   <data name="Survey_Admin_Builder_SlugHelp" xml:space="preserve"><value>Anonymous surveys allow anyone with the link. Identified surveys require sign-in and, when configured, current audience eligibility.</value></data>
   <data name="Survey_Admin_Builder_InvitationEmailHeader" xml:space="preserve"><value>Invitation email</value></data>
-  <data name="Survey_Admin_Builder_InvitationEmailIntro" xml:space="preserve"><value>Customize the initial invitation. Humans adds the greeting, survey title, survey-link button, and sign-off. The message supports Markdown formatting, but not images. Leave either field blank to use the standard wording.</value></data>
+  <data name="Survey_Admin_Builder_InvitationEmailIntro" xml:space="preserve"><value>Customize the initial invitation. Humans adds the greeting, survey title, survey-link button, and sign-off. The message supports Markdown formatting, including https:// images. Leave either field blank to use the standard wording.</value></data>
   <data name="Survey_Admin_Builder_Field_EmailSubject" xml:space="preserve"><value>Email subject</value></data>
   <data name="Survey_Admin_Builder_Field_EmailMessage" xml:space="preserve"><value>Email message</value></data>
   <data name="Survey_Admin_Builder_QuestionsHeader" xml:space="preserve"><value>Questions</value></data>
@@ -307,4 +306,17 @@
   <data name="Survey_Admin_Builder_Saved_TranslationFailed" xml:space="preserve">
     <value>Survey saved, but translation failed: {0}</value>
   </data>
+  <data name="Surveys_Email_SurveyInvitation_Subject" xml:space="preserve"><value>Please complete: {0}</value><comment>{0} = survey title</comment></data>
+  <data name="Surveys_Email_SurveyInvitation_Body" xml:space="preserve"><value>&lt;h2&gt;{1}&lt;/h2&gt;
+&lt;p&gt;Hi {0},&lt;/p&gt;
+{3}
+&lt;p&gt;&lt;a href="{2}"&gt;Open the survey&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Thank you,&lt;br/&gt;The Nobodies Collective&lt;/p&gt;</value><comment>{0} = user name, {1} = survey title, {2} = answer URL, {3} = encoded invitation message HTML</comment></data>
+  <data name="Surveys_Email_SurveyInvitation_DefaultMessage" xml:space="preserve"><value>You're invited to complete the survey &lt;strong&gt;{0}&lt;/strong&gt;. It only takes a few minutes.</value><comment>{0} = HTML-encoded survey title</comment></data>
+  <data name="Surveys_Email_SurveyReminder_Subject" xml:space="preserve"><value>Reminder: {0}</value><comment>{0} = survey title</comment></data>
+  <data name="Surveys_Email_SurveyReminder_Body" xml:space="preserve"><value>&lt;h2&gt;{1}&lt;/h2&gt;
+&lt;p&gt;Hi {0},&lt;/p&gt;
+&lt;p&gt;Just a reminder that the survey &lt;strong&gt;{1}&lt;/strong&gt; is still waiting for your response.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}"&gt;Open the survey&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Thank you,&lt;br/&gt;The Nobodies Collective&lt;/p&gt;</value><comment>{0} = user name, {1} = survey title, {2} = answer URL</comment></data>
 </root>

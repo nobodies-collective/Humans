@@ -60,7 +60,6 @@
   <data name="Survey_Start" xml:space="preserve"><value>Començar</value></data>
   <data name="Survey_Continue" xml:space="preserve"><value>Continuar</value></data>
   <data name="Survey_PageOf" xml:space="preserve"><value>Pàgina {0} de {1}</value></data>
-  <data name="Survey_RequiredAlert" xml:space="preserve"><value>Si us plau, respon les preguntes obligatòries abans de continuar.</value></data>
   <data name="Survey_QuestionRequired" xml:space="preserve"><value>Aquesta pregunta és obligatòria.</value></data>
   <data name="Survey_ValidationAlert" xml:space="preserve"><value>Revisa les respostes ressaltades abans de continuar.</value></data>
   <data name="Survey_AnswerInvalid" xml:space="preserve"><value>Revisa aquesta resposta i torna-ho a provar.</value></data>
@@ -153,7 +152,7 @@
   <data name="Survey_Admin_Builder_SlugPlaceholder" xml:space="preserve"><value>p. ex. feedback-2026</value></data>
   <data name="Survey_Admin_Builder_SlugHelp" xml:space="preserve"><value>Les enquestes anònimes permeten l'accés a qualsevol persona amb l'enllaç. Les enquestes identificades requereixen iniciar sessió i, si està configurat, complir els requisits d'audiència actuals.</value></data>
   <data name="Survey_Admin_Builder_InvitationEmailHeader" xml:space="preserve"><value>Correu d'invitació</value></data>
-  <data name="Survey_Admin_Builder_InvitationEmailIntro" xml:space="preserve"><value>Personalitza la invitació inicial. Humans afegeix la salutació, el títol de l'enquesta, el botó amb l'enllaç i l'acomiadament. El missatge admet format Markdown, però no imatges. Deixa qualsevol dels camps en blanc per utilitzar el text estàndard.</value></data>
+  <data name="Survey_Admin_Builder_InvitationEmailIntro" xml:space="preserve"><value>Personalitza la invitació inicial. Humans afegeix la salutació, el títol de l'enquesta, el botó amb l'enllaç i l'acomiadament. El missatge admet format Markdown, incloses imatges https://. Deixa qualsevol dels camps en blanc per utilitzar el text estàndard.</value></data>
   <data name="Survey_Admin_Builder_Field_EmailSubject" xml:space="preserve"><value>Assumpte del correu</value></data>
   <data name="Survey_Admin_Builder_Field_EmailMessage" xml:space="preserve"><value>Missatge del correu</value></data>
   <data name="Survey_Admin_Builder_QuestionsHeader" xml:space="preserve"><value>Preguntes</value></data>
@@ -312,4 +311,17 @@
   <data name="Survey_Admin_Builder_Saved_TranslationFailed" xml:space="preserve">
     <value>Enquesta desada, però la traducció ha fallat: {0}</value>
   </data>
+  <data name="Surveys_Email_SurveyInvitation_Subject" xml:space="preserve"><value>Si us plau, completa: {0}</value></data>
+  <data name="Surveys_Email_SurveyInvitation_Body" xml:space="preserve"><value>&lt;h2&gt;{1}&lt;/h2&gt;
+&lt;p&gt;Hola {0},&lt;/p&gt;
+{3}
+&lt;p&gt;&lt;a href="{2}"&gt;Obre l'enquesta&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Gràcies,&lt;br/&gt;El Nobodies Collective&lt;/p&gt;</value></data>
+  <data name="Surveys_Email_SurveyInvitation_DefaultMessage" xml:space="preserve"><value>Estàs convidat/da a completar l'enquesta &lt;strong&gt;{0}&lt;/strong&gt;. Només et portarà uns minuts.</value></data>
+  <data name="Surveys_Email_SurveyReminder_Subject" xml:space="preserve"><value>Recordatori: {0}</value></data>
+  <data name="Surveys_Email_SurveyReminder_Body" xml:space="preserve"><value>&lt;h2&gt;{1}&lt;/h2&gt;
+&lt;p&gt;Hola {0},&lt;/p&gt;
+&lt;p&gt;Només un recordatori que l'enquesta &lt;strong&gt;{1}&lt;/strong&gt; encara espera la teva resposta.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}"&gt;Obre l'enquesta&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Gràcies,&lt;br/&gt;El Nobodies Collective&lt;/p&gt;</value></data>
 </root>

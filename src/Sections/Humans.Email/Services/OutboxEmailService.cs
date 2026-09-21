@@ -12,13 +12,12 @@ namespace Humans.Email.Services;
 /// <summary>
 /// Application-layer implementation of <see cref="IEmailService"/>: the single
 /// transport path for outbound email. Given a fully-rendered
-/// <see cref="EmailMessage"/> (built by <see cref="IEmailMessageFactory"/>), it
+/// <see cref="EmailMessage"/> (built by the sending section), it
 /// applies opt-out suppression and List-Unsubscribe headers for opt-outable
 /// categories, wraps the body with <see cref="IEmailBodyComposer"/>, appends a row
 /// to the outbox through <see cref="IEmailOutboxRepository"/>, records the
-/// per-template metric, and — for time-sensitive templates that set
-/// <see cref="EmailMessage.TriggerImmediate"/> — runs the processor immediately
-/// through <see cref="IImmediateOutboxProcessor"/>. SMTP-send lives in
+/// per-template metric, and — for the <see cref="TimeSensitiveTemplates"/> — runs the
+/// processor immediately through <see cref="IImmediateOutboxProcessor"/>. SMTP-send lives in
 /// <c>ProcessEmailOutboxJob</c> — except for <see cref="EmailMessage.DoNotPersist"/>
 /// messages, which go straight to <see cref="IEmailTransport"/> here because they
 /// must leave no stored copy of the recipient.
@@ -61,13 +60,19 @@ internal sealed class OutboxEmailService(
         }
 
         string? unsubscribeUrl = null;
-        string? extraHeadersJson = null;
+        var headers = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Feedback-ID"] = BuildFeedbackId(message, category)
+        };
         if (optOutEligible && userId.HasValue)
         {
-            var headers = commPrefService.GenerateUnsubscribeHeaders(userId.Value, category!.Value);
-            extraHeadersJson = JsonSerializer.Serialize(headers);
+            foreach (var (name, value) in commPrefService.GenerateUnsubscribeHeaders(userId.Value, category!.Value))
+            {
+                headers[name] = value;
+            }
             unsubscribeUrl = commPrefService.GenerateBrowserUnsubscribeUrl(userId.Value, category.Value);
         }
+        var extraHeadersJson = JsonSerializer.Serialize(headers);
 
         var (wrappedHtml, plainText) = bodyComposer.Compose(message.HtmlBody, unsubscribeUrl);
 
@@ -78,7 +83,7 @@ internal sealed class OutboxEmailService(
             // address for the same reason.
             await transport.SendAsync(
                 message.RecipientEmail, message.RecipientName, message.Subject,
-                wrappedHtml, plainText, message.ReplyTo, cancellationToken: cancellationToken);
+                wrappedHtml, plainText, message.ReplyTo, headers, cancellationToken: cancellationToken);
 
             metrics.RecordEmailQueued(message.TemplateName);
             logger.LogInformation(
@@ -108,10 +113,22 @@ internal sealed class OutboxEmailService(
         metrics.RecordEmailQueued(message.TemplateName);
         logger.LogInformation("Email queued: {TemplateName} to {Recipient}", message.TemplateName, message.RecipientEmail);
 
-        if (message.TriggerImmediate)
+        // Derived from the template name, not a message field: the same list the
+        // repository orders the batch by, so drain and queue order cannot drift.
+        if (TimeSensitiveTemplates.Names.Contains(message.TemplateName, StringComparer.Ordinal))
         {
             immediateProcessor.TriggerImmediate();
             logger.LogInformation("Triggered immediate outbox processing for {TemplateName}", message.TemplateName);
         }
     }
+
+    /// <summary>
+    /// Google Postmaster Feedback-ID: <c>templateName:campaignId-or-none:category:humans-nobodies</c>.
+    /// Template name is the primary identifier; campaign id (shared by every grant in
+    /// the campaign — <see cref="EmailMessage.CampaignGrantId"/> is per-recipient and
+    /// would not aggregate) and category refine it. SenderId (<c>humans-nobodies</c>,
+    /// 15 chars — within Google's 5-15 char SenderId requirement) is last and constant.
+    /// </summary>
+    private static string BuildFeedbackId(EmailMessage message, MessageCategory? category) =>
+        $"{message.TemplateName}:{message.CampaignId?.ToString() ?? "none"}:{category?.ToString() ?? "none"}:humans-nobodies";
 }

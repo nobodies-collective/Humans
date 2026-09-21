@@ -1,9 +1,12 @@
+using Humans.Base.Constants;
+using Humans.Issues.Contracts;
 using Humans.GoogleIntegration.Contracts;
 using Humans.Base.Interfaces;
 using Humans.Teams.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Humans.Base.Interfaces.Caching;
 using Humans.EarlyEntry.Contracts;
+using Humans.Email.Contracts;
 using Humans.Gdpr.Contracts;
 using Humans.Base.Hosting;
 using Humans.Teams.Contracts;
@@ -21,7 +24,7 @@ namespace Humans.Teams;
 /// the whole team graph at startup and clears it wholesale on every write; the keyed inner
 /// service is Scoped because it owns the repository's unit of work.
 /// </summary>
-public sealed class Section : ISection
+public sealed class Section : ISection, IIssueQueueOwner
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
@@ -55,6 +58,11 @@ public sealed class Section : ISection
 
         services.AddScoped<IActiveTeamsCacheInvalidator, ActiveTeamsCacheInvalidator>();
 
+        // Teams owns its email copy and its gallery samples; Email keeps the mechanics
+        // (memory/architecture/email-templates-live-in-sender.md).
+        services.AddScoped<TeamsEmails>();
+        services.AddScoped<IEmailPreviewContributor, TeamsEmailPreviews>();
+
         // The system-team reconciler; Hangfire resolves it from DI at execution time.
         services.AddScoped<ISystemTeamSync, SystemTeamSyncJob>();
 
@@ -66,4 +74,10 @@ public sealed class Section : ISection
         services.AddSingleton<TeamsMetricsService>();
         services.AddHostedService(sp => sp.GetRequiredService<TeamsMetricsService>());
     }
+
+    // This section owns the issue queue its members' reports land in; Issues discovers
+    // the seam rather than holding a list of sections (memory/architecture/section-contribution-seams.md).
+    string IIssueQueueOwner.QueueKey => "Teams";
+
+    IReadOnlyList<string> IIssueQueueOwner.OwningRoles => [RoleNames.TeamsAdmin];
 }

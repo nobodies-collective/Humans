@@ -48,9 +48,9 @@ cantina-style). `ITeamRepository` has an EE-grant surface
 `FindEarlyEntryGrantForMutationAsync`, `Add/Update/RemoveEarlyEntryGrantAsync`,
 `ReassignEarlyEntryGrantsAsync`, `RemoveEarlyEntryGrantsForUserAsync`),
 backed by the `team_early_entry_grants` table that `TeamRepository` owns.
-`TeamService` injects `IEarlyEntryInvalidator` and contributes a
-`GdprExportSections.TeamEarlyEntry` GDPR slice; the `IUserMerge` path
-reassigns grants across the merge.
+`TeamService` injects `IEarlyEntryInvalidator` and contributes a GDPR slice
+under the export key declared as `TeamService.TeamEarlyEntry`; the
+`IUserMerge` path reassigns grants across the merge.
 
 Team search is cache-only: `CachingTeamService.SearchAsync` filters the
 cached `TeamInfo` snapshot (hidden teams excluded unless requested); the
@@ -115,8 +115,21 @@ snapshot, never the DB. Surfaced on `/Debug/CacheStats`.
 
 Read-only assemblers — no repository, no cache. `TeamPageService` fans out
 over `ITeamManagementService`, `ITeamResourceService`,
-`IShiftManagementServiceRead`, `IBurnSettingsService` and `IUserServiceRead`;
+`IShiftManagementServiceRead`, `ISettingsService` and `IUserServiceRead`;
 the mapper and the directory builder are pure.
+
+### TeamsEmails (Scoped, internal)
+
+No repository. Pure builder — reads `TeamsResource` (via
+`IStringLocalizer<TeamsResource>`) and `EmailSettings`, writes nothing.
+Returns `EmailMessage` values for `TeamService` and `SystemTeamSyncJob` to
+pass to `IEmailService.SendAsync`. No DB access, no cache.
+
+### TeamsEmailPreviews (Scoped)
+
+No repository. Read-only gallery contributor (`IEmailPreviewContributor`,
+registered in `Section.Register`) — builds one sample per template via
+`TeamsEmails` for `/Email/EmailPreview`. No DB access, no cache.
 
 ---
 

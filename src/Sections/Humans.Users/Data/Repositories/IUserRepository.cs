@@ -35,16 +35,6 @@ internal partial interface IUserRepository : IRepository
     /// </summary>
     Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default);
 
-    /// <summary>
-    /// Finds a user whose legacy <c>GoogleEmail</c> shadow column matches the given
-    /// normalized address (case-insensitive). If <paramref name="alternateEmail"/>
-    /// is non-null, also matches the alternate form. Canonical
-    /// <c>user_emails</c> matching is owned by the UserEmail methods on this repository.
-    /// Read-only.
-    /// </summary>
-    Task<User?> GetByEmailOrAlternateAsync(
-        string normalizedEmail, string? alternateEmail, CancellationToken ct = default);
-
     // ==========================================================================
     // Writes — User (atomic field updates)
     // ==========================================================================
@@ -58,11 +48,6 @@ internal partial interface IUserRepository : IRepository
     /// Sets <c>User.PreferredLanguage</c>. Returns false if the user does not exist.
     /// </summary>
     Task<bool> SetPreferredLanguageAsync(Guid userId, string preferredLanguage, CancellationToken ct = default);
-
-    /// <summary>
-    /// Sets <c>User.ICalToken</c>. Returns false if the user does not exist.
-    /// </summary>
-    Task<bool> SetICalTokenAsync(Guid userId, Guid token, CancellationToken ct = default);
 
     /// <summary>
     /// Stamps <c>User.LastLoginAt</c>. Returns false if the user does not exist.
@@ -213,7 +198,7 @@ internal partial interface IUserRepository : IRepository
     /// <summary>
     /// Returns all participation records for a given user (across all years),
     /// ordered by year ascending. Read-only (AsNoTracking). Used by the GDPR
-    /// export contributor under <c>GdprExportSections.EventParticipations</c>.
+    /// export contributor under the <c>EventParticipations</c> key.
     /// </summary>
     Task<IReadOnlyList<EventParticipation>> GetEventParticipationsByUserIdAsync(
         Guid userId, CancellationToken ct = default);

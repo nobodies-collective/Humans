@@ -1,5 +1,8 @@
 {
   "outputStyle": "Concise",
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -51,6 +54,17 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/block-data-migration-hook.sh\"",
             "timeout": 10,
             "statusMessage": "Checking for data migration..."
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/block-inherited-subagent-model.sh\"",
+            "timeout": 5,
+            "statusMessage": "Checking subagent model tier..."
           }
         ]
       }

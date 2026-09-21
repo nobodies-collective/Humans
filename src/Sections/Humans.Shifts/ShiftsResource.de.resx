@@ -1070,7 +1070,7 @@
     <value>Deine Nachricht</value>
   </data>
   <data name="EmailRota_MessageHelp" xml:space="preserve">
-    <value>Nur Klartext. Jeder Empf&#xE4;nger sieht diesen Text zusammen mit seiner eigenen Schichtliste f&#xFC;r diesen Dienstplan.</value>
+    <value>Jeder Empf&#xE4;nger sieht diesen Text zusammen mit seiner eigenen Schichtliste f&#xFC;r diesen Dienstplan.</value>
   </data>
   <data name="EmailRota_Button" xml:space="preserve">
     <value>E-Mail an einen Dienstplan senden</value>
@@ -1103,7 +1103,7 @@
     <value>Deine Nachricht</value>
   </data>
   <data name="EmailTeamRotas_MessageHelp" xml:space="preserve">
-    <value>Nur Klartext. Jeder Empf&#xE4;nger sieht diesen Text zusammen mit seiner eigenen Schichtliste &#xFC;ber die kommenden Dienstpl&#xE4;ne des Teams hinweg.</value>
+    <value>Jeder Empf&#xE4;nger sieht diesen Text zusammen mit seiner eigenen Schichtliste &#xFC;ber die kommenden Dienstpl&#xE4;ne des Teams hinweg.</value>
   </data>
   <data name="EmailTeamRotas_Send" xml:space="preserve">
     <value>An {0} Empf&#xE4;nger senden</value>
@@ -1171,18 +1171,27 @@
   <data name="DietaryMissingBanner_Body" xml:space="preserve"><value>You're signed up for a long shift. The cantina can't plan your meals until you tell us your food preferences.</value></data>
   <data name="DietaryMissingBanner_Cta" xml:space="preserve"><value>Tell us now</value></data>
   <data name="Shifts_ViewAllMyShifts" xml:space="preserve"><value>Alle meine Schichten anzeigen</value></data>
-  <data name="Shifts_IcalFeedTitle" xml:space="preserve"><value>iCal-Feed</value></data>
-  <data name="Shifts_IcalFeedHelp" xml:space="preserve"><value>Abonniere deine Schichten und gespeicherten Events in deiner Kalender-App:</value></data>
-  <data name="Shifts_IcalCopy" xml:space="preserve"><value>Kopieren</value></data>
-  <data name="Shifts_IcalRegenerateConfirm" xml:space="preserve"><value>Dadurch wird die aktuelle URL ungültig. Fortfahren?</value></data>
-  <data name="Shifts_IcalRegenerate" xml:space="preserve"><value>URL neu erzeugen</value></data>
   <data name="Shifts_SortOrder" xml:space="preserve"><value>Sortierung</value></data>
   <data name="Shifts_BailRangeSuccess" xml:space="preserve"><value>Du hast die Schichtreihe abgesagt.</value></data>
   <data name="Shifts_BailFailed" xml:space="preserve"><value>Absagen der Schicht fehlgeschlagen.</value></data>
   <data name="Shifts_BailSuccess" xml:space="preserve"><value>Du hast die Schicht abgesagt.</value></data>
   <data name="Shifts_AvailabilityUpdated" xml:space="preserve"><value>Verfügbarkeit aktualisiert.</value></data>
-  <data name="Shifts_IcalRegenerated" xml:space="preserve"><value>iCal-URL neu erzeugt.</value></data>
   <data name="Shifts_TagPreferencesSaved" xml:space="preserve"><value>Tag-Einstellungen gespeichert.</value></data>
   <data name="VolTrack_Msg_DayOffNotSet" xml:space="preserve"><value>Für diesen Tag war kein freier Tag markiert.</value></data>
   <data name="Shifts_AccountCannotSignUp" xml:space="preserve"><value>Mit deinem Konto kannst du dich nicht für Schichten anmelden.</value></data>
+  <data name="Shifts_Email_CoordinatorRotaMessage_Subject" xml:space="preserve">
+    <value>Eine Nachricht zu deinen Schichten in {0}</value>
+  </data>
+  <data name="Shifts_Email_CoordinatorRotaMessage_Body" xml:space="preserve">
+    <value>&lt;p&gt;Liebe/r {0},&lt;/p&gt;&lt;p&gt;Eine Nachricht vom Koordinator von &lt;strong&gt;{2}&lt;/strong&gt;:&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;{3}&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;Zur Info, deine Schichten in diesem Dienstplan sind:&lt;/p&gt;{4}&lt;p&gt;Danke,&lt;/p&gt;{5}</value>
+  </data>
+  <data name="Shifts_Email_CoordinatorRotaMessage_NoShifts" xml:space="preserve">
+    <value>(noch keine Schichten in diesem Dienstplan)</value>
+  </data>
+  <data name="Shifts_Email_CoordinatorTeamRotasMessage_Subject" xml:space="preserve">
+    <value>Eine Nachricht zu deinen Schichten bei {0}</value>
+  </data>
+  <data name="Shifts_Email_CoordinatorTeamRotasMessage_Body" xml:space="preserve">
+    <value>&lt;p&gt;Liebe/r {0},&lt;/p&gt;&lt;p&gt;Eine Nachricht vom Koordinator von &lt;strong&gt;{2}&lt;/strong&gt;:&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;{3}&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;Zur Info, deine Schichten in den kommenden Dienstpl&#xE4;nen dieses Teams:&lt;/p&gt;{4}&lt;p&gt;Danke,&lt;/p&gt;{5}</value>
+  </data>
 </root>

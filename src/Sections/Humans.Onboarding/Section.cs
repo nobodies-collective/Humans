@@ -1,4 +1,7 @@
+using Humans.Base.Constants;
+using Humans.Issues.Contracts;
 using Humans.Base.Interfaces;
+using Humans.Email.Contracts;
 using Humans.Onboarding.Contracts;
 using Humans.Onboarding.Services;
 using Microsoft.Extensions.Configuration;
@@ -22,7 +25,7 @@ namespace Humans.Onboarding;
 /// request. No controller injects <c>OnboardingService</c> directly.
 /// </para>
 /// </remarks>
-public sealed class Section : ISection
+public sealed class Section : ISection, IIssueQueueOwner
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
@@ -34,7 +37,18 @@ public sealed class Section : ISection
         services.AddScoped<IOnboardingService>(sp => sp.GetRequiredService<OnboardingService>());
         services.AddScoped<IOnboardingIntake>(sp => sp.GetRequiredService<OnboardingService>());
 
+        // Onboarding owns its email copy and its gallery samples; Email keeps the mechanics
+        // (memory/architecture/email-templates-live-in-sender.md).
+        services.AddScoped<OnboardingEmails>();
+        services.AddScoped<IEmailPreviewContributor, OnboardingEmailPreviews>();
+
         services.AddScoped<IOnboardingWidgetState, OnboardingWidgetState>();
         services.AddScoped<IOnboardingWidgetSessionState, HttpOnboardingWidgetSessionState>();
     }
+
+    // This section owns the issue queue its members' reports land in; Issues discovers
+    // the seam rather than holding a list of sections (memory/architecture/section-contribution-seams.md).
+    string IIssueQueueOwner.QueueKey => "Onboarding";
+
+    IReadOnlyList<string> IIssueQueueOwner.OwningRoles => [RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator, RoleNames.HumanAdmin];
 }

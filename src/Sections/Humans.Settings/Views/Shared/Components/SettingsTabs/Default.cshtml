@@ -1,0 +1,69 @@
+@using Humans.Settings.Contracts
+@model IReadOnlyList<SettingsTab>
+@* TabsLocalizer, not the section's own Localizer (SettingsResource, injected by
+   _ViewImports): a tab label is a SharedResource key because the contributing section's
+   own resource set is private to it (see SettingsTab.Label). *@
+@inject IStringLocalizer<Humans.Base.SharedResource> TabsLocalizer
+
+@if (Model.Count == 0)
+{
+    <p class="text-muted">@Localizer["Settings_NoTabs"]</p>
+}
+else
+{
+    <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+        @for (var i = 0; i < Model.Count; i++)
+        {
+            var tab = Model[i];
+            var isActive = i == 0;
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(isActive ? "active" : "")" id="settingsTabs-tab-@tab.Key"
+                        data-bs-toggle="tab" data-bs-target="#settingsTabs-panel-@tab.Key" type="button"
+                        role="tab" aria-controls="settingsTabs-panel-@tab.Key"
+                        aria-selected="@(isActive ? "true" : "false")">
+                    @TabsLocalizer[tab.Label]
+                </button>
+            </li>
+        }
+    </ul>
+
+    <div class="tab-content p-3" id="settingsTabsContent">
+        @for (var i = 0; i < Model.Count; i++)
+        {
+            var tab = Model[i];
+            var isActive = i == 0;
+            <div class="tab-pane fade @(isActive ? "show active" : "")" id="settingsTabs-panel-@tab.Key"
+                 role="tabpanel" aria-labelledby="settingsTabs-tab-@tab.Key">
+                @await Component.InvokeAsync(tab.ComponentName)
+            </div>
+        }
+    </div>
+
+    @* Settings POSTs redirect back to /Settings#<key>; Bootstrap does not read the
+       fragment, so without this the save lands on the first tab. Nonce is injected by
+       NonceTagHelper, which claims every <script>. *@
+    <script>
+        (function () {
+            var strip = document.getElementById('settingsTabs');
+            if (!strip) return;
+
+            function activateFromHash() {
+                var key = window.location.hash.slice(1);
+                if (!key) return;
+                var button = document.getElementById('settingsTabs-tab-' + key);
+                if (button) bootstrap.Tab.getOrCreateInstance(button).show();
+            }
+
+            // Bootstrap's bundle loads at the end of _Layout, after this element.
+            document.addEventListener('DOMContentLoaded', function () {
+                if (!window.bootstrap) return;
+                activateFromHash();
+                window.addEventListener('hashchange', activateFromHash);
+                strip.addEventListener('shown.bs.tab', function (e) {
+                    var key = e.target.id.replace('settingsTabs-tab-', '');
+                    history.replaceState(null, '', '#' + key);
+                });
+            });
+        })();
+    </script>
+}

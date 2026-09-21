@@ -33,9 +33,10 @@ internal sealed class SystemTeamSyncJob(
     IServiceProvider serviceProvider,
     IGoogleSyncService googleSyncService,
     IGoogleGroupSync googleGroupSync,
+    IGoogleDriveActivityClient googleClient,
     IAuditLogService auditLogService,
     IEmailService emailService,
-    IEmailMessageFactory emailMessages,
+    TeamsEmails emailMessages,
     IRoleAssignmentClaimsCacheInvalidator roleAssignmentClaimsInvalidator,
     IHumansMetrics metrics,
     ILogger<SystemTeamSyncJob> logger,
@@ -74,7 +75,16 @@ internal sealed class SystemTeamSyncJob(
             await SyncColaboradorsTeamAsync(report, cancellationToken);
             await SyncBarrioLeadsTeamAsync(report, cancellationToken);
 
-            await googleGroupSync.ReconcileAllAsync(SyncAction.Execute, cancellationToken);
+            // Without credentials the group reconciler runs against in-memory stubs and would
+            // record successful sync-log rows; the team membership work above still lands.
+            if (googleClient.IsConfigured)
+            {
+                await googleGroupSync.ReconcileAllAsync(SyncAction.Execute, cancellationToken);
+            }
+            else
+            {
+                logger.LogInformation("Skipping Google Group reconcile after system team sync because Google Workspace is not configured");
+            }
 
             metrics.RecordJobRun("system_team_sync", "success");
             logger.LogInformation("Completed system team sync");
@@ -554,7 +564,11 @@ internal sealed class SystemTeamSyncJob(
             step?.Added(userId, userName);
             addedAudits.Add((userId, userName));
 
-            await googleSyncService.AddUserToTeamResourcesAsync(team.Id, userId, cancellationToken);
+            await googleSyncService.AddUserToTeamResourcesAsync(
+                team.Id,
+                userId,
+                cancellationToken,
+                GoogleSyncSource.SystemTeamSync);
         }
 
         var removedAudits = new List<(Guid UserId, string UserName)>();

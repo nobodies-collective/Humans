@@ -10,7 +10,8 @@ Owns `surveys`,
 `survey_questions`, `survey_question_options`, `survey_invitations`,
 `survey_responses`, `survey_answers`. GDPR-compliant first-party survey
 platform with authoring, invite/reminder dispatch, wizard flow, results
-aggregation, and full GDPR Article 15 export of identified responses.
+aggregation, and full GDPR Article 15 export of identified responses and
+authored surveys.
 
 `SurveyRepository` is registered as a **Singleton** (uses `IDbContextFactory`
 pattern). `SurveyService` is **Scoped** with no caching decorator (per the spec:
@@ -22,7 +23,7 @@ single-member `ISurveyReminderSender`, which the section's own
 machine API reads. Everything else — authoring, sending, the wizard, submission —
 has no caller outside Surveys.
 
-### SurveyService (Scoped — `ISurveyService`, `IUserDataContributor`)
+### SurveyService (Scoped — `ISurveyService`, `ISurveyReminderSender`, `IUserDataContributor`, `IUserMerge`)
 
 `ISurveyService` also carries `ISurveyAnalysisRead` — Backdoor's read-only
 machine-API surface (survey list, one survey's question graph, the raw
@@ -46,15 +47,20 @@ enumeration, display-name stitching in results / export), `ITicketServiceRead`
 `SurveyAudienceType.TicketHolders`), `IShiftView` (audience resolution —
 shift participants for `SurveyAudienceType.ShiftParticipants`),
 `IUserEmailService` (notification email per invitee), `IEmailService` (outbox
-enqueue), `IEmailMessageFactory` (invite and reminder templates),
+enqueue), the section's own `SurveysEmails` builder (invite and reminder templates),
 `ISurveyInviteTokenProvider` (section-local, data-protection invite tokens),
 `IGoogleTranslationService` (Cloud Translation pre-fill for admin translation
-helper), `IAuditLogService`.
+helper), `IAuditLogService`, `IFileStorage` (Information-block images under
+`uploads/surveys/`).
 
-Implements `IUserDataContributor` (GDPR export slice
-`GdprExportSections.SurveyResponses` — identified responses only; anonymous
-and CompletionTracked rows carry no `UserId` and are excluded). No
-`IMemoryCache`.
+Implements `IUserDataContributor` (three GDPR export slices:
+`SurveyService.SurveyResponses` — identified responses only; anonymous
+and CompletionTracked rows carry no `UserId` and are excluded —
+`SurveyService.AuthoredSurveys`, the surveys the person wrote, and
+`SurveyService.SurveyInvitations`, the invitation ledger, which is the
+only record of someone who was only invited or answered CompletionTracked).
+Implements
+`IUserMerge`: authorship follows the surviving account. No `IMemoryCache`.
 
 A `LoggedInSince` audience type (`surveys.AudienceLoggedInSince` cutoff
 column) resolves from the cached `UserInfo.LastLoginAt` via the existing
@@ -67,8 +73,8 @@ side-effect-free survey invitation preview to the requesting Board/Admin
 user, reusing the production invitation template/transport but creating no
 invitation, response, or funnel row. Calls `ISurveyService` (own section,
 for the survey content), `IUserEmailService` / `IUserServiceRead` (Users),
-`IEmailService` / `IEmailMessageFactory` / `IEmailPreviewServiceRead` (Email
-— all via public service interfaces), plus `SurveyPreviewTokenProvider`
+`IEmailService` / `IEmailPreviewServiceRead` (Email — both via public service
+interfaces) plus the section's own `SurveysEmails`, and `SurveyPreviewTokenProvider`
 (local, HMAC preview tokens).
 
 ### SurveyBranchingEvaluator / SurveyWizardFlow
@@ -78,6 +84,19 @@ validates and evaluates `ShowIf` branching conditions; `SurveyWizardFlow` drives
 the multi-page wizard navigation (visible-page resolution, required-answer
 validation).
 
+### SurveysEmails (Scoped, internal)
+
+No repository. Pure builder — reads `SurveysResource` (via
+`IStringLocalizer<SurveysResource>`) and `EmailSettings`, writes nothing.
+Returns `EmailMessage` values for `SurveyService` and
+`SurveyPreviewEmailService` to pass to `IEmailService.SendAsync`. It owns the
+absolute `/Survey/Answer?t=` link and the sanitized-Markdown pass over an
+author's custom invitation copy. No DB access, no cache.
+
+### SurveysEmailPreviews (Scoped)
+
+No repository. Read-only gallery contributor (`IEmailPreviewContributor`) —
+builds one sample per template via `SurveysEmails` for `/Email/EmailPreview`.
+No DB access, no cache.
+
 ---
-
-

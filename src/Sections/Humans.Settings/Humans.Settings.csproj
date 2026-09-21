@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <!--
-    Sdk.Razor, not plain Sdk: the section owns /Settings/Admin — controllers and their
-    views — so it is an MVC application part. Section discovery still keys off
+    Sdk.Razor, not plain Sdk: the section owns the /Settings page, its view components
+    and their views — so it is an MVC application part. Section discovery still keys off
     Section.cs : ISection (design §15 step 1).
   -->
 
@@ -27,12 +27,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Humans.Base\Humans.Base.csproj" />
     <ProjectReference Include="..\Humans.Settings.Contracts\Humans.Settings.Contracts.csproj" />
-    <!--
-      The carry screen reads the Shifts-owned event_settings rows it is copying from.
-      Contracts leaf only, and Humans.Shifts does not reference Humans.Settings.Contracts,
-      so there is no cycle. Goes away with the carry screen once the values are across.
-    -->
-    <ProjectReference Include="..\Humans.Shifts.Contracts\Humans.Shifts.Contracts.csproj" />
+    <!-- SaveEventSettingsAsync writes an audit entry (peterdrier/Humans#1628). -->
+    <ProjectReference Include="..\Humans.AuditLog.Contracts\Humans.AuditLog.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

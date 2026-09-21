@@ -222,7 +222,7 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 - When a member is removed from a team, all their role assignments for that team are also removed.
 - When a member is added to a team, Google resource sync (Drive folder permissions, Group memberships) runs inline against the Google APIs (and rolls up to the parent department's resources for sub-team adds). Per-user removals are deferred to the daily reconciliation job rather than running inline. Failed sync calls fall through to the Google sync outbox, processed by `google-sync-outbox-process`.
 - When a department coordinator role assignment changes, the Coordinators system team membership is recalculated for the affected human. Sub-team manager changes do not affect the Coordinators system team.
-- The system team sync job runs hourly (Hangfire recurring job `teams-system-sync`), reconciling system team membership for Volunteers (consent compliance), Coordinators (department-level management role assignments), Board (active Board role assignments), Asociados/Colaboradors (approved tier applications with active terms), and Barrio Leads (active camp lead assignments). The job also reconciles `TeamMember.Role` against `IsManagement` role assignments and backfills `User.GoogleEmail` for verified `@nobodies.team` accounts.
+- The system team sync job runs hourly (Hangfire recurring job `teams-system-sync`), reconciling system team membership for Volunteers (consent compliance), Coordinators (department-level management role assignments), Board (active Board role assignments), Asociados/Colaboradors (approved tier applications with active terms), and Barrio Leads (active camp lead assignments). The job also reconciles `TeamMember.Role` against `IsManagement` role assignments and backfills `User.GoogleEmail` for verified `@nobodies.team` accounts. It ends with `IGoogleGroupSync.ReconcileAllAsync`, which it skips with a log line when Google Workspace is not configured (`IGoogleDriveActivityClient.IsConfigured`); the membership work itself always runs.
 - When an account merge accepts, `ITeamService.ReassignToUserAsync` re-FKs `TeamMember`, `TeamJoinRequest`, and `TeamEarlyEntryGrant` rows from source to target, collapsing duplicates so the same target doesn't end up with two memberships of the same team. Called only by `IAccountMergeService.AcceptAsync` (Profiles section).
 - Each Early Entry mutation writes an `AuditLogEntry` (`EarlyEntryGranted` on add, `EarlyEntryUpdated` on edit, `EarlyEntryRevoked` on remove) against the `TeamEarlyEntryGrant` and evicts the affected user's EE cache.
 - Right-to-erasure (`IUserDataContributor.EraseForUserAsync`): ends live memberships, then hard-deletes the user's join requests and EE grants; the GDPR export contributes a `TeamEarlyEntry` data slice.
@@ -237,7 +237,7 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 - **Shifts.Contracts:** `IShiftManagementServiceRead` for the team page's shifts card; `IShiftAuthorizationInvalidator` after coordinator changes. Rotas belong to a department or sub-team, and coordinator/manager status is what scopes their shift management.
 - **Notifications.Contracts:** `INotificationEmitter` on join-request events; `INotificationMeterCacheInvalidator`.
 - **AuditLog.Contracts + AuditLog:** `IAuditLogService` for every membership and EE mutation; the full section for `<vc:audit-log>` in `TeamAdmin/Members`.
-- **Email.Contracts:** the reconciler's "added to team" mail.
+- **Email.Contracts:** transport only (`IEmailService.SendAsync`) for the reconciler's "added to team" mail. Teams owns the template: `TeamsEmails` (internal) builds the `EmailMessage` from Teams' own `Teams_Email_*` keys in `TeamsResource`, rendered in the recipient's culture via `CultureScope`, and `TeamsEmailPreviews` (`IEmailPreviewContributor`, registered in `Section.Register`) lists it at `/Email/EmailPreview` (`memory/architecture/email-templates-live-in-sender.md`, peterdrier/Humans#1651).
 - **Gdpr.Contracts:** `IUserDataContributor` (export + erasure).
 - **EarlyEntry** (full section): `IEarlyEntryProvider` — `GetEarlyEntriesAsync` projects grants from `EarlyEntryEnabled` teams to the cross-section `EarlyEntryGrant` view (`"{TeamName}: {ProjectName}"`) via `TeamEarlyEntryProjection`; `IEarlyEntryInvalidator` on grant writes.
 - **Camps.Contracts:** active camp lead assignments feed the Barrio Leads system team via `ICampLeadDirectory`.
@@ -287,3 +287,11 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 ### System-team reconciler
 
 `SystemTeamSyncJob` is Teams' own: `Services/SystemTeamSyncJob.cs`, `internal sealed`, registered in `Section.cs` and scheduled by `SectionJobs.cs`. Its interface `ISystemTeamSync` lives on `Humans.Teams.Contracts`, which is what the consuming sections reference. Hangfire keys the recurring job on its id and rewrites the stored type name at every startup, so the implementation's assembly and namespace are free to move.
+
+## Issue queue
+
+Teams owns the `Teams` issue queue: it implements `IIssueQueueOwner` (Issues' contracts
+leaf) on its `Section` entry point, declaring the queue key and the roles that handle
+issues filed against it — `TeamsAdmin`, plus `Admin`, which handles every queue. Issues
+discovers the declaration through DI and holds no list of sections; dropping the seam
+sends this section's stored issues to the Admin-only queue.

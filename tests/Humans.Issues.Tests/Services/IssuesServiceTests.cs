@@ -10,6 +10,8 @@ using Humans.Base.Constants;
 using Humans.Issues.Contracts;
 using Humans.Issues.Data;
 using Humans.Issues.Domain;
+using Humans.Issues.Services;
+using Humans.Issues.Tests.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -61,7 +63,7 @@ public sealed class IssuesServiceTests
     private readonly PeopleRegistry Db = new();
 
     private readonly IEmailService _emailService;
-    private readonly IEmailMessageFactory _emailMessages;
+    private readonly IssuesEmails _emailMessages;
     private readonly IUserServiceRead _userService;
     private readonly IUserEmailService _userEmailService;
     private readonly IRoleAssignmentService _roleService;
@@ -77,7 +79,7 @@ public sealed class IssuesServiceTests
     public IssuesServiceTests()
     {
         _emailService = Substitute.For<IEmailService>();
-        _emailMessages = Substitute.For<IEmailMessageFactory>();
+        _emailMessages = TestIssuesEmails.Create();
         AuditLog
             .GetFilteredEntriesAsync(
                 Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<Guid?>(),
@@ -119,7 +121,8 @@ public sealed class IssuesServiceTests
             _repository, _userService, _userEmailService, _roleService,
             _emailService, _emailMessages, _notificationService, _notificationInbox, AuditLog, _navBadge,
             _issuesBadge, Cache,
-            Clock, env, SectionCatalog, NullLogger<IssuesApplicationService>.Instance);
+            Clock, env, SectionCatalog, Domain.TestIssueQueues.Shipped(),
+            NullLogger<IssuesApplicationService>.Instance);
     }
 
     private static DbContextOptions<TContext> NewSectionDbOptions<TContext>()
@@ -169,6 +172,9 @@ public sealed class IssuesServiceTests
             UserName = $"test-{userId}@test.com",
             Email = $"test-{userId}@test.com",
             DisplayName = displayName,
+            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+            // UserInfo.BurnerName reads User.BurnerName only (#1098).
+            BurnerName = displayName,
             PreferredLanguage = "en",
             CreatedAt = Clock.GetCurrentInstant()
         };
@@ -201,7 +207,7 @@ public sealed class IssuesServiceTests
 
         var issueId = await _service.CreateIssueAsync(
             reporterId, IssueCategory.Bug, "Title", "Desc",
-            section: IssueSectionRouting.Tickets,
+            section: "Tickets",
             actorUserId: filerId, ct: Xunit.TestContext.Current.CancellationToken);
 
         // The issue row records only the reporter, so the audit entry is the filer's one record.
@@ -261,13 +267,13 @@ public sealed class IssuesServiceTests
 
         var issue = await _service.SubmitIssueAsync(
             userId, IssueCategory.Bug, "Title", "Desc",
-            section: IssueSectionRouting.Tickets,
+            section: "Tickets",
             pageUrl: "/Tickets", userAgent: null, additionalContext: null,
             screenshot: null, ct: Xunit.TestContext.Current.CancellationToken);
 
         issue.Status.Should().Be(IssueStatus.Triage);
         issue.ReporterUserId.Should().Be(userId);
-        issue.Section.Should().Be(IssueSectionRouting.Tickets);
+        issue.Section.Should().Be("Tickets");
         _navBadge.Received(1).Invalidate();
         _issuesBadge.Received(1).InvalidateMany(
             Arg.Is<IReadOnlySet<Guid>>(ids => ids.Count == 1 && ids.Contains(userId)));
@@ -306,7 +312,7 @@ public sealed class IssuesServiceTests
 
         await _service.SubmitIssueAsync(
             reporterId, IssueCategory.Bug, "Title", "Desc",
-            section: IssueSectionRouting.Tickets,
+            section: "Tickets",
             pageUrl: "/Tickets", userAgent: null, additionalContext: null,
             screenshot: null, ct: Xunit.TestContext.Current.CancellationToken);
 
@@ -417,13 +423,14 @@ public sealed class IssuesServiceTests
 
         await _service.PostCommentAsync(issueId, Admin, adminId, "Looking at it", ct: Xunit.TestContext.Current.CancellationToken);
 
-        _emailMessages.Received(1).IssueComment(
-            "reporter@test.com",
-            "Reporter",
-            "Report Title",
-            "Looking at it",
-            $"/Issues/{issueId}",
-            "en");
+        await _emailService.Received(1).SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "issue_comment"
+                && m.RecipientEmail == "reporter@test.com"
+                && m.RecipientName == "Reporter"
+                && m.HtmlBody.Contains("Report Title")
+                && m.HtmlBody.Contains("Looking at it")
+                && m.HtmlBody.Contains($"/Issues/{issueId}")),
+            Arg.Any<CancellationToken>());
 
         await _notificationService.Received().SendAsync(
             NotificationSource.IssueComment,
@@ -446,9 +453,9 @@ public sealed class IssuesServiceTests
 
         await _service.PostCommentAsync(issueId, Admin, reporterId, "More info", ct: Xunit.TestContext.Current.CancellationToken);
 
-        _emailMessages.DidNotReceive().IssueComment(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>());
+        await _emailService.DidNotReceive().SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "issue_comment"),
+            Arg.Any<CancellationToken>());
     }
 
     [HumansFact]
@@ -749,14 +756,14 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task UpdateSectionAsync_audits_change_and_invalidates_nav_badge()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
         _navBadge.ClearReceivedCalls();
         var actorId = Guid.NewGuid();
 
-        await _service.UpdateSectionAsync(issueId, Admin, IssueSectionRouting.Teams, actorId, Xunit.TestContext.Current.CancellationToken);
+        await _service.UpdateSectionAsync(issueId, Admin, "Teams", actorId, Xunit.TestContext.Current.CancellationToken);
 
         var stored = await _issuesDb.Issues.AsNoTracking().FirstAsync(i => i.Id == issueId, Xunit.TestContext.Current.CancellationToken);
-        stored.Section.Should().Be(IssueSectionRouting.Teams);
+        stored.Section.Should().Be("Teams");
 
         _navBadge.Received(1).Invalidate();
 
@@ -774,9 +781,9 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task UpdateSectionWithResultAsync_returns_success_when_section_updates()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
 
-        var result = await _service.UpdateSectionWithResultAsync(issueId, Admin, IssueSectionRouting.Teams, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        var result = await _service.UpdateSectionWithResultAsync(issueId, Admin, "Teams", Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeTrue();
         result.NotFound.Should().BeFalse();
@@ -816,7 +823,7 @@ public sealed class IssuesServiceTests
             pageUrl: null, userAgent: null, additionalContext: null,
             screenshot: null, ct: Xunit.TestContext.Current.CancellationToken);
 
-        issue.Section.Should().Be(IssueSectionRouting.Tickets);
+        issue.Section.Should().Be("Tickets");
     }
 
     [HumansFact]
@@ -839,7 +846,7 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task UpdateSectionAsync_routes_an_unknown_section_to_the_Admin_queue()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
 
         await _service.UpdateSectionAsync(issueId, Admin, "NotARoutedQueue", Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
 
@@ -850,7 +857,7 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task UpdateSectionWithResultAsync_fails_on_a_section_longer_than_the_column()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
 
         var result = await _service.UpdateSectionWithResultAsync(
             issueId, Admin, new string('x', 65), Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
@@ -859,15 +866,15 @@ public sealed class IssuesServiceTests
         result.ErrorMessage.Should().Contain("64 characters");
 
         var stored = await _issuesDb.Issues.AsNoTracking().FirstAsync(i => i.Id == issueId, Xunit.TestContext.Current.CancellationToken);
-        stored.Section.Should().Be(IssueSectionRouting.Tickets);
+        stored.Section.Should().Be("Tickets");
     }
 
     [HumansFact]
     public async Task UpdateSectionWithResultAsync_returns_failure_message_for_terminal_issue()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Resolved, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Resolved, section: "Tickets");
 
-        var result = await _service.UpdateSectionWithResultAsync(issueId, Admin, IssueSectionRouting.Teams, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        var result = await _service.UpdateSectionWithResultAsync(issueId, Admin, "Teams", Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
         result.NotFound.Should().BeFalse();
@@ -933,7 +940,8 @@ public sealed class IssuesServiceTests
             repo, _userService, _userEmailService, _roleService,
             _emailService, _emailMessages, _notificationService, Substitute.For<INotificationAutoResolve>(), AuditLog, _navBadge,
             _issuesBadge, Cache,
-            Clock, env, SectionCatalog, NullLogger<IssuesApplicationService>.Instance);
+            Clock, env, SectionCatalog, Domain.TestIssueQueues.Shipped(),
+            NullLogger<IssuesApplicationService>.Instance);
 
         await svc.GetIssueListAsync(new IssueListFilter(), new IssueViewer(Guid.NewGuid(), [RoleNames.Admin]), ct: Xunit.TestContext.Current.CancellationToken);
 
@@ -961,14 +969,15 @@ public sealed class IssuesServiceTests
             repo, _userService, _userEmailService, _roleService,
             _emailService, _emailMessages, _notificationService, Substitute.For<INotificationAutoResolve>(), AuditLog, _navBadge,
             _issuesBadge, Cache,
-            Clock, env, SectionCatalog, NullLogger<IssuesApplicationService>.Instance);
+            Clock, env, SectionCatalog, Domain.TestIssueQueues.Shipped(),
+            NullLogger<IssuesApplicationService>.Instance);
 
         var viewerId = Guid.NewGuid();
         await svc.GetIssueListAsync(new IssueListFilter(), new IssueViewer(viewerId, [RoleNames.TicketAdmin]), ct: Xunit.TestContext.Current.CancellationToken);
 
         await repo.Received(1).GetListAsync(
             Arg.Any<IssueListFilter>(),
-            Arg.Is<IReadOnlySet<string>?>(s => s != null && s.Contains(IssueSectionRouting.Tickets)),
+            Arg.Is<IReadOnlySet<string>?>(s => s != null && s.Contains("Tickets")),
             Arg.Is<Guid?>(g => g == viewerId),
             Arg.Any<CancellationToken>());
     }
@@ -990,7 +999,8 @@ public sealed class IssuesServiceTests
             repo, _userService, _userEmailService, _roleService,
             _emailService, _emailMessages, _notificationService, Substitute.For<INotificationAutoResolve>(), AuditLog, _navBadge,
             _issuesBadge, Cache,
-            Clock, env, SectionCatalog, NullLogger<IssuesApplicationService>.Instance);
+            Clock, env, SectionCatalog, Domain.TestIssueQueues.Shipped(),
+            NullLogger<IssuesApplicationService>.Instance);
 
         var viewerId = Guid.NewGuid();
         await svc.GetIssueListAsync(new IssueListFilter(), new IssueViewer(viewerId, Roles: []), ct: Xunit.TestContext.Current.CancellationToken);
@@ -1069,7 +1079,8 @@ public sealed class IssuesServiceTests
             repo, _userService, _userEmailService, _roleService,
             _emailService, _emailMessages, _notificationService, Substitute.For<INotificationAutoResolve>(), AuditLog, _navBadge,
             _issuesBadge, Cache,
-            Clock, env, SectionCatalog, NullLogger<IssuesApplicationService>.Instance);
+            Clock, env, SectionCatalog, Domain.TestIssueQueues.Shipped(),
+            NullLogger<IssuesApplicationService>.Instance);
 
         await svc.GetActionableCountForViewerAsync(
             new IssueViewer(Guid.NewGuid(), [RoleNames.Admin]), Xunit.TestContext.Current.CancellationToken);
@@ -1096,14 +1107,15 @@ public sealed class IssuesServiceTests
             repo, _userService, _userEmailService, _roleService,
             _emailService, _emailMessages, _notificationService, Substitute.For<INotificationAutoResolve>(), AuditLog, _navBadge,
             _issuesBadge, Cache,
-            Clock, env, SectionCatalog, NullLogger<IssuesApplicationService>.Instance);
+            Clock, env, SectionCatalog, Domain.TestIssueQueues.Shipped(),
+            NullLogger<IssuesApplicationService>.Instance);
 
         var viewerId = Guid.NewGuid();
         await svc.GetActionableCountForViewerAsync(
             new IssueViewer(viewerId, [RoleNames.TeamsAdmin]), Xunit.TestContext.Current.CancellationToken);
 
         await repo.Received(1).CountActionableAsync(
-            Arg.Is<IReadOnlySet<string>?>(s => s != null && s.Contains(IssueSectionRouting.Teams)),
+            Arg.Is<IReadOnlySet<string>?>(s => s != null && s.Contains("Teams")),
             Arg.Is<Guid?>(g => g == viewerId),
             Arg.Any<CancellationToken>());
     }
@@ -1126,11 +1138,11 @@ public sealed class IssuesServiceTests
         await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
         var inSection = await SeedIssueRowAsync(
-            strangerId, IssueStatus.Open, "In my section", IssueSectionRouting.Tickets);
+            strangerId, IssueStatus.Open, "In my section", "Tickets");
         await SeedIssueRowAsync(
-            strangerId, IssueStatus.Open, "Someone else's section", IssueSectionRouting.Camps);
+            strangerId, IssueStatus.Open, "Someone else's section", "Camps");
         var ownReport = await SeedIssueRowAsync(
-            viewerId, IssueStatus.Open, "Mine, elsewhere", IssueSectionRouting.Camps);
+            viewerId, IssueStatus.Open, "Mine, elsewhere", "Camps");
 
         var result = await _service.GetIssueListAsync(new IssueListFilter(), new IssueViewer(viewerId, Roles: [RoleNames.TicketAdmin]), ct: Xunit.TestContext.Current.CancellationToken);
 
@@ -1146,10 +1158,10 @@ public sealed class IssuesServiceTests
         SeedUser(strangerId, "Stranger").Email = "stranger@example.org";
         await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        await SeedIssueRowAsync(strangerId, IssueStatus.Open, "In my section", IssueSectionRouting.Tickets);
-        await SeedIssueRowAsync(strangerId, IssueStatus.Open, "Not mine", IssueSectionRouting.Camps);
-        await SeedIssueRowAsync(viewerId, IssueStatus.Triage, "Mine, elsewhere", IssueSectionRouting.Camps);
-        await SeedIssueRowAsync(strangerId, IssueStatus.Resolved, "Terminal, my section", IssueSectionRouting.Tickets);
+        await SeedIssueRowAsync(strangerId, IssueStatus.Open, "In my section", "Tickets");
+        await SeedIssueRowAsync(strangerId, IssueStatus.Open, "Not mine", "Camps");
+        await SeedIssueRowAsync(viewerId, IssueStatus.Triage, "Mine, elsewhere", "Camps");
+        await SeedIssueRowAsync(strangerId, IssueStatus.Resolved, "Terminal, my section", "Tickets");
 
         var count = await _service.GetActionableCountForViewerAsync(
             new IssueViewer(viewerId, [RoleNames.TicketAdmin]),
@@ -1247,7 +1259,7 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task An_issue_is_invisible_to_a_viewer_who_neither_handles_nor_reported_it()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
 
         var seen = await _service.GetIssueByIdAsync(issueId, Stranger(), Ct);
 
@@ -1257,7 +1269,7 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task A_reporter_sees_their_own_issue_whatever_section_it_is_in()
     {
-        var (reporterId, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (reporterId, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
 
         var seen = await _service.GetIssueByIdAsync(issueId, new IssueViewer(reporterId, []), Ct);
 
@@ -1267,7 +1279,7 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task A_section_role_holder_sees_the_issues_their_role_owns()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
 
         var seen = await _service.GetIssueByIdAsync(issueId, Handler(), Ct);
 
@@ -1277,7 +1289,7 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task The_thread_is_refused_to_a_viewer_who_cannot_see_the_issue()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
 
         var act = () => _service.GetThreadAsync(issueId, Stranger(), Ct);
 
@@ -1287,7 +1299,7 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task Every_mutation_is_refused_to_a_viewer_who_cannot_handle_the_issue()
     {
-        var (reporterId, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (reporterId, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
 
         // The reporter is the sharper case than a stranger: they may read this issue and
         // comment on it, and still may not move it.
@@ -1297,7 +1309,7 @@ public sealed class IssuesServiceTests
         {
             () => _service.UpdateStatusAsync(issueId, reporter, IssueStatus.Resolved, reporterId, Ct),
             () => _service.UpdateAssigneeAsync(issueId, reporter, reporterId, reporterId, Ct),
-            () => _service.UpdateSectionAsync(issueId, reporter, IssueSectionRouting.Camps, reporterId, Ct),
+            () => _service.UpdateSectionAsync(issueId, reporter, "Camps", reporterId, Ct),
             () => _service.SetGitHubIssueNumberAsync(issueId, reporter, 42, reporterId, Ct)
         };
 
@@ -1309,14 +1321,14 @@ public sealed class IssuesServiceTests
         var after = await _service.GetIssueByIdAsync(issueId, Admin, Ct);
         after!.Status.Should().Be(IssueStatus.Open);
         after.AssigneeUserId.Should().BeNull();
-        after.Section.Should().Be(IssueSectionRouting.Tickets);
+        after.Section.Should().Be("Tickets");
         after.GitHubIssueNumber.Should().BeNull();
     }
 
     [HumansFact]
     public async Task A_handler_may_move_an_issue_their_role_owns()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
         var handler = Handler();
 
         await _service.UpdateStatusAsync(issueId, handler, IssueStatus.InProgress, handler.UserId, Ct);
@@ -1328,7 +1340,7 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task A_stranger_cannot_comment()
     {
-        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
         var stranger = Stranger();
 
         var act = () => _service.PostCommentAsync(issueId, stranger, stranger.UserId, "Hello", ct: Ct);
@@ -1339,7 +1351,7 @@ public sealed class IssuesServiceTests
     [HumansFact]
     public async Task A_reporter_may_comment_on_their_own_issue_but_not_resolve_it()
     {
-        var (reporterId, issueId) = await SeedIssueAsync(IssueStatus.Open, section: IssueSectionRouting.Tickets);
+        var (reporterId, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
         var reporter = new IssueViewer(reporterId, []);
 
         await _service.PostCommentAsync(issueId, reporter, reporterId, "Any news?", resolveOnPost: true, ct: Ct);

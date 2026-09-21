@@ -6,8 +6,7 @@ using Humans.Events.Data;
 using Humans.Events.Domain;
 using Humans.Events.Services;
 using Humans.Events.Services.Dtos;
-using Humans.Gdpr.Contracts;
-using Humans.Shifts.Contracts;
+using Humans.Settings.Contracts;
 using Humans.Users.Contracts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
@@ -21,10 +20,10 @@ public sealed class EventServiceTests
 {
     private readonly FakeClock _clock = new(Instant.FromUtc(2026, 5, 5, 12, 0));
     private readonly FakeEventRepository _repo = new();
-    private readonly IBurnSettingsService _burnSettings = Substitute.For<IBurnSettingsService>();
+    private readonly ISettingsService _burnSettings = Substitute.For<ISettingsService>();
     private readonly IUserServiceRead _userService = Substitute.For<IUserServiceRead>();
     private readonly IEmailService _emailService = Substitute.For<IEmailService>();
-    private readonly IEmailMessageFactory _emailMessages = Substitute.For<IEmailMessageFactory>();
+    private readonly EventsEmails _emailMessages = new(NullLogger<EventsEmails>.Instance);
     private readonly EventService _service;
 
     public EventServiceTests()
@@ -60,7 +59,7 @@ public sealed class EventServiceTests
     public async Task SaveGuideSettingsAsync_CreatesSettingsUsingEventTimezone()
     {
         var eventSettingsId = Guid.NewGuid();
-        _burnSettings.GetByIdAsync(eventSettingsId, Arg.Any<CancellationToken>()).Returns(new BurnSettingsInfo(
+        _burnSettings.GetEventSettingsByIdAsync(eventSettingsId, Arg.Any<CancellationToken>()).Returns(new EventSettingsInfo(
             Id: eventSettingsId,
             EventName: "Nowhere 2026",
             Year: 2026,
@@ -75,8 +74,7 @@ public sealed class EventServiceTests
             FinishingWeekendStartOffset: -4,
             EarlyEntryCapacity: new Dictionary<int, int>(),
             BarriosEarlyEntryAllocation: null,
-            EarlyEntryClose: null,
-            IsShiftBrowsingOpen: false));
+            EarlyEntryClose: null));
 
         await _service.SaveGuideSettingsAsync(
             existingId: null,
@@ -233,14 +231,12 @@ public sealed class EventServiceTests
         await _service.SubmitEventAsync(guideEvent, "https://x/Events/MySubmissions", TestContext.Current.CancellationToken);
 
         _repo.Events.Should().Contain(guideEvent);
-        _emailMessages.Received(1).EventLifecycle(
-            Arg.Is<EventLifecycleNotification>(n =>
-                n.NewStatus == EventStatus.Pending
-                && n.UserName == "Burner"
-                && n.EventTitle == "Fire show"
-                && n.ActionUrl == "https://x/Events/MySubmissions"),
-            "sub@example.com");
-        await _emailService.Received(1).SendAsync(Arg.Any<EmailMessage>());
+        await _emailService.Received(1).SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "event_submitted"
+                && m.RecipientEmail == "sub@example.com"
+                && m.RecipientName == "Burner"
+                && m.HtmlBody.Contains("Fire show")
+                && m.HtmlBody.Contains("https://x/Events/MySubmissions")));
     }
 
     [HumansFact]
@@ -272,13 +268,11 @@ public sealed class EventServiceTests
             guideEvent.Id, Guid.NewGuid(), EventModerationActionType.Rejected,
             "Too loud", "https://x/edit", TestContext.Current.CancellationToken);
 
-        _emailMessages.Received(1).EventLifecycle(
-            Arg.Is<EventLifecycleNotification>(n =>
-                n.NewStatus == EventStatus.Rejected
-                && n.Reason == "Too loud"
-                && n.ActionUrl == "https://x/edit"),
-            "sub@example.com");
-        await _emailService.Received(1).SendAsync(Arg.Any<EmailMessage>());
+        await _emailService.Received(1).SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "event_rejected"
+                && m.RecipientEmail == "sub@example.com"
+                && m.HtmlBody.Contains("Too loud")
+                && m.HtmlBody.Contains("https://x/edit")));
     }
 
     [HumansFact]
@@ -310,7 +304,9 @@ public sealed class EventServiceTests
     private Guid StubSubmitterWithEmail(string email, string burnerName)
     {
         var userId = Guid.NewGuid();
-        var user = new User { Id = userId, DisplayName = burnerName, PreferredLanguage = "en" };
+        // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+        // UserInfo.BurnerName reads User.BurnerName only (#1098).
+        var user = new User { Id = userId, DisplayName = burnerName, BurnerName = burnerName, PreferredLanguage = "en" };
         _userService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
             // UserInfoStubHelpers.ToUserInfo lives in Humans.Application.Tests and is not
             // visible across the section boundary; UserInfo.Create is the public builder.
@@ -428,7 +424,7 @@ public sealed class EventServiceTests
         var slices = await _service.ContributeForUserAsync(userId, TestContext.Current.CancellationToken);
 
         slices.Should().ContainSingle();
-        slices[0].SectionName.Should().Be(GdprExportSections.Events);
+        slices[0].SectionName.Should().Be(EventService.Events);
         slices[0].Data.Should().NotBeNull();
     }
 
@@ -438,7 +434,7 @@ public sealed class EventServiceTests
         var slices = await _service.ContributeForUserAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         slices.Should().ContainSingle();
-        slices[0].SectionName.Should().Be(GdprExportSections.Events);
+        slices[0].SectionName.Should().Be(EventService.Events);
         slices[0].Data.Should().NotBeNull();
     }
 
@@ -746,7 +742,7 @@ public sealed class EventServiceTests
     [HumansFact]
     public void ErasureDeclaration_StatesWhatSurvivesRatherThanClaimingFullErasure()
     {
-        _service.ErasureDeclaration[GdprExportSections.Events]
+        _service.ErasureDeclaration[EventService.Events]
             .Should().NotBeNull().And.Contain("Host");
     }
 

@@ -9,7 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Humans.Settings.Controllers;
 
 /// <summary>
-/// The app-wide event settings screen (#1104). Lives at <c>/Settings/Admin</c>,
+/// The app-wide event settings POST endpoint (nobodies-collective/Humans#1104).
+/// Lives at <c>/Settings/Admin</c>,
 /// not <c>/Admin/Settings</c> — top-level <c>/Admin/*</c> is frozen
 /// (memory/architecture/no-admin-url-section.md).
 /// </summary>
@@ -24,56 +25,53 @@ internal sealed class SettingsAdminController(
     ISettingsWriteService settingsService,
     IUserServiceRead userService) : HumansControllerBase(userService)
 {
-    /// <summary>
-    /// Edits one row: the active one by default, or <paramref name="id"/> when the
-    /// caller names it. Inactive rows stay reachable that way — the carry screen
-    /// links every carried row here, and a save redirects back with its own id.
-    /// </summary>
-    [HttpGet("")]
-    public async Task<IActionResult> Index(Guid? id, CancellationToken ct = default)
-    {
-        var settings = id is null
-            ? await settingsService.GetActiveEventSettingsAsync(ct)
-            : await settingsService.GetEventSettingsByIdAsync(id.Value, ct);
-
-        // No blank creatable form: event ids belong to the Shifts rows until the
-        // old columns are dropped, so a row is born by the carry, never here.
-        return settings is null
-            ? View("NoEvent")
-            : View(EventSettingsFormMapper.ToViewModel(settings));
-    }
-
     [HttpPost("")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Index(EventSettingsViewModel model, CancellationToken ct = default)
     {
         if (!ModelState.IsValid)
-            return View(model);
+        {
+            return BackToTab(model.Id, Describe(
+                ModelState.Values.SelectMany(state => state.Errors).Select(error => error.ErrorMessage)));
+        }
 
         var parsed = EventSettingsFormMapper.Parse(model);
         if (!parsed.Success)
-        {
-            foreach (var error in parsed.Errors)
-                ModelState.AddModelError(error.FieldName, error.Message);
+            return BackToTab(model.Id, Describe(parsed.Errors.Select(error => error.Message)));
 
-            return View(model);
-        }
+        if (GetCurrentUserId() is not { } actorId) return Challenge();
 
         try
         {
-            await settingsService.SaveEventSettingsAsync(parsed.Settings!, ct);
+            await settingsService.SaveEventSettingsAsync(parsed.Settings!, actorId, ct);
         }
         catch (InvalidOperationException ex)
         {
-            // The service's own invariants — activating while another cycle is Active, or an id
-            // no Shifts event row carries. Both are conflicts an operator can act on, so they
-            // belong on the form they came from, not in a 500.
-            ModelState.AddModelError(string.Empty, ex.Message);
-            return View(model);
+            // The service's own invariant — activating while another cycle is Active. A
+            // conflict an operator can act on, so it belongs on the form it came from,
+            // not in a 500.
+            return BackToTab(model.Id, ex.Message);
         }
 
         SetSuccess("Event settings saved.");
-        // By id, not bare: deactivating the row takes it off the default GET.
-        return RedirectToAction(nameof(Index), new { id = parsed.Settings!.Id });
+        // By id, not bare: the /Settings#event tab defaults to the active row, so a
+        // row just deactivated is only reachable by naming its id.
+        return Redirect($"/Settings?event={parsed.Settings!.Id}#event");
+    }
+
+    /// <summary>
+    /// Post-redirect-get back to the Event tab, the way every other settings tab's POST
+    /// ends. There is no GET here to re-render, so the failing rule travels as a flash.
+    /// </summary>
+    private IActionResult BackToTab(Guid? id, string message)
+    {
+        SetError(message);
+        return Redirect(id is { } eventId ? $"/Settings?event={eventId}#event" : "/Settings#event");
+    }
+
+    private static string Describe(IEnumerable<string> messages)
+    {
+        var joined = string.Join(" ", messages.Where(message => !string.IsNullOrWhiteSpace(message)));
+        return joined.Length > 0 ? joined : "Invalid event settings.";
     }
 }

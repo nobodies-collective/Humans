@@ -1,5 +1,8 @@
+using Humans.Base.Constants;
+using Humans.Issues.Contracts;
 using Humans.Base.Interfaces;
 using Humans.Base.Interfaces.Caching;
+using Humans.Email.Contracts;
 using Humans.Gdpr.Contracts;
 using Humans.Base.Hosting;
 using Humans.Tickets.Contracts;
@@ -25,7 +28,7 @@ namespace Humans.Tickets;
 /// (<c>Health/</c>) is the section's own probe over the vendor port, contributed via
 /// <c>SectionHealthChecks.cs</c>.
 /// </remarks>
-public sealed class Section : ISection
+public sealed class Section : ISection, IIssueQueueOwner
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
@@ -52,6 +55,19 @@ public sealed class Section : ISection
         services.AddHostedService(sp => sp.GetRequiredService<CachingTicketQueryService>());
         services.AddSingleton<ICacheStats>(sp => sp.GetRequiredService<CachingTicketQueryService>().OrdersCacheStats);
         services.AddSingleton<ICacheStats>(sp => sp.GetRequiredService<CachingTicketQueryService>().UserHoldingsCacheStats);
+
+        // The keyed inner is bound by whichever vendor adapter section is registered
+        // (Humans.TicketTailor today) under TicketVendorServiceKeys.InnerServiceKey —
+        // Tickets never names that section.
+        services.AddSingleton<CachingTicketVendorService>();
+        services.AddSingleton<ITicketVendorService>(sp => sp.GetRequiredService<CachingTicketVendorService>());
+        services.AddSingleton<ITicketVendorCacheInvalidator>(sp => sp.GetRequiredService<CachingTicketVendorService>());
+        services.AddSingleton<ICacheStats>(sp => sp.GetRequiredService<CachingTicketVendorService>().EventSummaryCacheStats);
+
+        // Tickets owns its email copy and its gallery samples; Email keeps the mechanics
+        // (memory/architecture/email-templates-live-in-sender.md).
+        services.AddScoped<TicketsEmails>();
+        services.AddScoped<IEmailPreviewContributor, TicketsEmailPreviews>();
 
         services.AddSingleton<ITicketTransferRepository, TicketTransferRepository>();
         services.AddScoped<TicketTransferService>();
@@ -84,4 +100,10 @@ public sealed class Section : ISection
 
         services.AddScoped<TicketSyncJob>();
     }
+
+    // This section owns the issue queue its members' reports land in; Issues discovers
+    // the seam rather than holding a list of sections (memory/architecture/section-contribution-seams.md).
+    string IIssueQueueOwner.QueueKey => "Tickets";
+
+    IReadOnlyList<string> IIssueQueueOwner.OwningRoles => [RoleNames.TicketAdmin];
 }

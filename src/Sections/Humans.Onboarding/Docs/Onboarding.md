@@ -115,7 +115,7 @@ After the nobodies-collective#584 narrowing, `OnboardingService` injects only wh
 - **Teams:** `ISystemTeamSync` — Volunteers / Colaboradors / Asociados de-provisioning on reject (`DeprovisionApprovalGatedSystemTeamsAsync`). Clear/flag no longer sync.
 - **Consent:** `IConsentServiceRead` — used by `GetNextUnsignedConsentAsync` to resolve the next unsigned document for the onboarding widget's consent step.
 - **Lifecycle:** `IHumanLifecycleService` — used by `GetNextUnsignedConsentAsync` to self-heal a consent-suspended user who is already compliant (nothing left to sign after the required set shrank).
-- **Notifications / Email:** `IEmailService.SendAsync` (with `IEmailMessageFactory.SignupRejected`), `INotificationEmitter` (`ProfileRejected`). The notification auto-resolve dependency moved out with `UnsuspendAsync` (now on `IHumanLifecycleService`).
+- **Notifications / Email:** Onboarding owns its one template — `OnboardingEmails` (internal) builds the `EmailMessage` from Onboarding's own `Onboarding_Email_*` keys in `OnboardingResource`, rendered in the recipient's culture via `CultureScope`, and `OnboardingEmailPreviews` (`IEmailPreviewContributor`, registered in `Section.Register`) lists it at `/Email/EmailPreview`; Email supplies transport only (`memory/architecture/email-templates-live-in-sender.md`, peterdrier/Humans#1651). `IEmailService.SendAsync` (with `OnboardingEmails.SignupRejected`), `INotificationEmitter` (`ProfileRejected`). The notification auto-resolve dependency moved out with `UnsuspendAsync` (now on `IHumanLifecycleService`).
 - **Cross-cutting:** `IMembershipCalculatorRead` (consent-check eligibility + review-queue snapshots), `ILogger`.
 
 ## Architecture
@@ -139,3 +139,11 @@ After the nobodies-collective#584 narrowing, `OnboardingService` injects only wh
 - **Cross-domain navs stripped:** N/A — Onboarding owns no entities.
 - **DI direction is one-way.** `OnboardingService → IUserService` (and other leaves) only. No leaf depends on `IOnboardingService`. The historical `IOnboardingEligibilityQuery` narrow-interface band-aid is removed. Reviewers should reject any new ctor dependency from `ProfileService` / `ConsentService` onto `IOnboardingService` (or any other director) — that's the inversion this PR removed. The cycle guard `tests/Humans.Users.Tests/Services/DependencyCycleResolutionTests.NoCircularConstructorDependencies_AcrossApplicationServices` enforces this.
 - **Architecture test** — `tests/Humans.Onboarding.Tests/Architecture/OnboardingArchitectureTests.cs` enforces one thing: every `IStringLocalizer<T>` / `IHtmlLocalizer<T>` in the section names `OnboardingResource`, `SharedResource` or `ConsentResource` (`OnboardingLocalizerBindingTests` is the per-key half of that guard — it checks every rendered key actually exists in the set its call site binds). The shape claims above are documentation, not assertions: a test that a section *lacks* something is forbidden by [`no-tests-for-absences`](../../../../memory/architecture/no-tests-for-absences.md).
+
+## Issue queue
+
+Onboarding owns the `Onboarding` issue queue: it implements `IIssueQueueOwner` (Issues' contracts
+leaf) on its `Section` entry point, declaring the queue key and the roles that handle
+issues filed against it — `ConsentCoordinator, VolunteerCoordinator, HumanAdmin`, plus `Admin`, which handles every queue. Issues
+discovers the declaration through DI and holds no list of sections; dropping the seam
+sends this section's stored issues to the Admin-only queue.

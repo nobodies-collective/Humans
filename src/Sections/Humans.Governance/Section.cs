@@ -1,4 +1,7 @@
+using Humans.Base.Constants;
+using Humans.Issues.Contracts;
 using Humans.Base.Interfaces;
+using Humans.Email.Contracts;
 using Humans.Gdpr.Contracts;
 using Humans.Governance.Contracts;
 using Humans.Governance.Data;
@@ -19,7 +22,7 @@ namespace Humans.Governance;
 /// week the service reads through the repository per request and invalidates the nav /
 /// notification-meter / voting-badge caches inline after a write.
 /// </summary>
-public sealed class Section : ISection
+public sealed class Section : ISection, IIssueQueueOwner
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
@@ -45,10 +48,11 @@ public sealed class Section : ISection
         services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<AssemblyVoteService>());
         services.AddScoped<AssemblyVoteLapseJob>();
 
-        // Query adapter breaks the circular DI graph between MembershipCalculator
-        // and ITeamServiceRead / IRoleAssignmentService (both of which inject
-        // ISystemTeamSync, whose implementation injects IMembershipCalculatorRead back).
-        // Only MembershipCalculator depends on the query adapter.
+        // Query adapter breaks the circular DI graph between MembershipCalculator and
+        // ITeamServiceRead / IRoleAssignmentService, both of which reach ISystemTeamSync —
+        // RoleAssignmentService injects it, TeamService resolves it lazily through
+        // IServiceProvider for this same reason — and whose implementation injects
+        // IMembershipCalculatorRead back. Only MembershipCalculator depends on the adapter.
         services.AddScoped<IMembershipQuery, MembershipQuery>();
         services.AddScoped<MembershipCalculator>();
         services.AddScoped<IMembershipCalculatorRead>(sp => sp.GetRequiredService<MembershipCalculator>());
@@ -82,9 +86,20 @@ public sealed class Section : ISection
             [AssemblyBallotChoice.Ranked] = "bg-primary",
         });
 
+        // Governance owns its email copy and its gallery samples; Email keeps the mechanics
+        // (memory/architecture/email-templates-live-in-sender.md).
+        services.AddScoped<GovernanceEmails>();
+        services.AddScoped<IEmailPreviewContributor, GovernanceEmailPreviews>();
+
         services.AddScoped<TermRenewalReminderJob>();
 
         services.AddSingleton<GovernanceMetricsService>();
         services.AddHostedService(sp => sp.GetRequiredService<GovernanceMetricsService>());
     }
+
+    // This section owns the issue queue its members' reports land in; Issues discovers
+    // the seam rather than holding a list of sections (memory/architecture/section-contribution-seams.md).
+    string IIssueQueueOwner.QueueKey => "Governance";
+
+    IReadOnlyList<string> IIssueQueueOwner.OwningRoles => [RoleNames.Board];
 }

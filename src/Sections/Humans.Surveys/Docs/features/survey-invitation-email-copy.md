@@ -11,7 +11,7 @@ survey title, secure answer-link button, sign-off, routing policy, and branded e
 
 ## User stories and acceptance criteria
 
-- A Board or Admin can optionally author a localized invitation email subject and Markdown-formatted message
+- An author can optionally write a localized invitation email subject and Markdown-formatted message
   in the existing survey builder language tabs.
 - The subject is a single line of at most 200 characters per culture.
 - The message is at most 4,000 characters per culture. Line breaks and basic Markdown formatting are preserved.
@@ -43,12 +43,12 @@ The empty-object default is the backward-compatible representation for existing 
 
 ## Email contract and rendering
 
-The existing `IEmailMessageFactory.SurveyInvitation` method remains the typed cross-section seam. It
-accepts optional custom subject/message values after its existing arguments and forwards them to the
-existing `survey_invitation` renderer. No new email type, transport path, template key, category, or
+`SurveysEmails.SurveyInvitation` is the seam (it was `IEmailMessageFactory.SurveyInvitation` until
+Surveys took its own templates, peterdrier/Humans#1651). It accepts optional custom subject/message
+values after its existing arguments. No new email type, transport path, template key, category, or
 service is introduced.
 
-The renderer trims custom copy, passes the message through Base's canonical sanitized-Markdown renderer
+The builder trims custom copy, passes the message through Base's canonical sanitized-Markdown renderer
 with images disabled, and retains the existing generated survey URL. The same renderer supplies both
 preview and delivered emails. A blank custom value selects the standard localized resource text.
 

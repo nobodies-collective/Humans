@@ -37,6 +37,9 @@ internal sealed class Service(
     IOptions<SepaOptions> sepa,
     ILogger<Service> logger) : IHoldedFinanceService, IHoldedFinanceAdminService, IUserDataContributor
 {
+    internal const string HoldedCreditorAccount = "HoldedCreditorAccount";
+    internal const string SepaPayouts = "SepaPayouts";
+
     private static readonly TimeSpan ContactsCacheDuration = TimeSpan.FromMinutes(2);
     private static readonly DateTimeZone MadridZone = DateTimeZoneProviders.Tzdb["Europe/Madrid"];
 
@@ -744,26 +747,34 @@ internal sealed class Service(
             seedAccountNum = null;
         }
 
-        // Reuse the bound contact, else lazy-seed from the report's previously-cached contact id.
-        var existingContactId = !string.IsNullOrEmpty(binding?.HoldedContactId)
-            ? binding.HoldedContactId
-            : (string.IsNullOrEmpty(seedContactId) ? null : seedContactId);
-
-        // Burner goes in tradeName only — and only when it differs from the official legal name.
-        var tradeName = !string.IsNullOrWhiteSpace(burnerName)
-                        && !string.Equals(burnerName, legalName, StringComparison.Ordinal)
-            ? burnerName
-            : null;
-
-        var contactId = await client.UpsertContactAsync(new HoldedContactInput
+        // A linked contact is used as is: the bound contact, else the one lazy-seeded from the
+        // member's prior report. Never a PUT — Holded's v2 contact update is a full replacement, so
+        // every field the body omits resets, supplier_record included, and the next purchase doc
+        // then mints the member a second creditor account next to their first (2026-09-21). A
+        // legal-name or IBAN change after the first push does not reach Holded until the
+        // link-check sync exists (peterdrier/Humans#1777).
+        string contactId;
+        if (!string.IsNullOrEmpty(binding?.HoldedContactId))
+            contactId = binding.HoldedContactId;
+        else if (!string.IsNullOrEmpty(seedContactId))
+            contactId = seedContactId;
+        else
         {
-            Name = legalName,
-            TradeName = tradeName,
-            CustomId = userId.ToString(),
-            Type = "creditor",
-            Iban = string.IsNullOrWhiteSpace(iban) ? null : iban,
-            ExistingContactId = existingContactId,
-        }, ct);
+            // Burner goes in tradeName only — and only when it differs from the official legal name.
+            var tradeName = !string.IsNullOrWhiteSpace(burnerName)
+                            && !string.Equals(burnerName, legalName, StringComparison.Ordinal)
+                ? burnerName
+                : null;
+
+            contactId = await client.UpsertContactAsync(new HoldedContactInput
+            {
+                Name = legalName,
+                TradeName = tradeName,
+                CustomId = userId.ToString(),
+                Type = "creditor",
+                Iban = string.IsNullOrWhiteSpace(iban) ? null : iban,
+            }, ct);
+        }
 
         // A refused seed cannot collide, so anything left is a pre-existing overlap on the member's own
         // binding — not this push's doing, but not to be carried forward unreported either.
@@ -774,16 +785,17 @@ internal sealed class Service(
                 nameof(EnsureCreditorContactAsync), userId, contactId, accountNum, conflict);
 
         // A member who already holds this contact has nothing to write but UpdatedAt, which nothing
-        // reads — and this write sits on the far side of a multi-second Holded round-trip, holding a
-        // copy read before it. Skipping it is what makes Unbind hold against an in-flight push.
+        // reads — and the rest of the push is several Holded calls long, so a binding row written
+        // from this copy would land over whatever an admin did meanwhile. Skipping it is what makes
+        // Unbind hold against an in-flight push.
         if (binding is not null
             && string.Equals(binding.HoldedContactId, contactId, StringComparison.Ordinal)
             && accountNum == binding.SupplierAccountNum)
             return contactId;
 
         // A binding still missing its number writes real content, so it cannot be skipped — but it can
-        // still undo an admin's Bind or Unbind from the copy read before the round-trip. Re-reading
-        // here shrinks that window without a version column (nobodies-collective/Humans#995).
+        // still undo an admin's Bind or Unbind from the copy read before the create round-trip.
+        // Re-reading here shrinks that window without a version column (nobodies-collective/Humans#995).
         if (!await BindingUnchangedAsync(nameof(EnsureCreditorContactAsync), userId, binding, ct))
             return contactId;
 
@@ -919,6 +931,7 @@ internal sealed class Service(
                 FileId = fileId,
                 UserId = row.Bindings[0].UserId,
                 SupplierAccountNum = s.SupplierAccountNum,
+                HoldedContactId = row.Bindings[0].HoldedContactId,
                 CreditorName = SepaText.Normalize(contact.Name, SepaPaymentFileBuilder.MaxNameLength),
                 Iban = IbanValidator.Normalize(contact.Iban),
                 IbanMasked = IbanFormatter.Mask(contact.Iban),
@@ -1008,6 +1021,13 @@ internal sealed class Service(
                 return "the member has no Holded contact binding";
             if (binding.SupplierAccountNum != row.SupplierAccountNum)
                 return "the member's Holded binding changed since this file was generated — book it by hand";
+            // Mirrors BookSepaTransferAsync's sibling-contact refusal: same account number is not
+            // enough, because Holded lets two contacts share one 400000xx. Without this the button
+            // renders live and only fails on click. Null means a row generated before
+            // nobodies-collective/Humans#1146 shipped — account-only behaviour, as there.
+            if (row.HoldedContactId is { Length: > 0 }
+                && !string.Equals(row.HoldedContactId, binding.HoldedContactId, StringComparison.Ordinal))
+                return "the member was rebound to a different Holded contact since this file was generated — book it by hand";
             return null;
         }
     }
@@ -1054,6 +1074,18 @@ internal sealed class Service(
                 $"The member's Holded binding changed since this file was generated (now "
                 + $"{binding.SupplierAccountNum?.ToString(CultureInfo.InvariantCulture) ?? "unresolved"}, "
                 + $"the transfer pays {transfer.SupplierAccountNum}) — book it by hand.");
+
+        // Same account number is not enough: Holded lets two contacts share one 400000xx, so a
+        // rebind to a sibling contact on that account slips past the check above. The file paid the
+        // contact named on the transfer; anything else pays the wrong recipient's documents. Null on
+        // the transfer means a row from before this guard existed — it keeps today's account-only
+        // behaviour.
+        if (transfer.HoldedContactId is { Length: > 0 }
+            && !string.Equals(transfer.HoldedContactId, binding.HoldedContactId, StringComparison.Ordinal))
+            return new SepaBookingResult(false,
+                $"The member was rebound to a different Holded contact since this file was generated "
+                + $"(now {binding.HoldedContactId}, the transfer paid {transfer.HoldedContactId}) — "
+                + "book it by hand.");
 
         IReadOnlyList<HoldedPurchaseDocListItemDto> open;
         try
@@ -1220,7 +1252,7 @@ internal sealed class Service(
         var payouts = await repo.GetSepaPayoutsForUserAsync(userId, ct);
         return
         [
-            new UserDataSlice(GdprExportSections.HoldedCreditorAccount,
+            new UserDataSlice(HoldedCreditorAccount,
                 binding is null
                     ? null
                     : new
@@ -1232,11 +1264,12 @@ internal sealed class Service(
 
             // Every credit transfer paid to them. The IBAN is the masked one, as everywhere
             // outside the file and the payout row itself.
-            new UserDataSlice(GdprExportSections.SepaPayouts, payouts.Select(p => new
+            new UserDataSlice(SepaPayouts, payouts.Select(p => new
             {
                 p.GeneratedAt,
                 p.FileName,
                 p.SupplierAccountNum,
+                p.HoldedContactId,
                 p.CreditorName,
                 Iban = p.IbanMasked,
                 p.Amount,
@@ -1258,8 +1291,8 @@ internal sealed class Service(
     private static readonly IReadOnlyDictionary<string, string?> Erasure =
         new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            [GdprExportSections.HoldedCreditorAccount] = null,
-            [GdprExportSections.SepaPayouts] = PayoutRetention
+            [HoldedCreditorAccount] = null,
+            [SepaPayouts] = PayoutRetention
         };
 
     public IReadOnlyDictionary<string, string?> ErasureDeclaration => Erasure;

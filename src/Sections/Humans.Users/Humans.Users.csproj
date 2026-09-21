@@ -12,6 +12,13 @@
     <!-- Shell-level tests over the moved controllers. -->
     <InternalsVisibleTo Include="Humans.Web.Tests" />
     <!--
+      DeletionConfirmationLeavesNoOutboxRowTests runs this section's deletion job and its
+      UsersEmails builder against Email's real outbox: the Article 17 invariant it guards
+      spans both sections and the table under test is Email's (same rationale as that test
+      project's ProjectReference here).
+    -->
+    <InternalsVisibleTo Include="Humans.Email.Tests" />
+    <!--
       Three unmoved sections' harnesses seed this section's rows through an in-memory
       UsersDbContext (Teams' two-way pattern, design §15 step 8). Each drops out at the lane
       that stops its harness building another section's context directly.
@@ -39,6 +46,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Humans.Base\Humans.Base.csproj" />
+    <!-- IIssueQueueOwner: this section declares the issue queue it owns. -->
+    <ProjectReference Include="..\Humans.Issues.Contracts\Humans.Issues.Contracts.csproj" />
     <!--
       Humans.Interfaces above now carries what the deleted Humans.Domain used to supply here:
       RoleNames, the shared value objects, and the enums that keep the Humans.Base.Enums
@@ -79,16 +88,6 @@
       nothing in Humans.Users.
     -->
     <ProjectReference Include="..\Humans.Camps\Humans.Camps.csproj" />
-    <!--
-      Views/Profile/Index.cshtml renders <vc:events-card />, whose EventsCardViewComponent is
-      public in Humans.Events/ViewComponents/ but whose tag helper Razor only generates from
-      the declaring assembly — @addTagHelper needs the assembly, not its Contracts leaf. Same
-      shape as the Humans.Camps reference above (nobodies-collective/Humans#1090 — the
-      invoke-by-name call this replaces produced no assembly reference, so the section
-      activation dependency graph could not see it). Acyclic — Humans.Events references
-      Humans.Users.Contracts, never this project.
-    -->
-    <ProjectReference Include="..\Humans.Events\Humans.Events.csproj" />
     <ProjectReference Include="..\Humans.AuditLog.Contracts\Humans.AuditLog.Contracts.csproj" />
     <!-- ProfileController injects IAuditViewerService and AdminDetail.cshtml renders
          <vc:audit-log>; both moved out of Humans.Application / Humans.UI into the AuditLog
@@ -113,6 +112,7 @@
     <ProjectReference Include="..\Humans.Notifications.Contracts\Humans.Notifications.Contracts.csproj" />
     <ProjectReference Include="..\Humans.Onboarding.Contracts\Humans.Onboarding.Contracts.csproj" />
     <ProjectReference Include="..\Humans.Shifts.Contracts\Humans.Shifts.Contracts.csproj" />
+    <ProjectReference Include="..\Humans.Settings.Contracts\Humans.Settings.Contracts.csproj" />
     <!--
       The section project, not its Contracts leaf, because Views/Profile/Index.cshtml and
       Views/UsersAdmin/AdminDetail.cshtml render <vc:shift-signups>: the tag helper binds at
@@ -146,6 +146,17 @@
   <ItemGroup>
     <!-- The section owns its documentation (design §7a); keep it visible in Solution Explorer. -->
     <None Include="**\*.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Section-help markdown (ISectionHelp). Embedded, not fetched: the help modal renders
+      synchronously on the section's landing page. The logical name is fixed here so
+      SectionHelpEntry.FromEmbeddedMarkdown can address it without probing.
+    -->
+    <None Remove="Docs\help\*.md" />
+    <EmbeddedResource Include="Docs\help\*.md"
+                      LogicalName="$(AssemblyName).Docs.help.%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

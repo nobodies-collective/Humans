@@ -330,7 +330,7 @@ public class FinanceControllerTests
     private static SepaPayoutTransferRow Transfer(
         Guid fileId, string fileName, Instant generatedAt, Guid generatedBy, Guid userId, int account) =>
         new(Guid.NewGuid(), fileId, fileName, generatedAt, generatedBy,
-            userId, account, "Ana Ruiz", "ES79****789", 12.34m, null, null, null, null);
+            userId, account, "c1", "Ana Ruiz", "ES79****789", 12.34m, null, null, null, null);
 
     private static SepaPayoutsPageVm SepaPageOf(IActionResult result) =>
         result.Should().BeOfType<ViewResult>().Subject.Model
@@ -359,7 +359,6 @@ public class FinanceControllerTests
         DeletionScheduledFor: null,
         DeletionEligibleAfter: null,
         UnsubscribedFromCampaigns: false,
-        ICalToken: null,
         SuppressScheduleChangeEmails: false,
         MagicLinkSentAt: null,
         ContactSource: null,

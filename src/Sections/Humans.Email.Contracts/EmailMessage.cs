@@ -5,29 +5,34 @@ namespace Humans.Email.Contracts;
 /// <summary>
 /// A fully-rendered, ready-to-enqueue email: the recipient, the rendered content
 /// (<see cref="Subject"/> + <see cref="HtmlBody"/>), and the routing facts the
-/// transport needs. Built by <see cref="IEmailMessageFactory"/> — which wraps the
-/// pure <see cref="IEmailRenderer"/> and stamps policy around it — and consumed by
-/// the single <see cref="IEmailService.SendAsync"/> path, so opt-out, unsubscribe,
-/// wrapping, metrics, and outbox routing are implemented exactly once.
+/// transport needs. Built by the sending section and consumed by the single
+/// <see cref="IEmailService.SendAsync"/> path, so opt-out, unsubscribe, wrapping,
+/// metrics, and outbox routing are implemented exactly once. Immediate drain is not
+/// a field here: it is derived from <see cref="TimeSensitiveTemplates"/>.
 /// </summary>
 /// <param name="RecipientEmail">Destination address.</param>
 /// <param name="RecipientName">Display name, or null.</param>
 /// <param name="Subject">Rendered subject line.</param>
 /// <param name="HtmlBody">Rendered HTML body fragment, before the branded wrap.</param>
-/// <param name="TemplateName">Stable template key — the per-template metric key; never varies for a given message type.</param>
+/// <param name="TemplateName">Stable template key — the per-template metric key, and what <see cref="TimeSensitiveTemplates"/> keys the immediate drain and the queue order on; never varies for a given message type.</param>
 /// <param name="Category">
 /// Opt-out category. <c>null</c> or <see cref="MessageCategory.System"/> ⇒ always
 /// send: no opt-out suppression and no unsubscribe header/footer (transactional,
 /// legal, and security mail). Any other category ⇒ opt-out check + unsubscribe.
 /// </param>
 /// <param name="ReplyTo">Reply-To address when the message routes replies (facilitated and coordinator mail).</param>
-/// <param name="TriggerImmediate">When true, trigger an immediate outbox drain instead of waiting for the batch run.</param>
 /// <param name="UserId">
 /// Explicit recipient user id. When null the transport resolves it from
 /// <see cref="RecipientEmail"/>; the campaign-code path supplies it directly
 /// because the grant's user — not an email lookup — is authoritative.
 /// </param>
 /// <param name="CampaignGrantId">Links a campaign-code email to its grant for status tracking.</param>
+/// <param name="CampaignId">
+/// The campaign a campaign-code email belongs to — stable across every grant in the
+/// campaign, unlike <see cref="CampaignGrantId"/> (one per recipient). Feeds the
+/// campaign component of the Feedback-ID header so Google Postmaster can aggregate
+/// by campaign.
+/// </param>
 /// <param name="DoNotPersist">
 /// When true the message is handed straight to the transport and no
 /// <c>email_outbox_messages</c> row is written — so it is never retried, and the
@@ -46,7 +51,7 @@ public sealed record EmailMessage(
     string TemplateName,
     MessageCategory? Category = null,
     string? ReplyTo = null,
-    bool TriggerImmediate = false,
     Guid? UserId = null,
     Guid? CampaignGrantId = null,
+    Guid? CampaignId = null,
     bool DoNotPersist = false);

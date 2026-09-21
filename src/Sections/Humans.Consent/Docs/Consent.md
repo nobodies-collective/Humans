@@ -152,6 +152,7 @@ Three controllers serve this section.
 
 - **Profiles/Onboarding:** `ConsentService` has no profile dependency and does **not** call into Profile or Onboarding after a consent submit — the threshold check (`OnboardingService.SetConsentCheckPendingIfEligibleAsync`) is invoked by the controller (`ConsentController.Submit`, `OnboardingWidgetController`) as a peer call alongside `ConsentService.SubmitConsentAsync`.
 - **Teams:** `ITeamServiceRead` — `LegalDocumentSyncService` stitches team names in memory (replaces `.Include(d => d.Team)`); legal documents are team-scoped (Volunteers team = global).
+- **Email:** Consent owns its two templates — `ConsentEmails` (internal) builds each `EmailMessage` from Consent's own `Consent_Email_*` keys in `ConsentResource`, rendered in the recipient's culture via `CultureScope`; `ConsentEmailPreviews` (`IEmailPreviewContributor`, registered in `Section.Register`) lists them at `/Email/EmailPreview`. Email supplies transport only — `IEmailService.SendAsync` (`memory/architecture/email-templates-live-in-sender.md`, peterdrier/Humans#1651).
 - **Notifications:** `Humans.Notifications.Contracts.INotificationEmitter` (in-app fan-out from `LegalDocumentSyncService`) and `INotificationAutoResolve.ResolveBySourceAsync` (auto-resolve `AccessSuspended` notifications from `ConsentService` once all required consents are complete — the narrow auto-resolve contract, not the full inbox service).
 - **Human Lifecycle:** `IHumanLifecycleService.RestoreConsentSuspensionAsync` — `ConsentService` lifts a consent suspension once all required consents are complete (alongside resolving the `AccessSuspended` notification). `ConsentService` no longer depends on `ISystemTeamSync` — after the name-only access switch, a consent submit does not provision system-team membership; the scheduled `SystemTeamSyncJob` reconciles Volunteers/Coordinators on name + consents.
 - **Governance:** `IMembershipCalculatorRead.GetRequiredTeamIdsForUserAsync` / `HasAllRequiredConsentsAsync` — `ConsentService` resolves which teams' documents apply to a given user and whether all required consents are complete.
@@ -184,3 +185,14 @@ Three controllers serve this section.
 ### Touch-and-clean guidance
 
 - `DocumentVersion.ConsentRecords` — declared but not navigated by any service, view, or test. Stripping it is **not** doc-only: `DocumentVersionConfiguration` is the sole declaration of the `consent_records` → `document_versions` FK and its `OnDelete(Restrict)`, so the relationship must be re-expressed from the `ConsentRecord.DocumentVersion` side and a `dotnet ef migrations add` must produce an empty `Up()` to prove the schema is unchanged (see Users' #635 nav-strip precedent).
+
+## Issue queue
+
+Consent owns the `Legal` issue queue: it implements `IIssueQueueOwner` (Issues' contracts
+leaf) on its `Section` entry point, declaring the queue key and the roles that handle
+issues filed against it — `ConsentCoordinator`, plus `Admin`, which handles every queue.
+Issues discovers the declaration through DI and holds no list of sections; dropping the
+seam sends this section's stored issues to the Admin-only queue. The key is `Legal`, not
+`Consent`: the section was renamed at the 2026-08-03 freeze and stored rows still carry
+the old string, so the queue keeps its name (and `/Debug/Sections` lists it as an
+unmatched annotation, which is the rename showing rather than hiding).

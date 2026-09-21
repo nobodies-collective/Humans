@@ -11,13 +11,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
 using NSubstitute;
+using Xunit;
 
 namespace Humans.Email.Tests.Services;
 
 /// <summary>
 /// Transport-level tests for the Application-layer <see cref="OutboxEmailService"/>:
 /// the single <see cref="IEmailService.SendAsync"/> path. Per-type policy stamping
-/// (template / category / reply-to / immediate) is covered by
+/// (template / category / reply-to) is covered by
 /// <see cref="EmailMessageFactoryTests"/>; these tests exercise the shared
 /// transport — opt-out suppression, unsubscribe headers, body composition,
 /// immediate-drain, and user-id resolution — over a real
@@ -84,12 +85,12 @@ public sealed class OutboxEmailServiceTests : IDisposable
         string template = "access_suspended",
         MessageCategory? category = null,
         string? replyTo = null,
-        bool triggerImmediate = false,
         Guid? userId = null,
         Guid? campaignGrantId = null,
+        Guid? campaignId = null,
         bool doNotPersist = false) =>
-        new(recipient, name, subject, html, template, category, replyTo, triggerImmediate, userId,
-            campaignGrantId, doNotPersist);
+        new(recipient, name, subject, html, template, category, replyTo, userId,
+            campaignGrantId, campaignId, doNotPersist);
 
     [HumansFact]
     public async Task SendAsync_CreatesOutboxRowWithCorrectFields()
@@ -141,17 +142,21 @@ public sealed class OutboxEmailServiceTests : IDisposable
         _metrics.Received(1).RecordEmailQueued("access_suspended");
     }
 
-    [HumansFact]
-    public async Task SendAsync_TriggerImmediate_RunsImmediateProcessor()
+    [HumansTheory]
+    [MemberData(nameof(TimeSensitiveTemplateNames))]
+    public async Task SendAsync_TimeSensitiveTemplate_RunsImmediateProcessor(string template)
     {
-        await _service.SendAsync(Message(template: "email_verification", triggerImmediate: true), Xunit.TestContext.Current.CancellationToken);
+        await _service.SendAsync(Message(template: template), Xunit.TestContext.Current.CancellationToken);
         _immediate.Received(1).TriggerImmediate();
     }
 
+    public static TheoryData<string> TimeSensitiveTemplateNames() =>
+        [.. TimeSensitiveTemplates.Names];
+
     [HumansFact]
-    public async Task SendAsync_WithoutTriggerImmediate_DoesNotRunImmediateProcessor()
+    public async Task SendAsync_OrdinaryTemplate_DoesNotRunImmediateProcessor()
     {
-        await _service.SendAsync(Message(triggerImmediate: false), Xunit.TestContext.Current.CancellationToken);
+        await _service.SendAsync(Message(template: "access_suspended"), Xunit.TestContext.Current.CancellationToken);
         _immediate.DidNotReceive().TriggerImmediate();
     }
 
@@ -177,7 +182,8 @@ public sealed class OutboxEmailServiceTests : IDisposable
         await _service.SendAsync(Message(category: null), Xunit.TestContext.Current.CancellationToken);
 
         var msg = await _emailDb.EmailOutboxMessages.SingleAsync(Xunit.TestContext.Current.CancellationToken);
-        msg.ExtraHeaders.Should().BeNull("always-send mail carries no List-Unsubscribe headers");
+        msg.ExtraHeaders.Should().NotContain("List-Unsubscribe", "always-send mail carries no List-Unsubscribe headers");
+        msg.ExtraHeaders.Should().Contain("Feedback-ID");
         await _commPrefService.DidNotReceive()
             .IsOptedOutAsync(Arg.Any<Guid>(), Arg.Any<MessageCategory>(), Arg.Any<CancellationToken>());
         _commPrefService.DidNotReceive().GenerateUnsubscribeHeaders(Arg.Any<Guid>(), Arg.Any<MessageCategory>());
@@ -193,9 +199,52 @@ public sealed class OutboxEmailServiceTests : IDisposable
         await _service.SendAsync(Message(template: "signup_rejected", category: MessageCategory.System), Xunit.TestContext.Current.CancellationToken);
 
         var msg = await _emailDb.EmailOutboxMessages.SingleAsync(Xunit.TestContext.Current.CancellationToken);
-        msg.ExtraHeaders.Should().BeNull();
+        msg.ExtraHeaders.Should().NotContain("List-Unsubscribe");
+        msg.ExtraHeaders.Should().Contain("Feedback-ID");
         await _commPrefService.DidNotReceive()
             .IsOptedOutAsync(Arg.Any<Guid>(), Arg.Any<MessageCategory>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task SendAsync_StampsFeedbackIdWithTemplateCategoryAndCampaign()
+    {
+        var grantId = Guid.NewGuid();
+        var campaignId = Guid.NewGuid();
+        await _service.SendAsync(Message(
+            template: "campaign_code", category: MessageCategory.CampaignCodes,
+            campaignGrantId: grantId, campaignId: campaignId),
+            Xunit.TestContext.Current.CancellationToken);
+
+        var msg = await _emailDb.EmailOutboxMessages.SingleAsync(Xunit.TestContext.Current.CancellationToken);
+        var headers = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(msg.ExtraHeaders!);
+        headers!["Feedback-ID"].Should().Be($"campaign_code:{campaignId}:CampaignCodes:humans-nobodies");
+    }
+
+    [HumansFact]
+    public async Task SendAsync_StampsFeedbackIdWithNoneWhenCampaignIdMissing()
+    {
+        var grantId = Guid.NewGuid();
+        await _service.SendAsync(Message(
+            template: "campaign_code", category: MessageCategory.CampaignCodes, campaignGrantId: grantId),
+            Xunit.TestContext.Current.CancellationToken);
+
+        var msg = await _emailDb.EmailOutboxMessages.SingleAsync(Xunit.TestContext.Current.CancellationToken);
+        var headers = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(msg.ExtraHeaders!);
+        headers!["Feedback-ID"].Should().Be($"campaign_code:none:CampaignCodes:humans-nobodies");
+    }
+
+    [HumansFact]
+    public async Task SendAsync_DoNotPersist_PassesFeedbackIdToTransport()
+    {
+        await _service.SendAsync(
+            Message(template: "account_deleted", doNotPersist: true),
+            Xunit.TestContext.Current.CancellationToken);
+
+        await _transport.Received(1).SendAsync(
+            Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Is<IDictionary<string, string>?>(h => h != null && h["Feedback-ID"] == "account_deleted:none:none:humans-nobodies"),
+            Arg.Any<CancellationToken>());
     }
 
     [HumansFact]
@@ -278,7 +327,7 @@ public sealed class OutboxEmailServiceTests : IDisposable
             template: "campaign_code", category: MessageCategory.CampaignCodes, userId: userId), Xunit.TestContext.Current.CancellationToken);
 
         var msg = await _emailDb.EmailOutboxMessages.SingleAsync(Xunit.TestContext.Current.CancellationToken);
-        msg.ExtraHeaders.Should().BeNull("campaign codes are always-on; there is no opt-out to advertise");
+        msg.ExtraHeaders.Should().NotContain("List-Unsubscribe", "campaign codes are always-on; there is no opt-out to advertise");
         await _commPrefService.DidNotReceive()
             .IsOptedOutAsync(Arg.Any<Guid>(), Arg.Any<MessageCategory>(), Arg.Any<CancellationToken>());
         _commPrefService.DidNotReceive().GenerateUnsubscribeHeaders(Arg.Any<Guid>(), Arg.Any<MessageCategory>());

@@ -1,7 +1,11 @@
+using Humans.Base.Constants;
+using Humans.Issues.Contracts;
 using Humans.Base.Interfaces.Caching;
 using Humans.Calendar.Contracts;
 using Humans.EarlyEntry.Contracts;
+using Humans.Email.Contracts;
 using Humans.Gdpr.Contracts;
+using Humans.Settings.Contracts;
 using Humans.Base.Hosting;
 using Humans.Shifts.Authorization;
 using Humans.Shifts.Contracts;
@@ -27,7 +31,7 @@ namespace Humans.Shifts;
 /// <c>AddSectionDbContext&lt;ShiftsDbContext&gt;</c> line moved out of
 /// <c>InfrastructureServiceCollectionExtensions</c> (design §15 step 11).
 /// </remarks>
-public sealed class Section : ISection
+public sealed class Section : ISection, IIssueQueueOwner
 {
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
@@ -49,6 +53,9 @@ public sealed class Section : ISection
 
         // Cross-section DTO supplier so Events/Camps/Tickets/Notifications consume BurnSettingsInfo without Shifts-internal EventSettings.
         services.AddScoped<IBurnSettingsService, BurnSettingsService>();
+
+        // Per-request memoized calendar lookup off Settings (nobodies-collective/Humans#1630).
+        services.AddScoped<EventCalendarResolver>();
 
         services.AddScoped<ShiftSignupService>();
         services.AddScoped<IShiftSignupService>(sp => sp.GetRequiredService<ShiftSignupService>());
@@ -76,6 +83,8 @@ public sealed class Section : ISection
         services.AddSingleton<IShiftRowView>(sp => sp.GetRequiredService<CachingShiftViewService>());
         services.AddSingleton<IShiftView>(sp => sp.GetRequiredService<CachingShiftViewService>());
         services.AddSingleton<IShiftViewInvalidator>(sp => sp.GetRequiredService<CachingShiftViewService>());
+        // Settings fans out over this after an event-settings save; the same instance answers.
+        services.AddSingleton<IEventSettingsChangeListener>(sp => sp.GetRequiredService<CachingShiftViewService>());
 
         services.AddSingleton<ICacheStats>(sp => sp.GetRequiredService<CachingShiftViewService>().UserCacheStats);
         services.AddSingleton<ICacheStats>(sp => sp.GetRequiredService<CachingShiftViewService>().RotaCacheStats);
@@ -92,6 +101,11 @@ public sealed class Section : ISection
 
         // Rota coordinator "email a rota".
         services.AddScoped<IRotaCoordinatorMessageService, RotaCoordinatorMessageService>();
+
+        // The section's own email templates plus their gallery samples
+        // (memory/architecture/email-templates-live-in-sender.md).
+        services.AddScoped<ShiftsEmails>();
+        services.AddScoped<IEmailPreviewContributor, ShiftsEmailPreviews>();
 
         // Policy-backing handler. ShiftDepartmentManager's policy is this section's, in
         // SectionPolicies.
@@ -116,4 +130,10 @@ public sealed class Section : ISection
             [SignupStatus.NoShow] = "bg-danger",
         });
     }
+
+    // This section owns the issue queue its members' reports land in; Issues discovers
+    // the seam rather than holding a list of sections (memory/architecture/section-contribution-seams.md).
+    string IIssueQueueOwner.QueueKey => "Shifts";
+
+    IReadOnlyList<string> IIssueQueueOwner.OwningRoles => [RoleNames.NoInfoAdmin];
 }

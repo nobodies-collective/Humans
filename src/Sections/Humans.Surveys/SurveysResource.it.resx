@@ -60,7 +60,6 @@
   <data name="Survey_Start" xml:space="preserve"><value>Inizia</value></data>
   <data name="Survey_Continue" xml:space="preserve"><value>Continua</value></data>
   <data name="Survey_PageOf" xml:space="preserve"><value>Pagina {0} di {1}</value></data>
-  <data name="Survey_RequiredAlert" xml:space="preserve"><value>Rispondi alle domande obbligatorie prima di continuare.</value></data>
   <data name="Survey_QuestionRequired" xml:space="preserve"><value>Questa domanda è obbligatoria.</value></data>
   <data name="Survey_ValidationAlert" xml:space="preserve"><value>Controlla le risposte evidenziate prima di continuare.</value></data>
   <data name="Survey_AnswerInvalid" xml:space="preserve"><value>Controlla questa risposta e riprova.</value></data>
@@ -153,7 +152,7 @@
   <data name="Survey_Admin_Builder_SlugPlaceholder" xml:space="preserve"><value>es. feedback-2026</value></data>
   <data name="Survey_Admin_Builder_SlugHelp" xml:space="preserve"><value>I sondaggi anonimi consentono l'accesso a chiunque abbia il link. I sondaggi identificati richiedono l'accesso e, se configurato, l'idoneità al pubblico attuale.</value></data>
   <data name="Survey_Admin_Builder_InvitationEmailHeader" xml:space="preserve"><value>Email di invito</value></data>
-  <data name="Survey_Admin_Builder_InvitationEmailIntro" xml:space="preserve"><value>Personalizza l'invito iniziale. Humans aggiunge il saluto, il titolo del sondaggio, il pulsante con il link e i saluti finali. Il messaggio supporta la formattazione Markdown, ma non le immagini. Lascia un campo vuoto per usare il testo standard.</value></data>
+  <data name="Survey_Admin_Builder_InvitationEmailIntro" xml:space="preserve"><value>Personalizza l'invito iniziale. Humans aggiunge il saluto, il titolo del sondaggio, il pulsante con il link e i saluti finali. Il messaggio supporta la formattazione Markdown, incluse le immagini https://. Lascia un campo vuoto per usare il testo standard.</value></data>
   <data name="Survey_Admin_Builder_Field_EmailSubject" xml:space="preserve"><value>Oggetto dell'email</value></data>
   <data name="Survey_Admin_Builder_Field_EmailMessage" xml:space="preserve"><value>Messaggio dell'email</value></data>
   <data name="Survey_Admin_Builder_QuestionsHeader" xml:space="preserve"><value>Domande</value></data>
@@ -312,4 +311,17 @@
   <data name="Survey_Admin_Builder_Saved_TranslationFailed" xml:space="preserve">
     <value>Sondaggio salvato, ma la traduzione non è riuscita: {0}</value>
   </data>
+  <data name="Surveys_Email_SurveyInvitation_Subject" xml:space="preserve"><value>Completa: {0}</value></data>
+  <data name="Surveys_Email_SurveyInvitation_Body" xml:space="preserve"><value>&lt;h2&gt;{1}&lt;/h2&gt;
+&lt;p&gt;Ciao {0},&lt;/p&gt;
+{3}
+&lt;p&gt;&lt;a href="{2}"&gt;Apri il sondaggio&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Grazie,&lt;br/&gt;Il Nobodies Collective&lt;/p&gt;</value></data>
+  <data name="Surveys_Email_SurveyInvitation_DefaultMessage" xml:space="preserve"><value>Sei invitato a completare il sondaggio &lt;strong&gt;{0}&lt;/strong&gt;. Bastano pochi minuti.</value></data>
+  <data name="Surveys_Email_SurveyReminder_Subject" xml:space="preserve"><value>Promemoria: {0}</value></data>
+  <data name="Surveys_Email_SurveyReminder_Body" xml:space="preserve"><value>&lt;h2&gt;{1}&lt;/h2&gt;
+&lt;p&gt;Ciao {0},&lt;/p&gt;
+&lt;p&gt;Solo un promemoria: il sondaggio &lt;strong&gt;{1}&lt;/strong&gt; è ancora in attesa della tua risposta.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}"&gt;Apri il sondaggio&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Grazie,&lt;br/&gt;Il Nobodies Collective&lt;/p&gt;</value></data>
 </root>

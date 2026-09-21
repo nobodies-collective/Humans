@@ -56,7 +56,7 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
     private readonly ApplicationRepository _repository;
     private readonly IUserService _userService;
     private readonly IEmailService _emailService = Substitute.For<IEmailService>();
-    private readonly IEmailMessageFactory _emailMessages = Substitute.For<IEmailMessageFactory>();
+    private readonly GovernanceEmails _emailMessages = TestGovernanceEmails.Create();
     private readonly INotificationEmitter _notificationService = Substitute.For<INotificationEmitter>();
     private readonly ISystemTeamSync _syncJob = Substitute.For<ISystemTeamSync>();
     private readonly IHumansMetrics _metrics = Substitute.For<IHumansMetrics>();
@@ -276,6 +276,24 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
     }
 
     [HumansFact]
+    public async Task ApproveAsync_records_the_governance_audit_entry()
+    {
+        var application = await SeedSubmittedApplicationAsync(Guid.NewGuid(), MembershipTier.Asociado);
+        var reviewerId = Guid.NewGuid();
+        await SeedBoardVoteAsync(application.Id);
+
+        await _service.ApproveAsync(application.Id, reviewerId, "Approved", null,
+            Xunit.TestContext.Current.CancellationToken);
+
+        await AuditLog.Received(1).LogAsync(
+            AuditAction.TierApplicationApproved,
+            AuditEntityTypes.Application,
+            application.Id,
+            "Asociado application approved",
+            reviewerId);
+    }
+
+    [HumansFact]
     public async Task ApproveAsync_UpdatesProfileTierViaUserService()
     {
         var userId = Guid.NewGuid();
@@ -443,6 +461,9 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         {
             Id = userId,
             DisplayName = "Alice",
+            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+            // UserInfo.BurnerName reads User.BurnerName only (#1098).
+            BurnerName = "Alice",
             UserName = "alice@test.com",
             Email = "alice@test.com",
             PreferredLanguage = "en"
@@ -456,11 +477,12 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
 
         await _service.ApproveAsync(app.Id, Guid.NewGuid(), null, null, Xunit.TestContext.Current.CancellationToken);
 
-        _emailMessages.Received().ApplicationApproved(
-            "alice@test.com",
-            "Alice",
-            MembershipTier.Colaborador,
-            "en");
+        await _emailService.Received().SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "application_approved"
+                && m.RecipientEmail == "alice@test.com"
+                && m.RecipientName == "Alice"
+                && m.Subject == "Governance_Email_ApplicationApproved_Subject#en"),
+            Arg.Any<CancellationToken>());
     }
 
     [HumansFact]
@@ -473,6 +495,9 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         {
             Id = userId,
             DisplayName = "Bob",
+            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+            // UserInfo.BurnerName reads User.BurnerName only (#1098).
+            BurnerName = "Bob",
             UserName = "bob",
             Email = null,
             PreferredLanguage = "en"
@@ -486,16 +511,14 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
 
         await _service.ApproveAsync(app.Id, Guid.NewGuid(), null, null, Xunit.TestContext.Current.CancellationToken);
 
-        _emailMessages.Received().ApplicationApproved(
-            "bob.notify@test.com",
-            "Bob",
-            MembershipTier.Colaborador,
-            "en");
-        _emailMessages.DidNotReceive().ApplicationApproved(
-            string.Empty,
-            Arg.Any<string>(),
-            Arg.Any<MembershipTier>(),
-            Arg.Any<string>());
+        await _emailService.Received().SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "application_approved"
+                && m.RecipientEmail == "bob.notify@test.com"
+                && m.RecipientName == "Bob"),
+            Arg.Any<CancellationToken>());
+        await _emailService.DidNotReceive().SendAsync(
+            Arg.Is<EmailMessage>(m => m.RecipientEmail == string.Empty),
+            Arg.Any<CancellationToken>());
     }
 
     [HumansFact]
@@ -508,6 +531,9 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         {
             Id = userId,
             DisplayName = "Carol",
+            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+            // UserInfo.BurnerName reads User.BurnerName only (#1098).
+            BurnerName = "Carol",
             UserName = "carol",
             Email = null,
             PreferredLanguage = "en"
@@ -517,11 +543,9 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
 
         await _service.ApproveAsync(app.Id, Guid.NewGuid(), null, null, Xunit.TestContext.Current.CancellationToken);
 
-        _emailMessages.DidNotReceive().ApplicationApproved(
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<MembershipTier>(),
-            Arg.Any<string>());
+        await _emailService.DidNotReceive().SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "application_approved"),
+            Arg.Any<CancellationToken>());
     }
 
     // --- Reject flow ---
@@ -539,6 +563,24 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         var updated = await GovernanceDb.Applications.FirstAsync(a => a.Id == app.Id, Xunit.TestContext.Current.CancellationToken);
         updated.Status.Should().Be(ApplicationStatus.Rejected);
         updated.DecisionNote.Should().Be("Not ready");
+    }
+
+    [HumansFact]
+    public async Task RejectAsync_records_the_governance_audit_entry()
+    {
+        var application = await SeedSubmittedApplicationAsync(Guid.NewGuid(), MembershipTier.Colaborador);
+        var reviewerId = Guid.NewGuid();
+        await SeedBoardVoteAsync(application.Id);
+
+        await _service.RejectAsync(application.Id, reviewerId, "Not ready", null,
+            Xunit.TestContext.Current.CancellationToken);
+
+        await AuditLog.Received(1).LogAsync(
+            AuditAction.TierApplicationRejected,
+            AuditEntityTypes.Application,
+            application.Id,
+            "Colaborador application rejected",
+            reviewerId);
     }
 
     [HumansFact]
@@ -599,6 +641,34 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
 
         result.Success.Should().BeFalse();
         result.ErrorKey.Should().Be("NotSubmitted");
+    }
+
+    [HumansFact]
+    public async Task CastBoardVoteAsync_replaces_a_members_existing_vote_without_creating_a_second_row()
+    {
+        var application = await SeedSubmittedApplicationAsync(Guid.NewGuid());
+        var boardMemberId = Guid.NewGuid();
+
+        (await _service.CastBoardVoteAsync(application.Id, boardMemberId, VoteChoice.Yay, "initial",
+            Xunit.TestContext.Current.CancellationToken)).Success.Should().BeTrue();
+        var firstVote = await GovernanceDb.BoardVotes.SingleAsync(
+            vote => vote.ApplicationId == application.Id && vote.BoardMemberUserId == boardMemberId,
+            Xunit.TestContext.Current.CancellationToken);
+        Clock.AdvanceHours(1);
+
+        (await _service.CastBoardVoteAsync(application.Id, boardMemberId, VoteChoice.No, "changed",
+            Xunit.TestContext.Current.CancellationToken)).Success.Should().BeTrue();
+
+        ClearAllTrackers();
+        var votes = await GovernanceDb.BoardVotes
+            .Where(vote => vote.ApplicationId == application.Id && vote.BoardMemberUserId == boardMemberId)
+            .ToListAsync(Xunit.TestContext.Current.CancellationToken);
+        votes.Should().ContainSingle();
+        votes[0].Id.Should().Be(firstVote.Id);
+        votes[0].Vote.Should().Be(VoteChoice.No);
+        votes[0].Note.Should().Be("changed");
+        votes[0].VotedAt.Should().Be(Instant.FromUtc(2026, 3, 1, 12, 0));
+        votes[0].UpdatedAt.Should().Be(Clock.GetCurrentInstant());
     }
 
     // --- GetUserApplicationsAsync ---
@@ -681,6 +751,9 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         {
             Id = reviewerId,
             DisplayName = "Reviewer",
+            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+            // UserInfo.BurnerName reads User.BurnerName only (#1098).
+            BurnerName = "Reviewer",
             UserName = "r@t.com",
             Email = "r@t.com"
         };
@@ -738,24 +811,11 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
 
     // --- GetFilteredApplicationsAsync ---
 
+    // These two are the service's own behaviour, not the repository's: the admin form posts
+    // the filters as strings and this layer is where they become enums. The null/int
+    // pass-through cases are covered by ApplicationRepositoryTests over the same query.
     [HumansFact]
-    public async Task GetFilteredApplicationsAsync_DefaultsToSubmitted()
-    {
-        var submittedApp = await SeedSubmittedApplicationAsync(Guid.NewGuid());
-        var approvedApp = await SeedSubmittedApplicationAsync(Guid.NewGuid());
-        approvedApp.Approve(Guid.NewGuid(), "ok", Clock);
-        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
-
-        var (items, totalCount) = await _service.GetFilteredApplicationsAsync(null, null, 1, 10, Xunit.TestContext.Current.CancellationToken);
-
-        totalCount.Should().Be(1);
-        items.Should().HaveCount(1);
-        items[0].Id.Should().Be(submittedApp.Id);
-        items[0].Status.Should().Be(ApplicationStatus.Submitted);
-    }
-
-    [HumansFact]
-    public async Task GetFilteredApplicationsAsync_FiltersByStatus()
+    public async Task GetFilteredApplicationsAsync_ParsesTheStatusFilterString()
     {
         await SeedSubmittedApplicationAsync(Guid.NewGuid());
         var approvedApp = await SeedSubmittedApplicationAsync(Guid.NewGuid());
@@ -767,10 +827,11 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         totalCount.Should().Be(1);
         items.Should().HaveCount(1);
         items[0].Id.Should().Be(approvedApp.Id);
+        items[0].Status.Should().Be(ApplicationStatus.Approved);
     }
 
     [HumansFact]
-    public async Task GetFilteredApplicationsAsync_FiltersByTier()
+    public async Task GetFilteredApplicationsAsync_ParsesTheTierFilterString()
     {
         await SeedSubmittedApplicationAsync(Guid.NewGuid());
         await SeedSubmittedApplicationAsync(Guid.NewGuid(), MembershipTier.Asociado);
@@ -782,18 +843,6 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
     }
 
     [HumansFact]
-    public async Task GetFilteredApplicationsAsync_Pagination()
-    {
-        for (var i = 0; i < 3; i++)
-            await SeedSubmittedApplicationAsync(Guid.NewGuid());
-
-        var (items, totalCount) = await _service.GetFilteredApplicationsAsync(null, null, 1, 2, Xunit.TestContext.Current.CancellationToken);
-
-        totalCount.Should().Be(3);
-        items.Should().HaveCount(2);
-    }
-
-    [HumansFact]
     public async Task GetFilteredApplicationsAsync_StitchesApplicantInfo()
     {
         var userId = Guid.NewGuid();
@@ -802,6 +851,9 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         {
             Id = userId,
             DisplayName = "Applicant",
+            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+            // UserInfo.BurnerName reads User.BurnerName only (#1098).
+            BurnerName = "Applicant",
             UserName = "a@t.com",
             Email = "a@t.com"
         };
@@ -829,6 +881,9 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         {
             Id = applicantId,
             DisplayName = "Applicant",
+            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+            // UserInfo.BurnerName reads User.BurnerName only (#1098).
+            BurnerName = "Applicant",
             UserName = "a@t.com",
             Email = "a@t.com",
             ProfilePictureUrl = "https://example.com/pic.png"
@@ -837,6 +892,9 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         {
             Id = reviewerId,
             DisplayName = "Admin",
+            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+            // UserInfo.BurnerName reads User.BurnerName only (#1098).
+            BurnerName = "Admin",
             UserName = "r@t.com",
             Email = "r@t.com"
         };

@@ -22,42 +22,36 @@ internal sealed class GoogleController(
     IGoogleAdminService googleAdminService,
     ILogger<GoogleController> logger) : HumansControllerBase(userService)
 {
-    [HttpGet("SyncSettings")]
-    [Authorize(Policy = PolicyNames.AdminOnly)]
-    public async Task<IActionResult> SyncSettings(
-        [FromServices] ISyncSettingsService syncSettingsService)
+    [HttpGet("Resource/{id:guid}")]
+    [Authorize(Policy = PolicyNames.BoardOrAdmin)]
+    public async Task<IActionResult> Resource(Guid id)
     {
-        var settings = (await syncSettingsService.GetAllAsync())
-            // Sort by the enum's string name to match the prior EF ordering
-            // (ServiceType is stored via .HasConversion<string>()).
-            .OrderBy(s => s.ServiceType.ToString(), StringComparer.Ordinal)
-            .ToList();
+        var resource = await teamResourceService.GetResourceByIdAsync(id);
+        if (resource is null)
+            return NotFound();
 
-        // In-memory join: resolve UpdatedByUser display names via IUserServiceRead
-        // rather than an EF .Include across the section boundary (design-rules §6).
-        var updatedByUserIds = settings
-            .Select(s => s.UpdatedByUserId)
-            .OfType<Guid>()
-            .Distinct()
-            .ToList();
-        var updatedByUsers = updatedByUserIds.Count > 0
-            ? await UserService.GetUserInfosAsync(updatedByUserIds)
-            : new Dictionary<Guid, UserInfo>();
+        return View("SyncAudit", new SyncAuditViewModel(
+            $"Sync Audit: {resource.Name}",
+            Url.Action(nameof(Sync)),
+            "Back to Sync Status",
+            ResourceId: id,
+            UserId: null));
+    }
 
-        var viewModel = new SyncSettingsViewModel
-        {
-            Settings = settings.Select(s => new SyncServiceSettingViewModel
-            {
-                ServiceType = s.ServiceType,
-                ServiceName = FormatServiceName(s.ServiceType),
-                CurrentMode = s.SyncMode,
-                UpdatedAt = s.UpdatedAt.ToDateTimeUtc(),
-                UpdatedByName = s.UpdatedByUserId is { } uid && updatedByUsers.TryGetValue(uid, out var u)
-                    ? u.BurnerName
-                    : null
-            }).ToList()
-        };
-        return View(viewModel);
+    [HttpGet("Human/{id:guid}")]
+    [Authorize(Policy = PolicyNames.HumanAdminBoardOrAdmin)]
+    public async Task<IActionResult> Human(Guid id)
+    {
+        var user = await FindUserInfoByIdAsync(id);
+        if (user is null)
+            return NotFound();
+
+        return View("SyncAudit", new SyncAuditViewModel(
+            $"Google Sync Audit: {user.BurnerName}",
+            Url.Action("AdminDetail", "UsersAdmin", new { id }),
+            "Back to Human Detail",
+            ResourceId: null,
+            UserId: id));
     }
 
     [HttpPost("SyncSettings")]
@@ -75,8 +69,8 @@ internal sealed class GoogleController(
         logger.LogInformation("Admin {AdminId} changed {ServiceType} sync mode to {Mode}",
             currentUser.Id, serviceType, mode);
 
-        SetSuccess($"Sync mode for {FormatServiceName(serviceType)} updated to {mode}.");
-        return RedirectToAction(nameof(SyncSettings));
+        SetSuccess($"Sync mode for {SyncServiceNameFormatter.Format(serviceType)} updated to {mode}.");
+        return Redirect("/Settings#google-sync");
     }
 
     [HttpPost("SyncSystemTeams")]
@@ -605,8 +599,10 @@ internal sealed class GoogleController(
     [HttpGet("SyncOutbox")]
     [Authorize(Policy = PolicyNames.AdminOnly)]
     public async Task<IActionResult> SyncOutbox(
-        [FromServices] ITeamServiceRead teamService)
+        [FromServices] ITeamServiceRead teamService,
+        [FromServices] IGoogleDriveActivityClient googleClient)
     {
+        ViewData["GoogleNotConfigured"] = !googleClient.IsConfigured;
         var events = (await googleSyncService.GetRecentOutboxEventsAsync(200)).ToList();
 
         // Display info via UserInfo cache (one lookup/user). GoogleEmail from IsGoogle row, else primary. BurnerName per burnername-is-the-display-name.
@@ -768,12 +764,4 @@ internal sealed class GoogleController(
     {
         return View();
     }
-
-    private static string FormatServiceName(SyncServiceType type) => type switch
-    {
-        SyncServiceType.GoogleDrive => "Google Drive",
-        SyncServiceType.GoogleGroups => "Google Groups",
-        SyncServiceType.Discord => "Discord",
-        _ => type.ToString()
-    };
 }

@@ -44,7 +44,7 @@ public sealed class CityPlanningServiceTests : CityPlanningTestBase
     private void SetupCampSettings(int publicYear = 2026)
     {
         _campService.GetSettingsAsync(Arg.Any<CancellationToken>())
-            .Returns(new CampSettingsInfo(publicYear, [], null));
+            .Returns(new CampSettingsInfo(publicYear, []));
     }
 
     private async Task<CityPlanningSettings> SeedMapSettingsAsync(int year = 2026, bool placementOpen = false)
@@ -745,7 +745,9 @@ public sealed class CityPlanningServiceTests : CityPlanningTestBase
         var userId = NewUserId();
 
         // Stub the user service — replaces the old cross-domain .Include(h => h.ModifiedByUser).
-        var testUser = new User { Id = userId, UserName = "test@test.com", Email = "test@test.com", DisplayName = "Test User" };
+        // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+        // UserInfo.BurnerName reads User.BurnerName only (#1098).
+        var testUser = new User { Id = userId, UserName = "test@test.com", Email = "test@test.com", DisplayName = "Test User", BurnerName = "Test User" };
         _userService.GetUserInfosAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Contains(userId)),
             Arg.Any<CancellationToken>())
@@ -891,7 +893,7 @@ public sealed class CityPlanningServiceTests : CityPlanningTestBase
     public async Task UpdateRegistrationInfoAsync_WritesToHighestOpenSeason_NotPublicYear()
     {
         _campService.GetSettingsAsync(Arg.Any<CancellationToken>())
-            .Returns(new CampSettingsInfo(2026, [2026, 2028, 2027], null));
+            .Returns(new CampSettingsInfo(2026, [2026, 2028, 2027]));
 
         await _sut.UpdateRegistrationInfoAsync("Read this before you register.", Xunit.TestContext.Current.CancellationToken);
 
@@ -929,7 +931,7 @@ public sealed class CityPlanningServiceTests : CityPlanningTestBase
     public async Task GetRegistrationInfoAsync_ReadsTheSameYearTheWriteUsed()
     {
         _campService.GetSettingsAsync(Arg.Any<CancellationToken>())
-            .Returns(new CampSettingsInfo(2026, [2027], null));
+            .Returns(new CampSettingsInfo(2026, [2027]));
 
         await _sut.UpdateRegistrationInfoAsync("Open-season blurb", Xunit.TestContext.Current.CancellationToken);
 

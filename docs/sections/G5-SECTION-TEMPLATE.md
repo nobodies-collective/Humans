@@ -337,12 +337,12 @@ Git Bash.)
      was invisible until `grep -o 'name="[^"]*"' … | sed -E 's/^(prefix1|…).*/\1/' | uniq -c`
      was run against the file itself (proven: Shifts).
    - **A key whose *renderer* lives in Base stays in Base — carve by renderer, not by prefix.**
-     The third direction, after "carve by owner" and "the key goes home". Feedback's
-     `Email_FeedbackResponse_{Subject,Body}` look like the section's, and are read by
-     `Humans.Infrastructure/Services/EmailRenderer.cs`, which composes every transactional email
-     and cannot see a section's resource set. Taking them would degrade that email to raw keys in
-     all six languages, and no render test covers an email body. Grep each candidate key's call
-     sites before moving it, exactly as with `Enum_*` (proven: Feedback).
+     The third direction, after "carve by owner" and "the key goes home". Email templates live in
+     the sending section's own resx as `<Section>_Email_*`
+     ([`email-templates-live-in-sender`](../../memory/architecture/email-templates-live-in-sender.md)),
+     but keys still read by one of Email's remaining renderer methods (e.g. `FacilitatedMessage`)
+     stay in Email until that template moves too. Grep each candidate key's call sites before
+     moving it, exactly as with `Enum_*` (proven: Feedback).
    - If step 5 renames an enum, rename its `Enum_{TypeName}_*` keys in all six languages in the
      same commit — the key is the **live CLR type name** (spec §3; proven the hard way: Store).
    - **…and the fourth direction: move the *markup* instead of the key.** "Carve by renderer"
@@ -813,25 +813,26 @@ Git Bash.)
      recurring job — has to stay in Base because it names the Base job type. An interface with
      an implementer in Base belongs on the leaf for exactly the same reason as one with a
      caller there. Sort the section's abstractions by *which side the implementation is on*
-     before deciding: Email's four connector abstractions split three internal
-     (`IEmailRenderer`, `IEmailBodyComposer`, `IEmailTransport`) to one on the leaf
+     before deciding: Email's three connector abstractions split two internal
+     (`IEmailBodyComposer`, `IEmailTransport`) to one on the leaf
      (proven: Email).
      **The rule does not soften as the implementer count grows — it is the *only* thing
      that decides a fan-out section's leaf.** Gdpr's `IUserDataContributor` has exactly one
      consumer, the section's own orchestrator, and **21 implementers**: eight services still
      in `Humans.Application` and thirteen already-moved sections. Read consumer-first it looks
-     internal; read implementer-first it is obviously public, and the whole contract —
-     the interface, its `UserDataSlice` return DTO and the `GdprExportSections` constants
-     the implementers key their slices by — goes on the leaf together, because splitting
-     them would leave the section's own vocabulary in Base. Cost: `Humans.Application` and
-     thirteen section projects gain a `ProjectReference` and ~40 files gain a one-line
-     `using` swap. Notifications' lesson holds at the limit — **a wide fan-in over a narrow
-     interface is cheap; it is the *surface* that costs**, and here the surface is five
-     types with no method bodies (proven: Gdpr).
+     internal; read implementer-first it is obviously public, and the contract —
+     the interface and its `UserDataSlice` return DTO — goes on the leaf, purely because
+     21 implementers need to reference it; each implementer keys its own slices by
+     constants it declares on itself, not a shared vocabulary the leaf would otherwise
+     have to hold. Cost: `Humans.Application` and thirteen section projects gain a
+     `ProjectReference` and ~40 files gain a one-line `using` swap. Notifications' lesson
+     holds at the limit — **a wide fan-in over a narrow interface is cheap; it is the
+     *surface* that costs**, and here the surface is four types with no method bodies
+     (proven: Gdpr).
      - **A section whose whole substance *is* the contract has no "leave it in Base"
        option.** The tempting alternative — move only the orchestrator and leave the
        contributor contract behind — is what makes the move zero-risk and is wrong: the
-       section would ship a 70-line class whose own DTO and constants live in another
+       section would ship a 70-line class whose own return DTO lives in another
        assembly, which no moved section has done. Ask what is left in the section project
        if the contract stays; if the answer is "not the section", the contract moves.
    - **A leaf may be two one-method interfaces, and splitting them beats one misnamed one.**

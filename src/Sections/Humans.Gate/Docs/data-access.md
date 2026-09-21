@@ -34,7 +34,7 @@ Repository: `IGateRepository`.
 Cross-section calls via `ITicketServiceRead` (barcode → attendee resolved by
 filtering the cached orders projection in memory — no new interface method),
 `IEarlyEntryService` (cached per-user EE for the too-early rule),
-`IBurnSettingsService` (event timezone / active event), `IShiftManagementServiceRead`
+`ISettingsService` (event timezone / active event), `IShiftManagementServiceRead`
 (gate-crew shift roster for the claim screen, via
 `GetBrowseShiftsAsync`), `IRoleAssignmentService` (server-verified supervisor
 roles for overrides), `IUserService` (participation projection),
@@ -42,9 +42,10 @@ roles for overrides), `IUserService` (participation projection),
 `IPasswordHasher<GateStaffPin>` and `IClock` (cutoff is always evaluated
 against the server clock, never a device clock). Implements `IGateService`,
 `IUserMerge` (re-points `GuestUserId` / `ScannedByUserId` /
-`OverrideByUserId` on merge), `IUserDataContributor` (GDPR slice
-`GdprExportSections.GateScans` — data-minimized: verdict/time/role/lane,
-no barcode, no other person's identifiers). No `IMemoryCache`.
+`OverrideByUserId` on merge), `IUserDataContributor` (GDPR slice under the
+export key declared as `GateService.GateScans` — data-minimized:
+verdict/time/role/lane, no barcode, no other person's identifiers). No
+`IMemoryCache`.
 
 ### GateAdmissionRules / GateBarcode
 

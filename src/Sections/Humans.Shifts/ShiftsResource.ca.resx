@@ -1070,7 +1070,7 @@
     <value>El teu missatge</value>
   </data>
   <data name="EmailRota_MessageHelp" xml:space="preserve">
-    <value>Nom&#xE9;s text sense format. Cada destinatari veur&#xE0; aquest missatge juntament amb la seva pr&#xF2;pia llista de franges d'aquest torn.</value>
+    <value>Cada destinatari veur&#xE0; aquest missatge juntament amb la seva pr&#xF2;pia llista de franges d'aquest torn.</value>
   </data>
   <data name="EmailRota_Button" xml:space="preserve">
     <value>Enviar correu a un torn</value>
@@ -1103,7 +1103,7 @@
     <value>El teu missatge</value>
   </data>
   <data name="EmailTeamRotas_MessageHelp" xml:space="preserve">
-    <value>Nom&#xE9;s text sense format. Cada destinatari veur&#xE0; aquest missatge juntament amb la seva pr&#xF2;pia llista de franges en els propers torns de l'equip.</value>
+    <value>Cada destinatari veur&#xE0; aquest missatge juntament amb la seva pr&#xF2;pia llista de franges en els propers torns de l'equip.</value>
   </data>
   <data name="EmailTeamRotas_Send" xml:space="preserve">
     <value>Enviar a {0} destinatari(s)</value>
@@ -1171,18 +1171,27 @@
   <data name="DietaryMissingBanner_Body" xml:space="preserve"><value>You're signed up for a long shift. The cantina can't plan your meals until you tell us your food preferences.</value></data>
   <data name="DietaryMissingBanner_Cta" xml:space="preserve"><value>Tell us now</value></data>
   <data name="Shifts_ViewAllMyShifts" xml:space="preserve"><value>Veure tots els meus torns</value></data>
-  <data name="Shifts_IcalFeedTitle" xml:space="preserve"><value>Feed iCal</value></data>
-  <data name="Shifts_IcalFeedHelp" xml:space="preserve"><value>Subscriu-te als teus torns i esdeveniments desats a la teva app de calendari:</value></data>
-  <data name="Shifts_IcalCopy" xml:space="preserve"><value>Copiar</value></data>
-  <data name="Shifts_IcalRegenerateConfirm" xml:space="preserve"><value>Això invalidarà l'URL actual. Continuar?</value></data>
-  <data name="Shifts_IcalRegenerate" xml:space="preserve"><value>Regenerar l'URL</value></data>
   <data name="Shifts_SortOrder" xml:space="preserve"><value>Ordre</value></data>
   <data name="Shifts_BailRangeSuccess" xml:space="preserve"><value>Has cancel·lat el rang de torns.</value></data>
   <data name="Shifts_BailFailed" xml:space="preserve"><value>No s'ha pogut cancel·lar el torn.</value></data>
   <data name="Shifts_BailSuccess" xml:space="preserve"><value>Has cancel·lat el torn.</value></data>
   <data name="Shifts_AvailabilityUpdated" xml:space="preserve"><value>Disponibilitat actualitzada.</value></data>
-  <data name="Shifts_IcalRegenerated" xml:space="preserve"><value>URL d'iCal regenerada.</value></data>
   <data name="Shifts_TagPreferencesSaved" xml:space="preserve"><value>Preferències d'etiquetes desades.</value></data>
   <data name="VolTrack_Msg_DayOffNotSet" xml:space="preserve"><value>No hi havia cap dia lliure marcat per a aquest dia.</value></data>
   <data name="Shifts_AccountCannotSignUp" xml:space="preserve"><value>El teu compte no pot inscriure's en torns.</value></data>
+  <data name="Shifts_Email_CoordinatorRotaMessage_Subject" xml:space="preserve">
+    <value>Un missatge sobre les teves franges a {0}</value>
+  </data>
+  <data name="Shifts_Email_CoordinatorRotaMessage_Body" xml:space="preserve">
+    <value>&lt;p&gt;Hola {0},&lt;/p&gt;&lt;p&gt;Un missatge del coordinador de &lt;strong&gt;{2}&lt;/strong&gt;:&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;{3}&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;Per a la teva informaci&#xF3;, les teves franges en aquest torn s&#xF3;n:&lt;/p&gt;{4}&lt;p&gt;Gr&#xE0;cies,&lt;/p&gt;{5}</value>
+  </data>
+  <data name="Shifts_Email_CoordinatorRotaMessage_NoShifts" xml:space="preserve">
+    <value>(encara no hi ha franges en aquest torn)</value>
+  </data>
+  <data name="Shifts_Email_CoordinatorTeamRotasMessage_Subject" xml:space="preserve">
+    <value>Un missatge sobre les teves franges amb {0}</value>
+  </data>
+  <data name="Shifts_Email_CoordinatorTeamRotasMessage_Body" xml:space="preserve">
+    <value>&lt;p&gt;Hola {0},&lt;/p&gt;&lt;p&gt;Un missatge del coordinador de &lt;strong&gt;{2}&lt;/strong&gt;:&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;{3}&lt;/p&gt;&lt;hr /&gt;&lt;p&gt;Per a la teva informaci&#xF3;, les teves franges en els propers torns de l'equip:&lt;/p&gt;{4}&lt;p&gt;Gr&#xE0;cies,&lt;/p&gt;{5}</value>
+  </data>
 </root>

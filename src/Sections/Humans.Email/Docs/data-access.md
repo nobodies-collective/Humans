@@ -18,6 +18,7 @@ pause flag).
 | Table | R/W |
 |-------|-----|
 | EmailOutboxMessages | R/W (via `IEmailOutboxRepository`) |
+| EmailDailySendCounts | R/W (dashboard reads; backfill inserts — never overwrites, #1195) |
 | system_settings | R/W (key `IsEmailSendingPaused`, **via `ISettingsService`** — the Settings section owns the table) |
 
 `IsEmailPausedAsync` / `SetEmailPausedAsync` read/write the
@@ -31,6 +32,7 @@ Repository: `IEmailOutboxRepository`.
 | Table | R/W |
 |-------|-----|
 | EmailOutboxMessages | R/W |
+| EmailDailySendCounts | W (increments once per send attempt, #1195) |
 
 Drains the outbox queue (the G5 playbook, step 6b): claims a processing batch,
 sends via the section-internal `IEmailTransport`, and records each outcome.
@@ -53,6 +55,21 @@ path (the interface collapsed to one method). Cross-section calls via
 `IHumansMetrics`, `ICommunicationPreferenceService`, plus `IClock`. No
 `IMemoryCache`.
 
+### EmailMessageFactory (Scoped, internal)
+
+No repository. Pure builder for the one template this section still owns —
+`FacilitatedMessage`, the volunteer-to-volunteer relay — reading
+`EmailResource` (via `IStringLocalizer<EmailResource>`) and writing nothing.
+Returns an `EmailMessage` for Users' `ProfileViewController` and Camps'
+`CampContactService` to pass to `IEmailService.SendAsync`. No DB access, no
+cache.
+
+### FacilitatedMessagePreviews (Scoped)
+
+No repository. Read-only gallery contributor (`IEmailPreviewContributor`,
+`Section.cs:52`) — builds the two facilitated-message samples via
+`IEmailMessageFactory` for `/Email/EmailPreview`. No DB access, no cache.
+
 ### EmailPreviewService (Scoped)
 
 No repository — side-effect-free preview only, via the same
@@ -62,9 +79,15 @@ No repository — side-effect-free preview only, via the same
 |-------|-----|
 | (none) | — |
 
-Implements `IEmailPreviewServiceRead`. `RenderSystemMessage` composes an
+Implements `IEmailPreviewServiceRead` (cross-section) and the section-internal
+`IEmailPreviewService` it extends. `RenderSystemMessage` composes an
 `EmailMessage` (system-category only) into a `RenderedEmailPreview` without
-touching `EmailOutboxMessages` or any repository. No `IMemoryCache`.
+touching `EmailOutboxMessages` or any repository. `RenderMarkdown`
+(internal-only) renders an arbitrary human-typed subject/Markdown body (via
+`SanitizedMarkdownRenderer`) the same way, for the shared `_EmailComposer`
+(Base) "Preview" button — served by this section's own
+`EmailPreviewController` (`[Authorize]`, any authenticated human).
+No `IMemoryCache`.
 
 ---
 

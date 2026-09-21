@@ -4,6 +4,7 @@ using Humans.Base.Extensions;
 using Humans.AuditLog.Contracts;
 using Humans.EarlyEntry.Contracts;
 using Humans.Gdpr.Contracts;
+using Humans.Settings.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Tickets.Contracts;
 using Humans.Base.Constants;
@@ -29,7 +30,7 @@ internal sealed class GateService(
     IGateRepository repository,
     ITicketServiceRead tickets,
     IEarlyEntryService earlyEntry,
-    IBurnSettingsService burnSettings,
+    ISettingsService settingsService,
     IShiftManagementServiceRead shifts,
     IRoleAssignmentService roles,
     IUserService users,
@@ -38,6 +39,8 @@ internal sealed class GateService(
     ILogger<GateService> logger,
     IClock clock) : IGateService, IGateScanRetention, IUserMerge, IUserDataContributor
 {
+    internal const string GateScans = "GateScans";
+
     /// <summary>How far either side of "now" a gate shift may start to count as current.</summary>
     private static readonly Duration RosterWindow = Duration.FromHours(2);
 
@@ -62,7 +65,7 @@ internal sealed class GateService(
 
         var settings = await repository.GetSettingsAsync(ct);
         var priorAdmit = await repository.GetAdmitForBarcodeAsync(code, ct);
-        var burn = await burnSettings.GetActiveAsync(ct);
+        var burn = await settingsService.GetActiveEventSettingsAsync(ct);
         var now = clock.GetCurrentInstant();
         var zone = EventZone(burn?.TimeZoneId);
         var today = now.InZone(zone).Date;
@@ -152,7 +155,7 @@ internal sealed class GateService(
         // same fact). Log and move on; the next sync converges the row.
         try
         {
-            var activeEvent = await burnSettings.GetActiveAsync();
+            var activeEvent = await settingsService.GetActiveEventSettingsAsync();
             if (activeEvent is null || activeEvent.Year == 0)
                 return;
 
@@ -241,7 +244,7 @@ internal sealed class GateService(
     public async Task<IReadOnlyList<GateRosterEntry>> GetShiftRosterAsync(
         Guid rosterTeamId, CancellationToken ct = default)
     {
-        var activeEvent = await burnSettings.GetActiveAsync(ct);
+        var activeEvent = await settingsService.GetActiveEventSettingsAsync(ct);
         if (activeEvent is null)
             return [];
 
@@ -391,7 +394,7 @@ internal sealed class GateService(
 
         // Data-minimized: a person's own gate activity (as guest or as scanner),
         // without the barcode or any other person's identifiers.
-        var slice = new UserDataSlice(GdprExportSections.GateScans, scans.Select(s => new
+        var slice = new UserDataSlice(GateScans, scans.Select(s => new
         {
             OccurredAt = s.OccurredAt.ToIso8601(),
             Verdict = s.Verdict.ToString(),
@@ -407,7 +410,7 @@ internal sealed class GateService(
     private static readonly IReadOnlyDictionary<string, string?> Erasure =
         new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            [GdprExportSections.GateScans] =
+            [GateScans] =
                 "Partially retained: scans the person performed as gate staff keep their " +
                 "attribution — ScannedByUserId is a non-nullable operational column and the row " +
                 "is the venue's access-control record (GDPR Art. 17(3)(b) and (e)). Their own " +

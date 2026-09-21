@@ -1,4 +1,3 @@
-using Humans.Base.Attributes;
 using Humans.Base.Controllers;
 using System.Globalization;
 using System.Text.Json;
@@ -23,7 +22,6 @@ namespace Humans.Shifts.Controllers;
 
 [Authorize]
 [Route("Shifts")]
-[CrossSectionWrite("Rotates the user iCal token from the shifts calendar page.")]
 internal sealed class ShiftsController(
     IShiftManagementService shiftMgmt,
     IBurnSettingsService burnSettings,
@@ -32,7 +30,7 @@ internal sealed class ShiftsController(
     IShiftRowView shiftView,
     ITeamServiceRead teamService,
     IAuditLogService auditLogService,
-    IUserService userService,
+    IUserServiceRead userService,
     IStringLocalizer<ShiftsResource> localizer,
     // The name-gate message is Onboarding's copy, rendered from here (design §15 step 3b).
     IStringLocalizer<OnboardingResource> onboardingLocalizer,
@@ -40,7 +38,7 @@ internal sealed class ShiftsController(
     ShiftBrowsePageBuilder browsePageBuilder,
     ILogger<ShiftsController> logger) : HumansControllerBase(userService)
 {
-    private readonly IUserService _userService = userService;
+    private readonly IUserServiceRead _userService = userService;
 
     [HttpGet("")]
     public async Task<IActionResult> Index(Guid? departmentId, string? fromDate, string? toDate, string? period, string? day = null, bool showFull = false, [FromQuery(Name = "tags")] List<Guid>? tagIds = null, string? sort = null, [FromQuery(Name = "periods")] List<string>? periods = null)
@@ -383,15 +381,6 @@ internal sealed class ShiftsController(
         if (es is not null && userView.Availability is not null)
             model.AvailableDayOffsets = userView.Availability.AvailableDayOffsets.ToList();
 
-        var token = user.ICalToken;
-        if (token is null)
-        {
-            token = Guid.NewGuid();
-            await _userService.SetICalTokenAsync(user.Id, token.Value);
-        }
-
-        model.ICalUrl = $"{Request.Scheme}://{Request.Host}/api/ical/{user.Id}/{token}.ics";
-
         return View(model);
     }
 
@@ -413,23 +402,6 @@ internal sealed class ShiftsController(
         return RedirectToAction(nameof(Mine));
     }
 
-    [HttpPost("Mine/RegenerateIcal")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RegenerateIcal()
-    {
-        var (currentUserNotFound, user) = await ResolveCurrentUserOrChallengeAsync();
-        if (currentUserNotFound is not null)
-        {
-            return currentUserNotFound;
-        }
-
-        var newToken = Guid.NewGuid();
-        await _userService.SetICalTokenAsync(user.Id, newToken);
-
-        SetSuccess(localizer["Shifts_IcalRegenerated"].Value);
-        return RedirectToAction(nameof(Mine));
-    }
-
     [HttpPost("Preferences/Tags")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveTagPreferences([FromForm(Name = "tagIds")] List<Guid>? tagIds)
@@ -445,74 +417,34 @@ internal sealed class ShiftsController(
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpGet("Settings")]
-    [Authorize(Policy = PolicyNames.AdminOnly)]
-    public async Task<IActionResult> Settings()
-    {
-        var es = await shiftMgmt.GetActiveAsync();
-        return View(es is null ? new EventSettingsViewModel() : MapEventSettingsToViewModel(es));
-    }
-
-    private static EventSettingsViewModel MapEventSettingsToViewModel(EventSettings es) => new()
-    {
-        Id = es.Id,
-        EventName = es.EventName,
-        TimeZoneId = es.TimeZoneId,
-        GateOpeningDate = LocalDatePattern.Iso.Format(es.GateOpeningDate),
-        BuildStartOffset = es.BuildStartOffset,
-        EventEndOffset = es.EventEndOffset,
-        StrikeEndOffset = es.StrikeEndOffset,
-        FirstCrewStartOffset = es.FirstCrewStartOffset,
-        SetupWeekStartOffset = es.SetupWeekStartOffset,
-        PreEventWeekStartOffset = es.PreEventWeekStartOffset,
-        FinishingWeekendStartOffset = es.FinishingWeekendStartOffset,
-        EarlyEntryCapacityJson = JsonSerializer.Serialize(es.EarlyEntryCapacity),
-        BarriosEarlyEntryAllocationJson = es.BarriosEarlyEntryAllocation is not null
-            ? JsonSerializer.Serialize(es.BarriosEarlyEntryAllocation)
-            : null,
-        EarlyEntryClose = es.EarlyEntryClose.HasValue
-            ? InstantPattern.General.Format(es.EarlyEntryClose.Value)
-            : null,
-        IsShiftBrowsingOpen = es.IsShiftBrowsingOpen,
-        GlobalVolunteerCap = es.GlobalVolunteerCap,
-        ReminderLeadTimeHours = es.ReminderLeadTimeHours,
-        IsActive = es.IsActive,
-    };
-
+    // GET removed (peterdrier/Humans#1634) — superseded by the /Settings#shifts tab,
+    // whose data assembly lives in ShiftsSettingsTabViewComponent now. No redirect kept:
+    // redirecting a retired URL is tech debt here, not a feature.
     [HttpPost("Settings")]
     [ValidateAntiForgeryToken]
     [Authorize(Policy = PolicyNames.AdminOnly)]
     public async Task<IActionResult> Settings(EventSettingsViewModel model)
     {
         if (!ModelState.IsValid)
-            return View(model);
-
-        var parsed = EventSettingsFormMapper.Parse(model);
-        if (!parsed.Success)
         {
-            foreach (var error in parsed.Errors)
-                ModelState.AddModelError(error.FieldName, error.Message);
-
-            return View(model);
+            SetError("Invalid event settings.");
+            return Redirect("/Settings#shifts");
         }
 
-        var draft = parsed.Draft!;
-
-        if (model.Id.HasValue)
+        // "Active event" is Settings' concept now (nobodies-collective/Humans#1631);
+        // Shifts only keeps its own knobs, created on demand for that id.
+        var active = await burnSettings.GetActiveAsync();
+        if (active is null)
         {
-            var existing = await shiftMgmt.GetByIdAsync(model.Id.Value);
-            if (existing is null) return NotFound();
+            SetError("No active event configured — set one at /Settings#event first.");
+            return Redirect("/Settings#shifts");
+        }
 
-            EventSettingsFormMapper.Apply(existing, draft);
-            await shiftMgmt.UpdateAsync(existing);
-        }
-        else
-        {
-            await shiftMgmt.CreateAsync(EventSettingsFormMapper.Create(draft, clock.GetCurrentInstant()));
-        }
+        await shiftMgmt.SaveKnobsAsync(
+            active.Id, model.IsShiftBrowsingOpen, model.GlobalVolunteerCap, model.ReminderLeadTimeHours);
 
         SetSuccess("Event settings saved.");
-        return RedirectToAction(nameof(Settings));
+        return Redirect("/Settings#shifts");
     }
 
     // A user's signups are not scoped to the active burn — they can span cycles — so
@@ -584,9 +516,9 @@ internal sealed class ShiftsController(
     }
 
     private static async Task<IReadOnlyDictionary<Guid, UserInfo>> ResolveOrphanActorsAsync(
-        IReadOnlyList<OrphanSignupSnapshot> orphans, IUserService userService, CancellationToken ct)
+        IReadOnlyList<OrphanSignupSnapshot> orphans, IUserServiceRead userService, CancellationToken ct)
     {
-        // §2c: names via IUserService (this isn't a render-the-audit-log view).
+        // §2c: names via IUserServiceRead (this isn't a render-the-audit-log view).
         var userIds = orphans
             .Select(s => s.UserId)
             .Distinct()

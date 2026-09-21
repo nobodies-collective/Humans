@@ -26,6 +26,7 @@ using Humans.AuditLog.Contracts;
 using Humans.Campaigns.Contracts;
 using Humans.Camps.Contracts;
 using Humans.Email.Contracts;
+using Humans.Settings.Contracts;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Tickets.Contracts;
@@ -53,7 +54,7 @@ internal sealed class ProfileController(
     ICommunicationPreferenceService commPrefService,
     IOnboardingIntake onboardingService,
     IShiftSignups shiftSignupService,
-    IBurnSettingsService burnSettings,
+    ISettingsService settingsService,
     IShiftVolunteerProfiles shiftProfiles,
     IShiftView shiftView,
     IGdprService gdprExportService,
@@ -152,7 +153,7 @@ internal sealed class ProfileController(
     /// </summary>
     private async Task<Instant?> ResolveOnsiteSinceAsync(UserInfo info)
     {
-        var active = await burnSettings.GetActiveAsync();
+        var active = await settingsService.GetActiveEventSettingsAsync();
         if (active is null || active.Year == 0) return null;
         return info.OnsiteSinceForYear(active.Year);
     }
@@ -570,12 +571,12 @@ internal sealed class ProfileController(
             }
 
             await _userService.DeclareNotAttendingAsync(user.Id, eventYear.Value);
-            SetSuccess("You've been marked as not attending this year.");
+            SetSuccess(localizer["Profile_NotAttending_Declared"].Value);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to declare not attending for user {UserId}", user.Id);
-            SetError("Something went wrong. Please try again.");
+            SetError(localizer["Profile_NotAttending_Failed"].Value);
         }
 
         return Redirect("/");
@@ -602,7 +603,7 @@ internal sealed class ProfileController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to undo not attending for user {UserId}", user.Id);
-            SetError("Something went wrong. Please try again.");
+            SetError(localizer["Profile_NotAttending_Failed"].Value);
         }
 
         return Redirect("/");
@@ -610,13 +611,13 @@ internal sealed class ProfileController(
 
     private async Task<int?> GetActiveEventYearOrSetErrorAsync()
     {
-        var activeEvent = await burnSettings.GetActiveAsync();
+        var activeEvent = await settingsService.GetActiveEventSettingsAsync();
         if (activeEvent is not null && activeEvent.Year > 0)
         {
             return activeEvent.Year;
         }
 
-        SetError("No active event configured.");
+        SetError(localizer["Profile_NotAttending_NoActiveEvent"].Value);
         return null;
     }
 
@@ -624,11 +625,11 @@ internal sealed class ProfileController(
     {
         if (undone)
         {
-            SetSuccess("Your declaration has been removed.");
+            SetSuccess(localizer["Profile_NotAttending_Undone"].Value);
             return;
         }
 
-        SetError("Could not undo — your status may have been updated by ticket sync.");
+        SetError(localizer["Profile_NotAttending_UndoFailed"].Value);
     }
 
     [HttpGet("Me/Outbox")]
@@ -895,7 +896,9 @@ internal sealed class ProfileController(
     {
         var payload = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["ExportedAt"] = export.ExportedAt
+            ["ExportedAt"] = export.ExportedAt,
+            ["UserId"] = export.UserId,
+            ["MergedFromUserIds"] = export.MergedFromUserIds
         };
         foreach (var (section, data) in export.Sections)
         {

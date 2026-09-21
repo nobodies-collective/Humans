@@ -24,10 +24,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Humans.Base\Humans.Base.csproj" />
+    <ProjectReference Include="..\Humans.AuditLog.Contracts\Humans.AuditLog.Contracts.csproj" />
     <ProjectReference Include="..\Humans.Email.Contracts\Humans.Email.Contracts.csproj" />
     <ProjectReference Include="..\Humans.Gdpr.Contracts\Humans.Gdpr.Contracts.csproj" />
-    <ProjectReference Include="..\Humans.Events.Contracts\Humans.Events.Contracts.csproj" />
-    <ProjectReference Include="..\Humans.Tickets.Contracts\Humans.Tickets.Contracts.csproj" />
     <ProjectReference Include="..\Humans.Users.Contracts\Humans.Users.Contracts.csproj" />
     <!--
       The outbox drain mirrors a campaign grant's delivery status, and the pause flag is a
@@ -48,6 +47,9 @@
     <PackageReference Include="Hangfire.Core" />
     <!-- MailKit/MimeKit: the SMTP transport. Every other section's send path stops at the outbox row. -->
     <PackageReference Include="MailKit" />
+    <!-- Already a pinned transitive dependency of HtmlSanitizer; used directly here to inline-style
+         rendered Markdown for email clients that strip <style> blocks (EmailInlineStyler). -->
+    <PackageReference Include="AngleSharp" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="NodaTime" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />

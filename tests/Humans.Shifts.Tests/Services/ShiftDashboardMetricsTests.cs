@@ -56,6 +56,7 @@ public sealed class ShiftDashboardMetricsTests : ShiftsTestHarness
             serviceProvider,
             Cache,
             Substitute.For<IShiftViewInvalidator>(),
+            NewCalendarResolver(),
             Clock);
     }
 
@@ -1169,7 +1170,6 @@ public sealed class ShiftDashboardMetricsTests : ShiftsTestHarness
         public Task RemoveTicketSyncParticipationAsync(Guid userId, int year, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<bool> TrySetGoogleEmailStatusFromSyncAsync(Guid userId, GoogleEmailStatus status, CancellationToken ct = default) => throw new NotSupportedException();
         public Task SetPreferredLanguageAsync(Guid userId, string preferredLanguage, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task SetICalTokenAsync(Guid userId, Guid token, CancellationToken ct = default) => throw new NotSupportedException();
         public Task RecordLoginAsync(Guid userId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<bool> SetMembershipTierAsync(Guid userId, MembershipTier tier, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<OnboardingResult> ApplyProfileOnboardingMutationAsync(Guid userId, UserProfileOnboardingCommand command, CancellationToken ct = default) => throw new NotSupportedException();

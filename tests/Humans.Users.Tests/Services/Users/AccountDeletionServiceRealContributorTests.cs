@@ -77,7 +77,7 @@ public sealed class AccountDeletionServiceRealContributorTests : ServiceTestHarn
             Substitute.For<IShiftViewInvalidator>(),
             Substitute.For<IAuditLogService>(),
             Substitute.For<IEmailService>(),
-            Substitute.For<IEmailMessageFactory>(),
+            TestUsersEmails.Create(),
             Clock,
             NullLogger<AccountDeletionService>.Instance);
     }
@@ -120,6 +120,7 @@ public sealed class AccountDeletionServiceRealContributorTests : ServiceTestHarn
     public async Task AnonymizeExpiredAccountAsync_LeavesTheSameTombstoneAsPurge()
     {
         var user = SeedUser(Guid.NewGuid(), "Expired Human");
+        user.BurnerName = "Expired Human";
         await SaveAllAsync(TestContext.Current.CancellationToken);
 
         var summary = await _service.AnonymizeExpiredAccountAsync(

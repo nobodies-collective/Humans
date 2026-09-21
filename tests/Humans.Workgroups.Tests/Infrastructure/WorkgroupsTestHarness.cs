@@ -93,12 +93,7 @@ public abstract class WorkgroupsTestHarness : IDisposable
 
         Notifications = Substitute.For<INotificationService>();
         Email = Substitute.For<IEmailService>();
-        EmailFactory = Substitute.For<IEmailMessageFactory>();
-        EmailFactory.WorkgroupNotice(Arg.Any<WorkgroupNoticeRequest>())
-            .Returns(call => new EmailMessage(
-                call.Arg<WorkgroupNoticeRequest>().RecipientEmail,
-                call.Arg<WorkgroupNoticeRequest>().RecipientName,
-                "Workgroup notice", "body", "workgroup-notice"));
+        EmailFactory = TestWorkgroupsEmails.Create();
 
         AuditLog = Substitute.For<IAuditLogService>();
         Logger = new CapturingLogger<WorkgroupService>();
@@ -119,7 +114,7 @@ public abstract class WorkgroupsTestHarness : IDisposable
     private protected IGoogleSyncService GoogleSync { get; }
     private protected INotificationService Notifications { get; }
     private protected IEmailService Email { get; }
-    private protected IEmailMessageFactory EmailFactory { get; }
+    private protected WorkgroupsEmails EmailFactory { get; }
     private protected IAuditLogService AuditLog { get; }
     private protected CapturingLogger<WorkgroupService> Logger { get; }
 
@@ -316,7 +311,7 @@ public abstract class WorkgroupsTestHarness : IDisposable
 
     private static UserInfo UserInfoFor(Guid id, string burnerName, ProfileInfo? profile, string language) => new(
         id, burnerName, false, language, null, Instant.FromUtc(2026, 1, 1, 0, 0),
-        null, null, null, null, null, false, null, false, null, null, null,
+        null, null, null, null, null, false, false, null, null, null,
         null, null, null, [], [], [], profile, []);
 
     public void Dispose()

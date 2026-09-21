@@ -1,4 +1,4 @@
-using Humans.Shifts.Contracts;
+using Humans.Settings.Contracts;
 using Humans.Store.Services;
 using Humans.Store.Services.Dtos;
 using Humans.Store.Models;
@@ -17,7 +17,7 @@ namespace Humans.Store.Controllers;
 [Route("Store/Admin")]
 internal sealed class StoreAdminController(
     Service storeService,
-    IBurnSettingsService burnSettings,
+    ISettingsService settingsService,
     IClock clock,
     IUserServiceRead userService,
     ILogger<StoreAdminController> logger) : HumansControllerBase(userService)
@@ -54,6 +54,28 @@ internal sealed class StoreAdminController(
             .ThenByDescending(r => r.CreatedAt)
             .ToList();
         return View(new PaymentsReconciliationViewModel { Report = report, Rows = rows });
+    }
+
+    [HttpGet("OrderYears")]
+    public async Task<IActionResult> OrderYears(CancellationToken ct)
+    {
+        var report = await storeService.GetOrderYearRepairReportAsync(ct);
+        return View(report);
+    }
+
+    [HttpPost("OrderYears/Repair")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RepairOrderYears(CancellationToken ct)
+    {
+        var (errorResult, user) = await RequireCurrentUserAsync();
+        if (errorResult is not null) return errorResult;
+
+        var repaired = await storeService.RepairOrderYearsAsync(user.Id, ct);
+        if (repaired == 0)
+            SetInfo("No resolvable legacy order years remain.");
+        else
+            SetSuccess($"Repaired {repaired} legacy order year(s).");
+        return RedirectToAction(nameof(OrderYears));
     }
 
     [HttpPost("Payments/RecordMissing")]
@@ -164,7 +186,7 @@ internal sealed class StoreAdminController(
 
     private async Task<int> GetDefaultCatalogYearAsync()
     {
-        var activeEvent = await burnSettings.GetActiveAsync();
+        var activeEvent = await settingsService.GetActiveEventSettingsAsync();
         return activeEvent?.Year > 0 ? activeEvent.Year : clock.GetCurrentInstant().InUtc().Year;
     }
 }

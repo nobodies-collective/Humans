@@ -142,8 +142,11 @@ public class CampContactServiceTests : IDisposable
     }
 
     [HumansFact]
-    public async Task SendFacilitatedMessageAsync_SanitizesHtmlFromMessage()
+    public async Task SendFacilitatedMessageAsync_PassesMessageThroughForTheRendererToSanitize()
     {
+        // Sanitization now happens once, inside EmailMessageFactory.FacilitatedMessage via
+        // SanitizedMarkdownRenderer (see EmailMessageFactoryTests) — this service no longer pre-strips
+        // the message, so it should hand the raw text through unchanged.
         await _service.SendFacilitatedMessageAsync(
             _campId, "camp@example.com", "Camp", _senderId,
             "Alice", "alice@example.com",
@@ -156,7 +159,7 @@ public class CampContactServiceTests : IDisposable
             "camp@example.com",
             "Camp",
             "Alice",
-            "Hello alert('xss') world",
+            "Hello <script>alert('xss')</script> world",
             false,
             "alice@example.com");
     }

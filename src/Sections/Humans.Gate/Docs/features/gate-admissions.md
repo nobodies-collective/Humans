@@ -129,7 +129,7 @@ never turn a STOP into an admit.
 
 `ITicketServiceRead.GetTicketOrdersAsync` (find attendee by normalized barcode),
 `IEarlyEntryService.GetForUserAsync` (EE date + sources),
-`IBurnSettingsService.GetActiveAsync` (event time zone → "today"), `IClock` (cutoff).
+`ISettingsService.GetActiveEventSettingsAsync` (event time zone → "today"), `IClock` (cutoff).
 
 ## Tablet / operations (not code)
 
@@ -167,7 +167,7 @@ Two independent reviews (correctness/architecture + security/privacy/ops) ran on
 **GDPR / data-lifecycle follow-ups (before this is the live system of record):**
 
 - Implement `IUserMerge` for Gate (re-FK `GuestUserId` / `ScannedByUserId` on account merge) — otherwise a merge orphans gate rows.
-- Implement `IUserDataContributor` so gate entries appear in DSAR exports (requires registering the contributor in `GdprExportDependencyInjectionTests.ExpectedContributorTypes` + DI forwarding).
+- Implement `IUserDataContributor` so gate entries appear in DSAR exports (the DI test discovers contributors by reflection; only DI forwarding is needed).
 - Define a retention period + anonymization/purge job and record the lawful basis (this is attendance/movement data).
 
 **Test notes:**

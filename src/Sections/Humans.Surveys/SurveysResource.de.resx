@@ -60,7 +60,6 @@
   <data name="Survey_Start" xml:space="preserve"><value>Starten</value></data>
   <data name="Survey_Continue" xml:space="preserve"><value>Fortsetzen</value></data>
   <data name="Survey_PageOf" xml:space="preserve"><value>Seite {0} von {1}</value></data>
-  <data name="Survey_RequiredAlert" xml:space="preserve"><value>Bitte beantworte die Pflichtfragen, bevor du fortfährst.</value></data>
   <data name="Survey_QuestionRequired" xml:space="preserve"><value>Diese Frage ist erforderlich.</value></data>
   <data name="Survey_ValidationAlert" xml:space="preserve"><value>Bitte überprüfe die markierten Antworten, bevor du fortfährst.</value></data>
   <data name="Survey_AnswerInvalid" xml:space="preserve"><value>Bitte überprüfe diese Antwort und versuche es erneut.</value></data>
@@ -153,7 +152,7 @@
   <data name="Survey_Admin_Builder_SlugPlaceholder" xml:space="preserve"><value>z. B. feedback-2026</value></data>
   <data name="Survey_Admin_Builder_SlugHelp" xml:space="preserve"><value>Anonyme Umfragen erlauben jedem mit dem Link die Teilnahme. Identifizierte Umfragen erfordern eine Anmeldung und, sofern konfiguriert, die aktuelle Zielgruppenberechtigung.</value></data>
   <data name="Survey_Admin_Builder_InvitationEmailHeader" xml:space="preserve"><value>Einladungs-E-Mail</value></data>
-  <data name="Survey_Admin_Builder_InvitationEmailIntro" xml:space="preserve"><value>Passen Sie die anfängliche Einladung an. Humans fügt die Begrüßung, den Umfragetitel, die Schaltfläche mit dem Umfragelink und die Grußformel hinzu. Die Nachricht unterstützt Markdown-Formatierung, jedoch keine Bilder. Lassen Sie ein Feld leer, um den Standardtext zu verwenden.</value></data>
+  <data name="Survey_Admin_Builder_InvitationEmailIntro" xml:space="preserve"><value>Passen Sie die anfängliche Einladung an. Humans fügt die Begrüßung, den Umfragetitel, die Schaltfläche mit dem Umfragelink und die Grußformel hinzu. Die Nachricht unterstützt Markdown-Formatierung, einschließlich https://-Bildern. Lassen Sie ein Feld leer, um den Standardtext zu verwenden.</value></data>
   <data name="Survey_Admin_Builder_Field_EmailSubject" xml:space="preserve"><value>E-Mail-Betreff</value></data>
   <data name="Survey_Admin_Builder_Field_EmailMessage" xml:space="preserve"><value>E-Mail-Nachricht</value></data>
   <data name="Survey_Admin_Builder_QuestionsHeader" xml:space="preserve"><value>Fragen</value></data>
@@ -312,4 +311,17 @@
   <data name="Survey_Admin_Builder_Saved_TranslationFailed" xml:space="preserve">
     <value>Umfrage gespeichert, aber die Übersetzung ist fehlgeschlagen: {0}</value>
   </data>
+  <data name="Surveys_Email_SurveyInvitation_Subject" xml:space="preserve"><value>Bitte ausfüllen: {0}</value></data>
+  <data name="Surveys_Email_SurveyInvitation_Body" xml:space="preserve"><value>&lt;h2&gt;{1}&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+{3}
+&lt;p&gt;&lt;a href="{2}"&gt;Umfrage öffnen&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Vielen Dank,&lt;br/&gt;Das Nobodies Collective&lt;/p&gt;</value></data>
+  <data name="Surveys_Email_SurveyInvitation_DefaultMessage" xml:space="preserve"><value>du bist eingeladen, die Umfrage &lt;strong&gt;{0}&lt;/strong&gt; auszufüllen. Es dauert nur ein paar Minuten.</value></data>
+  <data name="Surveys_Email_SurveyReminder_Subject" xml:space="preserve"><value>Erinnerung: {0}</value></data>
+  <data name="Surveys_Email_SurveyReminder_Body" xml:space="preserve"><value>&lt;h2&gt;{1}&lt;/h2&gt;
+&lt;p&gt;Hallo {0},&lt;/p&gt;
+&lt;p&gt;nur eine Erinnerung, dass die Umfrage &lt;strong&gt;{1}&lt;/strong&gt; noch auf deine Antwort wartet.&lt;/p&gt;
+&lt;p&gt;&lt;a href="{2}"&gt;Umfrage öffnen&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Vielen Dank,&lt;br/&gt;Das Nobodies Collective&lt;/p&gt;</value></data>
 </root>

@@ -86,7 +86,7 @@ public sealed class ApplicationRepositoryTests : IDisposable
     }
 
     [HumansFact]
-    public async Task AnySubmittedForUserAsync_ReturnsTrueOnlyForSubmittedStatus()
+    public async Task AnySubmittedForUserAsync_MatchesOnlyTheApplicantsOwnRow()
     {
         var userId = Guid.NewGuid();
         SeedApp(userId);
@@ -96,7 +96,7 @@ public sealed class ApplicationRepositoryTests : IDisposable
     }
 
     [HumansFact]
-    public async Task AnySubmittedForUserAsync_DoesNotMatchApprovedOrWithdrawn()
+    public async Task AnySubmittedForUserAsync_DoesNotMatchAnApprovedApplication()
     {
         var userId = Guid.NewGuid();
         var approved = SeedApp(userId);
@@ -257,6 +257,63 @@ public sealed class ApplicationRepositoryTests : IDisposable
 
         var reloaded = await _dbContext.Applications.FindAsync(app.Id, Xunit.TestContext.Current.CancellationToken);
         reloaded!.Status.Should().Be(ApplicationStatus.Withdrawn);
+    }
+
+    [HumansFact]
+    public async Task ScrubFreeTextForUserAsync_removes_the_erased_persons_prose_and_keeps_governance_records()
+    {
+        var erasedUserId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var scrubbedAt = Instant.FromUtc(2026, 9, 21, 6, 0);
+        var clock = new NodaTime.Testing.FakeClock(Instant.FromUtc(2026, 3, 1, 12, 0));
+        var ownApplication = SeedApp(erasedUserId);
+        ownApplication.AdditionalInfo = "private context";
+        ownApplication.SignificantContribution = "private contribution";
+        ownApplication.RoleUnderstanding = "private understanding";
+        ownApplication.DecisionNote = "private decision";
+        ownApplication.RequestMoreInfo(erasedUserId, "private state note", clock);
+
+        var reviewedApplication = SeedApp(otherUserId);
+        reviewedApplication.DecisionNote = "private reviewer decision";
+        reviewedApplication.Approve(erasedUserId, "private reviewer note", clock);
+        await _dbContext.BoardVotes.AddAsync(new BoardVote
+        {
+            Id = Guid.NewGuid(),
+            ApplicationId = reviewedApplication.Id,
+            BoardMemberUserId = erasedUserId,
+            Vote = VoteChoice.Yay,
+            Note = "private vote note",
+            VotedAt = clock.GetCurrentInstant()
+        }, Xunit.TestContext.Current.CancellationToken);
+        await _dbContext.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        await _repo.ScrubFreeTextForUserAsync(erasedUserId, scrubbedAt, Xunit.TestContext.Current.CancellationToken);
+
+        _dbContext.ChangeTracker.Clear();
+        var own = await _dbContext.Applications.Include(application => application.StateHistory)
+            .SingleAsync(application => application.Id == ownApplication.Id, Xunit.TestContext.Current.CancellationToken);
+        own.Motivation.Should().BeEmpty();
+        own.AdditionalInfo.Should().BeNull();
+        own.SignificantContribution.Should().BeNull();
+        own.RoleUnderstanding.Should().BeNull();
+        own.DecisionNote.Should().BeNull();
+        own.ReviewNotes.Should().BeNull();
+        own.UpdatedAt.Should().Be(scrubbedAt);
+        own.UserId.Should().Be(erasedUserId);
+        own.StateHistory.Should().AllSatisfy(history => history.Notes.Should().BeNull());
+
+        var reviewed = await _dbContext.Applications.Include(application => application.StateHistory)
+            .SingleAsync(application => application.Id == reviewedApplication.Id, Xunit.TestContext.Current.CancellationToken);
+        reviewed.UserId.Should().Be(otherUserId);
+        reviewed.Motivation.Should().Be("m");
+        reviewed.DecisionNote.Should().BeNull();
+        reviewed.ReviewNotes.Should().BeNull();
+        reviewed.StateHistory.Should().AllSatisfy(history => history.Notes.Should().BeNull());
+
+        var vote = await _dbContext.BoardVotes.SingleAsync(item => item.ApplicationId == reviewedApplication.Id,
+            Xunit.TestContext.Current.CancellationToken);
+        vote.Note.Should().BeNull();
+        vote.UpdatedAt.Should().Be(scrubbedAt);
     }
 
     private MemberApplication SeedApp(

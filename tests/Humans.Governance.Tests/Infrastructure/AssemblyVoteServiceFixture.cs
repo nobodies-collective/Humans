@@ -39,7 +39,7 @@ internal sealed class AssemblyVoteServiceFixture : IDisposable
     public readonly IUserServiceRead Users = Substitute.For<IUserServiceRead>();
     public readonly IUserEmailService UserEmails = Substitute.For<IUserEmailService>();
     public readonly IEmailService Email = Substitute.For<IEmailService>();
-    public readonly IEmailMessageFactory Messages = Substitute.For<IEmailMessageFactory>();
+    public readonly GovernanceEmails Messages = TestGovernanceEmails.Create();
     public readonly INotificationEmitter Notifications = Substitute.For<INotificationEmitter>();
     public readonly INotificationAutoResolve NotificationResolve = Substitute.For<INotificationAutoResolve>();
     public readonly IGoogleTranslationService Translation = Substitute.For<IGoogleTranslationService>();
@@ -99,6 +99,9 @@ internal sealed class AssemblyVoteServiceFixture : IDisposable
             {
                 Id = id,
                 DisplayName = "Member " + id,
+                // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
+                // UserInfo.BurnerName reads User.BurnerName only (#1098).
+                BurnerName = "Member " + id,
                 UserName = id + "@example.org",
                 Email = id + "@example.org",
                 PreferredLanguage = "en",

@@ -1,9 +1,9 @@
 using AwesomeAssertions;
+using Humans.AuditLog.Contracts;
 using Humans.Settings.Contracts;
 using Humans.Settings.Data;
 using Humans.Settings.Domain;
 using Humans.Settings.Services;
-using Humans.Shifts.Contracts;
 using NodaTime;
 using NSubstitute;
 using TestContext = Xunit.TestContext;
@@ -18,34 +18,17 @@ namespace Humans.Settings.Tests;
 public sealed class ServiceTests
 {
     private static readonly Instant Now = Instant.FromUtc(2026, 8, 21, 10, 0);
+    private static readonly Guid Actor = Guid.NewGuid();
 
     private readonly ISettingsRepository _repository = Substitute.For<ISettingsRepository>();
-    private readonly IBurnSettingsService _burnSettings = Substitute.For<IBurnSettingsService>();
+    private readonly IAuditLogService _auditLog = Substitute.For<IAuditLogService>();
+    private readonly IEventSettingsChangeListener _listenerOne = Substitute.For<IEventSettingsChangeListener>();
+    private readonly IEventSettingsChangeListener _listenerTwo = Substitute.For<IEventSettingsChangeListener>();
     private readonly IClock _clock = Substitute.For<IClock>();
 
     public ServiceTests() => _clock.GetCurrentInstant().Returns(Now);
 
-    private Service BuildSut() => new(_repository, _burnSettings, _clock);
-
-    /// <summary>Makes <paramref name="id"/> an id Shifts' event_settings knows.</summary>
-    private void ShiftsKnows(Guid id) =>
-        _burnSettings.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(new BurnSettingsInfo(
-            Id: id,
-            EventName: "Nowhere 2026",
-            Year: 2026,
-            TimeZoneId: "Europe/Madrid",
-            GateOpeningDate: new LocalDate(2026, 7, 9),
-            BuildStartOffset: -25,
-            EventEndOffset: 6,
-            StrikeEndOffset: 9,
-            FirstCrewStartOffset: -25,
-            SetupWeekStartOffset: -16,
-            PreEventWeekStartOffset: -9,
-            FinishingWeekendStartOffset: -4,
-            EarlyEntryCapacity: new Dictionary<int, int>(),
-            BarriosEarlyEntryAllocation: null,
-            EarlyEntryClose: null,
-            IsShiftBrowsingOpen: false));
+    private Service BuildSut() => new(_repository, _auditLog, [_listenerOne, _listenerTwo], _clock);
 
     private static EventSettings MakeEntity(Guid id, bool isActive = true) => new()
     {
@@ -161,7 +144,6 @@ public sealed class ServiceTests
     public async Task SaveEventSettingsAsync_RoundTripsTheDtoBackOntoTheEntityAndStampsTheClock()
     {
         var id = Guid.NewGuid();
-        ShiftsKnows(id);
         var dto = new EventSettingsInfo(
             Id: id,
             EventName: "Nowhere 2027",
@@ -180,7 +162,7 @@ public sealed class ServiceTests
             EarlyEntryClose: null,
             Status: EventSettingsStatus.Inactive);
 
-        await BuildSut().SaveEventSettingsAsync(dto, TestContext.Current.CancellationToken);
+        await BuildSut().SaveEventSettingsAsync(dto, Actor, TestContext.Current.CancellationToken);
 
         await _repository.Received(1).UpsertEventSettingsAsync(
             Arg.Is<EventSettings>(e =>
@@ -204,10 +186,40 @@ public sealed class ServiceTests
             Arg.Any<CancellationToken>());
     }
 
+    [HumansFact]
+    public async Task SaveEventSettingsAsync_WritesAnAuditEntryNamingTheActorAndTheSavedValues()
+    {
+        var id = Guid.NewGuid();
+        var dto = new EventSettingsInfo(
+            Id: id,
+            EventName: "Nowhere 2027",
+            Year: 2027,
+            TimeZoneId: "Atlantic/Canary",
+            GateOpeningDate: new LocalDate(2027, 7, 8),
+            BuildStartOffset: -20,
+            EventEndOffset: 5,
+            StrikeEndOffset: 8,
+            FirstCrewStartOffset: -20,
+            SetupWeekStartOffset: -14,
+            PreEventWeekStartOffset: -8,
+            FinishingWeekendStartOffset: -3,
+            EarlyEntryCapacity: new Dictionary<int, int>(),
+            BarriosEarlyEntryAllocation: null,
+            EarlyEntryClose: null,
+            Status: EventSettingsStatus.Inactive);
+
+        await BuildSut().SaveEventSettingsAsync(dto, Actor, TestContext.Current.CancellationToken);
+
+        await _auditLog.Received(1).LogAsync(
+            AuditAction.EventSettingsUpdated, AuditEntityTypes.EventSettings, id,
+            Arg.Is<string>(d => d.Contains("Nowhere 2027") && d.Contains("2027-07-08")),
+            Actor, Arg.Any<Guid?>(), Arg.Any<string?>());
+    }
+
     // ── The at-most-one-Active invariant.
     //    No DB constraint backs it, so the service is where it holds.
 
-    private static EventSettingsInfo MakeDto(Guid id, EventSettingsStatus status) => new(
+    private static EventSettingsInfo MakeDto(Guid id, EventSettingsStatus status, int? earlyEntryStartOffset = null) => new(
         Id: id,
         EventName: "Nowhere 2026",
         Year: 2026,
@@ -223,22 +235,149 @@ public sealed class ServiceTests
         EarlyEntryCapacity: new Dictionary<int, int>(),
         BarriosEarlyEntryAllocation: null,
         EarlyEntryClose: null,
-        Status: status);
+        Status: status,
+        EarlyEntryStartOffset: earlyEntryStartOffset);
+
+    // ── The EarlyEntryStartOffset invariant: BuildStartOffset ≤ offset < 0.
+
+    [HumansFact]
+    public async Task SaveEventSettingsAsync_RefusesEarlyEntryStartOffset_BeforeBuildStart()
+    {
+        var id = Guid.NewGuid();
+
+        // BuildStartOffset is -25 on MakeDto; -26 is earlier still.
+        var act = () => BuildSut().SaveEventSettingsAsync(
+            MakeDto(id, EventSettingsStatus.Inactive, earlyEntryStartOffset: -26),
+            Actor, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Early entry start offset must be between build start and 0*");
+        await _repository.DidNotReceive().UpsertEventSettingsAsync(
+            Arg.Any<EventSettings>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task SaveEventSettingsAsync_RefusesEarlyEntryStartOffset_AtOrAfterZero()
+    {
+        var id = Guid.NewGuid();
+
+        var act = () => BuildSut().SaveEventSettingsAsync(
+            MakeDto(id, EventSettingsStatus.Inactive, earlyEntryStartOffset: 0),
+            Actor, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Early entry start offset must be between build start and 0*");
+        await _repository.DidNotReceive().UpsertEventSettingsAsync(
+            Arg.Any<EventSettings>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task SaveEventSettingsAsync_AcceptsEarlyEntryStartOffset_WithinRange()
+    {
+        var id = Guid.NewGuid();
+
+        await BuildSut().SaveEventSettingsAsync(
+            MakeDto(id, EventSettingsStatus.Inactive, earlyEntryStartOffset: -7),
+            Actor, TestContext.Current.CancellationToken);
+
+        await _repository.Received(1).UpsertEventSettingsAsync(
+            Arg.Is<EventSettings>(e => e.EarlyEntryStartOffset == -7), Now, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task SaveEventSettingsAsync_AllowsNullEarlyEntryStartOffset()
+    {
+        var id = Guid.NewGuid();
+
+        await BuildSut().SaveEventSettingsAsync(
+            MakeDto(id, EventSettingsStatus.Inactive), Actor, TestContext.Current.CancellationToken);
+
+        await _repository.Received(1).UpsertEventSettingsAsync(
+            Arg.Is<EventSettings>(e => e.EarlyEntryStartOffset == null), Now, Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task SaveEventSettingsAsync_TellsEveryChangeListener()
+    {
+        // The gate date, the offsets and the active-event flip move derived dates for every
+        // member at once. The consuming sections used to own this write and flush their own
+        // caches inline; the write moved here, so every one of them gets told.
+        var id = Guid.NewGuid();
+
+        await BuildSut().SaveEventSettingsAsync(
+            MakeDto(id, EventSettingsStatus.Inactive, earlyEntryStartOffset: -7),
+            Actor, TestContext.Current.CancellationToken);
+
+        // The id rides along: Shifts evicts that event's dashboard aggregates with it.
+        _listenerOne.Received(1).EventSettingsChanged(id);
+        _listenerTwo.Received(1).EventSettingsChanged(id);
+    }
+
+    [HumansFact]
+    public async Task CreateActiveEventAsync_TellsEveryChangeListener()
+    {
+        // The seeder swaps the active cycle out from under EarlyEntry and Shifts. Their
+        // caches key off the active event's dates, so the seam has to speak up too.
+        _repository.GetActiveEventSettingsAsync(Arg.Any<CancellationToken>())
+            .Returns(MakeEntity(Guid.NewGuid()));
+
+        var id = Guid.NewGuid();
+
+        await BuildSut().CreateActiveEventAsync(
+            MakeDto(id, EventSettingsStatus.Active), TestContext.Current.CancellationToken);
+
+        _listenerOne.Received(1).EventSettingsChanged(id);
+        _listenerTwo.Received(1).EventSettingsChanged(id);
+    }
+
+    [HumansFact]
+    public async Task DeleteEventAsync_TellsEveryChangeListener_OnlyWhenARowWentAway()
+    {
+        var id = Guid.NewGuid();
+        _repository.DeleteEventSettingsAsync(id, Arg.Any<CancellationToken>()).Returns(0);
+        var sut = BuildSut();
+
+        await sut.DeleteEventAsync(id, TestContext.Current.CancellationToken);
+
+        _listenerOne.DidNotReceive().EventSettingsChanged(Arg.Any<Guid>());
+
+        _repository.DeleteEventSettingsAsync(id, Arg.Any<CancellationToken>()).Returns(1);
+
+        await sut.DeleteEventAsync(id, TestContext.Current.CancellationToken);
+
+        _listenerOne.Received(1).EventSettingsChanged(id);
+        _listenerTwo.Received(1).EventSettingsChanged(id);
+    }
+
+    [HumansFact]
+    public async Task SaveEventSettingsAsync_TellsNoListenerWhenTheSaveIsRefused()
+    {
+        var id = Guid.NewGuid();
+        _repository.AnyOtherActiveEventSettingsAsync(id, Arg.Any<CancellationToken>()).Returns(true);
+
+        var act = () => BuildSut().SaveEventSettingsAsync(
+            MakeDto(id, EventSettingsStatus.Active), Actor, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        _listenerOne.DidNotReceive().EventSettingsChanged(Arg.Any<Guid>());
+        _listenerTwo.DidNotReceive().EventSettingsChanged(Arg.Any<Guid>());
+    }
 
     [HumansFact]
     public async Task SaveEventSettingsAsync_RefusesToActivateWhileAnotherRowIsActive()
     {
         var id = Guid.NewGuid();
-        ShiftsKnows(id);
         _repository.AnyOtherActiveEventSettingsAsync(id, Arg.Any<CancellationToken>()).Returns(true);
 
         var act = () => BuildSut().SaveEventSettingsAsync(
-            MakeDto(id, EventSettingsStatus.Active), TestContext.Current.CancellationToken);
+            MakeDto(id, EventSettingsStatus.Active), Actor, TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("Only one event settings row can be Active*");
         await _repository.DidNotReceive().UpsertEventSettingsAsync(
             Arg.Any<EventSettings>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+        // A refused save is not audited — nothing happened for the Board to see.
+        await _auditLog.DidNotReceiveWithAnyArgs().LogAsync(default, default!, default, default!, default(Guid));
     }
 
     [HumansFact]
@@ -247,11 +386,10 @@ public sealed class ServiceTests
         // The guard excludes the row being saved, so re-saving the active row is
         // an ordinary edit — only a *second* active row is refused.
         var id = Guid.NewGuid();
-        ShiftsKnows(id);
         _repository.AnyOtherActiveEventSettingsAsync(id, Arg.Any<CancellationToken>()).Returns(false);
 
         await BuildSut().SaveEventSettingsAsync(
-            MakeDto(id, EventSettingsStatus.Active), TestContext.Current.CancellationToken);
+            MakeDto(id, EventSettingsStatus.Active), Actor, TestContext.Current.CancellationToken);
 
         await _repository.Received(1).UpsertEventSettingsAsync(
             Arg.Is<EventSettings>(e => e.Status == EventSettingsStatus.Active),
@@ -263,10 +401,9 @@ public sealed class ServiceTests
     {
         // Leaving zero rows active is allowed — deactivating is how a cycle ends.
         var id = Guid.NewGuid();
-        ShiftsKnows(id);
 
         await BuildSut().SaveEventSettingsAsync(
-            MakeDto(id, EventSettingsStatus.Inactive), TestContext.Current.CancellationToken);
+            MakeDto(id, EventSettingsStatus.Inactive), Actor, TestContext.Current.CancellationToken);
 
         await _repository.DidNotReceive().AnyOtherActiveEventSettingsAsync(
             Arg.Any<Guid>(), Arg.Any<CancellationToken>());
@@ -274,38 +411,20 @@ public sealed class ServiceTests
             Arg.Any<EventSettings>(), Now, Arg.Any<CancellationToken>());
     }
 
-    // ── The id-coordination invariant: Rota.EventSettingsId still resolves against
-    //    Shifts' event_settings, so a row born here needs an id Shifts already has.
+    // ── Id minting (nobodies-collective/Humans#1631): Settings mints ids for new
+    //    cycles now, with no existence check against Shifts — a Shifts knobs row
+    //    is created on demand later, the first time a rota or knob edit needs one.
 
     [HumansFact]
-    public async Task SaveEventSettingsAsync_RefusesANewRowWhoseIdNamesNoShiftsEvent()
+    public async Task SaveEventSettingsAsync_CreatesABrandNewRowWithoutAskingShifts()
     {
         var id = Guid.NewGuid();
-        _burnSettings.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((BurnSettingsInfo?)null);
-
-        var act = () => BuildSut().SaveEventSettingsAsync(
-            MakeDto(id, EventSettingsStatus.Inactive), TestContext.Current.CancellationToken);
-
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"No Shifts event row has id {id}*");
-        await _repository.DidNotReceive().UpsertEventSettingsAsync(
-            Arg.Any<EventSettings>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
-    }
-
-    [HumansFact]
-    public async Task SaveEventSettingsAsync_UpdatesAnExistingRowWithoutAskingShifts()
-    {
-        // Only inserts need the id check; a row already here was vetted on the way in.
-        var id = Guid.NewGuid();
-        _repository.GetEventSettingsByIdAsync(id, Arg.Any<CancellationToken>())
-            .Returns(MakeEntity(id, isActive: false));
 
         await BuildSut().SaveEventSettingsAsync(
-            MakeDto(id, EventSettingsStatus.Inactive), TestContext.Current.CancellationToken);
+            MakeDto(id, EventSettingsStatus.Inactive), Actor, TestContext.Current.CancellationToken);
 
-        await _burnSettings.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         await _repository.Received(1).UpsertEventSettingsAsync(
-            Arg.Any<EventSettings>(), Now, Arg.Any<CancellationToken>());
+            Arg.Is<EventSettings>(e => e.Id == id), Now, Arg.Any<CancellationToken>());
     }
 
     [HumansFact]

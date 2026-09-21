@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Humans.Campaigns.Contracts;
 using Humans.Tickets.Data;
-using Humans.Shifts.Contracts;
+using Humans.Settings.Contracts;
 using Humans.Tickets.Contracts;
 using Humans.Tickets.Services;
 using Microsoft.EntityFrameworkCore;
@@ -22,8 +22,9 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
     private readonly IStripeService _stripeService;
     private readonly ICampaignService _campaignService;
     private readonly IUserService _userService;
-    private readonly IBurnSettingsService _shiftManagementService;
+    private readonly ISettingsService _shiftManagementService;
     private readonly ITicketRepository _ticketRepository;
+    private readonly ITicketVendorCacheInvalidator _vendorCache;
     private readonly TicketSyncService _service;
 
     public TicketSyncServiceTests()
@@ -44,9 +45,10 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
         _userService.GetAllParticipationsForYearAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns([]);
         _campaignService = Substitute.For<ICampaignService>();
-        _shiftManagementService = Substitute.For<IBurnSettingsService>();
+        _shiftManagementService = Substitute.For<ISettingsService>();
 
-        _ticketRepository = new TicketRepository(TicketsDbFactory);
+        _ticketRepository = new TicketRepository(TicketsDbFactory, Clock);
+        _vendorCache = Substitute.For<ITicketVendorCacheInvalidator>();
 
         _service = new TicketSyncService(
             _ticketRepository,
@@ -57,6 +59,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
             settings,
             NullLogger<TicketSyncService>.Instance,
             Substitute.For<ITicketCacheInvalidator>(),
+            _vendorCache,
             _userService,
             _userService,
             _campaignService,
@@ -98,6 +101,23 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
         var dbOrders = await TicketsDb.TicketOrders.ToListAsync(Xunit.TestContext.Current.CancellationToken);
         dbOrders.Should().HaveCount(2);
         dbOrders.Select(o => o.VendorOrderId).Should().BeEquivalentTo("ord_001", "ord_002");
+    }
+
+    // ==========================================================================
+    // SyncOrdersAndAttendeesAsync_InvalidatesVendorEventSummary
+    // ==========================================================================
+
+    [HumansFact]
+    public async Task SyncOrdersAndAttendeesAsync_InvalidatesVendorEventSummary()
+    {
+        _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+        _vendorService.GetIssuedTicketsAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        await _service.SyncOrdersAndAttendeesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        _vendorCache.Received(1).InvalidateEventSummary("ev_test_123");
     }
 
     // ==========================================================================
@@ -224,6 +244,48 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
     }
 
     [HumansFact]
+    public async Task SyncOrdersAndAttendeesAsync_VendorTimeout_TakesTransientPath()
+    {
+        // nobodies-collective/Humans#946: HttpClient.Timeout surfaces as TaskCanceledException with an inner
+        // TimeoutException — must take the same transient path as a vendor 5xx.
+        _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Throws(new TaskCanceledException(
+                "The request was canceled due to the configured HttpClient.Timeout.",
+                new TimeoutException()));
+
+        TicketSyncResult? result = null;
+        Func<Task> act = async () =>
+            result = await _service.SyncOrdersAndAttendeesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        // The no-rethrow behavior is what stops the Hangfire retry storm — assert it explicitly.
+        await act.Should().NotThrowAsync();
+
+        result!.OrdersSynced.Should().Be(0);
+        var syncState = await TicketsDb.TicketSyncStates.AsNoTracking()
+            .FirstAsync(s => s.Id == 1, Xunit.TestContext.Current.CancellationToken);
+        syncState.SyncStatus.Should().Be(TicketSyncStatus.Idle);
+        syncState.LastError.Should().BeNull();
+    }
+
+    [HumansFact]
+    public async Task SyncOrdersAndAttendeesAsync_GenuineCancellation_SetsErrorState()
+    {
+        // A cancellation with no inner TimeoutException is not an HttpClient timeout (nobodies-collective/Humans#946) —
+        // it must not be swallowed as "vendor was slow" and must still take the generic path.
+        _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Throws(new TaskCanceledException("The operation was canceled."));
+
+        var act = () => _service.SyncOrdersAndAttendeesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<TaskCanceledException>();
+
+        var syncState = await TicketsDb.TicketSyncStates.AsNoTracking()
+            .FirstAsync(s => s.Id == 1, Xunit.TestContext.Current.CancellationToken);
+        syncState.SyncStatus.Should().Be(TicketSyncStatus.Error);
+        syncState.LastError.Should().NotBeNull();
+    }
+
+    [HumansFact]
     public async Task SyncOrdersAndAttendeesAsync_NonTransientError_SetsErrorState()
     {
         // A failed sync must not move the cursor: the next run re-fetches from the last success.
@@ -270,10 +332,11 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
             settings,
             NullLogger<TicketSyncService>.Instance,
             Substitute.For<ITicketCacheInvalidator>(),
+            Substitute.For<ITicketVendorCacheInvalidator>(),
             _userService,
             Substitute.For<IUserService>(),
             Substitute.For<ICampaignService>(),
-            Substitute.For<IBurnSettingsService>());
+            Substitute.For<ISettingsService>());
 
         var result = await service.SyncOrdersAndAttendeesAsync(Xunit.TestContext.Current.CancellationToken);
 
@@ -502,7 +565,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
         SeedUserEmail(userId, "alice@example.com", isOAuth: true);
         await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
 
-        _shiftManagementService.GetActiveAsync()
+        _shiftManagementService.GetActiveEventSettingsAsync()
             .Returns(BurnFixtures.Burn(year: 2026));
 
         var checkInInstant = Instant.FromUtc(2026, 7, 8, 14, 30);
@@ -537,7 +600,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
         SeedUserEmail(userId, "alice@example.com", isOAuth: true);
         await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
 
-        _shiftManagementService.GetActiveAsync()
+        _shiftManagementService.GetActiveEventSettingsAsync()
             .Returns(BurnFixtures.Burn(year: 2026));
 
         var earlier = Instant.FromUtc(2026, 7, 8, 10, 0);
@@ -573,7 +636,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
         SeedUserEmail(userId, "alice@example.com", isOAuth: true);
         await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
 
-        _shiftManagementService.GetActiveAsync()
+        _shiftManagementService.GetActiveEventSettingsAsync()
             .Returns(BurnFixtures.Burn(year: 2026));
 
         _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -602,7 +665,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
         SeedUserEmail(userId, "alice@example.com", isOAuth: true);
         await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
 
-        _shiftManagementService.GetActiveAsync()
+        _shiftManagementService.GetActiveEventSettingsAsync()
             .Returns(BurnFixtures.Burn(year: 2026));
 
         _userService.GetAllParticipationsForYearAsync(2026, Arg.Any<CancellationToken>())
@@ -638,7 +701,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
         SeedUserEmail(userId, "alice@example.com", isOAuth: true);
         await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
 
-        _shiftManagementService.GetActiveAsync()
+        _shiftManagementService.GetActiveEventSettingsAsync()
             .Returns(BurnFixtures.Burn(year: 2026));
 
         _userService.GetAllParticipationsForYearAsync(2026, Arg.Any<CancellationToken>())

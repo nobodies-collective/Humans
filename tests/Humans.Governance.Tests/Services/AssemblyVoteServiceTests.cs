@@ -1,7 +1,6 @@
 using AwesomeAssertions;
 using Humans.AuditLog.Contracts;
 using Humans.Email.Contracts;
-using Humans.Gdpr.Contracts;
 using Humans.Governance.Domain;
 using Humans.Governance.Services;
 using Humans.Governance.Services.Dtos;
@@ -333,7 +332,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         // The officer is on no roster, so the voting-record slice is empty — without the
         // actor slice their activity would be missing from the export entirely.
         var actions = slices.Should()
-            .ContainSingle(s => s.SectionName == GdprExportSections.AssemblyVoteActions)
+            .ContainSingle(s => s.SectionName == AssemblyVoteService.AssemblyVoteActions)
             .Which.Data;
         var json = System.Text.Json.JsonSerializer.Serialize(actions);
         json.Should().Contain("Opened").And.Contain("Closed");
@@ -360,7 +359,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
 
         var json = System.Text.Json.JsonSerializer.Serialize(
             slices.Single(x => string.Equals(
-                x.SectionName, GdprExportSections.AssemblyVotes, StringComparison.Ordinal)).Data);
+                x.SectionName, AssemblyVoteService.AssemblyVotes, StringComparison.Ordinal)).Data);
         json.Should().MatchRegex("\"CastAt\":\"[0-9]{4}-");
         json.Should().MatchRegex("\"ClosesAt\":\"[0-9]{4}-");
         json.Should().MatchRegex("\"RecordedAt\":\"[0-9]{4}-");
@@ -645,7 +644,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
     public void ErasureDeclaration_DeclaresPartialRetentionForAssemblyVotes()
     {
         _fx.Service.ErasureDeclaration.Should().ContainKey(
-            GdprExportSections.AssemblyVotes);
+            AssemblyVoteService.AssemblyVotes);
     }
 
     // ==========================================================================
@@ -1051,6 +1050,67 @@ public sealed class AssemblyVoteServiceTests : IDisposable
             .SingleAsync(p => p.VoteId == vote.Id, Xunit.TestContext.Current.CancellationToken);
         peek.AdminUserId.Should().Be(target,
             "the peek list is published on the results page and must name the surviving human");
+    }
+
+    /// <summary>
+    /// One actor column per vote, which is the shape a real merge meets: a motion is usually
+    /// drafted by one admin, opened by another and stopped by a third. The test above puts the
+    /// merged account in all three columns of one row, so it passes even if the query that
+    /// selects the rows stops looking at one of the columns — that row still loads through
+    /// another. Here each row has exactly one way in.
+    /// </summary>
+    [HumansFact]
+    public async Task ReassignAsync_MovesEachActorColumn_WhenItIsTheOnlyOneOnTheVote()
+    {
+        var source = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        var other = Guid.NewGuid();
+
+        var drafted = await _fx.AddVoteAsync(status: AssemblyVoteStatus.Closed);
+        var opened = await _fx.AddVoteAsync(status: AssemblyVoteStatus.Closed);
+        var closed = await _fx.AddVoteAsync(status: AssemblyVoteStatus.Closed);
+
+        var ct = Xunit.TestContext.Current.CancellationToken;
+
+        var draftedRow = await _fx.Db.AssemblyVotes.SingleAsync(v => v.Id == drafted.Id, ct);
+        draftedRow.CreatedByUserId = source;
+        draftedRow.OpenedByUserId = other;
+        draftedRow.ClosedByUserId = other;
+
+        var openedRow = await _fx.Db.AssemblyVotes.SingleAsync(v => v.Id == opened.Id, ct);
+        openedRow.CreatedByUserId = other;
+        openedRow.OpenedByUserId = source;
+        openedRow.ClosedByUserId = null;
+
+        var closedRow = await _fx.Db.AssemblyVotes.SingleAsync(v => v.Id == closed.Id, ct);
+        closedRow.CreatedByUserId = other;
+        closedRow.OpenedByUserId = null;
+        closedRow.ClosedByUserId = source;
+
+        await _fx.Db.SaveChangesAsync(ct);
+        _fx.Db.ChangeTracker.Clear();
+
+        await _fx.Service.ReassignAsync(
+            source, target, Guid.NewGuid(), _fx.Clock.GetCurrentInstant(), ct);
+
+        var storedDrafted = await _fx.Db.AssemblyVotes.AsNoTracking()
+            .SingleAsync(v => v.Id == drafted.Id, ct);
+        storedDrafted.CreatedByUserId.Should().Be(target);
+        storedDrafted.OpenedByUserId.Should().Be(other, "only the merged account's columns move");
+        storedDrafted.ClosedByUserId.Should().Be(other);
+
+        var storedOpened = await _fx.Db.AssemblyVotes.AsNoTracking()
+            .SingleAsync(v => v.Id == opened.Id, ct);
+        storedOpened.OpenedByUserId.Should().Be(target);
+        storedOpened.CreatedByUserId.Should().Be(other);
+        storedOpened.ClosedByUserId.Should().BeNull();
+
+        var storedClosed = await _fx.Db.AssemblyVotes.AsNoTracking()
+            .SingleAsync(v => v.Id == closed.Id, ct);
+        storedClosed.ClosedByUserId.Should().Be(target,
+            "otherwise the acta loses the closer's name on exactly the votes a real merge touches");
+        storedClosed.CreatedByUserId.Should().Be(other);
+        storedClosed.OpenedByUserId.Should().BeNull();
     }
 
     // ==========================================================================
@@ -1642,8 +1702,35 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         // data reachable for deletion but invisible to the subject who asked for it.
         var json = System.Text.Json.JsonSerializer.Serialize(
             slices.Single(x => string.Equals(
-                x.SectionName, GdprExportSections.AssemblyVotes, StringComparison.Ordinal)).Data);
+                x.SectionName, AssemblyVoteService.AssemblyVotes, StringComparison.Ordinal)).Data);
         json.Should().Contain("\"Choice\":");
+    }
+
+    [HumansFact]
+    public async Task ContributeForUserAsync_AskedWithAMergedAwayId_StillReturnsTheVotesTheyRan()
+    {
+        var mergedAway = Guid.NewGuid();
+        var survivor = Guid.NewGuid();
+        _fx.StubMergedInto(mergedAway, survivor);
+        var vote = await _fx.AddVoteAsync(status: AssemblyVoteStatus.Closed);
+
+        var tracked = await _fx.Db.AssemblyVotes.SingleAsync(
+            v => v.Id == vote.Id, Xunit.TestContext.Current.CancellationToken);
+        tracked.OpenedByUserId = survivor;
+        tracked.ClosedByUserId = survivor;
+        await _fx.Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var slices = await _fx.Service.ContributeForUserAsync(
+            mergedAway, Xunit.TestContext.Current.CancellationToken);
+
+        // The mirror image of the ballot slice: ReassignAsync moves the actor columns onto the
+        // survivor, so the archived id owns none and the raw id returns an empty slice. The
+        // roster read walks the chain, this one resolves forward — asking with either id has
+        // to reach the same officer's record.
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            slices.Single(x => string.Equals(
+                x.SectionName, AssemblyVoteService.AssemblyVoteActions, StringComparison.Ordinal)).Data);
+        json.Should().Contain("Opened").And.Contain("Closed");
     }
 
     [HumansFact]
@@ -1662,9 +1749,10 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         // The merge leaves the roster row on the archived id deliberately — it records who
         // was entitled when the vote opened. Users resolves that id forward, so the member is
         // reminded at the address they read, not at the `@merged.local` sentinel (#1704).
-        _fx.Messages.Received(1).AssemblyVoteReminder(
-            survivor + "@example.org", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LocalDateTime>(),
-            Arg.Any<bool>(), Arg.Any<string>(), Arg.Any<string?>());
+        await _fx.Email.Received(1).SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "assembly_vote_reminder"
+                && m.RecipientEmail == survivor + "@example.org"),
+            Arg.Any<CancellationToken>());
 
         var stamped = await _fx.Db.AssemblyVoteRosterEntries.AsNoTracking()
             .SingleAsync(r => r.Id == row.Id, Xunit.TestContext.Current.CancellationToken);
@@ -1688,9 +1776,9 @@ public sealed class AssemblyVoteServiceTests : IDisposable
 
         await _fx.Service.RunLapseAndReminderSweepAsync(Xunit.TestContext.Current.CancellationToken);
 
-        _fx.Messages.DidNotReceive().AssemblyVoteReminder(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LocalDateTime>(),
-            Arg.Any<bool>(), Arg.Any<string>(), Arg.Any<string?>());
+        await _fx.Email.DidNotReceive().SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "assembly_vote_reminder"),
+            Arg.Any<CancellationToken>());
         var stored = await _fx.Db.AssemblyVoteRosterEntries.AsNoTracking()
             .SingleAsync(r => r.Id == archivedRow.Id, Xunit.TestContext.Current.CancellationToken);
         stored.ReminderSentAt.Should().BeNull();
@@ -1709,9 +1797,10 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         await _fx.Service.RunLapseAndReminderSweepAsync(
             Xunit.TestContext.Current.CancellationToken);
 
-        _fx.Messages.Received(1).AssemblyVoteOpened(
-            survivor + "@example.org", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LocalDateTime>(),
-            Arg.Any<bool>(), Arg.Any<string>(), Arg.Any<string?>());
+        await _fx.Email.Received(1).SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "assembly_vote_opened"
+                && m.RecipientEmail == survivor + "@example.org"),
+            Arg.Any<CancellationToken>());
 
         var stamped = await _fx.Db.AssemblyVoteRosterEntries.AsNoTracking()
             .SingleAsync(r => r.Id == row.Id, Xunit.TestContext.Current.CancellationToken);
@@ -1735,9 +1824,10 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         await _fx.Service.RunLapseAndReminderSweepAsync(
             Xunit.TestContext.Current.CancellationToken);
 
-        _fx.Messages.Received(1).AssemblyVoteOpened(
-            survivor + "@example.org", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<LocalDateTime>(),
-            Arg.Any<bool>(), Arg.Any<string>(), Arg.Any<string?>());
+        await _fx.Email.Received(1).SendAsync(
+            Arg.Is<EmailMessage>(m => m.TemplateName == "assembly_vote_opened"
+                && m.RecipientEmail == survivor + "@example.org"),
+            Arg.Any<CancellationToken>());
 
         var rows = await _fx.Db.AssemblyVoteRosterEntries.AsNoTracking()
             .Where(r => r.VoteId == vote.Id)

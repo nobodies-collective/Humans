@@ -7,7 +7,7 @@ using Humans.Base.Extensions;
 using Humans.Email.Contracts;
 using Humans.Gdpr.Contracts;
 using Humans.Calendar.Contracts;
-using Humans.Shifts.Contracts;
+using Humans.Settings.Contracts;
 using Humans.Events.Domain;
 using NodaTime;
 using Humans.Events.Contracts;
@@ -18,10 +18,10 @@ namespace Humans.Events.Services;
 
 internal sealed class EventService(
     IEventRepository repo,
-    IBurnSettingsService burnSettings,
+    ISettingsService settingsService,
     IUserServiceRead userService,
     IEmailService emailService,
-    IEmailMessageFactory emailMessages,
+    EventsEmails emailMessages,
     IClock clock,
     ILogger<EventService> logger)
     // IUserDataContributor is implemented by CachingEventService, which delegates here —
@@ -36,9 +36,9 @@ internal sealed class EventService(
 
     private async Task<EventGuideSettingsView> ToGuideSettingsViewAsync(EventGuideSettings settings, CancellationToken ct)
     {
-        // TimeZoneId is stitched in from the Shifts-owned event_settings row via
-        // IBurnSettingsService (cross-section supplier API, nobodies-collective/Humans#719).
-        var burn = await burnSettings.GetByIdAsync(settings.EventSettingsId, ct);
+        // TimeZoneId is stitched in from the Settings-owned settings_event row via
+        // ISettingsService (cross-section supplier API, nobodies-collective/Humans#719).
+        var burn = await settingsService.GetEventSettingsByIdAsync(settings.EventSettingsId, ct);
         return new EventGuideSettingsView(
             Id: settings.Id,
             EventSettingsId: settings.EventSettingsId,
@@ -51,22 +51,22 @@ internal sealed class EventService(
             UpdatedAt: settings.UpdatedAt);
     }
 
-    public async Task<IReadOnlyList<BurnSettingsInfo>> GetEventSettingsOptionsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<EventSettingsInfo>> GetEventSettingsOptionsAsync(CancellationToken ct = default)
     {
         // Invariant: at most one active burn; singleton list keeps admin picker forward-compatible.
-        var active = await burnSettings.GetActiveAsync(ct);
+        var active = await settingsService.GetActiveEventSettingsAsync(ct);
         return active is null ? [] : [active];
     }
 
-    public Task<BurnSettingsInfo?> GetEventSettingsByIdAsync(Guid id, CancellationToken ct = default)
-        => burnSettings.GetByIdAsync(id, ct);
+    public Task<EventSettingsInfo?> GetEventSettingsByIdAsync(Guid id, CancellationToken ct = default)
+        => settingsService.GetEventSettingsByIdAsync(id, ct);
 
     public async Task SaveGuideSettingsAsync(
         Guid? existingId, Guid eventSettingsId,
         LocalDateTime submissionOpenAt, LocalDateTime submissionCloseAt, LocalDateTime guidePublishAt,
         int maxPrintSlots, CancellationToken ct = default)
     {
-        var burn = await burnSettings.GetByIdAsync(eventSettingsId, ct)
+        var burn = await settingsService.GetEventSettingsByIdAsync(eventSettingsId, ct)
             ?? throw new InvalidOperationException($"EventSettings {eventSettingsId} not found.");
 
         var tz = DateTimeZoneProviders.Tzdb.GetZoneOrNull(burn.TimeZoneId);
@@ -770,9 +770,9 @@ internal sealed class EventService(
         if (approved.Count == 0) return [];
 
         // Recurrence expansion needs the burn's gate date + timezone, stitched
-        // cross-section via IBurnSettingsService (§2c) like the guide settings view.
+        // cross-section via ISettingsService (§2c) like the guide settings view.
         var guideSettings = await repo.GetGuideSettingsAsync(ct);
-        var burn = guideSettings is null ? null : await burnSettings.GetByIdAsync(guideSettings.EventSettingsId, ct);
+        var burn = guideSettings is null ? null : await settingsService.GetEventSettingsByIdAsync(guideSettings.EventSettingsId, ct);
         var tz = burn is null ? null : DateTimeZoneProviders.Tzdb.GetZoneOrNull(burn.TimeZoneId);
         if (burn is not null && tz is null)
         {
@@ -841,15 +841,17 @@ internal sealed class EventService(
             }
         };
 
-        return [new UserDataSlice(GdprExportSections.Events, shaped)];
+        return [new UserDataSlice(Events, shaped)];
     }
+
+    internal const string Events = "Events";
 
     // internal: CachingEventService carries IUserDataContributor and returns this table
     // from an uninitialized instance, so it has to be static and reachable from there.
     internal static readonly IReadOnlyDictionary<string, string?> Erasure =
         new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            [GdprExportSections.Events] =
+            [Events] =
                 "Partially retained: favourites and the category-exclusion preference are deleted " +
                 "outright. An event the person submitted stays in the guide as the programme " +
                 "record of what ran — GDPR Art. 17(3)(b): it is a listing other people " +

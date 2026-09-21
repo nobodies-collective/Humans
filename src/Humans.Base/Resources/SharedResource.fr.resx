@@ -55,6 +55,24 @@
   <data name="Common_Close" xml:space="preserve">
     <value>Fermer</value>
   </data>
+  <data name="EmailComposer_Preview" xml:space="preserve">
+    <value>Aperçu</value>
+  </data>
+  <data name="EmailComposer_PreviewModalTitle" xml:space="preserve">
+    <value>Aperçu de l'e-mail</value>
+  </data>
+  <data name="EmailComposer_PreviewLoading" xml:space="preserve">
+    <value>Chargement de l'aperçu…</value>
+  </data>
+  <data name="EmailComposer_PreviewError" xml:space="preserve">
+    <value>Impossible de charger l'aperçu. Veuillez réessayer.</value>
+  </data>
+  <data name="EmailComposer_MarkdownSupported" xml:space="preserve">
+    <value>Prend en charge Markdown : gras, liens, listes, images.</value>
+  </data>
+  <data name="EmailComposer_PreviewSubjectLabel" xml:space="preserve">
+    <value>Objet</value>
+  </data>
   <data name="Common_General" xml:space="preserve">
     <value>Général</value>
   </data>
@@ -129,10 +147,6 @@
   </data>
   <data name="CookieBanner_Accept" xml:space="preserve">
     <value>Accepter</value>
-  </data>
-  <data name="Login_Hello" xml:space="preserve">
-    <value>Bonjour, {0}</value>
-    <comment>{0} = user name</comment>
   </data>
   <data name="Login_Logout" xml:space="preserve">
     <value>Déconnexion</value>
@@ -1382,4 +1396,36 @@
   <data name="Todo_AssemblyVote_Pending" xml:space="preserve"><value>« {0} » est ouvert au vote.</value><comment>{0} = vote title</comment></data>
   <data name="Todo_AssemblyVote_Done" xml:space="preserve"><value>Votre vote sur « {0} » est enregistré. Vous pouvez le modifier jusqu’à la clôture.</value><comment>{0} = vote title</comment></data>
   <data name="Todo_AssemblyVote_Action" xml:space="preserve"><value>Voter</value></data>
+
+  <!-- Settings tab label: a SharedResource key because SettingsTabsViewComponent cannot see a contributing section's own resource set -->
+  <data name="Settings_TabEvent" xml:space="preserve">
+    <value>Événement</value>
+  </data>
+
+  <data name="Settings_TabAgent" xml:space="preserve">
+    <value>Agent</value>
+  </data>
+
+  <data name="Settings_TabGoogleSync" xml:space="preserve">
+    <value>Synchronisation Google</value>
+  </data>
+
+  <data name="Settings_TabEmail" xml:space="preserve">
+    <value>E-mail</value>
+  </data>
+  <data name="Settings_TabCityPlanning" xml:space="preserve">
+    <value>Carte des Barrios</value>
+  </data>
+  <data name="Settings_TabGate" xml:space="preserve">
+    <value>Porte</value>
+  </data>
+  <data name="Settings_TabBarrios" xml:space="preserve">
+    <value>Barrios</value>
+  </data>
+  <data name="Settings_TabEventGuide" xml:space="preserve">
+    <value>Guide des événements</value>
+  </data>
+  <data name="Settings_TabShifts" xml:space="preserve">
+    <value>Quarts</value>
+  </data>
 </root>

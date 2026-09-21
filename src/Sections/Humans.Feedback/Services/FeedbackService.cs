@@ -29,7 +29,7 @@ internal sealed class FeedbackService(
     IUserEmailService userEmailService,
     ITeamServiceRead teamService,
     IEmailService emailService,
-    IEmailMessageFactory emailMessages,
+    FeedbackEmails emailMessages,
     INotificationEmitter notificationService,
     IAuditLogService auditLogService,
     INavBadgeCacheInvalidator navBadge,
@@ -38,6 +38,8 @@ internal sealed class FeedbackService(
     IClock clock,
     ILogger<FeedbackService> logger) : IFeedbackServiceRead, IFeedbackTriage, IUserDataContributor, IUserMerge
 {
+    internal const string FeedbackReports = "FeedbackReports";
+
     private static readonly TimeSpan BadgeCacheDuration = TimeSpan.FromMinutes(2);
 
     public async Task<FeedbackReportInfo?> GetFeedbackByIdAsync(
@@ -174,8 +176,6 @@ internal sealed class FeedbackService(
     private async Task SendAdminResponseEmailAsync(
         FeedbackReport report, string content, CancellationToken ct)
     {
-        var reportLink = $"/Feedback/{report.Id}";
-
         var reporter = await userService.GetUserInfoAsync(report.UserId, ct);
         var emails = await userEmailService.GetNotificationTargetEmailsAsync(
             [report.UserId], ct);
@@ -185,7 +185,7 @@ internal sealed class FeedbackService(
         {
             await emailService.SendAsync(emailMessages.FeedbackResponse(
                 recipientEmail, reporter.BurnerName,
-                report.Description, content, reportLink,
+                report.Description, content,
                 reporter.PreferredLanguage), ct);
         }
         else
@@ -363,13 +363,13 @@ internal sealed class FeedbackService(
                 })
             }).ToList();
 
-        return [new UserDataSlice(GdprExportSections.FeedbackReports, shaped)];
+        return [new UserDataSlice(FeedbackReports, shaped)];
     }
 
     private static readonly IReadOnlyDictionary<string, string?> Erasure =
         new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            [GdprExportSections.FeedbackReports] =
+            [FeedbackReports] =
                 "Partially retained: reports the person filed are deleted outright, messages and " +
                 "screenshots with them. A reply they left on someone else's report is that report's content and " +
                 "stays, with the authorship detached (SenderUserId nulled) — GDPR Art. 17(3)(b), " +

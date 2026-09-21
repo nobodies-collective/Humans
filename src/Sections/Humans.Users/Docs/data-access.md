@@ -78,7 +78,7 @@ Repository: `IUserRepository`.
 | Table | R/W |
 |-------|-----|
 | UserEmails | R/W |
-| Users | R/W (the only direct EF write to `Users.GoogleEmail` / `Users.Email`; also the `GetUserEmailsByAddressAsync` read behind the write paths). Google sync status is per-address on `UserEmails.GoogleEmailStatus` — `Users.GoogleEmailStatus` is deprecated/unwritten. |
+| Users | R/W (the only direct EF write to `Users.Email`). The `Users.GoogleEmail` shadow column has no reader or writer left (nobodies-collective/Humans#1102); the mapping survives only until the drop PR. Google sync status is per-address on `UserEmails.GoogleEmailStatus` — `Users.GoogleEmailStatus` is deprecated/unwritten. |
 
 Cross-section calls via `IUserService`, plus ASP.NET `UserManager<User>` and
 `IServiceProvider` for lazy resolution. Implements `IUserMerge`. No
@@ -138,11 +138,26 @@ No repository. Implements `SuspendNonCompliantMembersJob`'s body
 have not re-consented after the grace period and runs each suspension's
 downstream side effects. Cross-section calls via `IUserService`,
 `ITeamServiceRead`, `IMembershipCalculatorRead`, `IGoogleSyncService`,
-`IEmailService`, `IEmailMessageFactory`, `INotificationEmitter`,
+`IEmailService`, the section's own `UsersEmails` builder, `INotificationEmitter`,
 `IAuditLogService`, `IHumansMetrics`, plus `IActiveTeamsCacheInvalidator`,
 `IRoleAssignmentClaimsCacheInvalidator`, and `IShiftAuthorizationInvalidator`
 for cache eviction. `[CrossSectionWrite]`-marked because suspension removes a
 user from their team's Google resources. No direct DB access or `IMemoryCache`.
+
+### UsersEmails (Scoped, internal)
+
+No repository. Pure builder — reads `UsersResource` (via
+`IStringLocalizer<UsersResource>`) and `EmailSettings`, writes nothing.
+Returns `EmailMessage` values for `ProfileEmailsController`,
+`AccountDeletionService`, `NonCompliantMemberSuspension` and
+`ProcessAccountDeletionsJob` to pass to `IEmailService.SendAsync`. No DB
+access, no cache.
+
+### UsersEmailPreviews (Scoped)
+
+No repository. Read-only gallery contributor (`IEmailPreviewContributor`,
+`Section.cs:113`) — builds one sample per template via `UsersEmails` for
+`/Email/EmailPreview`. No DB access, no cache.
 
 ---
 
@@ -217,13 +232,13 @@ tombstone id forward to the surviving row before stamping; `GetRawUserInfoAsync`
 `GetAllRawUserInfosAsync` stamp without resolving.
 
 `UserEmailService.FindByAddressAsync` (the one address → rows lookup; callers
-pick aliasing, verification and cardinality) and
-`UserService.GetByEmailOrAlternateAsync` match addresses in memory against
-the cached `UserInfo` set instead of querying `UserEmails` directly. `CachingUserService.GetByEmailOrAlternateAsync` overrides the
-inner service to scan the warmed snapshot itself (no repeated
-`GetAllUserInfosAsync` fan-out per miss); the inner
-`UserService.GetByEmailOrAlternateAsync` is legacy-`GoogleEmail`-shadow-column-only,
-reached only on a snapshot miss. Gmail/googlemail aliasing is preserved via
+pick aliasing, verification and cardinality) is the general-purpose lookup.
+`CachingUserService.GetByEmailOrAlternateAsync` scans the warmed `UserInfo`
+snapshot for a verified match first (no repeated `GetAllUserInfosAsync`
+fan-out per miss); on a miss it falls through to the inner
+`UserService.GetByEmailOrAlternateAsync`, which runs one targeted verified
+`UserEmails` query (`IUserRepository.GetUserEmailsByAddressAsync`) — canonical,
+not a legacy fallback. Gmail/googlemail aliasing is preserved via
 `EmailNormalization.EmailsMatch` on the alias-aware methods; exact-match
 methods keep their no-aliasing contract.
 
