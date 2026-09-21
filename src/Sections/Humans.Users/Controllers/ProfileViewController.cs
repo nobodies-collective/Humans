@@ -379,7 +379,7 @@ internal sealed class ProfileViewController(
             request.RecipientEmail,
             request.RecipientDisplayName,
             request.SenderDisplayName,
-            request.CleanMessage,
+            request.Message,
             request.IncludeContactInfo,
             request.SenderEmail,
             request.RecipientPreferredLanguage), teamSender);
