@@ -1387,4 +1387,31 @@
   <data name="Settings_TabEvent" xml:space="preserve">
     <value>Evento</value>
   </data>
+
+  <data name="Settings_TabAgent" xml:space="preserve">
+    <value>Agente</value>
+  </data>
+
+  <data name="Settings_TabGoogleSync" xml:space="preserve">
+    <value>Sincronizzazione Google</value>
+  </data>
+
+  <data name="Settings_TabEmail" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Settings_TabCityPlanning" xml:space="preserve">
+    <value>Mappa Barrios</value>
+  </data>
+  <data name="Settings_TabGate" xml:space="preserve">
+    <value>Cancello</value>
+  </data>
+  <data name="Settings_TabBarrios" xml:space="preserve">
+    <value>Barrios</value>
+  </data>
+  <data name="Settings_TabEventGuide" xml:space="preserve">
+    <value>Guida eventi</value>
+  </data>
+  <data name="Settings_TabShifts" xml:space="preserve">
+    <value>Turni</value>
+  </data>
 </root>

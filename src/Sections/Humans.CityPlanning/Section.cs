@@ -1,4 +1,5 @@
 using Humans.Base.Constants;
+using Humans.CityPlanning.Authorization;
 using Humans.Issues.Contracts;
 using Humans.CityPlanning.Contracts;
 using Humans.CityPlanning.Data;
@@ -6,6 +7,7 @@ using Humans.CityPlanning.Services;
 using Humans.Base.Hosting;
 using Humans.Base.Interfaces;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Humans.CityPlanning;
@@ -36,6 +38,9 @@ public sealed class Section : ISection, IIssueQueueOwner
         services.AddScoped<CityPlanningService>();
         services.AddScoped<ICityPlanningService>(sp => sp.GetRequiredService<CityPlanningService>());
         services.AddScoped<ICityPlanningServiceRead>(sp => sp.GetRequiredService<CityPlanningService>());
+
+        // Backs CityPlanningMapAdmin, registered by this section's SectionPolicies.
+        services.AddScoped<IAuthorizationHandler, CityPlanningMapAdminHandler>();
     }
 
     // This section owns the issue queue its members' reports land in; Issues discovers
