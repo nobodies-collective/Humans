@@ -5,7 +5,9 @@ using Humans.Base.Models;
 
 namespace Humans.Agent.Services.Preload;
 
-internal sealed class AgentPreloadAugmentor(IEnumerable<ISectionAccessMatrix> accessMatrices) : IAgentPreloadAugmentor
+internal sealed class AgentPreloadAugmentor(
+    IEnumerable<ISectionAccessMatrix> accessMatrices,
+    IEnumerable<ISectionHelp> helpContributions) : IAgentPreloadAugmentor
 {
     public string BuildAccessMatrixMarkdown()
     {
@@ -44,8 +46,11 @@ internal sealed class AgentPreloadAugmentor(IEnumerable<ISectionAccessMatrix> ac
         // heading but keep their own table and page label: several define the same term with
         // different emphasis ("Barrio Lead" three ways across the city-planning pages), so folding
         // them into one table would either duplicate the term or drop a definition.
-        var glossaries = SectionHelpContent.AllGlossaries()
-            .Select(g => (Section: ResolveSectionKey(g.Section), Page: PageTitle(g.Body, g.Section), Rows: TermRows(g.Body)))
+        var glossaries = helpContributions
+            .SelectMany(c => c.HelpEntries)
+            .OrderBy(e => e.Order)
+            .Where(e => e.Glossary is not null)
+            .Select(g => (Section: ResolveSectionKey(g.Key), Page: PageTitle(g.Glossary!, g.Key), Rows: TermRows(g.Glossary!)))
             .GroupBy(g => g.Section, StringComparer.Ordinal)
             .ToList();
 

@@ -31,7 +31,7 @@ public class AccessMatrixViewComponentTests
     public void Resolves_the_matrix_from_any_contribution_not_a_list_Base_keeps()
     {
         var component = new AccessMatrixViewComponent(
-            [new Stub(Data("First", "First Page")), new Stub(Data("Second", "Second Page"))]);
+            [new Stub(Data("First", "First Page")), new Stub(Data("Second", "Second Page"))], []);
 
         foreach (var (key, name) in new[] { ("First", "First Page"), ("Second", "Second Page") })
         {
@@ -46,7 +46,7 @@ public class AccessMatrixViewComponentTests
     [HumansFact]
     public void Renders_nothing_for_a_key_no_section_contributed()
     {
-        new AccessMatrixViewComponent([new Stub(Data("First", "First Page"))])
+        new AccessMatrixViewComponent([new Stub(Data("First", "First Page"))], [])
             .Invoke("NotASection")
             .Should().BeOfType<ContentViewComponentResult>().Which.Content.Should().BeEmpty();
     }
@@ -58,7 +58,7 @@ public class AccessMatrixViewComponentTests
     [HumansFact]
     public void Matches_the_key_ordinally()
     {
-        new AccessMatrixViewComponent([new Stub(Data("First", "First Page"))])
+        new AccessMatrixViewComponent([new Stub(Data("First", "First Page"))], [])
             .Invoke("first")
             .Should().BeOfType<ContentViewComponentResult>().Which.Content.Should().BeEmpty();
     }

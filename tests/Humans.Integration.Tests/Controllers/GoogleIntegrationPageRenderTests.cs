@@ -25,8 +25,8 @@ namespace Humans.Integration.Tests.Controllers;
 /// throwing — <c>&lt;vc:access-matrix&gt;</c> is back on the tag-helper form since the
 /// component moved to <c>Humans.UI</c> (nobodies-collective/Humans#1056), and it binds
 /// through the section's <c>@@addTagHelper *, Humans.Interfaces</c>. Note it renders <b>empty</b> on
-/// <c>/Google</c>: no section contributes an access matrix for it and <c>SectionHelpContent</c>
-/// has no "Google" key either, a content gap tracked separately — so there is no modal id to assert
+/// <c>/Google</c>: no section contributes an access matrix for it and no section's help
+/// contribution has a "Google" key either, a content gap tracked separately — so there is no modal id to assert
 /// here, only the absence of literal markup. A key the resx carve missed renders as its own
 /// name. And the section's <c>_ViewImports</c> is what binds every tag helper, so a missing
 /// line there ships broken HTML with a green build.
