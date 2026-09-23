@@ -51,9 +51,9 @@ Repository: `IEmailOutboxRepository`.
 
 Implements `IEmailService` — the single `SendAsync(EmailMessage)` send
 path (the interface collapsed to one method). Cross-section calls via
-`IUserEmailService`, `IEmailBodyComposer`, `IImmediateOutboxProcessor`,
-`IHumansMetrics`, `ICommunicationPreferenceService`, plus `IClock`. No
-`IMemoryCache`.
+`IUserEmailService`, `IImmediateOutboxProcessor`, `IHumansMetrics`,
+`ICommunicationPreferenceService`, plus `IClock`; `IEmailBodyComposer` is
+section-internal. No `IMemoryCache`.
 
 ### EmailMessageFactory (Scoped, internal)
 
@@ -70,7 +70,7 @@ No repository. Read-only gallery contributor (`IEmailPreviewContributor`,
 `Section.cs:52`) — builds the two facilitated-message samples via
 `IEmailMessageFactory` for `/Email/EmailPreview`. No DB access, no cache.
 
-### EmailPreviewService (Scoped)
+### EmailPreviewService (Singleton)
 
 No repository — side-effect-free preview only, via the same
 `IEmailBodyComposer` the outbox uses to render the send body.
@@ -88,6 +88,17 @@ touching `EmailOutboxMessages` or any repository. `RenderMarkdown`
 (Base) "Preview" button — served by this section's own
 `EmailPreviewController` (`[Authorize]`, any authenticated human).
 No `IMemoryCache`.
+
+### ComposerSelfSendService (Scoped)
+
+No repository. Backs the `_EmailComposer` "Send to me" button
+(peterdrier/Humans#1793): resolves the caller's own notification address via
+`IUserEmailService.GetNotificationTargetEmailsAsync`, renders the typed Markdown
+through `SanitizedMarkdownRenderer`, and hands one `composer_self_test`
+`MessageCategory.System` message to `IEmailService.SendAsync` (the outbox
+row is `OutboxEmailService`'s write), then audits `EmailComposerSelfTestSent`
+through `IAuditLogService`. `IUserServiceRead` supplies the caller's display name.
+Section-internal; its only consumer is `EmailPreviewController`. No cache.
 
 ---
 
