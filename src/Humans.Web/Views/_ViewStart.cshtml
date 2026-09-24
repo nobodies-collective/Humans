@@ -1,3 +1,10 @@
+@using Humans.Base.ViewComponents
+@inject IEnumerable<Humans.Base.Interfaces.ISectionAdminNav> AdminNav
 @{
-    Layout = "_Layout";
+    // A page gated by an admin-shaped policy, on the dashboard or an admin nav controller, gets the
+    // admin shell; every other page gets the member layout (docs/sections/admin-shell.md).
+    Layout = AdminNavComposition.IsAdminPage(AdminNav, Context.GetEndpoint(),
+        ViewContext.RouteData.Values["controller"] as string, ViewContext.RouteData.Values["action"] as string)
+        ? "_AdminLayout"
+        : "_Layout";
 }

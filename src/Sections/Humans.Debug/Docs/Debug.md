@@ -1,6 +1,6 @@
 <!-- freshness:triggers
   src/Sections/Humans.Debug/**
-  src/Humans.Web/ViewComponents/AdminNavComposition.cs
+  src/Humans.Base/ViewComponents/AdminNavComposition.cs
   src/Humans.Web/Middleware/ClientStatsMiddleware.cs
   src/Humans.Web/Program.cs
 -->
@@ -84,7 +84,7 @@ The widget gallery and the dashboard card read other sections through their cont
 
 - All controllers are `internal sealed` in `Humans.Debug.Controllers`, routed by Shell's `SectionControllerFeatureProvider`. `DebugController` consumes telemetry trackers, configuration metadata, query/cache counters, and admin database diagnostics, all of them Base singletons registered by their owners.
 - `Section.Register` is **empty**, and the class ships anyway: `ISection` is what puts the assembly in the discovered-sections log. `Contracts/` holds only a README - nothing outside the section names a Debug type.
-- Root-level seams contribute by name: `SectionAdminNav` (`ISectionAdminNav`) supplies the Diagnostics and Design sidebar groups, merged into the Shell nav by `AdminNavComposition`; `SectionChrome` (`ISectionChrome`) contributes the `UserSetMembershipCard` view component to the admin dashboard's chrome slot.
+- Root-level seams contribute by name: `SectionAdminNav` (`ISectionAdminNav`) supplies the Debug sidebar group (diagnostics plus the design references), merged into the Shell nav by `AdminNavComposition`; `SectionChrome` (`ISectionChrome`) contributes the `UserSetMembershipCard` view component to the admin dashboard's chrome slot.
 - `/Debug/WidgetGallery` itself is a chrome-slot *consumer*: Base-hosted widgets render through `<vc:chrome-slot>`, `<vc:admin-breadcrumb>`, `<vc:section-nav>`, `<vc:things-to-do>`, and Users' and Shifts' own gallery samples render through one `<vc:chrome-slot name="@ChromeSlots.WidgetGallery">` call, fed by their `ISectionChrome` contributions (`UsersGalleryViewComponent`, `ShiftsGalleryViewComponent`) — the page holds no per-section state for those cards and needs no reference to the sections that contribute nothing else it uses.
 - The section references `Humans.Base` despite owning no tables: it names `QueryStatistics` (`Humans.Base.Data`) and the host-local `InMemoryLogSink` (`Humans.Base.Logging`; Shell configures it from `Program.cs`, and Backdoor's `BackdoorLogsController` reads the same DI instance at `/api/backdoor/logs`). Cache-entry counts come from `ICacheStatsProvider.GetActiveEntryCounts()`; Debug never names `TrackingMemoryCache`.
 - `TranslationsGalleryModelBuilder` lives in Base (`src/Humans.Base/Models/TranslationsGalleryViewModel.cs`): it enumerates `SharedResource` and `CultureCatalog`, and `SharedResourceParityTests` asserts translation parity through it. `FormatGalleryModelBuilder` lives here - its only consumer is `/Debug/FormatGallery`.

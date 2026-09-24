@@ -1,9 +1,15 @@
+using Humans.Base.Authorization;
 using Humans.Base.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Humans.Web.ViewComponents;
 
+/// <summary>
+/// The admin sidebar: one row per group the user can see anything in, alphabetical, linking to
+/// the group's first visible item. The group's items render as tabs on its pages
+/// (<see cref="AdminTabsViewComponent"/>).
+/// </summary>
 public sealed class AdminSidebarViewComponent(
     IAuthorizationService authorization,
     IWebHostEnvironment environment,
@@ -13,60 +19,11 @@ public sealed class AdminSidebarViewComponent(
 {
     public async Task<IViewComponentResult> InvokeAsync()
     {
-        var activeController = (string?)RouteData.Values["controller"];
-        var activeAction = (string?)RouteData.Values["action"];
-        var groups = AdminNavComposition.Compose(navContributors);
-        var visibleGroups = new List<AdminSidebarGroupViewModel>(groups.Count);
+        var groups = await AdminNavItems.ForRequestAsync(this, navContributors, authorization, environment, serviceProvider, logger);
 
-        foreach (var group in groups)
-        {
-            var visibleItems = new List<AdminSidebarItemViewModel>(group.Items.Count);
-            foreach (var item in group.Items)
-            {
-                if (item.EnvironmentGate is not null && !item.EnvironmentGate(environment))
-                    continue;
-
-                if (item.Policy is not null)
-                {
-                    var auth = await authorization.AuthorizeAsync(HttpContext.User, null, item.Policy);
-                    if (!auth.Succeeded) continue;
-                }
-                else if (item.RoleCheck is not null && !item.RoleCheck(HttpContext.User))
-                {
-                    continue;
-                }
-
-                int? pill = null;
-                if (item.PillCount is not null)
-                {
-                    try
-                    {
-                        pill = await item.PillCount(serviceProvider);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "Failed to compute pill count for nav item {Label}", item.Label);
-                        pill = null;
-                    }
-                }
-
-                visibleItems.Add(new AdminSidebarItemViewModel(
-                    Label: item.Label,
-                    Controller: item.Controller,
-                    Action: item.Action,
-                    RouteValues: item.RouteValues,
-                    RawHref: item.RawHref,
-                    IconCssClass: item.IconCssClass,
-                    IsActive: !string.IsNullOrEmpty(item.Controller)
-                              && string.Equals(item.Controller, activeController, StringComparison.OrdinalIgnoreCase)
-                              && string.Equals(item.Action, activeAction, StringComparison.OrdinalIgnoreCase),
-                    PillCount: pill));
-            }
-
-            if (visibleItems.Count > 0)
-                visibleGroups.Add(new AdminSidebarGroupViewModel(group.Label, visibleItems, group.System));
-        }
-
-        return View(new AdminSidebarViewModel(visibleGroups));
+        // A restricted page puts non-admin roles (a team coordinator on the shift dashboard) in the
+        // shell too; the dashboard itself is AnyAdminRole-only.
+        var showDashboard = (await authorization.AuthorizeAsync(HttpContext.User, PolicyNames.AnyAdminRole)).Succeeded;
+        return View(new AdminSidebarViewModel(showDashboard, groups));
     }
 }
