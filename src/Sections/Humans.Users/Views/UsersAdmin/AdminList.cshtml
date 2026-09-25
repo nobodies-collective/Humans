@@ -1,7 +1,6 @@
 @model Humans.Users.Models.AdminHumanListViewModel
 @{
     ViewData["Title"] = Localizer["AdminHumans_Title"].Value;
-    Layout = "_AdminLayout";
     string ToggleDir(string col) => Model.SortBy == col && Model.SortDir == "asc" ? "desc" : "asc";
 }
 
@@ -118,7 +117,7 @@ else
                             <span class="badge @StatusBadgeExtensions.GetMembershipStatusBadgeClass(human.StatusLabel)">
                                 @human.StatusLabel
                             </span>
-                            @await Component.InvokeAsync("NobodiesEmailBadge", new { userId = human.UserId, mode = "status" })
+                            <vc:nobodies-email-badge user-id="@human.UserId" mode="status" />
                         </div>
                         <div class="small text-muted mt-1">
                             <span>@SharedLocalizer["Admin_Joined"] @human.CreatedAt.ToDate()</span>

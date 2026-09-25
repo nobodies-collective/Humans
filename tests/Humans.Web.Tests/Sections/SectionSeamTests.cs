@@ -1,8 +1,10 @@
 using System.Linq.Expressions;
 using System.Security.Claims;
 using AwesomeAssertions;
+using Humans.Base.Authorization;
 using Humans.Base.Interfaces;
 using Humans.Web.Extensions;
+using Humans.Base.ViewComponents;
 using Humans.Web.ViewComponents;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -34,50 +36,33 @@ public class SectionSeamTests
     }
 
     [HumansFact]
-    public void Contribution_Merges_Into_An_Existing_Group_By_Key()
+    public void Contribution_Merges_Into_An_Existing_Group_By_Label()
     {
         var composed = AdminNavComposition.Compose(
         [
-            new Nav(new AdminNavGroup("Tickets", [Item("Existing")])),
-            new Nav(new AdminNavGroup("Tickets", [Item("Contributed")]))
+            new Nav(new AdminNavGroup("Issues", [Item("Existing")])),
+            new Nav(new AdminNavGroup("Issues", [Item("Contributed")]))
         ]);
 
-        composed.Should().ContainSingle(g => string.Equals(g.GroupKey, "Tickets", StringComparison.Ordinal));
-        var merged = composed.First(g => string.Equals(g.GroupKey, "Tickets", StringComparison.Ordinal));
-        merged.Items.Select(i => i.Label).Should().Equal("Existing", "Contributed");
+        composed.Should().ContainSingle();
+        composed.Single().Items.Select(i => i.Label).Should().Equal("Existing", "Contributed");
     }
 
     [HumansFact]
-    public void Unknown_Group_Is_Appended_And_Groups_Order_By_Weight()
+    public void Groups_Order_Alphabetically_Ignoring_Case()
     {
         var composed = AdminNavComposition.Compose(
         [
-            new Nav(new AdminNavGroup("Later", [Item("b")], Weight: 20)),
-            new Nav(new AdminNavGroup("Sooner", [Item("a")], Weight: 10))
+            new Nav(new AdminNavGroup("Users", [Item("a")])),
+            new Nav(new AdminNavGroup("budget", [Item("b")]), new AdminNavGroup("Agent", [Item("c")]))
         ]);
 
-        composed.Select(g => g.Label).Should().Equal("Sooner", "Later");
+        composed.Select(g => g.Label).Should().Equal("Agent", "budget", "Users");
     }
 
     /// <summary>
-    /// The sidebar renders System groups as collapsed plumbing at the bottom, so a System
-    /// contribution lands below every user-facing group however heavy those are.
-    /// </summary>
-    [HumansFact]
-    public void Contributed_System_Group_Lands_Below_The_User_Facing_Groups()
-    {
-        var composed = AdminNavComposition.Compose(
-        [
-            new Nav(new AdminNavGroup("Plumbing", [Item("a")], System: true)),
-            new Nav(new AdminNavGroup("Heavy", [Item("b")], Weight: 99))
-        ]);
-
-        composed.Select(g => g.Label).Should().Equal("Heavy", "Plumbing");
-    }
-
-    /// <summary>
-    /// Equal weights keep declared order — the sort is stable, which is what lets a group's
-    /// traffic-based item order survive being merged into by another section's contribution.
+    /// Equal weights keep declared order — the sort is stable, so a group's item order survives
+    /// being merged into by another section's contribution.
     /// </summary>
     [HumansFact]
     public void Weight_Places_A_Contribution_Around_The_Existing_Items()
@@ -88,8 +73,76 @@ public class SectionSeamTests
             new Nav(new AdminNavGroup("Cantina", [Item("second"), Item("first", weight: -1)]))
         ]);
 
-        composed.First(g => string.Equals(g.GroupKey, "Cantina", StringComparison.Ordinal))
-            .Items.Select(i => i.Label).Should().Equal("first", "existing", "second");
+        composed.Single().Items.Select(i => i.Label).Should().Equal("first", "existing", "second");
+    }
+
+    private static readonly IReadOnlyList<AdminNavGroup> LocateTree = AdminNavComposition.Compose(
+    [
+        new Nav(new AdminNavGroup("Barrios", [
+            new AdminNavItem("Overview", "CampAdmin", "Index", null, null, "icon", null),
+            new AdminNavItem("Roles",    "CampAdmin", "Roles", null, null, "icon", null)
+        ])),
+        new Nav(new AdminNavGroup("Governance", [
+            new AdminNavItem("Voting", "GovernanceBoardVoting", "BoardVoting", null, null, "icon", null)
+        ]))
+    ]);
+
+    [HumansFact]
+    public void Locate_Exact_Route_Is_The_Page_Itself()
+    {
+        var location = AdminNavComposition.Locate(LocateTree, "campadmin", "roles", parent: null);
+
+        location!.Group.Label.Should().Be("Barrios");
+        location.Item.Label.Should().Be("Roles");
+        location.IsExact.Should().BeTrue();
+    }
+
+    [HumansFact]
+    public void Locate_Subpage_Falls_Under_The_First_Item_On_Its_Controller()
+    {
+        var location = AdminNavComposition.Locate(LocateTree, "CampAdmin", "Detail", parent: null);
+
+        location!.Item.Label.Should().Be("Overview");
+        location.IsExact.Should().BeFalse();
+    }
+
+    [HumansFact]
+    public void Locate_Subpage_Honours_The_Parent_It_Names()
+    {
+        AdminNavComposition.Locate(LocateTree, "CampAdmin", "RoleForm", parent: "Roles")!
+            .Item.Label.Should().Be("Roles");
+        AdminNavComposition.Locate(LocateTree, "GovernanceBoardDetail", "Detail", parent: "GovernanceBoardVoting/BoardVoting")!
+            .Item.Label.Should().Be("Voting");
+    }
+
+    [HumansFact]
+    public void Locate_Off_Nav_Controller_Is_Nowhere()
+    {
+        AdminNavComposition.Locate(LocateTree, "Admin", "Index", parent: null).Should().BeNull();
+    }
+
+    private static bool IsAdminPage(string controller, string action, params object[] metadata) =>
+        AdminNavComposition.IsAdminPage([new Nav([.. LocateTree])],
+            new Endpoint(null, new EndpointMetadataCollection(metadata), null), controller, action);
+
+    private static AuthorizeAttribute Policy(string policy) => new() { Policy = policy };
+
+    [HumansFact]
+    public void A_Page_Gated_By_An_Admin_Policy_On_A_Nav_Controller_Or_The_Dashboard_Gets_The_Shell()
+    {
+        IsAdminPage("CampAdmin", "Roles", Policy(PolicyNames.CampAdminOrAdmin)).Should().BeTrue();
+        IsAdminPage("CampAdmin", "Detail", Policy(PolicyNames.AppAccess), Policy(PolicyNames.CampAdminOrAdmin)).Should().BeTrue();
+        IsAdminPage("Admin", "Index", Policy(PolicyNames.AnyAdminRole)).Should().BeTrue();
+    }
+
+    /// <summary>A page members share keeps the member layout, even on a controller in the admin nav.</summary>
+    [HumansFact]
+    public void Shared_Anonymous_And_Off_Nav_Pages_Get_The_Member_Layout()
+    {
+        IsAdminPage("CampAdmin", "MemberFacingPage", Policy(PolicyNames.AppAccess)).Should().BeFalse();
+        IsAdminPage("CampAdmin", "MemberFacingPage", new AuthorizeAttribute()).Should().BeFalse();
+        IsAdminPage("CampAdmin", "Roles", Policy(PolicyNames.CampAdminOrAdmin), new AllowAnonymousAttribute()).Should().BeFalse();
+        IsAdminPage("Profile", "Index", Policy(PolicyNames.AdminOnly)).Should().BeFalse();
     }
 
     /// <summary>

@@ -12,13 +12,6 @@
     }
 }
 
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-controller="Admin" asp-action="Index">Admin</a></li>
-        <li class="breadcrumb-item active" aria-current="page">Email Outbox</li>
-    </ol>
-</nav>
-
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="mb-0">Email Outbox</h1>
@@ -75,8 +68,8 @@
     <div class="col-6 col-md">
         <div class="card text-center">
             <div class="card-body">
-                <div class="display-6 fw-bold text-secondary">10/min</div>
-                <div class="text-muted small">Throttle</div>
+                <div class="display-6 fw-bold text-secondary">@Model.OutboxBatchSize</div>
+                <div class="text-muted small">Messages per run</div>
             </div>
         </div>
     </div>

@@ -4,14 +4,9 @@
     ViewData["Title"] = Localizer["BoardVoting_Title"].Value;
 }
 
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="BoardVoting">@Localizer["BoardVoting_Title"]</a></li>
-        <li class="breadcrumb-item active" aria-current="page">
-            <vc:human user-id="@Model.UserId" />
-        </li>
-    </ol>
-</nav>
+@section Crumbs {
+    <span><vc:human user-id="@Model.UserId" /></span>
+}
 
 
 <div class="row">
@@ -94,7 +89,7 @@
             </div>
         }
 
-        @await Component.InvokeAsync("ProfileCard", new { userId = Model.UserId, viewMode = ProfileCardViewMode.Admin })
+        <vc:user-parts slot="@Humans.Base.Interfaces.UserPartSlots.BoardVoteApplicant" user-id="@Model.UserId" view-mode="@ProfileCardViewMode.Admin" />
     </div>
 
     <div class="col-md-4">

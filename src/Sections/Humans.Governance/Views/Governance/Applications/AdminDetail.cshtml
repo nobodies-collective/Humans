@@ -1,16 +1,7 @@
 @model Humans.Governance.Models.AdminApplicationDetailViewModel
 @{
     ViewData["Title"] = Localizer["AdminApplicationDetail_Title"].Value;
-    Layout = "_AdminLayout";
 }
-
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-controller="Admin" asp-action="Index">@SharedLocalizer["Nav_Admin"]</a></li>
-        <li class="breadcrumb-item"><a asp-action="Admin">@Localizer["AdminApplications_Title"]</a></li>
-        <li class="breadcrumb-item active" aria-current="page">@SharedLocalizer["AdminApp_Review"]</li>
-    </ol>
-</nav>
 
 
 <div class="row">

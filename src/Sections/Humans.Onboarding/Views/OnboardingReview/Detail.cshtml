@@ -3,14 +3,9 @@
     ViewData["Title"] = Localizer["Onboarding_ReviewTitle"].Value;
 }
 
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="Index">@Localizer["Onboarding_ReviewTitle"]</a></li>
-        <li class="breadcrumb-item active" aria-current="page">
-            <vc:human user-id="@Model.UserId" />
-        </li>
-    </ol>
-</nav>
+@section Crumbs {
+    <span><vc:human user-id="@Model.UserId" /></span>
+}
 
 
 <div class="row">
@@ -54,7 +49,7 @@
             </div>
         }
 
-        @await Component.InvokeAsync("ProfileCard", new { userId = Model.UserId, viewMode = ProfileCardViewMode.Admin })
+        <vc:user-parts slot="@Humans.Base.Interfaces.UserPartSlots.OnboardingReviewApplicant" user-id="@Model.UserId" view-mode="@ProfileCardViewMode.Admin" />
     </div>
 
     <div class="col-md-4">

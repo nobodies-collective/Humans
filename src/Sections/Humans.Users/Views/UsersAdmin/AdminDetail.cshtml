@@ -3,7 +3,6 @@
 @model Humans.Users.Models.AdminHumanDetailViewModel
 @{
     ViewData["Title"] = string.Format(Localizer["AdminHumanDetail_Title"].Value, Model.DisplayName);
-    Layout = "_AdminLayout";
     var campaignGrants = Model.CampaignGrants;
     var outboxCount = Model.OutboxCount;
     var isAdmin = (await AuthService.AuthorizeAsync(User, PolicyNames.AdminOnly)).Succeeded;
@@ -11,13 +10,9 @@
     var stateBadgeClass = StatusBadgeExtensions.GetMembershipStatusBadgeClass(stateLabel);
 }
 
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="AdminList">Humans</a></li>
-        <li class="breadcrumb-item"><vc:human user-id="@Model.UserId" layout="Text" link="Public" /></li>
-        <li class="breadcrumb-item active" aria-current="page">Admin</li>
-    </ol>
-</nav>
+@section Crumbs {
+    <span><vc:human user-id="@Model.UserId" layout="Text" link="Public" /></span>
+}
 
 
 <vc:merged-accounts user-id="@Model.UserId" />
@@ -208,10 +203,12 @@
         </div>
 
         <vc:shift-signups user-id="@Model.UserId" view-mode="@ShiftSignupsViewMode.Admin" display-name="@Model.DisplayName" />
-        @await Component.InvokeAsync("UserCalendar", new { userId = Model.UserId })
+
+        @* Section-contributed parts (IUserPart) — UserCalendar (Calendar), each auto-hides when empty *@
+        <vc:user-parts slot="@Humans.Base.Interfaces.UserPartSlots.AdminDetail" user-id="@Model.UserId" view-mode="@ProfileCardViewMode.Admin" />
 
         <h5 class="mt-4 mb-2">@Localizer["CommPrefs_Title"]</h5>
-        @await Component.InvokeAsync("CommunicationPreferencesPanel", new { userId = Model.UserId, readOnly = true })
+        <vc:communication-preferences-panel user-id="@Model.UserId" read-only="true" />
 
         <vc:audit-log user-id="@Model.UserId" limit="50" title="@Localizer["AdminHuman_AuditHistory"].Value" />
 
@@ -257,7 +254,8 @@
     </div>
 
     <div class="col-md-4">
-        @await Component.InvokeAsync("TicketHoldings", new { userId = Model.UserId, showEmpty = true })
+        @* Section-contributed parts (IUserPart) — TicketHoldings (Tickets), each auto-hides when empty *@
+        <vc:user-parts slot="@Humans.Base.Interfaces.UserPartSlots.AdminDetailSidebar" user-id="@Model.UserId" view-mode="@ProfileCardViewMode.Admin" />
 
         <div class="card mb-4">
             <div class="card-header">@Localizer["AdminHuman_Statistics"]</div>
@@ -343,7 +341,7 @@
         <div class="card mb-4">
             <div class="card-header">@@nobodies.team Email</div>
             <div class="card-body">
-                @await Component.InvokeAsync("NobodiesEmailBadge", new { userId = Model.UserId, mode = "detail" })
+                <vc:nobodies-email-badge user-id="@Model.UserId" mode="detail" />
             </div>
         </div>
 
