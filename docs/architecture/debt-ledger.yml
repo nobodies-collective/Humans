@@ -318,18 +318,6 @@ themes:
       memory/process/debt-ledger-additions.md. Count re-measured 2026-09-20
       across the central ledger plus every src/Sections/*/Docs/debt.yml.
 inbox:
-  - added: 2026-09-21
-    id: CENTRAL-63
-    what: "docs/architecture/design-rules.md §8 still describes the pre-cutover Settings world: it says settings_event 'has no readers yet', that every section reads the app-wide values off the Shifts-owned event_settings row via IBurnSettingsService, and that the table is populated by an operator screen at /Settings/Admin/Carry. The cutover (nobodies-collective/Humans#1630, nobodies-collective/Humans#1631) repointed every reader at settings_event, deleted the carry screen and made /Settings/Admin POST-only. The same paragraph's key list also omits Workgroups:RootDriveFolderId, the third system_settings key. Central regulations, not a section file (/section-doctor on Settings 2026-09-21)."
-    review: light
-  - added: 2026-09-21
-    id: CENTRAL-64
-    what: "docs/architecture/service-data-access-map.md's table-ownership table carries the same stale Settings claim as CENTRAL-63: 'settings_event has no consumers yet — it is populated by /Settings/Admin/Carry and read by nothing until the sections are pointed at it'. Both halves are false since nobodies-collective/Humans#1630 and nobodies-collective/Humans#1631. The row above it, 'EventSettings | Shifts | ShiftRepository', is now the Shifts-local knobs row only and reads as if it were still the app-wide one. Central doc, not a section file (/section-doctor on Settings 2026-09-21)."
-    review: light
-  - added: 2026-09-18
-    id: CENTRAL-55
-    what: "docs/guide/Glossary.md has no entry for assembly vote, the Governance lane that landed 2026-09-14 (peterdrier/Humans#1649), so the guide's own vocabulary page omits a term the Governance guide page now uses throughout. The file is shared guide input rather than section-owned (/section-doctor on Governance 2026-09-18)."
-    review: light
   # Seeded from the open items in docs/architecture/tech-debt-2026-04-23.md.
   - added: 2026-09-10
     id: CENTRAL-35
@@ -340,20 +328,10 @@ inbox:
     what: "docs/sections/G5-SECTION-TEMPLATE.md:1037 step 6 still tells a new section that authorization policies stay in Shell's AuthorizationPolicyExtensions; ISectionPolicies superseded that (nobodies-collective/Humans#1076) and the sections with their own policies now register them themselves. Shell's own AuthorizationPolicyExtensions class doc says the new rule while :22 still cites \"design §15 step 6's asymmetry\" for the old one. The template is what new sections are built from, so it manufactures the drift. These Section.cs files also cite \"design §8\" for this, which is design-rules.md's Table Ownership Map — the intended source is the G5 split-design spec §8: Humans.Development:34, Humans.Debug:20, Humans.Issues:42, Humans.Expenses:51, Humans.Containers:27, Humans.Budget:54. Checked and NOT stale: Humans.Camps:78 and Humans.Users:136 (/section-doctor on Cantina 2026-09-12)."
     review: panel
     root: CENTRAL-57
-  - added: 2026-09-14
-    id: CENTRAL-48
-    what: "docs/architecture/dependency-graph.md declares classDef monitor twice in the same Mermaid graph with different fills (#0369a1 white text, and #c084fc black text further down), so one silently wins and the legend disagrees with itself. Two runs each applied the same queued 'style the Monitor carve-out' sweep item without seeing the other's. Pick one fill and delete the other. Found while merging main into peterdrier/Humans#1602."
-    review: light
-    root: CENTRAL-57
   - added: 2026-09-03
     id: CENTRAL-34
     what: "The Holded ledger mirror holds member-identifiable data that no GDPR export reaches. Finance binds a member to a 400000xx creditor account (HoldedCreditorContact.UserId -> SupplierAccountNum); Humans.Holded then mirrors that account's HoldedAccount.Name (Holded's contact name, i.e. the member's) and every HoldedLedgerLine on it, free-text Description included, and /Holded/Accounts/{n} renders both. Finance's ContributeForUserAsync exports only the binding itself and SEPA payouts, so an Article 15 export omits the member's mirrored reimbursement history. Deciding the fix means deciding what belongs in the slice, whether Holded gains a contributor (it holds no UserId, so Gdpr or Finance must pass the account number) and the retention basis for refusing erasure — the mirror is re-derivable from Holded, so the Codigo de Comercio Art. 30 argument Finance uses for payout files may not transfer. Spans Holded, Finance and Gdpr and adds public surface whichever way it goes, so it is Peter's call. Found by /section-doctor on Holded 2026-09-03, from a Codex review finding on peterdrier/Humans#1583; the docs there previously asserted 'no user-scoped data -> no GDPR contributor' and have been corrected to state the gap."
     review: panel
-  - added: 2026-08-28
-    id: CENTRAL-32
-    what: "docs/architecture/freshness-catalog.yml has no Settings entry — add one covering src/Sections/Humans.Settings/** and src/Sections/Humans.Settings.Contracts/** (finding 14, /section-doctor on Settings 2026-08-28). Merged 2026-09-20: a verbatim duplicate of this item (added 2026-09-06) was removed from this inbox."
-    review: light
-    root: CENTRAL-57
   - added: 2026-08-27
     id: CENTRAL-27
     what: "The GDPR export document's JSON serialization lives twice, byte-identically: GuestDataController (Humans.Gdpr) and ProfileController (Humans.Users) each carry a private ExportJsonOptions and a private BuildExportPayload. Key stability across re-downloads is an invariant Gdpr owns, enforced by copies nothing keeps in step. The fix spans both sections and adds public surface either way — a shared serializer on Humans.Gdpr.Contracts, or a method on IGdprService — so it is Peter's call. Found by /section-doctor on Gdpr 2026-08-27 (finding 2 of docs/health/runs/2026-08-27-Gdpr.md); routed here rather than to Gdpr's section ledger on a review finding on peterdrier/Humans#1540, because no single section owns the fix."
@@ -444,10 +422,6 @@ inbox:
     review: light
     status: needs-detail
     blocked_on: "A measured failure rate and one captured stack trace from a full parallel run."
-  - added: 2026-06-14
-    id: CENTRAL-6
-    what: "VotingBadge(userId) eviction is incomplete (pre-existing; surfaced by Codex on PR 1010). Only the acting voter's badge is cleared on Approve/Reject/CastBoardVote; SubmitAsync/WithdrawAsync clear nobody, and Approve/Reject don't clear non-voting board members — yet a submit/withdraw/resolve shifts every board member's unvoted count. Bounded by the 2-min TTL. Not introduced by the badge-caching consolidation (same key/TTL/invalidator existed in the VC + NotificationMeterProvider before). Fix = broadcast-invalidate all board members' VotingBadge on submit/withdraw/resolve (enumerate Board role via roleAssignmentService); touches mutation paths + has a per-mutation enumeration cost, so its own targeted pass."
-    review: panel
   - added: 2026-06-29
     id: CENTRAL-7
     what: "Gate dedupe race has no integration test. The atomic per-barcode admit dedupe relies on a Postgres unique index on GateScanEvent.AdmitDedupeKey (first concurrent admit wins, RecordScanAsync returns DuplicateAdmitRejected on the loser). The EF in-memory test provider can't enforce unique indexes, so GateServiceTests only exercises the sequential pre-check, not the concurrent index collision. Add a Postgres-backed integration test (Testcontainers/Docker) that fires two concurrent admits for one barcode and asserts exactly one Admitted + one RejectedDuplicate. Deferred from the gate-scanner PR (PR 895) — needs a containerized DB not available in that environment."
@@ -505,11 +479,6 @@ inbox:
     what: "docs/architecture/dependency-graph.md classes Backdoor as a crosscut and omits its edges to the sections it serves (Agent, Feedback, Issues.Contracts, Surveys). It is a leaf, not a crosscut: nothing references it back (finding 16, /section-doctor on Backdoor 2026-09-03; swept in by /section-doctor on Rideshare 2026-09-10)."
     review: light
     root: CENTRAL-57
-  - added: 2026-09-10
-    id: CENTRAL-40
-    what: "docs/architecture/freshness-catalog.yml has no Backdoor entry; add one covering src/Sections/Humans.Backdoor/** and tests/Humans.Backdoor.Tests/** (finding 17, /section-doctor on Backdoor 2026-09-03; swept in by /section-doctor on Rideshare 2026-09-10)."
-    review: light
-    root: CENTRAL-57
   - added: 2026-09-11
     id: CENTRAL-42
     what: "GenerateDocumentationFile is set in no project in this repo, so CS1574 never fires and a broken <see cref> target never fails a build; Calendar alone was carrying a batch of them. Repo-wide (finding 5, /section-doctor on Calendar 2026-09-01; swept in by /section-doctor on Guide 2026-09-11)."
@@ -532,18 +501,8 @@ inbox:
     what: "src/Sections/Humans.EarlyEntry has no .Contracts leaf, so every consumer — Gate among them — takes a ProjectReference on the whole section and sees all of it rather than a contracts surface. Cross-cutting: it wants one carve-out decision, not a fix per consumer (finding 14, /section-doctor on Gate 2026-08-31; swept in by /section-doctor on Issues 2026-09-14)."
     review: panel
   - added: 2026-09-14
-    id: CENTRAL-51
-    what: "docs/architecture/freshness-catalog.yml's service-data-access-map entry triggers on src/Sections/*/Services/** and Data/*Repository.cs but not src/Sections/*/Section.cs, so a registration-only change never marks the map dirty (finding 13, /section-doctor on TicketTailor 2026-09-05; swept in by /section-doctor on Issues 2026-09-14)."
-    review: light
-    root: CENTRAL-57
-  - added: 2026-09-14
     id: CENTRAL-52
     what: "docs/architecture/section-conformance.yml's seeding notes record \"no Docs/ in Settings or TicketTailor\" as a pre-existing detector hit; both sections carry Docs/<Section>.md now. The file is read-only to a section-doctor run, so it is recorded here rather than edited (finding 25, /section-doctor on TicketTailor 2026-09-05; swept in by /section-doctor on Issues 2026-09-14)."
-    review: light
-    root: CENTRAL-57
-  - added: 2026-09-14
-    id: CENTRAL-53
-    what: "docs/architecture/dependency-graph.md's \"Services with no cross-section edges\" list names TicketVendorService, a type that does not exist; the adapter's services are TicketTailorService and StubTicketVendorService (finding 26, /section-doctor on TicketTailor 2026-09-05; swept in by /section-doctor on Issues 2026-09-14)."
     review: light
     root: CENTRAL-57
   - added: 2026-09-14

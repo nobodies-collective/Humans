@@ -2,6 +2,7 @@ using Humans.Calendar.Services.Dtos;
 using Humans.Calendar.Services;
 using Humans.Teams.Contracts;
 using Humans.Base.Controllers;
+using Humans.Base.Extensions;
 using Humans.Calendar.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -189,13 +190,17 @@ internal sealed class CalendarController : HumansControllerBase
         var teams = await GetSelectableTeamsAsync(ct);
         if (teams.Count == 0) return NotFound(); // no usable teams to own an event
 
+        var zone = GetViewerZone();
+        var today = _clock.GetCurrentInstant().InZone(zone).Date.ToDateTimeUnspecified();
+
         return View(new CalendarEventFormViewModel
         {
             OwningTeamId = teamId ?? teams[0].Id,
-            StartLocal = DateTime.Today.AddHours(19),
-            EndLocal = DateTime.Today.AddHours(20),
-            StartDateLocal = DateTime.Today,
-            EndDateLocal = DateTime.Today,
+            StartLocal = today.AddHours(19),
+            EndLocal = today.AddHours(20),
+            StartDateLocal = today,
+            EndDateLocal = today,
+            RecurrenceTimezone = zone.Id,
             TeamOptions = teams,
         });
     }
@@ -448,7 +453,6 @@ internal sealed class CalendarController : HumansControllerBase
                 ? _localizer[result.ErrorMessage] : result.ErrorMessage ?? _localizer["Calendar_SaveFailed"]);
     }
 
-    // Org default for v1 (all volunteers in Spain). TODO: derive from browser/profile.
-    private static DateTimeZone GetViewerZone() =>
-        DateTimeZoneProviders.Tzdb["Europe/Madrid"];
+    private DateTimeZone GetViewerZone() =>
+        HttpContext.Session.GetUserTimeZone("Europe/Madrid");
 }
