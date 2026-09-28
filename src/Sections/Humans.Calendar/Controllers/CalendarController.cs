@@ -2,6 +2,7 @@ using Humans.Calendar.Services.Dtos;
 using Humans.Calendar.Services;
 using Humans.Teams.Contracts;
 using Humans.Base.Controllers;
+using Humans.Base.Extensions;
 using Humans.Calendar.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -189,13 +190,17 @@ internal sealed class CalendarController : HumansControllerBase
         var teams = await GetSelectableTeamsAsync(ct);
         if (teams.Count == 0) return NotFound(); // no usable teams to own an event
 
+        var zone = GetViewerZone();
+        var today = _clock.GetCurrentInstant().InZone(zone).Date.ToDateTimeUnspecified();
+
         return View(new CalendarEventFormViewModel
         {
             OwningTeamId = teamId ?? teams[0].Id,
-            StartLocal = DateTime.Today.AddHours(19),
-            EndLocal = DateTime.Today.AddHours(20),
-            StartDateLocal = DateTime.Today,
-            EndDateLocal = DateTime.Today,
+            StartLocal = today.AddHours(19),
+            EndLocal = today.AddHours(20),
+            StartDateLocal = today,
+            EndDateLocal = today,
+            RecurrenceTimezone = zone.Id,
             TeamOptions = teams,
         });
     }
@@ -278,7 +283,7 @@ internal sealed class CalendarController : HumansControllerBase
             return View(form);
         }
 
-        var result = await _calendar.UpdateEventWithResultAsync(id, new UpdateCalendarEventDto(
+        var result = await _calendar.UpdateEventWithResultAsync(id, new CreateCalendarEventDto(
             form.Title, form.Description, form.Location, form.LocationUrl,
             form.OwningTeamId, start, end, form.IsAllDay,
             form.IsRecurring ? form.RecurrenceRule : null,
@@ -308,14 +313,14 @@ internal sealed class CalendarController : HumansControllerBase
         {
             if (form.StartDateLocal is not { } startDt)
             {
-                ModelState.AddModelError(nameof(form.StartDateLocal), "Start date is required.");
+                ModelState.AddModelError(nameof(form.StartDateLocal), _localizer["Calendar_StartDateRequired"]);
                 return;
             }
             var firstDate = LocalDate.FromDateTime(startDt);
             var inclusiveEnd = form.EndDateLocal is { } endDt ? LocalDate.FromDateTime(endDt) : firstDate;
             if (inclusiveEnd < firstDate)
             {
-                ModelState.AddModelError(nameof(form.EndDateLocal), "End date must be on or after the start date.");
+                ModelState.AddModelError(nameof(form.EndDateLocal), _localizer["Calendar_EndDateBeforeStart"]);
                 return;
             }
             (startDate, endDate) = CalendarService.AllDayWindow(firstDate, inclusiveEnd);
@@ -325,13 +330,13 @@ internal sealed class CalendarController : HumansControllerBase
         var zone = CalendarEventFormViewModel.TryResolveZone(form.RecurrenceTimezone);
         if (zone is null)
         {
-            ModelState.AddModelError(nameof(form.RecurrenceTimezone), "Unknown IANA timezone.");
+            ModelState.AddModelError(nameof(form.RecurrenceTimezone), _localizer["Calendar_UnknownTimezone"]);
             return;
         }
 
         if (form.StartLocal is not { } startLocal)
         {
-            ModelState.AddModelError(nameof(form.StartLocal), "Start is required.");
+            ModelState.AddModelError(nameof(form.StartLocal), _localizer["Calendar_StartRequired"]);
             return;
         }
         start = LocalDateTime.FromDateTime(startLocal).InZoneLeniently(zone).ToInstant();
@@ -340,7 +345,7 @@ internal sealed class CalendarController : HumansControllerBase
             : null;
         if (end is { } endInstant && endInstant < start)
         {
-            ModelState.AddModelError(nameof(form.EndLocal), "End must be on or after the start.");
+            ModelState.AddModelError(nameof(form.EndLocal), _localizer["Calendar_EndBeforeStart"]);
         }
     }
 
@@ -445,10 +450,9 @@ internal sealed class CalendarController : HumansControllerBase
         ModelState.AddModelError(
             CalendarEventFormViewModel.ErrorFieldFor(result.ValidationMemberName),
             result.ErrorMessage?.StartsWith("Calendar_", StringComparison.Ordinal) == true
-                ? _localizer[result.ErrorMessage] : result.ErrorMessage ?? "Failed to save calendar event.");
+                ? _localizer[result.ErrorMessage] : result.ErrorMessage ?? _localizer["Calendar_SaveFailed"]);
     }
 
-    // Org default for v1 (all volunteers in Spain). TODO: derive from browser/profile.
-    private static DateTimeZone GetViewerZone() =>
-        DateTimeZoneProviders.Tzdb["Europe/Madrid"];
+    private DateTimeZone GetViewerZone() =>
+        HttpContext.Session.GetUserTimeZone("Europe/Madrid");
 }

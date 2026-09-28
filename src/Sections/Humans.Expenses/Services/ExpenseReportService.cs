@@ -21,9 +21,8 @@ using Humans.Users.Contracts;
 namespace Humans.Expenses.Services;
 
 /// <summary>
-/// Application-layer orchestrator for Expense Reports. Coordinates
-/// <see cref="IExpenseRepository"/>, audit logging, IBAN snapshots, and
-/// cross-section reads via interfaces — never imports EF Core directly.
+/// Expenses' application service: the report state machine over the section's repository,
+/// plus the Holded outbox drain and the GDPR export contributor.
 /// </summary>
 [CrossSectionWrite("Writes the reimbursement IBAN onto the claimant profile.")]
 internal sealed class ExpenseReportService(
@@ -581,13 +580,14 @@ internal sealed class ExpenseReportService(
         }, "Error removing line {LineId} from report {ReportId}", null, lineId, reportId);
 
     private const long AttachmentMaxBytes = 20 * 1024 * 1024;
+    private const int AttachmentFileNameMaxLength = 255;
 
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "application/pdf", "image/jpeg", "image/jpg", "image/png", "image/heic"
     };
 
-    private static void ValidateAttachmentUpload(
+    private static string ValidateAttachmentUpload(
         string originalFileName, string contentType, Stream content)
     {
         if (content is null || content.Length == 0)
@@ -595,9 +595,15 @@ internal sealed class ExpenseReportService(
         if (content.Length > AttachmentMaxBytes)
             throw new ExpenseValidationException($"File too large. Maximum size is {AttachmentMaxBytes / (1024 * 1024)} MB.");
 
-        var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
+        var fileName = Path.GetFileName(originalFileName);
+        if (fileName.Length > AttachmentFileNameMaxLength)
+            throw new ExpenseValidationException($"Filename must be {AttachmentFileNameMaxLength} characters or fewer.");
+
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
         if (!AllowedContentTypes.Contains(contentType) || !AllowedExtensions.Contains(extension))
             throw new ExpenseValidationException("Unsupported file type. Upload PDF, JPEG, PNG, or HEIC.");
+
+        return extension;
     }
 
     internal async Task<Guid> AttachFileToLineAsync(
@@ -605,8 +611,7 @@ internal sealed class ExpenseReportService(
         Guid lineId, string originalFileName, string contentType,
         Stream content, CancellationToken ct = default)
     {
-        ValidateAttachmentUpload(originalFileName, contentType, content);
-        var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
+        var extension = ValidateAttachmentUpload(originalFileName, contentType, content);
 
         var report = await RequireEditableReportAsync(reportId, actorUserId, actorIsFinanceAdmin, ct);
 
@@ -784,7 +789,7 @@ internal sealed class ExpenseReportService(
             var submitted = await SubmitAsync(reportId, actorUserId, actorIsFinanceAdmin, ct);
             return submitted
                 ? ExpenseMutationResult.Success
-                : ExpenseMutationResult.Failure("Could not submit the report. Receipt lines need an attachment and your payment IBAN must be set.");
+                : ExpenseMutationResult.Failure("Could not submit the report. It may no longer be a draft.");
         }, "Error submitting expense report {ReportId}", "Submission failed", reportId);
 
     internal async Task<bool> WithdrawAsync(
@@ -983,13 +988,14 @@ internal sealed class ExpenseReportService(
     }
 
     internal async Task<bool> CoordinatorEndorseAsync(
-        Guid reportId, Guid coordinatorUserId, decimal? maxAmount,
+        Guid reportId, Guid coordinatorUserId, bool actorIsFinanceAdmin, decimal? maxAmount,
         CancellationToken ct = default)
     {
         var report = await repo.GetByIdAsync(reportId, ct);
         if (report is null) return false;
 
-        await RequireCoordinatorForCategoryAsync(report.BudgetCategoryId, coordinatorUserId, ct);
+        if (!actorIsFinanceAdmin)
+            await RequireCoordinatorForCategoryAsync(report.BudgetCategoryId, coordinatorUserId, ct);
 
         var now = clock.GetCurrentInstant();
         var ok = await repo.CoordinatorEndorseAsync(reportId, coordinatorUserId, maxAmount, now, ct);
@@ -998,7 +1004,8 @@ internal sealed class ExpenseReportService(
         await auditLogService.LogAsync(
             AuditAction.ExpenseEndorse,
             AuditEntityTypes.Report, reportId,
-            "Coordinator endorsed expense report." + MaxAmountDetail(maxAmount),
+            (actorIsFinanceAdmin ? "Finance admin" : "Coordinator")
+                + " endorsed expense report." + MaxAmountDetail(maxAmount),
             coordinatorUserId);
 
         return true;
@@ -1011,24 +1018,25 @@ internal sealed class ExpenseReportService(
             : "";
 
     public Task<ExpenseMutationResult> CoordinatorEndorseWithResultAsync(
-        Guid reportId, Guid coordinatorUserId, decimal? maxAmount,
+        Guid reportId, Guid coordinatorUserId, bool actorIsFinanceAdmin, decimal? maxAmount,
         CancellationToken ct = default) =>
         RunMutationAsync(async () =>
         {
-            var endorsed = await CoordinatorEndorseAsync(reportId, coordinatorUserId, maxAmount, ct);
+            var endorsed = await CoordinatorEndorseAsync(reportId, coordinatorUserId, actorIsFinanceAdmin, maxAmount, ct);
             return endorsed
                 ? ExpenseMutationResult.Success
                 : ExpenseMutationResult.Failure("Could not endorse the report. It may no longer be in Submitted status.");
         }, "Error endorsing expense report {ReportId}", "Endorsement failed", reportId);
 
     internal async Task<bool> CoordinatorRejectAsync(
-        Guid reportId, Guid coordinatorUserId, string reason,
+        Guid reportId, Guid coordinatorUserId, bool actorIsFinanceAdmin, string reason,
         CancellationToken ct = default)
     {
         var report = await repo.GetByIdAsync(reportId, ct);
         if (report is null) return false;
 
-        await RequireCoordinatorForCategoryAsync(report.BudgetCategoryId, coordinatorUserId, ct);
+        if (!actorIsFinanceAdmin)
+            await RequireCoordinatorForCategoryAsync(report.BudgetCategoryId, coordinatorUserId, ct);
 
         var now = clock.GetCurrentInstant();
         var ok = await repo.CoordinatorRejectAsync(reportId, coordinatorUserId, reason, now, ct);
@@ -1037,18 +1045,18 @@ internal sealed class ExpenseReportService(
         await auditLogService.LogAsync(
             AuditAction.ExpenseCoordinatorReject,
             AuditEntityTypes.Report, reportId,
-            $"Coordinator rejected expense report: {reason}",
+            $"{(actorIsFinanceAdmin ? "Finance admin" : "Coordinator")} rejected expense report: {reason}",
             coordinatorUserId);
 
         return true;
     }
 
     public Task<ExpenseMutationResult> CoordinatorRejectWithResultAsync(
-        Guid reportId, Guid coordinatorUserId, string reason,
+        Guid reportId, Guid coordinatorUserId, bool actorIsFinanceAdmin, string reason,
         CancellationToken ct = default) =>
         RunMutationAsync(async () =>
         {
-            var rejected = await CoordinatorRejectAsync(reportId, coordinatorUserId, reason, ct);
+            var rejected = await CoordinatorRejectAsync(reportId, coordinatorUserId, actorIsFinanceAdmin, reason, ct);
             return rejected
                 ? ExpenseMutationResult.Success
                 : ExpenseMutationResult.Failure("Could not reject the report. It may no longer be in Submitted status.");
@@ -1082,7 +1090,16 @@ internal sealed class ExpenseReportService(
                 actorUserId);
         }
 
-        await SendApprovedEmailAsync(reportId, ct);
+        // The approval is committed and its Holded push queued; a failed notice must not
+        // report it as a failed approval.
+        try
+        {
+            await SendApprovedEmailAsync(reportId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Expense report {ReportId} approved but the approval email failed", reportId);
+        }
 
         return true;
     }
@@ -1156,8 +1173,8 @@ internal sealed class ExpenseReportService(
                 : ExpenseMutationResult.Failure("Could not reject the report. It may not be in a rejectable status.");
         }, "Error finance-rejecting expense report {ReportId}", "Rejection failed", reportId);
 
-    public Task<int> CountFailedHoldedPushesAsync(CancellationToken ct = default)
-        => repo.CountFailedOutboxAsync(ct);
+    public Task<IReadOnlyList<Guid>> GetFailedHoldedPushReportIdsAsync(CancellationToken ct = default)
+        => repo.GetFailedOutboxReportIdsAsync(ct);
 
     internal async Task<bool> RequeueHoldedPushAsync(
         Guid reportId, Guid actorUserId, CancellationToken ct = default)

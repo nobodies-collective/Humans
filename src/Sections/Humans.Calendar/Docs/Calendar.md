@@ -125,11 +125,14 @@ The calendar is intentionally open: no resource-based authorization gates edit/d
 - Every `CalendarEvent` has a non-null `OwningTeamId` — a bare Guid naming a team, with no database FK constraint and no navigation property.
 - Only authenticated humans may create, edit, or delete events, or manage exceptions (enforced by `[Authorize]` on `CalendarController`).
 - Every mutating action (create / update / delete / cancel-occurrence / override-occurrence) writes an `AuditLogEntry` with the actor's user ID.
+- Create and update result wrappers preserve caller cancellation; they do not turn a canceled operation into an ordinary validation or persistence failure.
 - Title is required (non-null, non-empty).
+- Calendar form parse and fallback validation messages use `CalendarResource` in every supported culture.
 - Timed events require `StartUtc <= EndUtc` and have no date fields. All-day writes require `StartDate < EndDateExclusive` and have no start/end instants.
 - Forms display inclusive end dates; `CalendarService.AllDayWindow` / `AllDayInclusiveEndDate` convert between inclusive and exclusive `LocalDate` values without a timezone.
 - Legacy all-day rows are projected to dates in the service using their original recurrence zone, or Madrid for one-off events. A null legacy end means one day. Legacy timed overrides of all-day events become covered dates. Saving the series converts its exceptions to date fields before clearing the old timezone; no bulk backfill is required.
 - Timed recurrence requires an RRULE and IANA timezone together. All-day recurrence uses DATE DTSTART/DTEND and date-only UNTIL; sub-day recurrence rules are rejected on writes.
+- Calendar month, list, agenda, and team windows — plus the Create form's initial date and timezone — use the browser-reported session timezone when available; otherwise they use Madrid, the community default.
 - `RecurrenceUntilUtc` bounds timed series; `RecurrenceUntilDate` bounds all-day series. Snapshot prefiltering uses the corresponding type and retains rows with exceptions, which can move outside either series boundary.
 - All-day duration is a calendar-day count across every recurrence, including DST changes. A start-only override retains that count.
 - All-day occurrence URLs carry an ISO date; timed occurrence URLs carry an ISO instant. The editor renders date-only inputs for all-day series, and service validation rejects timed overrides for them.
@@ -145,6 +148,8 @@ The calendar is intentionally open: no resource-based authorization gates edit/d
 
 - Anonymous / unauthenticated visitors **cannot** access the calendar or view events (entire `CalendarController` requires `[Authorize]`).
 - The personal iCal feed is the one `[AllowAnonymous]` surface in the section: the secret is the user's stored `CalendarFeedToken` in the URL. The feed card and `POST /Calendar/Ical/Regenerate` act on the **viewer's own** token only — neither takes a user id, so no one can read or rotate another member's feed. A missing user, a merged user and a wrong token all return a plain 404 — no oracle. `UserCalendarViewComponent` renders the same items for an admin but **never** shows the token or the feed URL.
+- An aborted iCal-feed request propagates cancellation rather than being reported as a feed-building failure or returned as a 500 response.
+- `UserCalendarViewComponent` rethrows a request-abort cancellation rather than logging it as a feed load failure; other feed errors render the existing failure state.
 
 ## Triggers
 

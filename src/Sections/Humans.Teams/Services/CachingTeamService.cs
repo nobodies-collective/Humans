@@ -125,11 +125,8 @@ internal sealed class CachingTeamService(
     {
         // Cache walk — no repo hit on cache hit. Matches the slug-resolution
         // semantics inner.GetTeamDetailAsync uses (canonical Slug OR CustomSlug).
-        var normalizedSlug = slug.ToLowerInvariant();
         var teamsById = await GetTeamsByIdAsync(cancellationToken);
-        return teamsById.Values.FirstOrDefault(t =>
-            string.Equals(t.Slug, normalizedSlug, StringComparison.Ordinal)
-            || (t.CustomSlug is not null && string.Equals(t.CustomSlug, normalizedSlug, StringComparison.Ordinal)));
+        return TeamSlugResolver.Find(teamsById, slug);
     }
 
     public async Task<IReadOnlyDictionary<Guid, TeamInfo>> GetTeamsAsync(
@@ -213,10 +210,7 @@ internal sealed class CachingTeamService(
         // counts (per-user and per-team) remain real-time and route through
         // the inner ITeamService.
         var teamsById = await GetTeamsByIdAsync(cancellationToken);
-        var normalizedSlug = slug.ToLowerInvariant();
-        var team = teamsById.Values.FirstOrDefault(t =>
-            string.Equals(t.Slug, normalizedSlug, StringComparison.Ordinal) ||
-            (t.CustomSlug is not null && string.Equals(t.CustomSlug, normalizedSlug, StringComparison.Ordinal)));
+        var team = TeamSlugResolver.Find(teamsById, slug);
         if (team is null)
             return null;
 
