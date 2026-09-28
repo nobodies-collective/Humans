@@ -338,17 +338,44 @@ internal sealed class Service(
         return map.FirstOrDefault(m => m.IsActive && m.BudgetCategoryId == budgetCategoryId)?.HoldedAccountId;
     }
 
+    /// <summary>Every live category-map row with its category/group names resolved from the active
+    /// budget year — shared by <see cref="GetConnectorOverviewAsync"/> and the public
+    /// <see cref="GetCategoryMapAsync"/> (peterdrier/Humans#1838).</summary>
+    private async Task<IReadOnlyList<HoldedCategoryMapRow>> BuildCategoryMapAsync(CancellationToken ct)
+    {
+        var map = await repo.GetCategoryMapAsync(ct);
+        var year = await budget.GetActiveYearAsync();
+        var categories = year is null
+            ? new Dictionary<Guid, (string Name, string Group)>()
+            : year.Groups
+                .SelectMany(g => g.Categories.Select(c => (c.Id, Name: c.Name, Group: g.Name)))
+                .ToDictionary(c => c.Id, c => (c.Name, c.Group));
+
+        return map.Select(m => new HoldedCategoryMapRow(
+            m.BudgetCategoryId,
+            categories.TryGetValue(m.BudgetCategoryId, out var c) ? c.Name : null,
+            categories.TryGetValue(m.BudgetCategoryId, out var g) ? g.Group : null,
+            m.HoldedAccountNumber,
+            m.HoldedAccountId,
+            m.Tag,
+            m.IsActive,
+            m.UpdatedAt)).ToList();
+    }
+
+    public Task<IReadOnlyList<HoldedCategoryMapRow>> GetCategoryMapAsync(CancellationToken ct = default) =>
+        BuildCategoryMapAsync(ct);
+
     // ─── Connector overview (/Finance/Holded) ─────────────────────────────────────
 
     public async Task<HoldedConnectorVm> GetConnectorOverviewAsync(CancellationToken ct = default)
     {
         var state = await repo.GetOrCreateDocSyncStateAsync(ct);
         var bindings = await repo.GetCreditorContactsAsync(ct);
-        var map = await repo.GetCategoryMapAsync(ct);
+        var categoryMap = await BuildCategoryMapAsync(ct);
         var docs = await repo.GetAllDocsAsync(ct);
 
         // Category names come from the active budget year, the same source the provisioning plan
-        // uses. A map row or doc pointing outside it keeps a null name rather than a lookup per row.
+        // uses. A doc pointing outside it keeps a null name rather than a lookup per row.
         var year = await budget.GetActiveYearAsync();
         var categories = year is null
             ? new Dictionary<Guid, (string Name, string Group)>()
@@ -376,15 +403,7 @@ internal sealed class Service(
                 // Dropping it left an Error row unable to say when the failure actually happened.
                 state.StatusChangedAt),
             bindings.Count,
-            map.Select(m => new HoldedCategoryMapVm(
-                m.BudgetCategoryId,
-                NameOf(m.BudgetCategoryId),
-                categories.TryGetValue(m.BudgetCategoryId, out var g) ? g.Group : null,
-                m.HoldedAccountNumber,
-                m.HoldedAccountId,
-                m.Tag,
-                m.IsActive,
-                m.UpdatedAt)).ToList(),
+            categoryMap,
             docs.Select(d => new HoldedDocVm(
                 d.HoldedDocId,
                 d.DocNumber,
@@ -1086,19 +1105,20 @@ internal sealed class Service(
         @"(?<acct>\d{8})\s*-\s*NCA\s*-", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(1));
 
+    /// <summary>The same rows and reason <see cref="GetSepaPayoutsAsync"/> computes — Backdoor's
+    /// read-only <c>sepa-transfers</c> route reuses the booking-state logic short of the live
+    /// bank-feed read, which exists only to offer <c>/Finance/Sepa</c>'s own "book this" button and
+    /// whose candidate-line/unmatched-movements halves Backdoor never projects
+    /// (peterdrier/Humans#1838).</summary>
+    public async Task<(IReadOnlyList<SepaPayoutTransferRow> Transfers, string? UnavailableReason)>
+        GetSepaTransfersAsync(CancellationToken ct = default) => await GetSepaPayoutRowsWithReasonsAsync(ct);
+
     public async Task<(IReadOnlyList<SepaPayoutTransferRow> Rows, string? UnavailableReason,
         IReadOnlyList<SepaBankMovementVm> UnmatchedMovements, string? BankFeedError)>
         GetSepaPayoutsAsync(CancellationToken ct = default)
     {
-        var rows = await repo.GetSepaPayoutTransferRowsAsync(ct);
-        var unavailable = BookingUnavailableReason();
-        if (rows.Count == 0 || unavailable is not null) return (rows, unavailable, [], null);
-
-        // UserId is the one column the DB keeps unique, so this cannot throw.
-        var bindingByUser = (await repo.GetCreditorContactsAsync(ct)).ToDictionary(c => c.UserId);
-        var withReasons = rows
-            .Select(r => r with { NotBookableReason = NotBookableReason(r, bindingByUser) })
-            .ToList();
+        var (withReasons, unavailable) = await GetSepaPayoutRowsWithReasonsAsync(ct);
+        if (withReasons.Count == 0 || unavailable is not null) return (withReasons, unavailable, [], null);
 
         IReadOnlyList<HoldedBankMovementDto> movements;
         try
@@ -1214,6 +1234,26 @@ internal sealed class Service(
                 .Where(r => r.FileId == fileId && !r.IsBooked && r.NotBookableReason is not null)
                 .Select(r => $"the transfer on {r.SupplierAccountNum}: {r.NotBookableReason}")
                 .FirstOrDefault());
+    }
+
+    /// <summary>The pre-feed half of <see cref="GetSepaPayoutsAsync"/>: every transfer row with its
+    /// <see cref="SepaPayoutTransferRow.NotBookableReason"/> filled in, no live Holded read. Its own
+    /// method so <see cref="GetSepaTransfersAsync"/> (Backdoor) can reuse it without the bank-feed
+    /// call, which exists only to offer <c>/Finance/Sepa</c>'s "book this" button
+    /// (peterdrier/Humans#1838).</summary>
+    private async Task<(IReadOnlyList<SepaPayoutTransferRow> Rows, string? UnavailableReason)>
+        GetSepaPayoutRowsWithReasonsAsync(CancellationToken ct)
+    {
+        var rows = await repo.GetSepaPayoutTransferRowsAsync(ct);
+        var unavailable = BookingUnavailableReason();
+        if (rows.Count == 0 || unavailable is not null) return (rows, unavailable);
+
+        // UserId is the one column the DB keeps unique, so this cannot throw.
+        var bindingByUser = (await repo.GetCreditorContactsAsync(ct)).ToDictionary(c => c.UserId);
+        var withReasons = rows
+            .Select(r => r with { NotBookableReason = NotBookableReason(r, bindingByUser) })
+            .ToList();
+        return (withReasons, null);
     }
 
     /// <summary>Why this transfer cannot be booked into Holded, or null when it can — the row's reason
