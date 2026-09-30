@@ -144,11 +144,13 @@ The calendar is intentionally open: no resource-based authorization gates edit/d
 - Recurrence expands in-memory through Ical.Net: local times for timed events, floating dates for all-day events.
 - A member has at most one `CalendarFeedToken`, keyed by their user id, and none until they first open `/Calendar`. Minting is lazy and idempotent, and never replaces a token already there: two first views racing each other both try to insert the same primary key, and the loser adopts the winner's token rather than failing or revoking a live subscription. Rotation is the one path that replaces the row, and is last-write-wins by design. GDPR erasure deletes it, and an account merge deletes the eliminated account's row rather than moving it — the survivor keeps their own feed and the dead account's URL stops working.
 
+- A failed or cancelled post-write cache reload evicts the affected event and marks the event cache cold; the next window read reloads from source, including newly created events. The reload failure still propagates.
+
 ## Negative Access Rules
 
 - Anonymous / unauthenticated visitors **cannot** access the calendar or view events (entire `CalendarController` requires `[Authorize]`).
 - The personal iCal feed is the one `[AllowAnonymous]` surface in the section: the secret is the user's stored `CalendarFeedToken` in the URL. The feed card and `POST /Calendar/Ical/Regenerate` act on the **viewer's own** token only — neither takes a user id, so no one can read or rotate another member's feed. A missing user, a merged user and a wrong token all return a plain 404 — no oracle. `UserCalendarViewComponent` renders the same items for an admin but **never** shows the token or the feed URL.
-- An aborted iCal-feed request propagates cancellation rather than being reported as a feed-building failure or returned as a 500 response.
+- An aborted iCal-feed request propagates cancellation rather than being reported as a feed-building failure or returned as a 500 response. The contributor fan-out also preserves caller cancellation without an Error log entry; unrelated contributor faults are still logged and rethrown.
 - `UserCalendarViewComponent` rethrows a request-abort cancellation rather than logging it as a feed load failure; other feed errors render the existing failure state.
 
 ## Triggers
