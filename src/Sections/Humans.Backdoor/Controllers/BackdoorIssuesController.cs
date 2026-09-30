@@ -182,11 +182,6 @@ internal sealed class BackdoorIssuesController(
     /// field moved — a missing issue to 404, a rejected move to 422 carrying the service's
     /// reason, anything else to 500.
     /// </summary>
-    /// <remarks>
-    /// The 422 arm used to exist on <c>section</c> alone; the others turned a state-machine
-    /// rejection into a misleading 404. Normalising that is what made one pipeline possible
-    /// at all — the per-endpoint failure strings were the parameter bag standing in the way.
-    /// </remarks>
     private async Task<IActionResult> PatchAsync(Guid id, string field, Func<Task> apply)
     {
         try
@@ -212,7 +207,7 @@ internal sealed class BackdoorIssuesController(
         }
     }
 
-    private static object MapDetailIssue(IssueDetail i, IReadOnlyDictionary<Guid, UserInfo>? displayUsers = null) => new
+    private static object MapDetailIssue(IssueDetail i, IReadOnlyDictionary<Guid, UserInfo> displayUsers) => new
     {
         i.Id,
         Status = i.Status.ToString(),
@@ -223,14 +218,14 @@ internal sealed class BackdoorIssuesController(
         i.PageUrl,
         i.UserAgent,
         i.AdditionalContext,
-        ReporterName = displayUsers?.GetValueOrDefault(i.ReporterUserId)?.BurnerName,
+        ReporterName = displayUsers.GetValueOrDefault(i.ReporterUserId)?.BurnerName,
         // ReporterEmail from UserInfo (not User.Email) for shape parity with list endpoint.
-        ReporterEmail = displayUsers?.GetValueOrDefault(i.ReporterUserId)?.Email,
+        ReporterEmail = displayUsers.GetValueOrDefault(i.ReporterUserId)?.Email,
         i.ReporterUserId,
-        ReporterLanguage = displayUsers?.GetValueOrDefault(i.ReporterUserId)?.PreferredLanguage,
+        ReporterLanguage = displayUsers.GetValueOrDefault(i.ReporterUserId)?.PreferredLanguage,
         i.AssigneeUserId,
         AssigneeName = i.AssigneeUserId is { } assigneeId
-            ? displayUsers?.GetValueOrDefault(assigneeId)?.BurnerName
+            ? displayUsers.GetValueOrDefault(assigneeId)?.BurnerName
             : null,
         i.GitHubIssueNumber,
         i.DueDate,
@@ -301,7 +296,6 @@ internal sealed class BackdoorIssuesController(
     {
         var ids = new HashSet<Guid> { issue.ReporterUserId };
         if (issue.AssigneeUserId is { } assigneeId) ids.Add(assigneeId);
-        if (issue.ResolvedByUserId is { } resolvedById) ids.Add(resolvedById);
 
         return await UserService.GetUserInfosAsync(ids);
     }
