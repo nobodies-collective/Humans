@@ -354,7 +354,9 @@ internal sealed class ExpensesController(
 
         if (!result.Succeeded)
         {
-            SetError(result.ErrorMessage is null ? "Failed to add line" : $"Failed to add line: {result.ErrorMessage}");
+            SetError(result.ErrorMessage is null
+                ? localizer["Expenses_Flash_AddLineFailed"]
+                : $"Failed to add line: {result.ErrorMessage}");
             return BackToForm();
         }
 
@@ -514,7 +516,7 @@ internal sealed class ExpensesController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error removing attachment from line {LineId} on report {ReportId}", lineId, id);
-            SetError($"Failed to remove attachment: {ex.Message}");
+            SetError(localizer["Expenses_Flash_RemoveAttachmentFailed"]);
         }
         return RedirectToAction(nameof(LineEdit), new { id, lineId });
     }
