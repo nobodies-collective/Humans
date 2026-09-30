@@ -361,6 +361,33 @@ internal sealed class Service(
         return repaired;
     }
 
+    public async Task<IReadOnlyList<PaymentMethodRepairRow>> GetPaymentMethodRepairRowsAsync(CancellationToken ct = default)
+    {
+        var payments = await repo.GetPaymentsMissingMethodNameAsync(ct);
+        return payments
+            .Select(p => new PaymentMethodRepairRow(p.Id, p.OrderId, p.Method, p.AmountEur, p.ReceivedAt))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Copies each legacy payment's int <see cref="Payment.Method"/> into its string
+    /// <see cref="Payment.MethodName"/>, one audit entry per row. Rescans at run time.
+    /// </summary>
+    public async Task<int> RepairPaymentMethodNamesAsync(Guid actorUserId, CancellationToken ct = default)
+    {
+        var payments = await repo.GetPaymentsMissingMethodNameAsync(ct);
+        foreach (var payment in payments)
+        {
+            await repo.SetPaymentMethodNameAsync(payment.Id, payment.Method, ct);
+            await audit.LogAsync(
+                AuditAction.StorePaymentMethodBackfilled, AuditEntityTypes.Payment, payment.Id,
+                $"Copied payment method {payment.Method} into the string column",
+                actorUserId, payment.OrderId, AuditEntityTypes.Order);
+        }
+
+        return payments.Count;
+    }
+
     private async Task<bool> ResolveLegacyOrderYearAsync(
         Order order,
         Guid actorUserId,
@@ -712,6 +739,7 @@ internal sealed class Service(
             OrderId = orderId,
             AmountEur = amountEur,
             Method = PaymentMethod.Stripe,
+            MethodName = PaymentMethod.Stripe,
             Status = status,
             StripePaymentIntentId = paymentIntentId,
             ReceivedAt = clock.GetCurrentInstant(),
@@ -726,6 +754,69 @@ internal sealed class Service(
             $"{settlement} of EUR {amountEur:0.00} on order {orderId} (PI {paymentIntentId})",
             "StripeWebhook",
             orderId, AuditEntityTypes.Order);
+    }
+
+    /// <summary>
+    /// Records a Store-admin ledger entry: a <see cref="PaymentMethod.DepositReturn"/> credits a
+    /// returned deposit (full or partial) back to the order; a <see cref="PaymentMethod.Refund"/>
+    /// books money sent back out (issued by hand in the Stripe dashboard). The admin enters a
+    /// positive amount; a refund is stored negative and must cite its reference. A refund has no cap — a camp may have
+    /// overpaid — but deposit returns can never add up to more than the order's deposits.
+    /// </summary>
+    public async Task RecordAdminPaymentAsync(
+        Guid orderId,
+        PaymentMethod method,
+        decimal amountEur,
+        string? externalRef,
+        string? notes,
+        Guid actorUserId,
+        CancellationToken ct = default)
+    {
+        if (method is not (PaymentMethod.DepositReturn or PaymentMethod.Refund))
+            throw new InvalidOperationException($"Only deposit returns and refunds can be recorded by hand, not {method}.");
+        if (amountEur <= 0)
+            throw new InvalidOperationException("Amount must be greater than zero.");
+        if (method == PaymentMethod.Refund && string.IsNullOrWhiteSpace(externalRef))
+            throw new InvalidOperationException("A refund needs a reference (e.g. the Stripe refund id).");
+
+        var order = await repo.GetOrderWithLinesAndPaymentsAsync(orderId, ct)
+            ?? throw new InvalidOperationException("Order not found.");
+        if (order.TeamId is not null)
+            throw new InvalidOperationException("Team orders are non-billable.");
+
+        if (method == PaymentMethod.DepositReturn)
+        {
+            var depositTotal = BalanceCalculator.Compute(order, await LoadCurrentPricesAsync(ct)).DepositTotalEur;
+            var alreadyReturned = order.Payments
+                .Where(p => p.Method == PaymentMethod.DepositReturn && p.Status == PaymentStatus.Paid)
+                .Sum(p => p.AmountEur);
+            var remaining = depositTotal - alreadyReturned;
+            if (amountEur > remaining)
+                throw new InvalidOperationException(
+                    $"Deposit return of EUR {amountEur:0.00} exceeds the EUR {remaining:0.00} of deposit still held "
+                    + $"(EUR {depositTotal:0.00} deposited, EUR {alreadyReturned:0.00} already returned).");
+        }
+
+        var signed = method == PaymentMethod.Refund ? -amountEur : amountEur;
+        var payment = new Payment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            AmountEur = signed,
+            Method = method,
+            MethodName = method,
+            Status = PaymentStatus.Paid,
+            ExternalRef = string.IsNullOrWhiteSpace(externalRef) ? null : externalRef.Trim(),
+            Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
+            ReceivedAt = clock.GetCurrentInstant(),
+            RecordedByUserId = actorUserId,
+        };
+        await repo.AddPaymentAsync(payment, ct);
+        await audit.LogAsync(
+            AuditAction.StorePaymentRecorded, AuditEntityTypes.Payment, payment.Id,
+            $"Recorded {method} of EUR {signed:0.00} on order {orderId}"
+                + (payment.ExternalRef is null ? string.Empty : $" (ref {payment.ExternalRef})"),
+            actorUserId, orderId, AuditEntityTypes.Order);
     }
 
     public async Task<StripeReconciliationReport> GetStripeReconciliationAsync(CancellationToken ct = default)
