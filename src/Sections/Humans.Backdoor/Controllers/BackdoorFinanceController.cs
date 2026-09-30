@@ -20,8 +20,7 @@ namespace Humans.Backdoor.Controllers;
 /// <summary>
 /// Read-only Backdoor export of expense reports, creditor bindings, the category map and SEPA
 /// transfers, for the agent doing the books who needs Humans' side of a Holded break
-/// (peterdrier/Humans#1838). Same pattern as <see cref="BackdoorStoreController"/>
-/// (peterdrier/Humans#1719): every action reuses an <c>*ServiceRead</c> method, sorts and formats.
+/// (peterdrier/Humans#1838). Every action reuses an <c>*ServiceRead</c> method, sorts and formats.
 /// </summary>
 /// <remarks>
 /// Unlike Store, a key here does not read everything its owner's role permits without a check —
@@ -51,7 +50,7 @@ internal sealed class BackdoorFinanceController(
     public async Task<IActionResult> ExpenseReports(
         [FromQuery] string? year, [FromQuery] string? status, CancellationToken ct)
     {
-        if (GetCurrentUserId() is not { } userId) return Unauthorized();
+        var userId = GetCurrentUserId()!.Value;
 
         var isFinanceAdmin = await IsFinanceAdminAsync();
         var reports = await expenses.GetReviewQueueAsync(userId, isFinanceAdmin, ct);
@@ -88,7 +87,7 @@ internal sealed class BackdoorFinanceController(
     [HttpGet("expense-reports/{id:guid}")]
     public async Task<IActionResult> ExpenseReport(Guid id, CancellationToken ct)
     {
-        if (GetCurrentUserId() is not { } userId) return Unauthorized();
+        var userId = GetCurrentUserId()!.Value;
 
         var report = await expenses.GetAsync(id, ct);
         if (report is null) return NotFound();
@@ -113,8 +112,6 @@ internal sealed class BackdoorFinanceController(
     [HttpGet("expense-reports/{id:guid}/attachments/{attachmentId:guid}")]
     public async Task<IActionResult> Attachment(Guid id, Guid attachmentId, CancellationToken ct)
     {
-        if (GetCurrentUserId() is null) return Unauthorized();
-
         var owningReport = await expenses.GetReportOwningAttachmentAsync(attachmentId, ct);
         if (owningReport is null || owningReport.Id != id) return NotFound();
         if (!await CanViewAsync(owningReport)) return StatusCode(StatusCodes.Status403Forbidden);
@@ -131,7 +128,6 @@ internal sealed class BackdoorFinanceController(
     [HttpGet("creditor-accounts")]
     public async Task<IActionResult> CreditorAccounts(CancellationToken ct)
     {
-        if (GetCurrentUserId() is null) return Unauthorized();
         if (!await IsFinanceAdminAsync()) return StatusCode(StatusCodes.Status403Forbidden);
 
         var (accounts, unresolved) = await finance.ListCreditorAccountsAsync(ct);
@@ -151,7 +147,6 @@ internal sealed class BackdoorFinanceController(
     [HttpGet("creditor-accounts/{num:int}/ledger")]
     public async Task<IActionResult> CreditorLedger(int num, CancellationToken ct)
     {
-        if (GetCurrentUserId() is null) return Unauthorized();
         if (!await IsFinanceAdminAsync()) return StatusCode(StatusCodes.Status403Forbidden);
 
         var ledger = await finance.GetCreditorLedgerAsync(num, ct);
@@ -173,7 +168,6 @@ internal sealed class BackdoorFinanceController(
     [HttpGet("category-map")]
     public async Task<IActionResult> CategoryMap(CancellationToken ct)
     {
-        if (GetCurrentUserId() is null) return Unauthorized();
         if (!await IsFinanceAdminAsync()) return StatusCode(StatusCodes.Status403Forbidden);
 
         var rows = await finance.GetCategoryMapAsync(ct);
@@ -192,7 +186,6 @@ internal sealed class BackdoorFinanceController(
     [HttpGet("sepa-transfers")]
     public async Task<IActionResult> SepaTransfers(CancellationToken ct)
     {
-        if (GetCurrentUserId() is null) return Unauthorized();
         if (!await IsFinanceAdminAsync()) return StatusCode(StatusCodes.Status403Forbidden);
 
         var (transfers, unavailableReason) = await finance.GetSepaTransfersAsync(ct);
@@ -214,7 +207,6 @@ internal sealed class BackdoorFinanceController(
     [HttpGet("holded-sync")]
     public async Task<IActionResult> HoldedSync(CancellationToken ct)
     {
-        if (GetCurrentUserId() is null) return Unauthorized();
         if (!await IsFinanceAdminAsync()) return StatusCode(StatusCodes.Status403Forbidden);
 
         var syncInfo = await finance.GetDocSyncInfoAsync(ct);
@@ -332,7 +324,7 @@ internal sealed class BackdoorFinanceController(
 
     /// <summary>The payee name, the masked IBAN, and the Holded timeline are only ever meaningful to
     /// the report's submitter or a finance admin — the same audience <c>ExpensesController.Detail</c>
-    /// shows them to (peterdrier/Humans#1839, fixing M1). The Holded contact/supplier/doc ids are
+    /// shows them to (peterdrier/Humans#1839). The Holded contact/supplier/doc ids are
     /// finance-admin only, matching the same view's finance card. Everyone else who can pass the
     /// <c>View</c> check (e.g. a category coordinator) gets these fields null.</summary>
     private static object ProjectReportSummary(

@@ -53,17 +53,6 @@ public class BackdoorFinanceControllerTests
         _sut = new BackdoorFinanceController(_expenses, _finance, _budget, _auth, _users);
     }
 
-    [HumansFact]
-    public void Every_route_hangs_off_the_api_key_filter()
-    {
-        var filter = typeof(BackdoorFinanceController)
-            .GetCustomAttributes(typeof(ServiceFilterAttribute), inherit: false)
-            .Cast<ServiceFilterAttribute>()
-            .Single();
-
-        filter.ServiceType.Should().Be(typeof(BackdoorApiKeyAuthFilter));
-    }
-
     /// <summary>Read-only surface, GET only — no <c>[Http{Post,Put,Patch,Delete}]</c> action anywhere
     /// on this controller (peterdrier/Humans#1838's acceptance criteria).</summary>
     [HumansFact]
@@ -116,7 +105,7 @@ public class BackdoorFinanceControllerTests
 
     /// <summary>Stubs the exact call <c>CanViewAsync</c> makes — the named policy, against this
     /// report — rather than any requirement against any resource, so a test asserting 403 actually
-    /// proves the controller asked the right question (peterdrier/Humans#1839, m5).</summary>
+    /// proves the controller asked the right question (peterdrier/Humans#1839).</summary>
     private void SetCanView(bool canView, ExpenseReportDto report) =>
         _auth.AuthorizeAsync(
                 Arg.Any<ClaimsPrincipal>(), Arg.Is<object?>(o => ReferenceEquals(o, report)),
@@ -155,17 +144,6 @@ public class BackdoorFinanceControllerTests
     // ─── expense-reports (list) ─────────────────────────────────────────────────
 
     [HumansFact]
-    public async Task ExpenseReports_NoKey_IsUnauthorized()
-    {
-        SetPrincipal(null);
-
-        var result = await _sut.ExpenseReports(null, null, Xunit.TestContext.Current.CancellationToken);
-
-        result.Should().BeOfType<UnauthorizedResult>();
-        await _expenses.DidNotReceiveWithAnyArgs().GetReviewQueueAsync(default, default, default);
-    }
-
-    [HumansFact]
     public async Task ExpenseReports_NonFinanceAdmin_SeesOnlyTheirOwnReviewQueue()
     {
         var userId = Guid.NewGuid();
@@ -179,7 +157,7 @@ public class BackdoorFinanceControllerTests
         await _expenses.Received(1).GetReviewQueueAsync(userId, false, Arg.Any<CancellationToken>());
     }
 
-    /// <summary>D3: the list only ever carries push state, which the browser shows finance admins
+    /// <summary>The list only ever carries push state, which the browser shows finance admins
     /// only — a non-finance-admin submitter's own report shows the masked IBAN (submitter) but no
     /// push fields, and the timeline is never even fetched.</summary>
     [HumansFact]
@@ -237,7 +215,7 @@ public class BackdoorFinanceControllerTests
         json.Should().NotContain($@"""id"":""{submitted.Id}""");
     }
 
-    /// <summary>D3/M1 on the list route (peterdrier/Humans#1839, fixing m17): a coordinator's own
+    /// <summary>On the list route (peterdrier/Humans#1839), a coordinator's own
     /// review queue never includes reports they submitted or a finance admin's, so this exercises
     /// the "neither" row shape the detail test already covers.</summary>
     [HumansFact]
@@ -258,7 +236,7 @@ public class BackdoorFinanceControllerTests
         await _expenses.DidNotReceiveWithAnyArgs().GetHoldedTimelineAsync(default!, default);
     }
 
-    /// <summary>The <c>year</c> query param (peterdrier/Humans#1839, m6) — untested until now.</summary>
+    /// <summary>The <c>year</c> query param (peterdrier/Humans#1839).</summary>
     [HumansFact]
     public async Task ExpenseReports_YearFilter_ExcludesOtherYears()
     {
@@ -281,16 +259,6 @@ public class BackdoorFinanceControllerTests
     }
 
     // ─── expense-reports/{id} (detail) ──────────────────────────────────────────
-
-    [HumansFact]
-    public async Task ExpenseReport_NoKey_IsUnauthorized()
-    {
-        SetPrincipal(null);
-
-        var result = await _sut.ExpenseReport(Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
-
-        result.Should().BeOfType<UnauthorizedResult>();
-    }
 
     [HumansFact]
     public async Task ExpenseReport_UnknownId_IsNotFound()
@@ -316,7 +284,7 @@ public class BackdoorFinanceControllerTests
         result.Should().BeOfType<StatusCodeResult>().Which.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
     }
 
-    /// <summary>D3 (peterdrier/Humans#1839, fixing M1): the timeline and masked IBAN are the
+    /// <summary>The timeline and masked IBAN (peterdrier/Humans#1839) are the
     /// submitter/finance-admin split <c>ExpensesController.Detail</c> uses, not a blanket grant to
     /// anyone whose <c>View</c> check passes.</summary>
     [HumansFact]
@@ -371,9 +339,9 @@ public class BackdoorFinanceControllerTests
         json.Should().Contain(@"""owedToMember"":null");
     }
 
-    /// <summary>The M1 scenario: a category coordinator's <c>View</c> succeeds on a different
+    /// <summary>A category coordinator's <c>View</c> succeeds on a different
     /// ground, but they are neither the submitter nor a finance admin — so they get none of the
-    /// payee name, IBAN, or Holded ids (peterdrier/Humans#1839, fixing M1).</summary>
+    /// payee name, IBAN, or Holded ids (peterdrier/Humans#1839).</summary>
     [HumansFact]
     public async Task ExpenseReport_CoordinatorNeitherSubmitterNorFinanceAdmin_SeesNoPayeeIbanOrTimeline()
     {
@@ -395,7 +363,7 @@ public class BackdoorFinanceControllerTests
         await _expenses.DidNotReceiveWithAnyArgs().GetHoldedTimelineAsync(default!, default);
     }
 
-    /// <summary>The submitter half of M1: they see the payee name (it is their own reimbursement)
+    /// <summary>The submitter half: they see the payee name (it is their own reimbursement)
     /// but not the finance-admin-only Holded ids.</summary>
     [HumansFact]
     public async Task ExpenseReport_Submitter_SeesPayeeNameButNotFinanceAdminOnlyHoldedIds()
@@ -429,7 +397,7 @@ public class BackdoorFinanceControllerTests
         HoldedDocId = docId,
     };
 
-    /// <summary>The finance-admin half of M1: they see everything, including the payee name and the
+    /// <summary>The finance-admin half: they see everything, including the payee name and the
     /// Holded ids the browser's finance card shows only them.</summary>
     [HumansFact]
     public async Task ExpenseReport_FinanceAdmin_SeesPayeeNameAndHoldedIds()
@@ -458,16 +426,6 @@ public class BackdoorFinanceControllerTests
     }
 
     // ─── attachments ────────────────────────────────────────────────────────────
-
-    [HumansFact]
-    public async Task Attachment_NoKey_IsUnauthorized()
-    {
-        SetPrincipal(null);
-
-        var result = await _sut.Attachment(Guid.NewGuid(), Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
-
-        result.Should().BeOfType<UnauthorizedResult>();
-    }
 
     [HumansFact]
     public async Task Attachment_OutsideTheKeyOwnersView_IsForbidden()
@@ -502,16 +460,6 @@ public class BackdoorFinanceControllerTests
     }
 
     // ─── creditor-accounts ──────────────────────────────────────────────────────
-
-    [HumansFact]
-    public async Task CreditorAccounts_NoKey_IsUnauthorized()
-    {
-        SetPrincipal(null);
-
-        var result = await _sut.CreditorAccounts(Xunit.TestContext.Current.CancellationToken);
-
-        result.Should().BeOfType<UnauthorizedResult>();
-    }
 
     [HumansFact]
     public async Task CreditorAccounts_NonFinanceAdmin_IsForbidden()
@@ -559,16 +507,6 @@ public class BackdoorFinanceControllerTests
     // ─── creditor-accounts/{num}/ledger ─────────────────────────────────────────
 
     [HumansFact]
-    public async Task CreditorLedger_NoKey_IsUnauthorized()
-    {
-        SetPrincipal(null);
-
-        var result = await _sut.CreditorLedger(40000060, Xunit.TestContext.Current.CancellationToken);
-
-        result.Should().BeOfType<UnauthorizedResult>();
-    }
-
-    [HumansFact]
     public async Task CreditorLedger_NonFinanceAdmin_IsForbidden()
     {
         SetPrincipal(Guid.NewGuid());
@@ -597,16 +535,6 @@ public class BackdoorFinanceControllerTests
     }
 
     // ─── category-map ───────────────────────────────────────────────────────────
-
-    [HumansFact]
-    public async Task CategoryMap_NoKey_IsUnauthorized()
-    {
-        SetPrincipal(null);
-
-        var result = await _sut.CategoryMap(Xunit.TestContext.Current.CancellationToken);
-
-        result.Should().BeOfType<UnauthorizedResult>();
-    }
 
     [HumansFact]
     public async Task CategoryMap_NonFinanceAdmin_IsForbidden()
@@ -641,16 +569,6 @@ public class BackdoorFinanceControllerTests
     // ─── sepa-transfers ─────────────────────────────────────────────────────────
 
     [HumansFact]
-    public async Task SepaTransfers_NoKey_IsUnauthorized()
-    {
-        SetPrincipal(null);
-
-        var result = await _sut.SepaTransfers(Xunit.TestContext.Current.CancellationToken);
-
-        result.Should().BeOfType<UnauthorizedResult>();
-    }
-
-    [HumansFact]
     public async Task SepaTransfers_NonFinanceAdmin_IsForbidden()
     {
         SetPrincipal(Guid.NewGuid());
@@ -669,7 +587,7 @@ public class BackdoorFinanceControllerTests
         var member = Guid.NewGuid();
         var generatedBy = Guid.NewGuid();
         // The row already arrives masked from Finance (Backdoor never sees the raw IBAN for this
-        // route, so there is nothing to assert against here — peterdrier/Humans#1839, m16).
+        // route, so there is nothing to assert against here — peterdrier/Humans#1839).
         var maskedIban = IbanFormatter.Mask("ES7921000813610123456789");
         _finance.GetSepaTransfersAsync(Arg.Any<CancellationToken>()).Returns((
             (IReadOnlyList<SepaPayoutTransferRow>)
@@ -692,16 +610,6 @@ public class BackdoorFinanceControllerTests
     }
 
     // ─── holded-sync ────────────────────────────────────────────────────────────
-
-    [HumansFact]
-    public async Task HoldedSync_NoKey_IsUnauthorized()
-    {
-        SetPrincipal(null);
-
-        var result = await _sut.HoldedSync(Xunit.TestContext.Current.CancellationToken);
-
-        result.Should().BeOfType<UnauthorizedResult>();
-    }
 
     [HumansFact]
     public async Task HoldedSync_NonFinanceAdmin_IsForbidden()

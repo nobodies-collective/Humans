@@ -535,6 +535,7 @@ public sealed class ExpenseReportServiceTests
             id, submitter, false, "Supplies", 25m, ct: Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().BeNull("unexpected persistence failures must not expose implementation details");
         logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error);
         var error = logger.Entries.Single(e => e.Level == LogLevel.Error);
         error.Exception.Should().BeOfType<InvalidOperationException>()
@@ -758,12 +759,12 @@ public sealed class ExpenseReportServiceTests
             });
 
         using var content = new MemoryStream([1, 2, 3]);
-        var result = await _sut.AddLineWithResultAsync(
+        var action = () => _sut.AddLineWithResultAsync(
             id, admin, true, "Timber", 40m,
             file: new ExpenseFileUpload("receipt.pdf", "application/pdf", content),
             ct: uploadCancellation.Token);
 
-        result.Succeeded.Should().BeFalse();
+        await action.Should().ThrowAsync<OperationCanceledException>();
         var loaded = await _sut.GetAsync(id, ct);
         loaded!.Lines.Should().BeEmpty();
         await AuditLog.DidNotReceive().LogAsync(
@@ -1162,11 +1163,81 @@ public sealed class ExpenseReportServiceTests
         var result = await sut.SubmitWithResultAsync(id, submitter, false, Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().BeNull("the controller has a localized fallback for unexpected faults");
         logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error,
             because: "a dependency fault (even one thrown as InvalidOperationException) is not a validation rejection");
         var error = logger.Entries.Single(e => e.Level == LogLevel.Error);
-        error.Exception.Should().BeOfType<InvalidOperationException>();
+        error.Exception.Should().BeOfType<InvalidOperationException>()
+            .Which.Message.Should().Be("IUserService: profile cache not initialized");
         logger.Entries.Should().NotContain(e => e.Level == LogLevel.Warning);
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("submit", true)]
+    [Xunit.InlineData("submit", false)]
+    [Xunit.InlineData("iban", true)]
+    [Xunit.InlineData("iban", false)]
+    public async Task MemberMutation_CancellationIsPreservedOnlyWhenCallerCancelled(
+        string operation, bool callerCancelled)
+    {
+        var logger = new CapturingLogger<ExpenseReportService>();
+        var sut = new ExpenseReportService(
+            _expenseRepo, _fileStorage, _budgetService, _teamService, _userService,
+            _userEmailService, _emailService, TestExpensesEmails.Create(),
+            AuditLog, _holdedClient, _holdedFinance, Clock, logger,
+            Options.Create(new TravelReimbursementConfig()));
+        var (_, category) = SetupActiveYear();
+        var submitter = Guid.NewGuid();
+        var id = await sut.CreateDraftAsync(submitter, submitter, category.Id, null,
+            Xunit.TestContext.Current.CancellationToken);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            Xunit.TestContext.Current.CancellationToken);
+        var exception = new OperationCanceledException(cancellation.Token);
+        if (string.Equals(operation, "submit", StringComparison.Ordinal))
+        {
+            var lineId = await sut.AddLineAsync(id, submitter, false, "Item", 50m,
+                ct: Xunit.TestContext.Current.CancellationToken);
+            var attachmentId = await _expenseRepo.AddAttachmentAsync(MakeAttachment(submitter),
+                Xunit.TestContext.Current.CancellationToken);
+            await _expenseRepo.SetLineAttachmentAsync(lineId, attachmentId,
+                Xunit.TestContext.Current.CancellationToken);
+            _userService.GetUserInfoAsync(submitter, cancellation.Token).Throws(_ =>
+            {
+                if (callerCancelled) cancellation.Cancel();
+                return exception;
+            });
+        }
+        else
+        {
+            _userService.SetProfileIbanAsync(submitter, "ES9121000418450200051332", cancellation.Token)
+                .Throws(_ =>
+                {
+                    if (callerCancelled) cancellation.Cancel();
+                    return exception;
+                });
+        }
+        logger.Entries.Clear();
+        Func<Task> action = async () =>
+        {
+            if (string.Equals(operation, "submit", StringComparison.Ordinal))
+                (await sut.SubmitWithResultAsync(id, submitter, false, cancellation.Token))
+                    .Succeeded.Should().BeFalse();
+            else
+                (await sut.SaveSubmitterIbanWithResultAsync(id, submitter,
+                    "ES9121000418450200051332", cancellation.Token))
+                    .Succeeded.Should().BeFalse();
+        };
+        if (callerCancelled)
+        {
+            var thrown = await action.Should().ThrowAsync<OperationCanceledException>();
+            thrown.Which.Should().BeSameAs(exception);
+            logger.Entries.Should().NotContain(e => e.Level == LogLevel.Error);
+        }
+        else
+        {
+            await action();
+            logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error && e.Exception == exception);
+        }
     }
 
     [HumansFact]
@@ -1252,7 +1323,7 @@ public sealed class ExpenseReportServiceTests
         var result = await _sut.SaveSubmitterIbanWithResultAsync(reportId, submitter, "ES91 2100 0418 4502 0005 1332", Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeTrue();
-        result.Message.Should().Be("IBAN saved.");
+        result.MessageKey.Should().Be("Expenses_Iban_Saved");
         await AuditLog.Received(1).LogAsync(
             AuditAction.IbanSet,
             AuditEntityTypes.Profile,
@@ -1276,7 +1347,7 @@ public sealed class ExpenseReportServiceTests
 
         result.Succeeded.Should().BeFalse();
         result.IsValidationError.Should().BeTrue();
-        result.Message.Should().Be("Invalid IBAN format.");
+        result.MessageKey.Should().Be("Expenses_Iban_InvalidFormat");
     }
 
     // ─────────────────── Acting on a member's behalf ─────────────────────────
@@ -1659,7 +1730,7 @@ public sealed class ExpenseReportServiceTests
 
         result.Succeeded.Should().BeFalse();
         result.IsValidationError.Should().BeTrue();
-        result.Message.Should().Contain("needs an IBAN");
+        result.MessageKey.Should().Be("Expenses_Iban_RequiredForPendingReport");
         // Neither half of the change lands — profile and snapshot stay in agreement.
         await _userService.DidNotReceive().SetProfileIbanAsync(
             Arg.Any<Guid>(), null, Arg.Any<CancellationToken>());
