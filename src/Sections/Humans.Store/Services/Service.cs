@@ -819,6 +819,29 @@ internal sealed class Service(
             actorUserId, orderId, AuditEntityTypes.Order);
     }
 
+    /// <summary>
+    /// Admin-only hard delete of one payment row of any method or status, for a row recorded in
+    /// error (e.g. a mistaken refund — no money moved in Stripe). The row is gone for good, so the
+    /// audit entry carries everything needed to reconstruct it. The order balance is computed, so
+    /// it follows by itself.
+    /// </summary>
+    public async Task DeletePaymentAsync(
+        Guid orderId, Guid paymentId, Guid actorUserId, CancellationToken ct = default)
+    {
+        var order = await repo.GetOrderWithLinesAndPaymentsAsync(orderId, ct)
+            ?? throw new InvalidOperationException("Order not found.");
+        var payment = order.Payments.FirstOrDefault(p => p.Id == paymentId)
+            ?? throw new InvalidOperationException("Payment not found on this order.");
+
+        await repo.DeletePaymentAsync(paymentId, ct);
+        await audit.LogAsync(
+            AuditAction.StorePaymentDeleted, AuditEntityTypes.Payment, payment.Id,
+            $"Deleted {payment.Method} payment of EUR {payment.AmountEur:0.00} ({payment.Status}) on order {orderId}, "
+                + $"received {payment.ReceivedAt}, ref {payment.ExternalRef ?? "none"}, PI {payment.StripePaymentIntentId ?? "none"}, "
+                + $"recorded by {payment.RecordedByUserId?.ToString() ?? "none"}, notes {payment.Notes ?? "none"}",
+            actorUserId, orderId, AuditEntityTypes.Order);
+    }
+
     public async Task<StripeReconciliationReport> GetStripeReconciliationAsync(CancellationToken ct = default)
     {
         var sessionsOrNull = await stripeService.ListStoreCheckoutSessionsAsync(ct);
@@ -1118,6 +1141,8 @@ internal sealed class Service(
     /// <see cref="StoreSectionOptions.SimplifiedInvoiceThresholdEur"/> a receipt is not legal,
     /// so a counterparty-less order that large is refused rather than downgraded.
     ///
+    /// Only issuable at a zero balance: a camp that still owes, or is owed, settles first.
+    ///
     /// Idempotent on both sides: an order that already carries an <c>IssuedInvoiceId</c> throws
     /// without calling Holded, and — because a document approved by an attempt that then failed
     /// locally leaves no trace here — Holded is searched for a document already tagged with this
@@ -1149,6 +1174,9 @@ internal sealed class Service(
         // document and the order agree forever after. BalanceCalculator already computed the
         // effective prices for an Open order — reuse them rather than re-deriving.
         var totals = BalanceCalculator.Compute(order, await LoadCurrentPricesAsync(ct));
+        if (totals.BalanceEur != 0m)
+            throw new InvalidOperationException(
+                $"An invoice can only be issued when the order balance is zero (currently EUR {totals.BalanceEur:0.00}).");
         var totalsByLine = totals.Lines.ToDictionary(t => t.LineId);
         foreach (var line in order.Lines)
         {
@@ -1771,7 +1799,7 @@ internal sealed class Service(
 
         var payments = o.Payments
             .Select(p => new OrderPaymentDto(
-                p.AmountEur, p.Method, p.Status, p.StripePaymentIntentId, p.ExternalRef, p.ReceivedAt, p.Notes))
+                p.Id, p.AmountEur, p.Method, p.Status, p.StripePaymentIntentId, p.ExternalRef, p.ReceivedAt, p.Notes))
             .ToList();
 
         var counterpartyType = o.TeamId is not null
