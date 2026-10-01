@@ -40,6 +40,10 @@ namespace Humans.Workgroups.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<decimal?>("BudgetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -67,6 +71,13 @@ namespace Humans.Workgroups.Data.Migrations
 
                     b.Property<Instant?>("EndedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("HoldedAccountId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int?>("HoldedAccountNumber")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Name")
                         .IsRequired()

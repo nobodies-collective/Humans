@@ -1,7 +1,10 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using Humans.Holded.Contracts;
 using Humans.Users.Contracts;
 using Humans.Workgroups.Domain;
 using Humans.Workgroups.Services;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using NodaTime;
 
 namespace Humans.Workgroups.Models;
@@ -53,6 +56,44 @@ internal sealed class RegisterViewModel
         };
 }
 
+/// <summary>The Board/Admin budget form on the group page and on the bootstrap form.</summary>
+internal sealed class WorkgroupBudgetFormViewModel : IValidatableObject
+{
+    public bool HasBudget { get; set; }
+
+    /// <summary>Raw posted text, parsed invariantly by <see cref="ParsedAmount"/> — not model-bound
+    /// as a decimal, which uses the request culture: <c>&lt;input type="number"&gt;</c> always posts
+    /// "12.34", and a comma-decimal culture would read that as 1234 (as FinanceController does).</summary>
+    public string? Amount { get; set; }
+
+    /// <summary>"create" (default) or "link".</summary>
+    public string AccountMode { get; set; } = "create";
+
+    public int? ExistingAccountNum { get; set; }
+
+    private bool IsLink => string.Equals(AccountMode, "link", StringComparison.Ordinal);
+
+    public decimal? ParsedAmount =>
+        decimal.TryParse(Amount, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) ? amount : null;
+
+    public WorkgroupBudgetSave ToSave() => new(
+        HasBudget ? ParsedAmount : null,
+        IsLink ? ExistingAccountNum : null);
+
+    // A ticked box with no amount would clear the budget, and "link" with no account would
+    // create one: both are incomplete submissions, not their silent fallbacks.
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (!HasBudget) yield break;
+        if (string.IsNullOrWhiteSpace(Amount))
+            yield return new ValidationResult("Enter the budget amount.", [nameof(Amount)]);
+        else if (ParsedAmount is not (>= 0m and <= 99_999_999m))
+            yield return new ValidationResult("Enter an amount between 0 and 99,999,999.", [nameof(Amount)]);
+        if (IsLink && ExistingAccountNum is null)
+            yield return new ValidationResult("Choose the Holded account to link.", [nameof(ExistingAccountNum)]);
+    }
+}
+
 /// <summary>One group's page: the register entry, the people on it, and what this reader may do.</summary>
 internal sealed class WorkgroupPageViewModel
 {
@@ -77,6 +118,12 @@ internal sealed class WorkgroupPageViewModel
 
     /// <summary>Member work is frozen unless the group is Active — see the authorization handler.</summary>
     public required bool CanDoMemberWork { get; init; }
+
+    /// <summary>Board/Admin, Colaborador and Asociado see the allocation; Volunteers do not.</summary>
+    public required bool CanSeeBudget { get; init; }
+
+    /// <summary>The live Holded expense chart for the "link existing" picker; empty unless the viewer can administer.</summary>
+    public IReadOnlyList<HoldedExpenseAccountDto> ExpenseAccounts { get; init; } = [];
 
     public string DisplayName(Guid? userId) =>
         userId is { } id && People.TryGetValue(id, out var info) ? info.BurnerName : "—";
@@ -302,6 +349,12 @@ internal sealed class RegisterExistingViewModel
 
     /// <summary>When the group really started; the register is backdated to it.</summary>
     public LocalDate RegisteredOn { get; set; }
+
+    public WorkgroupBudgetFormViewModel Budget { get; set; } = new();
+
+    /// <summary>The live Holded expense chart for the "link existing" picker; filled by the controller, never bound.</summary>
+    [BindNever]
+    public IReadOnlyList<HoldedExpenseAccountDto> ExpenseAccounts { get; set; } = [];
 }
 
 /// <summary>The one Workgroups setting: the Drive folder every group's subfolder is created under.</summary>

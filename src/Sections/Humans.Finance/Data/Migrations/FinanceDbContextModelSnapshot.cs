@@ -216,6 +216,45 @@ namespace Humans.Finance.Data.Migrations
                     b.ToTable("holded_expense_docs", (string)null);
                 });
 
+            modelBuilder.Entity("Humans.Finance.Domain.HoldedManagedAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("HoldedAccountId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("HoldedAccountNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Instant>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HoldedAccountId")
+                        .IsUnique();
+
+                    b.HasIndex("HoldedAccountNumber")
+                        .IsUnique();
+
+                    b.ToTable("holded_managed_accounts", (string)null);
+                });
+
             modelBuilder.Entity("Humans.Finance.Domain.SepaPayoutFile", b =>
                 {
                     b.Property<Guid>("Id")
