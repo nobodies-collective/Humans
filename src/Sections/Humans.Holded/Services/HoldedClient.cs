@@ -89,11 +89,20 @@ internal sealed class HoldedClient : IHoldedClient
 
         using var resp = await SendAsync(req, ct);
         var body = await resp.Content.ReadAsStringAsync(ct);
-        var node = JsonNode.Parse(body)
-            ?? throw new HoldedTransientException("Holded returned empty body");
-        var id = node["id"]?.GetValue<string>()
-            ?? throw new HoldedTransientException("Holded response missing id");
-        return id;
+        try
+        {
+            var node = JsonNode.Parse(body)
+                ?? throw new HoldedTransientException("Holded returned empty body");
+            var id = node["id"]?.GetValue<string>()
+                ?? throw new HoldedTransientException("Holded response missing id");
+            return id;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException
+            or FormatException or OverflowException)
+        {
+            throw new HoldedPermanentException(
+                "Holded create-purchase response could not be read.", ex);
+        }
     }
 
     public async Task UploadAttachmentAsync(
@@ -276,7 +285,7 @@ internal sealed class HoldedClient : IHoldedClient
             return items.Select(n => new HoldedExpenseAccountDto
             {
                 Id = Prop(n, "id")?.GetValue<string>() ?? "",
-                AccountNum = ReadInt(Prop(n, "account_num")) ?? 0,
+                AccountNum = ReadRequiredInt(Prop(n, "account_num"), "account_num"),
                 Name = Prop(n, "name")?.GetValue<string>() ?? "",
             }).ToList();
         }
@@ -370,11 +379,20 @@ internal sealed class HoldedClient : IHoldedClient
         AttachAuth(req);
 
         using var resp = await SendAsync(req, ct);
-        var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct))
-            ?? throw new HoldedTransientException("Holded returned empty body");
-        return node["id"]?.GetValue<string>()
-            ?? input.ExistingContactId
-            ?? throw new HoldedTransientException("Holded contact upsert response missing id");
+        try
+        {
+            var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct))
+                ?? throw new HoldedTransientException("Holded returned empty body");
+            return node["id"]?.GetValue<string>()
+                ?? input.ExistingContactId
+                ?? throw new HoldedTransientException("Holded contact upsert response missing id");
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException
+            or FormatException or OverflowException)
+        {
+            throw new HoldedPermanentException(
+                "Holded contact-upsert response could not be read.", ex);
+        }
     }
 
     /// <summary>The v2 path segment for a sales-document kind. Both kinds share the same payload
@@ -395,10 +413,19 @@ internal sealed class HoldedClient : IHoldedClient
         AttachAuth(req);
 
         using var resp = await SendAsync(req, ct);
-        var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct))
-            ?? throw new HoldedTransientException("Holded returned empty body");
-        return Prop(node, "id")?.GetValue<string>()
-            ?? throw new HoldedTransientException("Holded sales-document response missing id");
+        try
+        {
+            var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct))
+                ?? throw new HoldedTransientException("Holded returned empty body");
+            return Prop(node, "id")?.GetValue<string>()
+                ?? throw new HoldedTransientException("Holded sales-document response missing id");
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException
+            or FormatException or OverflowException)
+        {
+            throw new HoldedPermanentException(
+                "Holded create-sales-document response could not be read.", ex);
+        }
     }
 
     public async Task ApproveSalesDocumentAsync(
@@ -731,7 +758,7 @@ internal sealed class HoldedClient : IHoldedClient
         {
             return items.Select(n => new HoldedAccountDto
             {
-                Id = Prop(n, "id")?.GetValue<string>() ?? "",
+                Id = ReadRequiredString(Prop(n, "id"), "id"),
                 // Required, like the ledger line's `account`: the number IS the account's identity
                 // here — it keys the mirror, picks the PGC group and drives the POV flip. A
                 // manufactured 0 would enter the chart as an "Unclassified" account with a
@@ -739,9 +766,9 @@ internal sealed class HoldedClient : IHoldedClient
                 Number = ReadRequiredInt(Prop(n, "number"), "number"),
                 Name = Prop(n, "name")?.GetValue<string>() ?? "",
                 Group = Prop(n, "group")?.GetValue<string>(),
-                Debit = ReadDecimalV2(Prop(n, "debit")),
-                Credit = ReadDecimalV2(Prop(n, "credit")),
-                Balance = ReadDecimalV2(Prop(n, "balance")),
+                Debit = ReadRequiredDecimalV2(Prop(n, "debit"), "debit"),
+                Credit = ReadRequiredDecimalV2(Prop(n, "credit"), "credit"),
+                Balance = ReadRequiredDecimalV2(Prop(n, "balance"), "balance"),
                 Archived = Prop(n, "archived")?.GetValue<bool>() ?? false,
             }).ToList();
         }
@@ -870,7 +897,7 @@ internal sealed class HoldedClient : IHoldedClient
     /// <see cref="Arr"/> rather than the raw indexer, for the reason spelled out on those two.</summary>
     private static HoldedPurchaseDocListItemDto ParsePurchaseDoc(JsonNode? n) => new()
     {
-        Id = Prop(n, "id")?.GetValue<string>() ?? "",
+        Id = ReadRequiredString(Prop(n, "id"), "id"),
         DocNumber = Prop(n, "document_number")?.GetValue<string>() ?? "",
         ContactId = Prop(n, "contact_id")?.GetValue<string>(),
         ContactName = Prop(n, "contact_name")?.GetValue<string>() ?? "",
@@ -1004,9 +1031,16 @@ internal sealed class HoldedClient : IHoldedClient
     private static decimal ReadDecimalV2(JsonNode? node) =>
         decimal.Parse(node?.GetValue<string>() ?? "0", CultureInfo.InvariantCulture);
 
-    // GetValue<decimal> (not <long>) so a JSON float token like 40000001.0 parses; cast truncates.
-    private static int? ReadInt(JsonNode? node) =>
-        node is null ? null : (int?)node.GetValue<decimal>();
+    // Holded may encode an integer as a JSON float (40000001.0). Accept that shape,
+    // but never truncate a fractional identifier onto a different account or ledger row.
+    private static int? ReadInt(JsonNode? node)
+    {
+        if (node is null) return null;
+        var value = node.GetValue<decimal>();
+        if (value != decimal.Truncate(value))
+            throw new FormatException("Holded integer field contains a fractional value.");
+        return (int)value;
+    }
 
     private static int ReadRequiredInt(JsonNode? node, string field) =>
         ReadInt(node) ?? throw new HoldedPermanentException(
