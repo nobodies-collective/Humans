@@ -114,6 +114,42 @@ public sealed class OnboardingServiceTests
     }
 
     [HumansTheory]
+    [Xunit.InlineData(false)]
+    [Xunit.InlineData(true)]
+    public async Task RejectSignupAsync_RecipientLookupFailure_DoesNotMisreportCommittedRejection(bool cancelled)
+    {
+        var userId = Guid.NewGuid();
+        using var cancellation = new CancellationTokenSource();
+        if (cancelled) await cancellation.CancelAsync();
+        var failure = cancelled ? (Exception)new OperationCanceledException(cancellation.Token)
+            : new IOException("Recipient lookup unavailable");
+        _userService.ApplyProfileOnboardingMutationAsync(userId,
+            Arg.Any<UserProfileOnboardingCommand>(), Arg.Any<CancellationToken>())
+            .Returns(new OnboardingResult(true));
+        _userService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException<UserInfo?>(failure));
+        OnboardingResult? result = null;
+
+        var error = await Xunit.Record.ExceptionAsync(async () =>
+            result = await BuildSut().RejectSignupAsync(userId, Guid.NewGuid(), null, cancellation.Token));
+
+        if (cancelled)
+            error.Should().BeSameAs(failure);
+        else
+        {
+            error.Should().BeNull();
+            result!.Success.Should().BeTrue();
+            _notificationService.ReceivedCalls().Should().ContainSingle();
+            var args = _notificationService.ReceivedCalls().Single().GetArguments();
+            args[0].Should().Be(NotificationSource.ProfileRejected);
+            args[3].Should().Be("Your signup has been reviewed");
+            await _emailService.DidNotReceive().SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
+        }
+        _auditLogService.ReceivedCalls().Should().ContainSingle();
+        _syncJob.ReceivedCalls().Should().HaveCount(3);
+    }
+
+    [HumansTheory]
     [Xunit.InlineData(null, "Tu inscripción no se ha podido aprobar en este momento.")]
     [Xunit.InlineData("Duplicate account", "Tu inscripción no se ha podido aprobar: Duplicate account")]
     public async Task RejectSignupAsync_LocalizesNotificationForRecipient(string? reason, string expectedBody)
@@ -135,6 +171,40 @@ public sealed class OnboardingServiceTests
         args[5].Should().Be(expectedBody);
         args[6].Should().Be("/Profile");
         args[7].Should().Be("Ver perfil");
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("a")]
+    [Xunit.InlineData("😀")]
+    public async Task RejectSignupAsync_LongReason_BoundsNoticeAndPreservesStoredReason(string character)
+    {
+        var userId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var reason = string.Concat(Enumerable.Repeat(character, 2000));
+        _userService.ApplyProfileOnboardingMutationAsync(userId,
+            Arg.Any<UserProfileOnboardingCommand>(), Arg.Any<CancellationToken>())
+            .Returns(new OnboardingResult(true));
+        _userService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(UserInfoStubs.MakeUserInfo(userId, UserFixtures.Profile(burnerName: "Member"))
+                with
+            { PreferredLanguage = "es" });
+
+        var result = await BuildSut().RejectSignupAsync(userId, reviewerId, reason,
+            Xunit.TestContext.Current.CancellationToken);
+
+        result.Success.Should().BeTrue();
+        var body = (string)_notificationService.ReceivedCalls().Single().GetArguments()[5]!;
+        body.EnumerateRunes().Count().Should().Be(2000);
+        body.Should().StartWith("Tu inscripción no se ha podido aprobar: ");
+        body.Should().EndWith("…");
+        body.Should().NotContain("�");
+        await _userService.Received(1).ApplyProfileOnboardingMutationAsync(userId,
+            Arg.Is<UserProfileOnboardingCommand>(command => command.RejectionReason == reason),
+            Arg.Any<CancellationToken>());
+        await _auditLogService.Received(1).LogAsync(
+            AuditAction.SignupRejected, AuditEntityTypes.Profile, userId,
+            "Signup rejected: " + reason, reviewerId);
+        _syncJob.ReceivedCalls().Should().HaveCount(3);
     }
 
     [HumansFact]

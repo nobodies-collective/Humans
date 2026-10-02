@@ -1,3 +1,4 @@
+using System.Text;
 // Tests seed TeamMember.User navs directly for DB-roundtrip verification.
 // TeamMember.User is Obsolete per Â§6c and is never populated by production
 // code (nobodies-collective/Humans#979 removed the in-memory stitcher); the
@@ -15,6 +16,7 @@ using Humans.Auth.Services;
 using Humans.Base.Constants;
 using Humans.Base.Enums;
 using Humans.Email.Contracts;
+using Humans.Notifications.Contracts;
 using Humans.GoogleIntegration.Contracts;
 using Humans.GoogleIntegration.Data;
 using Humans.GoogleIntegration.Services;
@@ -42,6 +44,7 @@ namespace Humans.Teams.Tests.Services;
 public sealed class TeamServiceTests : TeamsTestHarness
 {
     private readonly TeamService _service;
+    private readonly IUserService _userService;
     private readonly RoleAssignmentService _roleAssignmentService;
     private readonly ITeamResourceService _teamResourceService;
     private readonly IGoogleSyncService _googleSyncService = Substitute.For<IGoogleSyncService>();
@@ -68,7 +71,7 @@ public sealed class TeamServiceTests : TeamsTestHarness
         // Capture the user service to a local before threading it into the locator
         // builder â€” NSubstitute can't attach an outer .Returns() to a factory that
         // itself configures substitute calls.
-        var userService = NewDbBackedUserService();
+        var userService = _userService = NewDbBackedUserService();
         var googleOutboxService = new GoogleSyncOutboxService(
             new GoogleSyncOutboxRepository(GoogleIntegrationDbFactory));
         var serviceProvider = new ServiceLocatorBuilder()
@@ -902,7 +905,7 @@ public sealed class TeamServiceTests : TeamsTestHarness
         var act = () => _service.RequestToJoinTeamAsync(Guid.NewGuid(), user.Id, null, Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*not found*");
+            .WithMessage("Teams_NotFound");
     }
 
     [HumansFact]
@@ -915,7 +918,7 @@ public sealed class TeamServiceTests : TeamsTestHarness
         var act = () => _service.RequestToJoinTeamAsync(team.Id, user.Id, null, Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*system team*");
+            .WithMessage("Team_CannotJoinSystem");
     }
 
     [HumansFact]
@@ -929,7 +932,7 @@ public sealed class TeamServiceTests : TeamsTestHarness
         var act = () => _service.RequestToJoinTeamAsync(team.Id, user.Id, null, Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*hidden*");
+            .WithMessage("Teams_CannotJoinHidden");
     }
 
     [HumansFact]
@@ -942,7 +945,7 @@ public sealed class TeamServiceTests : TeamsTestHarness
         var act = () => _service.RequestToJoinTeamAsync(team.Id, user.Id, null, Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*does not require approval*");
+            .WithMessage("Teams_JoinPolicyChanged");
     }
 
     [HumansFact]
@@ -956,7 +959,7 @@ public sealed class TeamServiceTests : TeamsTestHarness
         var act = () => _service.RequestToJoinTeamAsync(team.Id, user.Id, null, Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*already has a pending request*");
+            .WithMessage("Team_AlreadyPendingRequest");
     }
 
     [HumansFact]
@@ -970,7 +973,7 @@ public sealed class TeamServiceTests : TeamsTestHarness
         var act = () => _service.RequestToJoinTeamAsync(team.Id, user.Id, null, Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*already a member*");
+            .WithMessage("Team_AlreadyMember");
     }
 
     [HumansFact]
@@ -992,6 +995,49 @@ public sealed class TeamServiceTests : TeamsTestHarness
         var stored = await TeamsDb.TeamJoinRequests.AsNoTracking().SingleAsync(Xunit.TestContext.Current.CancellationToken);
         stored.Id.Should().Be(result.Id);
         stored.Message.Should().Be("Pick me");
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(true)]
+    [Xunit.InlineData(false)]
+    public async Task JoinTeam_NameLookupFailure_ReturnsCommittedRequestOrMembership(bool requiresApproval)
+    {
+        var user = SeedUser();
+        var coordinator = SeedUser(displayName: "Coordinator");
+        var team = SeedTeam("Alpha", requiresApproval: requiresApproval);
+        SeedTeamMember(team.Id, coordinator.Id, TeamMemberRole.Coordinator);
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+        var userInfo = await _userService.GetUserInfoAsync(
+            user.Id, Xunit.TestContext.Current.CancellationToken);
+        var lookups = 0;
+        _userService.GetUserInfoAsync(user.Id, Arg.Any<CancellationToken>())
+            .Returns(_ => !requiresApproval && lookups++ == 0
+                ? new ValueTask<UserInfo?>(userInfo)
+                : ValueTask.FromException<UserInfo?>(new IOException("Name lookup failed")));
+
+        if (requiresApproval)
+        {
+            var result = await _service.RequestToJoinTeamAsync(
+                team.Id, user.Id, "Pick me", Xunit.TestContext.Current.CancellationToken);
+            result.Status.Should().Be(TeamJoinRequestStatus.Pending);
+            ClearAllTrackers();
+            (await TeamsDb.TeamJoinRequests.AsNoTracking().SingleAsync(
+                Xunit.TestContext.Current.CancellationToken)).Id.Should().Be(result.Id);
+        }
+        else
+        {
+            var result = await _service.JoinTeamDirectlyAsync(
+                team.Id, user.Id, Xunit.TestContext.Current.CancellationToken);
+            result.UserId.Should().Be(user.Id);
+            ClearAllTrackers();
+            (await TeamsDb.TeamMembers.AsNoTracking().SingleAsync(
+                m => m.UserId == user.Id, Xunit.TestContext.Current.CancellationToken))
+                .Id.Should().Be(result.Id);
+            await AuditLog.Received(1).LogAsync(
+                AuditAction.TeamJoinedDirectly, nameof(Team), team.Id,
+                $"Joined {team.Name} directly", user.Id,
+                relatedEntityId: user.Id, relatedEntityType: nameof(User));
+        }
     }
 
     // ==========================================================================
@@ -1162,6 +1208,143 @@ public sealed class TeamServiceTests : TeamsTestHarness
     // ==========================================================================
     // ApproveJoinRequestAsync
     // ==========================================================================
+
+    [HumansTheory]
+    [Xunit.InlineData("normal")]
+    [Xunit.InlineData("email-prep-failure")]
+    [Xunit.InlineData("profile-lookup-failure")]
+    public async Task AddedMemberNotice_ReusesEmailRecipientLanguageAndSurvivesPreparationFailure(string mode)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var coordinator = SeedUser(displayName: "Coordinator");
+        var requester = SeedUser(displayName: "Requester");
+        requester.PreferredLanguage = "es";
+        var team = SeedTeam("Alpha", requiresApproval: true);
+        SeedTeamMember(team.Id, coordinator.Id, TeamMemberRole.Coordinator);
+        var request = SeedJoinRequest(team.Id, requester.Id);
+        await SaveAllAsync(ct);
+        if (string.Equals(mode, "email-prep-failure", StringComparison.Ordinal))
+            _teamResourceService.GetTeamResourcesAsync(team.Id, Arg.Any<CancellationToken>())
+                .Returns(Task.FromException<IReadOnlyList<GoogleResourceSnapshot>>(new IOException("Email resource lookup unavailable")));
+        if (string.Equals(mode, "profile-lookup-failure", StringComparison.Ordinal))
+            _userService.GetUserInfosAsync(Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(requester.Id)), Arg.Any<CancellationToken>())
+                .Returns(ValueTask.FromException<IReadOnlyDictionary<Guid, UserInfo>>(new IOException("Profile lookup unavailable")));
+
+        await _service.ApproveJoinRequestAsync(request.Id, coordinator.Id, null, ct);
+
+        var args = Notifier.ReceivedCalls().Where(call => call.GetArguments()[0] is NotificationSource source
+                && source == NotificationSource.TeamMemberAdded
+                && ((IReadOnlyList<Guid>)call.GetArguments()[4]!).Contains(requester.Id))
+            .Single().GetArguments();
+        if (string.Equals(mode, "profile-lookup-failure", StringComparison.Ordinal))
+            ((string)args[3]!).Should().EndWith("added to Alpha");
+        else
+            args[3].Should().Be("Se le ha añadido al equipo Alpha");
+        args[6].Should().Be($"/Teams/{team.Slug}");
+        await _userService.Received(1).GetUserInfosAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(requester.Id)), Arg.Any<CancellationToken>());
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("approve")]
+    [Xunit.InlineData("reject")]
+    [Xunit.InlineData("remove")]
+    [Xunit.InlineData("request")]
+    [Xunit.InlineData("join")]
+    public async Task MemberNotices_LongNamesKeepFullCopyAndValidTitle(string action)
+    {
+        var coordinator = SeedUser(displayName: "Coordinator");
+        var requester = SeedUser(displayName: "Requester");
+        var name = new string('x', 168) + "😀" + new string('x', 86);
+        var team = SeedTeam(name, requiresApproval: !string.Equals(action, "join", StringComparison.Ordinal));
+        team.Slug = "alpha";
+        SeedTeamMember(team.Id, coordinator.Id, TeamMemberRole.Coordinator);
+        var request = SeedJoinRequest(team.Id, requester.Id);
+        if (string.Equals(action, "remove", StringComparison.Ordinal))
+            SeedTeamMember(team.Id, requester.Id);
+        if (string.Equals(action, "request", StringComparison.Ordinal) || string.Equals(action, "join", StringComparison.Ordinal))
+            TeamsDb.TeamJoinRequests.Remove(request);
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+        switch (action)
+        {
+            case "approve": await _service.ApproveJoinRequestAsync(request.Id, coordinator.Id, null, Xunit.TestContext.Current.CancellationToken); break;
+            case "reject": await _service.RejectJoinRequestAsync(request.Id, coordinator.Id, "Reason", Xunit.TestContext.Current.CancellationToken); break;
+            case "remove": await _service.RemoveMemberAsync(team.Id, requester.Id, coordinator.Id, Xunit.TestContext.Current.CancellationToken); break;
+            default: await _service.JoinTeamAsync(team.Id, requester.Id, null, Xunit.TestContext.Current.CancellationToken); break;
+        }
+        var notices = Notifier.ReceivedCalls().Where(call => call.GetArguments()[0] is NotificationSource)
+            .Select(call => call.GetArguments()).ToList();
+        notices.Should().NotBeEmpty();
+        foreach (var args in notices)
+        {
+            var title = (string)args[3]!;
+            title.EnumerateRunes().Count().Should().BeLessThanOrEqualTo(200);
+            title.Should().EndWith("…");
+            var encode = () => new UTF8Encoding(false, true).GetBytes(title);
+            encode.Should().NotThrow();
+            ((string)args[5]!).Should().Contain(name);
+        }
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("approve")]
+    [Xunit.InlineData("reject")]
+    [Xunit.InlineData("remove")]
+    [Xunit.InlineData("lookup-failure")]
+    public async Task MemberNotices_UseRecipientLanguageWithLookupFailureFallback(string action)
+    {
+        var coordinator = SeedUser(displayName: "Coordinator");
+        var requester = SeedUser(displayName: "Requester");
+        requester.PreferredLanguage = "es";
+        var team = SeedTeam("Alpha", requiresApproval: true);
+        SeedTeamMember(team.Id, coordinator.Id, TeamMemberRole.Coordinator);
+        var request = SeedJoinRequest(team.Id, requester.Id);
+        if (string.Equals(action, "remove", StringComparison.Ordinal))
+            SeedTeamMember(team.Id, requester.Id);
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+        if (string.Equals(action, "lookup-failure", StringComparison.Ordinal))
+            _userService.GetUserInfoAsync(requester.Id, Arg.Any<CancellationToken>())
+                .Returns(ValueTask.FromException<UserInfo?>(new IOException("Language lookup unavailable")));
+
+        switch (action)
+        {
+            case "approve":
+                await _service.ApproveJoinRequestAsync(request.Id, coordinator.Id, null, Xunit.TestContext.Current.CancellationToken);
+                break;
+            case "remove":
+                await _service.RemoveMemberAsync(team.Id, requester.Id, coordinator.Id, Xunit.TestContext.Current.CancellationToken);
+                break;
+            default:
+                await _service.RejectJoinRequestAsync(request.Id, coordinator.Id, "Reason", Xunit.TestContext.Current.CancellationToken);
+                break;
+        }
+
+        var expectedSource = string.Equals(action, "remove", StringComparison.Ordinal)
+            ? NotificationSource.TeamMemberRemoved : NotificationSource.TeamJoinRequestDecided;
+        var args = Notifier.ReceivedCalls()
+            .Where(call => call.GetArguments()[0] is NotificationSource source && source == expectedSource)
+            .Single().GetArguments();
+        ((IReadOnlyList<Guid>)args[4]!).Should().ContainSingle().Which.Should().Be(requester.Id);
+        switch (action)
+        {
+            case "approve":
+                args[3].Should().Be("Se ha aprobado tu solicitud para unirte a Alpha");
+                args[5].Should().Be("¡Te damos la bienvenida a Alpha!");
+                args[7].Should().Be("Ver equipo");
+                break;
+            case "remove":
+                args[3].Should().Be("Se te ha eliminado de Alpha");
+                break;
+            case "reject":
+                args[3].Should().Be("No se ha aprobado tu solicitud para unirte a Alpha");
+                args[5].Should().Be("No se ha aprobado tu solicitud para unirte a Alpha.");
+                args[7].Should().Be("Explorar equipos");
+                break;
+            default:
+                args[3].Should().Be("Your request to join Alpha was not approved");
+                break;
+        }
+    }
 
     [HumansFact]
     public async Task ApproveJoinRequestAsync_ApproverLacksPermission_Throws()

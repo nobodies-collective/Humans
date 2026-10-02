@@ -129,8 +129,10 @@ Three controllers serve this section.
 
 - Consent records are immutable. Database triggers prevent UPDATE and DELETE operations on `consent_records`. Only INSERT is allowed to maintain GDPR audit trail integrity (§12).
 - Legal documents can be global (required of all humans) or team-scoped (required when joining a specific team).
+- Sync emails consolidate only outstanding required documents belonging to each recipient’s teams. Optional updates and required updates already signed by that recipient do not trigger a consent email.
 - When all required global documents have active consent, the human's consent check status transitions from unset to Pending.
 - Legal documents are synced from a GitHub repository by a background job.
+- GitHub document reads use the configured `GitHub:Branch`, including both directory discovery and translated file content for the anonymous `/Legal` pages.
 - When a new document version is published, existing consents for the old version become stale and re-consent is required.
 - Per-user reads on `consent_records` chain-follow merge tombstones via the resolved record's `UserInfo.AllUserIds` so consents signed under a now-merged source id surface for the fold target. Consent records stay at source after merge, DB triggers (`prevent_consent_record_update`, `prevent_consent_record_delete`) make any rewrite physically impossible.
 
@@ -148,7 +150,10 @@ Three controllers serve this section.
 - When a Consent Coordinator clears a consent check: `Profile.IsApproved` is set to true and `ConsentCheckStatus = Cleared`. This is an audit annotation only — `ClearConsentCheckAsync` provisions no team; Volunteers membership and app access are independent of CC review.
 - When a Consent Coordinator flags a consent check: `Profile.IsApproved` is set to false and `ConsentCheckStatus = Flagged`. This is an audit annotation only — `FlagConsentCheckAsync` provisions/deprovisions no team; Volunteers membership and app access are unaffected. `RejectSignupAsync` (which sets `RejectedAt`) is the CC's only actual kick-out lever.
 - When a new document version is published: affected humans are notified to re-consent. A background job sends re-consent reminders.
+- The reminder job attempts every eligible recipient before reporting per-recipient preparation, enqueue, or cooldown-stamp failures. Failed enqueues do not stamp the cooldown; successful reminders retain it. Collected failures still fail the job so Hangfire can retry, skipping recipients already in cooldown.
 - A background job suspends humans who no longer have valid consents for required documents.
+
+- Legal document names in notices may outgrow the 200-character title limit. These producers bound titles by Unicode character, preserving the full title and existing detail in the body; short notice copy is unchanged.
 
 ## Cross-Section Dependencies
 
@@ -158,7 +163,7 @@ Three controllers serve this section.
 - **Notifications:** `Humans.Notifications.Contracts.INotificationEmitter` (in-app fan-out from `LegalDocumentSyncService`) and `INotificationAutoResolve.ResolveBySourceAsync` (auto-resolve `AccessSuspended` notifications from `ConsentService` once all required consents are complete — the narrow auto-resolve contract, not the full inbox service).
 - **Human Lifecycle:** `IHumanLifecycleService.RestoreConsentSuspensionAsync` — `ConsentService` lifts a consent suspension once all required consents are complete (alongside resolving the `AccessSuspended` notification). `ConsentService` no longer depends on `ISystemTeamSync` — after the name-only access switch, a consent submit does not provision system-team membership; the scheduled `SystemTeamSyncJob` reconciles Volunteers/Coordinators on name + consents.
 - **Governance:** `IMembershipCalculatorRead.GetRequiredTeamIdsForUserAsync` / `HasAllRequiredConsentsAsync` — `ConsentService` resolves which teams' documents apply to a given user and whether all required consents are complete.
-- **Users/Identity:** `IUserServiceRead.GetUserInfoAsync` / `GetUserInfosAsync`, the returned `UserInfo.AllUserIds` chain-follows merge tombstones on every per-user consent read so consents signed under a source id surface for the fold target, and the read resolves a tombstone id forward to its survivor. Consent records are immutable per §12 and stay at source. `IUserServiceRead.GetAllUserInfosAsync` (filtered to `IsActive`) is the in-app notification fan-out list when `LegalDocumentSyncService` publishes a new / re-consent-required version; only the email pass (`LegalDocumentSyncRunner`) narrows to affected team members.
+- **Users/Identity:** `IUserServiceRead.GetUserInfoAsync` / `GetUserInfosAsync`, the returned `UserInfo.AllUserIds` chain-follows merge tombstones on every per-user consent read so consents signed under a source id surface for the fold target, and the read resolves a tombstone id forward to its survivor. Consent records are immutable per §12 and stay at source. `IUserServiceRead.GetAllUserInfosAsync` (filtered to `IsActive`) is the in-app notification fan-out list when `LegalDocumentSyncService` publishes a new / re-consent-required version; notices are grouped by supported recipient language in all six cultures (English fallback), with delivery failures isolated per group. Only the email pass (`LegalDocumentSyncRunner`) narrows to affected team members.
 
 `IGitHubLegalDocumentConnector` is owned by this section (interface and implementation both `internal` in `Humans.Consent.Services`); not a cross-section dependency.
 

@@ -101,7 +101,7 @@ Two controllers serve this section:
 - `IssuesController` (`/Issues`, `/Issues/New`, `/Issues/{id}`, `/Issues/{id}/Comments`, `/Issues/{id}/Status`, `/Issues/{id}/Assignee`, `/Issues/{id}/Section`, `/Issues/{id}/GitHubIssue`) — cookie-authenticated humans.
 - `BackdoorIssuesController` (`/api/backdoor/issues/*`) — API-key authenticated; the key resolves to its owner, who becomes the request principal. Used by Claude Code agents and external integrations.
 
-Known area labels in the member submission form, issue list and detail view use the viewer’s UI culture. Dropdowns sort the localized labels; stored `Issue.Section` routing keys stay unchanged.
+Known area labels in the member submission form, issue list and detail view use the viewer’s UI culture. Dropdowns sort the localized labels; stored `Issue.Section` routing keys stay unchanged. The index controller also orders the admin reporter dropdown alphabetically; the service returns names and counts without display ordering.
 
 `Issue.Section` selects which roles see the issue in their queue (see `IssueSectionRouting.RolesFor`); a null section is Admin-only. Section is editable by handlers as long as the issue is non-terminal — re-routing an issue is just changing its `Section` string.
 
@@ -140,7 +140,8 @@ Known area labels in the member submission form, issue list and detail view use 
 
 ## Triggers
 
-- When an issue is submitted, an in-app `NotificationSource.IssueSubmitted` notification fans out to every handler for whom the issue is in-queue (Admins + role-holders of `IssueSectionRouting.RolesFor(issue.Section)`), excluding the reporter, using `sourceKey: issue.Id.ToString()`. The nav-badge actionable count for those same handlers is invalidated in the same step. When the issue transitions to a terminal status, `IssuesService` calls `ResolveSubmittedNotificationsAsync`, which resolves those `IssueSubmitted` notifications by that sourceKey. In-app issue titles, status bodies and action labels are rendered per recipient `PreferredLanguage`.
+- Issue notices are previews bounded to 200 Unicode characters for titles and 2,000 for bodies. Oversized titles are retained in the body before the detail excerpt; ellipses mark shortened copy. The issue link exposes the complete stored description or comment.
+- When an issue is submitted, an in-app `NotificationSource.IssueSubmitted` notification fans out to every handler for whom the issue is in-queue (Admins + role-holders of `IssueSectionRouting.RolesFor(issue.Section)`), excluding the reporter, using `sourceKey: issue.Id.ToString()`. The nav-badge actionable count for those same handlers is invalidated in the same step. When the issue transitions to a terminal status, `IssuesService` calls `ResolveSubmittedNotificationsAsync`, which resolves those `IssueSubmitted` notifications by that sourceKey. In-app issue titles, status bodies and action labels are rendered per recipient `PreferredLanguage`. A failed language-group preparation or delivery is logged without blocking later groups.
 - When a comment is posted, an in-app notification fans out to the **other party** — handlers + assignee when the reporter comments, the reporter + assignee when a handler comments. Email is sent **only when a handler comments** (to the reporter), via `IUserEmailService.GetNotificationTargetEmailsAsync` + a localized `IEmailService.SendAsync(IssuesEmails.IssueComment(...))` queued through the email outbox (`OutboxEmailService` in production). Reporter→handler comments are in-app only — handlers see the new comment in their queue without an email ping.
 - When status changes, the reporter and current assignee are notified.
 - When an issue is assigned, the new assignee is notified.

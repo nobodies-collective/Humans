@@ -1,3 +1,6 @@
+using System.Text;
+using System.Globalization;
+using System.Resources;
 using Humans.GoogleIntegration.Contracts;
 using Humans.Auth.Contracts;
 using System.Transactions;
@@ -33,6 +36,8 @@ internal sealed class TeamService(
     IClock clock,
     ILogger<TeamService> logger) : ITeamManagementService, ITeamSeeding, IGoogleGroupMembershipSource, IUserDataContributor, IUserMerge, IEarlyEntryProvider
 {
+    private static readonly ResourceManager NoticeResources = new(typeof(TeamsResource));
+
     internal const string TeamMemberships = "TeamMemberships";
     internal const string TeamJoinRequests = "TeamJoinRequests";
     internal const string TeamEarlyEntry = "TeamEarlyEntry";
@@ -643,7 +648,7 @@ internal sealed class TeamService(
         CancellationToken cancellationToken = default)
     {
         var team = await repo.GetByIdWithRelationsAsync(teamId, cancellationToken)
-            ?? throw new InvalidOperationException($"Team {teamId} not found");
+            ?? throw new InvalidOperationException("Teams_NotFound");
 
         // The join policy is the team's decision, not the caller's: approval-required
         // teams queue a request, open teams join immediately.
@@ -664,25 +669,25 @@ internal sealed class TeamService(
         CancellationToken cancellationToken = default)
     {
         var team = await repo.GetByIdWithRelationsAsync(teamId, cancellationToken)
-            ?? throw new InvalidOperationException($"Team {teamId} not found");
+            ?? throw new InvalidOperationException("Teams_NotFound");
 
         if (team.IsSystemTeam)
-            throw new InvalidOperationException("Cannot request to join system team");
+            throw new InvalidOperationException("Team_CannotJoinSystem");
 
         if (team.IsHidden)
-            throw new InvalidOperationException("Cannot request to join a hidden team");
+            throw new InvalidOperationException("Teams_CannotJoinHidden");
 
         if (!team.RequiresApproval)
-            throw new InvalidOperationException("This team does not require approval. Use JoinTeamDirectlyAsync instead.");
+            throw new InvalidOperationException("Teams_JoinPolicyChanged");
 
         var existingRequest = await repo.FindUserPendingRequestAsync(teamId, userId, cancellationToken);
         if (existingRequest is not null)
-            throw new InvalidOperationException("User already has a pending request for this team");
+            throw new InvalidOperationException("Team_AlreadyPendingRequest");
 
         var teamInfo = await GetTeamAsync(teamId, cancellationToken);
         var isMember = teamInfo is { IsActive: true } && teamInfo.Members.Any(m => m.UserId == userId);
         if (isMember)
-            throw new InvalidOperationException("User is already a member of this team");
+            throw new InvalidOperationException("Team_AlreadyMember");
 
         var request = new TeamJoinRequest
         {
@@ -707,20 +712,20 @@ internal sealed class TeamService(
         CancellationToken cancellationToken = default)
     {
         var team = await repo.GetByIdWithRelationsAsync(teamId, cancellationToken)
-            ?? throw new InvalidOperationException($"Team {teamId} not found");
+            ?? throw new InvalidOperationException("Teams_NotFound");
 
         if (team.IsSystemTeam)
-            throw new InvalidOperationException("Cannot directly join system team");
+            throw new InvalidOperationException("Team_CannotJoinSystem");
 
         if (team.IsHidden)
-            throw new InvalidOperationException("Cannot directly join a hidden team");
+            throw new InvalidOperationException("Teams_CannotJoinHidden");
 
         if (team.RequiresApproval)
-            throw new InvalidOperationException("This team requires approval. Use RequestToJoinTeamAsync instead.");
+            throw new InvalidOperationException("Teams_JoinPolicyChanged");
 
         var existingMember = await repo.IsActiveMemberAsync(teamId, userId, cancellationToken);
         if (existingMember)
-            throw new InvalidOperationException("User is already a member of this team");
+            throw new InvalidOperationException("Team_AlreadyMember");
 
         var member = new TeamMember
         {
@@ -746,7 +751,7 @@ internal sealed class TeamService(
         }
 
         if (!success)
-            throw new InvalidOperationException("User is already a member of this team");
+            throw new InvalidOperationException("Team_AlreadyMember");
 
         await auditLogService.LogAsync(
             AuditAction.TeamJoinedDirectly, nameof(Team), teamId,
@@ -771,16 +776,17 @@ internal sealed class TeamService(
             return;
         }
 
-        var displayName = await GetDisplayNameAsync(userId, cancellationToken);
         try
         {
+            var displayName = await GetDisplayNameAsync(userId, cancellationToken);
+            var noticeCopy = PrepareNoticeCopy($"New join request for {team.Name}", $"{displayName} has requested to join {team.Name}.");
             await notificationService.SendAsync(
                 NotificationSource.TeamJoinRequestSubmitted,
                 NotificationClass.Actionable,
                 NotificationPriority.Normal,
-                $"New join request for {team.Name}",
+                noticeCopy.Title,
                 coordinatorUserIds,
-                body: $"{displayName} has requested to join {team.Name}.",
+                body: noticeCopy.Body,
                 actionUrl: $"/Teams/{team.Slug}/Members",
                 actionLabel: "Review request",
                 cancellationToken: cancellationToken);
@@ -802,16 +808,17 @@ internal sealed class TeamService(
             return;
         }
 
-        var displayName = await GetDisplayNameAsync(userId, cancellationToken);
         try
         {
+            var displayName = await GetDisplayNameAsync(userId, cancellationToken);
+            var noticeCopy = PrepareNoticeCopy($"{displayName} joined {team.Name}", $"{displayName} has joined {team.Name}.");
             await notificationService.SendAsync(
                 NotificationSource.TeamMemberAdded,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
-                $"{displayName} joined {team.Name}",
+                noticeCopy.Title,
                 coordinatorUserIds,
-                body: $"{displayName} has joined {team.Name}.",
+                body: noticeCopy.Body,
                 actionUrl: $"/Teams/{team.Slug}/Members",
                 actionLabel: "View members",
                 cancellationToken: cancellationToken);
@@ -828,6 +835,34 @@ internal sealed class TeamService(
             .Select(member => member.UserId)
             .Distinct()
             .ToList();
+
+    // Notification storage holds 200 Unicode characters; retain the full title in the body.
+    private static (string Title, string? Body) PrepareNoticeCopy(string title, string? body = null)
+    {
+        if (title.EnumerateRunes().Count() <= 200)
+            return (title, body);
+
+        return (string.Concat(title.EnumerateRunes().Take(199)) + "…",
+            body is null ? title : string.Concat(title, "\n\n", body));
+    }
+
+    private async Task<CultureInfo> GetRecipientCultureAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var language = (await UserService.GetUserInfoAsync(userId, cancellationToken))?.PreferredLanguage;
+            return CultureInfo.GetCultureInfo(language.IsSupportedCultureCode() ? language! : "en");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to resolve notification language for user {UserId}; using English", userId);
+            return CultureInfo.GetCultureInfo("en");
+        }
+    }
 
     private async Task<string> GetDisplayNameAsync(Guid userId, CancellationToken cancellationToken)
     {
@@ -939,14 +974,14 @@ internal sealed class TeamService(
         CancellationToken cancellationToken = default)
     {
         var team = await repo.GetByIdAsync(teamId, cancellationToken)
-            ?? throw new InvalidOperationException($"Team {teamId} not found");
+            ?? throw new InvalidOperationException("Teams_NotFound");
 
         if (team.IsSystemTeam)
-            throw new InvalidOperationException("Cannot leave system team manually");
+            throw new InvalidOperationException("Teams_CannotLeaveSystem");
 
         var member = await repo.FindActiveMemberForMutationAsync(teamId, userId, cancellationToken);
         if (member is null)
-            throw new InvalidOperationException("User is not a member of this team");
+            throw new InvalidOperationException("Teams_NotMember");
 
         var wasCoordinator = member.Role == TeamMemberRole.Coordinator;
 
@@ -982,7 +1017,7 @@ internal sealed class TeamService(
         var now = clock.GetCurrentInstant();
         var withdrew = await repo.WithdrawRequestAsync(requestId, userId, now, cancellationToken);
         if (!withdrew)
-            throw new InvalidOperationException("Join request not found");
+            throw new InvalidOperationException("Teams_RequestUnavailable");
 
         notificationMeterInvalidator.Invalidate();
 
@@ -1060,15 +1095,17 @@ internal sealed class TeamService(
     {
         try
         {
+            var culture = await GetRecipientCultureAsync(requesterUserId, cancellationToken);
+            var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString("Teams_Notification_JoinApproved", culture)!, team.Name), string.Format(culture, NoticeResources.GetString("Teams_Notification_Welcome", culture)!, team.Name));
             await notificationService.SendAsync(
                 NotificationSource.TeamJoinRequestDecided,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
-                $"Your request to join {team.Name} has been approved",
+                noticeCopy.Title,
                 [requesterUserId],
-                body: $"Welcome to {team.Name}!",
+                body: noticeCopy.Body,
                 actionUrl: $"/Teams/{team.Slug}",
-                actionLabel: "View team",
+                actionLabel: NoticeResources.GetString("Teams_Notification_ViewTeam", culture),
                 cancellationToken: cancellationToken);
         }
         catch (Exception ex)
@@ -1112,15 +1149,17 @@ internal sealed class TeamService(
     {
         try
         {
+            var culture = await GetRecipientCultureAsync(requesterUserId, cancellationToken);
+            var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString("Teams_Notification_JoinRejected", culture)!, team.Name), string.Format(culture, NoticeResources.GetString("Teams_Notification_JoinRejected", culture)!, team.Name) + ".");
             await notificationService.SendAsync(
                 NotificationSource.TeamJoinRequestDecided,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
-                $"Your request to join {team.Name} was not approved",
+                noticeCopy.Title,
                 [requesterUserId],
-                body: $"Your request to join {team.Name} was not approved.",
+                body: noticeCopy.Body,
                 actionUrl: "/Teams",
-                actionLabel: "Browse teams",
+                actionLabel: NoticeResources.GetString("MyTeams_BrowseTeams", culture),
                 cancellationToken: cancellationToken);
         }
         catch (Exception ex)
@@ -1219,12 +1258,15 @@ internal sealed class TeamService(
 
         try
         {
+            var culture = await GetRecipientCultureAsync(userId, cancellationToken);
+            var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString("Teams_Notification_MemberRemoved", culture)!, team.Name));
             await notificationService.SendAsync(
                 NotificationSource.TeamMemberRemoved,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
-                $"You were removed from {team.Name}",
+                noticeCopy.Title,
                 [userId],
+                body: noticeCopy.Body,
                 actionUrl: "/Teams",
                 cancellationToken: cancellationToken);
         }
@@ -2287,11 +2329,14 @@ internal sealed class TeamService(
     {
         if (team.IsHidden) return;
 
+        var culture = CultureInfo.GetCultureInfo("en");
         try
         {
             var users = await UserService.GetUserInfosAsync([userId], cancellationToken);
             if (!users.TryGetValue(userId, out var user))
                 return;
+
+            culture = CultureInfo.GetCultureInfo(user.PreferredLanguage.IsSupportedCultureCode() ? user.PreferredLanguage : "en");
 
             var email = user.Email;
             if (string.IsNullOrEmpty(email))
@@ -2318,12 +2363,14 @@ internal sealed class TeamService(
 
         try
         {
+            var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString("Teams_Email_AddedToTeam_Subject", culture)!, team.Name));
             await notificationService.SendAsync(
                 NotificationSource.TeamMemberAdded,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
-                $"You were added to {team.Name}",
+                noticeCopy.Title,
                 [userId],
+                body: noticeCopy.Body,
                 actionUrl: $"/Teams/{team.Slug}",
                 cancellationToken: cancellationToken);
         }

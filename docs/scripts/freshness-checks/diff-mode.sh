@@ -24,6 +24,8 @@
 #      directions with synthetic input, not just whatever today's real docs
 #      happen to contain (nobodies-collective/Humans#1021).
 #   9. Trigger repairs report failures truthfully and continue to later docs.
+#  10. Authorization inventory rejects failed handler scans.
+#  11. Suppression inventory distinguishes empty inputs from failed scans.
 #
 # Test 7 exists because a dead trigger glob is SILENT: it makes a doc look
 # *clean* rather than *unchecked*, so the doc drops out of the sweep's dirty
@@ -378,6 +380,160 @@ then
   PASS=$((PASS+1))
 else
   echo "FAIL [test 9]: trigger repair failure handling"
+  FAIL=$((FAIL+1))
+fi
+
+# A failed handler scan must not turn into a zero-handler authorization PASS,
+# even when the producer returned some usable-looking output before failing.
+if python3 - "$SCRIPT_DIR/authorization-inventory.sh" <<'PYTEST'
+import os, pathlib, shutil, subprocess, sys, tempfile
+script = pathlib.Path(sys.argv[1]).resolve()
+real_grep = shutil.which('grep')
+for partial in (False, True):
+    with tempfile.TemporaryDirectory() as directory:
+        probe = pathlib.Path(directory) / 'grep'
+        probe.write_text(
+            '#!/bin/bash\nif [[ "$1" == -rlE ]]; then\n'
+            + (f'{real_grep} "$@"\n' if partial else '')
+            + 'exit 42\nfi\n' + f'exec {real_grep} "$@"\n')
+        probe.chmod(0o755)
+        env = os.environ.copy()
+        env['PATH'] = directory + ':' + env['PATH']
+        result = subprocess.run(['bash', str(script)], env=env, capture_output=True, text=True)
+        assert result.returncode != 0, result.stdout
+        assert 'could not enumerate authorization handlers' in result.stdout, result
+        assert 'PASS [authorization-inventory]' not in result.stdout, result.stdout
+PYTEST
+then
+  echo "PASS [test 10]: authorization inventory rejects failed and partial handler scans"
+  PASS=$((PASS+1))
+else
+  echo "FAIL [test 10]: authorization handler scan failure handling"
+  FAIL=$((FAIL+1))
+fi
+
+# A missing props file or failed NoWarn producer cannot reduce the population
+# to zero and pass. Real empty NoWarn input is still valid.
+if python3 - "$SCRIPT_DIR/code-analysis-suppressions.sh" <<'PYTEST'
+import os, pathlib, shutil, subprocess, sys, tempfile
+script = pathlib.Path(sys.argv[1]).resolve()
+real_grep = shutil.which('grep')
+for mode in ('empty', 'failed', 'partial', 'missing-root', 'missing-tests'):
+    with tempfile.TemporaryDirectory() as directory:
+        root = pathlib.Path(directory)
+        (root / 'docs/architecture').mkdir(parents=True)
+        (root / 'tests').mkdir()
+        (root / 'docs/architecture/code-analysis.md').write_text(
+            '<!-- freshness:auto id="suppressions" -->\nCS0618\n<!-- /freshness:auto -->\n')
+        props = '<Project />\n' if mode == 'empty' else '<NoWarn>CS0618</NoWarn>\n'
+        if mode != 'missing-root':
+            (root / 'Directory.Build.props').write_text(props)
+        if mode != 'missing-tests':
+            (root / 'tests/Directory.Build.props').write_text(props)
+        env = os.environ.copy()
+        if mode in ('failed', 'partial'):
+            probe = root / 'grep'
+            probe.write_text(
+                '#!/bin/bash\nif [[ "$1" == -oE ]]; then\n'
+                + (f'{real_grep} "$@"\n' if mode == 'partial' else '')
+                + 'exit 42\nfi\n' + f'exec {real_grep} "$@"\n')
+            probe.chmod(0o755)
+            env['PATH'] = directory + ':' + env['PATH']
+        result = subprocess.run(['bash', str(script)], cwd=root, env=env, capture_output=True, text=True)
+        if mode == 'empty':
+            assert result.returncode == 0, result
+            assert 'all 0 suppression codes' in result.stdout, result.stdout
+        else:
+            assert result.returncode != 0, result.stdout
+            assert 'could not enumerate analyzer suppressions' in result.stdout, result
+            assert 'PASS [code-analysis-suppressions]' not in result.stdout, result.stdout
+PYTEST
+then
+  echo "PASS [test 11]: suppression inventory accepts empty input and rejects missing/failed/partial scans"
+  PASS=$((PASS+1))
+else
+  echo "FAIL [test 11]: analyzer suppression scan failure handling"
+  FAIL=$((FAIL+1))
+fi
+
+# Multiword package aliases must match as phrases, not unrelated individual
+# words elsewhere on the About page.
+if python3 - "$SCRIPT_DIR/about-page-packages.sh" <<'PYTEST'
+import pathlib, subprocess, sys, tempfile
+script = pathlib.Path(sys.argv[1]).resolve()
+for package, alias, fragment in (
+    ('Microsoft.EntityFrameworkCore', 'entity framework core', 'core'),
+    ('Microsoft.AspNetCore.Authentication.Google', 'google authentication', 'google'),
+    ('Google.Apis.Drive.v3', 'drive api', 'api'),
+):
+    with tempfile.TemporaryDirectory() as directory:
+        root = pathlib.Path(directory)
+        about = root / 'src/Humans.Web/Views/About/Index.cshtml'
+        about.parent.mkdir(parents=True)
+        (root / 'Directory.Packages.props').write_text(f'<PackageVersion Include="{package}" Version="1"/>')
+        (root / 'src/Humans.Web/Test.csproj').write_text(f'<PackageReference Include="{package}"/>')
+        for text, expected in ((package, 0), (alias, 0), (fragment, 1), ('Unrelated prose', 1)):
+            about.write_text(text)
+            result = subprocess.run(['bash', str(script)], cwd=root, capture_output=True, text=True)
+            assert result.returncode == expected, (package, text, result)
+            assert ('PASS [about-page-packages]' in result.stdout) == (expected == 0), result.stdout
+PYTEST
+then
+  echo "PASS [test 12]: package inventory matches complete aliases and rejects isolated words"
+  PASS=$((PASS+1))
+else
+  echo "FAIL [test 12]: package alias matching"
+  FAIL=$((FAIL+1))
+fi
+
+# History/statistics inputs must be read successfully, including when a failed
+# producer emitted enough valid-looking rows to otherwise pass the check.
+if python3 - "$SCRIPT_DIR/dev-stats.sh" "$SCRIPT_DIR/reforge-history.sh" <<'PYTEST'
+import os, pathlib, shutil, subprocess, sys, tempfile
+for script_path in sys.argv[1:]:
+    script = pathlib.Path(script_path).resolve()
+    is_stats = script.name == 'dev-stats.sh'
+    for mode in ('valid', 'empty', 'partial', 'failed'):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'docs').mkdir()
+            probes = root / 'probes'
+            probes.mkdir()
+            git = probes / 'git'
+            date_output = '' if mode == 'empty' and not is_stats else 'echo 2026-10-01; '
+            git.write_text('#!/bin/bash\nif [[ "$1" == rev-parse ]]; then exit 0; fi\n'
+                           + 'if [[ "$1" == log ]]; then ' + date_output + 'exit 0; fi\nexit 2\n')
+            git.chmod(0o755)
+            if is_stats:
+                row = '| 2026-10-01 | ' + ' | '.join(['1'] * 19) + ' |\n'
+                (root / 'docs/development-stats.md').write_text('No rows\n' if mode == 'empty' else row)
+                command, match = 'grep', '[[ "$1" == -E ]]'
+            else:
+                row = 'commit_date,a,b,c,d\n' + ('' if mode == 'empty' else '2026-10-01,1,2,3,4\n')
+                (root / 'docs/reforge-history.csv').write_text(row)
+                command, match = 'tail', '[[ "$1" == -n && "$2" == +2 ]]'
+            if mode in ('failed', 'partial'):
+                real_command = shutil.which(command)
+                probe = probes / command
+                probe.write_text('#!/bin/bash\nif ' + match + '; then\n'
+                                 + (f'{real_command} "$@"\n' if mode == 'partial' else '')
+                                 + 'exit 42\nfi\n' + f'exec {real_command} "$@"\n')
+                probe.chmod(0o755)
+            env = os.environ.copy()
+            env['PATH'] = str(probes) + ':' + env['PATH']
+            result = subprocess.run(['bash', str(script)], cwd=root, env=env, capture_output=True, text=True)
+            if mode == 'valid' or (mode == 'empty' and not is_stats):
+                assert result.returncode == 0 and 'PASS [' in result.stdout, result
+            else:
+                assert result.returncode != 0 and 'PASS [' not in result.stdout, result
+                if mode in ('failed', 'partial'):
+                    assert 'could not read' in result.stdout, result
+PYTEST
+then
+  echo "PASS [test 13]: statistics and history verifiers reject failed and partial input scans"
+  PASS=$((PASS+1))
+else
+  echo "FAIL [test 13]: statistics/history input failure handling"
   FAIL=$((FAIL+1))
 fi
 

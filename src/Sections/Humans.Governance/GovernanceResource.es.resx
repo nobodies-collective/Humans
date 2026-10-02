@@ -733,4 +733,12 @@
     <value>&lt;p&gt;&lt;strong&gt;Motivo:&lt;/strong&gt; {0}&lt;/p&gt;</value>
     <comment>{0} = reason text (HTML-encoded by caller)</comment>
   </data>
+  <data name="Governance_Notification_ApplicationApproved" xml:space="preserve"><value>Tu solicitud de {0} ha sido aprobada</value></data>
+  <data name="Governance_Notification_ApplicationApprovedBody" xml:space="preserve"><value>¡Enhorabuena! Tu solicitud de {0} ha sido aprobada.</value></data>
+  <data name="Governance_Notification_ApplicationRejected" xml:space="preserve"><value>Tu solicitud de {0} no ha sido aprobada</value></data>
+  <data name="Governance_Notification_ApplicationRejectedBody" xml:space="preserve"><value>Tu solicitud de {0} no ha sido aprobada.</value></data>
+  <data name="Governance_Notification_ViewApplication" xml:space="preserve"><value>Ver solicitud</value></data>
+  <data name="Governance_Notification_TermRenewalReminder" xml:space="preserve"><value>Tu período como {0} vence el {1}</value></data>
+  <data name="Governance_Notification_TermRenewalReminderBody" xml:space="preserve"><value>Presenta una solicitud de renovación para mantener tu categoría de membresía.</value></data>
+  <data name="Governance_Notification_Renew" xml:space="preserve"><value>Renovar →</value></data>
 </root>

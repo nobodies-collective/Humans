@@ -12,7 +12,7 @@
 
 # City Planning — Section Invariants
 
-Interactive map surface: a read-only overview, barrio polygon editing, and container placement. Owns placement phase control and append-only polygon history.
+Interactive map surface: a read-only overview, barrio polygon editing, and container placement. Owns placement phase control and append-only polygon history. Barrio map popup and drawing warnings, history browsing, save failures and discard confirmations use the viewer’s language in all six supported cultures; map-admin-only restore controls remain operator copy. Failed save/restore requests retain the current edit and show their error message; failed history requests or JSON decoding show the history failure panel.
 
 ## Concepts
 
@@ -176,7 +176,7 @@ Broadcasts `CampPolygonUpdated(campSeasonId, geoJson, areaSqm, soundZone, campNa
 
 - Saving a polygon creates a CampPolygonHistory entry with note `"Saved"`, or the note the client supplied — the bulk import sends `"Imported {timestamp}"`.
 - Restoring a historical version overwrites the current polygon with the restored version and appends a history entry for it (note: `"Restored from {timestamp}"`).
-- SignalR broadcasts `CampPolygonUpdated` to all connected clients after every save. Broadcast failures are logged without undoing a saved polygon; an aborted request instead propagates cancellation.
+- SignalR broadcasts `CampPolygonUpdated` to all connected clients after every save. Broadcast preparation (including camp detail lookup) and delivery failures are logged while returning the saved polygon; an aborted request instead propagates cancellation.
 
 ## Cross-Section Dependencies
 

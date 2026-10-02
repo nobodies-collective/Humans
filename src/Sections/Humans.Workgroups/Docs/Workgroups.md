@@ -304,6 +304,10 @@ Settings and Register an existing group on first setup or after clearing the que
 
 ## Triggers
 
+Member and Board notice previews fit notification storage: 200 Unicode characters for titles,
+2,000 for bodies. Oversized titles move into the body before the detail excerpt; ellipses mark
+shortened copy. Full names and notes remain in the register and system log.
+
 - Apply: the applicant becomes the first coordinator (plus an optional second); writes
   `Applied`; notifies and emails the Board.
 - Register: creates the Drive subfolder, flips to Active, writes `Registered`, audits,
@@ -312,6 +316,8 @@ Settings and Register an existing group on first setup or after clearing the que
   notified/emailed; Withdraw and Reactivate also request a Drive sync (write access changes).
 - Join/Leave: system log entry (`MemberJoined`/`MemberLeft`), Drive sync requested; a
   forced coordinator handover on last-coordinator leave also writes `CoordinatorChanged`.
+  Names needed for membership/coordinator logs are read before persistence; a failed lookup
+  leaves membership unchanged. Handover reuses the promoted person’s name for log and audit.
 - Publish/OpenComments/CloseComments/Deliver: system log entry; Publish and OpenComments
   notify current members; Deliver notifies and emails the Board.
 - RecordDisposition: system log entry, audit entry, members notified, coordinators emailed.
@@ -363,6 +369,8 @@ should end is the Board's decision, taken on the register in front of them.
   actor authored it before writing the log entry. One-way: Surveys never references Workgroups.
 - **Notifications, Email, AuditLog**: crosscuts, per Triggers above. Member notifications
   use existing localized labels, grouped by recipient language; authored content is unchanged.
+  A merged-member alias carries both the resolved live id and its language into grouping,
+  with one delivery per live recipient even when multiple requested ids resolve to them.
 - **Gdpr**: `IUserDataContributor`, `IUserMerge` — see GDPR below.
 - **Finance**: `IHoldedFinanceService.CreateOrLinkExpenseAccountAsync` /
   `SetExpenseAccountActiveAsync` (outbound). **Holded**: `IHoldedClient.ListExpenseAccountsAsync`
@@ -430,4 +438,7 @@ display-name reads.
   registered in `Section.Register`) lists one sample per kind at `/Email/EmailPreview`.
   Email supplies transport only — `IEmailService.SendAsync`
   (`memory/architecture/email-templates-live-in-sender.md`, peterdrier/Humans#1651).
+  Email recipient lookup and queue failures are logged without failing a committed
+  lifecycle change or preventing its subsequent Drive access sync. Individual sends
+  remain independent; cancellation of recipient lookups still propagates.
 - **Architecture test** — `tests/Humans.Workgroups.Tests` carries no `Architecture/` folder.

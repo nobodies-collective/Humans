@@ -125,12 +125,31 @@ ORIG_REF=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 # including the table separator row) BEFORE we touch the working tree. The
 # data rows below the separator will be regenerated (in --full mode) or
 # augmented (incremental mode) below.
-WORK_DIR="${TMPDIR:-/tmp}/dev-stats-$$"
-mkdir -p "$WORK_DIR"
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/dev-stats-XXXXXX")
 PREAMBLE="$WORK_DIR/preamble.md"
 EXISTING_ROWS="$WORK_DIR/existing-rows.md"
 NEW_ROWS="$WORK_DIR/new-rows.md"
 SNAPSHOT_WORKTREE="$WORK_DIR/checkout"
+PUBLISH_FILE=""
+SNAPSHOT_CREATED=false
+cleanup() {
+  local cleanup_status=$?
+  if [ -n "$PUBLISH_FILE" ]; then
+    rm -f -- "$PUBLISH_FILE"
+  fi
+  if [ "$SNAPSHOT_CREATED" = true ]; then
+    if ! git worktree remove --force "$SNAPSHOT_WORKTREE" 2>/dev/null; then
+      echo "Error: could not remove this run's worktree at $SNAPSHOT_WORKTREE; leaving it intact." >&2
+      if [ "$cleanup_status" -eq 0 ]; then cleanup_status=1; fi
+    fi
+  fi
+  if [ -d "$WORK_DIR" ]; then
+    rm -- "$WORK_DIR"/*.md 2>/dev/null || true
+    rmdir "$WORK_DIR" 2>/dev/null || true
+  fi
+  exit "$cleanup_status"
+}
+trap cleanup EXIT
 > "$EXISTING_ROWS"
 > "$NEW_ROWS"
 
@@ -167,17 +186,7 @@ else
   LAST_DATE=$(grep -E '^\| [0-9]{4}-[0-9]{2}-[0-9]{2} ' "$EXISTING_ROWS" | tail -1 | awk -F'|' '{ gsub(/^ +| +$/, "", $2); print $2 }' || true)
 fi
 
-cleanup() {
-  if [ -d "$SNAPSHOT_WORKTREE" ]; then
-    git worktree remove --force "$SNAPSHOT_WORKTREE" 2>/dev/null \
-      || { rm -rf -- "$SNAPSHOT_WORKTREE" 2>/dev/null || true; git worktree prune --quiet 2>/dev/null || true; }
-  fi
-  if [ -d "$WORK_DIR" ]; then
-    rm -- "$WORK_DIR"/*.md 2>/dev/null || true
-    rmdir "$WORK_DIR" 2>/dev/null || true
-  fi
-}
-trap cleanup EXIT
+
 
 # Load reforge-derived (classes, interfaces) by date. The CSV header is:
 #   commit_date,commit,solution,loc_prod,loc_test,files_prod,files_test,classes,interfaces,...
@@ -201,6 +210,34 @@ fi
 fmt() { echo "$1" | sed -e ':a' -e 's/\B[0-9]\{3\}\>/,&/' -e 'ta'; }
 to_kb() { awk -v b="$1" 'BEGIN { printf "%d\n", int((b + 512) / 1024) }'; }
 
+# Match exclusions against paths inside the snapshot, never the parent temp path.
+# Keep cat and find in the same subshell so relative filenames resolve correctly.
+snapshot_file_metrics() (
+  cd "$SNAPSHOT_WORKTREE" &&
+    find "$@" -print0 2>/dev/null | xargs -0 cat 2>/dev/null | wc -l -c
+)
+
+snapshot_file_count() (
+  cd "$SNAPSHOT_WORKTREE" && find "$@" 2>/dev/null | wc -l
+)
+
+# grep's no-match status is a valid zero; an input failure is not. Filter
+# matched paths in awk so an empty legacy type inventory emits exactly one zero.
+count_source_types() {
+  local matches status
+  if matches=$(cd "$SNAPSHOT_WORKTREE" || exit 2; grep -rE "$1" --include='*.cs' src/ 2>/dev/null); then
+    :
+  else
+    status=$?
+    if [ "$status" -ne 1 ]; then
+      echo "Error: failed to scan type declarations for $day." >&2
+      return "$status"
+    fi
+  fi
+  printf '%s\n' "$matches" | awk 'NF && !/\/Migrations\// && !/Tests/ { n++ } END { print n+0 }'
+}
+
+
 # Last-commit-of-each-day on the current ref, oldest first.
 DAY_COMMITS=$(git log --reverse --format="%ad %H" --date=format:"%Y-%m-%d" 2>/dev/null \
   | awk '{ last[$1] = $2; if (!seen[$1]++) order[++n] = $1 }
@@ -219,28 +256,31 @@ fi
 # Cumulative commit-count by day across full history (independent of filter).
 declare -A cum_commits
 total=0
+COMMIT_DATES=$(git log --reverse --format="%H %ad" --date=format:"%Y-%m-%d")
 while read -r _hash day; do
+  [ -z "$day" ] && continue
   total=$((total + 1))
   cum_commits["$day"]=$total
-done < <(git log --reverse --format="%H %ad" --date=format:"%Y-%m-%d")
+done <<< "$COMMIT_DATES"
 
 # Per-day line +/- (excluding migrations) across full history.
 declare -A day_adds day_dels
-while read -r d a dl; do
-  day_adds["$d"]=$a
-  day_dels["$d"]=$dl
-done < <(
-  git log --format="COMMIT %ad" --date=format:"%Y-%m-%d" --numstat | awk '
+DAILY_DIFFS=$(git log --format="COMMIT %ad" --date=format:"%Y-%m-%d" --numstat | awk '
     /^COMMIT / { day=$2; next }
     /Migrations/ { next }
     NF >= 3 && $1 != "-" { adds[day]+=$1; dels[day]+=$2 }
     END { for (d in adds) print d, adds[d], dels[d] }
-  '
-)
+  ')
+while read -r d a dl; do
+  [ -z "$d" ] && continue
+  day_adds["$d"]=$a
+  day_dels["$d"]=$dl
+done <<< "$DAILY_DIFFS"
 
 # Create the throwaway worktree that historical checkouts happen in. This
 # never touches the caller's tree (see the header comment).
 git worktree add --quiet --detach "$SNAPSHOT_WORKTREE" "$ORIG_REF"
+SNAPSHOT_CREATED=true
 
 N=0
 TOTAL=$(echo "$DAY_COMMITS" | wc -l)
@@ -257,10 +297,10 @@ while IFS=' ' read -r day commit; do
   # into multiple wc invocations and each emits its own "total" line; `tail
   # -1` then only sees the last batch's count. `cat` merges content into a
   # single stream so wc sees the true total.
-  cs_data=$(find "$SNAPSHOT_WORKTREE/src" -type f -name '*.cs' ! -path '*/Migrations/*' ! -path '*Tests*' -print0 2>/dev/null | xargs -0 cat 2>/dev/null | wc -l -c)
-  cshtml_data=$(find "$SNAPSHOT_WORKTREE/src" -type f -name '*.cshtml' ! -path '*/Migrations/*' ! -path '*Tests*' -print0 2>/dev/null | xargs -0 cat 2>/dev/null | wc -l -c)
-  resx_data=$(find "$SNAPSHOT_WORKTREE/src" -type f -name '*.resx' ! -path '*/Migrations/*' ! -path '*Tests*' -print0 2>/dev/null | xargs -0 cat 2>/dev/null | wc -l -c)
-  js_data=$(find "$SNAPSHOT_WORKTREE/src" -type f -name '*.js' ! -path '*/Migrations/*' ! -path '*Tests*' -print0 2>/dev/null | xargs -0 cat 2>/dev/null | wc -l -c)
+  cs_data=$(snapshot_file_metrics src -type f -name '*.cs' ! -path '*/Migrations/*' ! -path '*Tests*')
+  cshtml_data=$(snapshot_file_metrics src -type f -name '*.cshtml' ! -path '*/Migrations/*' ! -path '*Tests*')
+  resx_data=$(snapshot_file_metrics src -type f -name '*.resx' ! -path '*/Migrations/*' ! -path '*Tests*')
+  js_data=$(snapshot_file_metrics src -type f -name '*.js' ! -path '*/Migrations/*' ! -path '*Tests*')
 
   cs_lines=$(echo "$cs_data" | awk '{print $1+0}')
   cshtml_lines=$(echo "$cshtml_data" | awk '{print $1+0}')
@@ -270,7 +310,7 @@ while IFS=' ' read -r day commit; do
   app_lines=$((cs_lines + cshtml_lines + resx_lines + js_lines))
   app_bytes=$(( $(echo "$cs_data" | awk '{print $2+0}') + $(echo "$cshtml_data" | awk '{print $2+0}') + $(echo "$resx_data" | awk '{print $2+0}') + $(echo "$js_data" | awk '{print $2+0}') ))
 
-  test_data=$(find "$SNAPSHOT_WORKTREE" -type f -name '*.cs' -path '*Tests*' ! -path '*/Migrations/*' ! -path '*/.worktrees/*' ! -path '*/.claude/worktrees/*' -print0 2>/dev/null | xargs -0 cat 2>/dev/null | wc -l -c)
+  test_data=$(snapshot_file_metrics . -type f -name '*.cs' -path '*Tests*' ! -path '*/Migrations/*' ! -path '*/.worktrees/*' ! -path '*/.claude/worktrees/*')
   test_lines=$(echo "$test_data" | awk '{print $1+0}')
   test_bytes=$(echo "$test_data" | awk '{print $2+0}')
 
@@ -278,8 +318,8 @@ while IFS=' ' read -r day commit; do
   app_kb=$(to_kb "$app_bytes")
   test_kb=$(to_kb "$test_bytes")
 
-  app_files=$(( $(find "$SNAPSHOT_WORKTREE/src" -type f \( -name '*.cs' -o -name '*.cshtml' -o -name '*.resx' -o -name '*.js' \) ! -path '*/Migrations/*' ! -path '*Tests*' 2>/dev/null | wc -l) ))
-  test_files=$(find "$SNAPSHOT_WORKTREE" -type f -name '*.cs' -path '*Tests*' ! -path '*/Migrations/*' ! -path '*/.worktrees/*' ! -path '*/.claude/worktrees/*' 2>/dev/null | wc -l)
+  app_files=$(snapshot_file_count src -type f \( -name '*.cs' -o -name '*.cshtml' -o -name '*.resx' -o -name '*.js' \) ! -path '*/Migrations/*' ! -path '*Tests*')
+  test_files=$(snapshot_file_count . -type f -name '*.cs' -path '*Tests*' ! -path '*/Migrations/*' ! -path '*/.worktrees/*' ! -path '*/.claude/worktrees/*')
   files=$((app_files + test_files))
 
   # Prefer reforge-derived (semantic) counts; fall back to regex if reforge
@@ -290,21 +330,30 @@ while IFS=' ' read -r day commit; do
     interfaces=${reforge_interfaces[$day]}
     REFORGE_HITS=$((REFORGE_HITS+1))
   else
-    classes=$(grep -rE '^\s*(public|internal)\s+(sealed |abstract |static |partial )*(class|record) ' --include='*.cs' "$SNAPSHOT_WORKTREE/src/" 2>/dev/null | grep -v '/Migrations/' | grep -v 'Tests' | wc -l || echo 0)
-    interfaces=$(grep -rE '^\s*public\s+interface\s' --include='*.cs' "$SNAPSHOT_WORKTREE/src/" 2>/dev/null | grep -v '/Migrations/' | grep -v 'Tests' | wc -l || echo 0)
+    classes=$(count_source_types '^\s*(public|internal)\s+(sealed |abstract |static |partial )*(class|record) ')
+    interfaces=$(count_source_types '^\s*public\s+interface\s')
     REFORGE_MISSES=$((REFORGE_MISSES+1))
   fi
 
-  controllers=$(find "$SNAPSHOT_WORKTREE/src" -name '*Controller.cs' ! -path '*/Migrations/*' 2>/dev/null | wc -l)
-  views=$(find "$SNAPSHOT_WORKTREE/src" -name '*.cshtml' 2>/dev/null | wc -l)
-  entities=$(find "$SNAPSHOT_WORKTREE/src" -path '*/Entities/*.cs' 2>/dev/null | wc -l)
-  resx_keys=$(grep -c '<data ' "$SNAPSHOT_WORKTREE/src/Humans.Web/Resources/SharedResource.resx" 2>/dev/null || echo 0)
+  controllers=$(snapshot_file_count src -name '*Controller.cs' ! -path '*/Migrations/*')
+  views=$(snapshot_file_count src -name '*.cshtml')
+  entities=$(snapshot_file_count src -path '*/Entities/*.cs')
+  # Shared resources moved from the Shell to Base; historical snapshots can
+  # still carry the old path or predate the resource file entirely.
+  shared_resource="$SNAPSHOT_WORKTREE/src/Humans.Base/Resources/SharedResource.resx"
+  if [ ! -f "$shared_resource" ]; then
+    shared_resource="$SNAPSHOT_WORKTREE/src/Humans.Web/Resources/SharedResource.resx"
+  fi
+  resx_keys=0
+  if [ -f "$shared_resource" ]; then
+    resx_keys=$(awk '/<data / { n++ } END { print n+0 }' "$shared_resource")
+  fi
 
   # Semantic C# code/comment split via cloc. Same scope as cs_lines above
   # (src/ minus Migrations; tests live in tests/ at the root, not in src/).
   # cloc CSV: files,language,blank,comment,code  — we read the C# row.
   if [ -d "$SNAPSHOT_WORKTREE/src" ]; then
-    cloc_csv=$("$CLOC" --quiet --csv --include-lang=C# --exclude-dir=Migrations "$SNAPSHOT_WORKTREE/src" 2>/dev/null || true)
+    cloc_csv=$("$CLOC" --quiet --csv --include-lang=C# --exclude-dir=Migrations "$SNAPSHOT_WORKTREE/src")
     cs_code=$(echo "$cloc_csv" | awk -F, '$2=="C#" { print $5+0; exit }')
     cs_comment=$(echo "$cloc_csv" | awk -F, '$2=="C#" { print $4+0; exit }')
     cs_code=${cs_code:-0}
@@ -318,17 +367,17 @@ while IFS=' ' read -r day commit; do
   # Excludes vendored/tooling dirs and any sibling worktree the developer may
   # have created. Defensive — `.worktrees/` is gitignored so it shouldn't show
   # up in a clean checkout, but we exclude it anyway.
-  md_data=$(find "$SNAPSHOT_WORKTREE" -type f -name '*.md' \
+  md_data=$(snapshot_file_metrics . -type f -name '*.md' \
     -not -path '*/.git/*' -not -path '*/node_modules/*' \
     -not -path '*/.worktrees/*' -not -path '*/.claude/worktrees/*' \
     -not -path '*/bin/*' -not -path '*/obj/*' \
-    -print0 2>/dev/null | xargs -0 cat 2>/dev/null | wc -l)
+    )
   md_lines=$(echo "$md_data" | awk '{print $1+0}')
 
   # Migration lines — currently excluded from every other metric. Tracked
   # separately so the cost of accumulated EF migrations is visible (and we
   # know when they need consolidating).
-  migration_data=$(find "$SNAPSHOT_WORKTREE/src" -type f -name '*.cs' -path '*/Migrations/*' -print0 2>/dev/null | xargs -0 cat 2>/dev/null | wc -l)
+  migration_data=$(snapshot_file_metrics src -type f -name '*.cs' -path '*/Migrations/*')
   migration_lines=$(echo "$migration_data" | awk '{print $1+0}')
 
   commits="${cum_commits[$day]:-0}"
@@ -349,14 +398,17 @@ while IFS=' ' read -r day commit; do
   echo "[$N/$TOTAL] $day $commit"
 done <<< "$DAY_COMMITS"
 
-# Stitch: preamble + existing rows + new rows. The caller's tree was never
-# touched, so $DOC is written in place with no ref restore needed first.
+# Stage beside the document for atomic publication, using only this run's
+# temporary file. Keep the document's existing permissions.
+PUBLISH_FILE=$(mktemp "${DOC}.XXXXXX")
 {
   cat "$PREAMBLE"
   cat "$EXISTING_ROWS"
   cat "$NEW_ROWS"
-} > "$DOC.tmp"
-mv "$DOC.tmp" "$DOC"
+} > "$PUBLISH_FILE"
+chmod --reference="$DOC" "$PUBLISH_FILE"
+mv -- "$PUBLISH_FILE" "$DOC"
+PUBLISH_FILE=""
 
 ROWS=$(grep -cE '^\| [0-9]{4}-[0-9]{2}-[0-9]{2} ' "$DOC" || echo 0)
 echo "Done. Appended $N rows. Table now has $ROWS data rows."

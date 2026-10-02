@@ -149,6 +149,7 @@ public sealed class EventServiceTests
     {
         var userId = Guid.NewGuid();
         var eventId = Guid.NewGuid();
+        _repo.Events.Add(new Event { Id = eventId, Status = EventStatus.Approved, IsRecurring = true, RecurrenceDays = "0,2,4" });
 
         var added = await _service.AddFavouriteAsync(userId, eventId, dayOffset: 4, TestContext.Current.CancellationToken);
 
@@ -166,6 +167,7 @@ public sealed class EventServiceTests
     {
         var userId = Guid.NewGuid();
         var eventId = Guid.NewGuid();
+        _repo.Events.Add(new Event { Id = eventId, Status = EventStatus.Approved, IsRecurring = true, RecurrenceDays = "0,2,4" });
         await _service.AddFavouriteAsync(userId, eventId, dayOffset: null, TestContext.Current.CancellationToken);
 
         var added = await _service.AddFavouriteAsync(userId, eventId, dayOffset: 4, TestContext.Current.CancellationToken);
@@ -173,6 +175,58 @@ public sealed class EventServiceTests
         added.Should().BeFalse();
         _repo.Favourites.Should().ContainSingle();
         _repo.SaveChangesCount.Should().Be(1);
+    }
+
+    [HumansTheory]
+    [InlineData(-1)]
+    [InlineData(1)]
+    [InlineData(999)]
+    public async Task AddFavouriteAsync_RejectsMissingRecurringOccurrences(int day)
+    {
+        var ev = new Event { Id = Guid.NewGuid(), Status = EventStatus.Approved, IsRecurring = true, RecurrenceDays = "0, 2,4" };
+        _repo.Events.Add(ev);
+
+        var act = () => _service.AddFavouriteAsync(Guid.NewGuid(), ev.Id, day, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>().Where(e => e.ParamName == "dayOffset");
+        _repo.Favourites.Should().BeEmpty();
+        _repo.SaveChangesCount.Should().Be(0);
+    }
+
+    [HumansFact]
+    public async Task AddFavouriteAsync_PreservesDayIgnoringBehaviorForNonRecurringEvents()
+    {
+        var ev = new Event { Id = Guid.NewGuid(), Status = EventStatus.Approved, IsRecurring = false };
+        _repo.Events.Add(ev);
+
+        var added = await _service.AddFavouriteAsync(Guid.NewGuid(), ev.Id, 999, TestContext.Current.CancellationToken);
+
+        added.Should().BeTrue();
+        _repo.Favourites.Should().ContainSingle().Which.DayOffset.Should().Be(999);
+    }
+
+    [HumansFact]
+    public async Task AddFavouriteAsync_RejectsMissingEvents()
+    {
+        var act = () => _service.AddFavouriteAsync(Guid.NewGuid(), Guid.NewGuid(), null, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+        _repo.Favourites.Should().BeEmpty();
+        _repo.SaveChangesCount.Should().Be(0);
+    }
+
+    [HumansTheory]
+    [InlineData(EventStatus.Pending)]
+    [InlineData(EventStatus.Rejected)]
+    public async Task AddFavouriteAsync_RejectsUnpublishedEvents(EventStatus status)
+    {
+        var ev = new Event { Id = Guid.NewGuid(), Status = status };
+        _repo.Events.Add(ev);
+        var act = () => _service.AddFavouriteAsync(Guid.NewGuid(), ev.Id, null, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+        _repo.Favourites.Should().BeEmpty();
+        _repo.SaveChangesCount.Should().Be(0);
     }
 
     [HumansFact]
@@ -306,6 +360,52 @@ public sealed class EventServiceTests
 
         await act.Should().NotThrowAsync();
         guideEvent.Status.Should().Be(EventStatus.Rejected);
+    }
+
+    [HumansFact]
+    public async Task SubmitEventAsync_SubmitterLookupFailure_DoesNotFailCommittedSubmission()
+    {
+        var guideEvent = new Event
+        {
+            Id = Guid.NewGuid(),
+            SubmitterUserId = Guid.NewGuid(),
+            Title = "Fire show",
+            Status = EventStatus.Pending
+        };
+        _userService.GetUserInfoAsync(guideEvent.SubmitterUserId, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException<UserInfo?>(new InvalidOperationException("User lookup unavailable")));
+
+        var act = () => _service.SubmitEventAsync(
+            guideEvent, "https://x/Events/MySubmissions", TestContext.Current.CancellationToken);
+
+        await act.Should().NotThrowAsync();
+        _repo.Events.Should().Contain(guideEvent);
+        await _emailService.DidNotReceiveWithAnyArgs().SendAsync(default!);
+    }
+
+    [HumansFact]
+    public async Task ApplyModerationAsync_SubmitterLookupFailure_DoesNotFailCommittedDecision()
+    {
+        var guideEvent = new Event
+        {
+            Id = Guid.NewGuid(),
+            SubmitterUserId = Guid.NewGuid(),
+            Title = "Fire show",
+            Status = EventStatus.Pending
+        };
+        _repo.Events.Add(guideEvent);
+        _userService.GetUserInfoAsync(guideEvent.SubmitterUserId, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException<UserInfo?>(new InvalidOperationException("User lookup unavailable")));
+
+        var act = () => _service.ApplyModerationAsync(
+            guideEvent.Id, Guid.NewGuid(), EventModerationActionType.Rejected,
+            "Too loud", "https://x/edit", TestContext.Current.CancellationToken);
+
+        await act.Should().NotThrowAsync();
+        guideEvent.Status.Should().Be(EventStatus.Rejected);
+        _repo.EventModerationActions.Should().ContainSingle(action =>
+            action.GuideEventId == guideEvent.Id && action.Action == EventModerationActionType.Rejected);
+        await _emailService.DidNotReceiveWithAnyArgs().SendAsync(default!);
     }
 
     private Guid StubSubmitterWithEmail(string email, string burnerName)
@@ -670,7 +770,7 @@ public sealed class EventServiceTests
     }
 
     [HumansFact]
-    public async Task GetCampSubmissionsSummaryAsync_BucketsByStatusAndSortsMostRecentFirst()
+    public async Task GetCampSubmissionsSummaryAsync_BucketsByStatusAndIncludesOnlyCampEvents()
     {
         var campId = Guid.NewGuid();
         var older = new Event
@@ -704,7 +804,7 @@ public sealed class EventServiceTests
         summary.SubmittedCount.Should().Be(2);
         summary.ApprovedCount.Should().Be(1);
         summary.PendingCount.Should().Be(1);
-        summary.Events.Select(e => e.Title).Should().Equal("Newer", "Older");
+        summary.Events.Select(e => e.Title).Should().BeEquivalentTo(["Newer", "Older"]);
     }
 
     [HumansFact]

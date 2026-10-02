@@ -82,6 +82,9 @@ Sender-initiated transfer request. `OriginalTicketAttendeeId` FK → `ticket_att
 
 ## Invariants
 
+- Member transfer Submit/Cancel validation errors resolve through Tickets resources in all six cultures. Unknown failure text stays in logs; the wizard and cancellation toast use translated fallbacks.
+- Transfer row DTOs carry sender/decider IDs; their names are rendered by the existing human components. Row assembly does not load unused user-name snapshots, so a profile lookup cannot fail a committed response or prevent a transfer list from loading. Transfer/attendee reads remain required.
+
 - `TicketHoldingsViewComponent` is contributed (`Humans.Tickets/SectionUserParts.cs`, `IUserPart`) to Users' `user-profile-sidebar` and `user-admin-detail-sidebar` slots. It renders nothing for `ProfileCardViewMode.Public` — its only visibility check — and shows an empty-holdings card only for `Admin`.
 - Ticket orders and attendees are synced from the external vendor — they cannot be manually created or edited from this app.
 - Stripe enrichment (`PaymentMethod`, `PaymentMethodDetail`, `StripeFee`, `ApplicationFee`) is preserved across re-syncs and only re-run for orders that have a `StripePaymentIntentId` and are still missing fee data; if `IStripeService.IsConfigured` is false the pass is silently skipped.
@@ -103,6 +106,7 @@ Sender-initiated transfer request. `OriginalTicketAttendeeId` FK → `ticket_att
 - Request creation emails the Sender + `tickets@nobodies.team`; a decision emails the Sender + Receiver. Notification lookup and delivery are best-effort after the lifecycle change has persisted, but request cancellation is always rethrown rather than logged as a delivery failure.
 - `TicketSyncState` is a singleton row (Id = 1). `LastSyncAt` is the resume cursor passed back to the vendor as `updated_at.gte` on the next run. A sync stuck in `Running` for >30 minutes is auto-reset to `Error` by `GetDashboardStatsAsync` (crash recovery).
 - A vendor 5xx/transport failure **and** a vendor request timeout are both transient: `LastSyncAt` is preserved, `SyncStatus` returns to `Idle`, and the job retries next run without rethrowing. Only a genuine fault (anything else, including a real cancellation) sets `SyncStatus = Error`, persists `LastError`, and rethrows.
+- Every configured sync attempt clears the local order and user-holdings cache slices on exit, including failure or cancellation: later stages can fail after order/attendee writes have committed, and readers must reload that persisted state.
 
 ## Negative Access Rules
 

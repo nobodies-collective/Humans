@@ -137,6 +137,8 @@ Append-only audit log. DB-level: `OnDelete(DeleteBehavior.Restrict)` prevents ca
 
 Unique constraint on (UserId, GuideEventId, DayOffset) with `NULLS NOT DISTINCT` (PG15+), so a user cannot hold two whole-event (null-day) favourites for the same event.
 
+Adding a favourite requires a currently approved event. A supplied day on a recurring event with authored recurrence days must match one of those offsets; invalid targets are rejected before persistence (API 404 for missing/unpublished events, 400 for invalid occurrence days). Null still favourites the whole event, and non-recurring events retain their day-ignoring expansion behavior.
+
 ### EventPreference
 
 **Table:** `event_preferences`
@@ -173,6 +175,8 @@ Unique constraint on (UserId, GuideEventId, DayOffset) with `NULLS NOT DISTINCT`
 
 - Submissions are only accepted when `now >= EventGuideSettings.SubmissionOpenAt && now <= EventGuideSettings.SubmissionCloseAt`; the controller enforces this with `IClock` before creating or resubmitting.
 - The individual and barrio submission forms render their field labels through `EventsResource` in every supported culture.
+- The My Submissions controller orders both personal and barrio event lists newest-submitted first; the service returns camp submission counts and event data without a display sort.
+- Submission and moderation lifecycle emails are best-effort after the event write commits. Submitter lookup, message preparation, and delivery failures are logged without turning the committed operation into a reported failure.
 - A moderation action (Approve/Reject/RequestEdit) may only be applied to a `Pending` event; the controller validates status before calling `ApplyModerationAsync`.
 - An admin/moderator in-place edit (`EventsModerationController.Edit`/`Update` → `IEventService.AdminUpdateAsync`) may edit **any** event in **any** status and **preserves `Status`** — an Approved event stays Approved/published and is never re-queued to Pending (contrast `UpdateAndResubmitAsync`, the submitter path, which does re-queue). It appends an `Edited` `ModerationAction` (actor + optional note) and never changes the event's camp association or submitter.
 - `ModerationAction` records are never deleted or updated — `OnDelete(DeleteBehavior.Restrict)` prevents cascade; no Update paths exist in the repository.

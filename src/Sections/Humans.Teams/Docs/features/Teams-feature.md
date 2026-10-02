@@ -64,6 +64,7 @@ Nobodies Collective operates through self-organizing working groups (teams). Tea
 - Request enters Pending status
 - Cannot submit if already have pending request
 - Can withdraw pending request
+- Join, leave, and request-withdrawal failures use the selected UI language, with a translated fallback for unknown errors.
 
 ### US-6.5: Approve/Reject Join Requests
 **As a** team coordinator or board member
@@ -131,7 +132,7 @@ Nobodies Collective operates through self-organizing working groups (teams). Tea
 **Acceptance Criteria:**
 - Edit page at `/Teams/{slug}/EditPage`
 - Toggle public visibility (only for departments, not sub-teams or system teams)
-- Write page content in markdown format
+- Write page content in markdown format; render through the shared sanitizer with no inline styles and HTTPS-only images
 - Configure up to 3 call-to-action buttons (text + URL + style)
 - Only one CTA can be styled as Primary
 - Changes are audit-logged with `TeamPageContentUpdated`

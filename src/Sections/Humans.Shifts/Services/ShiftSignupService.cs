@@ -1,3 +1,6 @@
+using System.Text;
+using System.Globalization;
+using System.Resources;
 using Humans.Auth.Contracts;
 using Humans.Base.Extensions;
 using Humans.AuditLog.Contracts;
@@ -36,6 +39,8 @@ internal sealed class ShiftSignupService(
     IUserServiceRead users,
     IStringLocalizer<ShiftsResource> localizer) : IShiftSignupService, IUserDataContributor, IUserMerge, ICalendarFeedContributor
 {
+    private static readonly ResourceManager NoticeResources = new(typeof(ShiftsResource));
+
     /// <summary>GDPR export JSON keys for this contributor's data.</summary>
     internal const string ShiftSignups = "ShiftSignups";
     internal const string VolunteerEventProfiles = "VolunteerEventProfiles";
@@ -326,14 +331,18 @@ internal sealed class ShiftSignupService(
         {
             try
             {
+                var culture = await GetRecipientCultureAsync(userId);
+                var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString("Shifts_Notification_AssignedDay", culture)!,
+                        shift.Rota.Name, shift.DayOffset));
                 await notificationService.SendAsync(
                     NotificationSource.ShiftAssigned,
                     NotificationClass.Informational,
                     NotificationPriority.Normal,
-                    $"You were assigned to {shift.Rota.Name} on day {shift.DayOffset}",
+                    noticeCopy.Title,
                     [userId],
+                    body: noticeCopy.Body,
                     actionUrl: "/Shifts",
-                    actionLabel: "View shifts");
+                    actionLabel: NoticeResources.GetString("Shifts_BrowseAvailable", culture));
             }
             catch (Exception ex)
             {
@@ -455,14 +464,19 @@ internal sealed class ShiftSignupService(
         {
             try
             {
+                var culture = await GetRecipientCultureAsync(userId);
+                var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString(assignable.Count == 1
+                        ? "Shifts_Notification_AssignedRangeSingular" : "Shifts_Notification_AssignedRange", culture)!,
+                        rota.Name, assignable.Count));
                 await notificationService.SendAsync(
                     NotificationSource.ShiftAssigned,
                     NotificationClass.Informational,
                     NotificationPriority.Normal,
-                    $"You were assigned to {rota.Name} ({assignable.Count} shifts)",
+                    noticeCopy.Title,
                     [userId],
+                    body: noticeCopy.Body,
                     actionUrl: "/Shifts",
-                    actionLabel: "View shifts");
+                    actionLabel: NoticeResources.GetString("Shifts_BrowseAvailable", culture));
             }
             catch (Exception ex)
             {
@@ -592,7 +606,7 @@ internal sealed class ShiftSignupService(
         shiftsInRange = conflictSelection.Shifts;
         if (shiftsInRange.Count == 0)
             return conflictSelection.Warnings.Count > 0
-                ? SignupResult.Fail(string.Join(" ", conflictSelection.Warnings) + " Nothing to add.")
+                ? SignupResult.Fail(string.Join(" ", conflictSelection.Warnings) + " " + localizer["Shifts_Signup_RangeNothingToAdd"].Value)
                 : SignupResult.Fail(localizer["Shifts_Signup_RangeEmpty"]);
 
         var capacitySelection = await SelectCapacityAvailableRangeShiftsAsync(shiftsInRange);
@@ -605,7 +619,7 @@ internal sealed class ShiftSignupService(
         if (capacitySelection.FullDayOffsets.Count > 0)
         {
             var dayList = FormatRangeDayList(calendar, capacitySelection.FullDayOffsets);
-            warning = AppendRangeWarning(warning, $"Day(s) {dayList} are at capacity.");
+            warning = AppendRangeWarning(warning, localizer["Shifts_Signup_RangeCapacityDays", dayList].Value);
         }
 
         var availableShifts = capacitySelection.AvailableShifts;
@@ -637,7 +651,7 @@ internal sealed class ShiftSignupService(
         return SignupResult.Ok(createdSignups.LastSignup.Id, warning);
     }
 
-    private static RangeSignupCandidateSelection PruneDuplicateRangeShifts(
+    private RangeSignupCandidateSelection PruneDuplicateRangeShifts(
         List<Shift> shiftsInRange,
         IReadOnlyCollection<ShiftSignup> existingSignups,
         EventSettingsInfo eventSettings,
@@ -656,14 +670,14 @@ internal sealed class ShiftSignupService(
             return new RangeSignupCandidateSelection(
                 shiftsInRange,
                 [],
-                SignupResult.Fail("Already signed up for one or more shifts in this range."));
+                SignupResult.Fail(localizer["Shifts_Signup_RangeDuplicate"]));
 
         var alreadySignedUpDays = shiftsInRange
             .Where(s => activeShiftIds.Contains(s.Id))
             .Select(s => s.DayOffset)
             .ToList();
         var dayList = FormatRangeDayList(eventSettings, alreadySignedUpDays);
-        var warnings = new List<string> { $"Already signed up for day(s): {dayList}." };
+        var warnings = new List<string> { localizer["Shifts_Signup_RangeDuplicateWarning", dayList].Value };
         var remainingShifts = shiftsInRange
             .Where(s => !activeShiftIds.Contains(s.Id))
             .ToList();
@@ -687,9 +701,9 @@ internal sealed class ShiftSignupService(
             return new RangeSignupCandidateSelection(
                 shiftsInRange,
                 existingWarnings.ToList(),
-                SignupResult.Fail($"Time conflict on day(s): {dayList}."));
+                SignupResult.Fail(localizer["Shifts_Signup_RangeConflictDays", dayList].Value));
 
-        var warnings = existingWarnings.Append($"Time conflict on day(s): {dayList}.").ToList();
+        var warnings = existingWarnings.Append(localizer["Shifts_Signup_RangeConflictDays", dayList].Value).ToList();
         var remainingShifts = shiftsInRange
             .Where(s => !conflictingDays.Contains(s.DayOffset))
             .ToList();
@@ -764,7 +778,7 @@ internal sealed class ShiftSignupService(
             return warning;
 
         var eeDayList = FormatRangeDayList(eventSettings, fullEeDays);
-        return AppendRangeWarning(warning, $"Early entry capacity reached for day(s): {eeDayList}.");
+        return AppendRangeWarning(warning, localizer["Shifts_Signup_RangeEarlyEntryCapacityDays", eeDayList].Value);
     }
 
     private static string AppendRangeWarning(string? warning, string nextWarning)
@@ -1142,6 +1156,30 @@ internal sealed class ShiftSignupService(
         return null;
     }
 
+    // Notification storage holds 200 Unicode characters; retain the full title in the body.
+    private static (string Title, string? Body) PrepareNoticeCopy(string title, string? body = null)
+    {
+        if (title.EnumerateRunes().Count() <= 200)
+            return (title, body);
+
+        return (string.Concat(title.EnumerateRunes().Take(199)) + "…",
+            body is null ? title : string.Concat(title, "\n\n", body));
+    }
+
+    private async Task<CultureInfo> GetRecipientCultureAsync(Guid userId)
+    {
+        try
+        {
+            var language = (await users.GetUserInfoAsync(userId))?.PreferredLanguage;
+            return CultureInfo.GetCultureInfo(language.IsSupportedCultureCode() ? language! : "en");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to resolve assignment notice language for user {UserId}; using English", userId);
+            return CultureInfo.GetCultureInfo("en");
+        }
+    }
+
     private async Task CheckAndNotifyCoverageGapAsync(ShiftSignup signup, Shift shift)
     {
         try
@@ -1163,13 +1201,14 @@ internal sealed class ShiftSignupService(
             if (coordinatorIds.Count == 0)
                 return;
 
+            var noticeCopy = PrepareNoticeCopy($"Coverage gap: {shift.Rota.Name} day {shift.DayOffset}", $"Only {confirmedCount}/{shift.MinVolunteers} volunteers confirmed.");
             await notificationService.SendAsync(
                 NotificationSource.ShiftCoverageGap,
                 NotificationClass.Actionable,
                 NotificationPriority.High,
-                $"Coverage gap: {shift.Rota.Name} day {shift.DayOffset}",
+                noticeCopy.Title,
                 coordinatorIds,
-                body: $"Only {confirmedCount}/{shift.MinVolunteers} volunteers confirmed.",
+                body: noticeCopy.Body,
                 actionUrl: $"/Shifts?departmentId={teamId}",
                 actionLabel: "Find cover →");
         }
@@ -1203,13 +1242,14 @@ internal sealed class ShiftSignupService(
             if (coordinatorIds.Count == 0)
                 return;
 
+            var noticeCopy = PrepareNoticeCopy($"Shift signup change: {rotaName}", enrichedDescription);
             await notificationService.SendAsync(
                 NotificationSource.ShiftSignupChange,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
-                $"Shift signup change: {rotaName}",
+                noticeCopy.Title,
                 coordinatorIds,
-                body: enrichedDescription,
+                body: noticeCopy.Body,
                 actionUrl: $"/Shifts?departmentId={teamId}",
                 actionLabel: "View →");
         }

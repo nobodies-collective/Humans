@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Globalization;
 using Microsoft.Extensions.Localization;
 using Humans.Events.Services.Dtos;
 using Humans.Base.Extensions;
@@ -182,7 +183,7 @@ internal sealed class EventService(
             SubmittedCount: events.Count,
             ApprovedCount: events.Count(e => e.Status == EventStatus.Approved),
             PendingCount: events.Count(e => e.Status == EventStatus.Pending),
-            Events: events.OrderByDescending(e => e.SubmittedAt).ToList());
+            Events: events);
     }
 
     public async Task SubmitEventAsync(Event guideEvent, string? lifecycleActionUrl = null, CancellationToken ct = default)
@@ -199,22 +200,21 @@ internal sealed class EventService(
     private async Task SendLifecycleEmailAsync(
         Event guideEvent, EventStatus newStatus, string? reason, string actionUrl, CancellationToken ct)
     {
-        var submitter = await userService.GetUserInfoAsync(guideEvent.SubmitterUserId, ct);
-        if (submitter?.Email is null)
-        {
-            logger.LogWarning(
-                "Skipping lifecycle email for event {EventId}: submitter {SubmitterId} has no notification email",
-                guideEvent.Id, guideEvent.SubmitterUserId);
-            return;
-        }
-
-        var submitterEmail = submitter.Email;
-
-        // The mutation is already persisted by the caller — a degraded email
-        // service must not fail the submit/moderation operation (and, via the
-        // caching decorator, must not skip cache invalidation).
+        // The mutation is already persisted by the caller — failures preparing or
+        // sending email must not report a failed submit/moderation operation.
         try
         {
+            var submitter = await userService.GetUserInfoAsync(guideEvent.SubmitterUserId, ct);
+            if (submitter?.Email is null)
+            {
+                logger.LogWarning(
+                    "Skipping lifecycle email for event {EventId}: submitter {SubmitterId} has no notification email",
+                    guideEvent.Id, guideEvent.SubmitterUserId);
+                return;
+            }
+
+            var submitterEmail = submitter.Email;
+
             await emailService.SendAsync(emailMessages.EventLifecycle(
                 new EventLifecycleNotification(
                     NewStatus: newStatus,
@@ -425,8 +425,21 @@ internal sealed class EventService(
             f.Id, f.UserId, f.GuideEventId, f.DayOffset, f.CreatedAt, ToEventInfo(f.Event))).ToList();
     }
 
-    public Task<bool> AddFavouriteAsync(Guid userId, Guid eventId, int? dayOffset, CancellationToken ct = default)
-        => repo.AddFavouriteIfAbsentAsync(BuildFavourite(userId, eventId, dayOffset), ct);
+    public async Task<bool> AddFavouriteAsync(Guid userId, Guid eventId, int? dayOffset, CancellationToken ct = default)
+    {
+        var ev = await repo.GetApprovedEventByIdAsync(eventId, ct)
+            ?? throw new KeyNotFoundException();
+        if (dayOffset is { } day && ev.IsRecurring && !string.IsNullOrWhiteSpace(ev.RecurrenceDays)
+            && !ev.RecurrenceDays
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Any(value => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var offset)
+                    && offset == day))
+        {
+            throw new ArgumentOutOfRangeException(nameof(dayOffset));
+        }
+
+        return await repo.AddFavouriteIfAbsentAsync(BuildFavourite(userId, eventId, dayOffset), ct);
+    }
 
     public Task<bool> RemoveFavouriteAsync(Guid userId, Guid eventId, int? dayOffset, CancellationToken ct = default)
         => repo.RemoveFavouriteAsync(userId, eventId, dayOffset, ct);

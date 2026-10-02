@@ -176,8 +176,9 @@ internal sealed class ShiftsController(
             return RedirectHeader(Url.Action(
                 "Index", "OnboardingWidget"));
 
-        var es = await burnSettings.GetActiveAsync(ct)
-            ?? throw new InvalidOperationException("ToggleDay requires an active event.");
+        var es = await burnSettings.GetActiveAsync(ct);
+        if (es is null)
+            return RedirectHeader(Url.Action(nameof(Index)));
 
         // Narrow flag drives SignUpAsync's auto-confirm path (admin/approver only); also
         // folded into the service's broader CanViewRestricted (matches the browse page)
@@ -395,7 +396,7 @@ internal sealed class ShiftsController(
         }
 
         var es = await burnSettings.GetActiveAsync(HttpContext.RequestAborted);
-        if (es is null) return BadRequest("No active event.");
+        if (es is null) return BadRequest(localizer["VolTrack_NoActiveEvent"].Value);
 
         await volunteerTrackingService.SetAvailabilityAsync(user.Id, es.Id, dayOffsets ?? []);
         SetSuccess(localizer["Shifts_AvailabilityUpdated"].Value);

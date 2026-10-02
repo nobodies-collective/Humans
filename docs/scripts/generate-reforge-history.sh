@@ -7,8 +7,8 @@
 #
 # Modes:
 #   default: incremental — append rows for days strictly after the last date
-#            already in the CSV.
-#   --full:  rebuild from scratch by deleting the existing CSV first.
+#            already in the CSV; publish only when every selected day succeeds.
+#   --full:  rebuild from scratch, replacing the CSV only after snapshots succeed.
 #
 # Requirements:
 #   - reforge CLI on PATH (install via `dotnet tool install -g Reforge`)
@@ -51,33 +51,41 @@ fi
 ORIG_REF=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 
 # Use the system temp dir but DO NOT name our variables TMP/TEMP/TMPDIR.
-WORK_DIR="${TMPDIR:-/tmp}/reforge-history-$$"
-mkdir -p "$WORK_DIR"
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/reforge-history-XXXXXX")
 GAP_ROWS="$WORK_DIR/gap-rows.csv"
 SNAPSHOT_WORKTREE="$WORK_DIR/checkout"
-> "$GAP_ROWS"
-
+PUBLISH_FILE=""
+SNAPSHOT_CREATED=false
 cleanup() {
-  if [ -d "$SNAPSHOT_WORKTREE" ]; then
-    git worktree remove --force "$SNAPSHOT_WORKTREE" 2>/dev/null \
-      || { rm -rf -- "$SNAPSHOT_WORKTREE" 2>/dev/null || true; git worktree prune --quiet 2>/dev/null || true; }
+  local cleanup_status=$?
+  if [ -n "$PUBLISH_FILE" ]; then
+    rm -f -- "$PUBLISH_FILE"
+  fi
+  if [ "$SNAPSHOT_CREATED" = true ]; then
+    if ! git worktree remove --force "$SNAPSHOT_WORKTREE" 2>/dev/null; then
+      echo "Error: could not remove this run's worktree at $SNAPSHOT_WORKTREE; leaving it intact." >&2
+      if [ "$cleanup_status" -eq 0 ]; then cleanup_status=1; fi
+    fi
   fi
   if [ -d "$WORK_DIR" ]; then
     rm -- "$WORK_DIR"/* 2>/dev/null || true
     rmdir "$WORK_DIR" 2>/dev/null || true
   fi
+  exit "$cleanup_status"
 }
 trap cleanup EXIT
+> "$GAP_ROWS"
+
 
 # Determine date range to process.
 if [ "$FULL" = "true" ] || [ ! -f "$CSV" ]; then
-  rm -f "$CSV"
+  FULL=true
   RANGE="main"
 else
   LAST_DATE=$(tail -n 1 "$CSV" | cut -d, -f1 | cut -dT -f1)
   if [ -z "$LAST_DATE" ]; then
     echo "Could not read last date from $CSV — falling back to --full"
-    rm -f "$CSV"
+    FULL=true
     RANGE="main"
   else
     # Find the last commit that's on or before LAST_DATE so we can use it as
@@ -86,7 +94,7 @@ else
     LAST_FULL=$(git rev-parse "$LAST_COMMIT" 2>/dev/null || echo "")
     if [ -z "$LAST_FULL" ]; then
       echo "Last commit $LAST_COMMIT in CSV not found in repo — falling back to --full"
-      rm -f "$CSV"
+      FULL=true
       RANGE="main"
     else
       RANGE="$LAST_FULL..main"
@@ -125,11 +133,13 @@ fi
 # Create the throwaway worktree that historical checkouts happen in. This
 # never touches the caller's tree (see the header comment).
 git worktree add --quiet --detach "$SNAPSHOT_WORKTREE" "$ORIG_REF"
+SNAPSHOT_CREATED=true
 
 TOTAL=$(echo "$COMMITS" | wc -l)
 N=0
 OK=0
 FAIL=0
+SNAPSHOT_HEADER=""
 
 for COMMIT in $COMMITS; do
   N=$((N+1))
@@ -147,7 +157,10 @@ for COMMIT in $COMMITS; do
   # running there, so invoking from the caller's cwd would relay `snapshot` to a
   # server holding the caller's checkout and silently record rows for the wrong
   # commit. The subshell keeps the caller's cwd unchanged for the merge below.
-  if ( cd "$SNAPSHOT_WORKTREE" && reforge snapshot --solution "$SNAPSHOT_WORKTREE/$SOLUTION" --append "$SNAP" >/dev/null 2>&1 ) && [ -s "$SNAP" ]; then
+  if ( cd "$SNAPSHOT_WORKTREE" && reforge snapshot --solution "$SNAPSHOT_WORKTREE/$SOLUTION" --append "$SNAP" >/dev/null 2>&1 ) && [ -s "$SNAP" ] && [ -n "$(tail -n +2 "$SNAP")" ]; then
+    if [ -z "$SNAPSHOT_HEADER" ]; then
+      SNAPSHOT_HEADER=$(head -1 "$SNAP")
+    fi
     # Strip header (first line); append the data row to the gap accumulator.
     tail -n +2 "$SNAP" >> "$GAP_ROWS"
     OK=$((OK+1))
@@ -160,34 +173,50 @@ for COMMIT in $COMMITS; do
   git -C "$SNAPSHOT_WORKTREE" checkout --quiet HEAD -- "$CSV" 2>/dev/null || true
 done
 
-# Merge: existing CSV (or empty if --full) + gap rows. Dedup by date column
-# (latest timestamp wins). Sort by timestamp ascending. The caller's tree was
-# never touched, so $CSV is read/written here directly.
-HEADER=""
-if [ -f "$CSV" ]; then
-  HEADER=$(head -1 "$CSV")
+if [ "$OK" -eq 0 ]; then
+  echo "Error: no snapshots succeeded; existing CSV was preserved." >&2
+  exit 1
 fi
-if [ -z "$HEADER" ]; then
-  # First-time run: take the header from any successful snapshot.
-  ANY_SNAP=$(ls -1 "$WORK_DIR"/snap-*.csv 2>/dev/null | head -1)
-  if [ -n "$ANY_SNAP" ]; then
-    HEADER=$(head -1 "$ANY_SNAP")
-  fi
+
+# The last CSV row is the next incremental run's checkpoint. Publishing later
+# successes past a failed day would make that day unreachable on future runs.
+if [ "$FULL" != "true" ] && [ "$FAIL" -gt 0 ]; then
+  echo "Error: incremental snapshots failed; existing CSV was preserved for retry." >&2
+  exit 1
+fi
+
+# Merge existing rows only in incremental mode. Full rebuilds use the header
+# from a successful snapshot, not the old schema or an empty failed snapshot.
+HEADER="$SNAPSHOT_HEADER"
+if [ "$FULL" != "true" ] && [ -f "$CSV" ]; then
+  HEADER=$(head -1 "$CSV")
 fi
 
 MERGED="$WORK_DIR/merged.csv"
 {
-  [ -f "$CSV" ] && tail -n +2 "$CSV"
+  if [ "$FULL" != "true" ] && [ -f "$CSV" ]; then
+    tail -n +2 "$CSV"
+  fi
   cat "$GAP_ROWS"
 } | sort -t, -k1,1 | awk -F, '
     { date=substr($1,1,10); row[date]=$0 }
     END { for (d in row) print row[d] }
   ' | sort -t, -k1,1 > "$MERGED"
 
+# Stage beside the destination so the final rename is atomic even when
+# the system temp directory is on a different filesystem.
+PUBLISH_FILE=$(mktemp "${CSV}.XXXXXX")
 {
-  [ -n "$HEADER" ] && echo "$HEADER"
+  echo "$HEADER"
   cat "$MERGED"
-} > "$CSV"
+} > "$PUBLISH_FILE"
+if [ -f "$CSV" ]; then
+  chmod --reference="$CSV" "$PUBLISH_FILE"
+else
+  chmod 644 "$PUBLISH_FILE"
+fi
+mv -- "$PUBLISH_FILE" "$CSV"
+PUBLISH_FILE=""
 
 ROWS=$(($(wc -l < "$CSV") - 1))
 echo "Done. ok=$OK fail=$FAIL — CSV has $ROWS rows ($(tail -n +2 "$CSV" | cut -d, -f1 | cut -dT -f1 | sort -u | wc -l) distinct days)."

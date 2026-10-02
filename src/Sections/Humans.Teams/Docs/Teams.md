@@ -184,19 +184,21 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 - A department can have **at most one** role flagged as management (coordinator). Enforced in both the toggle and edit paths.
 - A sub-team can have **at most one** role flagged as management (manager).
 - Toggling or changing the `IsManagement` flag on a role definition is restricted to **TeamsAdmin / Admin** (`ToggleManagement` action and `EditRole` IsManagement field). Coordinators / sub-team managers can still create, rename, and delete other (non-management) role definitions on their team — they just cannot promote/demote the management role itself.
-- A `TeamRoleDefinition.IsPublic = false` role is hidden from volunteer-facing views (team detail, roster) but remains visible to coordinators and admins. The team-detail roster's headings, role periods, priorities, and empty-slot labels use section or shared resources.
+- A `TeamRoleDefinition.IsPublic = false` role is hidden from volunteer-facing views (team detail, roster) but remains visible to coordinators and admins. The team-detail roster's headings (including subteam leads), fallback role titles, role periods, priorities, and empty-slot labels use section or shared resources.
 - Members of sub-teams are also considered members of the department. They appear in the department's member roster and inherit the department's legal requirements and Google resource access.
 - A human can be a member of multiple teams simultaneously.
 - System team membership is managed exclusively by an automated sync job. Manual add/remove is blocked for system teams.
 - Role definitions can be created on any team, including system teams (e.g. governance roles on the Board team). However, `AssignToRoleAsync` blocks assigning a **non-member** to a role on a system team — only existing sync-managed members can be assigned, so role assignment cannot become a backdoor for the manual-membership block above.
 - Joining a team that requires approval creates a join request (Pending). The request must be approved by a coordinator or TeamsAdmin before membership is granted. Teams that do not require approval add the human immediately.
+- Member join, leave, and request-withdrawal errors use the selected UI language. Validation guards return resource keys; unknown errors use a translated fallback while logs retain the reason.
+- Coordinator notifications after a saved join request or direct join are best-effort, including display-name lookup. Notification preparation failures are logged and do not fail the committed operation.
 - Coordinators can approve/reject join requests for their own department and any sub-teams within that department (enforced by `IsUserCoordinatorOfTeamAsync`).
 - All member additions and removals are audit-logged via `AuditLogEntry`.
 - Google resource access changes triggered by membership changes (Drive folder permissions, Group memberships) are logged in the audit trail.
 - Removing a member from a team also removes all their role assignments on that team.
 - Each team has a unique slug used for URL routing. A custom slug can override the auto-generated one.
 - A Google Group prefix, if set, provisions a `@nobodies.team` group for the team.
-- Only departments (not sub-teams or system teams) can have public team pages.
+- Only departments (not sub-teams or system teams) can have public team pages. Team page Markdown uses the shared sanitized renderer: inline styles and non-HTTPS image sources are removed; supported task-list markup is retained.
 - A **hidden team** (`IsHidden = true`) is invisible to non-admin users: it does not appear on profile cards, team listings, public pages, birthday team names, or the "My Teams" page. Only Admin, Board, and TeamsAdmin can see and manage hidden teams. Campaigns can still target hidden teams for code distribution. The system-team sync skips the "added to team" email for hidden teams.
 - A **sensitive team** (`IsSensitive = true`) is an admin-only flag (not publicly visible). **Only a global Admin can set or clear `IsSensitive`**, enforced in `TeamService.UpdateTeamAsync`: a caller that changes the flag must pass the global Admin check, so no second caller can set it around Edit Team. On Edit Team the checkbox is additionally suppressed for non-Admin editors, so a non-Admin's save passes `null` (leave-unchanged) and never reaches the check (ref #824). Adding or approving a member surfaces a deterrent confirmation modal in the Members admin view that shows the audit record that will be created.
 - The Teams directory (`/Teams`) shows only **directory-visible** teams: top-level teams (departments) always appear; sub-teams only appear if `IsPromotedToDirectory` is true. Sub-teams are always accessible from their parent team's detail page regardless of this flag.
@@ -219,7 +221,7 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 
 ## Triggers
 
-- When a join request is approved, a team membership record is created and the human is notified.
+- When a join request is approved, a team membership record is created and the human is notified. Added-member notices reuse the translated email subject and the recipient language already prepared for email, retaining that language if email preparation/delivery fails. Approval, rejection and member-removal notices use the recipient’s supported saved language across all six cultures, with English fallback for missing/unsupported languages or a failed language lookup.
 - When a member is removed from a team, all their role assignments for that team are also removed.
 - When a member is added to a team, Google resource sync (Drive folder permissions, Group memberships) runs inline against the Google APIs (and rolls up to the parent department's resources for sub-team adds). Per-user removals are deferred to the daily reconciliation job rather than running inline. Failed sync calls fall through to the Google sync outbox, processed by `google-sync-outbox-process`.
 - When a department coordinator role assignment changes, the Coordinators system team membership is recalculated for the affected human. Sub-team manager changes do not affect the Coordinators system team.
@@ -227,6 +229,8 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 - When an account merge accepts, `ITeamService.ReassignToUserAsync` re-FKs `TeamMember`, `TeamJoinRequest`, and `TeamEarlyEntryGrant` rows from source to target, collapsing duplicates so the same target doesn't end up with two memberships of the same team. Called only by `IAccountMergeService.AcceptAsync` (Profiles section).
 - Each Early Entry mutation writes an `AuditLogEntry` (`EarlyEntryGranted` on add, `EarlyEntryUpdated` on edit, `EarlyEntryRevoked` on remove) against the `TeamEarlyEntryGrant` and evicts the affected user's EE cache.
 - Right-to-erasure (`IUserDataContributor.EraseForUserAsync`): ends live memberships, then hard-deletes the user's join requests and EE grants; the GDPR export contributes a `TeamEarlyEntry` data slice.
+
+- Team names in notices may outgrow the 200-character title limit. These producers bound titles by Unicode character, preserving the full title and existing detail in the body; short notice copy is unchanged.
 
 ## Cross-Section Dependencies
 

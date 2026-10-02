@@ -466,6 +466,85 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         result.ErrorKey.Should().Be("NotFound");
     }
 
+    [HumansTheory]
+    [Xunit.InlineData(true, false)]
+    [Xunit.InlineData(true, true)]
+    [Xunit.InlineData(false, false)]
+    [Xunit.InlineData(false, true)]
+    public async Task FinalizeAsync_EmailLookupFailureKeepsDecisionSuccessfulAndDispatchesNotice(
+        bool approve, bool addressLookup)
+    {
+        var userId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var app = await SeedSubmittedApplicationAsync(userId);
+        await SeedBoardVoteAsync(app.Id);
+        if (addressLookup)
+        {
+            var user = new User { Id = userId, BurnerName = "Applicant", PreferredLanguage = "en" };
+            _userService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>()).Returns(user.ToUserInfo());
+            _userEmailService.GetNotificationTargetEmailsAsync(
+                    Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromException<IReadOnlyDictionary<Guid, string>>(new IOException("address lookup unavailable")));
+        }
+        else
+        {
+            _userService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
+                .Returns(new ValueTask<UserInfo?>(Task.FromException<UserInfo?>(new IOException("user lookup unavailable"))));
+        }
+
+        var result = approve
+            ? await _service.ApproveAsync(app.Id, reviewerId, null, null, Xunit.TestContext.Current.CancellationToken)
+            : await _service.RejectAsync(app.Id, reviewerId, "Reason", null, Xunit.TestContext.Current.CancellationToken);
+
+        result.Success.Should().BeTrue();
+        ClearAllTrackers();
+        var persisted = await GovernanceDb.Applications.FindAsync(app.Id, Xunit.TestContext.Current.CancellationToken);
+        persisted!.Status.Should().Be(approve ? ApplicationStatus.Approved : ApplicationStatus.Rejected);
+        await AuditLog.Received(1).LogAsync(
+            approve ? AuditAction.TierApplicationApproved : AuditAction.TierApplicationRejected,
+            AuditEntityTypes.Application, app.Id, Arg.Any<string>(), reviewerId,
+            Arg.Any<Guid?>(), Arg.Any<string?>());
+        await _notificationService.Received(1).SendAsync(
+            approve ? NotificationSource.ApplicationApproved : NotificationSource.ApplicationRejected,
+            NotificationClass.Informational, NotificationPriority.Normal, Arg.Any<string>(),
+            Arg.Is<IReadOnlyList<Guid>>(ids => ids.Count == 1 && ids[0] == userId),
+            Arg.Any<string?>(), "/Governance/Applications", "View application",
+            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(true, false)]
+    [Xunit.InlineData(false, false)]
+    [Xunit.InlineData(true, true)]
+    public async Task DecisionNotices_UseRecipientLanguageEvenWhenEmailDeliveryFails(bool approve, bool emailFailure)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var app = await SeedSubmittedApplicationAsync(userId);
+        await SeedBoardVoteAsync(app.Id);
+        _userService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new User { Id = userId, BurnerName = "Applicant", PreferredLanguage = "es" }.ToUserInfo());
+        _userEmailService.GetNotificationTargetEmailsAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string> { [userId] = "applicant@example.com" }));
+        if (emailFailure)
+            _emailService.SendAsync(Arg.Any<EmailMessage>())
+                .Returns(Task.FromException(new IOException("Email delivery unavailable")));
+
+        var result = approve
+            ? await _service.ApproveAsync(app.Id, Guid.NewGuid(), null, null, ct)
+            : await _service.RejectAsync(app.Id, Guid.NewGuid(), "Reason", null, ct);
+
+        result.Success.Should().BeTrue();
+        var args = _notificationService.ReceivedCalls().Single().GetArguments();
+        args[0].Should().Be(approve ? NotificationSource.ApplicationApproved : NotificationSource.ApplicationRejected);
+        ((IReadOnlyList<Guid>)args[4]!).Should().ContainSingle().Which.Should().Be(userId);
+        args[3].Should().Be(approve ? "Tu solicitud de Colaborador ha sido aprobada" : "Tu solicitud de Colaborador no ha sido aprobada");
+        args[5].Should().Be(approve ? "¡Enhorabuena! Tu solicitud de Colaborador ha sido aprobada." : "Tu solicitud de Colaborador no ha sido aprobada.");
+        args[6].Should().Be("/Governance/Applications");
+        args[7].Should().Be("Ver solicitud");
+        await _userService.Received(1).GetUserInfoAsync(userId, Arg.Any<CancellationToken>());
+    }
+
     [HumansFact]
     public async Task ApproveAsync_EmailsApplicantViaUserServiceLookup()
     {
@@ -753,6 +832,40 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         var result = await _service.GetUserApplicationsAsync(Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
 
         result.Should().BeEmpty();
+    }
+
+    [HumansFact]
+    public async Task GetBoardVotingDetailAsync_ReturnsVotesWithoutUnusedVoterNameLookup()
+    {
+        var app = await SeedSubmittedApplicationAsync(Guid.NewGuid());
+        var voterId = Guid.NewGuid();
+        var votedAt = Clock.GetCurrentInstant();
+        GovernanceDb.BoardVotes.Add(new BoardVote
+        {
+            Id = Guid.NewGuid(),
+            ApplicationId = app.Id,
+            BoardMemberUserId = voterId,
+            Vote = VoteChoice.Yay,
+            Note = "Support",
+            VotedAt = votedAt
+        });
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+        ClearAllTrackers();
+        _userService.GetUserInfosAsync(
+                Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => ValueTask.FromException<IReadOnlyDictionary<Guid, UserInfo>>(
+                new IOException("Unused voter name lookup failed")));
+
+        var detail = await _service.GetBoardVotingDetailAsync(
+            app.Id, Xunit.TestContext.Current.CancellationToken);
+
+        detail.Should().NotBeNull();
+        detail.ApplicationId.Should().Be(app.Id);
+        var vote = detail.Votes.Should().ContainSingle().Subject;
+        vote.BoardMemberUserId.Should().Be(voterId);
+        vote.Vote.Should().Be(VoteChoice.Yay);
+        vote.Note.Should().Be("Support");
+        vote.VotedAt.Should().Be(votedAt);
     }
 
     // --- GetUserApplicationDetailAsync ---

@@ -325,4 +325,10 @@
 &lt;p&gt;&lt;a href="{2}"&gt;Apri il sondaggio&lt;/a&gt;&lt;/p&gt;
 &lt;p&gt;Grazie,&lt;br/&gt;Il Nobodies Collective&lt;/p&gt;</value></data>
   <data name="Survey_Admin_Builder_InvitationRecipients" xml:space="preserve"><value>Tutti coloro a cui viene inviato questo sondaggio (scelti al momento dell'invio)</value></data>
+  <data name="Surveys_Created" xml:space="preserve"><value>Sondaggio creato.</value></data>
+  <data name="Surveys_Saved" xml:space="preserve"><value>Sondaggio salvato.</value></data>
+  <data name="Surveys_PreviewEmailQueued" xml:space="preserve"><value>L’email di anteprima del sondaggio è stata messa in coda per {0}.</value></data>
+  <data name="Surveys_PreviewNotFound" xml:space="preserve"><value>Sondaggio non trovato.</value></data>
+  <data name="Surveys_PreviewNoEmail" xml:space="preserve"><value>Il tuo account non ha un indirizzo email per le notifiche.</value></data>
+  <data name="Surveys_PreviewQueueFailed" xml:space="preserve"><value>Non è stato possibile mettere in coda l’email di anteprima del sondaggio.</value></data>
 </root>

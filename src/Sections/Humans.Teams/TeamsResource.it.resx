@@ -200,6 +200,27 @@
   <data name="Team_RequestWithdrawn" xml:space="preserve">
     <value>La Sua richiesta è stata ritirata.</value>
   </data>
+  <data name="Teams_NotFound" xml:space="preserve">
+    <value>Team non trovato.</value>
+  </data>
+  <data name="Teams_CannotJoinHidden" xml:space="preserve">
+    <value>Non puoi unirti direttamente a un team nascosto.</value>
+  </data>
+  <data name="Teams_JoinPolicyChanged" xml:space="preserve">
+    <value>I requisiti per unirti al team sono cambiati. Riprova.</value>
+  </data>
+  <data name="Teams_CannotLeaveSystem" xml:space="preserve">
+    <value>Non puoi lasciare direttamente un team gestito dal sistema.</value>
+  </data>
+  <data name="Teams_NotMember" xml:space="preserve">
+    <value>Non fai parte di questo team.</value>
+  </data>
+  <data name="Teams_RequestUnavailable" xml:space="preserve">
+    <value>Questa richiesta di adesione non è disponibile o non è più in attesa.</value>
+  </data>
+  <data name="Teams_ActionFailed" xml:space="preserve">
+    <value>Impossibile completare questa azione del team. Riprova.</value>
+  </data>
   <data name="TeamAdmin_RequestApproved" xml:space="preserve">
     <value>Richiesta approvata. L'utente fa ora parte del team.</value>
   </data>
@@ -402,6 +423,7 @@
   <data name="TeamDetail_TeamCoordinators" xml:space="preserve">
     <value>Coordinatori</value>
   </data>
+  <data name="Teams_Detail_SubteamLeads" xml:space="preserve"><value>Responsabili dei sottogruppi ({0})</value></data>
   <data name="TeamDetail_AboutTeam" xml:space="preserve">
     <value>Informazioni</value>
   </data>
@@ -550,4 +572,9 @@
   <data name="Teams_EditTeam_EnableEarlyEntry" xml:space="preserve"><value>Abilita l'ingresso anticipato</value></data>
   <data name="Teams_EditTeam_EnableEarlyEntryHelp" xml:space="preserve"><value>Quando attivato, i coordinatori di questo team e gli amministratori dell'ingresso anticipato possono concedere l'ingresso anticipato ai progetti di questo team.</value></data>
   <data name="Teams_TeamDetail_Roles" xml:space="preserve"><value>Ruoli</value></data>
+  <data name="Teams_Notification_JoinApproved" xml:space="preserve"><value>La tua richiesta di unirti a {0} è stata approvata</value></data>
+  <data name="Teams_Notification_Welcome" xml:space="preserve"><value>Ti diamo il benvenuto in {0}!</value></data>
+  <data name="Teams_Notification_ViewTeam" xml:space="preserve"><value>Visualizza il team</value></data>
+  <data name="Teams_Notification_JoinRejected" xml:space="preserve"><value>La tua richiesta di unirti a {0} non è stata approvata</value></data>
+  <data name="Teams_Notification_MemberRemoved" xml:space="preserve"><value>Non fai più parte di {0}</value></data>
 </root>

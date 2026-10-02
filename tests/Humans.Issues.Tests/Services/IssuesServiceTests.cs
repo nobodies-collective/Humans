@@ -411,6 +411,127 @@ public sealed class IssuesServiceTests
         stored.Status.Should().Be(IssueStatus.Open);
     }
 
+    [HumansTheory]
+    [Xunit.InlineData(NotificationSource.IssueSubmitted)]
+    [Xunit.InlineData(NotificationSource.IssueComment)]
+    [Xunit.InlineData(NotificationSource.IssueStatusChanged)]
+    public async Task IssueNotices_FailedLanguageGroup_DoesNotBlockOtherRecipients(NotificationSource source)
+    {
+        var reporter = SeedUser(Guid.NewGuid(), "Reporter");
+        reporter.Email = "reporter@test.com";
+        reporter.PreferredLanguage = "es";
+        var second = SeedUser(Guid.NewGuid(), "Assignee");
+        second.Email = "assignee@test.com";
+        second.PreferredLanguage = "fr";
+        var failedRecipient = source == NotificationSource.IssueSubmitted
+            ? SeedUser(Guid.NewGuid(), "First handler") : reporter;
+        failedRecipient.PreferredLanguage = "es";
+        _roleService.GetActiveUserIdsInRoleAsync(RoleNames.Admin, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<Guid>)[failedRecipient.Id, second.Id]);
+        _notificationService.SendAsync(
+            Arg.Any<NotificationSource>(), Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.ArgAt<IReadOnlyList<Guid>>(4).Contains(failedRecipient.Id)
+                ? Task.FromException(new IOException("first language delivery failed")) : Task.CompletedTask);
+
+        Guid issueId;
+        if (source == NotificationSource.IssueSubmitted)
+        {
+            issueId = (await _service.SubmitIssueAsync(reporter.Id, IssueCategory.Bug, "Title", "Detail",
+                null, null, null, null, null, ct: Xunit.TestContext.Current.CancellationToken)).Id;
+        }
+        else
+        {
+            issueId = await SeedIssueRowAsync(reporter.Id, IssueStatus.Open, "Title");
+            var row = await _issuesDb.Issues.FindAsync([issueId], Xunit.TestContext.Current.CancellationToken);
+            row!.AssigneeUserId = second.Id;
+            await _issuesDb.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+            if (source == NotificationSource.IssueComment)
+                await _service.PostCommentAsync(issueId, Admin, Admin.UserId, "Reply",
+                    ct: Xunit.TestContext.Current.CancellationToken);
+            else
+                await _service.UpdateStatusAsync(issueId, Admin, IssueStatus.InProgress, Admin.UserId,
+                    Xunit.TestContext.Current.CancellationToken);
+        }
+
+        var calls = _notificationService.ReceivedCalls().ToList();
+        calls.Should().HaveCount(2);
+        var arguments = calls[1].GetArguments();
+        arguments[0].Should().Be(source);
+        ((IReadOnlyList<Guid>)arguments[4]!).Should().Equal(second.Id);
+        arguments[6].Should().Be($"/Issues/{issueId}");
+        arguments[7].Should().Be("Voir le sujet");
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(NotificationSource.IssueSubmitted)]
+    [Xunit.InlineData(NotificationSource.IssueComment)]
+    [Xunit.InlineData(NotificationSource.IssueStatusChanged)]
+    [Xunit.InlineData(NotificationSource.IssueAssigned)]
+    public async Task IssueNotices_LongTitleAndDetail_FitStorageAndLinkToFullContent(NotificationSource source)
+    {
+        var reporterId = Guid.NewGuid();
+        SeedUser(reporterId, "Reporter").Email = "reporter@test.com";
+        var recipientId = source == NotificationSource.IssueSubmitted || source == NotificationSource.IssueAssigned
+            ? Guid.NewGuid() : reporterId;
+        if (recipientId != reporterId)
+            SeedUser(recipientId, "Recipient").Email = "recipient@test.com";
+        Db.Users.Single(user => user.Id == recipientId).PreferredLanguage = "es";
+        _roleService.GetActiveUserIdsInRoleAsync(RoleNames.Admin, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<Guid>)[recipientId]);
+        var title = string.Concat(Enumerable.Repeat("🚀", 200));
+        var detail = string.Concat(Enumerable.Repeat("📚", 5000));
+        Guid issueId;
+        if (source == NotificationSource.IssueSubmitted)
+        {
+            issueId = (await _service.SubmitIssueAsync(reporterId, IssueCategory.Bug, title, detail,
+                null, null, null, null, null, ct: Xunit.TestContext.Current.CancellationToken)).Id;
+        }
+        else
+        {
+            issueId = await SeedIssueRowAsync(reporterId, IssueStatus.Open, title);
+            var row = await _issuesDb.Issues.FindAsync([issueId], Xunit.TestContext.Current.CancellationToken);
+            row!.Description = detail;
+            await _issuesDb.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+            switch (source)
+            {
+                case NotificationSource.IssueComment:
+                    await _service.PostCommentAsync(issueId, Admin, Admin.UserId, detail,
+                        ct: Xunit.TestContext.Current.CancellationToken);
+                    break;
+                case NotificationSource.IssueStatusChanged:
+                    await _service.UpdateStatusAsync(issueId, Admin, IssueStatus.InProgress, Admin.UserId,
+                        Xunit.TestContext.Current.CancellationToken);
+                    break;
+                case NotificationSource.IssueAssigned:
+                    await _service.UpdateAssigneeAsync(issueId, Admin, recipientId, Admin.UserId,
+                        Xunit.TestContext.Current.CancellationToken);
+                    break;
+            }
+        }
+
+        var args = _notificationService.ReceivedCalls().Should().ContainSingle().Subject.GetArguments();
+        var noticeTitle = (string)args[3]!;
+        var body = (string)args[5]!;
+        noticeTitle.EnumerateRunes().Count().Should().Be(200);
+        noticeTitle.Should().EndWith("…");
+        body.EnumerateRunes().Count().Should().BeLessThanOrEqualTo(2000);
+        body.Should().Contain(title);
+        if (source != NotificationSource.IssueStatusChanged)
+        {
+            body.EnumerateRunes().Count().Should().Be(2000);
+            body.Should().EndWith("…");
+        }
+        args[0].Should().Be(source);
+        args[6].Should().Be($"/Issues/{issueId}");
+        ((IReadOnlyList<Guid>)args[4]!).Should().Equal(recipientId);
+        var stored = await _issuesDb.Issues.AsNoTracking().SingleAsync(i => i.Id == issueId,
+            Xunit.TestContext.Current.CancellationToken);
+        stored.Title.Should().Be(title);
+        stored.Description.Should().Be(detail);
+    }
+
     [HumansFact]
     public async Task PostCommentAsync_handler_sends_email_and_notification_to_reporter()
     {

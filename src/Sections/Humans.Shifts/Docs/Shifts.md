@@ -22,7 +22,7 @@ Event shifts, rotas, signups, range blocks, event settings, general availability
 - A **Shift Signup** links a human to a shift. Signups progress through states: Pending, Confirmed, Refused, Bailed, Cancelled, or NoShow.
 - **Range Signups** link multiple shifts via a block ID (`SignupBlockId`). Operations on a range (sign-up, voluntell, bail, approve, refuse) apply to the entire block atomically.
 - **Event Settings** is Shifts' per-event knobs row — global volunteer cap, reminder lead time, and whether shift browsing is open to regular volunteers. The calendar (dates, timezone, early-entry capacity/allocation/close instant) and "which event is active" live in Settings (see Data Model).
-- **General Availability** tracks per-human per-event day availability (one row per user per event; `AvailableDayOffsets` is a jsonb list of day offsets).
+- **General Availability** tracks per-human per-event day availability (one row per user per event; `AvailableDayOffsets` is a jsonb list of day offsets). Saving without an active event returns a localized 400 response and writes no availability.
 - **Volunteer Event Profile** stores per-user shift-matching data: skills, quirks (working-style toggles like Sober Shift, Work In Shade, plus a single time preference), and languages. One-to-one with `User`. Dietary preference, allergies, intolerances and medical conditions live on `Profile` (Users section) and are read via `IUserServiceRead`; the unused VEP columns for them await a post-prod-soak drop.
 - **Rota Tags** (`shift_tags`) are labels applied to rotas (e.g., "Heavy lifting"). Volunteers save preferred tags via `VolunteerTagPreference`; matching rotas are starred on the browse page.
 - **Voluntelling** is when an Admin, NoInfoAdmin, VolunteerCoordinator, or department coordinator signs up a human for a shift on their behalf. Voluntold signups are auto-confirmed and recorded with `Enrolled = true` and `EnrolledByUserId`.
@@ -169,7 +169,7 @@ Selected routes:
 |---|---|
 | `GET /Shifts` | Browse shifts (department/date/period/tag filters) |
 | `GET /Shifts/Mine` | Volunteer's own signups |
-| `POST /Shifts/ToggleDay` | Per-day instant signup/bail on the browse page (AJAX, returns the re-rendered row) |
+| `POST /Shifts/ToggleDay` | Per-day instant signup/bail on the browse page (AJAX, returns the re-rendered row); if the active event has disappeared, redirects to browse via `204` + `X-Redirect` without mutating signups |
 | `POST /Shifts/Bail` | Single bail |
 | `POST /Shifts/BailRange` | Range bail (by SignupBlockId) |
 | `POST /Shifts/Mine/Availability` | Save general availability |
@@ -287,7 +287,7 @@ Invalid rota and shift edits redisplay the team shift page without saving. Only 
 - The advisory dietary-missing banner passes `HttpContext.RequestAborted` through its qualifying-signup and profile reads. It still suppresses operational failures so the Shifts page renders, but does not log a disconnected browser as a banner failure.
 
 - Regular humans **cannot** manage rotas or shifts. They can only browse and sign up.
-- Range signup and assignment localize missing rota, empty range, already-assigned range, fully conflicting range, fully booked range and restricted-range rejections in all six cultures.
+- Range signup and assignment localize missing rota, empty range, already-assigned range, fully conflicting range, fully booked range and restricted-range rejections in all six cultures. Multi-day signup also localizes duplicate-day and time-conflict summaries, partially full shift and early-entry warnings, and the nothing-to-add result.
 - Duplicate signup, missing shift, closed browsing, restricted shift, closed early-entry signup and full-shift rejections use the six-culture Shifts resources across their single, range and coordinator assignment call sites.
 - Regular humans **cannot** approve, refuse, or bail other humans' signups. Single and range bail rejections (including early-entry closure) use the six-culture Shifts resources, as do shared signup-not-found and missing-calendar errors; the signup modal uses the shared localized close label.
 - Regular humans **cannot** voluntell other humans.
@@ -302,7 +302,7 @@ Invalid rota and shift edits redisplay the team shift page without saving. Only 
 ## Triggers
 
 - Every signup state change writes an audit log entry and dispatches a `ShiftSignupChange` notification to the department's coordinators via `INotificationService`. Action set: `AuditAction.ShiftSignup{Created,Confirmed,Refused,Voluntold,Bailed,Cancelled,NoShow,Reassigned}`. `ShiftSignupCreated` fires on every self-signup (Pending or Confirmed) so the creation moment is always traceable; `ShiftSignupConfirmed` fires only on the later Pending → Confirmed transition by an approver. `ShiftSignupReassigned` fires once per account-merge fold (re-FK of signups from source to target).
-- Voluntelling additionally fires a `ShiftAssigned` informational notification to the assigned volunteer (best-effort; failures logged but do not roll back the signup). This volunteer-facing notification is **suppressed for past shifts**: a single-shift voluntell skips it when the shift has ended (`shift.GetAbsoluteEnd(es) <= now`); a range voluntell skips its single aggregate notification when *every* assigned shift is already past. The audit entry and the coordinator `ShiftSignupChange` ping are always emitted regardless of shift timing.
+- Voluntelling additionally fires a `ShiftAssigned` informational notification to the assigned volunteer (best-effort; failures logged but do not roll back the signup). Single-shift and range notices use the volunteer’s saved supported language, with English fallback for missing/unsupported language or lookup failures; one-shift ranges use a singular message and the action reuses the localized browse-shifts label. This volunteer-facing notification is **suppressed for past shifts**: a single-shift voluntell skips it when the shift has ended (`shift.GetAbsoluteEnd(es) <= now`); a range voluntell skips its single aggregate notification when *every* assigned shift is already past. The audit entry and the coordinator `ShiftSignupChange` ping are always emitted regardless of shift timing.
 - When a Bail or Remove drops the confirmed count below `MinVolunteers`, a `ShiftCoverageGap` actionable notification (priority High) is sent to the department's coordinators.
 - Range signup, range voluntell, range bail, range approve, and range refuse all use a shared `SignupBlockId` and operate on the entire block atomically (with per-shift filtering for capacity/conflicts on creation paths).
 - Moving a rota to a different team writes an `AuditAction.RotaMovedToTeam` log entry and updates `Rota.TeamId` via a targeted update (only `TeamId` + `UpdatedAt` are marked modified).
@@ -310,6 +310,8 @@ Invalid rota and shift edits redisplay the team shift page without saving. Only 
 - `GET /Shifts/Dashboard/VolunteerTracking/ExportXlsx` deliberately writes **no** audit entry, unlike every mutating action on `VolunteerTrackingController`: the grid carries burner names only — no legal names, no emails, no medical data. If the export is ever widened to carry PII, an audit entry must land in the same change.
 - Deleting a rota or shift is rejected if any signup is in Confirmed state. Deleting an allowed rota or shift removes all of its signups together with it; it does not create cancelled historical signup rows for a removed shift.
 - When an account merge accepts, the section's three `IUserMerge` implementations re-FK its user-keyed rows from source to target: `ShiftSignupService` moves `ShiftSignup` rows (volunteer / enrolled-by / reviewed-by references), `ShiftManagementService` moves `VolunteerEventProfile` + `VolunteerTagPreference` (with conflict resolution since both are `(UserId)`-unique), `VolunteerTrackingService` moves `GeneralAvailability`. Called only by `AccountMergeService.AcceptAsync` (Users section) through the `IUserMerge` fan-out.
+
+- Rota names in notices may outgrow the 200-character title limit. These producers bound titles by Unicode character, preserving the full title and existing detail in the body; short notice copy is unchanged.
 
 ## Cross-Section Dependencies
 
