@@ -37,6 +37,7 @@ public class HoldedFinanceServiceTests
     private readonly FakeClock _clock = new(FixedNow);
     private readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
     private readonly IAuditLogService _audit = Substitute.For<IAuditLogService>();
+    private static readonly Guid Admin = Guid.NewGuid();
     private readonly IUserServiceRead _users = NoUsers();
     private readonly IUserEmailService _userEmails = Substitute.For<IUserEmailService>();
     private readonly IEmailService _emailService = Substitute.For<IEmailService>();
@@ -1174,7 +1175,7 @@ public class HoldedFinanceServiceTests
         });
 
         var result = await MakeService().SetCreditorContactAsync(
-            Guid.NewGuid(), 40000004, Xunit.TestContext.Current.CancellationToken);
+            Guid.NewGuid(), 40000004, Admin, Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
         result.ErrorMessage.Should().Contain("already bound to a different member");
@@ -1198,7 +1199,7 @@ public class HoldedFinanceServiceTests
         });
 
         var result = await MakeService().SetCreditorContactAsync(
-            Guid.NewGuid(), 40000004, Xunit.TestContext.Current.CancellationToken);
+            Guid.NewGuid(), 40000004, Admin, Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
         result.ErrorMessage.Should().Contain("Daniela Marquez");
@@ -1213,12 +1214,14 @@ public class HoldedFinanceServiceTests
         _client.ListContactsAsync(Arg.Any<CancellationToken>()).Returns(new List<HoldedContactDto>());
 
         var result = await MakeService().SetCreditorContactAsync(
-            Guid.NewGuid(), 40000004, Xunit.TestContext.Current.CancellationToken);
+            Guid.NewGuid(), 40000004, Admin, Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
         result.ErrorMessage.Should().Contain("No Holded contact");
         await _repo.DidNotReceive().UpsertCreditorContactAsync(
             Arg.Any<HoldedCreditorContact>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
+        await _audit.DidNotReceiveWithAnyArgs().LogAsync(
+            default, default!, default, default!, Guid.Empty, default, default);
     }
 
     [HumansFact]
@@ -1236,7 +1239,7 @@ public class HoldedFinanceServiceTests
         });
 
         var result = await MakeService().SetCreditorContactAsync(
-            userId, 40000004, Xunit.TestContext.Current.CancellationToken);
+            userId, 40000004, Admin, Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeTrue();
         await _repo.Received(1).UpsertCreditorContactAsync(
@@ -1244,6 +1247,8 @@ public class HoldedFinanceServiceTests
                 c.UserId == userId && c.HoldedContactId == "c1" &&
                 c.SupplierAccountNum == 40000004 && c.Source == CreditorContactSource.Manual),
             FixedNow, Arg.Any<CancellationToken>());
+        await _audit.Received(1).LogAsync(AuditAction.HoldedCreditorBound, Arg.Any<string>(), userId,
+            Arg.Is<string>(d => d.Contains("40000004")), Admin, userId, Arg.Any<string?>());
     }
 
     // ─── The automatic write paths (nobodies-collective/Humans#975) ──────────────
@@ -1420,25 +1425,33 @@ public class HoldedFinanceServiceTests
     public async Task ClearCreditorContact_RemovesTheBinding()
     {
         var userId = Guid.NewGuid();
-        _repo.DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>()).Returns(true);
+        // An earlier read may hold a stale binding; the audit must name the row actually deleted.
+        _repo.GetCreditorContactByUserAsync(userId, Arg.Any<CancellationToken>()).Returns(
+            new HoldedCreditorContact { UserId = userId, HoldedContactId = "c0", SupplierAccountNum = 40000003 });
+        _repo.DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>()).Returns(
+            new HoldedCreditorContact { UserId = userId, HoldedContactId = "c1", SupplierAccountNum = 40000004 });
 
         var removed = await MakeService().ClearCreditorContactAsync(
-            userId, Xunit.TestContext.Current.CancellationToken);
+            userId, Admin, Xunit.TestContext.Current.CancellationToken);
 
         removed.Should().BeTrue();
         await _repo.Received(1).DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>());
+        await _audit.Received(1).LogAsync(AuditAction.HoldedCreditorUnbound, Arg.Any<string>(), userId,
+            Arg.Is<string>(d => d.Contains("40000004") && d.Contains("c1")), Admin, userId, Arg.Any<string?>());
     }
 
     [HumansFact]
     public async Task ClearCreditorContact_NothingBound_ReportsFalse()
     {
         var userId = Guid.NewGuid();
-        _repo.DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>()).Returns(false);
+        _repo.DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>()).Returns((HoldedCreditorContact?)null);
 
         var removed = await MakeService().ClearCreditorContactAsync(
-            userId, Xunit.TestContext.Current.CancellationToken);
+            userId, Admin, Xunit.TestContext.Current.CancellationToken);
 
         removed.Should().BeFalse();
+        await _audit.DidNotReceiveWithAnyArgs().LogAsync(
+            default, default!, default, default!, Guid.Empty, default, default);
     }
 
     // ─── Unmatched worklist ──────────────────────────────────────────────────────
@@ -1538,7 +1551,7 @@ public class HoldedFinanceServiceTests
             .Returns(ci => $"acc-{ci.ArgAt<int>(0)}");
 
         var created = await MakeService().ProvisionAsync(
-            blockStart: 6290010, addAll: false, ct: Xunit.TestContext.Current.CancellationToken);
+            blockStart: 6290010, addAll: false, actorUserId: Admin, ct: Xunit.TestContext.Current.CancellationToken);
 
         created.Should().Be(1);
         await _client.Received(1).CreateExpenseAccountAsync(
@@ -1553,6 +1566,8 @@ public class HoldedFinanceServiceTests
         row.IsActive.Should().BeTrue();
         row.Tag.Should().NotBeNullOrEmpty();
         catB.Should().NotBe(catA);
+        await _audit.Received(1).LogAsync(AuditAction.HoldedCategoryAccountProvisioned, Arg.Any<string>(), catA,
+            Arg.Is<string>(d => d.Contains("6290010")), Admin, Arg.Any<Guid?>(), Arg.Any<string?>());
     }
 
     [HumansFact]
@@ -1563,7 +1578,7 @@ public class HoldedFinanceServiceTests
             .Returns(ci => $"acc-{ci.ArgAt<int>(0)}");
 
         var created = await MakeService().ProvisionAsync(
-            blockStart: 6290010, addAll: true, ct: Xunit.TestContext.Current.CancellationToken);
+            blockStart: 6290010, addAll: true, actorUserId: Admin, ct: Xunit.TestContext.Current.CancellationToken);
 
         created.Should().Be(2);
         var numbers = _repo.ReceivedCalls()
@@ -1587,11 +1602,28 @@ public class HoldedFinanceServiceTests
             .ThrowsAsync(new InvalidOperationException("holded said no"));
 
         var act = async () => await MakeService().ProvisionAsync(
-            blockStart: 6290010, addAll: true, ct: Xunit.TestContext.Current.CancellationToken);
+            blockStart: 6290010, addAll: true, actorUserId: Admin, ct: Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         await _repo.Received(1).AddCategoryMapAsync(
             Arg.Is<HoldedCategoryMap>(m => m.HoldedAccountNumber == 6290010), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task Provision_MapSaveFailsAfterHoldedCreatedTheAccount_StillAuditsTheAccount()
+    {
+        var (catA, _) = TwoUnmappedCategories();
+        _client.CreateExpenseAccountAsync(Arg.Any<int>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("acc-6290010");
+        _repo.AddCategoryMapAsync(Arg.Any<HoldedCategoryMap>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("db down"));
+
+        var act = async () => await MakeService().ProvisionAsync(
+            blockStart: 6290010, addAll: false, actorUserId: Admin, ct: Xunit.TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        await _audit.Received(1).LogAsync(AuditAction.HoldedCategoryAccountProvisioned, Arg.Any<string>(), catA,
+            Arg.Is<string>(d => d.Contains("6290010")), Admin, Arg.Any<Guid?>(), Arg.Any<string?>());
     }
 
     /// <summary>An active year with two unmapped categories, "Alpha" then "Beta", and an empty map.</summary>
@@ -1663,7 +1695,7 @@ public class HoldedFinanceServiceTests
     {
         // The number arrives on a POST; the filtered dropdown is not a server-side gate.
         var result = await MakeService().SetCreditorContactAsync(
-            Guid.NewGuid(), accountNum, Xunit.TestContext.Current.CancellationToken);
+            Guid.NewGuid(), accountNum, Admin, Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
         result.ErrorMessage.Should().Contain("outside the member creditor block");
@@ -1684,7 +1716,7 @@ public class HoldedFinanceServiceTests
         });
 
         var result = await MakeService().SetCreditorContactAsync(
-            Guid.NewGuid(), accountNum, Xunit.TestContext.Current.CancellationToken);
+            Guid.NewGuid(), accountNum, Admin, Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeTrue();
     }
@@ -1796,7 +1828,8 @@ public class HoldedFinanceServiceTests
         // Article 17: the binding is erased in full; the payout files are the accounting record
         // and stay, on a stated legal basis the declaration carries.
         var userId = Guid.NewGuid();
-        _repo.DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>()).Returns(true);
+        _repo.DeleteCreditorContactAsync(userId, Arg.Any<CancellationToken>()).Returns(
+            new HoldedCreditorContact { UserId = userId, HoldedContactId = "c1" });
         var svc = MakeService();
 
         await svc.EraseForUserAsync(userId, Xunit.TestContext.Current.CancellationToken);
