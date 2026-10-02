@@ -67,6 +67,10 @@ name: claude-review
 # silently changes review quality or cost. Opus-class matches what the
 # unpinned default ran before the pin. The `run-report` step logs turns and
 # the SDK's API-equivalent cost per run — measure before changing the pin.
+# Subagents the reviewer spawns run on .claude/settings.json's
+# CLAUDE_CODE_SUBAGENT_MODEL: the base checkout's project settings and
+# hooks load here too, and block-inherited-subagent-model.sh passes a
+# model-less spawn only under GITHUB_ACTIONS for that reason.
 #
 # Reviewer tools: Read/Grep/Glob inside the checkout plus the read-only
 # `gh` and `git show` sub-commands in `claude_args` below. The file tools
