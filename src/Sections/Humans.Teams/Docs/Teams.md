@@ -21,6 +21,8 @@ Departments and sub-teams, join requests, role definitions, team pages, and link
 - A **Coordinator** is a team member assigned to the management role on a department. Coordinators have full authority over the department and all its sub-teams, including Google resource management. They are added to the Coordinators system team.
 - A **Sub-team Manager** is a team member assigned to the management role on a sub-team. Managers have scoped authority over their sub-team only: member management, join requests, roles, shifts, and team page editing. They **cannot** manage Google resources, the parent department, or sibling sub-teams. They are **not** added to the Coordinators system team.
 - A **Team Page** is a Markdown-based public or member-facing page for a department, with optional calls to action.
+- Generated team slugs are non-empty and collision suffixes fit the 256-character column, shortening the base without a trailing separator. Names with no ASCII letters/digits use `team` on creation; renaming to such a name preserves the existing slug. Display names are preserved.
+- The same reserved global route segments are enforced during creation, renaming and custom-slug edits. A reserved custom slug refuses the update before fields are saved; a rename deriving a reserved slug keeps the previous URL while saving the new display name.
 
 ## Data Model
 
@@ -181,6 +183,14 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 
 ## Invariants
 
+- The team resources GET forwards request cancellation through viewer, team, resource-management permission, resource list and service-account email reads. Shared permission helpers retain their existing default token for resource mutations.
+
+- Admin team-list paging computes offsets without integer overflow, so extreme page numbers cannot wrap into earlier teams.
+
+- Team member paging clamps pages below one to one and calculates large offsets without integer overflow; pages beyond the membership list stay empty.
+
+- Birthday, My Teams and join-form GETs carry request cancellation through current-user resolution and their read-only Users/Teams calls. Join POST and membership mutations keep their existing cancellation policy.
+
 - A department can have **at most one** role flagged as management (coordinator). Enforced in both the toggle and edit paths.
 - A sub-team can have **at most one** role flagged as management (manager).
 - Toggling or changing the `IsManagement` flag on a role definition is restricted to **TeamsAdmin / Admin** (`ToggleManagement` action and `EditRole` IsManagement field). Coordinators / sub-team managers can still create, rename, and delete other (non-management) role definitions on their team — they just cannot promote/demote the management role itself.
@@ -189,6 +199,8 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 - A human can be a member of multiple teams simultaneously.
 - System team membership is managed exclusively by an automated sync job. Manual add/remove is blocked for system teams.
 - Role definitions can be created on any team, including system teams (e.g. governance roles on the Board team). However, `AssignToRoleAsync` blocks assigning a **non-member** to a role on a system team — only existing sync-managed members can be assigned, so role assignment cannot become a backdoor for the manual-membership block above.
+- The join POST validates the optional message’s 2,000-character limit before invoking the membership service. Invalid forms preserve the entered message, restore team display/policy metadata from the server, and show shared validation errors in all six cultures. System teams, unauthorized hidden-team access, and mismatched team IDs are rejected before redisplaying a form.
+- Inactive teams cannot be self-joined or receive new self-service join requests. Their detail pages offer no Join action, and Join GET/POST return 404; both direct-join and request services recheck activity before mutation so a stale form cannot reopen memberships ended by deactivation. Historical team details remain readable under their existing visibility rules.
 - Joining a team that requires approval creates a join request (Pending). The request must be approved by a coordinator or TeamsAdmin before membership is granted. Teams that do not require approval add the human immediately.
 - Member join, leave, and request-withdrawal errors use the selected UI language. Validation guards return resource keys; unknown errors use a translated fallback while logs retain the reason.
 - Coordinator notifications after a saved join request or direct join are best-effort, including display-name lookup. Notification preparation failures are logged and do not fail the committed operation.

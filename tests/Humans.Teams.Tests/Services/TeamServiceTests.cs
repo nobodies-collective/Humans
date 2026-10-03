@@ -1,3 +1,5 @@
+using Xunit;
+using Humans.Base.Helpers;
 using System.Text;
 // Tests seed TeamMember.User navs directly for DB-roundtrip verification.
 // TeamMember.User is Obsolete per Â§6c and is never populated by production
@@ -208,6 +210,60 @@ public sealed class TeamServiceTests : TeamsTestHarness
         ClearAllTrackers();
         var stored = await TeamsDb.Teams.AsNoTracking().SingleAsync(t => t.Id == result.Id, Xunit.TestContext.Current.CancellationToken);
         stored.ParentTeamId.Should().Be(parent.Id);
+    }
+
+    [HumansTheory]
+    [InlineData("🔥🔥")]
+    [InlineData("日本のチーム")]
+    public async Task CreateTeamAsync_NonAsciiNamesGetDistinctUsableSlugs(string name)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var first = await _service.CreateTeamAsync(name, null, false, cancellationToken: ct);
+        var second = await _service.CreateTeamAsync(name, null, false, cancellationToken: ct);
+
+        foreach (var team in new[] { first, second })
+        {
+            SlugHelper.IsValidKebabSlug(team.Slug, maxLength: 256).Should().BeTrue();
+            var read = await _service.GetTeamBySlugAsync(team.Slug, ct);
+            read!.Id.Should().Be(team.Id);
+            read.Name.Should().Be(name);
+        }
+        first.Slug.Should().NotBe(second.Slug);
+    }
+
+    [HumansFact]
+    public async Task CreateTeamAsync_LongNameCollisionsStayWithinTheSlugColumn()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var maxLength = TeamsDb.Model.FindEntityType(typeof(Team))!.FindProperty(nameof(Team.Slug))!.GetMaxLength()!.Value;
+        var name = new string('a', maxLength - 3) + "-bc";
+        var slugs = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < 3; i++)
+        {
+            var team = await _service.CreateTeamAsync(name, null, false, cancellationToken: ct);
+
+            SlugHelper.IsValidKebabSlug(team.Slug, maxLength).Should().BeTrue();
+            slugs.Add(team.Slug).Should().BeTrue();
+            (await _service.GetTeamBySlugAsync(team.Slug, ct))!.Name.Should().Be(name);
+        }
+    }
+
+    [HumansTheory]
+    [InlineData("🔥🔥")]
+    [InlineData("日本のチーム")]
+    public async Task UpdateTeamAsync_NonAsciiRenamePreservesTheUsableSlug(string name)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var team = SeedTeam("Original Name");
+        await SaveAllAsync(ct);
+        var originalSlug = team.Slug;
+
+        await _service.UpdateTeamAsync(team.Id, name, null, false, true, cancellationToken: ct);
+
+        var read = await _service.GetTeamBySlugAsync(originalSlug, ct);
+        read.Should().NotBeNull();
+        read!.Name.Should().Be(name);
+        read.Slug.Should().Be(originalSlug);
     }
 
     [HumansFact]
@@ -615,6 +671,59 @@ public sealed class TeamServiceTests : TeamsTestHarness
         stored.CustomSlug.Should().BeNull();
     }
 
+    [HumansTheory]
+    [InlineData("Roster")]
+    [InlineData("Birthdays")]
+    [InlineData("Map")]
+    [InlineData("My")]
+    [InlineData("Sync")]
+    [InlineData("Summary")]
+    [InlineData("Create")]
+    [InlineData("Search")]
+    public async Task UpdateTeamAsync_ReservedRenameKeepsTheExistingUrl(string name)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var team = SeedTeam("Original Name");
+        await SaveAllAsync(ct);
+        var originalSlug = team.Slug;
+
+        await _service.UpdateTeamAsync(team.Id, name, null, false, true, cancellationToken: ct);
+
+        var read = await _service.GetTeamBySlugAsync(originalSlug, ct);
+        read.Should().NotBeNull();
+        read!.Name.Should().Be(name);
+        read.Slug.Should().Be(originalSlug);
+    }
+
+    [HumansTheory]
+    [InlineData("Roster")]
+    [InlineData("Birthdays")]
+    [InlineData("Map")]
+    [InlineData("My")]
+    [InlineData("Sync")]
+    [InlineData("Summary")]
+    [InlineData("Create")]
+    [InlineData("Search")]
+    public async Task UpdateTeamAsync_ReservedCustomSlugRefusesTheUpdate(string slug)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var team = SeedTeam("Original Name");
+        await SaveAllAsync(ct);
+        var originalSlug = team.Slug;
+
+        var act = () => _service.UpdateTeamAsync(team.Id, "Changed Name", null, false, false,
+            customSlug: slug, isHidden: true, cancellationToken: ct);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*reserved route*");
+        ClearAllTrackers();
+        var stored = await TeamsDb.Teams.AsNoTracking().SingleAsync(t => t.Id == team.Id, ct);
+        stored.Name.Should().Be("Original Name");
+        stored.Slug.Should().Be(originalSlug);
+        stored.CustomSlug.Should().BeNull();
+        stored.IsActive.Should().BeTrue();
+        stored.IsHidden.Should().BeFalse();
+    }
+
     [HumansFact]
     public async Task UpdateTeamAsync_RenamesTeam_AndRegeneratesSlug()
     {
@@ -895,6 +1004,29 @@ public sealed class TeamServiceTests : TeamsTestHarness
     // ==========================================================================
     // RequestToJoinTeamAsync
     // ==========================================================================
+
+    [HumansTheory]
+    [Xunit.InlineData(false)]
+    [Xunit.InlineData(true)]
+    public async Task JoinTeamAsync_DeactivatedTeamCannotBeRejoined(bool requiresApproval)
+    {
+        var user = SeedUser();
+        var team = SeedTeam("Closed Team", requiresApproval: requiresApproval);
+        SeedTeamMember(team.Id, user.Id);
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+        await _service.DeleteTeamAsync(team.Id, Xunit.TestContext.Current.CancellationToken);
+
+        var join = () => _service.JoinTeamAsync(team.Id, user.Id, "Returning", Xunit.TestContext.Current.CancellationToken);
+        await join.Should().ThrowAsync<InvalidOperationException>().WithMessage("Teams_NotFound");
+
+        var detail = await _service.GetTeamDetailAsync(team.Slug, user.Id, Xunit.TestContext.Current.CancellationToken);
+        detail.Should().NotBeNull();
+        detail.CanCurrentUserJoin.Should().BeFalse();
+        (await TeamsDb.TeamMembers.AsNoTracking().CountAsync(m => m.TeamId == team.Id && m.LeftAt == null,
+            Xunit.TestContext.Current.CancellationToken)).Should().Be(0);
+        (await TeamsDb.TeamJoinRequests.AsNoTracking().CountAsync(r => r.TeamId == team.Id,
+            Xunit.TestContext.Current.CancellationToken)).Should().Be(0);
+    }
 
     [HumansFact]
     public async Task RequestToJoinTeamAsync_TeamNotFound_Throws()

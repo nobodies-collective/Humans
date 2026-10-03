@@ -29,6 +29,14 @@ GDPR and CAN-SPAM compliance require giving users control over which communicati
 | Governance (board voting, tier applications, role assignments) | Opt-in | Opt-in | On | Yes |
 | Marketing (mailing list, promotions) | Opt-in | Opt-in | Off | Yes |
 
+Category names, descriptions, the clock-derived Ticketing year heading and ticket-lock note are localized in all six supported cultures on member and guest pages. Guest one-click banners and legacy Marketing unsubscribe pages share the translated category names.
+
+The member panel currently shows only the Email control. Its updates preserve the existing inbox setting rather than resetting the hidden channel.
+
+Guest updates serialize per row by disabling both editable channels and the matching one-click unsubscribe control while a save is pending. Success/failure unlocks the row; failures revert the edited value. Other categories stay independent.
+
+Each checkbox has an accessible name combining the localized channel and category, including locked and read-only controls.
+
 ### Always-On Categories
 
 System and Campaign Codes are always locked on — users cannot opt out. These categories cover critical account operations and code delivery.

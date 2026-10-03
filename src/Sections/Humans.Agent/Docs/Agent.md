@@ -67,6 +67,8 @@ Per-user message and token counters live in the Singleton `IAgentRateLimitStore`
 
 `FeedbackReport.Source` (`FeedbackSource` enum: `UserReport`, `AgentUnresolved`) and `FeedbackReport.AgentConversationId` (plain nullable Guid column, no EF FK constraint, no nav property). Owned by Feedback section. The Agent no longer writes these — historical rows produced by the original `route_to_feedback` auto-create flow remain queryable through the Feedback admin filter. Cross-section linkage was by FK column only.
 
+The member history page uses localized labels, including the link to each transcript, in all six supported cultures.
+
 ## Actors & Roles
 
 | Actor | Capability |
@@ -76,6 +78,10 @@ Per-user message and token counters live in the Singleton `IAgentRateLimitStore`
 | Anyone else (anonymous) | Widget not rendered; endpoints return 401 |
 
 ## Invariants
+
+Admin conversation-list paging clamps negative page numbers to zero and calculates offsets without integer overflow. A page beyond the available history stays empty rather than wrapping into earlier conversations; the Older link also stays within the integer page range.
+
+Conversation list and transcript GETs propagate request cancellation through viewer resolution before their conversation reads; ownership denials remain 404.
 
 1. **Terms link, not gate.** The Assistant panel shows a persistent "AI Terms" link below the composer that opens `/Legal/agent-chat` (the rendered Agent Chat Terms from `nobodies-collective/legal`). There is no explicit consent step — opening the panel and sending a message constitutes use; the terms describe what's sent, retention, and rights. The team-required-doc consent flow (`IConsentServiceRead.GetPendingDocumentNamesAsync`) is intentionally NOT used here; agent use is opt-in, not a membership precondition.
 <!-- NOTE: Data sent to Anthropic per turn: display name, preferred locale, tier, approved flag, role assignments (names + expiry), team memberships (names only), consent pending list, open ticket IDs, open feedback IDs, open shift IDs, and conversation messages. Data NOT sent: email, phone, birthday, dietary/medical fields, payment info, profile picture, other users' personal data. Anthropic DPA: 30-day retention for abuse monitoring, no training on API inputs. GDPR export (IUserDataContributor) and retention purge (AgentConversationRetentionJob) cover the full lifecycle. -->

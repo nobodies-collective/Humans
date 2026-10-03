@@ -194,6 +194,20 @@ Authentication routes are served by `AccountController`, which lives in `Humans.
 
 ## Invariants
 
+- Member, guest and read-only admin communication-preference checkboxes expose localized channel/category names to assistive technology, including locked and unchecked controls.
+
+- Guest preference saves disable both editable channels and the matching one-click unsubscribe action until completion. Writes to one category cannot overlap in the page; other categories remain available, and failures restore the edited value before unlocking.
+
+- Member email-preference changes preserve the row’s existing inbox preference when the alert control is not shown; changing email cannot silently re-enable inbox notifications.
+
+- Guest communication-preference GETs carry request cancellation through session/token user lookup, preference reads and ticket holdings. Cancellation propagates without an error flash; paired POST helpers retain their default mutation token.
+
+- Member and guest communication-preference category names, descriptions, ticket-year heading and ticket-lock note use Users resources in all six cultures. Guest one-click banners and legacy marketing unsubscribe pages use the same translated category names; stored category identifiers and preference rules are unchanged.
+
+- Account-status, pending-deletion and communication-preferences GETs retain request cancellation during viewer resolution; cancellation propagates without an error flash. Deletion and preference POSTs keep their existing mutation boundaries.
+
+- The login page’s locked-account error and dismissal label render in all six supported cultures. Authentication and lockout behavior are unchanged.
+
 - OAuth login (`ExternalLoginService.CompleteExternalLoginAsync`, dispatched from `AccountController.ExternalLoginCallback`) checks verified `UserEmails`, then unverified `UserEmails` / `User.Email`, before creating a new account — preventing duplicate accounts when the same email exists on another user in any form. The locked-out branch additionally re-links a stale OAuth login from a merged source account to the active target account.
 - `AccountController`, the Development section's `DevLoginController` / `DevPersonaSeeder` / `DevelopmentDashboardSeeder`, and the ASP.NET Identity framework surface may inject `UserManager<User>` and `SignInManager<User>` directly — this is the explicit §2a exception because Identity is a framework concern, not a domain service. Application-layer code (`AccountProvisioningService`, `ExternalLoginService`) may also inject `UserManager<User>` for user creation; everything else routes through `IUserService`.
 - Event-participation derivation is monotonic on `Attended`: once an attendee has been checked in, their `EventParticipation.Status = Attended` row cannot be downgraded by ticket sync. `Ticketed`, `NotAttending`, and `NoShow` are mutable.
@@ -383,7 +397,7 @@ A contact is identified by `ContactSource != null && LastLoginAt == null`. When 
 
 **Table:** `contact_fields`
 
-Contact fields allow humans to share different types of contact information with per-field visibility controls.
+Contact fields allow humans to share different types of contact information with per-field visibility controls. Default labels use the viewer's current culture, including legacy email fields; custom Other labels are preserved verbatim. Profile cards and contact lookup details receive the same localized labels.
 
 | Property | Type | Notes |
 |----------|------|-------|
@@ -583,7 +597,7 @@ Self-service profile functionality lives under `/Profile`, split by shape across
 | `/api/profiles/search` | API people search |
 | `/api/profiles/burner-name-count` | Live burner-name collision count, excluding the caller ([spec](features/burner-name-collision-warning.md)) |
 | `/api/profiles/by-userid/{userId}` | Profile lookup by user id |
-| `/Users/Admin` | Admin list of all humans |
+| `/Users/Admin` | Admin list of all humans; name/email search ignores surrounding whitespace, including the fallback for accounts without profiles |
 | `/Users/Admin/Roles` | System-wide role-assignment roster, filterable by role (`HumanAdminBoardOrAdmin`) — `role_assignments` is owned by Auth; the roster lives beside the per-human role management surface |
 | `/Users/Admin/{id}` | Admin detail view |
 | `/Users/Admin/{id}/RevealIban` | POST (`AdminOnly`) — reveal the person's IBAN on the detail page |
@@ -601,7 +615,7 @@ Admin-only flows for the section's cross-account hygiene (the `/Profile/Admin/*`
 | `/Users/Admin/AccountMerges` | Unified account-merge queue — pending merge requests **and** detected duplicate pairs (`UsersAdminAccountMergesController`, `AdminOnly` — see [Part 1 — Users / Identity](#part-1--users--identity)). Admin picks the survivor; the other account is folded in and tombstoned. |
 | `/Users/Admin/AccountMerges/Merge` | POST — merge a detected duplicate pair (no request row) |
 | `/Users/Admin/AccountMerges/{requestId}/Merge`, `/Dismiss`, `/Close` | POST — accept a pending request with the chosen survivor / dismiss it (`Rejected`) / close a request whose accounts are already merged |
-| `/Users/Admin/Debug` | Flat paginated/sortable table of every user, every column derived from the cached `UserInfo` snapshot — no secondary queries (`UsersAdminDebugController`, `AdminOnly`) |
+| `/Users/Admin/Debug` | Pages below one become one; large offsets cannot overflow back into earlier rows. Flat paginated/sortable table of every user, every column derived from the cached `UserInfo` snapshot — no secondary queries (`UsersAdminDebugController`, `AdminOnly`) |
 | `/Profile/Admin/EmailProblems` | List UserEmail invariant violations across all accounts (`ProfileAdminController`, `AdminOnly`) |
 | `/Profile/Admin/EmailProblems/DeleteOrphanEmail` | POST — delete a single orphan UserEmail row |
 | `/Profile/Admin/EmailProblems/BackfillLegacyEmails` | POST — create the missing `UserEmail` row for every user whose only address is the legacy Identity column |
@@ -622,9 +636,17 @@ Admin-only flows for the section's cross-account hygiene (the `/Profile/Admin/*`
 
 ## Invariants
 
+- The live burner-name collision warning invalidates pending responses and hides the previous name’s warning on every input, before debounce; clearing the field cannot revive an older result.
+
+- Profile API search, burner-name count and user-id lookup carry request cancellation through current-user resolution as well as their subsequent reads.
+
+- Outbox, privacy and dietary/medical GETs carry request cancellation through their current-user reads and, for outbox, email history. Dietary load errors remain localized; an abandoned request propagates cancellation.
+
+- Dietary/medical page titles, preference choices, section labels and save/load feedback, plus profile and dietary Other-description prompts, render in all six supported cultures.
+
 - `Profile.DietaryPreference` is stored as free text (`varchar(200)?`), not a constrained enum. The `/Profile/Me/Edit` and `/Profile/Me/DietaryMedical` radio groups constrain the UI to `DietaryOptions.DietaryPreferences` (Omnivore / Vegetarian / Vegan / Pescatarian), but neither `ProfileController` nor `UserService.SaveDietaryMedicalAsync` re-checks membership on POST — any non-blank string persists. Deliberate: legacy free-text values predating the [dietary nudge](features/dietary-medical-nudge.md) stay readable without a data migration. Allergies are the exception — the Edit path filters them against `DietaryOptions.AllergyOptions` before saving.
-- Every authenticated human can edit their own profile regardless of membership status (available during onboarding).
-- Contact field visibility is enforced per-field: a human viewing their own profile sees everything. Board members see everything. Coordinators see CoordinatorsAndBoard-level and below. Shared-team members see MyTeams-level and below. Other active members see only AllActiveProfiles fields.
+- Every authenticated human can edit their own profile regardless of membership status (available during onboarding). Profile fields and their nested contact-field, Burner CV, and language forms, dietary/medical details, facilitated messages, and email-add forms use shared validation messages in all six cultures; their input limits are unchanged.
+- Contact field visibility is enforced per-field: a human viewing their own profile sees everything. Board members see everything. Coordinators see CoordinatorsAndBoard-level and below. Shared-team members see MyTeams-level and below. Other active members see only AllActiveProfiles fields. Each call derives permissions for its supplied viewer; a reused service cannot carry another viewer’s roles or team membership into the result.
 - Birthday stores month and day only — never year. UI text uses "birthday", not "date of birth".
 - Membership tier (Volunteer, Colaborador, Asociado) is tracked on the profile, not as a role assignment.
 - Consent check status on the profile gates Volunteer activation: unset until all consents are signed, then Pending, Cleared, or Flagged.
@@ -632,7 +654,7 @@ Admin-only flows for the section's cross-account hygiene (the `/Profile/Admin/*`
 - Suspension notices use the recipient’s supported preferred language (English fallback), including the title, action, and consent-expiry email reason. Administrative suspension reasons are excerpted only when needed to fit the 2,000-character notification body; the full original reason remains in the suspension audit entry. Admin and consent-expiry notices reuse the account-status resources; suspension audit entries keep their existing text and actor.
 - Profile deletion request sets `User.DeletionRequestedAt` and `User.DeletionScheduledFor = now + 30 days` on the User record. Team memberships and governance role assignments are revoked immediately. Actual data purge is deferred to a background job.
 - Data export returns all personal data as a JSON download (GDPR Article 15). If the complete export fails, it is logged and the profile route returns the user to Privacy with a generic error instead of emitting a partial file or an unhandled response; a request-abort cancellation propagates instead. `AccountMergeService` is an `IUserDataContributor` per design-rules §8a (the `AccountMergeRequests` slice); the profile slices are emitted by `UserService`. `ProfileService` implements no contributor interface. The orchestration lives in `GdprService`.
-- Profile pictures are stored on the filesystem via `IFileStorage` (key `uploads/profile-pictures/{profileId}{.ext}`) — the only store; there is no DB fallback column. `GetProfilePictureAsync` checks `ProfilePictureContentType` as the GDPR gate: null → 404, even if a stale file exists on disk. The edit route permits 21 MB for multipart overhead; uploaded images are validated against an allowed-content-type set (JPEG, PNG, WebP, HEIC/HEIF, AVIF) and a 20 MB file cap, then resized by `ProfilePictureProcessor` to a long-side of 1000 px and re-encoded as JPEG before persistence.
+- Profile pictures are stored on the filesystem via `IFileStorage` (key `uploads/profile-pictures/{profileId}{.ext}`) — the only store; there is no DB fallback column. `GetProfilePictureAsync` checks `ProfilePictureContentType` as the GDPR gate: null → 404, even if a stale file exists on disk. The edit route permits 21 MB for multipart overhead; uploaded images are validated against an allowed-content-type set (JPEG, PNG, WebP, HEIC/HEIF, AVIF) and a 20 MB file cap, then resized by `ProfilePictureProcessor` to a long-side of 1000 px and re-encoded as JPEG before persistence. The section-only profile save writes supplied picture bytes before committing their content type. Non-cancellation file-write failures retain the previous picture metadata while allowing other profile edits to save; cancellation aborts the save. The editor deletes a superseded or removed file only after the returned metadata confirms the transition. Cleanup ignores request cancellation and logs failures; the content-type gate keeps stale files inaccessible.
 - `CachingUserService` (Singleton) and `IUserInfoInvalidator` must resolve to the **same** instance — both registrations point to the single decorator. Two instances would split the `ConcurrentDictionary<Guid, UserInfo>` cache and silently lose invalidations.
 - Purging a human permanently deletes the account and all associated data, including severing the OAuth link so the next Google login creates a fresh account. Purge is disabled in production environments. No one can purge their own account.
 - Duplicate account detection applies gmail/googlemail equivalence when scanning for address collisions.

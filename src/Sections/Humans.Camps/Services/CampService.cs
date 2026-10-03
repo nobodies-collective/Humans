@@ -47,6 +47,7 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
     private static readonly HashSet<string> AllowedImageExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp" };
     private const int MaxImageFileNameLength = 256;
+    private const int MaxCampSlugLength = 256;
 
     public CampService(
         ICampRepository repo,
@@ -87,16 +88,20 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         CancellationToken cancellationToken = default)
     {
         var slug = SlugHelper.GenerateSlug(name);
+        if (slug.Length == 0)
+            slug = "camp";
         if (SlugHelper.IsReservedCampSlug(slug))
         {
-            throw new InvalidOperationException($"The name '{name}' generates a reserved slug.");
+            throw new InvalidOperationException("Camps_Flash_ReservedName");
         }
 
         var baseSlug = slug;
         var suffix = 2;
         while (await _repo.SlugExistsAsync(slug, cancellationToken))
         {
-            slug = $"{baseSlug}-{suffix}";
+            var suffixText = "-" + suffix.ToString(CultureInfo.InvariantCulture);
+            var prefixLength = Math.Min(baseSlug.Length, MaxCampSlugLength - suffixText.Length);
+            slug = baseSlug[..prefixLength].TrimEnd('-') + suffixText;
             suffix++;
         }
 
@@ -491,16 +496,16 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         var settings = await GetSettingsAsync(cancellationToken);
         if (!settings.OpenSeasons.Contains(year))
         {
-            throw new InvalidOperationException($"Season {year} is not open for registration.");
+            throw new InvalidOperationException("Camps_Flash_SeasonNotOpen");
         }
 
         if (await _repo.SeasonExistsAsync(campId, year, cancellationToken))
         {
-            throw new InvalidOperationException($"Camp already has a season for {year}.");
+            throw new InvalidOperationException("Camps_Flash_SeasonAlreadyExists");
         }
 
         var previousSeason = await _repo.GetLatestSeasonAsync(campId, cancellationToken)
-            ?? throw new InvalidOperationException("No previous season to copy from.");
+            ?? throw new InvalidOperationException("Camps_Flash_NoPreviousSeason");
 
         var hasApprovedSeason = await _repo.HasApprovedSeasonAsync(campId, cancellationToken);
 
@@ -962,28 +967,28 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         var imageCount = await _repo.CountImagesAsync(campId, cancellationToken);
         if (imageCount >= 5)
         {
-            return CampImageUploadResult.Failure("Maximum 5 images per camp.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageCount");
         }
 
         if (!AllowedImageContentTypes.Contains(contentType))
         {
-            return CampImageUploadResult.Failure("Only JPEG, PNG, and WebP images are allowed.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageType");
         }
 
         if (length > 10 * 1024 * 1024)
         {
-            return CampImageUploadResult.Failure("Image must be under 10MB.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageSize");
         }
 
         // Security: extension whitelist prevents image/jpeg + .html (static middleware would serve as HTML).
         fileName = DisplayFileName(fileName);
         if (fileName.Length > MaxImageFileNameLength)
-            return CampImageUploadResult.Failure($"Image filename must be {MaxImageFileNameLength} characters or fewer.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageFilenameLength");
 
         var ext = Path.GetExtension(fileName);
         if (!AllowedImageExtensions.Contains(ext))
         {
-            return CampImageUploadResult.Failure("Image filename must end in .jpg, .jpeg, .png, or .webp.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageExtension");
         }
         var storageKey = $"uploads/camps/{campId}/{Guid.NewGuid()}{ext}";
         await _fileStorage.SaveAsync(storageKey, fileStream, cancellationToken);
@@ -1483,10 +1488,10 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         Guid campMemberId, Guid userId, CancellationToken cancellationToken = default)
     {
         var member = await _repo.GetMemberForOwnMutationAsync(campMemberId, userId, cancellationToken)
-            ?? throw new InvalidOperationException("Camp member record not found.");
+            ?? throw new InvalidOperationException("Camps_Flash_RoleMemberNotFound");
 
         if (member.Status != CampMemberStatus.Pending)
-            throw new InvalidOperationException($"Cannot withdraw a camp member request with status {member.Status}.");
+            throw new InvalidOperationException("Camps_Flash_WithdrawRequiresPending");
 
         await TransitionMemberToRemovedAsync(
             member, userId,
@@ -1504,12 +1509,12 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         var member = await _repo.GetMemberForOwnMutationAsync(campMemberId, userId, cancellationToken);
         if (member is null)
         {
-            return CampMembershipMutationResult.Failure("Camp member record not found.");
+            return CampMembershipMutationResult.Failure("Camps_Flash_RoleMemberNotFound");
         }
 
         if (member.Status != CampMemberStatus.Active)
         {
-            return CampMembershipMutationResult.Failure($"Cannot leave a camp membership with status {member.Status}.");
+            return CampMembershipMutationResult.Failure("Camps_Flash_LeaveRequiresActive");
         }
 
         await TransitionMemberToRemovedAsync(

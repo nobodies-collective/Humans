@@ -259,11 +259,12 @@ internal sealed class TicketQueryService(
             .ToList();
 
         IEnumerable<CampaignCodeTrackingGrant> allGrants = campaignData.Grants;
-        if (!string.IsNullOrWhiteSpace(search) && search.Trim().Length >= 1)
+        var trimmed = search?.Trim();
+        if (!string.IsNullOrEmpty(trimmed))
         {
             allGrants = allGrants.Where(g =>
-                (g.Code?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                g.RecipientName.Contains(search, StringComparison.OrdinalIgnoreCase));
+                (g.Code?.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                g.RecipientName.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
         }
 
         var ordersWithCodes = await ticketRepository.GetOrdersWithDiscountCodesAsync();
@@ -700,7 +701,7 @@ internal sealed class TicketQueryService(
 
         var totalCount = filtered.Count;
         var pagedHumans = filtered
-            .Skip((page - 1) * pageSize)
+            .Skip((int)Math.Clamp(((long)page - 1) * pageSize, 0, int.MaxValue))
             .Take(pageSize)
             .Select(r => new WhoHasntBoughtRowDto
             {

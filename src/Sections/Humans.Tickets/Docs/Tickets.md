@@ -82,6 +82,10 @@ Sender-initiated transfer request. `OriginalTicketAttendeeId` FK → `ticket_att
 
 ## Invariants
 
+- Order, attendee and who-has-not-bought paging computes offsets without integer overflow; extreme pages cannot wrap into earlier rows. Filters, ordering and total counts are unchanged.
+
+- Member transfer-index GETs propagate request cancellation to viewer resolution before ticket, transfer and early-entry reads. Transfer POST boundaries are unchanged.
+
 - Member transfer Submit/Cancel validation errors resolve through Tickets resources in all six cultures. Unknown failure text stays in logs; the wizard and cancellation toast use translated fallbacks.
 - Transfer row DTOs carry sender/decider IDs; their names are rendered by the existing human components. Row assembly does not load unused user-name snapshots, so a profile lookup cannot fail a committed response or prevent a transfer list from loading. Transfer/attendee reads remain required.
 
@@ -127,7 +131,7 @@ Sender-initiated transfer request. `OriginalTicketAttendeeId` FK → `ticket_att
 | `/Tickets` | GET | `TicketAdminBoardOrAdmin` | Summary dashboard |
 | `/Tickets/Orders` | GET | `TicketAdminBoardOrAdmin` | Paginated order list |
 | `/Tickets/Attendees` | GET | `TicketAdminBoardOrAdmin` | Paginated attendee list |
-| `/Tickets/Codes` | GET | `TicketAdminBoardOrAdmin` | Discount code redemption tracking |
+| `/Tickets/Codes` | GET | `TicketAdminBoardOrAdmin` | Discount code redemption tracking; code and recipient-name search ignores surrounding whitespace |
 | `/Tickets/WhoHasntBought` | GET | `TicketAdminBoardOrAdmin` | Active Volunteers without a ticket |
 | `/Tickets/SalesAggregates` | GET | `TicketAdminBoardOrAdmin` | Weekly + monthly + quarterly aggregate reports, by ticket type, discount codes by campaign |
 | `/Tickets/Sync` | POST | `TicketAdminOrAdmin` | Trigger incremental sync |

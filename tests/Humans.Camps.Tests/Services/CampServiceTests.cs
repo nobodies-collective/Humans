@@ -1,3 +1,5 @@
+using Humans.Base.Helpers;
+using Xunit;
 using System.Text;
 using Humans.Notifications.Contracts;
 using AwesomeAssertions;
@@ -183,6 +185,47 @@ public sealed class CampServiceTests : CampsTestHarness
             .Should().BeFalse();
     }
 
+    [HumansTheory]
+    [InlineData("🔥🔥")]
+    [InlineData("日本のキャンプ")]
+    public async Task CreateCampAsync_NonAsciiNamesGetDistinctUsableSlugs(string name)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var first = await _service.CreateCampAsync(Guid.NewGuid(), name, "camp@test.com", "+34600000000",
+            null, null, false, 0, MakeSeasonData(), null, 2026, ct);
+        var second = await _service.CreateCampAsync(Guid.NewGuid(), name, "camp@test.com", "+34600000000",
+            null, null, false, 0, MakeSeasonData(), null, 2026, ct);
+
+        foreach (var camp in new[] { first, second })
+        {
+            SlugHelper.IsValidKebabSlug(camp.Slug, maxLength: 256).Should().BeTrue();
+            var read = await _service.GetCampBySlugAsync(camp.Slug, ct);
+            read!.Id.Should().Be(camp.Id);
+            read.Seasons.Single().Name.Should().Be(name);
+        }
+        first.Slug.Should().NotBe(second.Slug);
+    }
+
+    [HumansFact]
+    public async Task CreateCampAsync_LongNameCollisionSlugsStayWithinTheirStoredBound()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var maxLength = CampsDb.Model.FindEntityType(typeof(Camp))!.FindProperty(nameof(Camp.Slug))!.GetMaxLength()!.Value;
+        var name = new string('a', maxLength - 3) + "-bc";
+        var slugs = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < 3; i++)
+        {
+            var camp = await _service.CreateCampAsync(Guid.NewGuid(), name, "camp@test.com", "+34600000000",
+                null, null, false, 0, MakeSeasonData(), null, 2026, ct);
+
+            SlugHelper.IsValidKebabSlug(camp.Slug, maxLength).Should().BeTrue();
+            slugs.Add(camp.Slug).Should().BeTrue();
+            (await _service.GetCampBySlugAsync(camp.Slug, ct))!.Seasons.Single().Name.Should().Be(name);
+        }
+    }
+
     [HumansFact]
     public async Task CreateCampAsync_ReservedSlug_ThrowsInvalidOperation()
     {
@@ -194,7 +237,7 @@ public sealed class CampServiceTests : CampsTestHarness
             null, null, false, 0, MakeSeasonData(), null, 2026, Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*reserved*");
+            .WithMessage("Camps_Flash_ReservedName");
     }
 
     // ==========================================================================
@@ -270,6 +313,25 @@ public sealed class CampServiceTests : CampsTestHarness
     // ==========================================================================
     // OptInToSeasonAsync
     // ==========================================================================
+
+    [HumansTheory]
+    [InlineData(2027, false, "Camps_Flash_SeasonNotOpen")]
+    [InlineData(2026, false, "Camps_Flash_SeasonAlreadyExists")]
+    [InlineData(2026, true, "Camps_Flash_NoPreviousSeason")]
+    public async Task OptInToSeasonAsync_RefusesInvalidRenewalsWithoutWriting(int year, bool missingCamp, string key)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        var seasonsBefore = await CampsDb.CampSeasons.CountAsync(ct);
+        var auditCallsBefore = AuditLog.ReceivedCalls().Count();
+
+        var act = () => _service.OptInToSeasonAsync(missingCamp ? Guid.NewGuid() : camp.Id, year, ct);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(key);
+        (await CampsDb.CampSeasons.CountAsync(ct)).Should().Be(seasonsBefore);
+        AuditLog.ReceivedCalls().Count().Should().Be(auditCallsBefore);
+    }
 
     [HumansFact]
     public async Task OptInToSeasonAsync_ReturningCamp_AutoApproves()
@@ -1141,7 +1203,33 @@ public sealed class CampServiceTests : CampsTestHarness
         var request = await _service.RequestCampMembershipAsync(camp.Id, userId, Xunit.TestContext.Current.CancellationToken);
 
         var act = () => _service.WithdrawCampMembershipRequestAsync(request.CampMemberId, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not found*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Camps_Flash_RoleMemberNotFound");
+    }
+
+    [HumansFact]
+    public async Task SelfMembershipRuleFailures_ReturnResourceKeysWithoutChangingStatus()
+    {
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        await ApproveLatestSeasonAsync(camp.Id);
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId, "Alice");
+        var request = await _service.RequestCampMembershipAsync(camp.Id, userId, Xunit.TestContext.Current.CancellationToken);
+
+        var wrongUser = await _service.LeaveCampAsync(request.CampMemberId, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        wrongUser.Succeeded.Should().BeFalse();
+        wrongUser.ErrorMessage.Should().Be("Camps_Flash_RoleMemberNotFound");
+        var pending = await _service.LeaveCampAsync(request.CampMemberId, userId, Xunit.TestContext.Current.CancellationToken);
+        pending.Succeeded.Should().BeFalse();
+        pending.ErrorMessage.Should().Be("Camps_Flash_LeaveRequiresActive");
+        (await CampsDb.CampMembers.AsNoTracking().SingleAsync(m => m.Id == request.CampMemberId, Xunit.TestContext.Current.CancellationToken))
+            .Status.Should().Be(CampMemberStatus.Pending);
+
+        await _service.ApproveCampMemberAsync(camp.Id, request.CampMemberId, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        var withdraw = () => _service.WithdrawCampMembershipRequestAsync(request.CampMemberId, userId, Xunit.TestContext.Current.CancellationToken);
+        await withdraw.Should().ThrowAsync<InvalidOperationException>().WithMessage("Camps_Flash_WithdrawRequiresPending");
+        (await CampsDb.CampMembers.AsNoTracking().SingleAsync(m => m.Id == request.CampMemberId, Xunit.TestContext.Current.CancellationToken))
+            .Status.Should().Be(CampMemberStatus.Active);
     }
 
     [HumansFact]
@@ -1710,8 +1798,48 @@ public sealed class CampServiceTests : CampsTestHarness
             Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("256 characters or fewer");
+        result.ErrorMessage.Should().Be("Camps_Validation_ImageFilenameLength");
         (await CampsDb.CampImages.CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(0);
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("image/gif", "camp.jpg", 1L, "Camps_Validation_ImageType")]
+    [Xunit.InlineData("image/jpeg", "camp.jpg", 10485761L, "Camps_Validation_ImageSize")]
+    [Xunit.InlineData("image/jpeg", "camp.html", 1L, "Camps_Validation_ImageExtension")]
+    public async Task UploadImageAsync_InvalidImageReturnsResourceKeyBeforeWriting(
+        string contentType, string fileName, long length, string key)
+    {
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+
+        var result = await _service.UploadImageAsync(camp.Id, Stream.Null, fileName, contentType, length,
+            Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().Be(key);
+        _fileStorage.Files.Should().BeEmpty();
+        (await CampsDb.CampImages.CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(0);
+    }
+
+    [HumansFact]
+    public async Task UploadImageAsync_FullGalleryReturnsCountResourceKey()
+    {
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        for (var i = 0; i < 5; i++)
+        {
+            var accepted = await _service.UploadImageAsync(camp.Id, Stream.Null, $"camp{i}.jpg", "image/jpeg", 1,
+                Xunit.TestContext.Current.CancellationToken);
+            accepted.Succeeded.Should().BeTrue();
+        }
+
+        var result = await _service.UploadImageAsync(camp.Id, Stream.Null, "extra.jpg", "image/jpeg", 1,
+            Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().Be("Camps_Validation_ImageCount");
+        _fileStorage.Files.Should().HaveCount(5);
+        (await CampsDb.CampImages.CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(5);
     }
 
     [HumansFact]

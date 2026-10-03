@@ -1,3 +1,11 @@
+using System.Security.Claims;
+using Humans.Governance.Controllers;
+using Humans.Base;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
+using NSubstitute.Core;
+using Xunit;
 using Humans.Auth.Contracts;
 using Humans.Governance.Domain;
 using NodaTime.Testing;
@@ -866,6 +874,86 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         vote.Vote.Should().Be(VoteChoice.Yay);
         vote.Note.Should().Be("Support");
         vote.VotedAt.Should().Be(votedAt);
+    }
+
+    [HumansFact]
+    public async Task BoardVotingDetail_CancelsViewerReadAfterApplicationLoads()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var applicantId = Guid.NewGuid();
+        var viewerId = Guid.NewGuid();
+        var app = await SeedSubmittedApplicationAsync(applicantId);
+        var abandonAfterApplicant = false;
+        async ValueTask<UserInfo?> ReadUser(CallInfo call)
+        {
+            var id = call.Arg<Guid>();
+            call.Arg<CancellationToken>().ThrowIfCancellationRequested();
+            if (abandonAfterApplicant && id == applicantId) await cancellation.CancelAsync();
+            return new User { Id = id, DisplayName = "Member", Email = "member@example.com" }.ToUserInfo();
+        }
+        _userService.GetUserInfoAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(ReadUser);
+        var controller = new GovernanceBoardVotingController(_userService, _service,
+            NullLogger<GovernanceBoardVotingController>.Instance, Substitute.For<IStringLocalizer<GovernanceResource>>())
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, viewerId.ToString())], "Test")),
+                }
+            },
+        };
+
+        (await controller.BoardVotingDetail(app.Id, cancellation.Token)).Should().BeOfType<ViewResult>();
+        abandonAfterApplicant = true;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => controller.BoardVotingDetail(app.Id, cancellation.Token));
+    }
+
+    [HumansTheory]
+    [InlineData("Index")]
+    [InlineData("Create")]
+    [InlineData("Details")]
+    [InlineData("Admin")]
+    [InlineData("AdminDetail")]
+    [InlineData("AdminTermExpiry")]
+    public async Task ApplicationPages_CancelAbandonedReads(string page)
+    {
+        using var request = new CancellationTokenSource();
+        var viewerId = Guid.NewGuid();
+        var app = await SeedSubmittedApplicationAsync(
+            string.Equals(page, "Create", StringComparison.Ordinal) ? Guid.NewGuid() : viewerId);
+        _userService.GetUserInfoAsync(viewerId, Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            call.Arg<CancellationToken>().ThrowIfCancellationRequested();
+            return new ValueTask<UserInfo?>(new User { Id = viewerId }.ToUserInfo());
+        });
+        var controller = new GovernanceApplicationsController(_service, _userService,
+            Substitute.For<IStringLocalizer<SharedResource>>(), NullLogger<GovernanceApplicationsController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    RequestAborted = request.Token,
+                    User = new ClaimsPrincipal(new ClaimsIdentity([
+                    new Claim(ClaimTypes.NameIdentifier, viewerId.ToString()), new Claim(ClaimTypes.Role, RoleNames.Admin)], "Test")),
+                }
+            },
+        };
+        Task<IActionResult> ReadPage() => page switch
+        {
+            "Index" => controller.Index(),
+            "Create" => controller.Create(),
+            "Details" => controller.Details(app.Id),
+            "Admin" => controller.Admin(null, null),
+            "AdminDetail" => controller.AdminDetail(app.Id),
+            "AdminTermExpiry" => controller.AdminTermExpiry(),
+            _ => throw new ArgumentOutOfRangeException(nameof(page)),
+        };
+
+        (await ReadPage()).Should().BeOfType<ViewResult>();
+        await request.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(ReadPage);
     }
 
     // --- GetUserApplicationDetailAsync ---

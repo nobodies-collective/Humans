@@ -119,7 +119,7 @@ Append-on-approve, drained by `HoldedExpenseOutboxJob`. Fields: `EventType` (Cre
 
 The submitter-facing `/Expenses/{id}/Edit` and `/Expenses/{id}/Lines/New` views use `ExpensesResource` for every label, status, action, confirmation, explanatory message, and accessibility label in all supported cultures.
 The submitter-facing `/Expenses/New` form uses `ExpensesResource` for all labels, actions, placeholder text, guidance, and accessibility labels in all supported cultures.
-The submitter-facing `/Expenses/{id}` detail view localizes report labels and status, attachments, payment status, submission guidance, withdrawal confirmation, and history headings in all supported cultures, reusing shared labels where appropriate. The submitter-facing IBAN form also localizes its example placeholder. Finance/coordinator-only controls retain their operator exemption.
+The submitter-facing `/Expenses/{id}` detail view localizes report labels and status, attachments, payment status, submission guidance, withdrawal confirmation, and history headings in all supported cultures, reusing shared labels where appropriate. The submitter-facing IBAN form also localizes its example placeholder. Member form annotations use shared required, length, and numeric-range messages in all six cultures; their validation limits are unchanged. Finance/coordinator-only controls retain their operator exemption.
 
 ## Actors & Roles
 
@@ -131,6 +131,12 @@ The submitter-facing `/Expenses/{id}` detail view localizes report labels and st
 | Admin | All FinanceAdmin capabilities. Additionally: reveal raw IBAN on admin user page (audit-logged). |
 
 ## Invariants
+
+- Review queues retain reports whose submitter is missing or has no usable name. Their name cells use the view’s shared localized Unknown label; server name projections contain only actual nonblank burner names.
+- Report detail/edit, new-line, line/proof, IBAN, and review GETs propagate request cancellation through existing token-capable report, profile, timeline, creditor, name, and failed-push reads. Shared report/IBAN helpers keep non-cancellable defaults for mutation callers; tokenless Budget and authorization interfaces are unchanged.
+- New-report form user resolution and attachment download/inline reads honor request cancellation. Abandoned reads do not become error flashes or 404s; ordinary failures and attachment denial responses retain their existing behavior.
+
+- The Expenses index GET passes request cancellation to token-aware member, report, coordinator queue and cached creditor reads. Cancellation propagates rather than becoming a load-failure toast and empty page; existing tokenless Budget reads retain their contract.
 
 - A report follows the lifecycle: Draft → Submitted → (CoordinatorEndorsed →) Approved. `Approved` is terminal for the report — paid/unpaid is read from the member's Holded creditor ledger, never stamped on the report. Terminal alternate: Withdrawn (from Submitted/CoordinatorEndorsed/Approved). `ExpenseReportService` enforces all transitions; `IExpenseRepository` persists them atomically.
 - A report cannot be submitted without at least one line. Every **Receipt** line (proof rows included) and every **Invoice** line must have an attachment at submit time; Mileage/PerDiem lines never require one (a pure-travel report submits with zero attachments).

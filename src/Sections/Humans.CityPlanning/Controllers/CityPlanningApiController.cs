@@ -1,3 +1,5 @@
+using Humans.Containers;
+using Microsoft.Extensions.Localization;
 using Humans.Base.Authorization;
 using System.Text.Json;
 using Humans.Camps.Contracts;
@@ -19,6 +21,7 @@ internal sealed class CityPlanningApiController(
     CityPlanningService cityPlanningService,
     ICampServiceRead campService,
     IContainerService containerService,
+    IStringLocalizer<ContainersResource> containersLocalizer,
     IAuthorizationService authorizationService,
     IHubContext<CityPlanningHub> hubContext,
     UserManager<User> userManager,
@@ -277,7 +280,7 @@ internal sealed class CityPlanningApiController(
 
         if (string.IsNullOrWhiteSpace(request.GeoJson) || !IsValidContainerPlacementGeoJson(request.GeoJson))
         {
-            return UnprocessableEntity("Invalid container placement GeoJSON.");
+            return UnprocessableEntity(containersLocalizer["Containers_Error_InvalidPlacementGeoJson"].Value);
         }
 
         var updated = await containerService.SavePlacementAsync(id, year, request.GeoJson, CurrentUserId(), cancellationToken);
