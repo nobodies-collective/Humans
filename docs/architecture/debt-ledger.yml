@@ -23,7 +23,7 @@
 # citing its id in the PR. Shape, `status:` values and `root:` linking:
 # memory/process/debt-ledger-additions.md.
 version: 1
-next_id: 70
+next_id: 71
 recent_sections: [Campaigns, Feedback, Governance]
 themes:
   - id: grandfathered-hum0024-nav-strip
@@ -319,6 +319,12 @@ themes:
       across the central ledger plus every src/Sections/*/Docs/debt.yml.
 inbox:
   - added: 2026-10-04
+    id: CENTRAL-70
+    what: "Program.cs AddHangfire carries a UseTypeResolver remap from the removed Humans.GoogleIntegration.Contracts assembly to Humans.GoogleIntegration, so scoped Google sync jobs persisted before nobodies-collective/Humans#1066 still load. Transitional: delete it once production has run that build and no Enqueued/Scheduled/Failed Hangfire job names the old assembly. Found in review of peterdrier/Humans#1902."
+    review: light
+    status: needs-detail
+    blocked_on: "nobodies-collective/Humans#1066's fold deployed to production and Hangfire storage holding no job that names Humans.GoogleIntegration.Contracts as an assembly."
+  - added: 2026-10-04
     id: CENTRAL-69
     what: "Humans.Base HumanViewComponent substitutes the literal Unknown for unresolved or nameless humans on member-visible layouts. Common_Unknown already exists in all six SharedResource cultures, but the component constructor has no localizer and its public model does not distinguish a fallback from a person named Unknown. Localize at the resolution boundary without string-based name detection; constructor/model public-surface changes need approval. Found during the daily production sweep."
     review: panel
@@ -466,7 +472,7 @@ inbox:
     root: CENTRAL-57
   - added: 2026-09-10
     id: CENTRAL-39
-    what: "docs/architecture/dependency-graph.md classes Backdoor as a crosscut and omits its edges to the sections it serves (Agent, Feedback, Issues.Contracts, Surveys). It is a leaf, not a crosscut: nothing references it back (finding 16, /section-doctor on Backdoor 2026-09-03; swept in by /section-doctor on Rideshare 2026-09-10)."
+    what: "docs/architecture/dependency-graph.md classes Backdoor as a crosscut and omits its edges to the sections it serves (Agent, Feedback, Issues, Surveys). It is a leaf, not a crosscut: nothing references it back (finding 16, /section-doctor on Backdoor 2026-09-03; swept in by /section-doctor on Rideshare 2026-09-10)."
     review: light
     root: CENTRAL-57
   - added: 2026-09-11
