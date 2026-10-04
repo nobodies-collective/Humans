@@ -57,7 +57,7 @@ Aggregate-local nav `LegalDocument.Versions` kept. Cross-domain nav `LegalDocume
 | EffectiveFrom | Instant | |
 | RequiresReConsent | bool | |
 | CreatedAt | Instant | |
-| ChangesSummary | string? (2000) | |
+| ChangesSummary | string? (2000) | Imported GitHub commit first lines are capped at 500 UTF-16 units without splitting a surrogate pair |
 
 Aggregate-local nav `DocumentVersion.LegalDocument` kept. Aggregate-local nav `DocumentVersion.ConsentRecords` declared on the entity and configured in `DocumentVersionConfiguration`; not currently walked by the service layer.
 
@@ -74,7 +74,7 @@ Append-only per design-rules §12. **DB triggers** (`prevent_consent_record_upda
 | DocumentVersionId | Guid | FK → `document_versions` |
 | ConsentedAt | Instant | |
 | IpAddress | string (45) | IPv6-capable; service passes value through unchanged |
-| UserAgent | string (1024) | Service truncates to 500 chars before persisting |
+| UserAgent | string (1024) | Service caps at 500 UTF-16 units without splitting a surrogate pair |
 | ContentHash | string (64) | SHA-256 hex of canonical Spanish content at consent time |
 | ExplicitConsent | bool | Always true for valid records |
 
@@ -151,6 +151,8 @@ Three controllers serve this section.
 - ConsentCoordinator **cannot** manage legal documents or versions — they can only review and clear/flag consent checks.
 - No one **can** update or delete consent records. They are permanently immutable.
 
+GitHub document discovery, metadata/raw content, commit-summary and prefix-content reads honour their existing caller token before fetching and while waiting. Cancellation propagates rather than becoming a missing summary or continuing to the next fetch; already-started Octokit requests may finish in the background.
+
 ## Triggers
 
 - When a human signs all required global documents: their consent check status transitions to Pending. `ConsentService.SubmitConsentAsync` no longer fires a per-user team sync (name-only access switch) — Volunteers admission is reconciled by the scheduled `SystemTeamSyncJob.SyncVolunteersTeamAsync` pass on name + consents (eventually consistent). App access never depended on Volunteers membership.
@@ -176,6 +178,8 @@ Three controllers serve this section.
 `IGitHubLegalDocumentConnector` is owned by this section (interface and implementation both `internal` in `Humans.Consent.Services`); not a cross-section dependency.
 
 ## Architecture
+
+A lazy per-key cache miss cannot republish its old result after an intervening cache eviction or refresh.
 
 **Owning services:** `LegalDocumentService` (Statutes page), `LegalDocumentSyncService` (document-side — sole writer for `legal_documents`/`document_versions`, owning both the admin write surface `IAdminLegalDocumentService` and the GitHub-sync write surface `ILegalDocumentSyncService`; nobodies-collective/Humans#751), `ConsentService` (consent-side), `LegalDocumentSyncRunner` (the GitHub sync + re-consent fan-out body) — all in `Humans.Consent.Services`, `internal sealed`. `SyncLegalDocumentsJob` itself is `Humans.Consent/Jobs/SyncLegalDocumentsJob.cs` — `public` because Shell names the concrete type when it registers and schedules it.
 **Owned tables:** `legal_documents`, `document_versions`, `consent_records`

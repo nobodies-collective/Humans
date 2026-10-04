@@ -8,6 +8,7 @@ using Humans.Teams.Data;
 using Humans.Teams.Domain;
 using Humans.Users.Contracts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using NodaTime;
 using NodaTime.Testing;
 using Xunit;
@@ -23,6 +24,65 @@ namespace Humans.Teams.Tests.Data;
 /// </summary>
 public sealed class TeamRepositoryTests : IDisposable
 {
+    [HumansTheory]
+    [InlineData("23505", "IX_team_members_active_unique", true, false)]
+    [InlineData("23505", "PK_team_members", false, false)]
+    [InlineData("23503", "IX_team_members_active_unique", false, false)]
+    [InlineData("23505", "IX_team_members_active_unique", true, true)]
+    [InlineData("23505", "PK_team_members", false, true)]
+    [InlineData("23503", "IX_team_members_active_unique", false, true)]
+    public async Task Insert_OnlyTreatsExpectedConstraintAsDuplicate(
+        string sqlState, string constraint, bool duplicate, bool approveRequest)
+    {
+        var failure = new DbUpdateException("Save failed", new Npgsql.PostgresException(
+            "Constraint violation", "ERROR", "ERROR", sqlState, constraintName: constraint));
+        var options = new DbContextOptionsBuilder<TeamsDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(new FailedInsert(failure)).Options;
+        var repo = new TeamRepository(new TestDbContextFactory<TeamsDbContext>(options));
+        var member = new TeamMember { Id = Guid.NewGuid(), TeamId = Guid.NewGuid(), UserId = Guid.NewGuid() };
+        var request = new TeamJoinRequest { Id = Guid.NewGuid(), TeamId = member.TeamId, UserId = member.UserId };
+        Func<Task<bool>> insert = () => approveRequest
+            ? repo.ApproveRequestWithMemberAsync(request, member, Xunit.TestContext.Current.CancellationToken)
+            : repo.TryAddMemberAsync(member, Xunit.TestContext.Current.CancellationToken);
+
+        if (duplicate)
+            (await insert()).Should().BeFalse();
+        else
+            (await insert.Should().ThrowAsync<DbUpdateException>()).Which.Should().BeSameAs(failure);
+    }
+
+    [HumansTheory]
+    [InlineData("23505", "IX_teams_Slug", true)]
+    [InlineData("23505", "IX_teams_CustomSlug", true)]
+    [InlineData("23505", "IX_teams_GoogleGroupPrefix", false)]
+    [InlineData("23505", "PK_teams", false)]
+    [InlineData("23503", "IX_teams_Slug", false)]
+    public async Task AddTeam_OnlyRetriesSlugConstraintCollisions(string sqlState, string constraint, bool retry)
+    {
+        var failure = new DbUpdateException("Save failed", new Npgsql.PostgresException(
+            "Constraint violation", "ERROR", "ERROR", sqlState, constraintName: constraint));
+        var options = new DbContextOptionsBuilder<TeamsDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(new FailedInsert(failure)).Options;
+        var repo = new TeamRepository(new TestDbContextFactory<TeamsDbContext>(options));
+        var team = new Team { Id = Guid.NewGuid(), Name = "Design", Slug = "design" };
+        Func<Task<bool>> insert = () => repo.AddTeamWithRequiresApprovalOverrideAsync(
+            team, requiresApproval: true, Xunit.TestContext.Current.CancellationToken);
+
+        if (retry)
+            (await insert()).Should().BeFalse();
+        else
+            (await insert.Should().ThrowAsync<DbUpdateException>()).Which.Should().BeSameAs(failure);
+    }
+
+    private sealed class FailedInsert(DbUpdateException failure) : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default) => throw failure;
+    }
+
     private readonly TeamsDbContext _dbContext;
     private readonly FakeClock _clock;
     private readonly TeamRepository _repo;
@@ -45,6 +105,35 @@ public sealed class TeamRepositoryTests : IDisposable
     // ==========================================================================
     // Team reads
     // ==========================================================================
+
+    [HumansTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AddTeam_PersistsApprovalModeInOneSave(bool requiresApproval)
+    {
+        var counter = new SaveCounter();
+        var options = new DbContextOptionsBuilder<TeamsDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(counter)
+            .Options;
+        var repo = new TeamRepository(new TestDbContextFactory<TeamsDbContext>(options));
+        var team = new Team
+        {
+            Id = Guid.NewGuid(),
+            Name = "Design",
+            Slug = "design",
+            RequiresApproval = requiresApproval,
+            CreatedAt = _clock.GetCurrentInstant(),
+            UpdatedAt = _clock.GetCurrentInstant()
+        };
+
+        (await repo.AddTeamWithRequiresApprovalOverrideAsync(
+            team, requiresApproval, Xunit.TestContext.Current.CancellationToken)).Should().BeTrue();
+
+        var stored = await repo.GetByIdAsync(team.Id, Xunit.TestContext.Current.CancellationToken);
+        stored!.RequiresApproval.Should().Be(requiresApproval);
+        counter.Saves.Should().Be(1);
+    }
 
     [HumansTheory]
     [InlineData(nameof(CallToAction.Text))]
@@ -436,6 +525,18 @@ public sealed class TeamRepositoryTests : IDisposable
         _dbContext.Set<TeamRoleDefinition>().Add(def);
         await _dbContext.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
         return def;
+    }
+
+    private sealed class SaveCounter : SaveChangesInterceptor
+    {
+        public int Saves { get; private set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            Saves++;
+            return ValueTask.FromResult(result);
+        }
     }
 
     private async Task SeedRoleAssignmentAsync(TeamRoleDefinition def, TeamMember member)

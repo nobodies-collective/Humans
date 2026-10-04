@@ -65,6 +65,7 @@ All routes are `AdminOnly`.
 - Neither service reads `audit_log`. Sync state is read from the section's own table; audit descriptions are prose, never serialized JSON.
 - No `IMailerLiteAudience` may claim the reserved `import-reconciliation` key (pinned by `MailerLiteArchitectureTests.AllAudiences_HaveUniqueGroupNamesAndKeys`).
 - `mailerlite_sync_states` holds exactly one row per key. The repository's check-and-insert runs under a striped `TrackedLock` keyed on the sync key (the daily job and an admin's "Sync Audience" click can land together); there is no DB unique index. `ComputeAllStatsAsync` groups by key and takes the most recent rather than assuming uniqueness, so a duplicate shows the newest row instead of 500ing the dashboard (pinned by `ComputeAllStatsAsync_DuplicateKeyRows_ShowsTheNewest`).
+- Import matching prefers a single verified owner. Multiple verified owners or multiple unverified matching email rows (including aliases on one owner) are skipped without deleting emails, provisioning a contact, or changing marketing preferences. Only a single unverified match is eligible for replacement.
 - The import (`MailerLiteImportService`) ingests **only** the MailerLite group named `Website` (resolved by name; throws if the group is absent) — never the whole account. The reset pass excludes anyone in that group of any status, since the import already owns their pref (active → opt-in, unsubscribed/bounced → opt-out). Pinned by `MailerLiteImportServiceWebsiteScopeTests`.
 - Every write to `CommunicationPreference[Marketing]` goes through `CommunicationPreferenceService` — `UpdatePreferenceAsync` for opt state, `ResetPreferenceAsync` to delete the row (→ null) — and produces a `CommunicationPreferenceChanged` audit entry on real state changes (not idempotent confirms).
 - `ApplyAsync` is idempotent: a second run against unchanged ML+Humans state writes zero per-row entries and exactly one `MailerLiteReconciliationCompleted` summary entry.
@@ -75,7 +76,8 @@ All routes are `AdminOnly`.
 - Audience sync excludes ML subscribers with `status ∈ {unsubscribed, bounced, junk}` from group assignment — delivery/consent state overrides audience membership.
 - `MailerLiteClient` retries a `429` response up to twice more (3 attempts total), honouring the response's `Retry-After` header (clamped to 0–90s; defaults to 60s when the header is absent or unparsable) before giving up (nobodies-collective/Humans#1103).
 - Successful subscriber erasure (including a remote 404) removes the address from the cached subscriber list and recomputes account status totals from the remaining snapshot. A failed remote deletion retains both.
-- Cache refresh replaces the subscriber/group snapshot only after both page walks succeed. Missing page data or metadata, repeated subscriber cursors, and inconsistent group page numbers throw and retain the last successful snapshot. Group reads follow pagination metadata even across empty intermediate pages.
+- Group creation requires a returned group before appending to the cached snapshot; missing/null response data fails without poisoning the existing group list.
+- Cache refresh replaces the subscriber/group snapshot only after both page walks succeed. Missing page data or metadata, null subscriber/group items, repeated subscriber cursors, and inconsistent group page numbers throw and retain the last successful snapshot. Group reads follow pagination metadata even across empty intermediate pages.
 
 ## Negative Access Rules
 

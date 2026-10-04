@@ -645,17 +645,10 @@ internal sealed class Service(
         // Which 400000xx a contact holds is Holded's fact, so it — not the number cached on the binding
         // — decides the row: a binding whose number never resolved still reaches its account, and two
         // bindings on one contact land together as the collision they are. Stored number is the fallback.
-        var accountByContactId = contacts
-            .GroupBy(kv => kv.Value.Id, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First().Key, StringComparer.Ordinal);
-
         // Resolved once and split, not filtered twice: one partition of one snapshot, so no binding can
         // appear both on an account row and on the unresolved card.
         var resolved = (await repo.GetCreditorContactsAsync(ct))
-            .Select(b => (Account: accountByContactId.TryGetValue(b.HoldedContactId, out var viaContact)
-                              ? viaContact
-                              : b.SupplierAccountNum,
-                          Binding: b))
+            .Select(b => (Account: ResolveCreditorAccount(b, contactById), Binding: b))
             .ToList();
 
         // Every binding on an account, not just the first: only UserId is unique in the DB and the two
@@ -720,6 +713,13 @@ internal sealed class Service(
                 "/Finance/Creditors will show bare account numbers.", rows.Count);
 
         return (rows, unresolved);
+    }
+
+    private static int? ResolveCreditorAccount(
+        HoldedCreditorContact binding, IReadOnlyDictionary<string, HoldedContactDto> contacts)
+    {
+        var account = contacts.GetValueOrDefault(binding.HoldedContactId)?.SupplierAccountNum;
+        return account is >= CreditorAccountMin and <= CreditorAccountMax ? account : binding.SupplierAccountNum;
     }
 
     /// <summary>Holded's contact list keyed by contact id — the identity a creditor binding stores.
@@ -891,8 +891,20 @@ internal sealed class Service(
         if (lines.Count == 0)
             return null;
 
-        var contact = (await ListContactsOrEmptyAsync(ct))
-            .FirstOrDefault(c => c.SupplierAccountNum == supplierAccountNum);
+        var contacts = await ContactsByIdAsync(ct);
+        var bindings = (await repo.GetCreditorContactsAsync(ct))
+            .Where(b => ResolveCreditorAccount(b, contacts) == supplierAccountNum)
+            .ToList();
+        HoldedContactDto? contact = null;
+        if (bindings.Count == 1)
+        {
+            contact = contacts.GetValueOrDefault(bindings[0].HoldedContactId);
+        }
+        else if (bindings.Count == 0)
+        {
+            var candidates = contacts.Values.Where(c => c.SupplierAccountNum == supplierAccountNum).ToList();
+            if (candidates.Count == 1) contact = candidates[0];
+        }
 
         var balance = LedgerBalance(lines);
         return new HoldedCreditorLedger(
@@ -1562,8 +1574,15 @@ internal sealed class Service(
         }
     }
 
-    public async Task<SepaBookingResult> BookSepaTransferAsync(
-        Guid transferId, string bankMovementId, Guid? actorUserId)
+    public Task<SepaBookingResult> BookSepaTransferAsync(
+        Guid transferId, string bankMovementId, Guid? actorUserId) =>
+        RunBookingAsync(() => BookOneTransferAsync(transferId, bankMovementId, actorUserId));
+
+    public Task<SepaBookingResult> BookSepaFileAsync(
+        Guid fileId, string bankMovementId, Guid actorUserId) =>
+        RunBookingAsync(() => BookOneFileAsync(fileId, bankMovementId, actorUserId));
+
+    private async Task<SepaBookingResult> RunBookingAsync(Func<Task<SepaBookingResult>> booking)
     {
         if (BookingUnavailableReason() is { } unavailable)
             return new SepaBookingResult(false, unavailable);
@@ -1571,28 +1590,11 @@ internal sealed class Service(
         // The "is it already booked?" read and the stamp that answers it sit either side of several
         // Holded round-trips, so two callers inside that window — a Book click while the sweep runs,
         // or a double-submitted form — would both read "not booked" and both post the whole amount.
-        // One server, and a booking takes seconds: serialise them outright.
+        // One server, and a booking takes seconds: serialise both entry points outright.
         await BookingGate.WaitAsync(CancellationToken.None);
         try
         {
-            return await BookOneTransferAsync(transferId, bankMovementId, actorUserId);
-        }
-        finally
-        {
-            BookingGate.Release();
-        }
-    }
-
-    public async Task<SepaBookingResult> BookSepaFileAsync(
-        Guid fileId, string bankMovementId, Guid actorUserId)
-    {
-        if (BookingUnavailableReason() is { } unavailable)
-            return new SepaBookingResult(false, unavailable);
-
-        await BookingGate.WaitAsync(CancellationToken.None);
-        try
-        {
-            return await BookOneFileAsync(fileId, bankMovementId, actorUserId);
+            return await booking();
         }
         finally
         {

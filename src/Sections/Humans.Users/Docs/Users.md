@@ -284,6 +284,8 @@ Inbound (other sections → Users) — the typical direction:
 
 ## Architecture
 
+A lazy per-key cache miss cannot republish its old result after an intervening cache eviction or refresh.
+
 **Owning services:** `UserService`, `AccountProvisioningService`, `UnsubscribeService`, `AccountDeletionService`, `AccountMergeService` + `DuplicateAccountService` (the one ordered merge engine and the stateless duplicate detector; `AccountMergeService` is backed by `IAccountMergeRepository` for `account_merge_requests` and contributes the `AccountMergeRequests` GDPR slice), `ExternalLoginService` (the OAuth-callback decision ladder, kept out of `AccountController` per HUM0031; sole caller of `IUserEmailService.ReconcileOAuthIdentityAsync`) — all in `Humans.Users/Services/`.
 **Owned tables:** `users`, `user_claims`, `user_logins`, `user_tokens`, `roles` (legacy), `user_roles` (legacy), `role_claims` (legacy), `event_participations`, `account_merge_requests`.
 
@@ -473,6 +475,8 @@ Self and admin email-grid mutation rejections remain Warning logs with the membe
 | Visibility | ContactFieldVisibility? | Stored as string (max 50); null hides the email from profile view |
 | VerificationSentAt | Instant? | Last time a verification email was sent (rate limiting) |
 | CreatedAt / UpdatedAt | Instant | Maintained by `UserEmailService` |
+
+OAuth reconciliation translates only a collision on `IX_user_emails_Email` into the existing verified-email race exception; unrelated persistence failures retain their original exception and follow the callers’ normal failure handling.
 
 **Indexes:** `UserId`; **unique partial index** on `Email` filtered to `IsVerified = true` (Postgres `"IsVerified" = true`). The cross-account check is service-enforced (`VerifyEmailAsync`, `AdminMarkVerifiedAsync`, the OAuth reconcile); the index is a unique index on an editable string, forbidden by `memory/architecture/unique-constraints-ids-only.md`, and its drop is recorded in `Docs/debt.yml`.
 
@@ -732,6 +736,8 @@ Admin-only flows for the section's cross-account hygiene (the `/Profile/Admin/*`
 ### Account deletion cascade
 
 Account deletion cascades (user-requested / admin-initiated / expiry-triggered) are orchestrated by `IAccountDeletionService` (`src/Sections/Humans.Users/Services/AccountDeletionService.cs`). `ProfileService` owns only profile-picture storage (`IProfilePictureService`); profile-data anonymization is `IUserServiceInternal.AnonymizeProfileForDeletionAsync`. User-initiated deletion request and cancel both live on `IAccountDeletionService` (`RequestDeletionAsync`, `CancelDeletionAsync`). `ProfileController.RequestDeletion` (signed-in users with profiles), `GuestAccountController.RequestDeletion` (profileless users) and `UserController.CancelDeletion` call the orchestrator directly — no manual `User.DeletionRequestedAt`/`DeletionScheduledFor`/`DeletionEligibleAfter` writes anywhere else. The orchestrator computes the optional `DeletionEligibleAfter` (post-event hold for current-event ticket holders) inline via `ITicketServiceRead.GetUserTicketHoldingsAsync` so every entry point gets the same treatment.
+
+Deletion requests invalidate the user's shift authorization and view caches after the write attempt, including failures in later membership/role cleanup or the confirmation email. Those failures still propagate; cache cleanup never reports an incomplete cascade as successful.
 
 ### Touch-and-clean guidance
 

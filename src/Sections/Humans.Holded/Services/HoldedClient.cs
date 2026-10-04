@@ -89,12 +89,14 @@ internal sealed class HoldedClient : IHoldedClient
 
         using var resp = await SendAsync(req, ct);
         var body = await resp.Content.ReadAsStringAsync(ct);
+        // A successful create may already be persisted remotely; a missing ID cannot be retried safely.
         try
         {
             var node = JsonNode.Parse(body)
-                ?? throw new HoldedTransientException("Holded returned empty body");
-            var id = node["id"]?.GetValue<string>()
-                ?? throw new HoldedTransientException("Holded response missing id");
+                ?? throw new HoldedPermanentException("Holded returned no purchase identity after accepting creation.");
+            var id = node["id"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(id))
+                throw new HoldedPermanentException("Holded returned no purchase identity after accepting creation.");
             return id;
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException
@@ -382,10 +384,11 @@ internal sealed class HoldedClient : IHoldedClient
         try
         {
             var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct))
-                ?? throw new HoldedTransientException("Holded returned empty body");
-            return node["id"]?.GetValue<string>()
-                ?? input.ExistingContactId
-                ?? throw new HoldedTransientException("Holded contact upsert response missing id");
+                ?? throw new HoldedPermanentException("Holded returned no contact identity after accepting the upsert.");
+            var id = node["id"]?.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(id)) return id;
+            if (!string.IsNullOrWhiteSpace(input.ExistingContactId)) return input.ExistingContactId;
+            throw new HoldedPermanentException("Holded returned no contact identity after accepting the upsert.");
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException
             or FormatException or OverflowException)
@@ -416,9 +419,11 @@ internal sealed class HoldedClient : IHoldedClient
         try
         {
             var node = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct))
-                ?? throw new HoldedTransientException("Holded returned empty body");
-            return Prop(node, "id")?.GetValue<string>()
-                ?? throw new HoldedTransientException("Holded sales-document response missing id");
+                ?? throw new HoldedPermanentException("Holded returned no sales-document identity after accepting creation.");
+            var id = Prop(node, "id")?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(id))
+                throw new HoldedPermanentException("Holded returned no sales-document identity after accepting creation.");
+            return id;
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException
             or FormatException or OverflowException)
@@ -854,6 +859,7 @@ internal sealed class HoldedClient : IHoldedClient
         [CallerMemberName] string caller = "")
     {
         var items = new List<JsonNode>();
+        var seenCursors = new HashSet<string>(StringComparer.Ordinal);
         string? cursor = null;
         try
         {
@@ -883,7 +889,12 @@ internal sealed class HoldedClient : IHoldedClient
                         $"(body starts: {preview[..Math.Min(preview.Length, 120)]}).");
                 }
                 foreach (var n in itemsArr)
-                    if (n is not null) items.Add(n);
+                {
+                    if (n is null)
+                        throw new HoldedPermanentException(
+                            $"Holded page for {pathAndQuery.Split('?', 2)[0]} contains a null item.");
+                    items.Add(n);
+                }
 
                 // Absent has_more is a legitimate final page — the live accounting-accounts
                 // response carries items only, no pagination metadata. But has_more:true without
@@ -895,6 +906,9 @@ internal sealed class HoldedClient : IHoldedClient
                 if (string.IsNullOrEmpty(cursor))
                     throw new HoldedTransientException(
                         $"Holded page for {pathAndQuery.Split('?', 2)[0]} claims has_more but carries no cursor.");
+                if (!seenCursors.Add(cursor))
+                    throw new HoldedTransientException(
+                        $"Holded page for {pathAndQuery.Split('?', 2)[0]} carries a repeated cursor.");
             }
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException
@@ -967,15 +981,16 @@ internal sealed class HoldedClient : IHoldedClient
         using var _ = _logger.TimeOperation(operation: caller);
         var resp = await SendOnceAsync(req, caller, ct);
 
-        // 429 is retried once, only for content-free (GET) requests — a content-bearing request
-        // (POST/PUT) is not safely repeatable without knowing whether Holded already applied it.
-        if (resp.StatusCode == HttpStatusCode.TooManyRequests && req.Content is null)
+        // Only content-free GETs are safe to retry here. A bodyless approval POST still
+        // mutates Holded, so the absence of content cannot establish repeatability.
+        if (resp.StatusCode == HttpStatusCode.TooManyRequests && req.Method == HttpMethod.Get && req.Content is null)
         {
             var retryAfterSeconds = Math.Min(
                 ReadRetryAfterSeconds(resp) ?? DefaultRetryAfterSeconds, MaxRetryAfterSeconds);
             resp.Dispose();
             await Task.Delay(TimeSpan.FromSeconds(retryAfterSeconds), ct);
-            resp = await SendOnceAsync(CloneForRetry(req), caller, ct);
+            using var retry = CloneForRetry(req);
+            resp = await SendOnceAsync(retry, caller, ct);
         }
 
         if (resp.StatusCode == HttpStatusCode.TooManyRequests)

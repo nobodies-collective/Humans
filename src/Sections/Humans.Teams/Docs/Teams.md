@@ -183,6 +183,8 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 
 ## Invariants
 
+- Team creation persists the requested approval mode on the initial insert. The EF true sentinel preserves open teams without a second update.
+
 - The parent-team resource inheritance warning reflects only the current selection. Changing or clearing the parent hides the prior list immediately and invalidates earlier lookup responses or errors.
 
 - Global-search result rows pass browser cancellation to the team lookup; display fields and missing-result behavior are unchanged.
@@ -223,15 +225,15 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 - All member additions and removals are audit-logged via `AuditLogEntry`.
 - Google resource access changes triggered by membership changes (Drive folder permissions, Group memberships) are logged in the audit trail.
 - Removing a member from a team also removes all their role assignments on that team.
-- Each team has a unique slug used for URL routing. A custom slug can override the auto-generated one.
+- Each team has a unique slug used for URL routing. A custom slug can override the auto-generated one. Team creation retries only slug/custom-slug constraint collisions; unrelated failures, including a duplicate Google group prefix, propagate.
 - A Google Group prefix, if set, provisions a `@nobodies.team` group for the team.
-- Only departments (not sub-teams or system teams) can have public team pages. Team page Markdown uses the shared sanitized renderer: inline styles and non-HTTPS image sources are removed; supported task-list markup is retained.
+- Only departments (not sub-teams or system teams) can have public team pages. Page-save results distinguish known rule refusals from dependency failures: known feedback is retained, unexpected failures are logged with the original exception and use the operator form’s generic fallback, and cancellation propagates. Team page Markdown uses the shared sanitized renderer: inline styles and non-HTTPS image sources are removed; supported task-list markup is retained.
 - A **hidden team** (`IsHidden = true`) is invisible to non-admin users: it does not appear on profile cards, team listings, public pages, birthday team names, or the "My Teams" page. Only Admin, Board, and TeamsAdmin can see and manage hidden teams. Campaigns can still target hidden teams for code distribution. The system-team sync skips the "added to team" email for hidden teams.
 - A **sensitive team** (`IsSensitive = true`) is an admin-only flag (not publicly visible). **Only a global Admin can set or clear `IsSensitive`**, enforced in `TeamService.UpdateTeamAsync`: a caller that changes the flag must pass the global Admin check, so no second caller can set it around Edit Team. On Edit Team the checkbox is additionally suppressed for non-Admin editors, so a non-Admin's save passes `null` (leave-unchanged) and never reaches the check (ref #824). Adding or approving a member surfaces a deterrent confirmation modal in the Members admin view that shows the audit record that will be created.
 - The Teams directory (`/Teams`) shows only **directory-visible** teams: top-level teams (departments) always appear; sub-teams only appear if `IsPromotedToDirectory` is true. Sub-teams are always accessible from their parent team's detail page regardless of this flag.
 - `team_join_request_state_history` is append-only per §12.
 - Resource-based authorization per design-rules §11: `TeamAuthorizationHandler` + `TeamOperationRequirement`.
-- Early Entry is gated by the per-team `EarlyEntryEnabled` flag: only enabled teams contribute EE grants to the cross-section roster, expose the EE management page, and accept new grants (`AddEarlyEntryGrantAsync` rejects a disabled team). Multiple teams may enable it.
+- Early Entry is gated by the per-team `EarlyEntryEnabled` flag: only enabled teams contribute EE grants to the cross-section roster, expose the EE management page, and accept new grants (`AddEarlyEntryGrantAsync` rejects a disabled team). Multiple teams may enable it. A flag change evicts the EE cache after the team save attempt, including uncertain save completion, so reads during the save cannot retain grants under the old flag.
 - Toggling `EarlyEntryEnabled` off never deletes existing grants — they simply stop appearing on the roster while disabled.
 - `RemoveEarlyEntryGrantAsync` is idempotent (removing an absent grant is a no-op).
 - `ManageEarlyEntry` authority: Admin / TeamsAdmin / Board on any team; `EETeamAdmin` on any team (this operation only); a team coordinator (or parent-department coordinator) on their own team.
@@ -247,6 +249,8 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 - Nobody can manually add or remove members from system teams.
 
 ## Triggers
+
+- Membership inserts and join approvals return the existing-member outcome only for `IX_team_members_active_unique` collisions; unrelated persistence failures propagate.
 
 - When a join request is approved, a team membership record is created and the human is notified. Added-member emails and notices use the recipient's supported saved language, with English fallback for blank, invalid or unsupported preferences. Notices reuse the translated email subject and the recipient language already prepared for email, retaining that language if email preparation/delivery fails. Approval, rejection and member-removal notices use the recipient’s supported saved language across all six cultures, with English fallback for missing/unsupported languages or a failed language lookup.
 - When a member is removed from a team, all their role assignments for that team are also removed.

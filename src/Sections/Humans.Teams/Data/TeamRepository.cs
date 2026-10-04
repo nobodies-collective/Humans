@@ -212,15 +212,19 @@ internal sealed class TeamRepository(IDbContextFactory<TeamsDbContext> factory) 
         Team team, bool requiresApproval, CancellationToken ct = default)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        team.RequiresApproval = requiresApproval;
         db.Teams.Add(team);
         try
         {
             await db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
         {
-            // Unique-constraint collision — typically a slug race against a
+            SqlState: Npgsql.PostgresErrorCodes.UniqueViolation,
+            ConstraintName: "IX_teams_Slug" or "IX_teams_CustomSlug"
+        })
+        {
+            // Slug-constraint collision — a slug race against a
             // concurrent create of the same name. Return false so the service
             // can retry with the next suffix. Detach the tracked entity so the
             // caller can reuse the context-free Team instance if needed.
@@ -228,17 +232,6 @@ internal sealed class TeamRepository(IDbContextFactory<TeamsDbContext> factory) 
             return false;
         }
 
-        if (!requiresApproval)
-        {
-            // RequiresApproval has a store default of true, so persist explicit false
-            // after insert instead of relying on EF's insert sentinel handling.
-            var entry = db.Entry(team).Property(t => t.RequiresApproval);
-            entry.CurrentValue = false;
-            entry.IsModified = true;
-            await db.SaveChangesAsync(ct);
-        }
-
-        await tx.CommitAsync(ct);
         return true;
     }
 
@@ -619,7 +612,8 @@ internal sealed class TeamRepository(IDbContextFactory<TeamsDbContext> factory) 
             await db.SaveChangesAsync(ct);
             return true;
         }
-        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
+        { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_team_members_active_unique" })
         {
             return false;
         }
@@ -640,7 +634,8 @@ internal sealed class TeamRepository(IDbContextFactory<TeamsDbContext> factory) 
             await db.SaveChangesAsync(ct);
             return true;
         }
-        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
+        { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_team_members_active_unique" })
         {
             return false;
         }

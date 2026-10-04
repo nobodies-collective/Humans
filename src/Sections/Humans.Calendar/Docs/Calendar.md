@@ -130,6 +130,7 @@ The calendar is intentionally open: no resource-based authorization gates edit/d
 - Only authenticated humans may create, edit, or delete events, or manage exceptions (enforced by `[Authorize]` on `CalendarController`).
 - Unexpected create/edit failures return `Calendar_SaveFailed` for the controller to localize in all six cultures; detailed exceptions remain in server logs.
 - Every mutating action (create / update / delete / cancel-occurrence / override-occurrence) writes an `AuditLogEntry` with the actor's user ID.
+- Update missing-row results come from the repository outcome, not diagnostic text. A dependency failure mentioning "not found" remains an ordinary failure.
 - Create and update result wrappers preserve caller cancellation before commit; they do not turn a canceled operation into an ordinary validation or persistence failure. After any successful event or occurrence mutation, the cache refresh runs without the browser token, so an abort cannot make a committed write fail during refresh. Malformed recurrence and unknown timezone rejections remain Warning logs with their reason, without exception stacks.
 - Title is required (non-null, non-empty).
 - Create/edit form required, length and URL validation errors use shared resources in all six cultures; input limits and URL validation are unchanged.
@@ -138,7 +139,7 @@ The calendar is intentionally open: no resource-based authorization gates edit/d
 - Timed events require `StartUtc <= EndUtc` and have no date fields. All-day writes require `StartDate < EndDateExclusive` and have no start/end instants.
 - Zero-duration timed occurrences are included when their start is in `[from, to)`, including the window's start. Positive-duration occurrences must overlap the window; an occurrence ending exactly at `from` is excluded.
 - Forms display inclusive end dates; `CalendarService.AllDayWindow` / `AllDayInclusiveEndDate` convert between inclusive and exclusive `LocalDate` values without a timezone.
-- Legacy all-day rows are projected to dates in the service using their original recurrence zone, or Madrid for one-off events. A null legacy end means one day. Legacy timed overrides of all-day events become covered dates. Saving the series converts its exceptions to date fields before clearing the old timezone; no bulk backfill is required.
+- Legacy all-day rows are projected to dates in the service using their original recurrence zone, or Madrid for one-off events. Legacy DATE-TIME UNTIL accepts recurrence validation's letter casing and converts UTC cutoffs in the original zone. A null legacy end means one day. Legacy timed overrides of all-day events become covered dates. Saving the series converts its exceptions to date fields before clearing the old timezone; no bulk backfill is required.
 - Timed recurrence requires an RRULE and IANA timezone together. All-day recurrence uses DATE DTSTART/DTEND and date-only UNTIL; sub-day recurrence rules are rejected on writes.
 - Calendar month, list, agenda, and team windows — plus the Create form's initial date and timezone — use the browser-reported session timezone when available; otherwise they use Madrid, the community default. Each calendar page names its zone in a picker; choosing another zone sets the session timezone.
 - The Edit and occurrence-override forms render timed events in the series' stored zone, or the viewer's zone for one-off events (which store none), and read posted times in the zone chosen on the form.
@@ -156,6 +157,7 @@ The calendar is intentionally open: no resource-based authorization gates edit/d
 - Timed recurrence expansion uses a conservative local upper bound, then checks instant overlap. The earlier occurrence in a repeated clock hour remains visible when the window ends during its later repetition.
 - A member has at most one `CalendarFeedToken`, keyed by their user id, and none until they first open `/Calendar`. Minting is lazy and idempotent, and never replaces a token already there: two first views racing each other both try to insert the same primary key, and the loser adopts the winner's token rather than failing or revoking a live subscription. Rotation is the one path that replaces the row, and is last-write-wins by design. GDPR erasure deletes it, and an account merge deletes the eliminated account's row rather than moving it — the survivor keeps their own feed and the dead account's URL stops working.
 
+- A failed mutation result or exception clears the calendar snapshot because a save may have committed before acknowledgement failed. The next read reloads all events and exceptions; the original failure result or exception is preserved.
 - A failed or cancelled post-write cache reload evicts the affected event and marks the event cache cold; the next window read reloads from source, including newly created events. The reload failure still propagates.
 
 ## Negative Access Rules
@@ -179,6 +181,8 @@ The calendar is intentionally open: no resource-based authorization gates edit/d
 - **Inbound (contributor fan-out):** Shifts (`ShiftSignupService`), Events (`EventService`) and Workgroups (`WorkgroupCalendarContributor`) implement `ICalendarFeedContributor` — both `GetCalendarItemsForUserAsync` (personal feed) and `GetPublicItemsForWindowAsync` (community calendar; Shifts and Events return an empty list, Workgroups returns the public meetings of its active workgroups); Scanner reads `IICalFeedService` for the ticket card's shift commitments; Debug's widget gallery and Users' admin detail render `UserCalendarViewComponent`. All but Users reference `Humans.Calendar` from their project file; Users renders it through the `IUserPart` seam (`SectionUserParts`), invoked by `Type`, and has no reference to resolve. The fan-out inverts the arrow either way, so Calendar names none of them.
 
 ## Architecture
+
+A lazy per-key cache miss cannot republish its old result after an intervening cache eviction or refresh.
 
 **Owning services:** `CalendarService` (keyed inner: mutations plus the row loads the cache warms and refreshes from), `CachingCalendarService` (decorator exposing `ICalendarService` and `ICalendarServiceRead`), `CalendarFeedTokenService` (internal: the feed credential's lifecycle, plus the section's `IUserDataContributor` and `IUserMerge`), `ICalFeedService` (personal iCal feed orchestrator — owns no tables, injects no repository)
 **Owned tables:** `calendar_events`, `calendar_event_exceptions`, `calendar_feed_tokens`

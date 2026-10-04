@@ -331,18 +331,7 @@ internal sealed class ShiftSignupService(
         {
             try
             {
-                var culture = await GetRecipientCultureAsync(userId);
-                var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString("Shifts_Notification_AssignedDay", culture)!,
-                        shift.Rota.Name, shift.DayOffset));
-                await notificationService.SendAsync(
-                    NotificationSource.ShiftAssigned,
-                    NotificationClass.Informational,
-                    NotificationPriority.Normal,
-                    noticeCopy.Title,
-                    [userId],
-                    body: noticeCopy.Body,
-                    actionUrl: "/Shifts",
-                    actionLabel: NoticeResources.GetString("Shifts_BrowseAvailable", culture));
+                await SendAssignmentNoticeAsync(userId, "Shifts_Notification_AssignedDay", shift.Rota.Name, shift.DayOffset);
             }
             catch (Exception ex)
             {
@@ -464,19 +453,8 @@ internal sealed class ShiftSignupService(
         {
             try
             {
-                var culture = await GetRecipientCultureAsync(userId);
-                var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString(assignable.Count == 1
-                        ? "Shifts_Notification_AssignedRangeSingular" : "Shifts_Notification_AssignedRange", culture)!,
-                        rota.Name, assignable.Count));
-                await notificationService.SendAsync(
-                    NotificationSource.ShiftAssigned,
-                    NotificationClass.Informational,
-                    NotificationPriority.Normal,
-                    noticeCopy.Title,
-                    [userId],
-                    body: noticeCopy.Body,
-                    actionUrl: "/Shifts",
-                    actionLabel: NoticeResources.GetString("Shifts_BrowseAvailable", culture));
+                await SendAssignmentNoticeAsync(userId, assignable.Count == 1
+                    ? "Shifts_Notification_AssignedRangeSingular" : "Shifts_Notification_AssignedRange", rota.Name, assignable.Count);
             }
             catch (Exception ex)
             {
@@ -894,8 +872,6 @@ internal sealed class ShiftSignupService(
             }
 
             signup.Confirm(reviewerUserId, clock);
-            if (signup.Shift.IsEarlyEntry)
-                earlyEntryInvalidator.InvalidateUser(signup.UserId);
             approved.Add(signup);
         }
 
@@ -931,7 +907,15 @@ internal sealed class ShiftSignupService(
             return SignupResult.Fail("Cannot approve: all shifts in this range are at capacity.");
         }
 
-        await repo.SaveChangesAsync();
+        try
+        {
+            await repo.SaveChangesAsync();
+        }
+        finally
+        {
+            foreach (var userId in approved.Where(s => s.Shift.IsEarlyEntry).Select(s => s.UserId).Distinct())
+                earlyEntryInvalidator.InvalidateUser(userId);
+        }
         shiftMgmt.InvalidateDashboardCaches(calendar.Id);
         viewInvalidator.InvalidateUser(approved[0].UserId);
         viewInvalidator.InvalidateRota(approved[0].Shift.RotaId);
@@ -1019,11 +1003,17 @@ internal sealed class ShiftSignupService(
         foreach (var signup in signups)
         {
             signup.Bail(actorUserId, clock, reason);
-            if (signup.Shift.IsEarlyEntry)
-                earlyEntryInvalidator.InvalidateUser(signup.UserId);
         }
 
-        await repo.SaveChangesAsync();
+        try
+        {
+            await repo.SaveChangesAsync();
+        }
+        finally
+        {
+            foreach (var userId in signups.Where(s => s.Shift.IsEarlyEntry).Select(s => s.UserId).Distinct())
+                earlyEntryInvalidator.InvalidateUser(userId);
+        }
         shiftMgmt.InvalidateDashboardCaches(firstSignup.Shift.Rota.EventSettingsId);
         viewInvalidator.InvalidateUser(firstSignup.UserId);
         viewInvalidator.InvalidateRota(firstSignup.Shift.RotaId);
@@ -1168,6 +1158,21 @@ internal sealed class ShiftSignupService(
 
         return (string.Concat(title.EnumerateRunes().Take(199)) + "…",
             body is null ? title : string.Concat(title, "\n\n", body));
+    }
+
+    private async Task SendAssignmentNoticeAsync(Guid userId, string resourceKey, params object[] args)
+    {
+        var culture = await GetRecipientCultureAsync(userId);
+        var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString(resourceKey, culture)!, args));
+        await notificationService.SendAsync(
+            NotificationSource.ShiftAssigned,
+            NotificationClass.Informational,
+            NotificationPriority.Normal,
+            noticeCopy.Title,
+            [userId],
+            body: noticeCopy.Body,
+            actionUrl: "/Shifts",
+            actionLabel: NoticeResources.GetString("Shifts_BrowseAvailable", culture));
     }
 
     private async Task<CultureInfo> GetRecipientCultureAsync(Guid userId)
