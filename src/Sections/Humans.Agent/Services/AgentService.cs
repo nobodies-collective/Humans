@@ -759,13 +759,14 @@ internal sealed class AgentService : IAgentService, IAgentConversationRetention
             var description = root.TryGetProperty("description", out var d) ? d.GetString() ?? "" : "";
             var categoryRaw = root.TryGetProperty("category", out var c) ? c.GetString() : null;
             var category = Enum.TryParse<IssueCategory>(categoryRaw, ignoreCase: true, out var parsed)
+                && Enum.IsDefined(parsed)
                 ? parsed
                 : IssueCategory.Question;
 
             // Trim to the same caps the issues form enforces; the agent's
             // suggestion sometimes runs over.
-            if (title.Length > 200) title = title[..200];
-            if (description.Length > 5000) description = description[..5000];
+            title = BoundProposalText(title, 200);
+            description = BoundProposalText(description, 5000);
 
             return new AgentIssueProposal(title, category, description);
         }
@@ -776,6 +777,15 @@ internal sealed class AgentService : IAgentService, IAgentConversationRetention
                 conversationId, jsonArguments);
             return null;
         }
+    }
+
+    private static string BoundProposalText(string text, int maxLength)
+    {
+        if (text.Length <= maxLength) return text;
+        var length = maxLength;
+        if (char.IsHighSurrogate(text[length - 1]) && char.IsLowSurrogate(text[length]))
+            length--;
+        return text[..length];
     }
 
     private async Task PersistRefusal(AgentTurnRequest req, string reason, CancellationToken ct)

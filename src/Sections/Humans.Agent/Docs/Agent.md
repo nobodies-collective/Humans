@@ -79,6 +79,8 @@ The member history page uses localized labels, including the link to each transc
 
 ## Invariants
 
+- FAQ overview routing summaries keep their 200-character prefix and word-boundary trimming without splitting UTF-16 surrogate pairs; complete source bodies are unchanged.
+
 Admin conversation-list paging clamps negative page numbers to zero and calculates offsets without integer overflow. A page beyond the available history stays empty rather than wrapping into earlier conversations; the Older link also stays within the integer page range.
 
 Conversation list and transcript GETs propagate request cancellation through viewer resolution before their conversation reads; ownership denials remain 404.
@@ -96,8 +98,12 @@ Conversation list and transcript GETs propagate request cancellation through vie
    `Help_Agent_IssueProposed` key so the live reply and transcript cannot drift.
    The widget’s browser error/status messages and Close label are localized too; its
    rendered data attributes supply all browser messages, including the handoff fallback.
+   Interrupted streams retain partial answers and issue handoffs with a localized error
+   note. EOF without a finalizer is an interruption; a received finalizer protects the
+   completed reply from subsequent transport failures.
 7. **Append-only conversations per user.** A user can only post to conversations they own. `AgentController` rejects cross-user access with 404.
 8. **Issue handoff is propose-only.** `route_to_issue` carries `{title, category, description}`. The dispatcher never writes a row server-side; the SSE stream emits an `issueProposal` token and the client opens the Issues submission modal pre-filled. The user reviews and submits via `/Issues/Submit`. Historical legacy auto-created `FeedbackReport.AgentConversationId` links are immutable.
+   Unrecognized categories, including undefined numeric enum values, fall back to Question.
 <!-- route_to_issue is propose-only; do not revert to server-side auto-creation of FeedbackReport rows. -->
 9. **Retention.** Conversations older than `AgentSettings.RetentionDays` are hard-deleted daily.
 10. **Single provider.** One `AnthropicClient` instance, one configured model at a time. No multi-provider fallback in Phase 1.
@@ -120,7 +126,7 @@ Read-only HTTP surface for QA/prod chat-history review by dev tooling and a dev-
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /api/backdoor/agent/conversations?refusalsOnly&handoffsOnly&userId&take&skip` | Conversation summaries. `take` clamped 1–200 (default 50). Each row includes `RefusalCount` (messages with `RefusalReason`), `HandoffCount` (legacy `HandedOffToFeedbackId` links plus `route_to_issue` invocations recorded in `FetchedDocs`), `LastUserMessagePreview` (200 char cap), `UserDisplayName` resolved via `IUserServiceRead.GetUserInfosAsync`. |
+| `GET /api/backdoor/agent/conversations?refusalsOnly&handoffsOnly&userId&take&skip` | Conversation summaries. `take` clamped 1–200 (default 50). Each row includes `RefusalCount` (messages with `RefusalReason`), `HandoffCount` (legacy `HandedOffToFeedbackId` links plus `route_to_issue` invocations recorded in `FetchedDocs`), `LastUserMessagePreview` (200 UTF-16 code-unit cap, preserving Unicode surrogate pairs), `UserDisplayName` resolved via `IUserServiceRead.GetUserInfosAsync`. |
 | `GET /api/backdoor/agent/conversations/{id}` | Full conversation envelope + ordered messages (Role, Content, CreatedAt, Model, RefusalReason, HandedOffToFeedbackId, FetchedDocs). |
 | `GET /api/backdoor/agent/conversations/{id}/messages` | Messages-only view (same per-message shape). |
 
@@ -128,7 +134,7 @@ Missing, unknown or revoked key → 401. Unknown id → 404. Mutations (deletion
 
 ## Triggers
 
-- On `route_to_issue` tool call: no server-side write. `AgentService` yields an `AgentIssueProposal` token; the client opens the Issues modal pre-filled. The user submits (or doesn't) via `/Issues/Submit` — admin triage filtering hooks into the Issues section, not Agent.
+- On `route_to_issue` tool call: no server-side write. `AgentService` yields an `AgentIssueProposal` token; the client opens the Issues modal pre-filled. Proposal titles and descriptions retain the form's 200/5000 UTF-16 code-unit limits without splitting a Unicode surrogate pair. The user submits (or doesn't) via `/Issues/Submit` — admin triage filtering hooks into the Issues section, not Agent.
 - On `AgentSettings` update: `IAgentSettingsStore` reloads the singleton; next request sees the new value.
 - On user deletion: no cross-section cascade. Agent owns no FK to `users`; orphaned `agent_conversations` rows are cleaned up by `AgentConversationRetentionJob` within `RetentionDays`. `FeedbackReport.AgentConversationId` is owned by Feedback and is left as-is (the column may dangle if the conversation was purged; readers must tolerate `null` lookups).
 

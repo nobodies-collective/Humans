@@ -99,4 +99,5 @@
   <data name="Store_DepositsReturned" xml:space="preserve"><value>Depositi restituiti</value></data>
   <data name="Store_RefundAmount" xml:space="preserve"><value>Importo da rimborsare</value></data>
   <data name="Store_IssueInvoiceNeedsZeroBalance" xml:space="preserve"><value>La fattura può essere emessa solo quando il saldo dell'ordine è zero.</value></data>
+  <data name="Store_ColAction" xml:space="preserve"><value>Azione</value></data>
 </root>

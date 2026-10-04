@@ -144,4 +144,5 @@
   <data name="Store_DepositsReturned" xml:space="preserve"><value>Deposits returned</value></data>
   <data name="Store_RefundAmount" xml:space="preserve"><value>Refund amount</value></data>
   <data name="Store_IssueInvoiceNeedsZeroBalance" xml:space="preserve"><value>An invoice can only be issued when the order balance is zero.</value></data>
+  <data name="Store_ColAction" xml:space="preserve"><value>Action</value></data>
 </root>

@@ -197,6 +197,10 @@ Admin pages live under `/Camps/Admin/*` — never `/Admin/Camps/*` (per `docs/ar
 
 ## Invariants
 
+- Global-search result rows pass browser cancellation through both the camp and public-year settings reads; season-name selection and missing-result behavior are unchanged.
+
+- Admin pending/withdrawn Barrio description previews preserve whole UTF-16 surrogate pairs within their existing 100-unit limit; full descriptions and approval/reactivation behavior stay unchanged.
+
 - The registration GET carries request cancellation through season settings and registration instructions; abandoning the page stops those loads. POST redisplay helpers keep their existing cancellation boundary.
 
 - Each camp has a unique slug used for URL routing.
@@ -204,6 +208,7 @@ Admin pages live under `/Camps/Admin/*` — never `/Admin/Camps/*` (per `docs/ar
 - **`Full` is informational only — it does not gate join requests.** It tells visitors the camp currently looks full; `RequestCampMembershipAsync` still matches `Active` **or** `Full` for the public year, because Humans doesn't yet know everyone who is actually in the camp (Peter, 2026-08-20). Don't reintroduce a block here — that reading of the issue was explicitly overridden.
 - Only camp leads or CampAdmin can edit a camp.
 - **Lead-facing mutations are camp-scoped.** Ids arriving from a form (seasonId, imageId, nameId) are proven to belong to the slug-resolved camp in `CampService` (`UpdateSeasonAsync`, `WithdrawSeasonAsync`, `ChangeSeasonNameAsync`, `DeleteImageAsync`, `RemoveHistoricalNameAsync`, `SetSeasonStatusAsync` all take a `scopedCampId` and throw on mismatch) — a lead of camp A cannot mutate camp B by crafting an id.
+- New camp images append after the highest remaining display position (zero for an empty gallery). Deletion leaves surviving positions intact, and later uploads preserve their relative order. Explicit reordering still assigns the requested positions.
 - Camp images are stored on disk via the shared `IFileStorage` abstraction (key prefix `uploads/camps/{campId}/`); metadata and display order are tracked per camp. The upload route permits 11 MB for one 10 MB image plus multipart overhead; the service enforces the image cap.
 - Camp and image deletions commit their metadata and audit before cleaning up image files. Cleanup ignores caller cancellation and logs storage failures without failing the committed deletion.
 - **Name-lock + historical-name auto-log:** renaming a season (`ChangeSeasonNameAsync`) is rejected once the season's `NameLockDate` has passed (today ≥ `NameLockDate`). Before the lock date, a rename auto-records the *old* name as a `CampHistoricalName` with `Source = NameChange` and writes a `CampNameChanged` audit entry.
@@ -257,6 +262,7 @@ Admin pages live under `/Camps/Admin/*` — never `/Admin/Camps/*` (per `docs/ar
 - Approving a membership request sends a `CampMembershipApproved` notification to the requester.
 - Rejecting a membership request sends a `CampMembershipRejected` notification to the requester. Approval and rejection notices use the recipient’s supported saved language in all six cultures, with English fallback for missing/unsupported languages or a failed language lookup.
 - When a season is rejected or withdrawn, pending requesters receive a `CampMembershipSeasonClosed` notification. Notices are grouped by the recipient’s supported saved language, with English fallback; a delivery failure in one language group does not prevent attempts for other groups. Their membership rows are **not** auto-mutated — the notification is the only side effect, so if the season is later reactivated the request is still live.
+- Facilitated contact messages notify camp leads in each recipient’s supported saved language, across all six cultures. Missing/unsupported language or a failed lookup falls back to English; delivery failures in one language group do not prevent the others. Long titles fit the notification storage limit while preserving the full copy in the body.
 - Camp leads do **not** receive a per-request stored notification when humans request to join. Instead a `NotificationMeter` ("N humans want to join your camp") shows the live pending count; it updates immediately on approve/reject/withdraw and drops to zero when the season is closed.
 - Active leads appear in the camp's active-members list automatically, tagged with an `IsLead` flag. They do not need a `CampMember` row to be shown as part of the camp.
 - When a CampMember is removed (Leave / Withdraw / Remove paths set `RemovedAt`), `ICampService` calls `ICampRoleService.RemoveAllForMemberAsync` before the soft-delete to clear any role assignments held by that member.

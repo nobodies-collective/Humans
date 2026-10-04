@@ -444,7 +444,7 @@ internal sealed class TeamRepository(IDbContextFactory<TeamsDbContext> factory) 
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<int> ReassignActiveJoinRequestsAsync(
+    public async Task ReassignActiveJoinRequestsAsync(
         Guid sourceUserId, Guid targetUserId, CancellationToken ct = default)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
@@ -461,7 +461,8 @@ internal sealed class TeamRepository(IDbContextFactory<TeamsDbContext> factory) 
 
         foreach (var src in sourceRows)
         {
-            if (targetPendingTeamIdSet.Contains(src.TeamId))
+            if (src.Status == TeamJoinRequestStatus.Pending
+                && targetPendingTeamIdSet.Contains(src.TeamId))
             {
                 // Target already has an active pending request to this team —
                 // drop source's row (target's stands).
@@ -478,9 +479,6 @@ internal sealed class TeamRepository(IDbContextFactory<TeamsDbContext> factory) 
         }
 
         await db.SaveChangesAsync(ct);
-
-        return await db.TeamJoinRequests
-            .CountAsync(r => r.UserId == targetUserId, ct);
     }
 
     // ==========================================================================

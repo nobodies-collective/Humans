@@ -107,4 +107,5 @@
   <data name="Store_DepositsReturned" xml:space="preserve"><value>Fianzas devueltas</value></data>
   <data name="Store_RefundAmount" xml:space="preserve"><value>Importe a reembolsar</value></data>
   <data name="Store_IssueInvoiceNeedsZeroBalance" xml:space="preserve"><value>Solo se puede emitir la factura cuando el saldo del pedido es cero.</value></data>
+  <data name="Store_ColAction" xml:space="preserve"><value>Acción</value></data>
 </root>

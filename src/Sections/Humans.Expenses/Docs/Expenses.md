@@ -132,6 +132,12 @@ The submitter-facing `/Expenses/{id}` detail view localizes report labels and st
 
 ## Invariants
 
+- Member report-list status badges reuse the section’s existing labels in all six cultures and the shared badge-color registry; stored status values and workflow rules are unchanged.
+
+- Report-subject previews retain their 60-character member-list and 80-character review-queue limits without splitting UTF-16 surrogate pairs; full notes remain unchanged.
+
+- Shared table currency and number cells use the selected UI culture; numeric sort values stay invariant.
+
 - Review queues retain reports whose submitter is missing or has no usable name. Their name cells use the view’s shared localized Unknown label; server name projections contain only actual nonblank burner names.
 - Report detail/edit, new-line, line/proof, IBAN, and review GETs propagate request cancellation through existing token-capable report, profile, timeline, creditor, name, and failed-push reads. Shared report/IBAN helpers keep non-cancellable defaults for mutation callers; tokenless Budget and authorization interfaces are unchanged.
 - New-report form user resolution and attachment download/inline reads honor request cancellation. Abandoned reads do not become error flashes or 404s; ordinary failures and attachment denial responses retain their existing behavior.
@@ -140,6 +146,7 @@ The submitter-facing `/Expenses/{id}` detail view localizes report labels and st
 
 - A report follows the lifecycle: Draft → Submitted → (CoordinatorEndorsed →) Approved. `Approved` is terminal for the report — paid/unpaid is read from the member's Holded creditor ledger, never stamped on the report. Terminal alternate: Withdrawn (from Submitted/CoordinatorEndorsed/Approved). `ExpenseReportService` enforces all transitions; `IExpenseRepository` persists them atomically.
 - A report cannot be submitted without at least one line. Every **Receipt** line (proof rows included) and every **Invoice** line must have an attachment at submit time; Mileage/PerDiem lines never require one (a pure-travel report submits with zero attachments).
+- New lines append after the highest remaining `SortOrder` within their report (starting at zero). Removing a line preserves surviving positions; a later append never reuses a surviving line's position.
 - A proof row must reference an Invoice line on the same report, must itself be a Receipt line, and nests one level only (enforced at add time). Removing an invoice line removes its proof rows and their attachments. Proof rows never contribute to `Total`, never appear as Holded document lines, and their files are never uploaded to the Holded doc. Proof coverage vs the invoice amount is displayed to reviewers but never enforced.
 - Once line removal commits, its on-behalf audit and attachment-file cleanup ignore request cancellation. The audit precedes cleanup; storage failures are logged without reversing the committed deletion.
 - Travel lines (Mileage/PerDiem) cannot be edited after creation — their amounts are computed from their inputs and the receipt requirement is waived on that basis, so `UpdateLineAsync` rejects them. To change one, remove it and re-add it so the amount is recomputed. Only Receipt lines accept free-text description/amount edits.
@@ -189,7 +196,7 @@ The submitter-facing `/Expenses/{id}` detail view localizes report labels and st
 - On **IBAN set/remove for another member**: `IbanSet` / `IbanRemove` written against the member as subject with the admin as actor, naming the member and carrying the IBAN unmasked. A member setting their own gets the bare masked-convention entry it always did.
 - On **payee snapshot refresh**: `ExpensePayeeIbanUpdated` written against the **report** (so it shows in that report's on-page history), actor = whoever set it, related entity = the submitter. Same masking rule as `IbanSet`: unmasked when the actor is not the submitter, bare when it is.
 - On **endorse**: any max amount the coordinator supplied is stored on the report and named in the `ExpenseEndorse` audit entry.
-- On **approve**: `HoldedExpenseOutboxEvent` (CreateIncomingDoc) queued. Audit entry `ExpenseApprove` written, naming any max amount the finance admin supplied (which overrides the coordinator's). Then the `expense_approved` email goes to the submitter (`ExpensesEmails.ReportApproved`, `MessageCategory.System`, in their preferred language) naming the payable amount, the masked payee IBAN and a link to the report — after the save, so a refused approval sends nothing; a submitter with no notification email is logged and skipped (peterdrier/Humans#1820).
+- On **approve**: `HoldedExpenseOutboxEvent` (CreateIncomingDoc) queued. Audit entry `ExpenseApprove` written, naming any max amount the finance admin supplied (which overrides the coordinator's). Then the `expense_approved` email goes to the submitter (`ExpensesEmails.ReportApproved`, `MessageCategory.System`, in their supported preferred language, with English fallback for blank, malformed or unsupported preferences) naming the payable amount, the masked payee IBAN and a link to the report — after the save, so a refused approval sends nothing; a submitter with no notification email is logged and skipped (peterdrier/Humans#1820).
 - On **category override**: `HoldedExpenseOutboxEvent` (UpdateIncomingDocTag) queued. Audit entry `ExpenseCategoryOverride` written.
 - On **IBAN reveal (admin page)**: `AuditAction.IbanReveal` written recording actor + target user.
 - On **Holded push success**: audit entry `ExpenseHoldedPushed` written (actor: the job). On **write-off**: `ExpenseHoldedFailed`. On **finance re-queue**: `ExpenseHoldedRequeued` (actor: the admin). These carry the push history past outbox-row cleanup — the outbox columns themselves are not readable outside the database.

@@ -73,6 +73,7 @@ public sealed class IssuesServiceTests
 
     private readonly IEmailService _emailService;
     private readonly IssuesEmails _emailMessages;
+    private readonly List<string> _renderedEmailCultures = [];
     private readonly IUserServiceRead _userService;
     private readonly IUserEmailService _userEmailService;
     private readonly IRoleAssignmentService _roleService;
@@ -89,7 +90,7 @@ public sealed class IssuesServiceTests
     public IssuesServiceTests()
     {
         _emailService = Substitute.For<IEmailService>();
-        _emailMessages = TestIssuesEmails.Create();
+        _emailMessages = TestIssuesEmails.Create(culture => _renderedEmailCultures.Add(culture));
         AuditLog
             .GetFilteredEntriesAsync(
                 Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<Guid?>(),
@@ -438,6 +439,23 @@ public sealed class IssuesServiceTests
     // PostCommentAsync
     // ==========================================================================
 
+    [HumansTheory]
+    [InlineData(1999, "x", 2000)]
+    [InlineData(1999, "😀", 1999)]
+    [InlineData(1998, "😀", 2000)]
+    public async Task SubmitIssueAsync_bounds_context_without_splitting_surrogate_pairs(int prefixLength, string boundary, int expectedLength)
+    {
+        var prefix = new string('x', prefixLength);
+        var issue = await _service.SubmitIssueAsync(
+            Guid.NewGuid(), IssueCategory.Bug, "Title", "Desc",
+            section: null, pageUrl: null, userAgent: null,
+            additionalContext: prefix + boundary + "extra", screenshot: null,
+            ct: Xunit.TestContext.Current.CancellationToken);
+
+        issue.AdditionalContext!.Length.Should().Be(expectedLength);
+        issue.AdditionalContext.Should().Be(expectedLength == prefixLength ? prefix : prefix + boundary);
+    }
+
     [HumansFact]
     public async Task PostCommentAsync_reporter_on_terminal_auto_reopens_to_Open()
     {
@@ -470,6 +488,23 @@ public sealed class IssuesServiceTests
 
         var stored = await _issuesDb.Issues.AsNoTracking().FirstAsync(i => i.Id == issueId, Xunit.TestContext.Current.CancellationToken);
         stored.Status.Should().Be(IssueStatus.Open);
+    }
+
+    [HumansFact]
+    public async Task IssueSubmitted_InvalidRecipientLanguage_DeliversEnglishNotice()
+    {
+        var reporter = SeedUser(Guid.NewGuid(), "Reporter");
+        var handler = SeedUser(Guid.NewGuid(), "Handler");
+        handler.PreferredLanguage = "invalid!";
+        _roleService.GetActiveUserIdsInRoleAsync(RoleNames.Admin, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<Guid>)[handler.Id]);
+
+        await _service.SubmitIssueAsync(reporter.Id, IssueCategory.Bug, "Title", "Detail",
+            null, null, null, null, null, ct: Xunit.TestContext.Current.CancellationToken);
+
+        var notice = _notificationService.ReceivedCalls().Single().GetArguments();
+        notice[3].Should().Be("New issue filed: Title");
+        ((IReadOnlyList<Guid>)notice[4]!).Should().Equal(handler.Id);
     }
 
     [HumansTheory]
@@ -593,11 +628,21 @@ public sealed class IssuesServiceTests
         stored.Description.Should().Be(detail);
     }
 
-    [HumansFact]
-    public async Task PostCommentAsync_handler_sends_email_and_notification_to_reporter()
+    [HumansTheory]
+    [Xunit.InlineData("es", "es")]
+    [Xunit.InlineData(null, "en")]
+    [Xunit.InlineData("", "en")]
+    [Xunit.InlineData("pt", "en")]
+    [Xunit.InlineData("fr-FR", "en")]
+    [Xunit.InlineData("not a culture!", "en")]
+    public async Task PostCommentAsync_handler_sends_email_and_notification_to_reporter(
+        string? language, string expectedLanguage)
     {
+        using var culture = new Humans.Base.Extensions.CultureScope("fr");
         var reporterId = Guid.NewGuid();
-        SeedUser(reporterId, "Reporter").Email = "reporter@test.com";
+        var reporter = SeedUser(reporterId, "Reporter");
+        reporter.Email = "reporter@test.com";
+        reporter.PreferredLanguage = language!;
         await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
         var issueId = await SeedIssueRowAsync(reporterId, IssueStatus.Open, "Report Title");
@@ -605,6 +650,9 @@ public sealed class IssuesServiceTests
 
         await _service.PostCommentAsync(issueId, Admin, adminId, "Looking at it", ct: Xunit.TestContext.Current.CancellationToken);
 
+        _renderedEmailCultures.Should().NotBeEmpty().And.OnlyContain(
+            value => string.Equals(value, expectedLanguage, StringComparison.Ordinal));
+        System.Globalization.CultureInfo.CurrentUICulture.Name.Should().Be("fr");
         await _emailService.Received(1).SendAsync(
             Arg.Is<EmailMessage>(m => m.TemplateName == "issue_comment"
                 && m.RecipientEmail == "reporter@test.com"

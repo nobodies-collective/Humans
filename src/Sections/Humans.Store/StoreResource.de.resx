@@ -99,4 +99,5 @@
   <data name="Store_DepositsReturned" xml:space="preserve"><value>Zurückgegebene Kautionen</value></data>
   <data name="Store_RefundAmount" xml:space="preserve"><value>Erstattungsbetrag</value></data>
   <data name="Store_IssueInvoiceNeedsZeroBalance" xml:space="preserve"><value>Eine Rechnung kann nur ausgestellt werden, wenn der Saldo der Bestellung null ist.</value></data>
+  <data name="Store_ColAction" xml:space="preserve"><value>Aktion</value></data>
 </root>

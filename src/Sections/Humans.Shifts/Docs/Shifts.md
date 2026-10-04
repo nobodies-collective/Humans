@@ -83,7 +83,7 @@ Per-user per-event day availability. `AvailableDayOffsets` stored as jsonb. Uniq
 `UserId` is a bare Guid column with no navigation property and no FK constraint.
 
 <!-- wheat: docs/superpowers/plans/2026-05-27-coordinator-availability-on-profile.md §Deviations from spec -->
-**Write-path asymmetry:** `VolunteerTrackingService.SetDayAvailabilityAsync` (the coordinator per-day availability toggle on a volunteer's profile) only guards `dayOffset >= 0` — unlike `SetDayOffAsync`, which validates the full window (`dayOffset < es.BuildStartOffset || dayOffset >= 0`). An offset earlier than `BuildStartOffset` can therefore be stored, but is inert: every heatmap/build-strip render loop is bounded to `[BuildStartOffset, 0)`, so an out-of-window offset never surfaces.
+**Coordinator per-day writes:** `VolunteerTrackingService.SetDayAvailabilityAsync` accepts additions only for a known event calendar and an offset in `[BuildStartOffset, 0)`, matching the heatmap/build strip and day-off window. Invalid additions create no row, write no audit and invalidate no cache. Removing an existing offset remains allowed, including old entries outside that window; other availability offsets are preserved.
 
 ### VolunteerBuildStatus
 
@@ -92,6 +92,7 @@ Per-user per-event build-period coordination state. Drives the Volunteer Trackin
 - `BarrioSetupStartDate` (nullable `LocalDate`) — the day a volunteer left scheduled rotas to join camp set-up. From this day onwards their row renders blue and gap detection stops flagging missing days.
 - `SetByUserId` (nullable `Guid`) and `SetAt` (nullable `Instant`) — audit fields recording who last modified the camp-set-up marker and when, plus optional `Notes` free-text (max 500) from that coordinator. Cleared when the marker is cleared.
 - `DayOffs` (jsonb `List<DayOffEntry>`: `DayOffset`, optional `Reason`, `MarkedByUserId`, `MarkedAt`) — sparse day-off annotations, one entry per day offset (relative to `EventSettings.GateOpeningDate`, all negative for build days) where the coordinator has acknowledged the volunteer is off-site. Day-off days render striped grey on the heatmap and are excluded from gap counts.
+  Reasons are trimmed and capped at 200 UTF-16 units without splitting surrogate pairs; blank reasons remain null.
 
 **Table:** `volunteer_build_statuses`
 
@@ -231,6 +232,8 @@ The cross-source Early Entry roster (`/Shifts/Admin/EarlyEntry`) is `EarlyEntryR
 
 ## Invariants
 
+- Shared table currency and number cells use the selected UI culture; numeric sort values stay invariant.
+
 - The member shift-profile wizard localizes breadcrumb navigation labels in all six supported cultures.
 
 - The `ShiftSignups` GDPR export includes each signup’s UTC last-update timestamp, including system cancellations without a reviewer date.
@@ -239,7 +242,7 @@ The cross-source Early Entry roster (`/Shifts/Admin/EarlyEntry`) is `EarlyEntryR
 
 - Browse and My shifts GETs forward request cancellation to viewer and cached per-user row reads; My shifts also forwards it to active-event and team-name reads.
 
-- Dashboard and department volunteer-search boxes debounce independently per shift. Each edit clears the prior results and invalidates pending responses, so older results or errors cannot expose an outdated assignment choice.
+- Dashboard and department volunteer-search boxes debounce independently per shift. Each edit clears the prior results and invalidates pending responses, so older results or errors cannot expose an outdated assignment choice. Range-voluntell searches apply the same isolation per rota input, clear its form’s selected identity immediately, and enable assignment only after picking a current result.
 
 - A disabled Sign-Up button is a **hint, not the enforcement** — the service layer is what refuses. Where the section renders one (`_ShiftToggleButton.cshtml`, `_EventRotaRow.cshtml`, `_BuildStrikeRotaTable.cshtml`, `Shifts/Mine.cshtml`) it pairs `disabled` with `aria-disabled="true"` and a short localized `title`, because `disabled` alone drops the control out of keyboard tab order and leaves a screen-reader user with no way to discover *why* it is unavailable. These four views are the only `aria-disabled` sites in the app.
 - Shift signup state machine (enforced by entity methods on `ShiftSignup`):
@@ -251,6 +254,8 @@ The cross-source Early Entry roster (`/Shifts/Admin/EarlyEntry`) is `EarlyEntryR
 - Signup-list visibility on `/Shifts` is currently public to all authenticated viewers (temporary policy — see [feature 26](features/shift-signup-visibility.md)). The browse partials (`_EventRotaTable`, `_BuildStrikeRotaTable`) render avatar chips for everyone; pending signups appear faded with a dashed border and the localized "Pending" label in the hover popover. `includeSignups` is unconditionally true so the column has data; the `isPrivileged` computation is preserved so reverting visibility is a one-line flip in `ShiftsController`. Admin-side signup lists (`/Teams/{slug}/Shifts`) remain coordinator-gated via `IShiftManagementService.CanApproveSignupsAsync`.
 - Voluntelling (admin/coordinator-initiated signup) creates a Confirmed `ShiftSignup` with `Enrolled = true` and records `EnrolledByUserId` / `ReviewedByUserId`. Range voluntell uses a shared `SignupBlockId` and skips shifts that are full or already booked.
 - The team-wide coordinator message (`/Teams/{slug}/Shifts/Email`) targets distinct users holding a **Pending or Confirmed** signup on any shift in any of the team's rotas the compose form's audience selection admits. Default ("upcoming rotas only") keeps a rota with at least one shift not yet ended (`shift.GetAbsoluteEnd(eventSettings) > now` — end, not start); clearing it opens the whole active event and the Build/Event/Strike boxes then filter on `Rota.Period`, a `RotaPeriod.All` rota riding on any selected period. Those period boxes are hidden under "upcoming" and `TeamRotasAudienceFilter.Includes` ignores them there, so a hidden cleared box can never narrow an upcoming send. Each recipient gets exactly one email; `Reply-To` is the sending coordinator while `From` stays the shared address.
+- Coordinator dispatch audits keep at most 120 UTF-16 code units of the message plus an ellipsis, without splitting a Unicode surrogate pair. The email retains the full message.
+- Both coordinator messages use the recipient's supported preferred language, falling back to English for blank, invalid or unsupported preferences.
 - Both coordinator messages carry an **include-shifts** checkbox, on by default. Ticked, the body lists the recipient's own shifts (grouped by rota for the team-wide message). Cleared — the post-event thank-you case — the shift section is dropped lead-in and all, so no "your shifts are:" line is stranded over an empty list.
 - Voluntell (single and range) is permitted on **past shifts** so coordinators can correct the rota retroactively; capacity ceiling and overlap checks still apply. Self-signup remains unavailable for past shifts (a browsing-window property, not a hard service guard). In the department admin view, past and future shifts are managed through the **same Manage control**: a unified panel listing confirmed humans with **Remove** (always), plus **Mark No-Show** and **Bail Range** only when the shift is past (post-shift corrections). Past shifts additionally list no-show/bailed humans as read-only history. The **Voluntell** control is available on all shifts.
 - Range signups (build/strike rotas) create signups for every all-day shift in the date range under one `SignupBlockId`; conflicts and capacity are reported as warnings, not failures (provided at least one slot is available). The whole block is bailed/approved/refused atomically by `BailRangeAsync` / `ApproveRangeAsync` / `RefuseRangeAsync`.
@@ -291,7 +296,7 @@ The cross-source Early Entry roster (`/Shifts/Admin/EarlyEntry`) is `EarlyEntryR
 
 Invalid rota and shift edits redisplay the team shift page without saving. Only the submitted editor opens with its attempted values and validation errors; other editors retain their persisted values.
 
-- **Member dashboard shift card:** while shift browsing is open, a pending signup or a confirmed signup ending after now in the active event selects the signup card. The host computes only that presence flag from `IShiftView`; `ShiftSignupsViewComponent` renders signup details.
+- **Member dashboard shift card:** while shift browsing is open, a pending signup or a confirmed signup ending after now in the active event selects the signup card. The host computes only that presence flag from `IShiftView`; `ShiftSignupsViewComponent` renders signup details. Past-signup status badges on My Shifts and the signup card use the site UI language in all six cultures. The volunteer signup card also localizes its title, bucket headings, counts, all-day labels and remaining-history count.
 
 ## Negative Access Rules
 

@@ -204,8 +204,19 @@ Stored as **string** via `HasConversion<string>()`. The column carried a `Paid` 
 
 ## Invariants
 
+- Admin summary camp totals use the selected UI culture, matching the table’s row amounts. Camp-only totals, payment calculations and invariant sort keys remain unchanged.
+
+- Member order price-history tables supply localized date/action/description headers through the shared audit component’s keyed labels, preserving product predicates, column order and audit entries.
+
+- Member order-list status badges reuse the same six-culture order-state labels as the detail page, keeping their badge colors and stored state values unchanged.
+
+- Member catalog and camp-order VAT percentage labels use the selected UI culture’s decimal separator. VAT calculation, rounding, price snapshots and invariant payment-input values are unchanged.
+
+- Shared table currency and number cells use the selected UI culture; numeric sort values stay invariant.
+
 - Member-facing order pages localize their breadcrumb navigation label in all six supported cultures.
 
+- The Store index loads selected camp and department orders in batches through existing repository reads, then shares one product-name and live-price snapshot across the cards. Camp cards retain the highest-balance legacy order, and team cards retain the first matching order; viewer scoping is unchanged.
 - Store index and order GETs retain request cancellation during viewer resolution as well as their existing token-capable reads. Payment, invoice and order mutations retain their existing token boundaries.
 
 - An order has **exactly one counterparty** — `CampSeasonId` xor `TeamId` is non-null. The invariant is service-enforced (in `Service.CreateOrderAsync` / `CreateTeamOrderAsync`), not DB-enforced.

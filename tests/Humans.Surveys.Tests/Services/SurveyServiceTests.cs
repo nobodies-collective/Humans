@@ -686,9 +686,11 @@ public class SurveyServiceTests
     }
 
     [HumansTheory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Reserved_slug_is_rejected_before_uploading_information_images(bool existing)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Invalid_slug_is_rejected_before_uploading_information_images(bool existing, bool tooLong)
     {
         var ct = TestContext.Current.CancellationToken;
         var survey = SurveyWith(SurveyStatus.Draft, null, null);
@@ -701,7 +703,7 @@ public class SurveyServiceTests
             InformationImages:
             [new InformationImageInput(null, L("Forecast"), L("Forecast table"),
                 Upload: new SurveyImageUpload(content, "image/png", "forecast.png", 3))]);
-        var input = Input(information) with { PublicSlug = " Admin " };
+        var input = Input(information) with { PublicSlug = tooLong ? new string('a', 81) : " Admin " };
         var service = CreateService();
         var act = async () =>
         {
@@ -711,23 +713,34 @@ public class SurveyServiceTests
                 await service.CreateAsync(input, Guid.NewGuid(), ct);
         };
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Slug 'admin' is reserved.");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(tooLong
+            ? "The public link slug must be no longer than 80 characters."
+            : "Slug 'admin' is reserved.");
         await _fileStorage.DidNotReceive().SaveAsync(Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<CancellationToken>());
         await _repo.DidNotReceive().AddAsync(Arg.Any<Survey>(), Arg.Any<CancellationToken>());
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Survey>(), Arg.Any<CancellationToken>());
     }
 
-    [HumansFact]
-    public async Task CreateAsync_accepts_non_reserved_slug_and_normalises_it()
+    [HumansTheory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task CreateAsync_accepts_non_reserved_slug_and_normalises_it(int example)
     {
         Survey? captured = null;
         _repo.When(r => r.AddAsync(Arg.Any<Survey>(), Arg.Any<CancellationToken>()))
              .Do(ci => captured = ci.Arg<Survey>());
 
-        await CreateService().CreateAsync(InputWithSlug(" Summer-Feedback "), Guid.NewGuid(), TestContext.Current.CancellationToken);
+        var slug = example switch
+        {
+            1 => new string('A', 80),
+            2 => string.Concat(Enumerable.Repeat("🔥", 80)),
+            _ => "Summer-Feedback"
+        };
+        await CreateService().CreateAsync(InputWithSlug($" {slug} "), Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         captured.Should().NotBeNull();
-        captured!.PublicSlug.Should().Be("summer-feedback");
+        captured!.PublicSlug.Should().Be(slug.ToLowerInvariant());
     }
 
     [HumansFact]
@@ -1966,25 +1979,36 @@ public class SurveyServiceTests
             Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
-    [HumansFact]
-    public async Task ResolvePublicContextAsync_returns_null_for_unknown_slug()
+    [HumansTheory]
+    [InlineData("MISSING", 0)]
+    [InlineData("a", 80)]
+    [InlineData("😀", 80)]
+    public async Task ResolvePublicContextAsync_returns_null_for_unknown_slug(string text, int repeat)
     {
-        _repo.GetIdByPublicSlugAsync("missing", Arg.Any<CancellationToken>()).Returns((Guid?)null);
+        var slug = repeat == 0 ? text : string.Concat(Enumerable.Repeat(text, repeat));
+        var normalized = slug.ToLowerInvariant();
+        _repo.GetIdByPublicSlugAsync(normalized, Arg.Any<CancellationToken>()).Returns((Guid?)null);
 
         var ctx = await CreateService().ResolvePublicContextAsync(
-            "MISSING", null, TestContext.Current.CancellationToken);
+            slug, null, TestContext.Current.CancellationToken);
 
         ctx.Should().BeNull();
         // Lookup uses the normalised (lower-cased/trimmed) slug.
-        await _repo.Received(1).GetIdByPublicSlugAsync("missing", Arg.Any<CancellationToken>());
+        await _repo.Received(1).GetIdByPublicSlugAsync(normalized, Arg.Any<CancellationToken>());
         await _repo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
-    [HumansFact]
-    public async Task ResolvePublicContextAsync_returns_null_for_blank_slug()
+    [HumansTheory]
+    [InlineData("   ", 0)]
+    [InlineData(" Admin ", 0)]
+    [InlineData(" ANSWER ", 0)]
+    [InlineData("a", 81)]
+    [InlineData("😀", 81)]
+    public async Task ResolvePublicContextAsync_returns_null_for_invalid_slug(string text, int repeat)
     {
+        var slug = repeat == 0 ? text : string.Concat(Enumerable.Repeat(text, repeat));
         var ctx = await CreateService().ResolvePublicContextAsync(
-            "   ", null, TestContext.Current.CancellationToken);
+            slug, null, TestContext.Current.CancellationToken);
 
         ctx.Should().BeNull();
         await _repo.DidNotReceive().GetIdByPublicSlugAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());

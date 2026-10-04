@@ -25,6 +25,8 @@ Historical in-app feedback reports (bugs, feature requests, questions) with scre
 
 - A **Feedback Report** is a historical in-app submission from a human — a bug report, feature request, or question. It captures the page URL, optional screenshot, and conversation thread between the reporter and admins. No new reports can be created.
 - **Feedback status** tracks the lifecycle: Open, Acknowledged, Resolved, or WontFix.
+- The admin list bounds description previews to 100 UTF-16 units plus an ellipsis without splitting surrogate pairs; historical descriptions remain complete.
+- List and detail URL previews preserve surrogate pairs at their 30/40-unit limits plus ellipses; the stored URL and full detail display remain complete.
 
 ## Data Model
 
@@ -114,6 +116,8 @@ There is no per-message admin/reporter flag — admin-vs-reporter is derived by 
 
 ## Invariants
 
+- The queue detail panel accepts only the latest selection request’s response; earlier successes and unavailable responses cannot replace the selected item’s content or wire stale forms.
+
 - Every feedback report is linked to the human who submitted it.
 - **No code path creates a feedback report.** There is no service, repository, controller, or view component that writes a new `FeedbackReport` row.
 - Feedback status flows Open → Acknowledged → Resolved or WontFix; transitioning out of a terminal status (Resolved/WontFix) clears `ResolvedAt` and `ResolvedByUserId`.
@@ -121,7 +125,7 @@ There is no per-message admin/reporter flag — admin-vs-reporter is derived by 
 - Only Admin can see feedback reports — including a report's own reporter, who has no route into the section any more.
 - Every message posted through `FeedbackService.PostMessageAsync` is an admin reply: it stamps `LastAdminMessageAt`, emails the reporter, and dispatches an in-app notification. Reporter messages exist only on historical rows.
 - "Needs reply" is derived: true when the reporter has posted a message more recent than any admin reply (`LastReporterMessageAt > LastAdminMessageAt`) or when the report is still Open and no admin has ever replied. The nav-badge count uses the same rule and excludes Resolved/WontFix.
-- A report can optionally be assigned to a human and/or a team. Both assignments are independent and nullable.
+- A report can optionally be assigned to a human and/or a team. Both assignments are independent and nullable. The list’s 12-unit assignee-name previews preserve whole UTF-16 surrogate pairs; tooltips retain the complete names.
 - Status changes, assignment changes and GitHub links are audit-logged via `AuditAction.FeedbackStatusChanged`, `AuditAction.FeedbackAssignmentChanged` and `AuditAction.FeedbackGitHubLinked`. Every mutation takes the acting user; the `"API"` actor string remains only as the fallback for a caller that resolved to nobody.
 - Admin replies send the response email **before** persisting the new message — if SMTP throws, the message and `LastAdminMessageAt` are never committed, so the request can be retried without duplicating the admin reply. The in-app notification is best-effort post-save.
 
@@ -134,7 +138,7 @@ There is no per-message admin/reporter flag — admin-vs-reporter is derived by 
 
 ## Triggers
 
-- When an admin posts a message on a report, the reporter's effective notification email is resolved via `IUserEmailService.GetNotificationTargetEmailsAsync` and a localized response email is queued via `IEmailService.SendAsync(FeedbackEmails.FeedbackResponse(...))`. After the message is persisted, a localized in-app `NotificationSource.FeedbackResponse` notification is also dispatched in the reporter's preferred language.
+- When an admin posts a message on a report, the reporter's effective notification email is resolved via `IUserEmailService.GetNotificationTargetEmailsAsync` and a localized response email is queued via `IEmailService.SendAsync(FeedbackEmails.FeedbackResponse(...))`. After the message is persisted, a localized in-app `NotificationSource.FeedbackResponse` notification is also dispatched in the reporter's supported saved language. Both email and notice fall back to English for blank, invalid or unsupported preferences.
 - When a message is posted or a status changes, the nav-badge cache is invalidated via `INavBadgeCacheInvalidator`.
 - When an account merge accepts, `FeedbackService.ReassignAsync` (`IUserMerge`) re-FKs `FeedbackReport.UserId` / `AssignedToUserId` / `ResolvedByUserId` and `FeedbackMessage.SenderUserId` from source to target. Called only by `IAccountMergeService.AcceptAsync` (Profiles section) inside an ambient `TransactionScope`.
 

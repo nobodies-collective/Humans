@@ -37,7 +37,7 @@ In-app issue tracker (bugs, features, questions) with screenshots, role-routed t
 | Description | string | Issue body (max 5000) |
 | PageUrl | string? | URL captured by the floating widget (max 2000); null for `/Issues/New` and API submissions |
 | UserAgent | string? | Browser user agent (max 1000) |
-| AdditionalContext | string? | Extra context captured at submission (e.g., reporter's roles) (max 2000) |
+| AdditionalContext | string? | Extra context captured at submission (e.g., reporter's roles) (max 2000 UTF-16 units; truncation preserves surrogate pairs) |
 | ScreenshotFileName | string? | Original filename (max 256) |
 | ScreenshotStoragePath | string? | Relative path under `wwwroot/uploads/issues/{issueId}/` (max 512) |
 | ScreenshotContentType | string? | MIME type (`image/jpeg`, `image/png`, `image/webp`) (max 64) |
@@ -119,6 +119,8 @@ Known area labels in the member submission form, issue list and detail view use 
 
 ## Invariants
 
+- The queue detail panel accepts only the latest selection request’s response; earlier successes and unavailable responses cannot replace the selected item’s content or wire stale forms.
+
 - Mutation result wrappers log missing/inaccessible issues and terminal-section rejections at Warning without exception stacks; unexpected failures retain Error logs and their exceptions.
 
 - Every issue is linked to the human who submitted it (`ReporterUserId` is required).
@@ -147,8 +149,8 @@ Known area labels in the member submission form, issue list and detail view use 
 ## Triggers
 
 - Issue notices are previews bounded to 200 Unicode characters for titles and 2,000 for bodies. Oversized titles are retained in the body before the detail excerpt; ellipses mark shortened copy. The issue link exposes the complete stored description or comment.
-- When an issue is submitted, an in-app `NotificationSource.IssueSubmitted` notification fans out to every handler for whom the issue is in-queue (Admins + role-holders of `IssueSectionRouting.RolesFor(issue.Section)`), excluding the reporter, using `sourceKey: issue.Id.ToString()`. The nav-badge actionable count for those same handlers is invalidated in the same step. When the issue transitions to a terminal status, `IssuesService` calls `ResolveSubmittedNotificationsAsync`, which resolves those `IssueSubmitted` notifications by that sourceKey. In-app issue titles, status bodies and action labels are rendered per recipient `PreferredLanguage`. A failed language-group preparation or delivery is logged without blocking later groups.
-- When a comment is posted, an in-app notification fans out to the **other party** — handlers + assignee when the reporter comments, the reporter + assignee when a handler comments. Email is sent **only when a handler comments** (to the reporter), via `IUserEmailService.GetNotificationTargetEmailsAsync` + a localized `IEmailService.SendAsync(IssuesEmails.IssueComment(...))` queued through the email outbox (`OutboxEmailService` in production). Reporter→handler comments are in-app only — handlers see the new comment in their queue without an email ping.
+- When an issue is submitted, an in-app `NotificationSource.IssueSubmitted` notification fans out to every handler for whom the issue is in-queue (Admins + role-holders of `IssueSectionRouting.RolesFor(issue.Section)`), excluding the reporter, using `sourceKey: issue.Id.ToString()`. The nav-badge actionable count for those same handlers is invalidated in the same step. When the issue transitions to a terminal status, `IssuesService` calls `ResolveSubmittedNotificationsAsync`, which resolves those `IssueSubmitted` notifications by that sourceKey. In-app issue titles, status bodies and action labels are rendered per supported recipient `PreferredLanguage`, with English fallback for missing or unsupported preferences. A failed language-group preparation or delivery is logged without blocking later groups.
+- When a comment is posted, an in-app notification fans out to the **other party** — handlers + assignee when the reporter comments, the reporter + assignee when a handler comments. Email is sent **only when a handler comments** (to the reporter), via `IUserEmailService.GetNotificationTargetEmailsAsync` + a localized `IEmailService.SendAsync(IssuesEmails.IssueComment(...))` queued through the email outbox (`OutboxEmailService` in production). Reporter→handler comments are in-app only — handlers see the new comment in their queue without an email ping. Comment emails use the reporter’s supported language, with English fallback for missing or unsupported preferences.
 - When status changes, the reporter and current assignee are notified.
 - When an issue is assigned, the new assignee is notified.
 - In-app recipients are the ids the user read resolves to: a reporter or assignee id merged away since the issue was filed is delivered to its survivor, and the actor/sender is excluded by resolved id. `UpdateAssigneeAsync` stores the resolved id, and the Detail assignee dropdown selects the survivor's option for a stored id that was merged away.

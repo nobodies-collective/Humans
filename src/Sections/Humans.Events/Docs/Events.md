@@ -174,6 +174,12 @@ Adding a favourite requires a currently approved event. A supplied day on a recu
 
 ## Invariants
 
+- Events API GETs retain browser cancellation across guide/burn settings, approved events, categories, preferences, favourites and camp/submitter lookups. Cancellation propagates without a fallback response; authenticated mutation endpoints retain their existing token boundaries.
+
+- Global-search result rows pass browser cancellation to the approved-event lookup; approved-only visibility and missing-result behavior are unchanged.
+
+- Individual and camp submitter edits check `CanBeEditedBySubmitter` before changing fields. Every permitted status is accepted by `UpdateAndResubmitAsync`; the controllers call it directly without exception-message classification.
+
 - Member personal/camp event submission forms and My Submissions localize breadcrumb navigation labels in all six supported cultures.
 
 - The `Events` GDPR export includes the person’s personal and camp submissions in every status, with authored content and schedule fields, alongside favourites and category preferences. Only rows whose `SubmitterUserId` matches are included; internal moderator notes are excluded. Export reads do not alter rows.
@@ -206,7 +212,7 @@ Adding a favourite requires a currently approved event. A supplied day on a recu
 
 ## Triggers
 
-- When a moderation action is applied: an email notification is sent to the submitter (`IEmailService.SendAsync` with the `EventsEmails.EventLifecycle` message — Events owns the four lifecycle templates, internal `EventsEmails` plus the `EventsEmailPreviews` gallery contributor registered in `Section.Register`; the copy lives in `EventsResource` in all six cultures and renders in the submitter's preferred language (`memory/architecture/email-templates-live-in-sender.md`, peterdrier/Humans#1651)), coordinated by `EventService.ApplyModerationAsync` (the controller passes the submitter-edit URL; the service owns the send).
+- When a moderation action is applied: an email notification is sent to the submitter (`IEmailService.SendAsync` with the `EventsEmails.EventLifecycle` message — Events owns the four lifecycle templates, internal `EventsEmails` plus the `EventsEmailPreviews` gallery contributor registered in `Section.Register`; the copy lives in `EventsResource` in all six cultures and renders in the submitter's supported preferred language, with English fallback for blank, malformed or unsupported preferences (`memory/architecture/email-templates-live-in-sender.md`, peterdrier/Humans#1651)), coordinated by `EventService.ApplyModerationAsync` (the controller passes the submitter-edit URL; the service owns the send).
 - When a moderator approves an event: `Event.Status` transitions to `Approved` and an `EventModerationAction` record is appended.
 
 ## Cross-Section Dependencies

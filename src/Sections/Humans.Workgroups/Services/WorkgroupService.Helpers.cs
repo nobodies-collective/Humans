@@ -1,6 +1,7 @@
 using Humans.Auth.Contracts;
 using Humans.AuditLog.Contracts;
 using Humans.Base.Constants;
+using Humans.Base.Extensions;
 using Humans.Base.Helpers;
 using Humans.Email.Contracts;
 using Humans.Notifications.Contracts;
@@ -304,7 +305,8 @@ internal sealed partial class WorkgroupService
         var recipients = recipientUserIds.Select(id =>
         {
             var person = people.GetValueOrDefault(id);
-            return (Id: person?.Id ?? id, Language: person?.PreferredLanguage ?? "en");
+            var language = person?.PreferredLanguage;
+            return (Id: person?.Id ?? id, Language: language.IsSupportedCultureCode() ? language! : "en");
         }).DistinctBy(person => person.Id);
         foreach (var group in recipients.GroupBy(person => person.Language, StringComparer.OrdinalIgnoreCase))
         {
@@ -382,8 +384,10 @@ internal sealed partial class WorkgroupService
             }
 
             infos.TryGetValue(id, out var info);
+            var language = info?.PreferredLanguage;
             await SendNoticeAsync(new WorkgroupNoticeRequest(
-                address, info?.BurnerName, kind, w.Name, w.Slug, detail, info?.PreferredLanguage), ct);
+                address, info?.BurnerName, kind, w.Name, w.Slug, detail,
+                language.IsSupportedCultureCode() ? language : CultureCatalog.DefaultCultureCode), ct);
         }
     }
 

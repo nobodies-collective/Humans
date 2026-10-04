@@ -999,7 +999,6 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
             FileName = fileName,
             StoragePath = storageKey,
             ContentType = contentType,
-            SortOrder = imageCount,
             UploadedAt = _clock.GetCurrentInstant()
         };
 
@@ -1296,7 +1295,7 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
     }
 
     // Notification storage holds 200 Unicode characters; retain the full title in the body.
-    private static (string Title, string? Body) PrepareNoticeCopy(string title, string? body = null)
+    internal static (string Title, string? Body) PrepareNoticeCopy(string title, string? body = null)
     {
         if (title.EnumerateRunes().Count() <= 200)
             return (title, body);

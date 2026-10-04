@@ -205,7 +205,9 @@ internal sealed class IssuesService(
             return null;
 
         var result = string.Join(" | ", parts);
-        return result.Length > 2000 ? result[..2000] : result;
+        if (result.Length <= 2000) return result;
+        var length = char.IsHighSurrogate(result[1999]) && char.IsLowSurrogate(result[2000]) ? 1999 : 2000;
+        return result[..length];
     }
 
     // ─── Reads ───
@@ -936,13 +938,14 @@ internal sealed class IssuesService(
             emails.TryGetValue(issue.ReporterUserId, out var to) &&
             !string.IsNullOrWhiteSpace(to))
         {
+            var language = reporter.PreferredLanguage;
             await email.SendAsync(emailMessages.IssueComment(
                 to,
                 reporter.BurnerName,
                 issue.Title,
                 comment.Content,
                 $"/Issues/{issue.Id}",
-                reporter.PreferredLanguage),
+                language.IsSupportedCultureCode() ? language : CultureCatalog.DefaultCultureCode),
                 ct);
         }
         else
@@ -1098,7 +1101,11 @@ internal sealed class IssuesService(
     {
         var people = await users.GetUserInfosAsync(recipients, ct);
         foreach (var group in recipients.GroupBy(
-                     id => people.GetValueOrDefault(id)?.PreferredLanguage ?? "en",
+                     id =>
+                     {
+                         var language = people.GetValueOrDefault(id)?.PreferredLanguage;
+                         return language.IsSupportedCultureCode() ? language! : "en";
+                     },
                      StringComparer.OrdinalIgnoreCase))
         {
             try
