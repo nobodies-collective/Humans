@@ -735,6 +735,9 @@ public sealed class TicketTransferServiceTests
 
         req.Status.Should().Be(TicketTransferStatus.Rejected);
         req.AdminNotes.Should().Be("duplicate request");
+        await _auditLog.Received(1).LogAsync(
+            AuditAction.TicketTransferRejected, Arg.Any<string>(), req.Id, Arg.Any<string>(),
+            _adminId, _senderId, Arg.Any<string>());
         await _emailService.Received(2).SendAsync(
             Arg.Is<EmailMessage>(m => m.TemplateName == "ticket_transfer_cancelled"
                 && m.HtmlBody.Contains("duplicate request", StringComparison.Ordinal)),
@@ -891,7 +894,7 @@ public sealed class TicketTransferServiceTests
         Guid id, Guid orderId, Guid attendeeMatchedUserId, TicketAttendeeStatus status,
         Instant? checkedInAt = null)
     {
-        // Buyer-fallback removed in nobodies-collective/Humans#856.
+        // The buyer never owns the attendee (nobodies-collective/Humans#856).
         // Ownership is determined by TicketAttendee.MatchedUserId only.
         var order = new TicketOrder
         {

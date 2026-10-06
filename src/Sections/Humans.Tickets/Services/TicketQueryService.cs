@@ -64,27 +64,20 @@ internal sealed class TicketQueryService(
         return orders.Select(o => Project(o, currentEventId, transfersByAttendee)).ToList();
     }
 
-    private async Task<HashSet<Guid>> GetUserIdsWithTicketsAsync()
-    {
-        var syncState = await ticketRepository.GetSyncStateAsync();
-        if (syncState is null || string.IsNullOrEmpty(syncState.VendorEventId))
-            return [];
-
-        var ids = await ticketRepository.GetValidMatchedAttendeeUserIdsForEventAsync(syncState.VendorEventId);
-        return ids.ToHashSet();
-    }
-
     public async Task<List<string>> GetAvailableTicketTypesAsync()
     {
         var types = await ticketRepository.GetDistinctTicketTypesAsync();
         return types.ToList();
     }
 
-    private async Task<HashSet<Guid>> GetAllMatchedUserIdsAsync()
+    private async Task<HashSet<Guid>> GetCurrentEventTicketHolderIdsAsync()
     {
-        var fromAttendees = await ticketRepository.GetAllMatchedAttendeeUserIdsAsync();
-        var fromOrders = await ticketRepository.GetAllMatchedOrderUserIdsAsync();
-        return fromAttendees.Concat(fromOrders).ToHashSet();
+        var syncState = await ticketRepository.GetSyncStateAsync();
+        if (syncState is null || string.IsNullOrEmpty(syncState.VendorEventId))
+            return [];
+
+        var ids = await ticketRepository.GetEventTicketHolderUserIdsAsync(syncState.VendorEventId);
+        return ids.ToHashSet();
     }
 
     public async Task<TicketDashboardStats> GetDashboardStatsAsync()
@@ -104,7 +97,6 @@ internal sealed class TicketQueryService(
         var totalAppFees = totals.TotalApplicationFees;
         var ticketsSold = totals.TicketsSold;
         var netRevenue = revenue - totalStripeFees - totalAppFees;
-        var avgPrice = ticketsSold > 0 ? netRevenue / ticketsSold : 0;
         var grossAvgPrice = ticketsSold > 0 ? revenue / ticketsSold : 0;
         var unmatchedCount = totals.UnmatchedOrderCount;
 
@@ -165,17 +157,6 @@ internal sealed class TicketQueryService(
 
         var recentOrders = await ticketRepository.GetRecentOrdersAsync(count: 10);
 
-        var volunteerTeam = await teamService.GetTeamAsync(SystemTeamIds.Volunteers);
-        var volunteerUserIds = volunteerTeam?.Members.Select(m => m.UserId).ToList() ?? [];
-        var totalActiveVolunteers = volunteerUserIds.Count;
-
-        var userIdsWithTickets = await GetUserIdsWithTicketsAsync();
-        var volunteersWithTickets = volunteerUserIds.Count(userIdsWithTickets.Contains);
-
-        var volunteerCoveragePct = totalActiveVolunteers > 0
-            ? Math.Round(volunteersWithTickets * 100m / totalActiveVolunteers, 1)
-            : 0;
-
         return new TicketDashboardStats
         {
             TicketsSold = ticketsSold,
@@ -183,7 +164,6 @@ internal sealed class TicketQueryService(
             TotalStripeFees = totalStripeFees,
             TotalApplicationFees = totalAppFees,
             NetRevenue = netRevenue,
-            AveragePrice = avgPrice,
             GrossAveragePrice = grossAvgPrice,
             UnmatchedOrderCount = unmatchedCount,
             FeesByPaymentMethod = feesByMethod,
@@ -192,9 +172,6 @@ internal sealed class TicketQueryService(
             SyncStatus = syncState?.SyncStatus ?? TicketSyncStatus.Idle,
             SyncError = syncState?.LastError,
             LastSyncAt = syncState?.LastSyncAt,
-            TotalActiveVolunteers = totalActiveVolunteers,
-            VolunteersWithTickets = volunteersWithTickets,
-            VolunteerCoveragePercent = volunteerCoveragePct,
         };
     }
 
@@ -609,7 +586,7 @@ internal sealed class TicketQueryService(
         string? search, string? filterTeam, string? filterTier, string? filterTicketStatus,
         int page, int pageSize)
     {
-        var matchedUserIds = await GetAllMatchedUserIdsAsync();
+        var matchedUserIds = await GetCurrentEventTicketHolderIdsAsync();
 
         var allUsers = await userService.GetAllUserInfosAsync().ConfigureAwait(false);
         var volunteerTeam = await teamService.GetTeamAsync(SystemTeamIds.Volunteers);

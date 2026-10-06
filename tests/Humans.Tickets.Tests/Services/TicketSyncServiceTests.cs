@@ -264,6 +264,12 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
     [HumansFact]
     public async Task SyncOrdersAndAttendeesAsync_TransientError_ReturnsGracefully()
     {
+        // A deferred sync must not move the cursor: the next run re-fetches from the last success.
+        var lastSuccess = Instant.FromUtc(2026, 2, 1, 0, 0);
+        var seeded = await TicketsDb.TicketSyncStates.FirstAsync(s => s.Id == 1, Xunit.TestContext.Current.CancellationToken);
+        seeded.LastSyncAt = lastSuccess;
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+
         _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Throws(new HttpRequestException("API unavailable"));
 
@@ -274,6 +280,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
             .FirstAsync(s => s.Id == 1, Xunit.TestContext.Current.CancellationToken);
         syncState.SyncStatus.Should().Be(TicketSyncStatus.Idle);
         syncState.LastError.Should().BeNull();
+        syncState.LastSyncAt.Should().Be(lastSuccess);
     }
 
     [HumansFact]
@@ -722,6 +729,41 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
             Arg.Any<Instant?>(), Arg.Any<CancellationToken>());
         await _userService.DidNotReceive().RemoveTicketSyncParticipationAsync(
             Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task SyncEventParticipations_RemovesTicketed_WhenNoValidTicketRemains()
+    {
+        // Cache shows Ticketed-from-sync; the vendor now reports the user's only ticket void.
+        var userId = Guid.NewGuid();
+        SeedUser(userId);
+        SeedUserEmail(userId, "alice@example.com", isOAuth: true);
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+
+        _shiftManagementService.GetActiveEventSettingsAsync()
+            .Returns(BurnFixtures.Burn(year: 2026));
+
+        _userService.GetAllParticipationsForYearAsync(2026, Arg.Any<CancellationToken>())
+            .Returns(new List<UserParticipationRow>
+            {
+                new(userId, ParticipationStatus.Ticketed, ParticipationSource.TicketSync, null)
+            });
+
+        _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new List<VendorOrderDto> { MakeOrderDto("ord_void", "Alice", "alice@example.com") });
+        _vendorService.GetIssuedTicketsAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new List<VendorTicketDto>
+            {
+                MakeTicketDto("tkt_void", "ord_void", "Alice", "alice@example.com", status: "void")
+            });
+
+        await _service.SyncOrdersAndAttendeesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        await _userService.Received(1).RemoveTicketSyncParticipationAsync(
+            userId, 2026, Arg.Any<CancellationToken>());
+        await _userService.DidNotReceive().SetParticipationFromTicketSyncAsync(
+            Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<ParticipationStatus>(),
+            Arg.Any<Instant?>(), Arg.Any<CancellationToken>());
     }
 
     [HumansFact]
