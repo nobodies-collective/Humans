@@ -1,3 +1,4 @@
+using NSubstitute;
 using AwesomeAssertions;
 using Humans.Agent.Contracts;
 using Humans.Base.Interfaces;
@@ -70,7 +71,7 @@ public class AgentPreloadCorpusBuilderTests
         // Rough token estimate: 1 token ≈ 3.8 chars for English/Spanish mix.
         // The index is just keys + taglines; section bodies are fetched on demand
         // via fetch_section_guide. 2K tokens leaves enormous headroom under the
-        // Anthropic ITPM budget that previously bounded this corpus at ~25K.
+        // Anthropic ITPM budget.
         var estimatedTokens = text.Length / 3.8;
         estimatedTokens.Should().BeLessThan(2_000, "Tier1 preload is now a section index; full bodies are fetched on demand");
     }
@@ -162,7 +163,39 @@ public class AgentPreloadCorpusBuilderTests
             .Should().Contain("**new-topic**");
     }
 
-    private static IAgentPreloadCorpusBuilder MakeBuilder(IReadOnlyList<string>? communityFiles = null, StubSource? source = null)
+    [HumansFact]
+    public async Task Pending_build_cannot_replace_a_reloaded_corpus()
+    {
+        var token = Xunit.TestContext.Current.CancellationToken;
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = Substitute.For<IGuideContentSource>();
+        source.GetMarkdownAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult($"# {call.ArgAt<string>(0)}\n\nSection tagline."));
+        source.ListMarkdownStemsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<string>>(["topic"]));
+        source.GetMarkdownAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult($"# {call.ArgAt<string>(1)}\n\nSection tagline."));
+        var fetches = 0;
+        source.GetMarkdownAsync(CommunityFaqReader.FolderPath, "topic", Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (++fetches != 1) return Task.FromResult("# Fresh community");
+            started.SetResult();
+            return pending.Task.WaitAsync(token);
+        });
+        var builder = MakeBuilder(source: source);
+
+        var oldBuild = builder.BuildAsync(AgentPreloadConfig.Tier1, token);
+        await started.Task.WaitAsync(token);
+        (await builder.ReloadAllAsync(token)).Should().BeTrue();
+        pending.SetResult("# Old community");
+        await oldBuild.WaitAsync(token);
+
+        (await builder.BuildAsync(AgentPreloadConfig.Tier1, token))
+            .Should().Contain("Fresh community").And.NotContain("Old community");
+    }
+
+    private static IAgentPreloadCorpusBuilder MakeBuilder(IReadOnlyList<string>? communityFiles = null, IGuideContentSource? source = null)
     {
         var cache = new MemoryCache(new MemoryCacheOptions());
         source ??= new StubSource { CommunityFiles = communityFiles ?? [] };

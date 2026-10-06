@@ -64,22 +64,34 @@ internal sealed class AgentController(
             return;
         }
 
-        Response.StatusCode = StatusCodes.Status200OK;
-        Response.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
-        await Response.Body.FlushAsync(cancellationToken);
-
         var req = new AgentTurnRequest(
             ConversationId: body.ConversationId ?? Guid.Empty,
             UserId: user.Id,
             Message: body.Message,
             Locale: user.PreferredLanguage);
 
-        await foreach (var token in agent.AskAsync(req, cancellationToken))
+        // Pull the first token before committing the 200: the service checks conversation
+        // ownership on that first step, and once the stream is flushed the status is fixed.
+        await using var tokens = agent.AskAsync(req, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        bool more;
+        try
         {
-            await WriteSse(token, cancellationToken);
+            more = await tokens.MoveNextAsync();
         }
+        catch (UnauthorizedAccessException)
+        {
+            Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        Response.StatusCode = StatusCodes.Status200OK;
+        Response.ContentType = "text/event-stream";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers.Connection = "keep-alive";
+        await Response.Body.FlushAsync(cancellationToken);
+
+        for (; more; more = await tokens.MoveNextAsync())
+            await WriteSse(tokens.Current, cancellationToken);
     }
 
     [HttpGet("Conversations")]
@@ -87,7 +99,7 @@ internal sealed class AgentController(
         bool refusalsOnly = false, Guid? userId = null,
         int page = 0, CancellationToken cancellationToken = default)
     {
-        var (missing, currentUser) = await RequireCurrentUserAsync();
+        var (missing, currentUser) = await RequireCurrentUserAsync(cancellationToken);
         if (missing is not null) return missing;
 
         var isAdmin = User.IsInRole(RoleNames.Admin);
@@ -101,7 +113,7 @@ internal sealed class AgentController(
     [HttpGet("Conversation/{id:guid}")]
     public async Task<IActionResult> Conversation(Guid id, CancellationToken cancellationToken)
     {
-        var (missing, currentUser) = await RequireCurrentUserAsync();
+        var (missing, currentUser) = await RequireCurrentUserAsync(cancellationToken);
         if (missing is not null) return missing;
 
         // Ownership mismatch returns 404 (not 403) per Agent.md invariant 7
@@ -116,7 +128,7 @@ internal sealed class AgentController(
     [HttpGet("Conversations/{id:guid}")]
     public async Task<IActionResult> ConversationDetail(Guid id, CancellationToken cancellationToken)
     {
-        var (missing, currentUser) = await RequireCurrentUserAsync();
+        var (missing, currentUser) = await RequireCurrentUserAsync(cancellationToken);
         if (missing is not null) return missing;
 
         var isAdmin = User.IsInRole(RoleNames.Admin);
@@ -139,9 +151,11 @@ internal sealed class AgentController(
         if (!isAdmin)
             return (await agent.GetHistoryAsync(currentUserId, take: 50, ct), false);
 
+        // Saturate large offsets so a valid page number cannot wrap into an earlier window.
+        var skip = (int)Math.Min((long)safePage * adminPageSize, int.MaxValue);
         // Fetch one extra row so the view knows whether an older page exists.
         var rows = await agent.ListAllConversationsForAdminAsync(
-            refusalsOnly, userId, adminPageSize + 1, safePage * adminPageSize, ct);
+            refusalsOnly, userId, adminPageSize + 1, skip, ct);
         return rows.Count > adminPageSize
             ? (rows.Take(adminPageSize).ToList(), true)
             : (rows, false);

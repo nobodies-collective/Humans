@@ -1,3 +1,4 @@
+using Humans.Base.Extensions;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 using AwesomeAssertions;
@@ -31,7 +32,7 @@ public class EventServiceCalendarFeedTests
 
     public EventServiceCalendarFeedTests()
     {
-        _service = new EventService(_repo, _burnSettings, Substitute.For<IUserServiceRead>(), Substitute.For<IEmailService>(), new EventsEmails(NullLogger<EventsEmails>.Instance), new FakeClock(FixedNow), NullLogger<EventService>.Instance, _localizer);
+        _service = new EventService(_repo, _burnSettings, Substitute.For<IUserServiceRead>(), Substitute.For<IEmailService>(), new EventsEmails(_localizer, NullLogger<EventsEmails>.Instance), new FakeClock(FixedNow), NullLogger<EventService>.Instance, _localizer);
         // Default: no guide settings → no recurrence expansion context.
         _repo.GetGuideSettingsAsync(Arg.Any<CancellationToken>())
             .Returns((EventGuideSettings?)null);
@@ -109,11 +110,19 @@ public class EventServiceCalendarFeedTests
                 EarlyEntryClose: null));
     }
 
-    [HumansFact]
-    public async Task GetCalendarItems_ApprovedFavourite_MapsFields()
+    [HumansTheory]
+    [Xunit.InlineData("en", "Host", "Category")]
+    [Xunit.InlineData("es", "Anfitrión", "Categoría")]
+    [Xunit.InlineData("de", "Gastgeber", "Kategorie")]
+    [Xunit.InlineData("it", "Ospite", "Categoria")]
+    [Xunit.InlineData("fr", "Hôte", "Catégorie")]
+    [Xunit.InlineData("ca", "Amfitrió", "Categoria")]
+    public async Task GetCalendarItems_ApprovedFavourite_MapsFields(string culture, string hostLabel, string categoryLabel)
     {
+        using var cultureScope = new CultureScope(culture);
         var userId = Guid.NewGuid();
         var ev = MakeEvent(EventStatus.Approved);
+        ev.Category = new EventCategory { Id = ev.CategoryId, Name = "Wellness", Slug = "wellness" };
         StubFavourites(userId, ev);
 
         var items = await _service.GetCalendarItemsForUserAsync(userId, Xunit.TestContext.Current.CancellationToken);
@@ -126,7 +135,8 @@ public class EventServiceCalendarFeedTests
         item.End.Should().Be(EventStart.Plus(Duration.FromMinutes(90)));
         item.Location.Should().Be("Behind the dome");
         item.Description.Should().Contain("Bring a mat.");
-        item.Description.Should().Contain("Host: Stretchy");
+        item.Description.Should().Contain($"{hostLabel}: Stretchy");
+        item.Description.Should().Contain($"{categoryLabel}: Wellness");
         item.Uid.Should().Be($"event-{ev.Id}-20260701@humans.nobodies.team");
         item.Url.Should().Be("/Events/Schedule");
     }

@@ -8,12 +8,18 @@ import sys
 import time
 
 
-def run(prompt_file, report_file, deadline):
+def run(prompt_file, report_file, deadline, repair=False):
     prompt = Path(prompt_file).read_text()
+    # Repair mode: the deadline is a cap, not a target; finishing early is fine.
     objective = (
+        f"Follow {prompt_file}: repair only the named gate failure, validate, commit, "
+        "and finish with a concise report. Do no other debt work. Completing before "
+        f"Unix time {deadline} is expected; that time is a cap, not a target."
+    ) if repair else (
         f"Follow {prompt_file} and actively fix substantive tech debt until Unix time "
         f"{deadline}, then finish, validate, and commit the current task. Time is the "
-        "ONLY target, with no fix-count quota. Keep working across turn boundaries. "
+        "ONLY stopping rule, with no fix-count quota. Close existing debt-ledger rows "
+        "first; the ledger must end smaller than it started. Keep working across turn boundaries. "
         "Complete the goal only after that deadline AND current-task completion with "
         "a clean working tree. One PR will contain all fixes; the wrapper alone "
         "publishes it. Prioritize production-code fixes; tests may support those "
@@ -104,7 +110,7 @@ def run(prompt_file, report_file, deadline):
                         f"({max(0, deadline - now)} seconds remaining). The same goal is active again. "
                         "Read get_goal and continue substantive fixes in this same branch/session "
                         "until the deadline, then finish and validate the current task. "
-                        "Time is the only target; no fix-count quota. If the deadline has now "
+                        "Time is the only stopping rule; no fix-count quota; the ledger must shrink. If the deadline has now "
                         "passed, finish and validate the current task. Complete the goal only "
                         "then, and return a cumulative PR report covering the entire run."
                     ),
@@ -115,7 +121,7 @@ def run(prompt_file, report_file, deadline):
                 continue
             if method == "thread/goal/updated":
                 goal_status = params["goal"]["status"]
-                if goal_status == "complete" and time.time() < deadline:
+                if goal_status == "complete" and not repair and time.time() < deadline:
                     # Remember when completion happened, even if the deadline
                     # passes before this turn finishes. Never interrupt its work.
                     premature_completion = True
@@ -140,7 +146,7 @@ def run(prompt_file, report_file, deadline):
                          "objective": objective, "status": "active"}, resume_request)
                     continue
                 if goal_status == "complete":
-                    if time.time() < deadline or not final_message.strip():
+                    if (not repair and time.time() < deadline) or not final_message.strip():
                         raise RuntimeError("Completed goal lacks elapsed work window or final report")
                     Path(report_file).write_text(final_message)
                     return
@@ -159,7 +165,7 @@ def run(prompt_file, report_file, deadline):
 
 if __name__ == "__main__":
     try:
-        run(sys.argv[1], sys.argv[2], int(sys.argv[3]))
+        run(sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4:5] == ["repair"])
     except (OSError, ValueError, KeyError, RuntimeError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         sys.exit(1)

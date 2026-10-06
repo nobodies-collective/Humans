@@ -36,6 +36,7 @@ Nobodies Collective sells event tickets through external vendors (currently Tick
 - **TicketTailorService** — TicketTailor API client, the vendor adapter implementation of `ITicketVendorService` (`src/Sections/Humans.TicketTailor`, its own project — the only implementation of the vendor port; a future vendor swap adds `Humans.<NewVendor>` and deletes this one, per `TicketVendorPortArchitectureTests`). Basic Auth, cursor-based pagination. Captures `txn_id` (Stripe PaymentIntent ID), discount amounts from line items, and the per-ticket `barcode` from issued tickets. Also implements the check-in and write surface: `GET /check_ins` (gate check-in sync — checkout/undo records with quantity −1 are netted out), `POST /check_ins` (best-effort mirror of Humans gate admits), `POST /issued_tickets/{id}/void` (void-to-hold for transfers), and `POST /issued_tickets` (reissue from a hold).
 - **IStripeService / StripeService** — Stripe API client (read-only). Looks up PaymentIntent → Charge → BalanceTransaction to get payment method type and fee breakdown (Stripe processing fee vs TT application fee).
 - **ITicketSyncService / TicketSyncService** — sync orchestration: fetch orders/attendees/check-ins, upsert, apply gate check-ins onto attendee rows (write-once `CheckedInAt`), email-match to users, match discount codes to campaign grants, enrich orders with Stripe fee data, compute VAT using VIP split logic
+- Local order and holdings snapshots are cleared when a configured sync attempt exits, including failures after partial writes, so readers see the committed rows.
 - **TicketSyncJob** — Hangfire recurring job (`TicketVendor:SyncIntervalMinutes`; default 15, `appsettings.json` sets 5)
 
 ## VAT and Donation Tracking
@@ -71,9 +72,11 @@ Tickets priced above 315 EUR (the VIP threshold, `TicketConstants.VipThresholdEu
 | `/Tickets/Attendees` | Paginated attendee list with search/sort/filter |
 | `/Tickets/Codes` | Discount code redemption tracking tied to campaigns |
 | `/Tickets/WhoHasntBought` | Active humans without ticket purchases |
-| `/Tickets/SalesAggregates` | Weekly (Mon–Sun) and quarterly (Spanish tax Q1–Q4) aggregate reports with real VAT/donation data |
+| `/Tickets/SalesAggregates` | Weekly (Mon–Sun), quarterly (Spanish tax Q1–Q4) and monthly accountant aggregates, plus by-ticket-type and by-discount-campaign breakdowns, with real VAT/donation data |
 | `/Tickets/Sync`, `/Tickets/FullResync` | POST: incremental sync (`TicketAdminOrAdmin`) / full re-sync (`AdminOnly`) |
 | `/Tickets/Export/Attendees`, `/Tickets/Export/Orders` | CSV exports (`TicketAdminOrAdmin`) |
+| `/Tickets/Export/AccountantReport` | Monthly accountant recap CSV (`TicketAdminOrAdmin`) |
+| `/Tickets/Export/Donations` | Donor list CSV, audited (`AdminOnly`) |
 | `/Tickets/Participation/Backfill` | CSV participation backfill (`AdminOnly`) — [event-participation.md](event-participation.md) |
 | `/Tickets/Transfers`, `/Tickets/Admin/Transfers` | Member transfer wizard and admin queue — [ticket-transfer.md](ticket-transfer.md) |
 | `/Tickets/Admin/Contacts`, `/Tickets/Admin/Onsite`, `/Tickets/Admin/Gate` | Contact import, onsite roster, gate-terminal credential — see `Docs/Tickets.md` Routing |
@@ -94,8 +97,8 @@ The TicketTailor "after checkout" redirect URL points at this route.
 
 ### Ticketing Dashboard (admin)
 
-- **Avg. Net Price** — net revenue divided by tickets sold (Stripe/TT fees deducted). Handles zero tickets gracefully.
-- **Volunteer Ticket Coverage** — percentage and count of active Volunteers team members matched as ticket attendees. Progress bar with color thresholds (green >= 75%, yellow >= 50%, red < 50%). Links to "Who Hasn't Bought?" detail view.
+- **Avg. Gross Price** — gross revenue divided by tickets sold. Handles zero tickets gracefully.
+- **Who hasn't bought?** — link in the Attention list to the Volunteers-without-a-ticket detail view.
 
 ### Homepage Dashboard (per-user)
 

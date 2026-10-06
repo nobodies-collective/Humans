@@ -37,7 +37,8 @@
 # anything in the diff window matches — an unresolved dead trigger means the
 # doc needs a human-legible review this run, not silent skipping.
 # Failed target searches or file replacements remain UNRESOLVED; only
-# successful writes (or proposed --check repairs) count as REPAIRED.
+# replacements that resolve to live targets count as REPAIRED, after a
+# successful write or a proposed --check repair.
 
 set -uo pipefail  # deliberately no -e: one bad doc must not silence the rest
                    # (docs/freshness/last-report.md, 2026-08-18 sweep — "the
@@ -99,8 +100,9 @@ resolve_target() {
 # old/new strings never need regex escaping — both routinely contain `*`,
 # `.` and `/`.
 repair_line() {
-  local file="$1" old="$2" new="$3"
-  awk -v old="$old" -v new="$new" '
+  local file="$1" old="$2" new="$3" staging_file
+  staging_file=$(mktemp "$file.verify-triggers.XXXXXX") || return 1
+  if awk -v old="$old" -v new="$new" '
     {
       line = $0
       trimmed = line
@@ -115,8 +117,10 @@ repair_line() {
       }
       print line
     }
-  ' "$file" > "$file.verify-triggers.tmp" && mv "$file.verify-triggers.tmp" "$file" && return 0
-  rm -f "$file.verify-triggers.tmp"
+  ' "$file" > "$staging_file" && chmod --reference="$file" "$staging_file" && mv -- "$staging_file" "$file"; then
+    return 0
+  fi
+  rm -f -- "$staging_file"
   return 1
 }
 
@@ -145,6 +149,7 @@ for f in $docs; do
     [ -z "$glob" ] && continue
     if trigger_is_dead "$glob"; then
       if target=$(resolve_target "$glob") && [ -n "$target" ] &&
+          ! trigger_is_dead "$target" &&
           { [ "$MODE" = "check" ] || repair_line "$f" "$glob" "$target"; }; then
         echo "REPAIRED $f | $glob -> $target"
         repaired=$((repaired + 1))

@@ -1,6 +1,7 @@
 using Humans.Auth.Contracts;
 using Humans.AuditLog.Contracts;
 using Humans.Base.Constants;
+using Humans.Base.Extensions;
 using Humans.Base.Helpers;
 using Humans.Email.Contracts;
 using Humans.Notifications.Contracts;
@@ -301,21 +302,43 @@ internal sealed partial class WorkgroupService
         if (recipientUserIds.Count == 0) return;
         var people = await users.GetUserInfosAsync(recipientUserIds, ct);
         // In-app notices are keyed by user id: deliver to the live id the read resolved to.
-        var liveIds = recipientUserIds.Select(id => people.GetValueOrDefault(id)?.Id ?? id).Distinct();
-        foreach (var group in liveIds.GroupBy(id => people.GetValueOrDefault(id)?.PreferredLanguage ?? "en", StringComparer.OrdinalIgnoreCase))
+        var recipients = recipientUserIds.Select(id =>
+        {
+            var person = people.GetValueOrDefault(id);
+            var language = person?.PreferredLanguage;
+            return (Id: person?.Id ?? id, Language: language.IsSupportedCultureCode() ? language! : "en");
+        }).DistinctBy(person => person.Id);
+        foreach (var group in recipients.GroupBy(person => person.Language, StringComparer.OrdinalIgnoreCase))
         {
             var culture = System.Globalization.CultureInfo.GetCultureInfo(group.Key);
-            var title = $"{NoticeResources.GetString(titleKey, culture)}: {w.Name}";
+            var copy = PrepareNoticeCopy($"{NoticeResources.GetString(titleKey, culture)}: {w.Name}", body);
             await notifications.SendAsync(source, NotificationClass.Informational, NotificationPriority.Normal,
-                title, group.ToList(), body, actionUrl: PageUrl(w), sourceKey: w.Id.ToString(), cancellationToken: ct);
+                copy.Title, group.Select(person => person.Id).ToList(), copy.Body,
+                actionUrl: PageUrl(w), sourceKey: w.Id.ToString(), cancellationToken: ct);
         }
     }
 
     private Task NotifyBoardAsync(
-        NotificationSource source, string title, WorkgroupInfo w, string body, CancellationToken ct) =>
-        notifications.SendToRoleAsync(source, NotificationClass.Actionable,
-            NotificationPriority.Normal, title, RoleNames.Board, body,
+        NotificationSource source, string title, WorkgroupInfo w, string body, CancellationToken ct)
+    {
+        var copy = PrepareNoticeCopy(title, body);
+        return notifications.SendToRoleAsync(source, NotificationClass.Actionable,
+            NotificationPriority.Normal, copy.Title, RoleNames.Board, copy.Body,
             actionUrl: "/Workgroups/Admin", cancellationToken: ct);
+    }
+
+    // Preview limits belong at both notification boundaries; full details stay in the register/log.
+    private static (string Title, string? Body) PrepareNoticeCopy(string title, string? body)
+    {
+        if (title.EnumerateRunes().Count() > 200)
+        {
+            body = body is null ? title : string.Concat(title, "\n\n", body);
+            title = string.Concat(title.EnumerateRunes().Take(199)) + "…";
+        }
+        if (body is not null && body.EnumerateRunes().Count() > 2000)
+            body = string.Concat(body.EnumerateRunes().Take(1999)) + "…";
+        return (title, body);
+    }
 
     /// <summary>
     /// One notice per recipient, addressed by name. Email failures never fail the write:
@@ -332,8 +355,23 @@ internal sealed partial class WorkgroupService
         if (ids.Count == 0)
             return;
 
-        var addresses = await userEmails.GetNotificationTargetEmailsAsync(ids, ct);
-        var infos = await users.GetUserInfosAsync(ids, ct);
+        IReadOnlyDictionary<Guid, string> addresses;
+        IReadOnlyDictionary<Guid, UserInfo> infos;
+        try
+        {
+            addresses = await userEmails.GetNotificationTargetEmailsAsync(ids, ct);
+            infos = await users.GetUserInfosAsync(ids, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to resolve recipients for the workgroup {Kind} notice on {WorkgroupSlug}",
+                kind, w.Slug);
+            return;
+        }
 
         foreach (var id in ids)
         {
@@ -346,16 +384,30 @@ internal sealed partial class WorkgroupService
             }
 
             infos.TryGetValue(id, out var info);
+            var language = info?.PreferredLanguage;
             await SendNoticeAsync(new WorkgroupNoticeRequest(
-                address, info?.BurnerName, kind, w.Name, w.Slug, detail, info?.PreferredLanguage), ct);
+                address, info?.BurnerName, kind, w.Name, w.Slug, detail,
+                language.IsSupportedCultureCode() ? language : CultureCatalog.DefaultCultureCode), ct);
         }
     }
 
     private async Task EmailBoardAsync(
         WorkgroupNoticeKind kind, WorkgroupInfo w, string? detail, CancellationToken ct)
     {
-        var boardUserIds = await roles.GetActiveUserIdsInRoleAsync(RoleNames.Board, ct);
-        await EmailAsync(boardUserIds, kind, w, detail, ct);
+        try
+        {
+            var boardUserIds = await roles.GetActiveUserIdsInRoleAsync(RoleNames.Board, ct);
+            await EmailAsync(boardUserIds, kind, w, detail, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to resolve the Board for the workgroup {Kind} notice on {WorkgroupSlug}",
+                kind, w.Slug);
+        }
     }
 
     private async Task SendNoticeAsync(WorkgroupNoticeRequest request, CancellationToken ct)
@@ -459,6 +511,8 @@ internal sealed partial class WorkgroupService
         w.EndedAt = now;
         w.UpdatedAt = now;
         await repository.UpdateWorkgroupAsync(w, ct);
+        // The end decision committed; complete its record, notices and access changes.
+        ct = CancellationToken.None;
 
         await AddSystemEntryAsync(w, WorkgroupLogKind.Ended, now,
             Trimmed(reasons) ?? reason.ToString(), ct,

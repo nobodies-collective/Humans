@@ -1,3 +1,9 @@
+using Humans.Base.Helpers;
+using Humans.Base.Caching;
+using Microsoft.Extensions.Caching.Memory;
+using Humans.Base.Interfaces;
+using Xunit;
+using System.Text;
 using Humans.Notifications.Contracts;
 using AwesomeAssertions;
 using Humans.Base.Interfaces.Caching;
@@ -23,11 +29,13 @@ public sealed class CampServiceTests : CampsTestHarness
 {
     private readonly CampService _service;
     private readonly InMemoryFileStorage _fileStorage;
+    private readonly ICampLeadJoinRequestsBadgeCacheInvalidator _leadBadgeInvalidator = Substitute.For<ICampLeadJoinRequestsBadgeCacheInvalidator>();
     private readonly ICampRoleService _campRoleService;
     private readonly ICityPlanningService _cityPlanningService;
     private readonly IEarlyEntryInvalidator _earlyEntryInvalidator;
     private readonly ICampInfoInvalidator _campInfoInvalidator = Substitute.For<ICampInfoInvalidator>();
     private readonly ISettingsService _settingsService;
+    private readonly IUserServiceRead _userServiceRead = Substitute.For<IUserServiceRead>();
 
     public CampServiceTests()
         : base(Instant.FromUtc(2026, 3, 13, 12, 0))
@@ -57,12 +65,12 @@ public sealed class CampServiceTests : CampsTestHarness
             Substitute.For<ISystemTeamSync>(),
             _fileStorage,
             Notifier,
-            Substitute.For<ICampLeadJoinRequestsBadgeCacheInvalidator>(),
+            _leadBadgeInvalidator,
             new Lazy<ICampRoleService>(() => _campRoleService),
             new Lazy<ICityPlanningService>(() => _cityPlanningService),
             _earlyEntryInvalidator,
             _campInfoInvalidator,
-            Substitute.For<IUserServiceRead>(),
+            _userServiceRead,
             _settingsService,
             Clock,
             NullLogger<CampService>.Instance);
@@ -126,6 +134,39 @@ public sealed class CampServiceTests : CampsTestHarness
         _earlyEntryInvalidator.Received(1).InvalidateUser(target);
     }
 
+    [HumansTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MembershipFoldOrErasure_EvictsOtherLeadsPendingRequestBadge(bool merge)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        await ApproveLatestSeasonAsync(camp.Id);
+        var source = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        await SeedUserAsync(source, "Source");
+        await SeedUserAsync(target, "Target");
+        await _service.RequestCampMembershipAsync(camp.Id, source, ct);
+        await _service.RequestCampMembershipAsync(camp.Id, target, ct);
+        var lead = camp.CreatedByUserId;
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var invalidator = new CampLeadJoinRequestsBadgeCacheInvalidator(cache);
+        _leadBadgeInvalidator.When(x => x.Invalidate(Arg.Any<Guid>()))
+            .Do(call => invalidator.Invalidate(call.Arg<Guid>()));
+        var badgeKey = CacheKeys.CampLeadJoinRequestsBadge(lead);
+        cache.Set(badgeKey, 2);
+
+        if (merge)
+            await _service.ReassignAsync(source, target, Guid.NewGuid(), Clock.GetCurrentInstant(), ct);
+        else
+            await _service.EraseForUserAsync(source, ct);
+
+        (await CampsDb.CampMembers.AsNoTracking().CountAsync(m => m.Status == CampMemberStatus.Pending, ct))
+            .Should().Be(1);
+        cache.TryGetValue<int>(badgeKey, out _).Should().BeFalse();
+    }
+
     // ==========================================================================
     // CreateCampAsync
     // ==========================================================================
@@ -181,6 +222,47 @@ public sealed class CampServiceTests : CampsTestHarness
             .Should().BeFalse();
     }
 
+    [HumansTheory]
+    [InlineData("🔥🔥")]
+    [InlineData("日本のキャンプ")]
+    public async Task CreateCampAsync_NonAsciiNamesGetDistinctUsableSlugs(string name)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var first = await _service.CreateCampAsync(Guid.NewGuid(), name, "camp@test.com", "+34600000000",
+            null, null, false, 0, MakeSeasonData(), null, 2026, ct);
+        var second = await _service.CreateCampAsync(Guid.NewGuid(), name, "camp@test.com", "+34600000000",
+            null, null, false, 0, MakeSeasonData(), null, 2026, ct);
+
+        foreach (var camp in new[] { first, second })
+        {
+            SlugHelper.IsValidKebabSlug(camp.Slug, maxLength: 256).Should().BeTrue();
+            var read = await _service.GetCampBySlugAsync(camp.Slug, ct);
+            read!.Id.Should().Be(camp.Id);
+            read.Seasons.Single().Name.Should().Be(name);
+        }
+        first.Slug.Should().NotBe(second.Slug);
+    }
+
+    [HumansFact]
+    public async Task CreateCampAsync_LongNameCollisionSlugsStayWithinTheirStoredBound()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var maxLength = CampsDb.Model.FindEntityType(typeof(Camp))!.FindProperty(nameof(Camp.Slug))!.GetMaxLength()!.Value;
+        var name = new string('a', maxLength - 3) + "-bc";
+        var slugs = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < 3; i++)
+        {
+            var camp = await _service.CreateCampAsync(Guid.NewGuid(), name, "camp@test.com", "+34600000000",
+                null, null, false, 0, MakeSeasonData(), null, 2026, ct);
+
+            SlugHelper.IsValidKebabSlug(camp.Slug, maxLength).Should().BeTrue();
+            slugs.Add(camp.Slug).Should().BeTrue();
+            (await _service.GetCampBySlugAsync(camp.Slug, ct))!.Seasons.Single().Name.Should().Be(name);
+        }
+    }
+
     [HumansFact]
     public async Task CreateCampAsync_ReservedSlug_ThrowsInvalidOperation()
     {
@@ -192,7 +274,7 @@ public sealed class CampServiceTests : CampsTestHarness
             null, null, false, 0, MakeSeasonData(), null, 2026, Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*reserved*");
+            .WithMessage("Camps_Flash_ReservedName");
     }
 
     // ==========================================================================
@@ -268,6 +350,25 @@ public sealed class CampServiceTests : CampsTestHarness
     // ==========================================================================
     // OptInToSeasonAsync
     // ==========================================================================
+
+    [HumansTheory]
+    [InlineData(2027, false, "Camps_Flash_SeasonNotOpen")]
+    [InlineData(2026, false, "Camps_Flash_SeasonAlreadyExists")]
+    [InlineData(2026, true, "Camps_Flash_NoPreviousSeason")]
+    public async Task OptInToSeasonAsync_RefusesInvalidRenewalsWithoutWriting(int year, bool missingCamp, string key)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        var seasonsBefore = await CampsDb.CampSeasons.CountAsync(ct);
+        var auditCallsBefore = AuditLog.ReceivedCalls().Count();
+
+        var act = () => _service.OptInToSeasonAsync(missingCamp ? Guid.NewGuid() : camp.Id, year, ct);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(key);
+        (await CampsDb.CampSeasons.CountAsync(ct)).Should().Be(seasonsBefore);
+        AuditLog.ReceivedCalls().Count().Should().Be(auditCallsBefore);
+    }
 
     [HumansFact]
     public async Task OptInToSeasonAsync_ReturningCamp_AutoApproves()
@@ -880,6 +981,114 @@ public sealed class CampServiceTests : CampsTestHarness
         (await CampsDb.CampMembers.AsNoTracking().CountAsync(m => m.UserId == userId, Xunit.TestContext.Current.CancellationToken)).Should().Be(1);
     }
 
+    [HumansTheory]
+    [Xunit.InlineData("approve")]
+    [Xunit.InlineData("reject")]
+    [Xunit.InlineData("close")]
+    public async Task MembershipNotices_LongNamesKeepFullCopyAndValidTitle(string action)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        await ApproveLatestSeasonAsync(camp.Id);
+        var season = await CampsDb.CampSeasons.SingleAsync(row => row.CampId == camp.Id, ct);
+        var name = new string('x', 168) + "😀" + new string('x', 86);
+        season.Name = name;
+        await CampsDb.SaveChangesAsync(ct);
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId, "Requester");
+        var request = await _service.RequestCampMembershipAsync(camp.Id, userId, ct);
+        switch (action)
+        {
+            case "approve": await _service.ApproveCampMemberAsync(camp.Id, request.CampMemberId, Guid.NewGuid(), ct); break;
+            case "reject": await _service.RejectCampMemberAsync(camp.Id, request.CampMemberId, Guid.NewGuid(), ct); break;
+            default: await _service.WithdrawSeasonAsync(camp.Id, season.Id, ct); break;
+        }
+        var args = Notifier.ReceivedCalls().Single().GetArguments();
+        var title = (string)args[3]!;
+        title.EnumerateRunes().Count().Should().BeLessThanOrEqualTo(200);
+        title.Should().EndWith("…");
+        var encode = () => new UTF8Encoding(false, true).GetBytes(title);
+        encode.Should().NotThrow();
+        ((string)args[5]!).Should().Contain(action switch
+        {
+            "approve" => $"Your request to join {name} was approved",
+            "reject" => $"Your request to join {name} was not approved",
+            _ => "Your pending request to join this camp won't be reviewed"
+        });
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("approve")]
+    [Xunit.InlineData("reject")]
+    [Xunit.InlineData("lookup-failure")]
+    public async Task MembershipNotices_UseRecipientLanguageWithLookupFailureFallback(string action)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        await ApproveLatestSeasonAsync(camp.Id);
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId, "Alice");
+        var request = await _service.RequestCampMembershipAsync(camp.Id, userId, ct);
+        _userServiceRead.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<UserInfo?>(UserInfo.Create(
+                new User { Id = userId, PreferredLanguage = "es" }, [], [], [], null, [])));
+        if (string.Equals(action, "lookup-failure", StringComparison.Ordinal))
+            _userServiceRead.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
+                .Returns(ValueTask.FromException<UserInfo?>(new IOException("Language lookup unavailable")));
+
+        var rejected = string.Equals(action, "reject", StringComparison.Ordinal);
+        if (rejected)
+            await _service.RejectCampMemberAsync(camp.Id, request.CampMemberId, Guid.NewGuid(), ct);
+        else
+            await _service.ApproveCampMemberAsync(camp.Id, request.CampMemberId, Guid.NewGuid(), ct);
+
+        var source = rejected ? NotificationSource.CampMembershipRejected : NotificationSource.CampMembershipApproved;
+        var args = Notifier.ReceivedCalls().Where(call => call.GetArguments()[0] is NotificationSource value && value == source)
+            .Single().GetArguments();
+        ((IReadOnlyList<Guid>)args[4]!).Should().ContainSingle().Which.Should().Be(userId);
+        var name = camp.Seasons.Single().Name;
+        args[3].Should().Be(action switch
+        {
+            "approve" => $"Se aprobó tu solicitud para unirte a {name}",
+            "reject" => $"No se aprobó tu solicitud para unirte a {name}",
+            _ => $"Your request to join {name} was approved"
+        });
+        if (!rejected)
+        {
+            args[6].Should().Be($"/Barrios/{camp.Slug}");
+            args[7].Should().Be(string.Equals(action, "lookup-failure", StringComparison.Ordinal) ? "View camp" : "Ver campamento");
+        }
+    }
+
+    [HumansTheory]
+    [InlineData("Approve", "Camps_Flash_ApproveRequiresPending")]
+    [InlineData("Reject", "Camps_Flash_RejectRequiresPending")]
+    [InlineData("Remove", "Camps_Flash_RemoveRequiresActive")]
+    public async Task ManagedMembershipAction_WrongStatus_ReturnsLocalizedGuardKey(string action, string key)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        await ApproveLatestSeasonAsync(camp.Id);
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId, "Alice");
+        var request = await _service.RequestCampMembershipAsync(camp.Id, userId, ct);
+        var actorId = Guid.NewGuid();
+        if (action is "Approve" or "Reject") await _service.ApproveCampMemberAsync(camp.Id, request.CampMemberId, actorId, ct);
+        var previousStatus = action is "Remove" ? CampMemberStatus.Pending : CampMemberStatus.Active;
+        Func<Task> act = action switch
+        {
+            "Approve" => () => _service.ApproveCampMemberAsync(camp.Id, request.CampMemberId, actorId, ct),
+            "Reject" => () => _service.RejectCampMemberAsync(camp.Id, request.CampMemberId, actorId, ct),
+            "Remove" => () => _service.RemoveCampMemberAsync(camp.Id, request.CampMemberId, actorId, ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(key);
+        (await CampsDb.CampMembers.AsNoTracking().SingleAsync(m => m.Id == request.CampMemberId, ct)).Status.Should().Be(previousStatus);
+    }
+
     [HumansFact]
     public async Task ApproveCampMemberAsync_PendingRequest_SetsActiveAndNotifies()
     {
@@ -930,7 +1139,7 @@ public sealed class CampServiceTests : CampsTestHarness
 
         // A lead of camp A tries to approve a member belonging to camp B.
         var act = () => _service.ApproveCampMemberAsync(campA.Id, requestInCampB.CampMemberId, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not found*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Camps_Flash_RoleMemberNotFound");
 
         // Camp B's pending row is untouched.
         var memberB = await CampsDb.CampMembers.AsNoTracking().FirstAsync(m => m.Id == requestInCampB.CampMemberId, Xunit.TestContext.Current.CancellationToken);
@@ -954,7 +1163,7 @@ public sealed class CampServiceTests : CampsTestHarness
 
         // A lead of camp A tries to reject a member belonging to camp B.
         var act = () => _service.RejectCampMemberAsync(campA.Id, requestInCampB.CampMemberId, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not found*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Camps_Flash_RoleMemberNotFound");
 
         var memberB = await CampsDb.CampMembers.AsNoTracking().FirstAsync(m => m.Id == requestInCampB.CampMemberId, Xunit.TestContext.Current.CancellationToken);
         memberB.Status.Should().Be(CampMemberStatus.Pending);
@@ -978,7 +1187,7 @@ public sealed class CampServiceTests : CampsTestHarness
 
         // A lead of camp A tries to remove an active member belonging to camp B.
         var act = () => _service.RemoveCampMemberAsync(campA.Id, requestInCampB.CampMemberId, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not found*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Camps_Flash_RoleMemberNotFound");
 
         var memberB = await CampsDb.CampMembers.AsNoTracking().FirstAsync(m => m.Id == requestInCampB.CampMemberId, Xunit.TestContext.Current.CancellationToken);
         memberB.Status.Should().Be(CampMemberStatus.Active);
@@ -1058,7 +1267,33 @@ public sealed class CampServiceTests : CampsTestHarness
         var request = await _service.RequestCampMembershipAsync(camp.Id, userId, Xunit.TestContext.Current.CancellationToken);
 
         var act = () => _service.WithdrawCampMembershipRequestAsync(request.CampMemberId, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not found*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Camps_Flash_RoleMemberNotFound");
+    }
+
+    [HumansFact]
+    public async Task SelfMembershipRuleFailures_ReturnResourceKeysWithoutChangingStatus()
+    {
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        await ApproveLatestSeasonAsync(camp.Id);
+        var userId = Guid.NewGuid();
+        await SeedUserAsync(userId, "Alice");
+        var request = await _service.RequestCampMembershipAsync(camp.Id, userId, Xunit.TestContext.Current.CancellationToken);
+
+        var wrongUser = await _service.LeaveCampAsync(request.CampMemberId, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        wrongUser.Succeeded.Should().BeFalse();
+        wrongUser.ErrorMessage.Should().Be("Camps_Flash_RoleMemberNotFound");
+        var pending = await _service.LeaveCampAsync(request.CampMemberId, userId, Xunit.TestContext.Current.CancellationToken);
+        pending.Succeeded.Should().BeFalse();
+        pending.ErrorMessage.Should().Be("Camps_Flash_LeaveRequiresActive");
+        (await CampsDb.CampMembers.AsNoTracking().SingleAsync(m => m.Id == request.CampMemberId, Xunit.TestContext.Current.CancellationToken))
+            .Status.Should().Be(CampMemberStatus.Pending);
+
+        await _service.ApproveCampMemberAsync(camp.Id, request.CampMemberId, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        var withdraw = () => _service.WithdrawCampMembershipRequestAsync(request.CampMemberId, userId, Xunit.TestContext.Current.CancellationToken);
+        await withdraw.Should().ThrowAsync<InvalidOperationException>().WithMessage("Camps_Flash_WithdrawRequiresPending");
+        (await CampsDb.CampMembers.AsNoTracking().SingleAsync(m => m.Id == request.CampMemberId, Xunit.TestContext.Current.CancellationToken))
+            .Status.Should().Be(CampMemberStatus.Active);
     }
 
     [HumansFact]
@@ -1359,6 +1594,63 @@ public sealed class CampServiceTests : CampsTestHarness
             memberId, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
+    [HumansTheory]
+    [Xunit.InlineData(false, false)]
+    [Xunit.InlineData(true, false)]
+    [Xunit.InlineData(false, true)]
+    public async Task WithdrawSeasonAsync_NotifiesEachLanguageGroup(bool lookupFailure, bool deliveryFailure)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        await ApproveLatestSeasonAsync(camp.Id);
+        var englishId = Guid.NewGuid();
+        var spanishIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var recipients = spanishIds.Append(englishId).ToArray();
+        foreach (var userId in recipients)
+        {
+            await SeedUserAsync(userId, "Requester");
+            await _service.RequestCampMembershipAsync(camp.Id, userId, ct);
+            _userServiceRead.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
+                .Returns(new ValueTask<UserInfo?>(UserInfo.Create(new User
+                {
+                    Id = userId,
+                    PreferredLanguage = userId == englishId ? "en" : "es"
+                }, [], [], [], null, [])));
+        }
+        if (lookupFailure)
+            _userServiceRead.GetUserInfoAsync(englishId, Arg.Any<CancellationToken>())
+                .Returns(ValueTask.FromException<UserInfo?>(new IOException("Language lookup unavailable")));
+        var season = camp.Seasons.Single();
+        Notifier.ClearReceivedCalls();
+
+        if (deliveryFailure)
+            Notifier.SendAsync(NotificationSource.CampMembershipSeasonClosed,
+                Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(), Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromException(new IOException("First language group unavailable")), Task.CompletedTask);
+
+        await _service.WithdrawSeasonAsync(camp.Id, season.Id, ct);
+
+        var notices = Notifier.ReceivedCalls()
+            .Where(call => call.GetArguments()[0] is NotificationSource source && source == NotificationSource.CampMembershipSeasonClosed)
+            .Select(call => call.GetArguments()).ToList();
+        notices.Should().HaveCount(2);
+        var spanish = notices.Single(args => ((IReadOnlyList<Guid>)args[4]!).Contains(spanishIds[0]));
+        ((IReadOnlyList<Guid>)spanish[4]!).Should().BeEquivalentTo(spanishIds);
+        spanish[3].Should().Be($"La temporada {season.Year} de {season.Name} ya no está abierta");
+        spanish[5].Should().Be("Tu solicitud pendiente para unirte a este campamento no se revisará porque la temporada fue retirada o rechazada.");
+        spanish[6].Should().Be($"/Barrios/{camp.Slug}");
+        spanish[7].Should().Be("Ver campamento");
+        var english = notices.Single(args => ((IReadOnlyList<Guid>)args[4]!).Contains(englishId));
+        ((IReadOnlyList<Guid>)english[4]!).Should().ContainSingle().Which.Should().Be(englishId);
+        english[3].Should().Be($"The {season.Year} season for {season.Name} is no longer open");
+        english[7].Should().Be("View camp");
+        (await CampsDb.CampMembers.AsNoTracking().Where(member => recipients.Contains(member.UserId))
+            .Select(member => member.Status).ToListAsync(ct)).Should().OnlyContain(status => status == CampMemberStatus.Pending);
+    }
+
     [HumansFact]
     public async Task WithdrawSeasonAsync_NotifiesPendingRequesters_DoesNotChangeMemberStatus()
     {
@@ -1501,6 +1793,76 @@ public sealed class CampServiceTests : CampsTestHarness
         unchanged.TimesAtNowhere.Should().Be(1);
     }
 
+    [HumansTheory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Image_cleanup_follows_committed_deletion_and_audit(
+        bool deleteCamp, bool storageFails)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var camp = await CreateTestCamp();
+        var image = new CampImage
+        {
+            Id = Guid.NewGuid(),
+            CampId = camp.Id,
+            StoragePath = "uploads/camps/test/photo.jpg",
+            UploadedAt = Clock.GetCurrentInstant()
+        };
+        CampsDb.CampImages.Add(image);
+        await SaveAllAsync(ct);
+        var action = deleteCamp ? AuditAction.CampDeleted : AuditAction.CampImageDeleted;
+        var entityId = deleteCamp ? camp.Id : image.Id;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var storage = Substitute.For<IFileStorage>();
+        var auditBeforeCleanup = false;
+        var cleanupFinished = false;
+        storage.DeleteAsync(image.StoragePath, Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            auditBeforeCleanup = AuditLog.ReceivedCalls().Any(c =>
+                string.Equals(c.GetMethodInfo().Name, nameof(IAuditLogService.LogAsync), StringComparison.Ordinal)
+                && Equals(c.GetArguments()[0], action) && Equals(c.GetArguments()[2], entityId));
+            await cancellation.CancelAsync();
+            call.ArgAt<CancellationToken>(1).ThrowIfCancellationRequested();
+            cleanupFinished = true;
+            if (storageFails) throw new IOException("Storage unavailable");
+        });
+        var service = new CampService(
+            new CampRepository(CampsDbFactory), AuditLog, Substitute.For<ISystemTeamSync>(), storage, Notifier,
+            Substitute.For<ICampLeadJoinRequestsBadgeCacheInvalidator>(),
+            new Lazy<ICampRoleService>(() => _campRoleService),
+            new Lazy<ICityPlanningService>(() => _cityPlanningService),
+            _earlyEntryInvalidator, _campInfoInvalidator, _userServiceRead, _settingsService,
+            Clock, NullLogger<CampService>.Instance);
+
+        if (deleteCamp)
+            await service.DeleteCampAsync(camp.Id, cancellation.Token);
+        else
+            await service.DeleteImageAsync(camp.Id, image.Id, cancellation.Token);
+
+        auditBeforeCleanup.Should().BeTrue();
+        cleanupFinished.Should().BeTrue();
+        await storage.Received(1).DeleteAsync(image.StoragePath, CancellationToken.None);
+        // InMemory does not execute the database's image FK cascade on whole-camp deletion.
+        if (!deleteCamp)
+            (await CampsDb.CampImages.AsNoTracking().AnyAsync(i => i.Id == image.Id, ct)).Should().BeFalse();
+        (await CampsDb.Camps.AsNoTracking().AnyAsync(c => c.Id == camp.Id, ct)).Should().Be(!deleteCamp);
+    }
+
+    [HumansTheory]
+    [InlineData(false, "Camps_Flash_CampNotFound")]
+    [InlineData(true, "Camps_Flash_ImageNotFound")]
+    public async Task LeadDeletion_MissingRecord_ThrowsLocalizedGuard(bool image, string key)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        Func<Task> act = image
+            ? () => _service.DeleteImageAsync(Guid.NewGuid(), Guid.NewGuid(), ct)
+            : () => _service.RemoveHistoricalNameAsync(Guid.NewGuid(), Guid.NewGuid(), ct);
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(key);
+        _fileStorage.Files.Should().BeEmpty();
+    }
+
     [HumansFact]
     public async Task DeleteImageAsync_WrongCamp_Throws()
     {
@@ -1513,10 +1875,49 @@ public sealed class CampServiceTests : CampsTestHarness
 
         var action = () => _service.DeleteImageAsync(Guid.NewGuid(), upload.Image!.Id, Xunit.TestContext.Current.CancellationToken);
 
-        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*does not belong*");
+        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("Camps_Flash_ImageWrongCamp");
 
         var stillThere = await CampsDb.CampImages.AsNoTracking().FirstOrDefaultAsync(i => i.Id == upload.Image!.Id, Xunit.TestContext.Current.CancellationToken);
         stillThere.Should().NotBeNull();
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("no-row")]
+    [Xunit.InlineData("committed")]
+    [Xunit.InlineData("verification-failure")]
+    public async Task Failed_image_metadata_write_cleans_only_an_unreferenced_upload(string failure)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var repo = Substitute.For<ICampRepository>();
+        CampImage? committed = null;
+        var original = new IOException("Image metadata write failed");
+        repo.AddImageAsync(Arg.Any<CampImage>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            if (string.Equals(failure, "committed", StringComparison.Ordinal))
+                committed = call.Arg<CampImage>();
+            return Task.FromException(original);
+        });
+        repo.GetImageForMutationAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(_ =>
+            string.Equals(failure, "verification-failure", StringComparison.Ordinal)
+                ? Task.FromException<CampImage?>(new IOException("Cannot verify metadata"))
+                : Task.FromResult(committed));
+        var service = new CampService(
+            repo, AuditLog, Substitute.For<ISystemTeamSync>(), _fileStorage, Notifier,
+            Substitute.For<ICampLeadJoinRequestsBadgeCacheInvalidator>(),
+            new Lazy<ICampRoleService>(() => _campRoleService),
+            new Lazy<ICityPlanningService>(() => _cityPlanningService),
+            _earlyEntryInvalidator, _campInfoInvalidator, _userServiceRead, _settingsService,
+            Clock, NullLogger<CampService>.Instance);
+        await using var image = new MemoryStream([1, 2, 3]);
+
+        var act = () => service.UploadImageAsync(Guid.NewGuid(), image, "camp.png", "image/png", image.Length, ct);
+
+        var thrown = await act.Should().ThrowAsync<IOException>();
+        thrown.Which.Should().BeSameAs(original);
+        if (string.Equals(failure, "no-row", StringComparison.Ordinal))
+            _fileStorage.Files.Should().BeEmpty();
+        else
+            _fileStorage.Files.Should().ContainSingle().Which.Value.Should().Equal(1, 2, 3);
     }
 
     [HumansFact]
@@ -1531,8 +1932,71 @@ public sealed class CampServiceTests : CampsTestHarness
             Xunit.TestContext.Current.CancellationToken);
 
         result.Succeeded.Should().BeFalse();
-        result.ErrorMessage.Should().Contain("256 characters or fewer");
+        result.ErrorMessage.Should().Be("Camps_Validation_ImageFilenameLength");
         (await CampsDb.CampImages.CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(0);
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("image/gif", "camp.jpg", 1L, "Camps_Validation_ImageType")]
+    [Xunit.InlineData("image/jpeg", "camp.jpg", 10485761L, "Camps_Validation_ImageSize")]
+    [Xunit.InlineData("image/jpeg", "camp.html", 1L, "Camps_Validation_ImageExtension")]
+    public async Task UploadImageAsync_InvalidImageReturnsResourceKeyBeforeWriting(
+        string contentType, string fileName, long length, string key)
+    {
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+
+        var result = await _service.UploadImageAsync(camp.Id, Stream.Null, fileName, contentType, length,
+            Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().Be(key);
+        _fileStorage.Files.Should().BeEmpty();
+        (await CampsDb.CampImages.CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(0);
+    }
+
+    [HumansFact]
+    public async Task UploadImageAsync_AfterDeletingMiddleImage_AppendsAfterSurvivors()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        var first = await _service.UploadImageAsync(camp.Id, Stream.Null, "first.jpg", "image/jpeg", 1, ct);
+        var middle = await _service.UploadImageAsync(camp.Id, Stream.Null, "middle.jpg", "image/jpeg", 1, ct);
+        var last = await _service.UploadImageAsync(camp.Id, Stream.Null, "last.jpg", "image/jpeg", 1, ct);
+        await _service.DeleteImageAsync(camp.Id, middle.Image!.Id, ct);
+
+        var appended = await _service.UploadImageAsync(camp.Id, Stream.Null, "appended.jpg", "image/jpeg", 1, ct);
+
+        appended.Succeeded.Should().BeTrue();
+        appended.Image!.SortOrder.Should().Be(3);
+        var images = await CampsDb.CampImages.AsNoTracking()
+            .Where(i => i.CampId == camp.Id).ToListAsync(ct);
+        images.Single(i => i.Id == first.Image!.Id).SortOrder.Should().Be(0);
+        images.Single(i => i.Id == last.Image!.Id).SortOrder.Should().Be(2);
+        images.Single(i => i.Id == appended.Image.Id).SortOrder.Should().Be(3);
+        _fileStorage.Files.Should().HaveCount(3);
+    }
+
+    [HumansFact]
+    public async Task UploadImageAsync_FullGalleryReturnsCountResourceKey()
+    {
+        await SeedSettingsAsync();
+        var camp = await CreateTestCamp();
+        for (var i = 0; i < 5; i++)
+        {
+            var accepted = await _service.UploadImageAsync(camp.Id, Stream.Null, $"camp{i}.jpg", "image/jpeg", 1,
+                Xunit.TestContext.Current.CancellationToken);
+            accepted.Succeeded.Should().BeTrue();
+        }
+
+        var result = await _service.UploadImageAsync(camp.Id, Stream.Null, "extra.jpg", "image/jpeg", 1,
+            Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().Be("Camps_Validation_ImageCount");
+        _fileStorage.Files.Should().HaveCount(5);
+        (await CampsDb.CampImages.CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(5);
     }
 
     [HumansFact]
@@ -1550,7 +2014,7 @@ public sealed class CampServiceTests : CampsTestHarness
         // Scope check resolves the scoped camp's aggregate, so the wrong camp must exist.
         var action = () => _service.RemoveHistoricalNameAsync(campB.Id, name.Id, Xunit.TestContext.Current.CancellationToken);
 
-        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*does not belong*");
+        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("Camps_Flash_HistoricalNameWrongCamp");
 
         var stillThere = await CampsDb.CampHistoricalNames.AsNoTracking().FirstOrDefaultAsync(n => n.Id == name.Id, Xunit.TestContext.Current.CancellationToken);
         stillThere.Should().NotBeNull();

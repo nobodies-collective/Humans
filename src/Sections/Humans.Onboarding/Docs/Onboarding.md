@@ -80,6 +80,7 @@ Board voting moved to Governance: `/Governance/BoardVoting`. Onboarding only con
 
 - Onboarding steps: (1) complete profile, (2) consent to all required global legal documents, (3) automatic admission to the Volunteers system team. CC review of the consent check is an independent audit track that runs in parallel — it does not gate admission.
 - Volunteer onboarding is never blocked by tier applications — they are separate, parallel paths.
+- Guest dashboard and widget-step reads propagate request cancellation through viewer, eligibility, consent, active-event and signup reads; an abandoned request stops rather than selecting a fallback step.
 - Access is the stored `User.State`: the full app requires `UserState.Active` (legal name entered). It is NOT derived from Volunteers-team membership — nothing in-app should read Volunteers membership to decide access.
 - Shifts enforces `UserState.Active` for self-signups from the widget and dietary form replay. Saving required names makes a new account eligible before consents; suspended, rejected, deletion-pending and terminal accounts cannot use those exempt endpoints to create signups.
 - Volunteers admission is `HasRequiredNameFields && !IsSuspended && RejectedAt is null && HasAllRequiredConsentsForTeam(Volunteers)` — **name + consents**. `Profile.ConsentCheckStatus` (incl. `Flagged`) and `Profile.IsApproved` are NOT consulted. `Suspended` and `RejectedAt` remain the CC's kick-out levers: `RejectSignupAsync` sets `RejectedAt` then calls `DeprovisionApprovalGatedSystemTeamsAsync`, so reject removes the user from Volunteers. `FlagConsentCheckAsync` is annotation-only and does not deprovision.
@@ -88,6 +89,7 @@ Board voting moved to Governance: `/Governance/BoardVoting`. Onboarding only con
 - `OnboardingService` depends only on interfaces — no `DbContext`, `IDbContextFactory`, `DbSet<T>`, `IMemoryCache`, `IFullProfileInvalidator`, or repository.
 - **No leaf-to-director callbacks.** Neither `ProfileService` nor `ConsentService` depends on `IOnboardingService`. The consent-check threshold (formerly `IOnboardingEligibilityQuery.SetConsentCheckPendingIfEligibleAsync`, called from inside the leaves) is declared on `IOnboardingIntake` (the leaf); `IOnboardingService` extends `IOnboardingIntake`. `ConsentController.Submit` and `ProfileController.Edit POST` inject the leaf; the section's own `OnboardingWidgetController` injects `IOnboardingService`. Both invoke it as a **peer call from the controllers** (`ConsentController.Submit`, `ProfileController.Edit POST`, `OnboardingWidgetController.Names/SignConsent`) after the leaf write completes. Director-to-leaf is one-way: `OnboardingService` writes through the owning leaf service during clear/flag/reject and during the threshold check, never the reverse. (Admin-initiated volunteer approval is no longer an OnboardingService action — `ApproveVolunteerAsync` was removed; admission is name + consents, reconciled by `SystemTeamSyncJob`.)
 - Onboarding is completed via the `/OnboardingWidget` guided flow (Names → Shifts → Consents). Volunteers admission is reconciled by `SystemTeamSyncJob` on name + consents — `ConsentService.SubmitConsentAsync` no longer fires a per-user team sync (the side-effect was removed; admission is eventually-consistent via the batch job, and access never depended on it).
+- The shift-priority filter's accessible label is localized in all six supported cultures.
 - **Name-gate (entry invariant).** `NameRequiredFilter` (global action filter, `src/Humans.Web/Authorization/NameRequiredFilter.cs`) is the single gate that forces any *authenticated live account* whose profile has no real `BurnerName` — a Stub profile, or an Active profile with blank required names — to the burner + legal-name form at `OnboardingWidget/Names` before they can reach the rest of the app. It covers OAuth/Google first sign-in, imported contacts hitting the magic-link `ExistingUser` branch, and legacy blank-`BurnerName` accounts (nobodies-collective/Humans#812). It runs strictly *after* authentication and only ever redirects — it **never blocks sign-in**. `Deleted` and `Merged` accounts pass to `MembershipRequiredFilter`, which blocks name entry and all other recovery exemptions while keeping their status wall and session/language routes accessible. It keys on the cache-backed `UserInfo.HasRequiredNameFields` (refreshed on profile save), so the gate opens on the next request once the form is submitted. Exempt from the gate: the `Account` and `Language` controllers wholesale, plus the actions `OnboardingWidget/Names`, `Home/Error`, and `Home/Privacy`, and a Backdoor-API-key-authenticated request (no name form for a machine to fill in).
 
 ## Negative Access Rules
@@ -104,7 +106,8 @@ Board voting moved to Governance: `/Governance/BoardVoting`. Onboarding only con
 - When a profile review is cleared by a CC: `Profile.IsApproved` is set to true and `ConsentCheckStatus = Cleared`. This is annotation-only — no team sync, no email.
 - When a consent check is flagged: `Profile.IsApproved` is set to false and `ConsentCheckStatus = Flagged`. Annotation-only — no de-provisioning. The flag no longer gates admission; it is a record nothing acts on.
 - When a signup is rejected: `Profile.RejectedAt`, `RejectionReason`, and `RejectedByUserId` are recorded; `IsApproved` is set to false; system team memberships are de-provisioned (`RejectedAt` is the kick-out lever); a `SignupRejected` email and `ProfileRejected` notification are dispatched. (`Profile` has no `IsRejected` boolean — rejection is detected by `RejectedAt is not null`.)
-- The rejection email and in-app notice use the recipient’s supported preferred language (English fallback). The notice’s title, body and profile action are localized in all six cultures; the reviewer’s free-text reason is preserved inside the localized body.
+- Rejection email preparation and dispatch are best-effort after mutation, audit and deprovisioning. Recipient lookup failures preserve the successful rejection and still attempt the in-app notice in English; requested cancellation propagates.
+- The rejection email and in-app notice use the recipient’s supported preferred language (English fallback). The notice’s title, body and profile action are localized in all six cultures; the reviewer’s free-text reason is excerpted only when needed to fit the 2,000-character body. The full reason remains in the profile, audit entry and rejection email.
 
 ## Cross-Section Dependencies
 
@@ -143,8 +146,8 @@ After the nobodies-collective#584 narrowing, `OnboardingService` injects only wh
 
 ## Issue queue
 
-Onboarding owns the `Onboarding` issue queue: it implements `IIssueQueueOwner` (Issues' contracts
-leaf) on its `Section` entry point, declaring the queue key and the roles that handle
+Onboarding owns the `Onboarding` issue queue: it implements `IIssueQueueOwner` (Issues' `Contracts/`
+folder) on its `Section` entry point, declaring the queue key and the roles that handle
 issues filed against it — `ConsentCoordinator, VolunteerCoordinator, HumanAdmin`, plus `Admin`, which handles every queue. Issues
 discovers the declaration through DI and holds no list of sections; dropping the seam
 sends this section's stored issues to the Admin-only queue.

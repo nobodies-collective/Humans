@@ -112,17 +112,19 @@ def max_migrations_per_context(migration_files: list[str]) -> int:
 
 
 def parse_name_status(base: str, head: str) -> tuple[list[str], list[str], list[str]]:
-    raw = run_git(["diff", "--name-status", "--find-renames", "--find-copies", f"{base}...{head}"])
+    raw = run_git(["diff", "--name-status", "-z", "--find-renames", "--find-copies", f"{base}...{head}"])
     added_files: list[str] = []
     changed_files: list[str] = []
     migration_files: list[str] = []
 
-    for line in raw.splitlines():
-        parts = line.split("\t")
-        if not parts:
+    records = iter(raw.split("\0"))
+    for status in records:
+        if not status:
             continue
-        status = parts[0]
-        path = normalize(parts[-1])
+        path = next(records)
+        if status.startswith(("R", "C")):
+            path = next(records)  # Report the destination, not the display-form rename.
+        path = normalize(path)
         changed_files.append(path)
         # A = added; C<score> = copy destination, which is equally a new file —
         # --find-copies can classify a new migration that resembles an existing
@@ -137,13 +139,16 @@ def parse_name_status(base: str, head: str) -> tuple[list[str], list[str], list[
 
 
 def parse_numstat(base: str, head: str) -> dict[str, dict[str, int]]:
-    raw = run_git(["diff", "--numstat", "--find-renames", "--find-copies", f"{base}...{head}"])
+    raw = run_git(["diff", "--numstat", "-z", "--find-renames", "--find-copies", f"{base}...{head}"])
     counts: dict[str, dict[str, int]] = defaultdict(lambda: {"added": 0, "deleted": 0})
-    for line in raw.splitlines():
-        parts = line.split("\t")
-        if len(parts) < 3:
+    records = iter(raw.split("\0"))
+    for record in records:
+        if not record:
             continue
-        added_raw, deleted_raw, path_raw = parts[0], parts[1], parts[-1]
+        added_raw, deleted_raw, path_raw = record.split("\t", 2)
+        if not path_raw:
+            next(records)  # Rename/copy source.
+            path_raw = next(records)
         if added_raw == "-" or deleted_raw == "-":
             continue
         path = normalize(path_raw)
@@ -179,13 +184,7 @@ def short_ref(ref: str) -> str:
 def load_json(path: str | None) -> dict | None:
     if not path:
         return None
-    data = Path(path).read_bytes()
-    for encoding in ("utf-8", "utf-8-sig", "utf-16"):
-        try:
-            return json.loads(data.decode(encoding))
-        except UnicodeError:
-            continue
-    return json.loads(data.decode("utf-8"))
+    return json.loads(Path(path).read_bytes())
 
 
 def format_delta(delta: int) -> str:
@@ -304,8 +303,8 @@ def groups_by_name(score: dict) -> dict[str, int]:
 
 
 def git_files(ref: str, prefixes: tuple[str, ...]) -> list[str]:
-    raw = run_git(["ls-tree", "-r", "--name-only", ref, "--", *prefixes])
-    return [normalize(line) for line in raw.splitlines() if line.endswith(".cs")]
+    raw = run_git(["ls-tree", "-r", "--name-only", "-z", ref, "--", *prefixes])
+    return [normalize(path) for path in raw.split("\0") if path.endswith(".cs")]
 
 
 def normalize_signature(signature: str) -> str:
@@ -315,6 +314,7 @@ def normalize_signature(signature: str) -> str:
 def extract_interface_symbols(ref: str) -> dict[str, dict[str, object]]:
     interfaces: dict[str, dict[str, object]] = {}
     interface_re = re.compile(r"\binterface\s+(I[A-Za-z0-9_]*)\b")
+    literal_re = re.compile(r'@"(?:[^"]|"")*"|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
 
     for path in git_files(ref, INTERFACE_SEARCH_ROOTS):
         if not is_interface_path(path):
@@ -329,23 +329,40 @@ def extract_interface_symbols(ref: str) -> dict[str, dict[str, object]]:
             if not line or line.startswith("["):
                 continue
 
+            code_line = literal_re.sub(lambda match: " " * len(match.group()), line)
             if current is None:
-                match = interface_re.search(line)
+                match = interface_re.search(code_line)
                 if not match:
                     continue
                 current = match.group(1)
-                interfaces.setdefault(current, {"path": path, "methods": set()})
-                depth = line.count("{") - line.count("}")
+                interfaces.setdefault(current, {"path": path, "methods": set(), "properties": set()})
+                depth = code_line.count("{") - code_line.count("}")
                 continue
 
-            depth += line.count("{") - line.count("}")
-            if "(" in line or pending_signature:
+            previous_depth = depth
+            depth += code_line.count("{") - code_line.count("}")
+            if pending_signature or (previous_depth == 1 and line != "}"):
                 pending_signature.append(line)
-                if ";" in line:
+                if depth == 1 and (line.endswith(";") or line.endswith("}")):
                     signature = normalize_signature(" ".join(pending_signature))
                     pending_signature.clear()
-                    if "(" in signature and ")" in signature:
-                        interfaces[current]["methods"].add(signature)
+                    # Default interface implementations are behavior, not new surface.
+                    # Compare only the declaration for expression and block bodies.
+                    masked = literal_re.sub(lambda match: " " * len(match.group()), signature)
+                    body = re.search(r"=>|\{", masked)
+                    declaration = signature[:body.start()].strip() if body else signature
+                    if "(" in declaration and ")" in declaration:
+                        interfaces[current]["methods"].add(declaration)
+                    elif re.search(r"\{\s*(?:get|set|init)\s*;", signature):
+                        # Accessor blocks may span lines; canonical whitespace avoids
+                        # reporting a formatting-only change as new public surface.
+                        signature = re.sub(r"\s*([{};])\s*", r"\1 ", signature).strip()
+                        signature = signature.replace("{", " { ").replace(";", "; ")
+                        interfaces[current]["properties"].add(normalize_signature(signature))
+                    elif body:
+                        # Expression-bodied or get-bodied default property: its body is
+                        # behavior, so the type and name are the surface.
+                        interfaces[current]["properties"].add(normalize_signature(declaration))
 
             if depth <= 0:
                 current = None
@@ -364,24 +381,30 @@ def interface_delta(base: str, head: str) -> dict[str, object]:
     ]
 
     added_methods: dict[str, list[str]] = {}
+    added_properties: dict[str, list[str]] = {}
     for name in sorted(set(base_interfaces) & set(head_interfaces)):
         base_methods = base_interfaces[name]["methods"]
         head_methods = head_interfaces[name]["methods"]
         added = sorted(head_methods - base_methods)
         if added:
             added_methods[name] = added
+        added = sorted(head_interfaces[name]["properties"] - base_interfaces[name]["properties"])
+        if added:
+            added_properties[name] = added
 
     return {
         "new_interfaces": new_interfaces,
         "added_interface_methods": added_methods,
+        "added_interface_properties": added_properties,
     }
 
 
 def interface_delta_markdown(delta: dict[str, object]) -> str:
     new_interfaces = list(delta.get("new_interfaces", []))
     added_methods = dict(delta.get("added_interface_methods", {}))
-    if not new_interfaces and not added_methods:
-        return "### Interface Surface\n\nNo new interfaces or interface methods."
+    added_properties = dict(delta.get("added_interface_properties", {}))
+    if not new_interfaces and not added_methods and not added_properties:
+        return "### Interface Surface\n\nNo new interfaces or interface members."
 
     sections = ["### Interface Surface"]
     if new_interfaces:
@@ -390,6 +413,10 @@ def interface_delta_markdown(delta: dict[str, object]) -> str:
         sections.extend(["", "**Added interface methods**"])
         for name, methods in added_methods.items():
             sections.extend(["", f"`{md_safe(name)}`", "", bullet_list(list(methods))])
+    if added_properties:
+        sections.extend(["", "**Added interface properties**"])
+        for name, properties in added_properties.items():
+            sections.extend(["", f"`{md_safe(name)}`", "", bullet_list(list(properties))])
     return "\n".join(sections)
 
 

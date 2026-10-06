@@ -137,6 +137,58 @@ public class ShiftsControllerToggleDayTests
             communicationPreferences: []);
     }
 
+    [HumansFact]
+    public async Task SaveAvailability_without_an_active_event_returns_the_localized_error_without_writing()
+    {
+        var userId = Guid.NewGuid();
+        var sut = BuildSut(userId, MakeUserInfo(userId, "Alice", "Alice", "Example", "vegan"));
+        _localizer["VolTrack_NoActiveEvent"].Returns(new LocalizedString("VolTrack_NoActiveEvent", "No hay ningún evento activo."));
+
+        var result = await sut.SaveAvailability([1, 2]);
+
+        result.Should().BeOfType<BadRequestObjectResult>().Which.Value.Should().Be("No hay ningún evento activo.");
+        await _volunteerTrackingService.DidNotReceive().SetAvailabilityAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<IReadOnlyList<int>>());
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(false, true, true)]
+    [Xunit.InlineData(true, true, true)]
+    [Xunit.InlineData(false, true, false)]
+    [Xunit.InlineData(true, true, false)]
+    [Xunit.InlineData(false, false, true)]
+    [Xunit.InlineData(true, false, true)]
+    public async Task SelectionForms_RejectMalformedListsBeforeReplacingSavedSelections(
+        bool tags, bool malformed, bool viewerExists)
+    {
+        var userId = Guid.NewGuid();
+        var sut = BuildSut(userId, MakeUserInfo(userId, "Alice", "Alice", "Example", "vegan"));
+        if (!viewerExists)
+            _userService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>()).Returns((UserInfo?)null);
+        _burnSettings.GetActiveAsync(Arg.Any<CancellationToken>()).Returns(Event);
+        if (malformed) sut.ModelState.AddModelError(tags ? "tagIds[1]" : "dayOffsets[1]", "Invalid selection.");
+        var tagId = Guid.NewGuid();
+
+        var result = tags
+            ? await sut.SaveTagPreferences(malformed ? [tagId] : null)
+            : await sut.SaveAvailability(malformed ? [-2] : null);
+
+        if (!viewerExists) result.Should().BeOfType<ChallengeResult>();
+        else if (malformed) result.Should().BeOfType<BadRequestObjectResult>();
+        else result.Should().BeOfType<RedirectToActionResult>();
+        if (malformed || !viewerExists)
+        {
+            await _volunteerTrackingService.DidNotReceiveWithAnyArgs().SetAvailabilityAsync(default, default, default!);
+            await _shiftMgmt.DidNotReceiveWithAnyArgs().SetVolunteerTagPreferencesAsync(default, default!);
+        }
+        else if (tags)
+            await _shiftMgmt.Received(1).SetVolunteerTagPreferencesAsync(userId,
+                Arg.Is<IReadOnlyList<Guid>>(ids => ids.Count == 0));
+        else
+            await _volunteerTrackingService.Received(1).SetAvailabilityAsync(userId, Event.Id,
+                Arg.Is<IReadOnlyList<int>>(offsets => offsets.Count == 0));
+    }
+
     // Stub the builder dependencies so BuildRowAsync returns a row for shiftId.
     // Mirrors ShiftBrowsePageBuilderRowTests: an all-day row with Shift.Id == shiftId.
     private void StubBrowseRow(Guid shiftId, Guid userId, SignupStatus? rowStatus)
@@ -274,6 +326,21 @@ public class ShiftsControllerToggleDayTests
 
         result.Should().BeAssignableTo<IStatusCodeActionResult>()
             .Which.StatusCode.Should().Be(204);
+    }
+
+    [HumansFact]
+    public async Task ToggleDay_without_an_active_event_redirects_to_browse_without_mutating_signups()
+    {
+        var userId = Guid.NewGuid();
+        var ctrl = BuildSut(userId, MakeUserInfo(userId, "Alice", "Alice", "Example", "vegan"));
+        ctrl.Url.Action(Arg.Is<Microsoft.AspNetCore.Mvc.Routing.UrlActionContext>(context =>
+            context.Action == nameof(ShiftsController.Index))).Returns("/Shifts");
+
+        var result = await ctrl.ToggleDay(Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+
+        result.Should().BeAssignableTo<IStatusCodeActionResult>().Which.StatusCode.Should().Be(204);
+        ctrl.Response.Headers["X-Redirect"].ToString().Should().Be("/Shifts");
+        await _signupService.DidNotReceiveWithAnyArgs().ToggleDayAsync(default, default, default, default, default);
     }
 
     [HumansFact]

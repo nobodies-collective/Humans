@@ -35,8 +35,8 @@ internal interface IHoldedRepository : IRepository
     Task<IReadOnlyList<HoldedCreditorContact>> GetCreditorContactsAsync(CancellationToken ct = default);
     Task UpsertCreditorContactAsync(HoldedCreditorContact row, Instant now, CancellationToken ct = default);
 
-    /// <summary>Removes the member's binding row. Returns false when there was none.</summary>
-    Task<bool> DeleteCreditorContactAsync(Guid userId, CancellationToken ct = default);
+    /// <summary>Removes the member's binding row and returns it as deleted; null when there was none.</summary>
+    Task<HoldedCreditorContact?> DeleteCreditorContactAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>Persists a generated payout file and its transfers in one save — the file is the
     /// record of what the bank was sent, so a file without its rows (or the reverse) is not a state
@@ -66,7 +66,8 @@ internal interface IHoldedRepository : IRepository
     Task MarkSepaTransferReconciledAsync(
         Guid transferId, Instant reconciledAt, CancellationToken ct = default);
 
-    // Purchase-doc sync state (singleton, lazy-created)
+    // Purchase-doc sync state (singleton, persisted on explicit save)
+    /// <summary>Reads the persisted singleton, or creates an unsaved Idle default. Never writes.</summary>
     Task<HoldedDocSyncState> GetOrCreateDocSyncStateAsync(CancellationToken ct = default);
     Task SaveDocSyncStateAsync(HoldedDocSyncState state, CancellationToken ct = default);
 }

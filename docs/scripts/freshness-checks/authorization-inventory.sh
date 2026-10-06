@@ -80,7 +80,10 @@ for D in src/Humans.Web/Authorization/ src/Sections/*/Authorization/; do
 done
 HANDLERS=""
 if [ ${#HANDLER_DIRS[@]} -gt 0 ]; then
-  HANDLERS=$(grep -rlE 'AuthorizationHandler<' "${HANDLER_DIRS[@]}" 2>/dev/null | sort -u || true)
+  if ! HANDLERS=$({ grep -rlE 'AuthorizationHandler<' "${HANDLER_DIRS[@]}" 2>/dev/null || [ "$?" -eq 1 ]; } | sort -u); then
+    echo "FAIL [authorization-inventory]: could not enumerate authorization handlers"
+    exit 1
+  fi
 fi
 
 MISSING_HND=""
@@ -102,8 +105,14 @@ done
 # then count "| ... | Action |" + "| ... | Class |" rows across all docs as
 # the combined floor. The docs routinely consolidate groups (e.g.
 # `Foo / Bar / Baz`) so we use a 60% floor rather than strict >=.
-SRC_AUTHZ=$(grep -hE '\[Authorize' src/Humans.Web/Controllers/*.cs src/Sections/*/Controllers/*.cs | wc -l)
-DOC_ROWS=$(grep -chE '^\| .* \| (Action|Class) \|' "${DOCS[@]}" | awk -F: '{sum+=$NF} END {print sum+0}')
+if ! SRC_AUTHZ=$({ grep -hE '\[Authorize' src/Humans.Web/Controllers/*.cs src/Sections/*/Controllers/*.cs || [ "$?" -eq 1 ]; } | wc -l); then
+  echo "FAIL [authorization-inventory]: could not count authorization attributes"
+  exit 1
+fi
+if ! DOC_ROWS=$({ grep -chE '^\| .* \| (Action|Class) \|' "${DOCS[@]}" || [ "$?" -eq 1 ]; } | awk -F: '{sum+=$NF} END {print sum+0}'); then
+  echo "FAIL [authorization-inventory]: could not count inventory rows"
+  exit 1
+fi
 FLOOR=$(( SRC_AUTHZ * 60 / 100 ))
 
 FAIL=false

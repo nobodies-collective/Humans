@@ -41,6 +41,7 @@ internal sealed class SurveyService(
     internal const string AuthoredSurveys = "AuthoredSurveys";
     internal const string SurveyInvitations = "SurveyInvitations";
 
+    private const int PublicSlugMaxLength = 80;
     private const int InvitationEmailSubjectMaxLength = 200;
     private const int InvitationEmailMessageMaxLength = 4000;
     private const int MaxInformationImages = 5;
@@ -180,6 +181,7 @@ internal sealed class SurveyService(
         ValidateInvitationEmailCopy(invitationEmailSubject, invitationEmailMessage);
         var now = clock.GetCurrentInstant();
         var surveyId = Guid.NewGuid();
+        var publicSlug = PreparePublicSlugForWrite(input.PublicSlug);
         var prepared = await PrepareInformationImagesAsync(surveyId, input, existing: null, ct);
         List<SurveyQuestion> questions;
         try
@@ -212,7 +214,7 @@ internal sealed class SurveyService(
             AudienceType = input.AudienceType,
             AudienceTeamId = input.AudienceTeamId,
             AudienceLoggedInSince = input.AudienceLoggedInSince,
-            PublicSlug = NormalizeSlug(input.PublicSlug),
+            PublicSlug = publicSlug,
             CreatedByUserId = actorUserId,
             CreatedAt = now,
             UpdatedAt = now,
@@ -270,6 +272,7 @@ internal sealed class SurveyService(
             throw new InvalidOperationException(
                 "Asociado vote mode cannot change after the survey has opened.");
         }
+        var publicSlug = PreparePublicSlugForWrite(input.PublicSlug);
         var prepared = await PrepareInformationImagesAsync(surveyId, input, existing, ct);
         List<SurveyQuestion> questions;
         try
@@ -317,7 +320,7 @@ internal sealed class SurveyService(
             AudienceType = input.AudienceType,
             AudienceTeamId = input.AudienceTeamId,
             AudienceLoggedInSince = input.AudienceLoggedInSince,
-            PublicSlug = NormalizeSlug(input.PublicSlug),
+            PublicSlug = publicSlug,
             UpdatedAt = now,
             Questions = questions,
         };
@@ -730,6 +733,11 @@ internal sealed class SurveyService(
         var emailsQueued = 0;
         var failed = 0;
 
+        // Once invitations are stamped, later sends skip them. Finish their emails and audit
+        // as one batch even if the admin abandons the request after the first save.
+        ct.ThrowIfCancellationRequested();
+        var sendCt = CancellationToken.None;
+
         foreach (var userId in netNew)
         {
             if (!emails.TryGetValue(userId, out var email))
@@ -745,7 +753,7 @@ internal sealed class SurveyService(
             {
                 inv = existing;
                 await repo.UpdateInvitationStatusAsync(
-                    inv.Id, EmailOutboxStatus.Queued, now, ct);
+                    inv.Id, EmailOutboxStatus.Queued, now, sendCt);
             }
             else
             {
@@ -758,37 +766,33 @@ internal sealed class SurveyService(
                     LatestEmailStatus = EmailOutboxStatus.Queued,
                     CreatedAt = now,
                 };
-                await repo.AddInvitationAndSaveAsync(inv, ct);
+                await repo.AddInvitationAndSaveAsync(inv, sendCt);
             }
             invitationsCreated++;
 
-            var preferredCulture = users.TryGetValue(userId, out var user) ? user.PreferredLanguage : null;
-            var culture = preferredCulture.IsSupportedCultureCode()
-                ? preferredCulture!
-                : survey.DefaultCulture;
-            var name = user?.BurnerName ?? string.Empty;
-            var title = survey.Title.Resolve(culture, survey.DefaultCulture);
-            var customSubject = survey.InvitationEmailSubject.ResolveOptional(culture, survey.DefaultCulture);
-            var customMessage = survey.InvitationEmailMessage.ResolveOptional(culture, survey.DefaultCulture);
-            var token = tokenProvider.Create(inv.Id);
-            var msg = emailMessages.SurveyInvitation(
-                email, name, title, token, culture, customSubject, customMessage);
-
             try
             {
-                await emailService.SendAsync(msg, ct);
+                var preferredCulture = users.TryGetValue(userId, out var user) ? user.PreferredLanguage : null;
+                var culture = preferredCulture.IsSupportedCultureCode()
+                    ? preferredCulture!
+                    : survey.DefaultCulture;
+                var name = user?.BurnerName ?? string.Empty;
+                var title = survey.Title.Resolve(culture, survey.DefaultCulture);
+                var customSubject = survey.InvitationEmailSubject.ResolveOptional(culture, survey.DefaultCulture);
+                var customMessage = survey.InvitationEmailMessage.ResolveOptional(culture, survey.DefaultCulture);
+                var token = tokenProvider.Create(inv.Id);
+                var msg = emailMessages.SurveyInvitation(
+                    email, name, title, token, culture, customSubject, customMessage);
+
+                await emailService.SendAsync(msg, sendCt);
                 emailsQueued++;
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
             }
             catch (Exception ex)
             {
                 logger.LogError(ex,
                     "Failed to enqueue survey invitation email for user {UserId} invitation {InvitationId} in survey {SurveyId}",
                     userId, inv.Id, surveyId);
-                await repo.UpdateInvitationStatusAsync(inv.Id, EmailOutboxStatus.Failed, now, ct);
+                await repo.UpdateInvitationStatusAsync(inv.Id, EmailOutboxStatus.Failed, now, sendCt);
                 failed++;
             }
         }
@@ -866,19 +870,19 @@ internal sealed class SurveyService(
 
             if (!meta.Answerable) continue;
 
-            var preferredCulture = users.TryGetValue(inv.UserId, out var user) ? user.PreferredLanguage : null;
-            var culture = preferredCulture.IsSupportedCultureCode()
-                ? preferredCulture!
-                : meta.DefaultCulture;
-            var name = user?.BurnerName ?? string.Empty;
-            var token = tokenProvider.Create(inv.Id);
-            var title = meta.Title.Resolve(culture, meta.DefaultCulture);
-            var msg = emailMessages.SurveyReminder(email, name, title, token, culture);
-
-            // Per-invitee guard (mirrors SendInvitesAsync): one transport failure must not abort the
+            // Per-invitee guard (mirrors SendInvitesAsync): preparation or transport failure must not abort the
             // sweep. ReminderSentAt stays unstamped on failure so the next daily run retries.
             try
             {
+                var preferredCulture = users.TryGetValue(inv.UserId, out var user) ? user.PreferredLanguage : null;
+                var culture = preferredCulture.IsSupportedCultureCode()
+                    ? preferredCulture!
+                    : meta.DefaultCulture;
+                var name = user?.BurnerName ?? string.Empty;
+                var token = tokenProvider.Create(inv.Id);
+                var title = meta.Title.Resolve(culture, meta.DefaultCulture);
+                var msg = emailMessages.SurveyReminder(email, name, title, token, culture);
+
                 await emailService.SendAsync(msg, ct);
                 await repo.SetReminderSentAsync(inv.Id, now, ct);
                 reminded++;
@@ -1060,8 +1064,11 @@ internal sealed class SurveyService(
         Guid? userId,
         CancellationToken ct = default)
     {
-        var normalized = NormalizeSlug(slug);
-        if (normalized is null) return null;
+        // Invalid public URLs are lookup misses; authoring rejects invalid slugs instead.
+        if (string.IsNullOrWhiteSpace(slug)) return null;
+        var normalized = slug.Trim().ToLowerInvariant();
+        if (normalized.EnumerateRunes().Count() > PublicSlugMaxLength || ReservedSlugs.Contains(normalized))
+            return null;
 
         var surveyId = await repo.GetIdByPublicSlugAsync(normalized, ct);
         if (surveyId is null) return null;
@@ -1118,6 +1125,10 @@ internal sealed class SurveyService(
         if (prepared.MissingRequired.Count > 0)
         {
             throw new InvalidOperationException("Required survey questions are unanswered.");
+        }
+        if (prepared.InvalidAnswers.Count > 0)
+        {
+            throw new InvalidOperationException("Survey answers are invalid.");
         }
 
         await PersistResponseAsync(submission, prepared.VisibleAnswers, ct);
@@ -1291,44 +1302,49 @@ internal sealed class SurveyService(
         // Only accept answers for questions actually visible on the posted page (re-evaluated server-side).
         var visibleBefore = SurveyWizardFlow.VisibleQuestionsOnPage(
             editable.Questions, page, SurveyWizardFlow.ToAnswerStates(state.Answers));
-        var posted = postedAnswers.ToDictionary(a => a.QuestionId);
+        var posted = postedAnswers.ToLookup(a => a.QuestionId);
         var invalidAnswers = new List<Guid>();
 
         foreach (var question in visibleBefore)
         {
             if (question.Type == SurveyQuestionType.Information) continue;
             var id = question.Id!.Value;
-            if (!posted.TryGetValue(id, out var answer))
+            var questionAnswers = posted[id];
+            if (questionAnswers.Count() > 1)
+            {
+                logger.LogWarning("Rejected duplicate wizard answers for survey {SurveyId} question {QuestionId}", state.SurveyId, id);
+                invalidAnswers.Add(id);
+                state.Answers.Remove(id.ToString());
+                continue;
+            }
+            var answer = questionAnswers.FirstOrDefault();
+            if (answer is null)
             {
                 state.Answers.Remove(id.ToString());
                 continue;
             }
 
-            RankedAnswer? rankedValue = null;
-            if (question.Type == SurveyQuestionType.RankedChoice)
+            try
             {
-                try
-                {
-                    rankedValue = NormalizeRankedAnswer(question, answer.RankedValue);
-                }
-                catch (InvalidOperationException)
-                {
-                    rankedValue = answer.RankedValue;
-                    invalidAnswers.Add(id);
-                }
+                answer = NormalizeAnswer(question, answer);
+            }
+            catch (InvalidOperationException ex)
+            {
+                logger.LogWarning(
+                    "Rejected wizard answer for survey {SurveyId} question {QuestionId}: {Reason}",
+                    state.SurveyId, id, ex.Message);
+                invalidAnswers.Add(id);
             }
 
             state.Answers[id.ToString()] = new SurveyWizardAnswer
             {
-                SelectedOptionValues = answer.SelectedOptionValues.Where(v => !string.IsNullOrEmpty(v)).ToList(),
-                GridSelections = NormalizeGridSelections(
-                    question.GridRows,
-                    question.Options,
-                    question.GridSelectionMode,
-                    answer.GridSelections),
-                TextValue = string.IsNullOrWhiteSpace(answer.TextValue) ? null : answer.TextValue,
+                SelectedOptionValues = answer.SelectedOptionValues.ToList(),
+                GridSelections = answer.GridSelections?.ToDictionary(
+                    pair => pair.Key, pair => pair.Value.ToList(), StringComparer.Ordinal)
+                    ?? new Dictionary<string, List<string>>(StringComparer.Ordinal),
+                TextValue = answer.TextValue,
                 RatingValue = answer.RatingValue,
-                RankedValue = rankedValue,
+                RankedValue = answer.RankedValue,
             };
         }
 
@@ -1697,7 +1713,7 @@ internal sealed class SurveyService(
             q => q.Options.ToDictionary(o => o.Value, o => o.Label.Resolve(culture, culture), StringComparer.Ordinal));
 
         // Identity is resolved only for Identified rows in ordinary surveys. Asociado exports never
-        // expose a ballot-to-voter link, including for legacy Identified rows.
+        // expose identity, timestamps or submission order, including for legacy Identified rows.
         var identifiedUserIds = responses
             .Where(r => survey.IsAsociadoVote != true
                 && r.Anonymity == ResponseAnonymity.Identified
@@ -1709,8 +1725,9 @@ internal sealed class SurveyService(
             ? new Dictionary<Guid, UserInfo>()
             : await userService.GetUserInfosAsync(identifiedUserIds, ct);
 
-        var rows = responses
-            .OrderBy(r => r.SubmittedAt)
+        var rows = (survey.IsAsociadoVote == true
+                ? responses.OrderBy(r => r.Id)
+                : responses.OrderBy(r => r.SubmittedAt))
             .Select(r =>
             {
                 Guid? userId = null;
@@ -1738,7 +1755,8 @@ internal sealed class SurveyService(
                     .ToList();
 
                 return new SurveyExportRow(
-                    r.Id, r.Anonymity, r.InputMethod, r.Culture, r.SubmittedAt, userId, userName, answers);
+                    r.Id, r.Anonymity, r.InputMethod, r.Culture,
+                    survey.IsAsociadoVote == true ? null : r.SubmittedAt, userId, userName, answers);
             })
             .ToList();
 
@@ -2199,65 +2217,79 @@ internal sealed class SurveyService(
     /// Keeps only the answers to questions visible under full cascading branching: an answer on a
     /// hidden question neither survives nor counts towards downstream <c>ShowIf</c> conditions.
     /// </summary>
-    private static VisibleAnswerPreparation VisibleAnswers(
+    private VisibleAnswerPreparation VisibleAnswers(
         Survey survey,
         IReadOnlyList<SurveyAnswerInput> answers)
     {
-        var states = answers.ToDictionary(
+        var questions = ToQuestionInputs(survey).ToDictionary(q => q.Id!.Value);
+        var invalidAnswers = new HashSet<Guid>();
+        var normalizedAnswers = answers
+            .Where(a => questions.TryGetValue(a.QuestionId, out var question)
+                && question.Type != SurveyQuestionType.Information)
+            .Select(a =>
+            {
+                try
+                {
+                    return NormalizeAnswer(questions[a.QuestionId], a);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    logger.LogWarning(
+                        "Rejected answer for survey {SurveyId} question {QuestionId}: {Reason}",
+                        survey.Id, a.QuestionId, ex.Message);
+                    invalidAnswers.Add(a.QuestionId);
+                    return a;
+                }
+            })
+            .ToList();
+        // Invalid answers cannot drive branching; an invalid answer that is itself hidden is ignored.
+        var states = normalizedAnswers.ToDictionary(
             a => a.QuestionId,
-            a => new AnswerState(a.SelectedOptionValues, a.TextValue, a.RatingValue, a.GridSelections, a.RankedValue));
-
+            a => invalidAnswers.Contains(a.QuestionId)
+                ? AnswerState.None
+                : new AnswerState(a.SelectedOptionValues, a.TextValue, a.RatingValue, a.GridSelections, a.RankedValue));
         var effective = SurveyBranchingEvaluator.EffectiveAnswerStates(
             survey.Questions
                 .OrderBy(q => q.PageNumber).ThenBy(q => q.Order)
                 .Select(q => (q.Id, q.ShowIf)),
             states);
+        var visibleAnswers = normalizedAnswers.Where(a => effective.ContainsKey(a.QuestionId)).ToList();
+        return new VisibleAnswerPreparation(
+            visibleAnswers,
+            visibleAnswers.Where(a => invalidAnswers.Contains(a.QuestionId)).Select(a => a.QuestionId).ToList());
+    }
 
-        var questions = survey.Questions.ToDictionary(q => q.Id);
-        var invalidAnswers = new List<Guid>();
-        var visibleAnswers = answers
-            .Where(a => effective.ContainsKey(a.QuestionId))
-            .Where(a => questions.TryGetValue(a.QuestionId, out var question)
-                && question.Type != SurveyQuestionType.Information)
-            .Select(a =>
-            {
-                var question = questions[a.QuestionId];
-                var normalizedGridSelections = question.Type == SurveyQuestionType.Grid
-                    ? NormalizeGridSelections(
-                        question.GridRows?.Select(row => new GridRowInput(row.Value, row.Label)).ToList(),
-                        question.Options
-                            .OrderBy(option => option.Order)
-                            .Select(option => new OptionInput(option.Id, option.Order, option.Value, option.Label))
-                            .ToList(),
-                        question.GridSelectionMode,
-                        a.GridSelections)
-                    : null;
-                RankedAnswer? normalizedRanked = null;
-                if (question.Type == SurveyQuestionType.RankedChoice)
-                {
-                    try
-                    {
-                        normalizedRanked = NormalizeRankedAnswer(question, a.RankedValue);
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        normalizedRanked = a.RankedValue;
-                        invalidAnswers.Add(a.QuestionId);
-                    }
-                }
-                return a with
-                {
-                    GridSelections = normalizedGridSelections?.Count > 0
-                        ? normalizedGridSelections.ToDictionary(
-                                kv => kv.Key,
-                                kv => (IReadOnlyList<string>)kv.Value,
-                                StringComparer.Ordinal)
-                        : null,
-                    RankedValue = normalizedRanked,
-                };
-            })
-            .ToList();
-        return new VisibleAnswerPreparation(visibleAnswers, invalidAnswers);
+    private static SurveyAnswerInput NormalizeAnswer(QuestionInput question, SurveyAnswerInput answer)
+    {
+        var choices = question.Type is SurveyQuestionType.SingleChoice or SurveyQuestionType.MultiChoice
+            ? answer.SelectedOptionValues
+                .Where(value => question.Options.Any(option => string.Equals(option.Value, value, StringComparison.Ordinal)))
+                .Where(value => !string.IsNullOrEmpty(value))
+                .Distinct(StringComparer.Ordinal)
+                .ToList()
+            : [];
+        if (question.Type == SurveyQuestionType.SingleChoice && choices.Count > 1)
+            throw new InvalidOperationException("A single-choice question permits only one option.");
+
+        var rating = question.Type == SurveyQuestionType.Rating ? answer.RatingValue : null;
+        if (rating is { } value && (value < (question.RatingMin ?? 1) || value > (question.RatingMax ?? 5)))
+            throw new InvalidOperationException("The rating is outside the question's range.");
+
+        var grid = question.Type == SurveyQuestionType.Grid
+            ? NormalizeGridSelections(question.GridRows, question.Options, question.GridSelectionMode, answer.GridSelections)
+            : null;
+        return answer with
+        {
+            SelectedOptionValues = choices,
+            TextValue = question.Type is SurveyQuestionType.ShortText or SurveyQuestionType.LongText
+                && !string.IsNullOrWhiteSpace(answer.TextValue) ? answer.TextValue : null,
+            RatingValue = rating,
+            GridSelections = grid?.Count > 0
+                ? grid.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value, StringComparer.Ordinal)
+                : null,
+            RankedValue = question.Type == SurveyQuestionType.RankedChoice
+                ? NormalizeRankedAnswer(question, answer.RankedValue) : null,
+        };
     }
 
     private sealed record VisibleAnswerPreparation(
@@ -2848,13 +2880,6 @@ internal sealed class SurveyService(
         return NormalizeRankedAnswer(authored, question.RankedSettings, answer);
     }
 
-    private static RankedAnswer? NormalizeRankedAnswer(SurveyQuestion question, RankedAnswer? answer)
-    {
-        if (answer is null) return null;
-        var authored = question.Options.OrderBy(option => option.Order).Select(option => option.Value).ToList();
-        return NormalizeRankedAnswer(authored, question.RankedSettings, answer);
-    }
-
     private static RankedAnswer? NormalizeRankedAnswer(
         IReadOnlyList<string> authored,
         RankedQuestionSettings? settings,
@@ -2935,11 +2960,17 @@ internal sealed class SurveyService(
     private static readonly IReadOnlySet<string> ReservedSlugs =
         new HashSet<string>(StringComparer.Ordinal) { "admin", "answer" };
 
-    /// <summary>Trims/lower-cases the slug (null when blank) and rejects reserved words.</summary>
-    private static string? NormalizeSlug(string? slug)
+    /// <summary>Normalizes authoring input (null when blank) and rejects overlong/reserved slugs.</summary>
+    private static string? PreparePublicSlugForWrite(string? slug)
     {
         if (string.IsNullOrWhiteSpace(slug)) return null;
         var normalized = slug.Trim().ToLowerInvariant();
+        // PostgreSQL's varchar limit counts characters, not UTF-16 code units.
+        if (normalized.EnumerateRunes().Count() > PublicSlugMaxLength)
+        {
+            throw new InvalidOperationException(
+                $"The public link slug must be no longer than {PublicSlugMaxLength} characters.");
+        }
         if (ReservedSlugs.Contains(normalized))
         {
             throw new InvalidOperationException($"Slug '{normalized}' is reserved.");

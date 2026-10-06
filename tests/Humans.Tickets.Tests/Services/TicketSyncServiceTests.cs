@@ -24,6 +24,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
     private readonly IUserService _userService;
     private readonly ISettingsService _shiftManagementService;
     private readonly ITicketRepository _ticketRepository;
+    private readonly ITicketCacheInvalidator _ticketCache;
     private readonly ITicketVendorCacheInvalidator _vendorCache;
     private readonly TicketSyncService _service;
 
@@ -49,6 +50,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
 
         _ticketRepository = new TicketRepository(TicketsDbFactory, Clock);
         _vendorCache = Substitute.For<ITicketVendorCacheInvalidator>();
+        _ticketCache = Substitute.For<ITicketCacheInvalidator>();
 
         _service = new TicketSyncService(
             _ticketRepository,
@@ -58,7 +60,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
             Clock,
             settings,
             NullLogger<TicketSyncService>.Instance,
-            Substitute.For<ITicketCacheInvalidator>(),
+            _ticketCache,
             _vendorCache,
             _userService,
             _userService,
@@ -118,6 +120,37 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
         await _service.SyncOrdersAndAttendeesAsync(Xunit.TestContext.Current.CancellationToken);
 
         _vendorCache.Received(1).InvalidateEventSummary("ev_test_123");
+        _ticketCache.Received(1).InvalidateAll();
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(false)]
+    [Xunit.InlineData(true)]
+    public async Task SyncOrdersAndAttendeesAsync_ClearsTicketSnapshotsWhenRedemptionFailsAfterWrites(bool oversizedError)
+    {
+        var error = oversizedError
+            ? new string('e', 1999) + "😀" + new string('e', 100)
+            : "redemption storage unavailable";
+        _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns([MakeOrderDto("ord_partial", "Buyer", "buyer@example.com", discountCode: "discount10")]);
+        _vendorService.GetIssuedTicketsAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns([MakeTicketDto("ti_partial", "ord_partial", "Attendee", "attendee@example.com")]);
+        _campaignService.MarkGrantsRedeemedAsync(
+                Arg.Any<IReadOnlyCollection<DiscountCodeRedemption>>(), Arg.Any<CancellationToken>())
+            .Throws(new InvalidOperationException(error));
+
+        var act = () => _service.SyncOrdersAndAttendeesAsync(Xunit.TestContext.Current.CancellationToken);
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(error);
+
+        // Orders and attendees have already committed; readers must reload those rows.
+        (await TicketsDb.TicketOrders.AsNoTracking().SingleAsync(Xunit.TestContext.Current.CancellationToken))
+            .VendorOrderId.Should().Be("ord_partial");
+        (await TicketsDb.TicketAttendees.AsNoTracking().SingleAsync(Xunit.TestContext.Current.CancellationToken))
+            .VendorTicketId.Should().Be("ti_partial");
+        var state = await TicketsDb.TicketSyncStates.AsNoTracking().SingleAsync(Xunit.TestContext.Current.CancellationToken);
+        state.SyncStatus.Should().Be(TicketSyncStatus.Error);
+        state.LastError.Should().Be(oversizedError ? new string('e', 1999) : error);
+        _ticketCache.Received(1).InvalidateAll();
     }
 
     // ==========================================================================
@@ -231,6 +264,12 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
     [HumansFact]
     public async Task SyncOrdersAndAttendeesAsync_TransientError_ReturnsGracefully()
     {
+        // A deferred sync must not move the cursor: the next run re-fetches from the last success.
+        var lastSuccess = Instant.FromUtc(2026, 2, 1, 0, 0);
+        var seeded = await TicketsDb.TicketSyncStates.FirstAsync(s => s.Id == 1, Xunit.TestContext.Current.CancellationToken);
+        seeded.LastSyncAt = lastSuccess;
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+
         _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Throws(new HttpRequestException("API unavailable"));
 
@@ -241,6 +280,7 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
             .FirstAsync(s => s.Id == 1, Xunit.TestContext.Current.CancellationToken);
         syncState.SyncStatus.Should().Be(TicketSyncStatus.Idle);
         syncState.LastError.Should().BeNull();
+        syncState.LastSyncAt.Should().Be(lastSuccess);
     }
 
     [HumansFact]
@@ -689,6 +729,41 @@ public sealed class TicketSyncServiceTests : TicketsTestHarness
             Arg.Any<Instant?>(), Arg.Any<CancellationToken>());
         await _userService.DidNotReceive().RemoveTicketSyncParticipationAsync(
             Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task SyncEventParticipations_RemovesTicketed_WhenNoValidTicketRemains()
+    {
+        // Cache shows Ticketed-from-sync; the vendor now reports the user's only ticket void.
+        var userId = Guid.NewGuid();
+        SeedUser(userId);
+        SeedUserEmail(userId, "alice@example.com", isOAuth: true);
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+
+        _shiftManagementService.GetActiveEventSettingsAsync()
+            .Returns(BurnFixtures.Burn(year: 2026));
+
+        _userService.GetAllParticipationsForYearAsync(2026, Arg.Any<CancellationToken>())
+            .Returns(new List<UserParticipationRow>
+            {
+                new(userId, ParticipationStatus.Ticketed, ParticipationSource.TicketSync, null)
+            });
+
+        _vendorService.GetOrdersAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new List<VendorOrderDto> { MakeOrderDto("ord_void", "Alice", "alice@example.com") });
+        _vendorService.GetIssuedTicketsAsync(Arg.Any<Instant?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new List<VendorTicketDto>
+            {
+                MakeTicketDto("tkt_void", "ord_void", "Alice", "alice@example.com", status: "void")
+            });
+
+        await _service.SyncOrdersAndAttendeesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        await _userService.Received(1).RemoveTicketSyncParticipationAsync(
+            userId, 2026, Arg.Any<CancellationToken>());
+        await _userService.DidNotReceive().SetParticipationFromTicketSyncAsync(
+            Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<ParticipationStatus>(),
+            Arg.Any<Instant?>(), Arg.Any<CancellationToken>());
     }
 
     [HumansFact]

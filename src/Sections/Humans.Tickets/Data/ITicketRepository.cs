@@ -175,7 +175,7 @@ internal interface ITicketRepository : IRepository
     /// <summary>
     /// Returns every <see cref="TicketAttendee"/> for the given vendor event
     /// that is currently unmatched (<c>MatchedUserId is null</c>) and whose
-    /// <see cref="Humans.Base.Enums.TicketAttendeeStatus"/> is
+    /// <see cref="TicketAttendeeStatus"/> is
     /// <c>Valid</c> or <c>CheckedIn</c>, AND whose
     /// <see cref="TicketAttendee.AttendeeEmail"/> is non-empty.
     ///
@@ -217,18 +217,11 @@ internal interface ITicketRepository : IRepository
     Task<IReadOnlyList<string>> GetValidAttendeeEmailsAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Returns distinct <c>MatchedUserId</c> values for attendees in
-    /// <c>Valid</c> or <c>CheckedIn</c> state whose owning order's
-    /// <c>VendorEventId</c> equals <paramref name="vendorEventId"/>. Used by
-    /// audience-side ticket-holder enumeration and the dashboard volunteer
-    /// coverage stat — both want "current event" semantics.
+    /// Users matched to a <c>Valid</c> or <c>CheckedIn</c> attendee row for the event — the
+    /// set form of <see cref="HasEventTicketAsync"/>. Orders are not consulted.
     /// </summary>
-    Task<IReadOnlyList<Guid>> GetValidMatchedAttendeeUserIdsForEventAsync(
+    Task<IReadOnlyList<Guid>> GetEventTicketHolderUserIdsAsync(
         string vendorEventId, CancellationToken ct = default);
-
-    Task<IReadOnlyList<Guid>> GetAllMatchedAttendeeUserIdsAsync(CancellationToken ct = default);
-
-    Task<IReadOnlyList<Guid>> GetAllMatchedOrderUserIdsAsync(CancellationToken ct = default);
 
     /// <summary>
     /// True when the user is matched to a <c>Valid</c> or <c>CheckedIn</c> attendee row for the
@@ -315,11 +308,9 @@ internal interface ITicketRepository : IRepository
     /// <c>Reassign…ToUserAsync</c> methods across the merge fold but is
     /// <b>unused</b> — neither <c>TicketOrder</c> nor <c>TicketAttendee</c>
     /// carries a generic <c>UpdatedAt</c> column (only <c>SyncedAt</c>,
-    /// owned by the vendor-sync pipeline). Returns the count of
-    /// <c>ticket_attendees</c> rows ultimately attributed to
-    /// <paramref name="targetUserId"/>.
+    /// owned by the vendor-sync pipeline).
     /// </summary>
-    Task<int> ReassignToUserAsync(Guid sourceUserId, Guid targetUserId, Instant updatedAt, CancellationToken ct = default);
+    Task ReassignToUserAsync(Guid sourceUserId, Guid targetUserId, Instant updatedAt, CancellationToken ct = default);
 
     /// <summary>
     /// GDPR Art. 17: overwrites buyer and attendee name/email on the rows matched

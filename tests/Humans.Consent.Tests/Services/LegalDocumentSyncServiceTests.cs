@@ -1,3 +1,4 @@
+using System.Text;
 using AwesomeAssertions;
 using Humans.Notifications.Contracts;
 using Microsoft.EntityFrameworkCore;
@@ -69,6 +70,44 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
             }),
             Clock,
             NullLogger<LegalDocumentSyncService>.Instance);
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(false)]
+    [Xunit.InlineData(true)]
+    public async Task RequiredVersionReads_SelectLatestEffectiveVersion_AndOmitFutureOnlyDocuments(bool forTeam)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var document = await SeedDocumentAsync("Privacy");
+        var futureOnly = await SeedDocumentAsync("Future agreement");
+        var now = Clock.GetCurrentInstant();
+        var currentId = Guid.NewGuid();
+        foreach (var (documentId, id, effectiveFrom) in new[]
+        {
+            (document.Id, Guid.NewGuid(), now.Minus(Duration.FromDays(1))),
+            (document.Id, currentId, now),
+            (document.Id, Guid.NewGuid(), now.Plus(Duration.FromDays(1))),
+            (futureOnly.Id, Guid.NewGuid(), now.Plus(Duration.FromDays(1)))
+        })
+        {
+            LegalDb.DocumentVersions.Add(new DocumentVersion
+            {
+                Id = id,
+                LegalDocumentId = documentId,
+                VersionNumber = id.ToString(),
+                CommitSha = id.ToString(),
+                EffectiveFrom = effectiveFrom,
+                CreatedAt = now,
+                Content = new Dictionary<string, string>(StringComparer.Ordinal) { ["es"] = "Agreement" }
+            });
+        }
+        await SaveAllAsync(ct);
+
+        var versions = forTeam
+            ? await _service.GetRequiredDocumentVersionsForTeamAsync(_team.Id, ct)
+            : await _service.GetRequiredVersionsAsync(ct);
+
+        versions.Should().ContainSingle().Which.Id.Should().Be(currentId);
     }
 
     // ── NormalizeGitHubFolderPath ────────────────────────────────────────────
@@ -278,12 +317,112 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
 
     // ── GitHub sync — version creation & re-consent pins ─────────────────────
 
+    [HumansTheory]
+    [Xunit.InlineData(false)]
+    [Xunit.InlineData(true)]
+    public async Task SyncDocumentAsync_LongNamesKeepNoticeWithinStorageLimit(bool update)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        StubActiveUser();
+        var prefixLength = update ? 0 : "New legal document published: ".Length;
+        var name = new string('x', 198 - prefixLength) + "😀" + new string('x', 256 - (198 - prefixLength) - 2);
+        var document = await SeedDocumentAsync(name, folderPath: "privacy/", currentCommitSha: "sha-1");
+        if (update)
+        {
+            LegalDb.DocumentVersions.Add(new DocumentVersion
+            {
+                Id = Guid.NewGuid(),
+                LegalDocumentId = document.Id,
+                VersionNumber = "v1.0",
+                CommitSha = "sha-1",
+                Content = new Dictionary<string, string>(StringComparer.Ordinal) { ["es"] = "old" },
+                EffectiveFrom = Clock.GetCurrentInstant(),
+                CreatedAt = Clock.GetCurrentInstant()
+            });
+            await SaveAllAsync(ct);
+        }
+        StubGitHubFolder("privacy/", "new-es-content", "sha-2", "Updated wording");
+
+        await _service.SyncDocumentAsync(document.Id, ct);
+
+        var args = Notifier.ReceivedCalls().Single().GetArguments();
+        var title = (string)args[3]!;
+        title.EnumerateRunes().Count().Should().BeLessThanOrEqualTo(200);
+        title.Should().EndWith("…").And.Contain("😀");
+        var encode = () => new UTF8Encoding(false, true).GetBytes(title);
+        encode.Should().NotThrow();
+        ((string)args[5]!).Should().Contain(update ? "new version" : "new required legal document");
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(false, false)]
+    [Xunit.InlineData(true, false)]
+    [Xunit.InlineData(false, true)]
+    public async Task SyncDocumentAsync_LocalizesFanoutByActiveRecipientLanguage(bool update, bool deliveryFailure)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var spanishIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var englishIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var inactiveId = Guid.NewGuid();
+        var users = spanishIds.Concat(englishIds).Append(inactiveId).Select(id => UserInfo.Create(
+            new User
+            {
+                Id = id,
+                PreferredLanguage = spanishIds.Contains(id) || id == inactiveId ? "es" : id == englishIds[0] ? "en" : "unsupported",
+                State = id == inactiveId ? UserState.Rejected : UserState.Active
+            },
+            [], [], [], UserFixtures.Profile(), [])).ToList();
+        _userService.GetAllUserInfosAsync(Arg.Any<CancellationToken>()).Returns((IReadOnlyCollection<UserInfo>)users);
+        var document = await SeedDocumentAsync("Privacy", folderPath: "privacy/", currentCommitSha: "sha-1");
+        if (update)
+        {
+            LegalDb.DocumentVersions.Add(new DocumentVersion
+            {
+                Id = Guid.NewGuid(),
+                LegalDocumentId = document.Id,
+                VersionNumber = "v1.0",
+                CommitSha = "sha-1",
+                Content = new Dictionary<string, string>(StringComparer.Ordinal) { ["es"] = "old" },
+                EffectiveFrom = Clock.GetCurrentInstant(),
+                CreatedAt = Clock.GetCurrentInstant()
+            });
+            await SaveAllAsync(ct);
+        }
+        StubGitHubFolder("privacy/", "new-es-content", "sha-2", "Updated wording");
+        var source = update ? NotificationSource.ReConsentRequired : NotificationSource.LegalDocumentPublished;
+        if (deliveryFailure)
+            Notifier.SendAsync(source, Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(), Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+                Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromException(new IOException("First language group unavailable")), Task.CompletedTask);
+
+        var result = await _service.SyncDocumentAsync(document.Id, ct);
+
+        result.Should().Contain(update ? "v2.0" : "v1.0");
+        var notices = Notifier.ReceivedCalls().Where(call => call.GetArguments()[0] is NotificationSource value && value == source)
+            .Select(call => call.GetArguments()).ToList();
+        notices.Should().HaveCount(2);
+        var spanish = notices.Single(args => ((IReadOnlyList<Guid>)args[4]!).Contains(spanishIds[0]));
+        ((IReadOnlyList<Guid>)spanish[4]!).Should().BeEquivalentTo(spanishIds);
+        spanish[3].Should().Be(update ? "Privacy se ha actualizado — es necesario volver a dar el consentimiento" : "Nuevo documento legal publicado: Privacy");
+        spanish[5].Should().Be(update ? "Se ha actualizado un documento legal obligatorio. Revísalo y firma la nueva versión." : "Se ha publicado un nuevo documento legal obligatorio. Revísalo y fírmalo.");
+        spanish[6].Should().Be("/Consent");
+        spanish[7].Should().Be("Revisar y consentir");
+        var english = notices.Single(args => ((IReadOnlyList<Guid>)args[4]!).Contains(englishIds[0]));
+        ((IReadOnlyList<Guid>)english[4]!).Should().BeEquivalentTo(englishIds);
+        english[3].Should().Be(update ? "Privacy has been updated — re-consent required" : "New legal document published: Privacy");
+        english[7].Should().Be("Review & Consent");
+        await _userService.Received(1).GetAllUserInfosAsync(Arg.Any<CancellationToken>());
+    }
+
     [HumansFact]
     public async Task SyncDocumentAsync_FirstVersion_DoesNotRequireReConsent_AndEmitsPublished()
     {
         StubActiveUser();
         var document = await SeedDocumentAsync("Privacy", folderPath: "privacy/", currentCommitSha: "old-sha");
         StubGitHubFolder("privacy/", "es-content", "sha-1", "Initial commit");
+        _gitHub.GetFileContentAsync("privacy/doc.md", Arg.Any<CancellationToken>())
+            .Returns(new GitHubFileContent("es-content", "sha-1"), new GitHubFileContent("later-content", "sha-2"));
 
         var result = await _service.SyncDocumentAsync(document.Id, Xunit.TestContext.Current.CancellationToken);
 
@@ -296,6 +435,8 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
         version.RequiresReConsent.Should().BeFalse(
             because: "the first synced version never invalidates prior consent — there is none");
         version.CommitSha.Should().Be("sha-1");
+        version.Content["es"].Should().Be("es-content");
+        await _gitHub.Received(1).GetFileContentAsync("privacy/doc.md", Arg.Any<CancellationToken>());
 
         await AssertFanout(NotificationSource.LegalDocumentPublished, received: true);
         await AssertFanout(NotificationSource.ReConsentRequired, received: false);

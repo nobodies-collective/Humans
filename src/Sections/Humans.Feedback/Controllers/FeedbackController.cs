@@ -47,7 +47,7 @@ internal sealed class FeedbackController(
         FeedbackStatus? status, FeedbackCategory? category, Guid? reporterUserId,
         Guid? assignedTo, Guid? team, bool unassigned, Guid? selected, CancellationToken ct)
     {
-        var (userMissing, user) = await RequireCurrentUserAsync();
+        var (userMissing, user) = await RequireCurrentUserAsync(ct);
         if (userMissing is not null) return userMissing;
 
         var reports = await feedbackService.GetFeedbackListAsync(
@@ -64,12 +64,14 @@ internal sealed class FeedbackController(
         var assigneeOptions = await GetActiveAssigneeOptionsAsync(ct);
 
         var distinctReporters = await feedbackService.GetDistinctReportersAsync(ct);
-        var reporters = distinctReporters.Select(r => new ReporterDropdownItem
-        {
-            UserId = r.UserId,
-            DisplayName = r.DisplayName,
-            Count = r.Count
-        }).ToList();
+        var reporters = distinctReporters
+            .OrderBy(r => r.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(r => new ReporterDropdownItem
+            {
+                UserId = r.UserId,
+                DisplayName = r.DisplayName,
+                Count = r.Count
+            }).ToList();
 
         var viewModel = new FeedbackPageViewModel
         {
@@ -89,7 +91,9 @@ internal sealed class FeedbackController(
                 Id = r.Id,
                 Category = r.Category,
                 Status = r.Status,
-                Description = r.Description.Length > 100 ? r.Description[..100] + "..." : r.Description,
+                Description = r.Description.Length > 100
+                    ? r.Description[..(char.IsHighSurrogate(r.Description[99]) && char.IsLowSurrogate(r.Description[100]) ? 99 : 100)] + "..."
+                    : r.Description,
                 ReporterUserId = r.UserId,
                 PageUrl = r.PageUrl,
                 CreatedAt = r.CreatedAt.ToDateTimeUtc(),

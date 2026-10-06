@@ -43,6 +43,7 @@
     <data name="MyTeams_Title" xml:space="preserve">
     <value>Mes équipes</value>
   </data>
+  <data name="Teams_BreadcrumbNavigation" xml:space="preserve"><value>Fil d’Ariane</value></data>
   <data name="JoinTeam_Title" xml:space="preserve">
     <value>Rejoindre {0}</value>
     <comment>{0} = team name</comment>
@@ -199,6 +200,27 @@
   </data>
   <data name="Team_RequestWithdrawn" xml:space="preserve">
     <value>Votre demande a été retirée.</value>
+  </data>
+  <data name="Teams_NotFound" xml:space="preserve">
+    <value>Équipe introuvable.</value>
+  </data>
+  <data name="Teams_CannotJoinHidden" xml:space="preserve">
+    <value>Vous ne pouvez pas rejoindre directement une équipe masquée.</value>
+  </data>
+  <data name="Teams_JoinPolicyChanged" xml:space="preserve">
+    <value>Les conditions d’adhésion à cette équipe ont changé. Veuillez réessayer.</value>
+  </data>
+  <data name="Teams_CannotLeaveSystem" xml:space="preserve">
+    <value>Vous ne pouvez pas quitter directement une équipe gérée par le système.</value>
+  </data>
+  <data name="Teams_NotMember" xml:space="preserve">
+    <value>Vous n’êtes pas membre de cette équipe.</value>
+  </data>
+  <data name="Teams_RequestUnavailable" xml:space="preserve">
+    <value>Cette demande d’adhésion n’est pas disponible ou n’est plus en attente.</value>
+  </data>
+  <data name="Teams_ActionFailed" xml:space="preserve">
+    <value>Impossible de terminer cette action sur l’équipe. Veuillez réessayer.</value>
   </data>
   <data name="TeamAdmin_RequestApproved" xml:space="preserve">
     <value>Demande approuvée. L'utilisateur fait désormais partie de l'équipe.</value>
@@ -402,6 +424,7 @@
   <data name="TeamDetail_TeamCoordinators" xml:space="preserve">
     <value>Coordinateurs</value>
   </data>
+  <data name="Teams_Detail_SubteamLeads" xml:space="preserve"><value>Responsables des sous-équipes ({0})</value></data>
   <data name="TeamDetail_AboutTeam" xml:space="preserve">
     <value>À propos</value>
   </data>
@@ -550,4 +573,10 @@
   <data name="Teams_EditTeam_EnableEarlyEntry" xml:space="preserve"><value>Activer l'entrée anticipée</value></data>
   <data name="Teams_EditTeam_EnableEarlyEntryHelp" xml:space="preserve"><value>Lorsqu'elle est activée, les coordinateurs de cette équipe et les administrateurs d'entrée anticipée peuvent accorder une entrée anticipée aux projets de cette équipe.</value></data>
   <data name="Teams_TeamDetail_Roles" xml:space="preserve"><value>Rôles</value></data>
+  <data name="Teams_Notification_JoinApproved" xml:space="preserve"><value>Votre demande pour rejoindre {0} a été approuvée</value></data>
+  <data name="Teams_Notification_Welcome" xml:space="preserve"><value>Bienvenue dans {0} !</value></data>
+  <data name="Teams_Notification_ViewTeam" xml:space="preserve"><value>Voir l’équipe</value></data>
+  <data name="Teams_Notification_JoinRejected" xml:space="preserve"><value>Votre demande pour rejoindre {0} n’a pas été approuvée</value></data>
+  <data name="Teams_Notification_MemberRemoved" xml:space="preserve"><value>Vous ne faites plus partie de {0}</value></data>
+  <data name="Teams_TeamDetail_Calendar" xml:space="preserve"><value>Calendrier de l’équipe</value></data>
 </root>

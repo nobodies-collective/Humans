@@ -85,6 +85,8 @@
   <data name="Calendar_StartRequired" xml:space="preserve"><value>Start is required.</value></data>
   <data name="Calendar_EndBeforeStart" xml:space="preserve"><value>End must be on or after the start.</value></data>
   <data name="Calendar_SaveFailed" xml:space="preserve"><value>Failed to save calendar event.</value></data>
+  <data name="Calendar_InvalidTimedRecurrence" xml:space="preserve"><value>Use a valid recurrence rule.</value></data>
+  <data name="Calendar_InvalidTimedEvent" xml:space="preserve"><value>Enter a title and a valid time range. Set the recurrence rule and timezone together.</value></data>
   <data name="Calendar_EventTitle" xml:space="preserve"><value>Event</value></data>
   <data name="Calendar_FirstStart" xml:space="preserve"><value>First start</value></data>
   <data name="Calendar_FormTitle" xml:space="preserve"><value>Title</value></data>
@@ -162,4 +164,5 @@
   <data name="Calendar_IcalRegenerateConfirm" xml:space="preserve"><value>This will invalidate the current URL. Continue?</value></data>
   <data name="Calendar_IcalRegenerate" xml:space="preserve"><value>Regenerate URL</value></data>
   <data name="Calendar_IcalRegenerated" xml:space="preserve"><value>iCal URL regenerated.</value></data>
+  <data name="Calendar_NoAuditHistory" xml:space="preserve"><value>No audit history.</value></data>
 </root>

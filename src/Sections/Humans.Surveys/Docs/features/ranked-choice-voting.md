@@ -22,6 +22,8 @@ tracked by nobodies-collective/Humans#86.
   eligibility is still rechecked when each invitee answers and submits.
 - Equal ranks are enabled by default.
 - Reject is optional and means unacceptable, not vetoed.
+- Wizard and direct service submission reject repeated options, disallowed equal
+  ranks, and disallowed rejection before writing a response.
 - Preference tiers are ranked > unranked > rejected.
 - Ranked Pairs (Tideman) is the precommitted official method.
 - Condorcet check and Borda are post-close sensitivity analysis.
@@ -89,8 +91,9 @@ available in ordinary surveys too.
 After close, admins may inspect individual ballots, but the drill-down labels
 them only as Ballot 1, Ballot 2, and so on: no voter name, user id,
 participation id, response id, or submission timestamp is exposed. Result
-exports and the Backdoor API likewise suppress identity for every Asociado
-ballot, including any legacy Identified row.
+exports and the Backdoor API likewise suppress identity and submission timestamps
+for every Asociado ballot, including any legacy Identified row. Export rows order
+by response id rather than submission time.
 
 ## Data model
 

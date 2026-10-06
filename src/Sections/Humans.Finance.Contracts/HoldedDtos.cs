@@ -2,13 +2,6 @@ using NodaTime;
 
 namespace Humans.Finance.Contracts;
 
-public sealed record HoldedProvisioningRow(
-    Guid BudgetCategoryId, string CategoryName, string GroupName,
-    int? ExistingAccountNum, int? ProposedAccountNum, string Tag, string State); // Mapped|ToAdd|Orphan
-
-public sealed record HoldedProvisioningPlan(
-    IReadOnlyList<HoldedProvisioningRow> Rows, int NextNumber);
-
 /// <summary>One budget category's Holded actual, plus the approved purchase docs it sums.
 /// <c>Docs</c> is what the figure is made of — the year page renders it under the category so a
 /// wrong total can be traced to the document that caused it.</summary>
@@ -46,6 +39,13 @@ public sealed record HoldedExpenseAccountOption(
 /// today, as opposed to the plan <c>/Finance/HoldedAccounts</c> renders.</summary>
 /// <param name="CategoryName">Null when the category is not in the active budget year — a row whose
 /// category was deleted or belongs to an earlier year. The provisioning page calls that an Orphan.</param>
+/// <param name="BudgetCategoryId">The budget category associated with this mapping.</param>
+/// <param name="GroupName">The budget group name, or null when unavailable.</param>
+/// <param name="HoldedAccountNumber">The Holded account number used for booking.</param>
+/// <param name="HoldedAccountId">The Holded identifier for the mapped account.</param>
+/// <param name="Tag">The tag sent to Holded for this category mapping.</param>
+/// <param name="IsActive">Whether this mapping is currently active.</param>
+/// <param name="UpdatedAt">When this mapping was last updated.</param>
 public sealed record HoldedCategoryMapRow(
     Guid BudgetCategoryId,
     string? CategoryName,

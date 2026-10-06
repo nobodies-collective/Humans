@@ -43,6 +43,7 @@
     <data name="MyTeams_Title" xml:space="preserve">
     <value>Mis equipos</value>
   </data>
+  <data name="Teams_BreadcrumbNavigation" xml:space="preserve"><value>Ruta de navegación</value></data>
   <data name="JoinTeam_Title" xml:space="preserve">
     <value>Unirse a {0}</value>
     <comment>{0} = team name</comment>
@@ -199,6 +200,27 @@
   </data>
   <data name="Team_RequestWithdrawn" xml:space="preserve">
     <value>Su solicitud ha sido retirada.</value>
+  </data>
+  <data name="Teams_NotFound" xml:space="preserve">
+    <value>No se encontró el equipo.</value>
+  </data>
+  <data name="Teams_CannotJoinHidden" xml:space="preserve">
+    <value>No puedes unirte directamente a un equipo oculto.</value>
+  </data>
+  <data name="Teams_JoinPolicyChanged" xml:space="preserve">
+    <value>Han cambiado los requisitos para unirse al equipo. Inténtalo de nuevo.</value>
+  </data>
+  <data name="Teams_CannotLeaveSystem" xml:space="preserve">
+    <value>No puedes abandonar directamente un equipo gestionado por el sistema.</value>
+  </data>
+  <data name="Teams_NotMember" xml:space="preserve">
+    <value>No formas parte de este equipo.</value>
+  </data>
+  <data name="Teams_RequestUnavailable" xml:space="preserve">
+    <value>Esta solicitud para unirte no está disponible o ya no está pendiente.</value>
+  </data>
+  <data name="Teams_ActionFailed" xml:space="preserve">
+    <value>No se pudo completar esta acción del equipo. Inténtalo de nuevo.</value>
   </data>
   <data name="TeamAdmin_RequestApproved" xml:space="preserve">
     <value>Solicitud aprobada. El human ya forma parte del equipo.</value>
@@ -402,6 +424,7 @@
   <data name="TeamDetail_TeamCoordinators" xml:space="preserve">
     <value>Coordinadores</value>
   </data>
+  <data name="Teams_Detail_SubteamLeads" xml:space="preserve"><value>Responsables de subequipos ({0})</value></data>
   <data name="TeamDetail_AboutTeam" xml:space="preserve">
     <value>Sobre</value>
   </data>
@@ -550,4 +573,10 @@
   <data name="Teams_EditTeam_EnableEarlyEntry" xml:space="preserve"><value>Activar acceso anticipado</value></data>
   <data name="Teams_EditTeam_EnableEarlyEntryHelp" xml:space="preserve"><value>Al activarlo, los coordinadores de este equipo y los administradores de acceso anticipado pueden conceder acceso anticipado a los proyectos de este equipo.</value></data>
   <data name="Teams_TeamDetail_Roles" xml:space="preserve"><value>Roles</value></data>
+  <data name="Teams_Notification_JoinApproved" xml:space="preserve"><value>Se ha aprobado tu solicitud para unirte a {0}</value></data>
+  <data name="Teams_Notification_Welcome" xml:space="preserve"><value>¡Te damos la bienvenida a {0}!</value></data>
+  <data name="Teams_Notification_ViewTeam" xml:space="preserve"><value>Ver equipo</value></data>
+  <data name="Teams_Notification_JoinRejected" xml:space="preserve"><value>No se ha aprobado tu solicitud para unirte a {0}</value></data>
+  <data name="Teams_Notification_MemberRemoved" xml:space="preserve"><value>Se te ha eliminado de {0}</value></data>
+  <data name="Teams_TeamDetail_Calendar" xml:space="preserve"><value>Calendario del equipo</value></data>
 </root>

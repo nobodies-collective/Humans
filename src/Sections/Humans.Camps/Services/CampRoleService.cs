@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Resources;
+using Humans.Base.Extensions;
 using Humans.GoogleIntegration.Contracts;
 using Humans.AuditLog.Contracts;
 using Humans.Notifications.Contracts;
@@ -11,8 +14,8 @@ internal sealed class CampRoleService(
     ICampRepository repo,
     ICampRoleCampAccess campAccess,
     ICampInfoInvalidator campInfoInvalidator,
-    IUserServiceRead userService,
     IUserEmailService userEmailService,
+    IUserServiceRead userServiceRead,
     IAuditLogService auditLog,
     INotificationEmitter notificationEmitter,
     IOptions<GoogleWorkspaceOptions> googleOptions,
@@ -20,6 +23,7 @@ internal sealed class CampRoleService(
     ILogger<CampRoleService> logger) : ICampRoleService, ICampRoleSeeding, IGoogleGroupMembershipSource
 {
     private readonly GoogleWorkspaceOptions _googleOptions = googleOptions.Value;
+    private static readonly ResourceManager NoticeResources = new(typeof(CampsResource));
 
     public async Task<IReadOnlyList<CampRoleDefinitionInfo>> ListDefinitionsAsync(bool includeDeactivated, CancellationToken ct = default)
     {
@@ -225,11 +229,6 @@ internal sealed class CampRoleService(
         var definitions = OrderDefinitions(await repo.ListDefinitionsAsync(includeDeactivated: false, ct));
         var assignments = await repo.GetAssignmentsForSeasonAsync(campSeasonId, ct);
 
-        var memberUserIds = assignments.Select(a => a.CampMember.UserId).Distinct().ToList();
-        IReadOnlyDictionary<Guid, UserInfo> users = memberUserIds.Count == 0
-            ? new Dictionary<Guid, UserInfo>()
-            : await userService.GetUserInfosAsync(memberUserIds, ct);
-
         var rows = definitions.Select(def =>
         {
             var defAssignments = assignments
@@ -238,12 +237,7 @@ internal sealed class CampRoleService(
                 .ToList();
 
             var filled = defAssignments.Select(a =>
-            {
-                var displayName = users.TryGetValue(a.CampMember.UserId, out var u)
-                    ? u.BurnerName
-                    : "(unknown)";
-                return new CampRolesPanelSlot(a.Id, a.CampMemberId, a.CampMember.UserId, displayName);
-            }).ToList();
+                new CampRolesPanelSlot(a.Id, a.CampMemberId, a.CampMember.UserId)).ToList();
 
             var current = filled.Count;
             var empty = Math.Max(0, def.SlotCount - current);
@@ -304,11 +298,26 @@ internal sealed class CampRoleService(
 
         try
         {
+            var culture = CultureInfo.GetCultureInfo("en");
+            try
+            {
+                var language = (await userServiceRead.GetUserInfoAsync(memberLookup.UserId, ct))?.PreferredLanguage;
+                culture = CultureInfo.GetCultureInfo(language.IsSupportedCultureCode() ? language! : "en");
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to resolve role notification language for user {UserId}; using English", memberLookup.UserId);
+            }
+
             await notificationEmitter.SendAsync(
                 source: NotificationSource.CampRoleAssigned,
                 notificationClass: NotificationClass.Informational,
                 priority: NotificationPriority.Normal,
-                title: $"You were assigned the {def.Name} role.",
+                title: string.Format(culture, NoticeResources.GetString("Camps_Notification_RoleAssigned", culture)!, def.Name),
                 recipientUserIds: [memberLookup.UserId],
                 cancellationToken: ct);
         }
@@ -318,7 +327,7 @@ internal sealed class CampRoleService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Notification failed for CampRoleAssigned (assignment {AssignmentId}).", assignment.Id);
+            logger.LogError(ex, "Notification failed for CampRoleAssigned (assignment {AssignmentId}).", assignment.Id);
         }
 
         return AssignCampRoleOutcome.Assigned;

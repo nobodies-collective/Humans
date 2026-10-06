@@ -1,4 +1,9 @@
+using System.Security.Claims;
 using AwesomeAssertions;
+using Humans.Campaigns.Controllers;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Humans.Email.Contracts;
 using Humans.Notifications.Contracts;
 using Humans.Users.Contracts;
@@ -43,6 +48,7 @@ public sealed class CampaignServiceTests
 
     private readonly CampaignServiceImpl _service;
     private readonly IEmailService _emailService = Substitute.For<IEmailService>();
+    private readonly INotificationEmitter _notifications = Substitute.For<INotificationEmitter>();
     private readonly CampaignsEmails _emailMessages = new();
     private readonly ITicketDiscountCodes _ticketDiscountCodes;
 
@@ -89,12 +95,42 @@ public sealed class CampaignServiceTests
             teamService,
             userEmailService,
             userService,
-            Substitute.For<INotificationEmitter>(),
+            _notifications,
             _emailService,
             _emailMessages,
             _ticketDiscountCodes,
             Clock,
             NullLogger<CampaignServiceImpl>.Instance);
+    }
+
+    [HumansFact]
+    public async Task AbandonedAdminPages_CancelRepositoryReads()
+    {
+        var campaign = await SeedCampaignAsync(CampaignStatus.Active);
+        using var request = new CancellationTokenSource();
+        var controller = new CampaignController(_service, Substitute.For<IUserServiceRead>())
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { RequestAborted = request.Token }
+            }
+        };
+        Func<Task<IActionResult>>[] pages =
+        [
+            () => controller.Index(),
+            () => controller.Edit(campaign.Id),
+            () => controller.Detail(campaign.Id),
+            () => controller.SendWave(campaign.Id, null)
+        ];
+        foreach (var page in pages)
+            (await page()).Should().BeOfType<ViewResult>();
+
+        await request.CancelAsync();
+        foreach (var page in pages)
+        {
+            Func<Task> read = async () => await page();
+            await read.Should().ThrowAsync<OperationCanceledException>();
+        }
     }
 
     [HumansFact]
@@ -120,6 +156,79 @@ public sealed class CampaignServiceTests
         var inDb = await CampaignsDb.Campaigns.FindAsync(result.Campaign.Id, Xunit.TestContext.Current.CancellationToken);
         inDb.Should().NotBeNull();
         inDb.Status.Should().Be(CampaignStatus.Draft);
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("TitleTooLong", "title")]
+    [Xunit.InlineData("DescriptionTooLong", "description")]
+    [Xunit.InlineData("EmailSubjectTooLong", "emailSubject")]
+    [Xunit.InlineData("ReplyToAddressTooLong", "replyToAddress")]
+    [Xunit.InlineData("ReplyToAddressInvalid", "replyToAddress")]
+    public async Task CampaignForms_RejectInvalidTextWithoutCreatingOrChangingStoredCampaign(string errorKey, string field)
+    {
+        var viewer = SeedUser();
+        var existing = await SeedCampaignAsync();
+        var title = string.Equals(errorKey, "TitleTooLong", StringComparison.Ordinal) ? new string('x', 201) : "Changed title";
+        var description = string.Equals(errorKey, "DescriptionTooLong", StringComparison.Ordinal) ? new string('x', 2001) : "Changed description";
+        var subject = string.Equals(errorKey, "EmailSubjectTooLong", StringComparison.Ordinal) ? new string('x', 1001) : "Changed subject";
+        var replyTo = errorKey switch
+        {
+            "ReplyToAddressTooLong" => new string('x', 310) + "@example.com",
+            "ReplyToAddressInvalid" => "not-an-email",
+            _ => "reply@example.com",
+        };
+        var userRead = Substitute.For<IUserServiceRead>();
+        userRead.GetUserInfoAsync(viewer.Id, Arg.Any<CancellationToken>()).Returns(new ValueTask<UserInfo?>(viewer));
+        CampaignController Controller()
+        {
+            var http = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim(ClaimTypes.NameIdentifier, viewer.Id.ToString())], "test")),
+            };
+            return new(_service, userRead)
+            {
+                ControllerContext = new ControllerContext { HttpContext = http },
+                TempData = new TempDataDictionary(http, Substitute.For<ITempDataProvider>()),
+                Url = Substitute.For<IUrlHelper>(),
+            };
+        }
+
+        var create = Controller();
+        (await create.Create(title, description, subject, "Changed body", replyTo)).Should().BeOfType<ViewResult>();
+        create.ModelState.ContainsKey(field).Should().BeTrue();
+        create.ModelState[field]!.Errors.Should().ContainSingle().Which.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+        ((string)create.ViewBag.Title2).Should().Be(title);
+        ((string)create.ViewBag.ReplyToAddress).Should().Be(replyTo);
+        (await CampaignsDb.Campaigns.CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(1);
+
+        var edit = Controller();
+        (await edit.Edit(existing.Id, title, description, subject, "Changed body", replyTo)).Should().BeOfType<ViewResult>();
+        edit.ModelState.ContainsKey(field).Should().BeTrue();
+        edit.ModelState[field]!.Errors.Should().ContainSingle().Which.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+        var stored = await _service.GetByIdAsync(existing.Id, Xunit.TestContext.Current.CancellationToken);
+        stored!.Title.Should().Be(existing.Title);
+        stored.Description.Should().Be(existing.Description);
+        stored.EmailSubject.Should().Be(existing.EmailSubject);
+        stored.EmailBodyTemplate.Should().Be(existing.EmailBodyTemplate);
+        stored.ReplyToAddress.Should().Be(existing.ReplyToAddress);
+    }
+
+    [HumansFact]
+    public async Task CampaignForms_AllowStoredLimitsAndTrimOptionalFields()
+    {
+        var title = new string('x', 200);
+        var description = new string('x', 2000);
+        var subject = new string('x', 1000);
+        var replyTo = new string('x', 308) + "@example.com";
+        var created = await _service.CreateAsync(" " + title + " ", " " + description + " ", " " + subject + " ",
+            "Body", " " + replyTo + " ", Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+        created.Success.Should().BeTrue();
+        created.Campaign!.ReplyToAddress.Should().Be(replyTo);
+        var updated = await _service.UpdateAsync(created.Campaign.Id, title, description, subject, "Body", "   ",
+            Xunit.TestContext.Current.CancellationToken);
+        updated.Success.Should().BeTrue();
+        (await _service.GetByIdAsync(created.Campaign.Id, Xunit.TestContext.Current.CancellationToken))!.ReplyToAddress.Should().BeNull();
     }
 
     [HumansFact]
@@ -207,6 +316,24 @@ public sealed class CampaignServiceTests
         result.ErrorKey.Should().Be("NotDraft");
         await _ticketDiscountCodes.DidNotReceive().GenerateAsync(
             Arg.Any<TicketDiscountCodeRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("99")]
+    [Xunit.InlineData("-1")]
+    [Xunit.InlineData("unknown")]
+    public async Task GenerateAndImportDiscountCodesAsync_InvalidKind_DoesNotGenerateOrImport(string discountType)
+    {
+        var campaign = await SeedCampaignAsync();
+
+        var result = await _service.GenerateAndImportDiscountCodesAsync(
+            campaign.Id, 2, discountType, 10m, Xunit.TestContext.Current.CancellationToken);
+
+        result.Success.Should().BeFalse();
+        result.ErrorKey.Should().Be("InvalidDiscountType");
+        await _ticketDiscountCodes.DidNotReceive().GenerateAsync(
+            Arg.Any<TicketDiscountCodeRequest>(), Arg.Any<CancellationToken>());
+        (await CampaignsDb.CampaignCodes.CountAsync(Xunit.TestContext.Current.CancellationToken)).Should().Be(0);
     }
 
     [HumansFact]
@@ -414,6 +541,33 @@ public sealed class CampaignServiceTests
             Arg.Any<CancellationToken>());
     }
 
+    [HumansTheory]
+    [Xunit.InlineData("x")]
+    [Xunit.InlineData("🚀")]
+    public async Task SendWaveAsync_LongCampaignTitle_PreservesNoticeCopyWithinTitleLimit(string character)
+    {
+        var campaign = await SeedActiveCampaignWithCodesAsync(["CODE-A"]);
+        campaign.Title = string.Concat(Enumerable.Repeat(character, 200));
+        CampaignsDb.Campaigns.Update(campaign);
+        var user = SeedUser();
+        var team = SeedTeam("Notice Team");
+        SeedTeamMember(team.Id, user.Id);
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var result = await _service.SendWaveAsync(campaign.Id, team.Id, Xunit.TestContext.Current.CancellationToken);
+
+        result.SentCount.Should().Be(1);
+        var call = _notifications.ReceivedCalls().Should().ContainSingle().Subject;
+        var arguments = call.GetArguments();
+        var fullTitle = $"You received a code from campaign: {campaign.Title}";
+        var title = (string)arguments[3]!;
+        title.EnumerateRunes().Count().Should().Be(200);
+        title.Should().Be(string.Concat(fullTitle.EnumerateRunes().Take(199)) + "…");
+        arguments[5].Should().Be(fullTitle + "\n\nCheck your email for your campaign code.");
+        ((IReadOnlyList<Guid>)arguments[4]!).Should().Equal(user.Id);
+        arguments[0].Should().Be(NotificationSource.CampaignReceived);
+    }
+
     [HumansFact]
     public async Task SendWaveAsync_SendsMessageBuiltFromRawTemplateValues()
     {
@@ -579,6 +733,38 @@ public sealed class CampaignServiceTests
         ClearAllTrackers();
         var updatedGrant = await CampaignsDb.CampaignGrants.FindAsync(grant.Id, Xunit.TestContext.Current.CancellationToken);
         updatedGrant!.LatestEmailStatus.Should().Be(EmailOutboxStatus.Queued);
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("user")]
+    [Xunit.InlineData("address")]
+    [Xunit.InlineData("enqueue")]
+    public async Task ResendToGrantAsync_FailureLeavesGrantRetryableAndPropagates(string failure)
+    {
+        var campaign = await SeedActiveCampaignWithCodesAsync(["RESEND-FAILED"]);
+        var user = SeedUser();
+        var team = SeedTeam("Resend");
+        SeedTeamMember(team.Id, user.Id);
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+        await _service.SendWaveAsync(campaign.Id, team.Id, Xunit.TestContext.Current.CancellationToken);
+        var grant = await CampaignsDb.CampaignGrants.SingleAsync(Xunit.TestContext.Current.CancellationToken);
+        grant.LatestEmailStatus = EmailOutboxStatus.Failed;
+        await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
+        _emailService.ClearReceivedCalls();
+        if (string.Equals(failure, "user", StringComparison.Ordinal))
+            _people.Remove(user.Id);
+        else if (string.Equals(failure, "address", StringComparison.Ordinal))
+            _people[user.Id] = user with { IdentityEmailColumn = null };
+        else
+            _emailService.SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromException(new InvalidOperationException("enqueue unavailable")));
+
+        var act = () => _service.ResendToGrantAsync(grant.Id, Xunit.TestContext.Current.CancellationToken);
+        await act.Should().ThrowAsync<InvalidOperationException>();
+
+        ClearAllTrackers();
+        var persisted = await CampaignsDb.CampaignGrants.FindAsync(grant.Id, Xunit.TestContext.Current.CancellationToken);
+        persisted!.LatestEmailStatus.Should().Be(EmailOutboxStatus.Failed);
     }
 
     [HumansFact]

@@ -1,3 +1,7 @@
+using System.Text;
+using System.Globalization;
+using System.Resources;
+using Humans.Base.Extensions;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using NodaTime;
@@ -32,6 +36,8 @@ internal sealed partial class LegalDocumentSyncService(
     IClock clock,
     ILogger<LegalDocumentSyncService> logger) : ILegalDocumentSyncService, IAdminLegalDocumentService
 {
+    private static readonly ResourceManager NoticeResources = new(typeof(ConsentResource));
+
     private readonly GitHubSettings _githubSettings = githubSettings.Value;
 
     // ==========================================================================
@@ -335,17 +341,8 @@ internal sealed partial class LegalDocumentSyncService(
         var requiredDocuments = await repository.GetActiveRequiredDocumentsAsync(cancellationToken);
 
         return requiredDocuments
-            .Select(d =>
-            {
-                var latest = d.Versions
-                    .Where(v => v.EffectiveFrom <= now)
-                    .MaxBy(v => v.EffectiveFrom);
-                if (latest is null) return null;
-
-                return ToRequiredVersionSnapshot(latest, d);
-            })
-            .Where(v => v is not null)
-            .Cast<RequiredDocumentVersionSnapshot>()
+            .Select(d => ToLatestRequiredVersionSnapshot(d, now))
+            .OfType<RequiredDocumentVersionSnapshot>()
             .ToList();
     }
 
@@ -363,21 +360,17 @@ internal sealed partial class LegalDocumentSyncService(
         var requiredDocuments = await repository.GetActiveRequiredDocumentsForTeamAsync(teamId, cancellationToken);
 
         return requiredDocuments
-            .Select(d =>
-            {
-                var latest = d.Versions
-                    .Where(v => v.EffectiveFrom <= now)
-                    .MaxBy(v => v.EffectiveFrom);
-                if (latest is null) return null;
-                return ToRequiredVersionSnapshot(latest, d);
-            })
-            .Where(v => v is not null)
-            .Cast<RequiredDocumentVersionSnapshot>()
+            .Select(d => ToLatestRequiredVersionSnapshot(d, now))
+            .OfType<RequiredDocumentVersionSnapshot>()
             .ToList();
     }
 
-    private static RequiredDocumentVersionSnapshot ToRequiredVersionSnapshot(DocumentVersion version, LegalDocument document) =>
-        new(
+    private static RequiredDocumentVersionSnapshot? ToLatestRequiredVersionSnapshot(LegalDocument document, Instant now)
+    {
+        var version = document.Versions
+            .Where(v => v.EffectiveFrom <= now)
+            .MaxBy(v => v.EffectiveFrom);
+        return version is null ? null : new(
             version.Id,
             version.LegalDocumentId,
             document.Name,
@@ -386,6 +379,7 @@ internal sealed partial class LegalDocumentSyncService(
             version.EffectiveFrom,
             version.RequiresReConsent,
             version.ChangesSummary);
+    }
 
     private static LegalDocumentVersionSnapshot ToVersionSnapshot(DocumentVersion version) =>
         new(
@@ -501,9 +495,15 @@ internal sealed partial class LegalDocumentSyncService(
             return null;
         }
 
-        var content = new Dictionary<string, string>(StringComparer.Ordinal);
+        var content = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["es"] = canonicalResult.Content
+        };
         foreach (var (lang, path) in languageFiles)
         {
+            if (string.Equals(lang, "es", StringComparison.Ordinal))
+                continue;
+
             var file = await gitHub.GetFileContentAsync(path, cancellationToken);
             if (file is null)
             {
@@ -560,8 +560,8 @@ internal sealed partial class LegalDocumentSyncService(
             await TryFanoutAsync(
                 document,
                 NotificationSource.LegalDocumentPublished,
-                $"New legal document published: {document.Name}",
-                "A new required legal document has been published. Please review and sign it.",
+                "Consent_Notification_Published",
+                "Consent_Notification_PublishedBody",
                 cancellationToken);
         }
 
@@ -570,8 +570,8 @@ internal sealed partial class LegalDocumentSyncService(
             await TryFanoutAsync(
                 document,
                 NotificationSource.ReConsentRequired,
-                $"{document.Name} has been updated — re-consent required",
-                "A required legal document has been updated. Please review and sign the new version.",
+                "Consent_Notification_ReConsentRequired",
+                "Consent_Notification_ReConsentRequiredBody",
                 cancellationToken);
         }
 
@@ -581,28 +581,44 @@ internal sealed partial class LegalDocumentSyncService(
     private async Task TryFanoutAsync(
         LegalDocument document,
         NotificationSource source,
-        string title,
-        string body,
+        string titleKey,
+        string bodyKey,
         CancellationToken cancellationToken)
     {
         try
         {
-            var approvedUserIds = (await userService.GetAllUserInfosAsync(cancellationToken).ConfigureAwait(false))
+            var recipientsByLanguage = (await userService.GetAllUserInfosAsync(cancellationToken).ConfigureAwait(false))
                 .Where(u => u.IsActive)
-                .Select(u => u.Id)
-                .ToList();
-            if (approvedUserIds.Count > 0)
+                .GroupBy(u => u.PreferredLanguage.IsSupportedCultureCode() ? u.PreferredLanguage : "en", StringComparer.Ordinal);
+            foreach (var group in recipientsByLanguage)
             {
-                await notificationService.SendAsync(
-                    source,
-                    NotificationClass.Actionable,
-                    NotificationPriority.High,
-                    title,
-                    approvedUserIds,
-                    body: body,
-                    actionUrl: "/Consent",
-                    actionLabel: "Review document",
-                    cancellationToken: cancellationToken);
+                try
+                {
+                    var culture = CultureInfo.GetCultureInfo(group.Key);
+                    var title = string.Format(culture, NoticeResources.GetString(titleKey, culture)!, document.Name);
+                    var body = NoticeResources.GetString(bodyKey, culture);
+                    if (title.EnumerateRunes().Count() > 200)
+                    {
+                        body = string.Concat(title, "\n\n", body);
+                        title = string.Concat(title.EnumerateRunes().Take(199)) + "…";
+                    }
+                    await notificationService.SendAsync(
+                        source,
+                        NotificationClass.Actionable,
+                        NotificationPriority.High,
+                        title,
+                        group.Select(u => u.Id).ToList(),
+                        body: body,
+                        actionUrl: "/Consent",
+                        actionLabel: NoticeResources.GetString("Consent_ReviewAndConsent", culture),
+                        cancellationToken: cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex,
+                        "Failed to dispatch {Source} notifications for document {DocumentId} in {Culture}",
+                        source, document.Id, group.Key);
+                }
             }
         }
         catch (Exception ex)

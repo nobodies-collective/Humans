@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Resources;
 using Hangfire;
 using NodaTime;
 using Humans.Base.Extensions;
@@ -32,6 +34,7 @@ internal sealed class TermRenewalReminderJob(
     ILogger<TermRenewalReminderJob> logger,
     IClock clock) : IRecurringJob
 {
+    private static readonly ResourceManager NoticeResources = new(typeof(GovernanceResource));
     private const int ReminderDaysBeforeExpiry = 90;
 
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
@@ -103,13 +106,15 @@ internal sealed class TermRenewalReminderJob(
                 try
                 {
                     var expiresFormatted = application.TermExpiresAt!.Value.ToInvariantLongDate();
+                    var language = applicant.PreferredLanguage.IsSupportedCultureCode()
+                        ? applicant.PreferredLanguage : CultureCatalog.DefaultCultureCode;
 
                     await emailService.SendAsync(emailMessages.TermRenewalReminder(
                         email,
                         applicant.BurnerName,
                         application.MembershipTier.ToString(),
                         expiresFormatted,
-                        applicant.PreferredLanguage),
+                        language),
                         cancellationToken);
 
                     await applicationDecisionService.MarkRenewalReminderSentAsync(
@@ -123,15 +128,18 @@ internal sealed class TermRenewalReminderJob(
                     // Dispatch in-app notification alongside email.
                     try
                     {
+                        var culture = CultureInfo.GetCultureInfo(language);
+                        using var cultureScope = new CultureScope(culture.Name);
+                        var expiryDate = application.TermExpiresAt.Value.ToDate();
                         await notificationService.SendAsync(
                             NotificationSource.TermRenewalReminder,
                             NotificationClass.Actionable,
                             NotificationPriority.Normal,
-                            $"Your {application.MembershipTier} term expires {expiresFormatted}",
+                            string.Format(culture, NoticeResources.GetString("Governance_Notification_TermRenewalReminder", culture)!, application.MembershipTier, expiryDate),
                             [application.UserId],
-                            body: "Submit a renewal application to maintain your membership tier.",
+                            body: NoticeResources.GetString("Governance_Notification_TermRenewalReminderBody", culture),
                             actionUrl: "/Governance/Applications",
-                            actionLabel: "Renew →",
+                            actionLabel: NoticeResources.GetString("Governance_Notification_Renew", culture),
                             cancellationToken: cancellationToken);
                     }
                     catch (Exception notifEx)

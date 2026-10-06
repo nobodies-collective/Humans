@@ -389,40 +389,16 @@ internal sealed class TicketRepository(IDbContextFactory<TicketsDbContext> facto
             .ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<Guid>> GetValidMatchedAttendeeUserIdsForEventAsync(
+    public async Task<IReadOnlyList<Guid>> GetEventTicketHolderUserIdsAsync(
         string vendorEventId, CancellationToken ct = default)
     {
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.TicketAttendees
             .AsNoTracking()
-            .Where(a => a.MatchedUserId != null
-                && (a.Status == TicketAttendeeStatus.Valid || a.Status == TicketAttendeeStatus.CheckedIn)
-                && a.TicketOrder.VendorEventId == vendorEventId)
+            .Where(a => a.MatchedUserId != null &&
+                        a.VendorEventId == vendorEventId &&
+                        (a.Status == TicketAttendeeStatus.Valid || a.Status == TicketAttendeeStatus.CheckedIn))
             .Select(a => a.MatchedUserId!.Value)
-            .Distinct()
-            .ToListAsync(ct);
-    }
-
-    public async Task<IReadOnlyList<Guid>> GetAllMatchedAttendeeUserIdsAsync(
-        CancellationToken ct = default)
-    {
-        await using var ctx = await factory.CreateDbContextAsync(ct);
-        return await ctx.TicketAttendees
-            .AsNoTracking()
-            .Where(a => a.MatchedUserId != null)
-            .Select(a => a.MatchedUserId!.Value)
-            .Distinct()
-            .ToListAsync(ct);
-    }
-
-    public async Task<IReadOnlyList<Guid>> GetAllMatchedOrderUserIdsAsync(
-        CancellationToken ct = default)
-    {
-        await using var ctx = await factory.CreateDbContextAsync(ct);
-        return await ctx.TicketOrders
-            .AsNoTracking()
-            .Where(o => o.MatchedUserId != null)
-            .Select(o => o.MatchedUserId!.Value)
             .Distinct()
             .ToListAsync(ct);
     }
@@ -452,10 +428,6 @@ internal sealed class TicketRepository(IDbContextFactory<TicketsDbContext> facto
             .ToListAsync(ct);
     }
 
-    // ==========================================================================
-    // Reads — TicketOrders
-    // ==========================================================================
-
     public async Task<IReadOnlyList<TicketOrder>> GetOrdersMatchedToUserAsync(
         Guid userId, CancellationToken ct = default)
     {
@@ -482,9 +454,8 @@ internal sealed class TicketRepository(IDbContextFactory<TicketsDbContext> facto
     public async Task<IReadOnlyList<TicketAttendee>> GetAttendeesVisibleToUserAsync(
         Guid userId, CancellationToken ct = default)
     {
-        // Buyer-visibility arm (a.TicketOrder.MatchedUserId == userId) removed in
-        // nobodies-collective/Humans#856: it returned attendees owned by other accounts
-        // to the buyer, leaking cross-account ticket data. Ownership is attendee-only.
+        // Ownership is attendee-only: the buyer never sees attendees owned by other
+        // accounts (nobodies-collective/Humans#856).
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.TicketAttendees
             .AsNoTracking()
@@ -678,7 +649,7 @@ internal sealed class TicketRepository(IDbContextFactory<TicketsDbContext> facto
         await using var ctx = await factory.CreateDbContextAsync(ct);
         var query = ctx.TicketOrders.AsNoTracking().Include(o => o.Attendees).AsQueryable();
 
-        if (HasSearchTerm(search, 1))
+        if (search.HasSearchTerm(1))
         {
             var normalizedSearch = search.ToLowerInvariant();
 #pragma warning disable MA0011 // EF LINQ: ToLower() translates to SQL lower()
@@ -706,7 +677,7 @@ internal sealed class TicketRepository(IDbContextFactory<TicketsDbContext> facto
         query = ApplyOrderSorting(query, sortBy, sortDesc);
 
         var rows = await query
-            .Skip((page - 1) * pageSize)
+            .Skip((int)Math.Clamp(((long)page - 1) * pageSize, 0, int.MaxValue))
             .Take(pageSize)
             .Select(o => new OrderRow
             {
@@ -758,7 +729,7 @@ internal sealed class TicketRepository(IDbContextFactory<TicketsDbContext> facto
         if (!string.IsNullOrEmpty(filterOrderId))
             query = query.Where(a => a.TicketOrder.VendorOrderId == filterOrderId);
 
-        if (HasSearchTerm(search, 1))
+        if (search.HasSearchTerm(1))
         {
             var normalizedSearch = search.ToLowerInvariant();
 #pragma warning disable MA0011 // EF LINQ: ToLower() translates to SQL lower()
@@ -806,7 +777,7 @@ internal sealed class TicketRepository(IDbContextFactory<TicketsDbContext> facto
         query = ApplyAttendeeSorting(query, sortBy, sortDesc);
 
         var rows = await query
-            .Skip((page - 1) * pageSize)
+            .Skip((int)Math.Clamp(((long)page - 1) * pageSize, 0, int.MaxValue))
             .Take(pageSize)
             .Select(a => new AttendeeRow
             {
@@ -973,7 +944,7 @@ internal sealed class TicketRepository(IDbContextFactory<TicketsDbContext> facto
         return await ctx.SaveChangesAsync(ct);
     }
 
-    public async Task<int> ReassignToUserAsync(
+    public async Task ReassignToUserAsync(
         Guid sourceUserId, Guid targetUserId, Instant updatedAt,
         CancellationToken ct = default)
     {
@@ -1003,14 +974,7 @@ internal sealed class TicketRepository(IDbContextFactory<TicketsDbContext> facto
         }
 
         await ctx.SaveChangesAsync(ct);
-
-        return await ctx.TicketAttendees
-            .CountAsync(a => a.MatchedUserId == targetUserId, ct);
     }
-
-    private static bool HasSearchTerm(
-        [NotNullWhen(true)] string? value, int minLength = 2) =>
-        !string.IsNullOrWhiteSpace(value) && value.Trim().Length >= minLength;
 
     private static IQueryable<TicketOrder> ApplyOrderSorting(
         IQueryable<TicketOrder> query, string? sortBy, bool sortDesc)

@@ -27,9 +27,11 @@ suite once at the end. Test-only changes do not qualify a run for publication.
 `TIME_BUDGET` (default `90m`) is the minimum active work window. The runner
 sets a native goal; the agent completes independently validated fixes and
 stops only after the deadline **and** finishing its current task. Time is
-the only target; there is no fix-count target. Ledger cleanup and
-documentation do not count as substantive fixes. Report the actual work after
-completion. One branch and one PR contain the whole run.
+the only stopping rule; there is no fix-count target. The target is the debt
+ledger: the agent works existing rows first, before searching for new debt,
+and the wrapper reports open rows before and after in the PR body. Fixing a row's code counts as a fix; stale-row deletion and
+documentation do not. Report the actual work after completion. One branch and
+one PR contain the whole run.
 
 The wrapper starts one `codex app-server --stdio` process, creates one thread
 and its native goal, and submits one initial turn. It stays attached while
@@ -46,8 +48,8 @@ by the wrapper's measured goal time, actual worker time, total elapsed time
 through validation, and gate result. No unfilled template is appended.
 Failed/blocked goals, missing reports, or disconnection fail without publishing. A clean tree and final build/test gates still apply.
 
-If the final build or non-integration test gate fails, the wrapper starts up to
-`GATE_REPAIR_ATTEMPTS` (default `2`) short Codex repair passes. Each pass gets
+If the final build or non-integration test gate fails, the wrapper starts short Codex repair passes, capped at
+`GATE_REPAIR_ATTEMPTS` (default `2`) in total across both gates. Each pass gets
 the failure excerpt, must stay on the current branch, commit its repair, and
 has a separate `GATE_REPAIR_BUDGET` (default `15m`). The wrapper reruns the
 build and tests after each successful repair and still refuses to publish

@@ -1,5 +1,4 @@
 using Humans.AuditLog.Contracts;
-using System.Diagnostics.CodeAnalysis;
 using NodaTime;
 using Humans.Base.Extensions;
 using Humans.Base.Constants;
@@ -65,27 +64,20 @@ internal sealed class TicketQueryService(
         return orders.Select(o => Project(o, currentEventId, transfersByAttendee)).ToList();
     }
 
-    private async Task<HashSet<Guid>> GetUserIdsWithTicketsAsync()
-    {
-        var syncState = await ticketRepository.GetSyncStateAsync();
-        if (syncState is null || string.IsNullOrEmpty(syncState.VendorEventId))
-            return [];
-
-        var ids = await ticketRepository.GetValidMatchedAttendeeUserIdsForEventAsync(syncState.VendorEventId);
-        return ids.ToHashSet();
-    }
-
     public async Task<List<string>> GetAvailableTicketTypesAsync()
     {
         var types = await ticketRepository.GetDistinctTicketTypesAsync();
         return types.ToList();
     }
 
-    private async Task<HashSet<Guid>> GetAllMatchedUserIdsAsync()
+    private async Task<HashSet<Guid>> GetCurrentEventTicketHolderIdsAsync()
     {
-        var fromAttendees = await ticketRepository.GetAllMatchedAttendeeUserIdsAsync();
-        var fromOrders = await ticketRepository.GetAllMatchedOrderUserIdsAsync();
-        return fromAttendees.Concat(fromOrders).ToHashSet();
+        var syncState = await ticketRepository.GetSyncStateAsync();
+        if (syncState is null || string.IsNullOrEmpty(syncState.VendorEventId))
+            return [];
+
+        var ids = await ticketRepository.GetEventTicketHolderUserIdsAsync(syncState.VendorEventId);
+        return ids.ToHashSet();
     }
 
     public async Task<TicketDashboardStats> GetDashboardStatsAsync()
@@ -105,7 +97,6 @@ internal sealed class TicketQueryService(
         var totalAppFees = totals.TotalApplicationFees;
         var ticketsSold = totals.TicketsSold;
         var netRevenue = revenue - totalStripeFees - totalAppFees;
-        var avgPrice = ticketsSold > 0 ? netRevenue / ticketsSold : 0;
         var grossAvgPrice = ticketsSold > 0 ? revenue / ticketsSold : 0;
         var unmatchedCount = totals.UnmatchedOrderCount;
 
@@ -166,17 +157,6 @@ internal sealed class TicketQueryService(
 
         var recentOrders = await ticketRepository.GetRecentOrdersAsync(count: 10);
 
-        var volunteerTeam = await teamService.GetTeamAsync(SystemTeamIds.Volunteers);
-        var volunteerUserIds = volunteerTeam?.Members.Select(m => m.UserId).ToList() ?? [];
-        var totalActiveVolunteers = volunteerUserIds.Count;
-
-        var userIdsWithTickets = await GetUserIdsWithTicketsAsync();
-        var volunteersWithTickets = volunteerUserIds.Count(userIdsWithTickets.Contains);
-
-        var volunteerCoveragePct = totalActiveVolunteers > 0
-            ? Math.Round(volunteersWithTickets * 100m / totalActiveVolunteers, 1)
-            : 0;
-
         return new TicketDashboardStats
         {
             TicketsSold = ticketsSold,
@@ -184,7 +164,6 @@ internal sealed class TicketQueryService(
             TotalStripeFees = totalStripeFees,
             TotalApplicationFees = totalAppFees,
             NetRevenue = netRevenue,
-            AveragePrice = avgPrice,
             GrossAveragePrice = grossAvgPrice,
             UnmatchedOrderCount = unmatchedCount,
             FeesByPaymentMethod = feesByMethod,
@@ -193,9 +172,6 @@ internal sealed class TicketQueryService(
             SyncStatus = syncState?.SyncStatus ?? TicketSyncStatus.Idle,
             SyncError = syncState?.LastError,
             LastSyncAt = syncState?.LastSyncAt,
-            TotalActiveVolunteers = totalActiveVolunteers,
-            VolunteersWithTickets = volunteersWithTickets,
-            VolunteerCoveragePercent = volunteerCoveragePct,
         };
     }
 
@@ -259,11 +235,12 @@ internal sealed class TicketQueryService(
             .ToList();
 
         IEnumerable<CampaignCodeTrackingGrant> allGrants = campaignData.Grants;
-        if (!string.IsNullOrWhiteSpace(search) && search.Trim().Length >= 1)
+        var trimmed = search?.Trim();
+        if (!string.IsNullOrEmpty(trimmed))
         {
             allGrants = allGrants.Where(g =>
-                (g.Code?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                g.RecipientName.Contains(search, StringComparison.OrdinalIgnoreCase));
+                (g.Code?.Contains(trimmed, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                g.RecipientName.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
         }
 
         var ordersWithCodes = await ticketRepository.GetOrdersWithDiscountCodesAsync();
@@ -609,7 +586,7 @@ internal sealed class TicketQueryService(
         string? search, string? filterTeam, string? filterTier, string? filterTicketStatus,
         int page, int pageSize)
     {
-        var matchedUserIds = await GetAllMatchedUserIdsAsync();
+        var matchedUserIds = await GetCurrentEventTicketHolderIdsAsync();
 
         var allUsers = await userService.GetAllUserInfosAsync().ConfigureAwait(false);
         var volunteerTeam = await teamService.GetTeamAsync(SystemTeamIds.Volunteers);
@@ -686,11 +663,11 @@ internal sealed class TicketQueryService(
         // Matched in-memory against the verified emails already carried on each loaded
         // UserInfo — no extra DB round-trip.
         HashSet<Guid>? emailMatchUserIds = null;
-        if (HasSearchTerm(search, 1))
+        if (search.HasSearchTerm(1))
         {
             var term = search.Trim();
             emailMatchUserIds = allUsers
-                .Where(u => u.UserEmails.Any(e => e.IsVerified && ContainsIgnoreCase(e.Email, term)))
+                .Where(u => u.UserEmails.Any(e => e.IsVerified && e.Email.ContainsOrdinalIgnoreCase(term)))
                 .Select(u => u.Id)
                 .ToHashSet();
         }
@@ -700,7 +677,7 @@ internal sealed class TicketQueryService(
 
         var totalCount = filtered.Count;
         var pagedHumans = filtered
-            .Skip((page - 1) * pageSize)
+            .Skip((int)Math.Clamp(((long)page - 1) * pageSize, 0, int.MaxValue))
             .Take(pageSize)
             .Select(r => new WhoHasntBoughtRowDto
             {
@@ -762,11 +739,11 @@ internal sealed class TicketQueryService(
             filtered = filtered.Where(r => r.Tier == parsedTier);
         }
 
-        if (HasSearchTerm(search, 1))
+        if (search.HasSearchTerm(1))
         {
             filtered = filtered.Where(r =>
-                ContainsIgnoreCase(r.Name, search) ||
-                ContainsIgnoreCase(r.Email, search) ||
+                r.Name.ContainsOrdinalIgnoreCase(search) ||
+                r.Email.ContainsOrdinalIgnoreCase(search) ||
                 (emailMatchUserIds is not null && emailMatchUserIds.Contains(r.UserId)));
         }
 
@@ -1012,13 +989,6 @@ internal sealed class TicketQueryService(
         // identity keeps being served from memory until the process restarts.
         cacheInvalidator.InvalidateAll();
     }
-
-    private static bool HasSearchTerm(
-        [NotNullWhen(true)] string? value, int minLength = 2) =>
-        !string.IsNullOrWhiteSpace(value) && value.Trim().Length >= minLength;
-
-    private static bool ContainsIgnoreCase(string? source, string value) =>
-        source?.Contains(value, StringComparison.OrdinalIgnoreCase) == true;
 
     public Task<IReadOnlyList<OrderDriftRow>> GetOrderDriftAsync(CancellationToken ct = default) =>
         ticketRepository.GetOrderDriftAsync(ct);

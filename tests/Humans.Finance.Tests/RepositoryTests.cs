@@ -8,7 +8,7 @@ using NodaTime;
 namespace Humans.Finance.Tests;
 
 /// <summary>
-/// The repository owns all four Finance tables and had no test. What is pinned here is the part
+/// The repository owns every Finance table. What is pinned here is the part
 /// that is not a one-line query: what an upsert keeps, what it overwrites, and what it refuses to
 /// overwrite with nothing.
 /// </summary>
@@ -171,8 +171,8 @@ public class RepositoryTests
         await repo.UpsertCreditorContactAsync(Binding(ana, "c-a", 40000004), Now, Ct);
         await repo.UpsertCreditorContactAsync(Binding(bo, "c-b", 40000005), Now, Ct);
 
-        (await repo.DeleteCreditorContactAsync(ana, Ct)).Should().BeTrue();
-        (await repo.DeleteCreditorContactAsync(ana, Ct)).Should().BeFalse();
+        (await repo.DeleteCreditorContactAsync(ana, Ct))!.HoldedContactId.Should().Be("c-a");
+        (await repo.DeleteCreditorContactAsync(ana, Ct)).Should().BeNull();
 
         await using var ctx = await factory.CreateDbContextAsync(Ct);
         ctx.HoldedCreditorContacts.Single().UserId.Should().Be(bo);
@@ -181,13 +181,15 @@ public class RepositoryTests
     // ─── Sync state ──────────────────────────────────────────────────────────────
 
     [HumansFact]
-    public async Task DocSyncState_IsLazyCreatedOnceAndThenRead()
+    public async Task DocSyncState_ReadsArePure_AndExplicitSaveCreatesSingleton()
     {
         var (repo, factory) = Make();
 
         var first = await repo.GetOrCreateDocSyncStateAsync(Ct);
         first.Id.Should().Be(1);
         first.Status.Should().Be("Idle");
+        await using (var freshRead = await factory.CreateDbContextAsync(Ct))
+            freshRead.HoldedDocSyncStates.Should().BeEmpty();
 
         first.Status = "Running";
         first.LastSyncedDocCount = 7;

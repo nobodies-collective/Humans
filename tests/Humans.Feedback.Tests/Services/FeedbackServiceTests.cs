@@ -1,9 +1,14 @@
+using Humans.Base.Extensions;
 using AwesomeAssertions;
 using Humans.AuditLog.Contracts;
 using Humans.Base.Interfaces;
-using Humans.Base.Interfaces.Caching;
 using Humans.Email.Contracts;
 using Humans.Feedback.Services;
+using Humans.Feedback.Controllers;
+using Humans.Feedback.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using Humans.Feedback.Tests.Infrastructure;
 using Humans.Notifications.Contracts;
 using Humans.Users.Contracts;
@@ -54,7 +59,6 @@ public sealed class FeedbackServiceTests
     private readonly INotificationEmitter _notificationService = Substitute.For<INotificationEmitter>();
     private readonly IAuditLogService _auditLog = Substitute.For<IAuditLogService>();
     private readonly IFileStorage _fileStorage = Substitute.For<IFileStorage>();
-    private readonly INavBadgeCacheInvalidator _navBadge = Substitute.For<INavBadgeCacheInvalidator>();
     private readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
     private readonly IFeedbackRepository _repository;
     private readonly FeedbackServiceImpl _service;
@@ -98,7 +102,7 @@ public sealed class FeedbackServiceTests
         _service = new FeedbackServiceImpl(
             _repository, userService, userEmailService, teamService,
             _emailService, _emailMessages, _notificationService,
-            _auditLog, _navBadge,
+            _auditLog, new NavBadgeCacheInvalidator(_cache),
             _fileStorage, _cache, Clock,
             NullLogger<FeedbackServiceImpl>.Instance);
     }
@@ -119,6 +123,20 @@ public sealed class FeedbackServiceTests
             .ToList();
 
         creators.Should().BeEmpty("no Feedback surface may expose a way to create a FeedbackReport");
+    }
+
+    [HumansTheory]
+    [InlineData(-1)]
+    [InlineData(999)]
+    public async Task UpdateStatusAsync_UndefinedStatus_PreservesStoredState(int status)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var report = await CreateTestReport();
+        var act = () => _service.UpdateStatusAsync(report.Id, (FeedbackStatus)status, Guid.NewGuid(), ct);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>().WithMessage("Unknown feedback status.*");
+        (await FeedbackDb.FeedbackReports.AsNoTracking().SingleAsync(ct)).Status.Should().Be(FeedbackStatus.Open);
+        _auditLog.ReceivedCalls().Should().BeEmpty();
     }
 
     [HumansTheory]
@@ -211,11 +229,18 @@ public sealed class FeedbackServiceTests
         results[0].ReporterName.Should().Be("Sparkle");
     }
 
-    [HumansFact]
-    public async Task PostMessageAsync_AdminMessage_SetsLastAdminMessageAt_And_SendsEmail()
+    [HumansTheory]
+    [InlineData("en", "en")]
+    [InlineData("es", "es")]
+    [InlineData("", "en")]
+    [InlineData(" ", "en")]
+    [InlineData("not a culture!", "en")]
+    [InlineData("fr-FR", "en")]
+    public async Task PostMessageAsync_AdminMessage_SetsLastAdminMessageAt_And_SendsEmail(string language, string expectedCulture)
     {
+        using var actorCulture = new CultureScope("fr");
         var userId = Guid.NewGuid();
-        SeedUser(userId, "Reporter", "reporter@test.com");
+        SeedUser(userId, "Reporter", "reporter@test.com", language: language);
 
         var report = new FeedbackReport
         {
@@ -246,15 +271,16 @@ public sealed class FeedbackServiceTests
             Arg.Is<EmailMessage>(m => m.TemplateName == "feedback_response"
                 && m.RecipientEmail == "reporter@test.com"
                 && m.RecipientName == "Reporter"
-                && m.HtmlBody.Contains("Looking into it")),
+                && m.HtmlBody.Contains("Looking into it")
+                && m.Subject.EndsWith($"#{expectedCulture}", StringComparison.Ordinal)),
             Arg.Any<CancellationToken>());
         await _notificationService.Received(1).SendAsync(
             NotificationSource.FeedbackResponse,
             NotificationClass.Informational,
             NotificationPriority.Normal,
-            "Feedback_Notification_ResponseReceived_Title#en",
+            $"Feedback_Notification_ResponseReceived_Title#{expectedCulture}",
             Arg.Is<IReadOnlyList<Guid>>(r => r.Count == 1 && r[0] == userId),
-            body: "Feedback_Notification_ResponseReceived_Body#en",
+            body: $"Feedback_Notification_ResponseReceived_Body#{expectedCulture}",
             actionUrl: Arg.Any<string?>(),
             actionLabel: Arg.Any<string?>(),
             targetGroupName: Arg.Any<string?>(),
@@ -368,6 +394,27 @@ public sealed class FeedbackServiceTests
             Arg.Is<string>(s => s.Contains("cleared")), "API");
     }
 
+    [HumansTheory]
+    [InlineData("Browser/1.0", "Roles: Volunteer")]
+    [InlineData(null, null)]
+    public async Task ContributeForUserAsync_ExportsStoredSubmissionContext(string? userAgent, string? context)
+    {
+        var userId = Guid.NewGuid();
+        var report = await SeedReportAsync(userId, "Historical bug", "/profile");
+        report.UserAgent = userAgent;
+        report.AdditionalContext = context;
+        await FeedbackDb.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var slices = await _service.ContributeForUserAsync(userId, Xunit.TestContext.Current.CancellationToken);
+
+        var slice = slices.Single(s => string.Equals(s.SectionName, FeedbackServiceImpl.FeedbackReports, StringComparison.Ordinal));
+        using var json = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(slice.Data));
+        var exportedReport = json.RootElement[0];
+        exportedReport.GetProperty("UserAgent").GetString().Should().Be(userAgent);
+        exportedReport.GetProperty("AdditionalContext").GetString().Should().Be(context);
+        exportedReport.GetProperty("Description").GetString().Should().Be("Historical bug");
+    }
+
     [HumansFact]
     public async Task EraseForUserAsync_DeletesOwnRows_DetachesForeignFootprint()
     {
@@ -416,12 +463,28 @@ public sealed class FeedbackServiceTests
         FeedbackDb.FeedbackMessages.Add(foreignReply);
         await SaveAllAsync(ct);
 
-        await _service.EraseForUserAsync(erasedId, ct);
+        (await _service.GetActionableCountAsync(ct)).Should().Be(1);
+
+        using var erasureCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var screenshotDeleted = false;
+        _fileStorage.DeleteAsync("uploads/feedback/x/shot.png", Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                // Cancellation arrives after the repository has committed the erasure.
+                await erasureCancellation.CancelAsync();
+                call.ArgAt<CancellationToken>(1).ThrowIfCancellationRequested();
+                screenshotDeleted = true;
+            });
+
+        await _service.EraseForUserAsync(erasedId, erasureCancellation.Token);
+
+        (await _service.GetActionableCountAsync(ct)).Should().Be(0, "erasure evicts the committed count");
 
         // Own report hard-deleted; its screenshot handed to IFileStorage.
         (await FeedbackDb.FeedbackReports.AsNoTracking().AnyAsync(r => r.UserId == erasedId, ct))
             .Should().BeFalse();
-        await _fileStorage.Received(1).DeleteAsync("uploads/feedback/x/shot.png", Arg.Any<CancellationToken>());
+        screenshotDeleted.Should().BeTrue();
+        await _fileStorage.Received(1).DeleteAsync("uploads/feedback/x/shot.png", CancellationToken.None);
 
         // The other human's thread survives with the erased user detached everywhere.
         var survivor = await FeedbackDb.FeedbackReports.AsNoTracking()
@@ -489,7 +552,7 @@ public sealed class FeedbackServiceTests
     }
 
     [HumansFact]
-    public async Task GetDistinctReportersAsync_ResolvesNamesFromUserService_AndOrdersAlphabetically()
+    public async Task ReporterDropdown_ResolvesNamesAndCounts_AndOrdersAlphabeticallyInTheController()
     {
         var bobId = Guid.NewGuid();
         var aliceId = Guid.NewGuid();
@@ -534,10 +597,102 @@ public sealed class FeedbackServiceTests
         var reporters = await _service.GetDistinctReportersAsync(Xunit.TestContext.Current.CancellationToken);
 
         reporters.Should().HaveCount(2);
-        reporters[0].DisplayName.Should().Be("Alice");
-        reporters[0].Count.Should().Be(1);
-        reporters[1].DisplayName.Should().Be("Bob");
-        reporters[1].Count.Should().Be(2);
+        reporters.Should().ContainSingle(r => r.UserId == aliceId && r.DisplayName == "Alice" && r.Count == 1);
+        reporters.Should().ContainSingle(r => r.UserId == bobId && r.DisplayName == "Bob" && r.Count == 2);
+
+        var users = Substitute.For<IUserServiceRead>();
+        users.GetUserInfoAsync(bobId, Arg.Any<CancellationToken>()).Returns(_people[bobId]);
+        users.GetAllUserInfosAsync(Arg.Any<CancellationToken>()).Returns(_people.Values.ToList());
+        var teams = Substitute.For<ITeamServiceRead>();
+        teams.GetTeamsAsync(Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, TeamInfo>());
+        var controller = new FeedbackController(_service, teams, users, NullLogger<FeedbackController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                        [new Claim(ClaimTypes.NameIdentifier, bobId.ToString())], "test"))
+                }
+            }
+        };
+        var result = await controller.Index(null, null, null, null, null, false, null,
+            Xunit.TestContext.Current.CancellationToken);
+        var model = Assert.IsType<FeedbackPageViewModel>(Assert.IsType<ViewResult>(result).Model);
+        model.Reporters.Select(r => r.DisplayName).Should().Equal("Alice", "Bob");
+    }
+
+    [HumansFact]
+    public async Task Index_CancelsAtViewerResolutionBeforeReadingReports()
+    {
+        using var request = new CancellationTokenSource();
+        var id = Guid.NewGuid();
+        SeedUser(id, "Viewer", "viewer@example.com");
+        var users = Substitute.For<IUserServiceRead>();
+        var cancelledAtViewer = false;
+        users.GetUserInfoAsync(id, Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var token = call.Arg<CancellationToken>();
+            cancelledAtViewer = token.IsCancellationRequested;
+            token.ThrowIfCancellationRequested();
+            return new ValueTask<UserInfo?>(_people[id]);
+        });
+        users.GetAllUserInfosAsync(Arg.Any<CancellationToken>()).Returns(_people.Values.ToList());
+        var teams = Substitute.For<ITeamServiceRead>();
+        teams.GetTeamsAsync(Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, TeamInfo>());
+        var controller = new FeedbackController(_service, teams, users, NullLogger<FeedbackController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    RequestAborted = request.Token,
+                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id.ToString())], "Test")),
+                }
+            },
+        };
+        Task<IActionResult> ReadPage() => controller.Index(null, null, null, null, null, false, null, request.Token);
+        (await ReadPage()).Should().BeOfType<ViewResult>();
+        await request.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(ReadPage);
+        cancelledAtViewer.Should().BeTrue();
+    }
+
+    [HumansTheory]
+    [InlineData(5, "", 5, "")]
+    [InlineData(110, "", 100, "...")]
+    [InlineData(99, "😀 tail", 99, "...")]
+    [InlineData(98, "😀 tail", 98, "😀...")]
+    public async Task Index_preview_preserves_unicode_and_original_description(
+        int prefixLength, string suffix, int expectedPrefixLength, string expectedSuffix)
+    {
+        var id = Guid.NewGuid();
+        SeedUser(id, "Viewer", "viewer@example.com");
+        var description = new string('x', prefixLength) + suffix;
+        await SeedReportAsync(id, description, "/test");
+        var users = Substitute.For<IUserServiceRead>();
+        users.GetUserInfoAsync(id, Arg.Any<CancellationToken>()).Returns(new ValueTask<UserInfo?>(_people[id]));
+        users.GetAllUserInfosAsync(Arg.Any<CancellationToken>()).Returns(_people.Values.ToList());
+        var teams = Substitute.For<ITeamServiceRead>();
+        teams.GetTeamsAsync(Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, TeamInfo>());
+        var controller = new FeedbackController(_service, teams, users, NullLogger<FeedbackController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id.ToString())], "Test"))
+                }
+            }
+        };
+
+        var result = (await controller.Index(null, null, null, null, null, false, null,
+            Xunit.TestContext.Current.CancellationToken)).Should().BeOfType<ViewResult>().Subject;
+        var model = result.Model.Should().BeOfType<FeedbackPageViewModel>().Subject;
+        model.Reports.Should().ContainSingle().Which.Description.Should()
+            .Be(new string('x', expectedPrefixLength) + expectedSuffix);
+        (await FeedbackDb.FeedbackReports.AsNoTracking().SingleAsync(Xunit.TestContext.Current.CancellationToken))
+            .Description.Should().Be(description);
     }
 
     private async Task<FeedbackReport> CreateTestReport(FeedbackStatus status = FeedbackStatus.Open)
@@ -584,7 +739,7 @@ public sealed class FeedbackServiceTests
     // read them back through DB-backed IUserService stubs. A section test project cannot
     // see those tables, so the registry holds the projection the service consumes: UserInfo.
 
-    private UserInfo SeedUser(Guid id, string displayName, string? email = null, string? burnerName = null)
+    private UserInfo SeedUser(Guid id, string displayName, string? email = null, string? burnerName = null, string language = "en")
     {
         var user = new User
         {
@@ -596,7 +751,7 @@ public sealed class FeedbackServiceTests
             // reads User.BurnerName only (#1098). Callers that need to distinguish burner name from
             // legal/display name pass burnerName explicitly; the rest get the realistic default.
             BurnerName = burnerName ?? displayName,
-            PreferredLanguage = "en",
+            PreferredLanguage = language,
             CreatedAt = Clock.GetCurrentInstant()
         };
         var info = UserInfo.Create(

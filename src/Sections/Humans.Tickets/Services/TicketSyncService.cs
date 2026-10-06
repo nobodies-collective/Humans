@@ -146,7 +146,6 @@ internal sealed class TicketSyncService(
             await ticketRepository.PersistSyncStateAsync(syncState, ct);
 
             vendorCache.InvalidateEventSummary(eventId);
-            ticketCache.InvalidateAll();
 
             var result = new TicketSyncResult(ordersSynced, attendeesSynced,
                 ordersMatched, attendeesMatched, codesRedeemed);
@@ -187,9 +186,23 @@ internal sealed class TicketSyncService(
             syncState.SyncStatus = TicketSyncStatus.Error;
             syncState.StatusChangedAt = clock.GetCurrentInstant();
             syncState.LastError = ex.Message;
+            // The column is varchar(2000); logging and the rethrow retain the full diagnostic.
+            const int maxErrorLength = 2000;
+            if (syncState.LastError.Length > maxErrorLength)
+            {
+                var length = maxErrorLength;
+                if (char.IsHighSurrogate(syncState.LastError[length - 1]) && char.IsLowSurrogate(syncState.LastError[length]))
+                    length--;
+                syncState.LastError = syncState.LastError[..length];
+            }
             await ticketRepository.PersistSyncStateAsync(syncState, CancellationToken.None);
 
             throw;
+        }
+        finally
+        {
+            // A later stage can fail after orders/attendees have committed.
+            ticketCache.InvalidateAll();
         }
     }
 

@@ -14,8 +14,8 @@ namespace Humans.Camps.Tests.Services;
 public sealed class CampRoleServiceTests : CampsTestHarness
 {
     private readonly CampRoleService _service;
-    private readonly IUserService _userService;
     private readonly IUserEmailService _userEmailService;
+    private readonly IUserServiceRead _userServiceRead = Substitute.For<IUserServiceRead>();
     private readonly ICampRoleCampAccess _campAccess;
     private readonly ICampInfoInvalidator _campInfoInvalidator;
     private readonly Guid _actorUserId = Guid.NewGuid();
@@ -23,7 +23,6 @@ public sealed class CampRoleServiceTests : CampsTestHarness
     public CampRoleServiceTests()
         : base(Instant.FromUtc(2026, 4, 26, 12, 0))
     {
-        _userService = Substitute.For<IUserService>();
         _userEmailService = Substitute.For<IUserEmailService>();
         _campAccess = Substitute.For<ICampRoleCampAccess>();
         _campInfoInvalidator = Substitute.For<ICampInfoInvalidator>();
@@ -34,8 +33,8 @@ public sealed class CampRoleServiceTests : CampsTestHarness
             repo,
             _campAccess,
             _campInfoInvalidator,
-            _userService,
             _userEmailService,
+            _userServiceRead,
             AuditLog,
             Notifier,
             Options.Create(new GoogleWorkspaceOptions { Domain = "nobodies.team" }),
@@ -266,6 +265,35 @@ public sealed class CampRoleServiceTests : CampsTestHarness
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
+    [HumansTheory]
+    [Xunit.InlineData(false)]
+    [Xunit.InlineData(true)]
+    public async Task Assign_notice_uses_recipient_language_with_lookup_failure_fallback(bool lookupFails)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var (_, season) = await SeedCampWithSeasonAsync();
+        var member = await SeedActiveMemberAsync(season.Id);
+        var def = await SeedDefinitionAsync();
+        _campAccess.GetCampMemberStatusAsync(member.Id, Arg.Any<CancellationToken>())
+            .Returns(new CampMemberLookup(season.Id, member.UserId, CampMemberStatus.Active));
+        _userServiceRead.GetUserInfoAsync(member.UserId, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<UserInfo?>(UserInfo.Create(
+                new User { Id = member.UserId, PreferredLanguage = "es" }, [], [], [], null, [])));
+        if (lookupFails)
+            _userServiceRead.GetUserInfoAsync(member.UserId, Arg.Any<CancellationToken>())
+                .Returns(ValueTask.FromException<UserInfo?>(new IOException("Language lookup unavailable")));
+
+        var outcome = await _service.AssignAsync(season.Id, def.Id, member.Id, _actorUserId, ct);
+
+        outcome.Should().Be(AssignCampRoleOutcome.Assigned);
+        var notice = Notifier.ReceivedCalls().Single().GetArguments();
+        notice[3].Should().Be(lookupFails
+            ? $"You were assigned the {def.Name} role."
+            : $"Se te ha asignado el rol {def.Name}.");
+        ((IReadOnlyList<Guid>)notice[4]!).Should().ContainSingle().Which.Should().Be(member.UserId);
+        (await CampsDb.CampRoleAssignments.AsNoTracking().SingleAsync(ct)).CampMemberId.Should().Be(member.Id);
+    }
+
     [HumansFact]
     public async Task Assign_returns_MemberNotActive_when_member_is_pending()
     {
@@ -389,7 +417,6 @@ public sealed class CampRoleServiceTests : CampsTestHarness
         var def1 = await SeedDefinitionAsync(slotCount: 2);
         var def2 = await SeedDefinitionAsync("LNT", slotCount: 1);
         var member1 = await SeedActiveMemberAsync(season.Id);
-        var member2 = await SeedActiveMemberAsync(season.Id);
 
         CampsDb.CampRoleAssignments.Add(
             new CampRoleAssignment
@@ -403,17 +430,6 @@ public sealed class CampRoleServiceTests : CampsTestHarness
             });
         await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
 
-        var users = new Dictionary<Guid, User>
-        {
-            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (#1097) —
-            // UserInfo.BurnerName reads User.BurnerName only (#1098).
-            [member1.UserId] = new() { Id = member1.UserId, DisplayName = "Member One", BurnerName = "Member One" },
-            [member2.UserId] = new() { Id = member2.UserId, DisplayName = "Member Two", BurnerName = "Member Two" },
-        };
-        _userService.GetUserInfosAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<IReadOnlyDictionary<Guid, UserInfo>>(
-                users.ToDictionary(kv => kv.Key, kv => kv.Value.ToUserInfo())));
-
         var panel = await _service.BuildPanelAsync(season.Id, Xunit.TestContext.Current.CancellationToken);
 
         panel.Rows.Should().HaveCount(2);
@@ -421,7 +437,8 @@ public sealed class CampRoleServiceTests : CampsTestHarness
         row1.FilledSlots.Should().HaveCount(1);
         row1.EmptySlotCount.Should().Be(1);
         row1.OverCapacity.Should().BeFalse();
-        row1.FilledSlots[0].DisplayName.Should().Be("Member One");
+        row1.FilledSlots[0].CampMemberId.Should().Be(member1.Id);
+        row1.FilledSlots[0].UserId.Should().Be(member1.UserId);
 
         var row2 = panel.Rows.First(r => r.Definition.Id == def2.Id);
         row2.FilledSlots.Should().BeEmpty();
@@ -440,15 +457,6 @@ public sealed class CampRoleServiceTests : CampsTestHarness
             new CampRoleAssignment { Id = Guid.NewGuid(), CampSeasonId = season.Id, CampRoleDefinitionId = def.Id, CampMemberId = m1.Id, AssignedAt = Clock.GetCurrentInstant(), AssignedByUserId = _actorUserId },
             new CampRoleAssignment { Id = Guid.NewGuid(), CampSeasonId = season.Id, CampRoleDefinitionId = def.Id, CampMemberId = m2.Id, AssignedAt = Clock.GetCurrentInstant(), AssignedByUserId = _actorUserId });
         await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
-
-        var users = new Dictionary<Guid, User>
-        {
-            [m1.UserId] = new() { Id = m1.UserId, DisplayName = "Alpha" },
-            [m2.UserId] = new() { Id = m2.UserId, DisplayName = "Beta" },
-        };
-        _userService.GetUserInfosAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
-            .Returns(new ValueTask<IReadOnlyDictionary<Guid, UserInfo>>(
-                users.ToDictionary(kv => kv.Key, kv => kv.Value.ToUserInfo())));
 
         var panel = await _service.BuildPanelAsync(season.Id, Xunit.TestContext.Current.CancellationToken);
 

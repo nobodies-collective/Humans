@@ -10,7 +10,7 @@ using Humans.Users.Contracts;
 namespace Humans.Tickets.Controllers;
 
 /// <summary>
-/// "Who's onsite" view (#736). Read-only flat list of every human with an
+/// "Who's onsite" view (nobodies-collective/Humans#736). Read-only flat list of every human with an
 /// Attended + non-null CheckedInAt EventParticipation for the active event
 /// year. Camp / team / governance-role filtering + name stitching are
 /// delegated to <see cref="IOnsiteRosterService"/>; this controller stays a
@@ -33,7 +33,7 @@ internal sealed class TicketsOnsiteAdminController(
         [FromQuery] string? role,
         CancellationToken ct)
     {
-        var active = await settingsService.GetActiveEventSettingsAsync();
+        var active = await settingsService.GetActiveEventSettingsAsync(ct);
         var year = active?.Year ?? 0;
 
         var result = await roster.GetRosterAsync(year, camp, team, role, ct);

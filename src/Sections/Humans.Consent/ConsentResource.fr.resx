@@ -43,6 +43,7 @@
   <data name="ConsentIndex_Title" xml:space="preserve">
     <value>Accords</value>
   </data>
+  <data name="Consent_BreadcrumbNavigation" xml:space="preserve"><value>Fil d’Ariane</value></data>
   <data name="ConsentReview_Title" xml:space="preserve">
     <value>Consulter : {0}</value>
     <comment>{0} = document name</comment>
@@ -170,4 +171,8 @@
 &lt;p&gt;Merci,&lt;br/&gt;L'équipe Humans&lt;/p&gt;</value>
     <comment>{0} = user name, {1} = days remaining, {2} = document list items HTML, {3} = base URL</comment>
   </data>
+  <data name="Consent_Notification_Published" xml:space="preserve"><value>Nouveau document juridique publié : {0}</value></data>
+  <data name="Consent_Notification_PublishedBody" xml:space="preserve"><value>Un nouveau document juridique obligatoire a été publié. Veuillez le consulter et le signer.</value></data>
+  <data name="Consent_Notification_ReConsentRequired" xml:space="preserve"><value>{0} a été mis à jour — un nouveau consentement est requis</value></data>
+  <data name="Consent_Notification_ReConsentRequiredBody" xml:space="preserve"><value>Un document juridique obligatoire a été mis à jour. Veuillez consulter et signer la nouvelle version.</value></data>
 </root>

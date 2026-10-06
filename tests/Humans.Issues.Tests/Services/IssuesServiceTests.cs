@@ -1,8 +1,18 @@
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+using System.Security.Claims;
+using Humans.Issues.Controllers;
+using Humans.Issues.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Extensions.Localization;
 using Humans.Auth.Contracts;
 using AwesomeAssertions;
 using Humans.AuditLog.Contracts;
 using Humans.Base.Interfaces;
 using Humans.Base.Interfaces.Caching;
+using Humans.Base.Caching;
 using Humans.Email.Contracts;
 using Humans.Notifications.Contracts;
 using Humans.Users.Contracts;
@@ -17,6 +27,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 using NodaTime.Testing;
@@ -64,6 +75,7 @@ public sealed class IssuesServiceTests
 
     private readonly IEmailService _emailService;
     private readonly IssuesEmails _emailMessages;
+    private readonly List<string> _renderedEmailCultures = [];
     private readonly IUserServiceRead _userService;
     private readonly IUserEmailService _userEmailService;
     private readonly IRoleAssignmentService _roleService;
@@ -73,13 +85,14 @@ public sealed class IssuesServiceTests
     private readonly IIssuesBadgeCacheInvalidator _issuesBadge;
     private readonly IIssuesRepository _repository;
     private readonly IssuesApplicationService _service;
+    private readonly ILogger<IssuesApplicationService> _logger = Substitute.For<ILogger<IssuesApplicationService>>();
 
     private readonly IssuesDbContext _issuesDb;
 
     public IssuesServiceTests()
     {
         _emailService = Substitute.For<IEmailService>();
-        _emailMessages = TestIssuesEmails.Create();
+        _emailMessages = TestIssuesEmails.Create(culture => _renderedEmailCultures.Add(culture));
         AuditLog
             .GetFilteredEntriesAsync(
                 Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<Guid?>(),
@@ -122,7 +135,7 @@ public sealed class IssuesServiceTests
             _emailService, _emailMessages, _notificationService, _notificationInbox, AuditLog, _navBadge,
             _issuesBadge, Cache,
             Clock, env, SectionCatalog, Domain.TestIssueQueues.Shipped(),
-            NullLogger<IssuesApplicationService>.Instance);
+            _logger);
     }
 
     private static DbContextOptions<TContext> NewSectionDbOptions<TContext>()
@@ -191,6 +204,90 @@ public sealed class IssuesServiceTests
             ct.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
+    }
+
+    [HumansFact]
+    public async Task UpdateSection_ReturnsNotFoundWhenTheIssueDisappearsAfterPreflight()
+    {
+        var user = SeedUser();
+        var issue = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
+        var detail = await _service.GetIssueByIdAsync(issue.issueId, Admin, Xunit.TestContext.Current.CancellationToken);
+        var mutations = Substitute.For<IIssuesService>();
+        mutations.GetIssueByIdAsync(issue.issueId, Arg.Any<IssueViewer>(), Arg.Any<CancellationToken>()).Returns(detail);
+        mutations.UpdateSectionWithResultAsync(issue.issueId, Arg.Any<IssueViewer>(), "Teams", user.Id,
+            Arg.Any<CancellationToken>()).Returns(IssueMutationResult.Missing("Issue not found."));
+        var authorization = Substitute.For<IAuthorizationService>();
+        authorization.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object?>(),
+            Arg.Any<IEnumerable<IAuthorizationRequirement>>()).Returns(AuthorizationResult.Success());
+        using var services = new ServiceCollection().AddLogging().AddLocalization().BuildServiceProvider();
+        var context = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity([
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Role, RoleNames.Admin)], "test"))
+        };
+        var controller = new IssuesController(mutations, authorization, _userService,
+            Domain.TestIssueQueues.Shipped(), services.GetRequiredService<IStringLocalizer<IssuesResource>>(),
+            NullLogger<IssuesController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = context },
+            TempData = new TempDataDictionary(context, Substitute.For<ITempDataProvider>())
+        };
+
+        var result = await controller.UpdateSection(issue.issueId, new UpdateIssueSectionModel { Section = "Teams" });
+
+        result.Should().BeOfType<NotFoundResult>();
+    }
+
+    [HumansTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BrowserReads_StopWhenTheRequestIsAbandoned(bool detail)
+    {
+        var user = SeedUser();
+        var issueId = await _service.CreateIssueAsync(user.Id, IssueCategory.Bug, "Title", "Description",
+            section: "Tickets", actorUserId: user.Id, ct: Xunit.TestContext.Current.CancellationToken);
+        using var services = new ServiceCollection().AddLogging().AddLocalization().BuildServiceProvider();
+        var authorization = Substitute.For<IAuthorizationService>();
+        authorization.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object?>(),
+                Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+            .Returns(AuthorizationResult.Failed());
+        var controller = new IssuesController(_service, authorization, _userService,
+            Domain.TestIssueQueues.Shipped(), services.GetRequiredService<IStringLocalizer<IssuesResource>>(),
+            NullLogger<IssuesController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                        [new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())], "test"))
+                }
+            }
+        };
+        Task<IActionResult> Read() => detail
+            ? controller.Detail(issueId, partial: true)
+            : controller.Index(null, null, null, null, null, null);
+        var healthy = await Read();
+        if (detail)
+            healthy.Should().BeOfType<PartialViewResult>().Which.Model.Should().BeOfType<IssueDetailViewModel>();
+        else
+            healthy.Should().BeOfType<ViewResult>().Which.Model.Should().BeOfType<IssuePageViewModel>()
+                .Which.Issues.Should().ContainSingle();
+
+        using var cancellation = new CancellationTokenSource();
+        controller.HttpContext.RequestAborted = cancellation.Token;
+        // Simulate navigation away after the current-user read, before the issue repository query.
+        async ValueTask<UserInfo?> CancelBeforeIssueReadAsync()
+        {
+            await cancellation.CancelAsync();
+            return Info(user.Id);
+        }
+        _userService.GetUserInfoAsync(user.Id, Arg.Any<CancellationToken>())
+            .Returns(_ => CancelBeforeIssueReadAsync());
+
+        var abandoned = () => Read();
+        await abandoned.Should().ThrowAsync<OperationCanceledException>();
     }
 
     // ==========================================================================
@@ -377,6 +474,23 @@ public sealed class IssuesServiceTests
     // PostCommentAsync
     // ==========================================================================
 
+    [HumansTheory]
+    [InlineData(1999, "x", 2000)]
+    [InlineData(1999, "😀", 1999)]
+    [InlineData(1998, "😀", 2000)]
+    public async Task SubmitIssueAsync_bounds_context_without_splitting_surrogate_pairs(int prefixLength, string boundary, int expectedLength)
+    {
+        var prefix = new string('x', prefixLength);
+        var issue = await _service.SubmitIssueAsync(
+            Guid.NewGuid(), IssueCategory.Bug, "Title", "Desc",
+            section: null, pageUrl: null, userAgent: null,
+            additionalContext: prefix + boundary + "extra", screenshot: null,
+            ct: Xunit.TestContext.Current.CancellationToken);
+
+        issue.AdditionalContext!.Length.Should().Be(expectedLength);
+        issue.AdditionalContext.Should().Be(expectedLength == prefixLength ? prefix : prefix + boundary);
+    }
+
     [HumansFact]
     public async Task PostCommentAsync_reporter_on_terminal_auto_reopens_to_Open()
     {
@@ -412,10 +526,158 @@ public sealed class IssuesServiceTests
     }
 
     [HumansFact]
-    public async Task PostCommentAsync_handler_sends_email_and_notification_to_reporter()
+    public async Task IssueSubmitted_InvalidRecipientLanguage_DeliversEnglishNotice()
+    {
+        var reporter = SeedUser(Guid.NewGuid(), "Reporter");
+        var handler = SeedUser(Guid.NewGuid(), "Handler");
+        handler.PreferredLanguage = "invalid!";
+        _roleService.GetActiveUserIdsInRoleAsync(RoleNames.Admin, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<Guid>)[handler.Id]);
+
+        await _service.SubmitIssueAsync(reporter.Id, IssueCategory.Bug, "Title", "Detail",
+            null, null, null, null, null, ct: Xunit.TestContext.Current.CancellationToken);
+
+        var notice = _notificationService.ReceivedCalls().Single().GetArguments();
+        notice[3].Should().Be("New issue filed: Title");
+        ((IReadOnlyList<Guid>)notice[4]!).Should().Equal(handler.Id);
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(NotificationSource.IssueSubmitted)]
+    [Xunit.InlineData(NotificationSource.IssueComment)]
+    [Xunit.InlineData(NotificationSource.IssueStatusChanged)]
+    public async Task IssueNotices_FailedLanguageGroup_DoesNotBlockOtherRecipients(NotificationSource source)
+    {
+        var reporter = SeedUser(Guid.NewGuid(), "Reporter");
+        reporter.Email = "reporter@test.com";
+        reporter.PreferredLanguage = "es";
+        var second = SeedUser(Guid.NewGuid(), "Assignee");
+        second.Email = "assignee@test.com";
+        second.PreferredLanguage = "fr";
+        var failedRecipient = source == NotificationSource.IssueSubmitted
+            ? SeedUser(Guid.NewGuid(), "First handler") : reporter;
+        failedRecipient.PreferredLanguage = "es";
+        _roleService.GetActiveUserIdsInRoleAsync(RoleNames.Admin, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<Guid>)[failedRecipient.Id, second.Id]);
+        _notificationService.SendAsync(
+            Arg.Any<NotificationSource>(), Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
+            Arg.Any<string>(), Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.ArgAt<IReadOnlyList<Guid>>(4).Contains(failedRecipient.Id)
+                ? Task.FromException(new IOException("first language delivery failed")) : Task.CompletedTask);
+
+        Guid issueId;
+        if (source == NotificationSource.IssueSubmitted)
+        {
+            issueId = (await _service.SubmitIssueAsync(reporter.Id, IssueCategory.Bug, "Title", "Detail",
+                null, null, null, null, null, ct: Xunit.TestContext.Current.CancellationToken)).Id;
+        }
+        else
+        {
+            issueId = await SeedIssueRowAsync(reporter.Id, IssueStatus.Open, "Title");
+            var row = await _issuesDb.Issues.FindAsync([issueId], Xunit.TestContext.Current.CancellationToken);
+            row!.AssigneeUserId = second.Id;
+            await _issuesDb.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+            if (source == NotificationSource.IssueComment)
+                await _service.PostCommentAsync(issueId, Admin, Admin.UserId, "Reply",
+                    ct: Xunit.TestContext.Current.CancellationToken);
+            else
+                await _service.UpdateStatusAsync(issueId, Admin, IssueStatus.InProgress, Admin.UserId,
+                    Xunit.TestContext.Current.CancellationToken);
+        }
+
+        var calls = _notificationService.ReceivedCalls().ToList();
+        calls.Should().HaveCount(2);
+        var arguments = calls[1].GetArguments();
+        arguments[0].Should().Be(source);
+        ((IReadOnlyList<Guid>)arguments[4]!).Should().Equal(second.Id);
+        arguments[6].Should().Be($"/Issues/{issueId}");
+        arguments[7].Should().Be("Voir le sujet");
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(NotificationSource.IssueSubmitted)]
+    [Xunit.InlineData(NotificationSource.IssueComment)]
+    [Xunit.InlineData(NotificationSource.IssueStatusChanged)]
+    [Xunit.InlineData(NotificationSource.IssueAssigned)]
+    public async Task IssueNotices_LongTitleAndDetail_FitStorageAndLinkToFullContent(NotificationSource source)
     {
         var reporterId = Guid.NewGuid();
         SeedUser(reporterId, "Reporter").Email = "reporter@test.com";
+        var recipientId = source == NotificationSource.IssueSubmitted || source == NotificationSource.IssueAssigned
+            ? Guid.NewGuid() : reporterId;
+        if (recipientId != reporterId)
+            SeedUser(recipientId, "Recipient").Email = "recipient@test.com";
+        Db.Users.Single(user => user.Id == recipientId).PreferredLanguage = "es";
+        _roleService.GetActiveUserIdsInRoleAsync(RoleNames.Admin, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<Guid>)[recipientId]);
+        var title = string.Concat(Enumerable.Repeat("🚀", 200));
+        var detail = string.Concat(Enumerable.Repeat("📚", 5000));
+        Guid issueId;
+        if (source == NotificationSource.IssueSubmitted)
+        {
+            issueId = (await _service.SubmitIssueAsync(reporterId, IssueCategory.Bug, title, detail,
+                null, null, null, null, null, ct: Xunit.TestContext.Current.CancellationToken)).Id;
+        }
+        else
+        {
+            issueId = await SeedIssueRowAsync(reporterId, IssueStatus.Open, title);
+            var row = await _issuesDb.Issues.FindAsync([issueId], Xunit.TestContext.Current.CancellationToken);
+            row!.Description = detail;
+            await _issuesDb.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+            switch (source)
+            {
+                case NotificationSource.IssueComment:
+                    await _service.PostCommentAsync(issueId, Admin, Admin.UserId, detail,
+                        ct: Xunit.TestContext.Current.CancellationToken);
+                    break;
+                case NotificationSource.IssueStatusChanged:
+                    await _service.UpdateStatusAsync(issueId, Admin, IssueStatus.InProgress, Admin.UserId,
+                        Xunit.TestContext.Current.CancellationToken);
+                    break;
+                case NotificationSource.IssueAssigned:
+                    await _service.UpdateAssigneeAsync(issueId, Admin, recipientId, Admin.UserId,
+                        Xunit.TestContext.Current.CancellationToken);
+                    break;
+            }
+        }
+
+        var args = _notificationService.ReceivedCalls().Should().ContainSingle().Subject.GetArguments();
+        var noticeTitle = (string)args[3]!;
+        var body = (string)args[5]!;
+        noticeTitle.EnumerateRunes().Count().Should().Be(200);
+        noticeTitle.Should().EndWith("…");
+        body.EnumerateRunes().Count().Should().BeLessThanOrEqualTo(2000);
+        body.Should().Contain(title);
+        if (source != NotificationSource.IssueStatusChanged)
+        {
+            body.EnumerateRunes().Count().Should().Be(2000);
+            body.Should().EndWith("…");
+        }
+        args[0].Should().Be(source);
+        args[6].Should().Be($"/Issues/{issueId}");
+        ((IReadOnlyList<Guid>)args[4]!).Should().Equal(recipientId);
+        var stored = await _issuesDb.Issues.AsNoTracking().SingleAsync(i => i.Id == issueId,
+            Xunit.TestContext.Current.CancellationToken);
+        stored.Title.Should().Be(title);
+        stored.Description.Should().Be(detail);
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("es", "es")]
+    [Xunit.InlineData(null, "en")]
+    [Xunit.InlineData("", "en")]
+    [Xunit.InlineData("pt", "en")]
+    [Xunit.InlineData("fr-FR", "en")]
+    [Xunit.InlineData("not a culture!", "en")]
+    public async Task PostCommentAsync_handler_sends_email_and_notification_to_reporter(
+        string? language, string expectedLanguage)
+    {
+        using var culture = new Humans.Base.Extensions.CultureScope("fr");
+        var reporterId = Guid.NewGuid();
+        var reporter = SeedUser(reporterId, "Reporter");
+        reporter.Email = "reporter@test.com";
+        reporter.PreferredLanguage = language!;
         await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
         var issueId = await SeedIssueRowAsync(reporterId, IssueStatus.Open, "Report Title");
@@ -423,6 +685,9 @@ public sealed class IssuesServiceTests
 
         await _service.PostCommentAsync(issueId, Admin, adminId, "Looking at it", ct: Xunit.TestContext.Current.CancellationToken);
 
+        _renderedEmailCultures.Should().NotBeEmpty().And.OnlyContain(
+            value => string.Equals(value, expectedLanguage, StringComparison.Ordinal));
+        System.Globalization.CultureInfo.CurrentUICulture.Name.Should().Be("fr");
         await _emailService.Received(1).SendAsync(
             Arg.Is<EmailMessage>(m => m.TemplateName == "issue_comment"
                 && m.RecipientEmail == "reporter@test.com"
@@ -476,6 +741,35 @@ public sealed class IssuesServiceTests
     }
 
     // ==========================================================================
+    [HumansTheory]
+    [InlineData(-1)]
+    [InlineData(999)]
+    public async Task SubmitIssueAsync_undefined_category_writes_nothing(int category)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var act = () => _service.SubmitIssueAsync(Guid.NewGuid(), (IssueCategory)category,
+            "Title", "Description", null, null, null, null, null, ct: ct);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>().WithMessage("Unknown issue category.*");
+        (await _issuesDb.Issues.CountAsync(ct)).Should().Be(0);
+        _notificationService.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [HumansTheory]
+    [InlineData(-1)]
+    [InlineData(999)]
+    public async Task UpdateStatusAsync_undefined_status_preserves_stored_state(int status)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open);
+        var act = () => _service.UpdateStatusAsync(issueId, Admin, (IssueStatus)status, Admin.UserId, ct);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>().WithMessage("Unknown issue status.*");
+        (await _issuesDb.Issues.AsNoTracking().SingleAsync(ct)).Status.Should().Be(IssueStatus.Open);
+        AuditLog.ReceivedCalls().Should().BeEmpty();
+        _notificationService.ReceivedCalls().Should().BeEmpty();
+    }
+
     // UpdateStatusAsync
     // ==========================================================================
 
@@ -619,6 +913,63 @@ public sealed class IssuesServiceTests
             Arg.Any<CancellationToken>());
     }
 
+    [HumansTheory]
+    [InlineData("Status", false)]
+    [InlineData("Status", true)]
+    [InlineData("Assignee", false)]
+    [InlineData("Assignee", true)]
+    [InlineData("Section", false)]
+    [InlineData("Section", true)]
+    [InlineData("GitHub", false)]
+    [InlineData("GitHub", true)]
+    public async Task MutationResults_DoNotMisclassifyPersistenceDiagnostics(string field, bool failDuringLookup)
+    {
+        var repo = Substitute.For<IIssuesRepository>();
+        var issue = new Issue { Id = Guid.NewGuid(), Status = IssueStatus.Open, Section = "Tickets" };
+        var failure = new InvalidOperationException("Required persistence property not found.");
+        repo.FindForMutationAsync(issue.Id, Arg.Any<CancellationToken>()).Returns(_ => failDuringLookup
+            ? Task.FromException<Issue?>(failure) : Task.FromResult<Issue?>(issue));
+        repo.SaveTrackedIssueAsync(issue, Arg.Any<CancellationToken>()).Returns(Task.FromException(failure));
+        var env = Substitute.For<IHostEnvironment>();
+        env.ContentRootPath.Returns(Path.GetTempPath());
+        var service = new IssuesApplicationService(
+            repo, _userService, _userEmailService, _roleService,
+            _emailService, _emailMessages, _notificationService, _notificationInbox, AuditLog, _navBadge,
+            _issuesBadge, Cache, Clock, env, SectionCatalog, Domain.TestIssueQueues.Shipped(), _logger);
+        var ct = Xunit.TestContext.Current.CancellationToken;
+
+        var result = field switch
+        {
+            "Status" => await service.UpdateStatusWithResultAsync(issue.Id, Admin, IssueStatus.Resolved, Admin.UserId, ct),
+            "Assignee" => await service.UpdateAssigneeWithResultAsync(issue.Id, Admin, Guid.NewGuid(), Admin.UserId, ct),
+            "Section" => await service.UpdateSectionWithResultAsync(issue.Id, Admin, "Teams", Admin.UserId, ct),
+            _ => await service.SetGitHubIssueNumberWithResultAsync(issue.Id, Admin, 1234, Admin.UserId, ct),
+        };
+
+        result.Succeeded.Should().BeFalse();
+        result.NotFound.Should().BeFalse();
+        result.ErrorMessage.Should().NotContain(failure.Message);
+        _logger.ReceivedCalls().Should().ContainSingle(call =>
+            call.GetMethodInfo().Name == "Log" &&
+            (LogLevel)call.GetArguments()[0]! == LogLevel.Error &&
+            ReferenceEquals(call.GetArguments()[3], failure));
+    }
+
+    [HumansTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpdateSectionWithResultAsync_MasksMissingAndInaccessibleIssues(bool inaccessible)
+    {
+        var (_, issueId) = await SeedIssueAsync(IssueStatus.Open, section: "Tickets");
+        var result = await _service.UpdateSectionWithResultAsync(
+            inaccessible ? issueId : Guid.NewGuid(), new IssueViewer(Guid.NewGuid(), []), "Teams", Guid.NewGuid(),
+            Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        result.NotFound.Should().BeTrue();
+        result.ErrorMessage.Should().Be("Issue not found.");
+    }
+
     [HumansFact]
     public async Task UpdateStatusWithResultAsync_returns_success_when_status_updates()
     {
@@ -643,6 +994,10 @@ public sealed class IssuesServiceTests
         result.Succeeded.Should().BeFalse();
         result.NotFound.Should().BeTrue();
         result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+        _logger.ReceivedCalls().Should().ContainSingle(call =>
+            call.GetMethodInfo().Name == "Log" &&
+            (LogLevel)call.GetArguments()[0]! == LogLevel.Warning &&
+            call.GetArguments()[3] == null);
     }
 
     // ==========================================================================
@@ -749,6 +1104,10 @@ public sealed class IssuesServiceTests
         result.Succeeded.Should().BeFalse();
         result.NotFound.Should().BeTrue();
         result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+        _logger.ReceivedCalls().Should().ContainSingle(call =>
+            call.GetMethodInfo().Name == "Log" &&
+            (LogLevel)call.GetArguments()[0]! == LogLevel.Warning &&
+            call.GetArguments()[3] == null);
     }
 
     // ==========================================================================
@@ -881,6 +1240,10 @@ public sealed class IssuesServiceTests
         result.Succeeded.Should().BeFalse();
         result.NotFound.Should().BeFalse();
         result.ErrorMessage.Should().Contain("Cannot change section");
+        _logger.ReceivedCalls().Should().ContainSingle(call =>
+            call.GetMethodInfo().Name == "Log" &&
+            (LogLevel)call.GetArguments()[0]! == LogLevel.Warning &&
+            call.GetArguments()[3] == null);
     }
 
     [HumansFact]
@@ -919,6 +1282,10 @@ public sealed class IssuesServiceTests
         result.Succeeded.Should().BeFalse();
         result.NotFound.Should().BeTrue();
         result.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+        _logger.ReceivedCalls().Should().ContainSingle(call =>
+            call.GetMethodInfo().Name == "Log" &&
+            (LogLevel)call.GetArguments()[0]! == LogLevel.Warning &&
+            call.GetArguments()[3] == null);
     }
 
     // ==========================================================================
@@ -1185,9 +1552,13 @@ public sealed class IssuesServiceTests
         SeedUser(bobId, "Bob").Email = "b@b.com";
         await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        await SeedIssueRowAsync(aliceId, IssueStatus.Open, "Alice's first");
+        var firstId = await SeedIssueRowAsync(aliceId, IssueStatus.Open, "Alice's first");
         await SeedIssueRowAsync(aliceId, IssueStatus.Open, "Alice's second");
         await SeedIssueRowAsync(bobId, IssueStatus.Open, "Bob's");
+        var first = await _issuesDb.Issues.FirstAsync(i => i.Id == firstId, Xunit.TestContext.Current.CancellationToken);
+        first.UserAgent = "Test browser";
+        first.AdditionalContext = "browser details | roles: Volunteer";
+        await _issuesDb.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
         var slices = await _service.ContributeForUserAsync(aliceId, Xunit.TestContext.Current.CancellationToken);
 
@@ -1195,6 +1566,13 @@ public sealed class IssuesServiceTests
         slices[0].SectionName.Should().Be("Issues");
         var data = slices[0].Data.Should().BeAssignableTo<System.Collections.IEnumerable>().Subject;
         data.Cast<object>().Should().HaveCount(2);
+        var exported = System.Text.Json.JsonSerializer.SerializeToElement(slices[0].Data);
+        var firstExport = exported.EnumerateArray().Single(i => string.Equals(i.GetProperty("Title").GetString(), "Alice's first", StringComparison.Ordinal));
+        firstExport.GetProperty("UserAgent").GetString().Should().Be(first.UserAgent);
+        firstExport.GetProperty("AdditionalContext").GetString().Should().Be(first.AdditionalContext);
+        var secondExport = exported.EnumerateArray().Single(i => string.Equals(i.GetProperty("Title").GetString(), "Alice's second", StringComparison.Ordinal));
+        secondExport.GetProperty("UserAgent").GetString().Should().BeNull();
+        secondExport.GetProperty("AdditionalContext").GetString().Should().BeNull();
     }
 
     [HumansFact]
@@ -1206,8 +1584,21 @@ public sealed class IssuesServiceTests
         SeedUser(bobId, "Bob").Email = "b@b.com";
         await Db.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        var aliceIssue = await SeedIssueRowAsync(aliceId, IssueStatus.Open, "Alice's");
-        var bobIssue = await SeedIssueRowAsync(bobId, IssueStatus.Open, "Bob's");
+        var aliceIssue = await SeedIssueRowAsync(aliceId, IssueStatus.Open, "Alice's", "Camps");
+        var bobIssue = await SeedIssueRowAsync(bobId, IssueStatus.Open, "Bob's", "Tickets");
+        var owner = new IssueViewer(Guid.NewGuid(), [RoleNames.CampAdmin]);
+        var unrelated = new IssueViewer(Guid.NewGuid(), [RoleNames.TicketAdmin]);
+        var reporter = new IssueViewer(aliceId, []);
+        _roleService.GetActiveUserIdsInRoleAsync(RoleNames.Admin, Arg.Any<CancellationToken>()).Returns([Admin.UserId]);
+        _roleService.GetActiveUserIdsInRoleAsync(RoleNames.CampAdmin, Arg.Any<CancellationToken>()).Returns([owner.UserId]);
+        _roleService.GetActiveUserIdsInRoleAsync(RoleNames.TicketAdmin, Arg.Any<CancellationToken>()).Returns([unrelated.UserId]);
+        _issuesBadge.When(b => b.InvalidateMany(Arg.Any<IEnumerable<Guid>>()))
+            .Do(call => new IssuesBadgeCacheInvalidator(Cache).InvalidateMany(call.ArgAt<IEnumerable<Guid>>(0)));
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        (await _service.GetActionableCountForViewerAsync(Admin, ct)).Should().Be(2);
+        (await _service.GetActionableCountForViewerAsync(owner, ct)).Should().Be(1);
+        (await _service.GetActionableCountForViewerAsync(unrelated, ct)).Should().Be(1);
+        (await _service.GetActionableCountForViewerAsync(reporter, ct)).Should().Be(1);
 
         // Alice assigned to, and commented on, an issue that is not hers.
         var bobRow = await _issuesDb.Issues.FirstAsync(
@@ -1223,7 +1614,12 @@ public sealed class IssuesServiceTests
         });
         await _issuesDb.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
-        await _service.EraseForUserAsync(aliceId, Xunit.TestContext.Current.CancellationToken);
+        await _service.EraseForUserAsync(aliceId, ct);
+
+        (await _service.GetActionableCountForViewerAsync(Admin, ct)).Should().Be(1);
+        (await _service.GetActionableCountForViewerAsync(owner, ct)).Should().Be(0);
+        (await _service.GetActionableCountForViewerAsync(unrelated, ct)).Should().Be(1);
+        (await _service.GetActionableCountForViewerAsync(reporter, ct)).Should().Be(0);
 
         _issuesDb.ChangeTracker.Clear();
         var remaining = await _issuesDb.Issues

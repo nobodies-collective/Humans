@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Humans.Base.Attributes;
 using Humans.Base.Extensions;
 using Humans.Email.Contracts;
@@ -39,14 +40,9 @@ internal sealed class CampaignService(
         string emailSubject, string emailBodyTemplate, string? replyToAddress,
         Guid createdByUserId, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(title))
-            return new CampaignCreateResult(false, ErrorKey: "TitleRequired");
-
-        if (string.IsNullOrWhiteSpace(emailSubject))
-            return new CampaignCreateResult(false, ErrorKey: "EmailSubjectRequired");
-
-        if (string.IsNullOrWhiteSpace(emailBodyTemplate))
-            return new CampaignCreateResult(false, ErrorKey: "EmailBodyTemplateRequired");
+        var errorKey = ValidateCampaignInput(title, description, emailSubject, emailBodyTemplate, replyToAddress);
+        if (errorKey is not null)
+            return new CampaignCreateResult(false, ErrorKey: errorKey);
 
         var campaign = new Campaign
         {
@@ -65,6 +61,24 @@ internal sealed class CampaignService(
 
         logger.LogInformation("Campaign {CampaignId} created: {Title}", campaign.Id, title);
         return new CampaignCreateResult(true, campaign);
+    }
+
+    private static string? ValidateCampaignInput(string title, string? description,
+        string emailSubject, string emailBodyTemplate, string? replyToAddress)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "TitleRequired";
+        if (string.IsNullOrWhiteSpace(emailSubject)) return "EmailSubjectRequired";
+        if (string.IsNullOrWhiteSpace(emailBodyTemplate)) return "EmailBodyTemplateRequired";
+        if (title.Trim().Length > 200) return "TitleTooLong";
+        if (description?.Trim().Length > 2000) return "DescriptionTooLong";
+        if (emailSubject.Trim().Length > 1000) return "EmailSubjectTooLong";
+        if (!string.IsNullOrWhiteSpace(replyToAddress))
+        {
+            var address = replyToAddress.Trim();
+            if (address.Length > 320) return "ReplyToAddressTooLong";
+            if (!new EmailAddressAttribute().IsValid(address)) return "ReplyToAddressInvalid";
+        }
+        return null;
     }
 
     public async Task<IReadOnlyList<CampaignGrantSummary>> GetActiveOrCompletedGrantsForUserAsync(
@@ -127,14 +141,9 @@ internal sealed class CampaignService(
         string? replyToAddress,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(title))
-            return new CampaignUpdateResult(false, "TitleRequired");
-
-        if (string.IsNullOrWhiteSpace(emailSubject))
-            return new CampaignUpdateResult(false, "EmailSubjectRequired");
-
-        if (string.IsNullOrWhiteSpace(emailBodyTemplate))
-            return new CampaignUpdateResult(false, "EmailBodyTemplateRequired");
+        var errorKey = ValidateCampaignInput(title, description, emailSubject, emailBodyTemplate, replyToAddress);
+        if (errorKey is not null)
+            return new CampaignUpdateResult(false, errorKey);
 
         var campaign = await repository.FindForMutationAsync(id, ct);
         if (campaign is null)
@@ -320,7 +329,8 @@ internal sealed class CampaignService(
         if (count <= 0)
             return new CampaignGenerateCodesResult(false, "InvalidCount");
 
-        if (!Enum.TryParse<TicketDiscountKind>(discountType, ignoreCase: true, out var parsedKind))
+        if (!Enum.TryParse<TicketDiscountKind>(discountType, ignoreCase: true, out var parsedKind) ||
+            !Enum.IsDefined(parsedKind))
             return new CampaignGenerateCodesResult(false, "InvalidDiscountType");
 
         // Through Tickets' contract leaf, never the Base vendor port — Tickets is the
@@ -495,13 +505,21 @@ internal sealed class CampaignService(
 
         try
         {
+            var title = $"You received a code from campaign: {campaign.Title}";
+            var body = "Check your email for your campaign code.";
+            if (title.EnumerateRunes().Count() > 200)
+            {
+                body = string.Concat(title, "\n\n", body);
+                title = string.Concat(title.EnumerateRunes().Take(199)) + "…";
+            }
+
             await notificationService.SendAsync(
                 NotificationSource.CampaignReceived,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
-                $"You received a code from campaign: {campaign.Title}",
+                title,
                 grantedUserIds,
-                body: "Check your email for your campaign code.",
+                body: body,
                 cancellationToken: ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -524,20 +542,33 @@ internal sealed class CampaignService(
         var now = clock.GetCurrentInstant();
         await repository.UpdateGrantStatusAsync(grantId, EmailOutboxStatus.Queued, now, ct);
 
-        var user = await userService.GetUserInfoAsync(grant.UserId, ct)
-            ?? throw new InvalidOperationException($"User {grant.UserId} for grant {grantId} not found.");
-        var emails = await userEmailService.GetNotificationTargetEmailsAsync([grant.UserId], ct);
-        if (!emails.TryGetValue(grant.UserId, out var recipientEmail))
-            throw new InvalidOperationException(
-                $"No notification email resolved for user {grant.UserId} when resending grant {grantId}.");
+        try
+        {
+            var user = await userService.GetUserInfoAsync(grant.UserId, ct)
+                ?? throw new InvalidOperationException($"User {grant.UserId} for grant {grantId} not found.");
+            var emails = await userEmailService.GetNotificationTargetEmailsAsync([grant.UserId], ct);
+            if (!emails.TryGetValue(grant.UserId, out var recipientEmail))
+                throw new InvalidOperationException(
+                    $"No notification email resolved for user {grant.UserId} when resending grant {grantId}.");
 
-        await emailService.SendAsync(emailMessages.CampaignCode(
-            BuildCampaignCodeRequest(
-                grant.CampaignEmailSubject,
-                grant.CampaignEmailBodyTemplate,
-                grant.CampaignReplyToAddress,
-                user, recipientEmail, grant.CodeString, grant.GrantId, grant.CampaignId)),
-            ct);
+            await emailService.SendAsync(emailMessages.CampaignCode(
+                BuildCampaignCodeRequest(
+                    grant.CampaignEmailSubject,
+                    grant.CampaignEmailBodyTemplate,
+                    grant.CampaignReplyToAddress,
+                    user, recipientEmail, grant.CodeString, grant.GrantId, grant.CampaignId)),
+                ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to resend campaign code email for grant {GrantId}", grantId);
+            await repository.UpdateGrantStatusAsync(grantId, EmailOutboxStatus.Failed, now, ct);
+            throw;
+        }
 
         logger.LogInformation("Resent campaign email for grant {GrantId}", grantId);
     }

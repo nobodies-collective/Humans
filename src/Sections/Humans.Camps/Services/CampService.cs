@@ -1,3 +1,7 @@
+using System.Text;
+using System.Globalization;
+using System.Resources;
+using Humans.Base.Extensions;
 using System.Transactions;
 using Humans.AuditLog.Contracts;
 using Humans.Base.Interfaces.Caching;
@@ -20,6 +24,8 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
     /// <summary>GDPR export JSON key for this contributor's data.</summary>
     internal const string CampRoleAssignments = "CampRoleAssignments";
 
+    private static readonly ResourceManager NoticeResources = new(typeof(CampsResource));
+
     private readonly ICampRepository _repo;
     private readonly IAuditLogService _auditLog;
     private readonly ISystemTeamSync _systemTeamSync;
@@ -41,6 +47,7 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
     private static readonly HashSet<string> AllowedImageExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp" };
     private const int MaxImageFileNameLength = 256;
+    private const int MaxCampSlugLength = 256;
 
     public CampService(
         ICampRepository repo,
@@ -81,16 +88,20 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         CancellationToken cancellationToken = default)
     {
         var slug = SlugHelper.GenerateSlug(name);
+        if (slug.Length == 0)
+            slug = "camp";
         if (SlugHelper.IsReservedCampSlug(slug))
         {
-            throw new InvalidOperationException($"The name '{name}' generates a reserved slug.");
+            throw new InvalidOperationException("Camps_Flash_ReservedName");
         }
 
         var baseSlug = slug;
         var suffix = 2;
         while (await _repo.SlugExistsAsync(slug, cancellationToken))
         {
-            slug = $"{baseSlug}-{suffix}";
+            var suffixText = "-" + suffix.ToString(CultureInfo.InvariantCulture);
+            var prefixLength = Math.Min(baseSlug.Length, MaxCampSlugLength - suffixText.Length);
+            slug = baseSlug[..prefixLength].TrimEnd('-') + suffixText;
             suffix++;
         }
 
@@ -485,16 +496,16 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         var settings = await GetSettingsAsync(cancellationToken);
         if (!settings.OpenSeasons.Contains(year))
         {
-            throw new InvalidOperationException($"Season {year} is not open for registration.");
+            throw new InvalidOperationException("Camps_Flash_SeasonNotOpen");
         }
 
         if (await _repo.SeasonExistsAsync(campId, year, cancellationToken))
         {
-            throw new InvalidOperationException($"Camp already has a season for {year}.");
+            throw new InvalidOperationException("Camps_Flash_SeasonAlreadyExists");
         }
 
         var previousSeason = await _repo.GetLatestSeasonAsync(campId, cancellationToken)
-            ?? throw new InvalidOperationException("No previous season to copy from.");
+            ?? throw new InvalidOperationException("Camps_Flash_NoPreviousSeason");
 
         var hasApprovedSeason = await _repo.HasApprovedSeasonAsync(campId, cancellationToken);
 
@@ -662,28 +673,49 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         }
 
         // Closing a season drops pending requests from the lead-meter count.
-        await InvalidateLeadBadgesAsync(campId, cancellationToken);
-
-        var camp = await _repo.GetByIdAsync(campId, cancellationToken);
-        var campName = camp?.Seasons.FirstOrDefault(s => s.Id == seasonId)?.Name ?? camp?.Slug ?? "a camp";
+        var camp = await InvalidateLeadBadgesAsync(campId, cancellationToken);
+        var name = camp?.Seasons.FirstOrDefault(s => s.Id == seasonId)?.Name ?? camp?.Slug;
         var slug = camp?.Slug;
 
         try
         {
-            await _notificationEmitter.SendAsync(
-                NotificationSource.CampMembershipSeasonClosed,
-                NotificationClass.Informational,
-                NotificationPriority.Normal,
-                $"The {year} season for {campName} is no longer open",
-                pendingUserIds,
-                body: "Your pending request to join this camp won't be reviewed because the season was withdrawn or rejected.",
-                actionUrl: slug is null ? null : $"/Barrios/{slug}",
-                actionLabel: slug is null ? null : "View camp",
-                cancellationToken: cancellationToken);
+            var recipientsByCulture = new Dictionary<CultureInfo, List<Guid>>();
+            foreach (var userId in pendingUserIds)
+            {
+                var culture = await GetRecipientCultureAsync(userId, cancellationToken);
+                if (!recipientsByCulture.TryGetValue(culture, out var recipients))
+                {
+                    recipients = [];
+                    recipientsByCulture.Add(culture, recipients);
+                }
+                recipients.Add(userId);
+            }
+            foreach (var (culture, recipients) in recipientsByCulture)
+            {
+                try
+                {
+                    var campName = name ?? NoticeResources.GetString("Camps_Notification_GenericCamp", culture)!;
+                    var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString("Camps_Notification_SeasonClosed", culture)!, year, campName), NoticeResources.GetString("Camps_Notification_SeasonClosedBody", culture));
+                    await _notificationEmitter.SendAsync(
+                        NotificationSource.CampMembershipSeasonClosed,
+                        NotificationClass.Informational,
+                        NotificationPriority.Normal,
+                        noticeCopy.Title,
+                        recipients,
+                        body: noticeCopy.Body,
+                        actionUrl: slug is null ? null : $"/Barrios/{slug}",
+                        actionLabel: slug is null ? null : NoticeResources.GetString("Camps_Notification_ViewCamp", culture),
+                        cancellationToken: cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send CampMembershipSeasonClosed notification for season {SeasonId} in {Culture}", seasonId, culture.Name);
+                }
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send CampMembershipSeasonClosed notification for season {SeasonId}", seasonId);
+            _logger.LogError(ex, "Failed to prepare CampMembershipSeasonClosed notifications for season {SeasonId}", seasonId);
         }
     }
 
@@ -855,26 +887,25 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
             scope.Complete();
         }
 
-        // Outside the transaction: file deletes cannot be rolled back, and a failure here
-        // must not undo the DB work.
+        await _auditLog.LogAsync(
+            AuditAction.CampDeleted, nameof(Camp), campId,
+            $"Camp {campId} permanently deleted",
+            "CampService");
+
+        // Metadata and audit have committed; file cleanup must finish independently of the request.
         foreach (var path in deletedImagePaths)
         {
             try
             {
-                await _fileStorage.DeleteAsync(path, cancellationToken);
+                await _fileStorage.DeleteAsync(path, CancellationToken.None);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex)
             {
                 _logger.LogWarning(ex,
                     "Failed to delete camp image file at {StoragePath} during camp delete for {CampId}; DB row already removed",
                     path, campId);
             }
         }
-
-        await _auditLog.LogAsync(
-            AuditAction.CampDeleted, nameof(Camp), campId,
-            $"Camp {campId} permanently deleted",
-            "CampService");
 
     }
 
@@ -897,16 +928,16 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         Guid scopedCampId, Guid historicalNameId, CancellationToken cancellationToken = default)
     {
         var camp = await _repo.GetByIdAsync(scopedCampId, cancellationToken)
-            ?? throw new InvalidOperationException("Camp not found.");
+            ?? throw new InvalidOperationException("Camps_Flash_CampNotFound");
         if (camp.HistoricalNames.All(n => n.Id != historicalNameId))
         {
-            throw new InvalidOperationException("Historical name does not belong to the specified camp.");
+            throw new InvalidOperationException("Camps_Flash_HistoricalNameWrongCamp");
         }
 
         var removed = await _repo.RemoveHistoricalNameAsync(historicalNameId, cancellationToken);
         if (!removed)
         {
-            throw new InvalidOperationException("Historical name not found.");
+            throw new InvalidOperationException("Camps_Flash_HistoricalNameNotFound");
         }
     }
 
@@ -935,28 +966,28 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         var imageCount = await _repo.CountImagesAsync(campId, cancellationToken);
         if (imageCount >= 5)
         {
-            return CampImageUploadResult.Failure("Maximum 5 images per camp.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageCount");
         }
 
         if (!AllowedImageContentTypes.Contains(contentType))
         {
-            return CampImageUploadResult.Failure("Only JPEG, PNG, and WebP images are allowed.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageType");
         }
 
         if (length > 10 * 1024 * 1024)
         {
-            return CampImageUploadResult.Failure("Image must be under 10MB.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageSize");
         }
 
         // Security: extension whitelist prevents image/jpeg + .html (static middleware would serve as HTML).
         fileName = DisplayFileName(fileName);
         if (fileName.Length > MaxImageFileNameLength)
-            return CampImageUploadResult.Failure($"Image filename must be {MaxImageFileNameLength} characters or fewer.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageFilenameLength");
 
         var ext = Path.GetExtension(fileName);
         if (!AllowedImageExtensions.Contains(ext))
         {
-            return CampImageUploadResult.Failure("Image filename must end in .jpg, .jpeg, .png, or .webp.");
+            return CampImageUploadResult.Failure("Camps_Validation_ImageExtension");
         }
         var storageKey = $"uploads/camps/{campId}/{Guid.NewGuid()}{ext}";
         await _fileStorage.SaveAsync(storageKey, fileStream, cancellationToken);
@@ -968,11 +999,27 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
             FileName = fileName,
             StoragePath = storageKey,
             ContentType = contentType,
-            SortOrder = imageCount,
             UploadedAt = _clock.GetCurrentInstant()
         };
 
-        await _repo.AddImageAsync(image, cancellationToken);
+        try
+        {
+            await _repo.AddImageAsync(image, cancellationToken);
+        }
+        catch
+        {
+            try
+            {
+                // A failed save may have committed: only remove an unreferenced file.
+                if (await _repo.GetImageForMutationAsync(image.Id, CancellationToken.None) is null)
+                    await _fileStorage.DeleteAsync(storageKey, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to verify or clean up camp image upload {ImageId} at {StoragePath}", image.Id, storageKey);
+            }
+            throw;
+        }
 
         await _auditLog.LogAsync(
             AuditAction.CampImageUploaded, nameof(CampImage), image.Id,
@@ -989,31 +1036,32 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         Guid scopedCampId, Guid imageId, CancellationToken cancellationToken = default)
     {
         var image = await _repo.GetImageForMutationAsync(imageId, cancellationToken)
-            ?? throw new InvalidOperationException("Image not found.");
+            ?? throw new InvalidOperationException("Camps_Flash_ImageNotFound");
         if (image.CampId != scopedCampId)
         {
-            throw new InvalidOperationException("Image does not belong to the specified camp.");
+            throw new InvalidOperationException("Camps_Flash_ImageWrongCamp");
         }
 
         var result = await _repo.DeleteImageAsync(imageId, cancellationToken)
-            ?? throw new InvalidOperationException("Image not found.");
-
-        try
-        {
-            await _fileStorage.DeleteAsync(result.StoragePath, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogWarning(ex,
-                "Failed to delete camp image file at {StoragePath} for image {ImageId}; DB row already removed",
-                result.StoragePath, imageId);
-        }
+            ?? throw new InvalidOperationException("Camps_Flash_ImageNotFound");
 
         await _auditLog.LogAsync(
             AuditAction.CampImageDeleted, nameof(CampImage), imageId,
             $"Deleted image {imageId}",
             "CampService",
             relatedEntityId: result.CampId, relatedEntityType: nameof(Camp));
+
+        // Metadata and audit have committed; file cleanup must finish independently of the request.
+        try
+        {
+            await _fileStorage.DeleteAsync(result.StoragePath, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to delete camp image file at {StoragePath} for image {ImageId}; DB row already removed",
+                result.StoragePath, imageId);
+        }
 
     }
 
@@ -1132,12 +1180,12 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         };
     }
 
-    private async Task InvalidateLeadBadgesAsync(Guid campId, CancellationToken cancellationToken)
+    private async Task<Camp?> InvalidateLeadBadgesAsync(Guid campId, CancellationToken cancellationToken)
     {
         var camp = await _repo.GetByIdAsync(campId, cancellationToken);
         if (camp is null)
         {
-            return;
+            return null;
         }
         var leadUserIds = new HashSet<Guid>();
         foreach (var season in camp.Seasons)
@@ -1152,6 +1200,7 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         {
             _leadBadgeInvalidator.Invalidate(leadUserId);
         }
+        return camp;
     }
 
     /// <summary>Sole CampMember→Removed transition: role-cascade, state flip, audit. Callers own preconditions and post-effects.</summary>
@@ -1245,16 +1294,44 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         };
     }
 
+    // Notification storage holds 200 Unicode characters; retain the full title in the body.
+    internal static (string Title, string? Body) PrepareNoticeCopy(string title, string? body = null)
+    {
+        if (title.EnumerateRunes().Count() <= 200)
+            return (title, body);
+
+        return (string.Concat(title.EnumerateRunes().Take(199)) + "…",
+            body is null ? title : string.Concat(title, "\n\n", body));
+    }
+
+    private async Task<CultureInfo> GetRecipientCultureAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var language = (await _userServiceRead.GetUserInfoAsync(userId, cancellationToken))?.PreferredLanguage;
+            return CultureInfo.GetCultureInfo(language.IsSupportedCultureCode() ? language! : "en");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to resolve notification language for user {UserId}; using English", userId);
+            return CultureInfo.GetCultureInfo("en");
+        }
+    }
+
     public async Task ApproveCampMemberAsync(
         Guid scopedCampId, Guid campMemberId, Guid approvedByUserId,
         CancellationToken cancellationToken = default)
     {
         var member = await _repo.GetMemberForCampMutationAsync(campMemberId, scopedCampId, cancellationToken)
-            ?? throw new InvalidOperationException("Camp member record not found.");
+            ?? throw new InvalidOperationException("Camps_Flash_RoleMemberNotFound");
 
         if (member.Status != CampMemberStatus.Pending)
         {
-            throw new InvalidOperationException($"Cannot approve a camp member with status {member.Status}.");
+            throw new InvalidOperationException("Camps_Flash_ApproveRequiresPending");
         }
 
         var now = _clock.GetCurrentInstant();
@@ -1269,21 +1346,23 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
             approvedByUserId,
             relatedEntityId: scopedCampId, relatedEntityType: nameof(Camp));
 
-        await InvalidateLeadBadgesAsync(scopedCampId, cancellationToken);
-
-        var camp = await _repo.GetByIdAsync(scopedCampId, cancellationToken);
-        var campName = camp?.Seasons.FirstOrDefault(s => s.Id == member.CampSeasonId)?.Name ?? camp?.Slug ?? "a camp";
+        var camp = await InvalidateLeadBadgesAsync(scopedCampId, cancellationToken);
         var slug = camp?.Slug;
         try
         {
+            var culture = await GetRecipientCultureAsync(member.UserId, cancellationToken);
+            var campName = camp?.Seasons.FirstOrDefault(s => s.Id == member.CampSeasonId)?.Name ?? camp?.Slug
+                ?? NoticeResources.GetString("Camps_Notification_GenericCamp", culture)!;
+            var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString("Camps_Notification_MembershipApproved", culture)!, campName));
             await _notificationEmitter.SendAsync(
                 NotificationSource.CampMembershipApproved,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
-                $"Your request to join {campName} was approved",
+                noticeCopy.Title,
                 [member.UserId],
+                body: noticeCopy.Body,
                 actionUrl: slug is null ? null : $"/Barrios/{slug}",
-                actionLabel: slug is null ? null : "View camp",
+                actionLabel: slug is null ? null : NoticeResources.GetString("Camps_Notification_ViewCamp", culture),
                 cancellationToken: cancellationToken);
         }
         catch (Exception ex)
@@ -1297,10 +1376,10 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         CancellationToken cancellationToken = default)
     {
         var member = await _repo.GetMemberForCampMutationAsync(campMemberId, scopedCampId, cancellationToken)
-            ?? throw new InvalidOperationException("Camp member record not found.");
+            ?? throw new InvalidOperationException("Camps_Flash_RoleMemberNotFound");
 
         if (member.Status != CampMemberStatus.Pending)
-            throw new InvalidOperationException($"Cannot reject a camp member with status {member.Status}.");
+            throw new InvalidOperationException("Camps_Flash_RejectRequiresPending");
 
         var requesterUserId = member.UserId;
         var seasonId = member.CampSeasonId;
@@ -1312,18 +1391,20 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
             cascadeRoleAssignments: false,
             cancellationToken);
 
-        await InvalidateLeadBadgesAsync(scopedCampId, cancellationToken);
-
-        var camp = await _repo.GetByIdAsync(scopedCampId, cancellationToken);
-        var campName = camp?.Seasons.FirstOrDefault(s => s.Id == seasonId)?.Name ?? camp?.Slug ?? "a camp";
+        var camp = await InvalidateLeadBadgesAsync(scopedCampId, cancellationToken);
         try
         {
+            var culture = await GetRecipientCultureAsync(requesterUserId, cancellationToken);
+            var campName = camp?.Seasons.FirstOrDefault(s => s.Id == seasonId)?.Name ?? camp?.Slug
+                ?? NoticeResources.GetString("Camps_Notification_GenericCamp", culture)!;
+            var noticeCopy = PrepareNoticeCopy(string.Format(culture, NoticeResources.GetString("Camps_Notification_MembershipRejected", culture)!, campName));
             await _notificationEmitter.SendAsync(
                 NotificationSource.CampMembershipRejected,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
-                $"Your request to join {campName} was not approved",
+                noticeCopy.Title,
                 [requesterUserId],
+                body: noticeCopy.Body,
                 cancellationToken: cancellationToken);
         }
         catch (Exception ex)
@@ -1337,10 +1418,10 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         CancellationToken cancellationToken = default)
     {
         var member = await _repo.GetMemberForCampMutationAsync(campMemberId, scopedCampId, cancellationToken)
-            ?? throw new InvalidOperationException("Camp member record not found.");
+            ?? throw new InvalidOperationException("Camps_Flash_RoleMemberNotFound");
 
         if (member.Status != CampMemberStatus.Active)
-            throw new InvalidOperationException($"Cannot remove a camp member with status {member.Status}.");
+            throw new InvalidOperationException("Camps_Flash_RemoveRequiresActive");
 
         await TransitionMemberToRemovedAsync(
             member, removedByUserId,
@@ -1406,10 +1487,10 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         Guid campMemberId, Guid userId, CancellationToken cancellationToken = default)
     {
         var member = await _repo.GetMemberForOwnMutationAsync(campMemberId, userId, cancellationToken)
-            ?? throw new InvalidOperationException("Camp member record not found.");
+            ?? throw new InvalidOperationException("Camps_Flash_RoleMemberNotFound");
 
         if (member.Status != CampMemberStatus.Pending)
-            throw new InvalidOperationException($"Cannot withdraw a camp member request with status {member.Status}.");
+            throw new InvalidOperationException("Camps_Flash_WithdrawRequiresPending");
 
         await TransitionMemberToRemovedAsync(
             member, userId,
@@ -1427,12 +1508,12 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         var member = await _repo.GetMemberForOwnMutationAsync(campMemberId, userId, cancellationToken);
         if (member is null)
         {
-            return CampMembershipMutationResult.Failure("Camp member record not found.");
+            return CampMembershipMutationResult.Failure("Camps_Flash_RoleMemberNotFound");
         }
 
         if (member.Status != CampMemberStatus.Active)
         {
-            return CampMembershipMutationResult.Failure($"Cannot leave a camp membership with status {member.Status}.");
+            return CampMembershipMutationResult.Failure("Camps_Flash_LeaveRequiresActive");
         }
 
         await TransitionMemberToRemovedAsync(
@@ -1451,14 +1532,15 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
         // Called from AccountMergeService.MergeAsync's ordered fan-out; must stay idempotent.
         // Folds the source's CampMember rows onto the survivor and carries their
         // CampRoleAssignments along — Camp Lead is a CampRoleAssignment now, so leads move too.
+        var leadUserIds = await _repo.GetActiveLeadUserIdsAsync(ct);
         await _repo.ReassignMembershipsToUserAsync(sourceUserId, targetUserId, updatedAt, ct);
+        // Folding duplicate pending requests also changes the reviewing leads' counts.
+        foreach (var leadUserId in leadUserIds.Append(sourceUserId).Append(targetUserId).Distinct())
+            _leadBadgeInvalidator.Invalidate(leadUserId);
 
-        // Lead moves change Barrio Leads team membership + lead-badge cache for both users.
+        // Lead moves change Barrio Leads team membership for both users.
         await _systemTeamSync.SyncMembershipForUserAsync(sourceUserId, SystemTeamType.BarrioLeads, ct);
         await _systemTeamSync.SyncMembershipForUserAsync(targetUserId, SystemTeamType.BarrioLeads, ct);
-        _leadBadgeInvalidator.Invalidate(sourceUserId);
-        _leadBadgeInvalidator.Invalidate(targetUserId);
-
         // The fold can move HasEarlyEntry CampMember rows between the two users, so evict
         // both per-user early-entry caches (mirrors the Teams membership fold).
         _earlyEntryInvalidator.InvalidateUser(sourceUserId);
@@ -1498,7 +1580,11 @@ internal sealed class CampService : ICampService, ICampLeadDirectory, ICampSeedi
     /// </summary>
     public async Task EraseForUserAsync(Guid userId, CancellationToken ct)
     {
+        var leadUserIds = await _repo.GetActiveLeadUserIdsAsync(ct);
         await _repo.DeleteCampFootprintForUserAsync(userId, ct);
+        // Capture before deletion, which can remove this user's own lead assignment.
+        foreach (var leadUserId in leadUserIds.Append(userId).Distinct())
+            _leadBadgeInvalidator.Invalidate(leadUserId);
         _earlyEntryInvalidator.InvalidateUser(userId);
 
         // The cached CampInfo projection carries the rosters this just emptied, and the

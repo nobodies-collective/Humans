@@ -1,6 +1,7 @@
 using System.Collections;
 using AwesomeAssertions;
 using Humans.AuditLog.Contracts;
+using Humans.Base.Extensions;
 using Humans.Notifications.Contracts;
 using Humans.Rideshare.Domain;
 using Humans.Rideshare.Services;
@@ -675,6 +676,62 @@ public sealed class RideshareServiceTests : RideshareTestHarness
             "/Rideshare/Mine", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
+    [HumansTheory]
+    [InlineData("en", "A human is interested in your ride")]
+    [InlineData("es", "Un human está interesado en tu viaje")]
+    [InlineData("de", "Ein human interessiert sich für deine Fahrt")]
+    [InlineData("it", "Un human è interessato al tuo viaggio")]
+    [InlineData("fr", "Un human est intéressé par votre trajet")]
+    [InlineData("ca", "Un human està interessat en el teu viatge")]
+    public async Task InterestNotification_MissingActorName_UsesRecipientLanguage(string language, string title)
+    {
+        var driver = SeedUser("Ada");
+        var rider = SeedUser(" ");
+        var trip = await SeedTripAsync(driver);
+        var recipient = await Users.GetUserInfoAsync(driver, Ct);
+        Users.GetUserInfoAsync(driver, Arg.Any<CancellationToken>())
+            .Returns(recipient! with { PreferredLanguage = language });
+        using var actorCulture = new CultureScope("en");
+
+        await NewService().ExpressInterestAsync(rider, trip.Id, null, 1, null, Ct);
+
+        await Notifications.Received(1).SendAsync(
+            NotificationSource.RideshareInterestReceived, NotificationClass.Actionable, Arg.Any<NotificationPriority>(),
+            title, Arg.Is<IReadOnlyList<Guid>>(r => r.Single() == driver),
+            Arg.Any<string?>(), "/Rideshare/Mine", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
+        System.Globalization.CultureInfo.CurrentUICulture.Name.Should().Be("en");
+    }
+
+    [HumansTheory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("invalid/culture")]
+    [InlineData("pt")]
+    public async Task InterestNotification_UnsupportedRecipientLanguage_FallsBackToEnglish(string language)
+    {
+        var driver = SeedUser("Ada");
+        var rider = SeedUser("Bo");
+        var trip = await SeedTripAsync(driver);
+        var recipient = await Users.GetUserInfoAsync(driver, Ct);
+        Users.GetUserInfoAsync(driver, Arg.Any<CancellationToken>())
+            .Returns(recipient! with { PreferredLanguage = language });
+        string englishDate;
+        using (new CultureScope("en"))
+            englishDate = trip.DepartureDate.ToWeekdayDayMonth();
+        using var actorCulture = new CultureScope("fr");
+
+        await NewService().ExpressInterestAsync(rider, trip.Id, null, 1, null, Ct);
+
+        await Notifications.Received(1).SendAsync(
+            NotificationSource.RideshareInterestReceived, NotificationClass.Actionable, Arg.Any<NotificationPriority>(),
+            "Bo is interested in your ride", Arg.Is<IReadOnlyList<Guid>>(r => r.Single() == driver),
+            Arg.Is<string?>(b => b!.Contains(englishDate) && b.Contains("1 seat")),
+            "/Rideshare/Mine", "Open Rideshare", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        System.Globalization.CultureInfo.CurrentUICulture.Name.Should().Be("fr");
+        System.Globalization.CultureInfo.CurrentCulture.Name.Should().Be("fr");
+    }
+
     [HumansFact]
     public async Task AcceptInterest_TellsTheAuthor()
     {
@@ -695,6 +752,49 @@ public sealed class RideshareServiceTests : RideshareTestHarness
             "You're in: ride with Ada", Arg.Is<IReadOnlyList<Guid>>(r => r.Single() == rider),
             Arg.Any<string?>(), "/Rideshare/Mine", Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [HumansTheory]
+    [InlineData("express")]
+    [InlineData("accept")]
+    [InlineData("decline")]
+    public async Task InterestMutations_NamePreparationFailure_DoesNotUndoSuccess(string action)
+    {
+        var driver = SeedUser("Ada");
+        var rider = SeedUser("Bo");
+        var trip = await SeedTripAsync(driver);
+        var actor = string.Equals(action, "express", StringComparison.Ordinal) ? rider : driver;
+        var failure = new IOException("name lookup failed");
+        Users.GetUserInfoAsync(actor, Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromException<Humans.Users.Contracts.UserInfo?>(failure));
+        Guid interestId;
+        var expectedStatus = InterestStatus.Pending;
+        if (string.Equals(action, "express", StringComparison.Ordinal))
+        {
+            interestId = await NewService().ExpressInterestAsync(rider, trip.Id, null, 1, null, Ct);
+        }
+        else
+        {
+            interestId = (await SeedInterestAsync(rider, trip.Id)).Id;
+            if (string.Equals(action, "accept", StringComparison.Ordinal))
+            {
+                await NewService().AcceptInterestAsync(interestId, driver, Ct);
+                expectedStatus = InterestStatus.Accepted;
+            }
+            else
+            {
+                await NewService().DeclineInterestAsync(interestId, driver, Ct);
+                expectedStatus = InterestStatus.Declined;
+            }
+        }
+
+        await using var ctx = OpenContext();
+        var stored = await ctx.Interests.SingleAsync(i => i.Id == interestId, Ct);
+        stored.Status.Should().Be(expectedStatus);
+        if (!string.Equals(action, "express", StringComparison.Ordinal))
+            stored.RespondedAt.Should().Be(Clock.GetCurrentInstant());
+        Notifications.ReceivedCalls().Should().BeEmpty();
+        Logger.Entries.Should().Contain(e => e.Level == LogLevel.Error && e.Exception == failure);
     }
 
     [HumansFact]

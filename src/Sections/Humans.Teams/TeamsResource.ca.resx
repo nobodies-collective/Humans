@@ -43,6 +43,7 @@
     <data name="MyTeams_Title" xml:space="preserve">
     <value>Els meus equips</value>
   </data>
+  <data name="Teams_BreadcrumbNavigation" xml:space="preserve"><value>Ruta de navegació</value></data>
   <data name="JoinTeam_Title" xml:space="preserve">
     <value>Unir-se a {0}</value>
     <comment>{0} = team name</comment>
@@ -199,6 +200,27 @@
   </data>
   <data name="Team_RequestWithdrawn" xml:space="preserve">
     <value>La teva sol·licitud s'ha retirat.</value>
+  </data>
+  <data name="Teams_NotFound" xml:space="preserve">
+    <value>No s’ha trobat l’equip.</value>
+  </data>
+  <data name="Teams_CannotJoinHidden" xml:space="preserve">
+    <value>No pots unir-te directament a un equip ocult.</value>
+  </data>
+  <data name="Teams_JoinPolicyChanged" xml:space="preserve">
+    <value>Els requisits per unir-se a l’equip han canviat. Torna-ho a provar.</value>
+  </data>
+  <data name="Teams_CannotLeaveSystem" xml:space="preserve">
+    <value>No pots deixar directament un equip gestionat pel sistema.</value>
+  </data>
+  <data name="Teams_NotMember" xml:space="preserve">
+    <value>No formes part d’aquest equip.</value>
+  </data>
+  <data name="Teams_RequestUnavailable" xml:space="preserve">
+    <value>Aquesta sol·licitud per unir-se a l’equip no està disponible o ja no està pendent.</value>
+  </data>
+  <data name="Teams_ActionFailed" xml:space="preserve">
+    <value>No s’ha pogut completar aquesta acció de l’equip. Torna-ho a provar.</value>
   </data>
   <data name="TeamAdmin_RequestApproved" xml:space="preserve">
     <value>Sol·licitud aprovada. El human ja forma part de l'equip.</value>
@@ -402,6 +424,7 @@
   <data name="TeamDetail_TeamCoordinators" xml:space="preserve">
     <value>Coordinadors</value>
   </data>
+  <data name="Teams_Detail_SubteamLeads" xml:space="preserve"><value>Responsables dels subequips ({0})</value></data>
   <data name="TeamDetail_AboutTeam" xml:space="preserve">
     <value>Sobre</value>
   </data>
@@ -550,4 +573,10 @@
   <data name="Teams_EditTeam_EnableEarlyEntry" xml:space="preserve"><value>Activa l'entrada anticipada</value></data>
   <data name="Teams_EditTeam_EnableEarlyEntryHelp" xml:space="preserve"><value>En activar-ho, els coordinadors d'aquest equip i els administradors d'entrada anticipada poden concedir entrada anticipada als projectes d'aquest equip.</value></data>
   <data name="Teams_TeamDetail_Roles" xml:space="preserve"><value>Rols</value></data>
+  <data name="Teams_Notification_JoinApproved" xml:space="preserve"><value>S’ha aprovat la teva sol·licitud per unir-te a {0}</value></data>
+  <data name="Teams_Notification_Welcome" xml:space="preserve"><value>Et donem la benvinguda a {0}!</value></data>
+  <data name="Teams_Notification_ViewTeam" xml:space="preserve"><value>Mostra l’equip</value></data>
+  <data name="Teams_Notification_JoinRejected" xml:space="preserve"><value>No s’ha aprovat la teva sol·licitud per unir-te a {0}</value></data>
+  <data name="Teams_Notification_MemberRemoved" xml:space="preserve"><value>T’han tret de {0}</value></data>
+  <data name="Teams_TeamDetail_Calendar" xml:space="preserve"><value>Calendari de l’equip</value></data>
 </root>

@@ -113,30 +113,49 @@ document.getElementById('add-barrio-select')?.addEventListener('change', e => {
 });
 
 document.getElementById('save-btn')?.addEventListener('click', async () => {
-    if (!appState.activeCampSeasonId) return;
+    const saveButton = document.getElementById('save-btn');
+    if (saveButton.dataset.saving === 'true' || !appState.activeCampSeasonId) return;
     const features = appState.draw.getAll().features;
     if (!features.length) return;
 
+    const campSeasonId = appState.activeCampSeasonId;
     const feature = features[0];
+    const geoJson = JSON.stringify(feature);
     const areaSqm = turf.area(feature);
     const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
 
-    const resp = await fetch(`/api/city-planning/camp-polygons/${appState.activeCampSeasonId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
-        body: JSON.stringify({ geoJson: JSON.stringify(feature), areaSqm }),
-    });
+    saveButton.dataset.saving = 'true';
+    saveButton.disabled = true;
+    let resp;
+    try {
+        resp = await fetch(`/api/city-planning/camp-polygons/${campSeasonId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+            body: JSON.stringify({ geoJson, areaSqm }),
+        });
+    } catch (error) {
+        console.error('Failed to save barrio polygon', error);
+        alert(CONFIG.SAVE_FAILED);
+        return;
+    } finally {
+        saveButton.dataset.saving = 'false';
+        updateSaveButton();
+    }
 
     if (resp.ok) {
-        exitEditMode();
+        // Leave subsequent edits in place; this response only committed the captured snapshot.
+        if (appState.activeCampSeasonId === campSeasonId &&
+            JSON.stringify(appState.draw.getAll().features[0]) === geoJson) {
+            exitEditMode();
+        }
         // SignalR CampPolygonUpdated will refresh the map layer
     } else {
-        alert('Failed to save polygon. Please try again.');
+        alert(CONFIG.SAVE_FAILED);
     }
 });
 
 document.getElementById('cancel-btn')?.addEventListener('click', () => {
-    if (!confirm('Discard unsaved changes?')) return;
+    if (!confirm(CONFIG.DISCARD_CONFIRM)) return;
     exitEditMode();
 });
 

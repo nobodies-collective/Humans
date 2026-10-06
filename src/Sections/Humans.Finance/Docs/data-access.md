@@ -23,6 +23,8 @@ creditor-**contact binding** surface (`HoldedCreditorContacts` — user ↔
 Holded supplier-account bindings, including an at-most-one-member
 collision guard).
 
+Sync-state reads return the persisted singleton or an unsaved Idle default; only `SaveDocSyncStateAsync` inserts or updates `HoldedDocSyncStates`.
+
 ### Service (Scoped)
 
 Repository: `IHoldedRepository`.
@@ -39,7 +41,7 @@ Repository: `IHoldedRepository`.
 Cross-section calls via `IBudgetServiceRead` (`budget` in the ctor), `IHoldedService` (the Holded section's
 ledger-mirror read surface — `holded` in the ctor; ledger-line /
 account-balance reads for creditor status, ledger, and account listing),
-`IHoldedClient` (Holded section leaf — purchase-document / contact / expense-account
+`IHoldedClient` (Holded's `Contracts/` folder — purchase-document / contact / expense-account
 API calls, plus `PayPurchaseDocumentAsync` for SEPA booking) and `IAuditLogService`
 (one entry per SEPA credit transfer generated, and one per transfer booked).
 Implements `IHoldedFinanceService`, `IHoldedFinanceAdminService`
@@ -57,7 +59,10 @@ unmatched and matched-for-year reads are each a filtered slice and neither
 composes into "all docs") and `HoldedCreditorContacts`, plus
 `IBudgetServiceRead` for category names. **No `IHoldedClient` call** — the
 index must not inherit the connector's 30 s timeout
-(nobodies-collective/Humans#976, #1000). The SEPA methods,
+(nobodies-collective/Humans#976, #1000). `GetProvisioningPlanAsync` /
+`ProvisionAsync` (`/Finance/HoldedAccounts`) and `SetCreditorContactAsync` /
+`ClearCreditorContactAsync` (Bind and Unbind on `/Finance/Creditors`) live here
+too: no other section calls them. The SEPA methods,
 `GetSepaPayoutSettings`, `GenerateSepaPayoutAsync`, `GetSepaPayoutsAsync` and
 `BookSepaTransferAsync(transferId, bankMovementId, actorUserId)`, serve
 `/Finance/Creditors`' payout column, `POST /Finance/Sepa/Generate`,
