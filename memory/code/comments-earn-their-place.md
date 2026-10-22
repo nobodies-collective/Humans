@@ -9,7 +9,7 @@ A comment exists for the next person changing this code. Keep it only if it tell
 - **Why**: the reason behind a choice that looks wrong or arbitrary: a constraint, legal/GDPR requirement, vendor quirk, RFC.
 - **Warnings**: ordering that matters, a call that must not move, a trap the next editor would fall into.
 - **Invariants** the code relies on but doesn't check on that line.
-- **Contracts on public surface**: every public Contracts member keeps a `<summary>` stating what the caller can rely on, limited to what the name and signature leave out.
+- **Contracts on public surface**: a public Contracts member keeps a `<summary>` only when the caller can rely on something the name and signature leave out (null meaning, ordering, caching, side effects). A member whose name and signature say it all gets no summary.
 
 **Cut:**
 - **Restating code**: `/// Gets the user by id` on `GetUserByIdAsync`; `<param>`/`<returns>` that repeat the name; a line naming what the next block plainly does.
