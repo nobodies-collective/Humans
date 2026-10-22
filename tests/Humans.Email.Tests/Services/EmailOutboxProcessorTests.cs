@@ -10,7 +10,6 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Humans.Campaigns.Contracts;
 using Humans.Base.Enums;
-using Humans.Email.Contracts;
 using Humans.Email.Data;
 using Humans.Email.Domain;
 using Humans.Email.Services;

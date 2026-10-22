@@ -58,5 +58,4 @@ public static class MessageCategoryExtensions
         MessageCategory.Governance,
         MessageCategory.Marketing
     ];
-
 }

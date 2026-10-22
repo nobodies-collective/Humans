@@ -23,7 +23,7 @@ internal sealed class CommunicationPreferencesViewModel
 
 internal sealed class CategoryPreferenceItem
 {
-    internal static CategoryPreferenceItem FromPreference(
+    private static CategoryPreferenceItem FromPreference(
         MessageCategory category, CommunicationPreferenceSnapshot? preference, bool hasTicketOrder)
     {
         var locked = CommunicationPreferenceService.IsTicketingLocked(category, hasTicketOrder);
@@ -54,9 +54,24 @@ internal sealed class CategoryPreferenceItem
 
     public bool IsTicketingLocked { get; set; }
 
-    /// <summary>Null on self-service.</summary>
+    /// <summary>Shown only in the read-only view.</summary>
     public string? UpdateSource { get; set; }
 
     /// <summary>Null when no row exists and the defaults are shown.</summary>
     public Instant? UpdatedAt { get; set; }
+
+    /// <summary>One item per active category, in display order.</summary>
+    public static List<CategoryPreferenceItem> ForActiveCategories(
+        IReadOnlyList<CommunicationPreferenceSnapshot> prefs, bool hasTicketOrder)
+    {
+        var prefsByCategory = prefs.ToDictionary(p => p.Category);
+        return MessageCategoryExtensions.ActiveCategories.Select(category =>
+        {
+            var pref = prefsByCategory.GetValueOrDefault(category);
+            var item = FromPreference(category, pref, hasTicketOrder);
+            item.UpdateSource = pref?.UpdateSource;
+            item.UpdatedAt = pref?.UpdatedAt;
+            return item;
+        }).ToList();
+    }
 }

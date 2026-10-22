@@ -110,22 +110,12 @@ internal sealed class GuestAccountController(
     private async Task<CommunicationPreferencesViewModel> BuildCommunicationPreferencesViewModelAsync(Guid userId, CancellationToken ct)
     {
         var prefs = await commPrefService.GetPreferencesReadOnlyAsync(userId, ct);
-        var prefsByCategory = prefs.ToDictionary(p => p.Category);
-
         var hasTicketOrder = (await ticketQueryService.GetUserTicketHoldingsAsync(userId, ct))
             .HasTicketAttendeeMatch;
 
-        var categories = new List<CategoryPreferenceItem>();
-
-        foreach (var category in MessageCategoryExtensions.ActiveCategories)
-        {
-            var pref = prefsByCategory.GetValueOrDefault(category);
-            categories.Add(CategoryPreferenceItem.FromPreference(category, pref, hasTicketOrder));
-        }
-
         return new CommunicationPreferencesViewModel
         {
-            Categories = categories,
+            Categories = CategoryPreferenceItem.ForActiveCategories(prefs, hasTicketOrder),
             TicketingYear = clock.GetCurrentInstant().InUtc().Year,
         };
     }

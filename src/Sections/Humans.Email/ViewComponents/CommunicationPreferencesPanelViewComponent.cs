@@ -15,24 +15,12 @@ public sealed class CommunicationPreferencesPanelViewComponent(
     {
         var ct = HttpContext.RequestAborted;
         var prefs = await commPrefService.GetPreferencesReadOnlyAsync(userId, ct);
-        var prefsByCategory = prefs.ToDictionary(p => p.Category);
-
         var hasTicketOrder = (await ticketQueryService.GetUserTicketHoldingsAsync(userId, ct))
             .HasTicketAttendeeMatch;
 
-        var categories = new List<CategoryPreferenceItem>();
-        foreach (var category in MessageCategoryExtensions.ActiveCategories)
-        {
-            var pref = prefsByCategory.GetValueOrDefault(category);
-            var item = CategoryPreferenceItem.FromPreference(category, pref, hasTicketOrder);
-            item.UpdateSource = pref?.UpdateSource;
-            item.UpdatedAt = pref?.UpdatedAt;
-            categories.Add(item);
-        }
-
         return View(new CommunicationPreferencesViewModel
         {
-            Categories = categories,
+            Categories = CategoryPreferenceItem.ForActiveCategories(prefs, hasTicketOrder),
             ReadOnly = readOnly,
             TicketingYear = clock.GetCurrentInstant().InUtc().Year,
         });
