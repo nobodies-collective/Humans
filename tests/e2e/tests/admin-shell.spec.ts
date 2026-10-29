@@ -45,7 +45,7 @@ const sidebarMatrix: SidebarExpectation[] = [
   },
   {
     name: 'humanAdmin',
-    persona: 'human-admin',
+    persona: 'users-admin',
     groups: [
       { label: 'Issues', items: ['Issues'] },
       { label: 'Surveys', items: ['Surveys'] },
@@ -54,7 +54,7 @@ const sidebarMatrix: SidebarExpectation[] = [
   },
   {
     name: 'ticketAdmin',
-    persona: 'ticket-admin',
+    persona: 'tickets-admin',
     groups: [
       { label: 'Gate', items: ['Terminal'] },
       { label: 'Issues', items: ['Issues'] },
@@ -74,7 +74,7 @@ const sidebarMatrix: SidebarExpectation[] = [
   },
   {
     name: 'volunteerCoordinator',
-    persona: 'volunteer-coordinator',
+    persona: 'shifts-admin',
     groups: [
       { label: 'Early Entry', items: ['Early entry'] },
       { label: 'Issues', items: ['Issues'] },
