@@ -52,6 +52,19 @@ internal sealed class Service(
             return new(false, "Early entry start offset must be between build start and 0 (exclusive).");
         }
 
+        var overlapping = (await repository.GetAllEventSettingsAsync(cancellationToken))
+            .FirstOrDefault(other => other.Id != settings.Id
+                && other.Status != EventSettingsStatus.Deleted
+                && WindowsOverlap(settings, other));
+        if (overlapping is not null)
+        {
+            logger.LogWarning("Rejected event settings {EventId}: its build-to-strike window overlaps event {OtherEventId}",
+                settings.Id, overlapping.Id);
+            return new(false,
+                $"The build start to strike end window overlaps '{overlapping.EventName}' "
+                + $"({FormatWindow(overlapping)}). Events must not overlap.");
+        }
+
         await repository.UpsertEventSettingsAsync(
             ToEntity(settings), clock.GetCurrentInstant(), cancellationToken);
 
@@ -67,6 +80,49 @@ internal sealed class Service(
         NotifyChangeListeners(settings.Id);
         return new(true);
     }
+
+    public async Task<IReadOnlyList<EventSettingsInfo>> GetAllEventSettingsAsync(
+        CancellationToken cancellationToken = default) =>
+        (await repository.GetAllEventSettingsAsync(cancellationToken))
+            .Select(e => ToDto(e)!)
+            .ToList();
+
+    public async Task<EventSettingsSaveResult> ActivateEventSettingsAsync(
+        Guid eventSettingsId, Guid actorUserId, CancellationToken cancellationToken = default)
+    {
+        var target = await repository.GetEventSettingsByIdAsync(eventSettingsId, cancellationToken);
+        if (target is null || target.Status == EventSettingsStatus.Deleted)
+        {
+            logger.LogWarning("Rejected activating event settings {EventId}: no such event", eventSettingsId);
+            return new(false, "That event no longer exists.");
+        }
+
+        if (target.Status == EventSettingsStatus.Active)
+            return new(true);
+
+        var changed = await repository.SetActiveEventSettingsAsync(
+            eventSettingsId, clock.GetCurrentInstant(), cancellationToken);
+        var previous = changed.Where(e => e.Id != eventSettingsId).Select(e => $"'{e.EventName}'").ToList();
+
+        var description = previous.Count == 0
+            ? $"Event '{target.EventName}' made active; no event was active before."
+            : $"Event '{target.EventName}' made active; {string.Join(", ", previous)} set inactive.";
+        await auditLog.LogAsync(
+            AuditAction.EventSettingsUpdated, AuditEntityTypes.EventSettings, target.Id, description, actorUserId);
+
+        foreach (var row in changed)
+            NotifyChangeListeners(row.Id);
+        return new(true);
+    }
+
+    /// <summary>Both windows are inclusive day ranges, build start to strike end.</summary>
+    private static bool WindowsOverlap(EventSettingsInfo settings, EventSettings other) =>
+        settings.GateOpeningDate.PlusDays(settings.BuildStartOffset) <= other.GateOpeningDate.PlusDays(other.StrikeEndOffset)
+        && other.GateOpeningDate.PlusDays(other.BuildStartOffset) <= settings.GateOpeningDate.PlusDays(settings.StrikeEndOffset);
+
+    private static string FormatWindow(EventSettings e) =>
+        $"{LocalDatePattern.Iso.Format(e.GateOpeningDate.PlusDays(e.BuildStartOffset))} to "
+        + LocalDatePattern.Iso.Format(e.GateOpeningDate.PlusDays(e.StrikeEndOffset));
 
     /// <inheritdoc />
     /// <remarks>No audit entry: seeding fixtures have no real actor.</remarks>
