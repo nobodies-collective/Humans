@@ -1,19 +1,10 @@
+using Humans.Camps.Contracts;
 using Humans.Base.Authorization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Camps.Authorization;
 
-/// <summary>
-/// Resource-based authorization handler for camp operations.
-///
-/// Authorization logic:
-/// - Admin / CampAdmin: allow any camp (both operations).
-/// - <see cref="CampOperationRequirement.Manage"/>: Camp lead for the resource camp.
-/// - <see cref="CampOperationRequirement.SubmitEvent"/>: Lead OR Workshop role holder
-///   for the resource camp.
-/// - Everyone else: deny.
-/// </summary>
 internal sealed class CampAuthorizationHandler(ICampService campService) : AuthorizationHandler<CampOperationRequirement>
 {
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, CampOperationRequirement requirement)
@@ -30,7 +21,7 @@ internal sealed class CampAuthorizationHandler(ICampService campService) : Autho
         if (campId is null)
             return;
 
-        if (RoleChecks.IsCampAdmin(context.User))
+        if (CampsRoles.IsCampsAdmin(context.User))
         {
             context.Succeed(requirement);
             return;

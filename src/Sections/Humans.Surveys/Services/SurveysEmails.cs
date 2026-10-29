@@ -8,14 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Humans.Surveys.Services;
 
-/// <summary>
-/// Surveys' own email templates: one method per template, each returning a ready
-/// <see cref="EmailMessage"/> (content plus the routing policy Surveys chooses — template
-/// name and opt-out category) for the single <see cref="IEmailService.SendAsync"/> path.
-/// Copy lives in Surveys' own resx set and is rendered in the recipient's culture inside a
-/// <see cref="CultureScope"/> (memory/architecture/email-templates-live-in-sender.md,
-/// peterdrier/Humans#1651). Pure — no I/O, no persistence.
-/// </summary>
+/// <summary>Rendered in the recipient's culture. Pure: no I/O.</summary>
 internal sealed class SurveysEmails(
     IOptions<EmailSettings> settings,
     IStringLocalizer<SurveysResource> localizer,
@@ -29,6 +22,7 @@ internal sealed class SurveysEmails(
     /// Blank custom copy retains the standard localized wording.
     /// </summary>
     public EmailMessage SurveyInvitation(
+        Guid userId,
         string userEmail,
         string userName,
         string surveyTitle,
@@ -45,7 +39,7 @@ internal sealed class SurveysEmails(
                 ? $"<p>{Lf("Surveys_Email_SurveyInvitation_DefaultMessage", Encode(surveyTitle))}</p>"
                 : SanitizedMarkdownRenderer.Render(customMessage.Trim());
 
-            return new EmailMessage(userEmail, userName,
+            return new EmailMessage(userEmail, userName, userId,
                 subject,
                 Lf("Surveys_Email_SurveyInvitation_Body",
                     Encode(userName),
@@ -56,8 +50,8 @@ internal sealed class SurveysEmails(
         });
 
     /// <summary>Survey reminder — single nudge for an unfinished invitation (System category).</summary>
-    public EmailMessage SurveyReminder(string userEmail, string userName, string surveyTitle, string answerToken, string? culture = null)
-        => Localized(culture, () => new EmailMessage(userEmail, userName,
+    public EmailMessage SurveyReminder(Guid userId, string userEmail, string userName, string surveyTitle, string answerToken, string? culture = null)
+        => Localized(culture, () => new EmailMessage(userEmail, userName, userId,
             Lf("Surveys_Email_SurveyReminder_Subject", surveyTitle),
             Lf("Surveys_Email_SurveyReminder_Body", Encode(userName), Encode(surveyTitle), AnswerUrl(answerToken)),
             "survey_reminder", MessageCategory.System));

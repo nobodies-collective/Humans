@@ -11,8 +11,7 @@ namespace Humans.Email.Tests.Services;
 /// <summary>
 /// Gallery-coverage gate for Email's own contribution: every template
 /// <see cref="EmailMessageFactory"/> can build has a sample in
-/// <see cref="FacilitatedMessagePreviews"/>, so a new template cannot ship invisible
-/// (peterdrier/Humans#1651).
+/// <see cref="FacilitatedMessagePreviews"/>, so a new template cannot ship invisible.
 /// </summary>
 public sealed class FacilitatedMessagePreviewsTests
 {
@@ -57,6 +56,7 @@ public sealed class FacilitatedMessagePreviewsTests
     private static object SampleArgument(ParameterInfo parameter)
     {
         var type = parameter.ParameterType;
+        if (type == typeof(Guid?)) return Guid.NewGuid();
         if (type == typeof(string)) return "x";
         if (type == typeof(bool)) return true;
         throw new NotSupportedException(

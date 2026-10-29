@@ -6,7 +6,8 @@ namespace Humans.Guide.Services;
 
 internal sealed class GuideRoleResolver(
     ITeamService teamService,
-    ICampLeadDirectory campLeadDirectory) : IGuideRoleResolver
+    ICampLeadDirectory campLeadDirectory,
+    GuideRolePrivilegeMap privilegeMap) : IGuideRoleResolver
 {
     public async Task<GuideRoleContext> ResolveAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default)
     {
@@ -18,7 +19,7 @@ internal sealed class GuideRoleResolver(
         }
 
         var systemRoles = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var role in GuideRolePrivilegeMap.MappedRoles)
+        foreach (var role in privilegeMap.MappedRoles)
         {
             if (user.IsInRole(role))
             {
@@ -36,10 +37,7 @@ internal sealed class GuideRoleResolver(
             // some team".
             isCampLead = await campLeadDirectory.IsLeadAnywhereAsync(userId, cancellationToken);
 
-            // Answered from the cached TeamInfo snapshot: TeamInfo.Members only
-            // contains active (LeftAt is null) memberships, so we just look for
-            // any team where the user holds the Coordinator role. Mirrors the
-            // SQL filter UserId == userId && Role == Coordinator && LeftAt == null.
+            // TeamInfo.Members holds only active memberships.
             var teamsById = await teamService.GetTeamsAsync(cancellationToken);
             isCoordinator = teamsById.Values.Any(t =>
                 t.Members.Any(m => m.UserId == userId && m.Role == TeamMemberRole.Coordinator));

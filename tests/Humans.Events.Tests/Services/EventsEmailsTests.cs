@@ -10,12 +10,7 @@ using Microsoft.Extensions.Options;
 namespace Humans.Events.Tests.Services;
 
 /// <summary>
-/// The per-template routing policy Events stamps on its own messages — one template name
-/// per lifecycle status — plus the gallery-coverage gate: every template
-/// <see cref="EventsEmails"/> can build has a sample in
-/// <see cref="EventsEmailPreviews"/>, so a new template cannot ship invisible
-/// (peterdrier/Humans#1651). Transport (opt-out, unsubscribe, wrapping, enqueue) stays
-/// Email's, covered there.
+/// Includes the gallery-coverage gate: every template <see cref="EventsEmails"/> can build has a sample in <see cref="EventsEmailPreviews"/>, so a new template cannot ship invisible.
 /// </summary>
 public sealed class EventsEmailsTests
 {
@@ -29,13 +24,13 @@ public sealed class EventsEmailsTests
     {
         var emails = Create();
 
-        emails.EventLifecycle(new EventLifecycleNotification(EventStatus.Pending, "Bob", "My Event"), "bob@x.com")
+        emails.EventLifecycle(Guid.NewGuid(), new EventLifecycleNotification(EventStatus.Pending, "Bob", "My Event"), "bob@x.com")
             .TemplateName.Should().Be("event_submitted");
-        emails.EventLifecycle(new EventLifecycleNotification(EventStatus.Approved, "Bob", "My Event"), "bob@x.com")
+        emails.EventLifecycle(Guid.NewGuid(), new EventLifecycleNotification(EventStatus.Approved, "Bob", "My Event"), "bob@x.com")
             .TemplateName.Should().Be("event_approved");
-        emails.EventLifecycle(new EventLifecycleNotification(EventStatus.Rejected, "Bob", "My Event"), "bob@x.com")
+        emails.EventLifecycle(Guid.NewGuid(), new EventLifecycleNotification(EventStatus.Rejected, "Bob", "My Event"), "bob@x.com")
             .TemplateName.Should().Be("event_rejected");
-        emails.EventLifecycle(new EventLifecycleNotification(EventStatus.ResubmitRequested, "Bob", "My Event"), "bob@x.com")
+        emails.EventLifecycle(Guid.NewGuid(), new EventLifecycleNotification(EventStatus.ResubmitRequested, "Bob", "My Event"), "bob@x.com")
             .TemplateName.Should().Be("event_resubmit_requested");
     }
 
@@ -43,6 +38,7 @@ public sealed class EventsEmailsTests
     public void EventLifecycle_RoutesToTheSubmitterWithNoCategory()
     {
         var msg = Create().EventLifecycle(
+            Guid.NewGuid(),
             new EventLifecycleNotification(EventStatus.Approved, "Bob", "My Event"), "bob@x.com");
 
         msg.RecipientEmail.Should().Be("bob@x.com");
@@ -55,6 +51,7 @@ public sealed class EventsEmailsTests
     public void EventLifecycle_RendersInTheSubmittersCulture()
     {
         var msg = Create().EventLifecycle(
+            Guid.NewGuid(),
             new EventLifecycleNotification(EventStatus.Approved, "Bob", "My Event", Culture: "es"), "bob@x.com");
 
         msg.Subject.Should().Be("Tu evento ha sido aprobado");
@@ -64,6 +61,7 @@ public sealed class EventsEmailsTests
     public void EventLifecycle_EncodesTheSubmitterNameAndTitle()
     {
         var msg = Create().EventLifecycle(
+            Guid.NewGuid(),
             new EventLifecycleNotification(EventStatus.Rejected, "Daniel <Admin>", "Lights & sound", "Too <loud>", "/edit"),
             "bob@x.com");
 
@@ -118,6 +116,7 @@ public sealed class EventsEmailsTests
     private static object SampleArgument(ParameterInfo parameter, EventStatus status)
     {
         var type = parameter.ParameterType;
+        if (type == typeof(Guid)) return Guid.NewGuid();
         if (type == typeof(EventLifecycleNotification))
             return new EventLifecycleNotification(status, "Sally Smith", "Sample", "Reason", "/Events/Mine", "en");
         if (type == typeof(string)) return "sample@example.com";

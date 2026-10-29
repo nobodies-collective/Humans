@@ -44,7 +44,7 @@ public class GuideRoleResolverTests
         return new ClaimsPrincipal(identity);
     }
 
-    private GuideRoleResolver CreateResolver() => new(_teamService, _campLeads);
+    private GuideRoleResolver CreateResolver() => new(_teamService, _campLeads, GuideTestRoles.Map);
 
     private TeamInfo BuildTeam(Guid teamId, params TeamMemberInfo[] members) => new(
         Id: teamId,
@@ -195,9 +195,8 @@ public class GuideRoleResolverTests
     public async Task Resolve_EveryRoleAParentheticalCanName_IsProbedAgainstClaims(string role)
     {
         // A role the map can name but the resolver never probes is invisible: the segment
-        // carries "<role>" among its privileges and GuideFilter looks for it in SystemRoles,
-        // which the resolver never populated. Events Admin and Store Admin were in exactly
-        // that state until the resolver started deriving its probe list from the map.
+        // carries it among its privileges, but GuideFilter looks for it in SystemRoles,
+        // which the resolver never populated.
         var resolver = CreateResolver();
         var user = PrincipalWithRoles(Guid.NewGuid(), role);
 
@@ -209,7 +208,7 @@ public class GuideRoleResolverTests
     public static TheoryData<string> MappedRoles()
     {
         var data = new TheoryData<string>();
-        foreach (var role in GuideRolePrivilegeMap.MappedRoles)
+        foreach (var role in GuideTestRoles.Map.MappedRoles)
         {
             data.Add(role);
         }

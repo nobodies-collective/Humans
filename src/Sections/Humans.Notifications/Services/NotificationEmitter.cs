@@ -1,28 +1,18 @@
 using Humans.Email.Contracts;
 using Humans.Auth.Contracts;
-using Humans.Base.Caching;
 using Humans.Notifications.Data;
 using Humans.Notifications.Domain;
 using Humans.Notifications.Contracts;
-using Microsoft.Extensions.Caching.Memory;
 using NodaTime;
 using Humans.Teams.Contracts;
 
 namespace Humans.Notifications.Services;
 
-/// <summary>
-/// Persists a notification to a pre-resolved list of recipient user IDs. Injects
-/// neither <see cref="ITeamService"/> nor <see cref="IRoleAssignmentService"/>, so
-/// those two can inject this without closing a DI cycle through
-/// <see cref="INotificationService"/>, which injects
-/// <see cref="IRoleAssignmentService"/> itself.
-/// <see cref="NotificationService"/> delegates here so dispatch logic lives in one place.
-/// </summary>
+/// <summary>Must not inject ITeamService or IRoleAssignmentService: both inject this.</summary>
 internal sealed class NotificationEmitter(
     INotificationRepository repo,
     ICommunicationPreferenceService preferenceService,
     IClock clock,
-    IMemoryCache cache,
     ILogger<NotificationEmitter> logger) : INotificationEmitter
 {
     internal static (string Title, string? Body) FitCopyToStorage(string title, string? body)
@@ -109,10 +99,6 @@ internal sealed class NotificationEmitter(
         }
 
         await repo.AddRangeAsync(notifications, cancellationToken);
-        foreach (var n in notifications)
-        {
-            cache.Remove(CacheKeys.NotificationBadgeCounts(n.Recipients.Single().UserId));
-        }
 
         logger.LogInformation(
             "Dispatched {Source} notification '{Title}' to {Count} individual recipient(s)",

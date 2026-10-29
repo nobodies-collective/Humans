@@ -109,9 +109,8 @@ public class UserStateClassifierTests
         UserStateEvaluator.Classify(gdprDeleted, profile: null).Should().Be(UserState.Deleted);
     }
 
-    // Regression test for nobodies-collective/Humans#1742: a member typing "Deleted User" as their
-    // own burner name must not be classified as GDPR-deleted and lose application access. Fails
-    // against the pre-fix BurnerName arm in UserStateEvaluator.IsGdprTombstoned.
+    // A member typing "Deleted User" as their own burner name must not be classified as
+    // GDPR-deleted and lose application access.
     [HumansFact]
     public void Classify_entity_does_not_treat_a_user_typed_BurnerName_as_deletion()
     {
@@ -133,23 +132,21 @@ public class UserStateClassifierTests
     }
 
     [HumansFact]
-    public void Classify_entity_recognises_the_legacy_tombstone_shape_without_the_scrubbed_email()
+    public void Classify_entity_does_not_recognise_the_retired_name_only_tombstone()
     {
-        // Rows anonymized before the email scrub was added to the erasure path keep a normal-looking
-        // email but carry the complete legacy tombstone shape across all three name columns.
+        // Production migration is complete: only the minted email identifies erasure.
         var user = NewUser(displayName: UserStateClassifier.GdprAnonymizedDisplayName);
         user.FirstName = "Deleted";
         user.LastName = "User";
         user.Email = "legacy@example.com";
 
-        UserStateEvaluator.Classify(user, profile: null).Should().Be(UserState.Deleted);
+        UserStateEvaluator.Classify(user, profile: null).Should().Be(UserState.Bare);
     }
 
     [HumansFact]
     public void Classify_entity_does_not_treat_the_DisplayName_sentinel_alone_as_deletion()
     {
-        // Narrower than pre-#1742: the legacy fallback requires the complete tombstone shape, not
-        // the DisplayName sentinel on its own — a normal FirstName/LastName/email must stay Active.
+        // The DisplayName sentinel never supplies the erasure signal.
         var user = NewUser(displayName: UserStateClassifier.GdprAnonymizedDisplayName);
         user.FirstName = "First";
         user.LastName = "Last";
@@ -157,6 +154,21 @@ public class UserStateClassifierTests
         var profile = NewNamedProfile(user.Id);
 
         UserStateEvaluator.Classify(user, profile).Should().Be(UserState.Active);
+    }
+
+    [HumansTheory]
+    [InlineData(UserState.Bare, false)]
+    [InlineData(UserState.Active, false)]
+    [InlineData(UserState.DeletePending, false)]
+    [InlineData(UserState.Suspended, true)]
+    [InlineData(UserState.AdminSuspended, true)]
+    [InlineData(UserState.Rejected, true)]
+    [InlineData(UserState.Deleted, true)]
+    [InlineData(UserState.Merged, true)]
+    public void IsWalled_is_exactly_the_status_wall_states(UserState state, bool walled)
+    {
+        state.IsWalled().Should().Be(walled);
+        Enum.GetValues<UserState>().Should().HaveCount(8, "a new state needs a row here and a walled-or-not decision");
     }
 
     private static User NewUser(string displayName) => new()

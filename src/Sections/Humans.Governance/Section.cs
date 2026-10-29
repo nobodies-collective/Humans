@@ -33,6 +33,7 @@ public sealed class Section : ISection, IIssueQueueOwner
         services.AddSingleton<IMembershipTierRepository, MembershipTierRepository>();
         services.AddScoped<MembershipTierService>();
         services.AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<MembershipTierService>());
+        // Snapshot legacy tier grants before ApplicationDecisionService moves their applications.
         services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<MembershipTierService>());
 
         services.AddScoped<ApplicationDecisionService>();
@@ -53,18 +54,12 @@ public sealed class Section : ISection, IIssueQueueOwner
         services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<AssemblyVoteService>());
         services.AddScoped<AssemblyVoteLapseJob>();
 
-        // Query adapter breaks the circular DI graph between MembershipCalculator and
-        // ITeamService / IRoleAssignmentService, both of which reach ISystemTeamSync —
-        // RoleAssignmentService injects it, TeamService resolves it lazily through
-        // IServiceProvider for this same reason — and whose implementation injects
-        // IMembershipCalculator back. Only MembershipCalculator depends on the adapter.
         services.AddScoped<IMembershipQuery, MembershipQuery>();
         services.AddScoped<MembershipCalculator>();
         services.AddScoped<IMembershipCalculator>(sp => sp.GetRequiredService<MembershipCalculator>());
 
         // Base cannot name a moved section's enums, so the section pushes its badge rows into
-        // the Humans.UI registry rather than Humans.UI referencing this section
-        // (memory/architecture/base-ui-registries-are-section-populated.md).
+        // the Humans.UI registry rather than Humans.UI referencing this section.
         EnumBadgeMap.Register(new Dictionary<Enum, string>
         {
             [ApplicationStatus.Submitted] = "bg-primary",
@@ -91,8 +86,6 @@ public sealed class Section : ISection, IIssueQueueOwner
             [AssemblyBallotChoice.Ranked] = "bg-primary",
         });
 
-        // Governance owns its email copy and its gallery samples; Email keeps the mechanics
-        // (memory/architecture/email-templates-live-in-sender.md).
         services.AddScoped<GovernanceEmails>();
         services.AddScoped<IEmailPreviewContributor, GovernanceEmailPreviews>();
 
@@ -103,8 +96,6 @@ public sealed class Section : ISection, IIssueQueueOwner
         services.AddHostedService(sp => sp.GetRequiredService<GovernanceMetricsService>());
     }
 
-    // This section owns the issue queue its members' reports land in; Issues discovers
-    // the seam rather than holding a list of sections (memory/architecture/section-contribution-seams.md).
     string IIssueQueueOwner.QueueKey => "Governance";
 
     string IIssueQueueOwner.AreaLabelResourceKey => "Issues_Area_Governance";

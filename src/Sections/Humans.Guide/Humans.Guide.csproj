@@ -30,6 +30,7 @@
       the settings type stays in Humans.Base/Configuration with it.
     -->
     <ProjectReference Include="..\..\Humans.Base\Humans.Base.csproj" />
+    <ProjectReference Include="..\Humans.Auth\Humans.Auth.csproj" />
     <ProjectReference Include="..\Humans.Teams.Contracts\Humans.Teams.Contracts.csproj" />
     <ProjectReference Include="..\Humans.Camps.Contracts\Humans.Camps.Contracts.csproj" />
   </ItemGroup>
@@ -44,6 +45,7 @@
       Octokit is here for GitHubHealthCheck (nobodies-collective/Humans#1075), which moved in
       with the "github" monitoring key — the same client Base's GitHubGuideContentSource uses.
     -->
+    <PackageReference Include="AngleSharp" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="Octokit" />
   </ItemGroup>

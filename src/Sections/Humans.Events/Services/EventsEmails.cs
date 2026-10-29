@@ -7,20 +7,12 @@ using Microsoft.Extensions.Localization;
 
 namespace Humans.Events.Services;
 
-/// <summary>
-/// Events' own email templates: one method per template, each returning a ready
-/// <see cref="EmailMessage"/> (content plus the routing policy Events chooses —
-/// template name and opt-out category) for the single
-/// <see cref="IEmailService.SendAsync"/> path. Copy lives in Events' own resx set and is
-/// rendered in the recipient's culture inside a <see cref="CultureScope"/>
-/// (memory/architecture/email-templates-live-in-sender.md, peterdrier/Humans#1651).
-/// Pure — no I/O, no persistence.
-/// </summary>
+/// <summary>Rendered in the recipient's culture. Pure: no I/O.</summary>
 internal sealed class EventsEmails(
     IStringLocalizer<EventsResource> localizer,
     ILogger<EventsEmails> logger)
 {
-    public EmailMessage EventLifecycle(EventLifecycleNotification request, string userEmail)
+    public EmailMessage EventLifecycle(Guid userId, EventLifecycleNotification request, string userEmail)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -43,7 +35,7 @@ internal sealed class EventsEmails(
                 Encode(request.ActionUrl ?? string.Empty));
 
             return new EmailMessage(
-                userEmail, request.UserName, localizer[key + "_Subject"].Value, body, request.TemplateName());
+                userEmail, request.UserName, userId, localizer[key + "_Subject"].Value, body, request.TemplateName());
         }
     }
 

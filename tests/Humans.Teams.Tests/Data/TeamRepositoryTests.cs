@@ -17,11 +17,6 @@ using Xunit;
 
 namespace Humans.Teams.Tests.Data;
 
-/// <summary>
-/// Repository tests for the Teams section: the bundled-write paths (compound
-/// mutations across TeamMembers / TeamJoinRequests / TeamRoleAssignments) and the
-/// narrow read shapes the service depends on for cross-section stitching.
-/// </summary>
 public sealed class TeamRepositoryTests : IDisposable
 {
     [HumansTheory]
@@ -53,12 +48,12 @@ public sealed class TeamRepositoryTests : IDisposable
     }
 
     [HumansTheory]
-    [InlineData("23505", "IX_teams_Slug", true)]
-    [InlineData("23505", "IX_teams_CustomSlug", true)]
-    [InlineData("23505", "IX_teams_GoogleGroupPrefix", false)]
-    [InlineData("23505", "PK_teams", false)]
-    [InlineData("23503", "IX_teams_Slug", false)]
-    public async Task AddTeam_OnlyRetriesSlugConstraintCollisions(string sqlState, string constraint, bool retry)
+    [InlineData("23505", "IX_teams_Slug", (int)TeamUpdateConflict.SlugTaken)]
+    [InlineData("23505", "IX_teams_CustomSlug", (int)TeamUpdateConflict.CustomSlugTaken)]
+    [InlineData("23505", "IX_teams_GoogleGroupPrefix", (int)TeamUpdateConflict.GroupPrefixTaken)]
+    [InlineData("23505", "PK_teams", (int)TeamUpdateConflict.None)]
+    [InlineData("23503", "IX_teams_Slug", (int)TeamUpdateConflict.None)]
+    public async Task AddTeam_OnlyTranslatesKnownUniqueConstraints(string sqlState, string constraint, int expectedValue)
     {
         var failure = new DbUpdateException("Save failed", new Npgsql.PostgresException(
             "Constraint violation", "ERROR", "ERROR", sqlState, constraintName: constraint));
@@ -67,11 +62,12 @@ public sealed class TeamRepositoryTests : IDisposable
             .AddInterceptors(new FailedInsert(failure)).Options;
         var repo = new TeamRepository(new TestDbContextFactory<TeamsDbContext>(options));
         var team = new Team { Id = Guid.NewGuid(), Name = "Design", Slug = "design" };
-        Func<Task<bool>> insert = () => repo.AddTeamWithRequiresApprovalOverrideAsync(
+        Func<Task<TeamUpdateConflict>> insert = () => repo.AddTeamWithRequiresApprovalOverrideAsync(
             team, requiresApproval: true, TestContext.Current.CancellationToken);
 
-        if (retry)
-            (await insert()).Should().BeFalse();
+        var expected = (TeamUpdateConflict)expectedValue;
+        if (expected != TeamUpdateConflict.None)
+            (await insert()).Should().Be(expected);
         else
             (await insert.Should().ThrowAsync<DbUpdateException>()).Which.Should().BeSameAs(failure);
     }
@@ -128,10 +124,6 @@ public sealed class TeamRepositoryTests : IDisposable
         _dbContext.Dispose();
     }
 
-    // ==========================================================================
-    // Team reads
-    // ==========================================================================
-
     [HumansTheory]
     [InlineData(true)]
     [InlineData(false)]
@@ -154,7 +146,7 @@ public sealed class TeamRepositoryTests : IDisposable
         };
 
         (await repo.AddTeamWithRequiresApprovalOverrideAsync(
-            team, requiresApproval, TestContext.Current.CancellationToken)).Should().BeTrue();
+            team, requiresApproval, TestContext.Current.CancellationToken)).Should().Be(TeamUpdateConflict.None);
 
         var stored = await repo.GetByIdAsync(team.Id, TestContext.Current.CancellationToken);
         stored!.RequiresApproval.Should().Be(requiresApproval);
@@ -266,10 +258,6 @@ public sealed class TeamRepositoryTests : IDisposable
 
         all.Should().ContainSingle(t => t.Name == "Active");
     }
-
-    // ==========================================================================
-    // Membership writes — compound transactions
-    // ==========================================================================
 
     [HumansFact]
     public async Task TryAddMemberAsync_PersistsMember()
@@ -561,10 +549,6 @@ public sealed class TeamRepositoryTests : IDisposable
         (await _dbContext.TeamMembers.AsNoTracking().CountAsync(m => m.UserId == user.Id && m.LeftAt == null, TestContext.Current.CancellationToken)).Should().Be(0);
         (await _dbContext.Set<TeamRoleAssignment>().AsNoTracking().CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
     }
-
-    // ==========================================================================
-    // Helpers
-    // ==========================================================================
 
     private async Task<Team> SeedTeamAsync(
         string name,

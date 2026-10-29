@@ -19,7 +19,7 @@ The Store section lets Camp Leads order infrastructure-as-a-service items from t
 
 This is fundamentally **camp data** with provenance recording (per `memory/architecture/provenance-fks-not-user-scoped.md`): order lines, payments, and invoices belong to the `CampSeason`, not to the lead who clicked the button. The `AddedByUserId` / `RecordedByUserId` / `IssuedByUserId` columns are audit/provenance only — deleting a user does not delete the order data.
 
-Refunds, payouts, and chargebacks remain Stripe-dashboard-manual (per `memory/architecture/refunds-manual-via-dashboard.md`). Humans only does the bookkeeping side: a returned deposit is credited to the order as a `DepositReturn` payment, and a refund issued in Stripe is recorded as a negative `Refund` payment, both by a Store admin.
+Payouts and chargebacks remain Stripe-dashboard-manual, and so do refunds until the guarded refund path ships (`memory/architecture/stripe-money-out.md`, nobodies-collective/Humans#1254). Humans only does the bookkeeping side: a returned deposit is credited to the order as a `DepositReturn` payment, and a refund issued in Stripe is recorded as a negative `Refund` payment, both by a Store admin.
 
 The section invariant doc is [`Store.md`](../Store.md).
 
@@ -87,8 +87,8 @@ The section invariant doc is [`Store.md`](../Store.md).
 - POST to `/Store/Order/{id}/IssueInvoice` validates: order must be `Open`, must have at least one line, `IssuedInvoiceId` must be null, and Holded must be configured. New issuance and draft approval also require a zero balance; recovery of an already approved document is checked first and may proceed at a nonzero balance.
 - Before issuing, each line's `UnitPriceSnapshot` / `VatRateSnapshot` / `DepositAmountSnapshot` is rewritten from the live catalog (nobodies-collective/Humans#816), so the document and the order agree forever after.
 - Issues a full Holded `invoice` (with an upserted `client` contact) when the counterparty has name, address, and a tax id; otherwise a contact-less `sales-receipt`, allowed only at or below `Store:SimplifiedInvoiceThresholdEur` (default €400) — above it issuance is refused rather than downgraded. Each line resolves its Holded revenue account from the product's `HoldedRevenueAccountNum`; deposit lines post tax-0 to `Store:DepositLiabilityAccountNum`.
-- The document is approved (a Holded draft books no revenue) and read back for its `document_number`, then written to an `Invoice` row (`OrderId`, `HoldedDocId`, `HoldedDocNumber`, `IssuedAt`, `IssuedByUserId`, full request/response payloads) in the same save that sets the order's `State = InvoiceIssued` and `IssuedInvoiceId`.
-- Idempotent: re-issuing an already-issued order is refused without calling Holded. If an earlier attempt created a Holded document but failed before the local save, the retry recovers that same document by tag instead of creating a second one — and refuses if the order changed since.
+- The document is approved (a Holded draft books no revenue) and read back for its `document_number`, then written to an `Invoice` row (`OrderId`, `HoldedDocId`, `HoldedDocNumber`, `IssuedAt`, `IssuedByUserId`, full request/response payloads) in the same save that sets the order's `State = InvoiceIssued` and `IssuedInvoiceId`. A read-back that still reports a draft or lacks a document number leaves the order open without an invoice row; retries recover that same tagged document.
+- Idempotent: re-issuing an already-issued order is refused without calling Holded. If an earlier attempt created a Holded document but failed before the local save, the retry recovers that same document by tag instead of creating a second one — and refuses if the order changed since. A recovered draft must match the order both before and after approval; changed read-back totals refuse the local save.
 - Implemented per nobodies-collective/Humans#1029.
 
 ### US-30.6: Treasury Sync (Background)
@@ -168,7 +168,7 @@ Resource-based via `OrderAuthorizationHandler` keyed on `OrderOperationRequireme
 | Camp lead/co-lead of the camp owning the order's `CampSeason` | any state | `Open` only | any state |
 | Anyone else | denied | denied | denied |
 
-`StoreAdmin` is the Store-domain superset (per `memory/code/admin-role-superset.md`): full access to catalog, orders, payments, and invoices. `FinanceAdmin` retains parallel access for accounting workflows. The shared check is `RoleChecks.CanAdministerStore`. A `TeamsAdmin` (`RoleChecks.IsTeamsAdmin`) is a read-all-orders viewer that can manage team orders but only view camp orders, and is never granted `EditCounterparty`/`Pay` (team orders are non-billable).
+`StoreAdmin` is the Store-domain superset (per `memory/code/admin-role-superset.md`): full access to catalog, orders, payments, and invoices. `FinanceAdmin` retains parallel access for accounting workflows. The shared check is `StoreRoles.CanAdministerStore`. A `TeamsAdmin` (`TeamsRoles.IsTeamsAdmin`) is a read-all-orders viewer that can manage team orders but only view camp orders, and is never granted `EditCounterparty`/`Pay` (team orders are non-billable).
 
 ## Cross-Section Dependencies
 
@@ -195,7 +195,7 @@ The Store section reads several environment variables — see `Store.md` *Stripe
 ## Related Features / Sections
 
 - [`Store.md`](../Store.md) — section invariants (canonical reference)
-- [`memory/architecture/refunds-manual-via-dashboard.md`](../../../../../memory/architecture/refunds-manual-via-dashboard.md) — money-out is dashboard-manual
+- [`memory/architecture/stripe-money-out.md`](../../../../../memory/architecture/stripe-money-out.md) — money-out rules: guarded refunds only, payouts dashboard-manual
 - [`memory/code/stripe-restricted-keys.md`](../../../../../memory/code/stripe-restricted-keys.md) — production keys must be RAKs
 - [`memory/architecture/provenance-fks-not-user-scoped.md`](../../../../../memory/architecture/provenance-fks-not-user-scoped.md) — Store FKs are provenance, not user-scoped data
 - [`Camps.md`](../../../Humans.Camps/Docs/Camps.md) — `CampSeason` is the order's owning aggregate

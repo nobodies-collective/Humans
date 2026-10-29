@@ -9,12 +9,6 @@ using NSubstitute;
 
 namespace Humans.Email.Tests.Services;
 
-/// <summary>
-/// Unit tests for the Application-layer <see cref="UnsubscribeService"/>.
-/// Dependencies are mocked; the user service
-/// replacement simply returns the seeded user by id so we can verify the
-/// service's decision paths (valid / expired / legacy / missing user).
-/// </summary>
 public class UnsubscribeServiceTests
 {
     private readonly IUserService _userService = Substitute.For<IUserService>();
@@ -102,13 +96,18 @@ public class UnsubscribeServiceTests
         result.Category.Should().Be(MessageCategory.Marketing);
     }
 
-    [HumansFact]
-    public async Task ValidateTokenAsync_ReturnsInvalid_ForGarbageToken()
+    [HumansTheory]
+    [InlineData("totally-not-a-token")]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("%")]
+    [InlineData("a")]
+    public async Task ValidateTokenAsync_ReturnsInvalid_ForGarbageToken(string? token)
     {
         _preferenceService.ValidateUnsubscribeToken(Arg.Any<string>())
             .Returns((TokenValidationStatus.Invalid, Guid.Empty, MessageCategory.Marketing));
 
-        var result = await _service.ValidateTokenAsync("totally-not-a-token", TestContext.Current.CancellationToken);
+        var result = await _service.ValidateTokenAsync(token!, TestContext.Current.CancellationToken);
 
         result.IsValid.Should().BeFalse();
         result.IsExpired.Should().BeFalse();

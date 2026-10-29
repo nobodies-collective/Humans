@@ -26,7 +26,11 @@ public sealed class ServiceTests
     private readonly IEventSettingsChangeListener _listenerTwo = Substitute.For<IEventSettingsChangeListener>();
     private readonly IClock _clock = Substitute.For<IClock>();
 
-    public ServiceTests() => _clock.GetCurrentInstant().Returns(Now);
+    public ServiceTests()
+    {
+        _clock.GetCurrentInstant().Returns(Now);
+        _repository.GetValueAsync(SettingKeys.EventTimeZoneId, Arg.Any<CancellationToken>()).Returns((string?)null);
+    }
 
     private Service BuildSut() => new(_repository, _auditLog, [_listenerOne, _listenerTwo], _clock,
         Microsoft.Extensions.Logging.Abstractions.NullLogger<Service>.Instance);
@@ -36,7 +40,7 @@ public sealed class ServiceTests
         Id = id,
         EventName = "Nowhere 2026",
         Year = 2026,
-        TimeZoneId = "Europe/Madrid",
+        TimeZoneId = "Etc/UTC",
         GateOpeningDate = new LocalDate(2026, 7, 9),
         BuildStartOffset = -25,
         EventEndOffset = 6,
@@ -149,7 +153,7 @@ public sealed class ServiceTests
             Id: id,
             EventName: "Nowhere 2027",
             Year: 2027,
-            TimeZoneId: "Atlantic/Canary",
+            TimeZoneId: "Etc/UTC",
             GateOpeningDate: new LocalDate(2027, 7, 8),
             BuildStartOffset: -20,
             EventEndOffset: 5,
@@ -162,6 +166,7 @@ public sealed class ServiceTests
             BarriosEarlyEntryAllocation: null,
             EarlyEntryClose: null,
             Status: EventSettingsStatus.Inactive);
+        _repository.GetValueAsync(SettingKeys.EventTimeZoneId, Arg.Any<CancellationToken>()).Returns("Atlantic/Canary");
 
         await BuildSut().SaveEventSettingsAsync(dto, Actor, TestContext.Current.CancellationToken);
 
@@ -195,7 +200,7 @@ public sealed class ServiceTests
             Id: id,
             EventName: "Nowhere 2027",
             Year: 2027,
-            TimeZoneId: "Atlantic/Canary",
+            TimeZoneId: "Europe/Madrid",
             GateOpeningDate: new LocalDate(2027, 7, 8),
             BuildStartOffset: -20,
             EventEndOffset: 5,
@@ -217,8 +222,7 @@ public sealed class ServiceTests
             Actor, Arg.Any<Guid?>(), Arg.Any<string?>());
     }
 
-    // ── The at-most-one-Active invariant.
-    //    No DB constraint backs it, so the service is where it holds.
+    // At most one Active row: no DB constraint backs it, so the service is where it holds.
 
     private static EventSettingsInfo MakeDto(Guid id, EventSettingsStatus status, int? earlyEntryStartOffset = null) => new(
         Id: id,
@@ -255,12 +259,18 @@ public sealed class ServiceTests
             StrikeEndOffset = endOverflow ? int.MaxValue : 9,
         };
         var sut = BuildSut();
-        var act = () => seed
-            ? sut.CreateActiveEventAsync(settings, TestContext.Current.CancellationToken)
-            : sut.SaveEventSettingsAsync(settings, Actor, TestContext.Current.CancellationToken);
-
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("Event dates must stay within the supported calendar range.");
+        if (seed)
+        {
+            var act = () => sut.CreateActiveEventAsync(settings, TestContext.Current.CancellationToken);
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("Event dates must stay within the supported calendar range.");
+        }
+        else
+        {
+            var result = await sut.SaveEventSettingsAsync(settings, Actor, TestContext.Current.CancellationToken);
+            result.Succeeded.Should().BeFalse();
+            result.ErrorMessage.Should().Be("Event dates must stay within the supported calendar range.");
+        }
         _repository.ReceivedCalls().Where(c => string.Equals(c.GetMethodInfo().Name, nameof(ISettingsRepository.UpsertEventSettingsAsync), StringComparison.Ordinal))
             .Should().BeEmpty();
         current.Status.Should().Be(EventSettingsStatus.Active);
@@ -284,11 +294,18 @@ public sealed class ServiceTests
             StrikeEndOffset = strikeEnd,
         };
         var sut = BuildSut();
-        var act = () => seed
-            ? sut.CreateActiveEventAsync(settings, TestContext.Current.CancellationToken)
-            : sut.SaveEventSettingsAsync(settings, Actor, TestContext.Current.CancellationToken);
-
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        const string error = "Event end must be on or after gate opening, and strike end must be on or after event end.";
+        if (seed)
+        {
+            var act = () => sut.CreateActiveEventAsync(settings, TestContext.Current.CancellationToken);
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(error);
+        }
+        else
+        {
+            var result = await sut.SaveEventSettingsAsync(settings, Actor, TestContext.Current.CancellationToken);
+            result.Succeeded.Should().BeFalse();
+            result.ErrorMessage.Should().Be(error);
+        }
         _repository.ReceivedCalls().Where(c => string.Equals(c.GetMethodInfo().Name,
             nameof(ISettingsRepository.UpsertEventSettingsAsync), StringComparison.Ordinal)).Should().BeEmpty();
         current.Status.Should().Be(EventSettingsStatus.Active);
@@ -297,7 +314,7 @@ public sealed class ServiceTests
         _listenerTwo.ReceivedCalls().Should().BeEmpty();
     }
 
-    // ── The EarlyEntryStartOffset invariant: BuildStartOffset ≤ offset < 0.
+    // The EarlyEntryStartOffset invariant: BuildStartOffset ≤ offset < 0.
 
     [HumansFact]
     public async Task SaveEventSettingsAsync_RefusesEarlyEntryStartOffset_BeforeBuildStart()
@@ -305,12 +322,12 @@ public sealed class ServiceTests
         var id = Guid.NewGuid();
 
         // BuildStartOffset is -25 on MakeDto; -26 is earlier still.
-        var act = () => BuildSut().SaveEventSettingsAsync(
+        var result = await BuildSut().SaveEventSettingsAsync(
             MakeDto(id, EventSettingsStatus.Inactive, earlyEntryStartOffset: -26),
             Actor, TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("Early entry start offset must be between build start and 0*");
+        result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().Be("Early entry start offset must be between build start and 0 (exclusive).");
         await _repository.DidNotReceive().UpsertEventSettingsAsync(
             Arg.Any<EventSettings>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
     }
@@ -320,12 +337,12 @@ public sealed class ServiceTests
     {
         var id = Guid.NewGuid();
 
-        var act = () => BuildSut().SaveEventSettingsAsync(
+        var result = await BuildSut().SaveEventSettingsAsync(
             MakeDto(id, EventSettingsStatus.Inactive, earlyEntryStartOffset: 0),
             Actor, TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("Early entry start offset must be between build start and 0*");
+        result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().Be("Early entry start offset must be between build start and 0 (exclusive).");
         await _repository.DidNotReceive().UpsertEventSettingsAsync(
             Arg.Any<EventSettings>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
     }
@@ -359,8 +376,7 @@ public sealed class ServiceTests
     public async Task SaveEventSettingsAsync_TellsEveryChangeListener()
     {
         // The gate date, the offsets and the active-event flip move derived dates for every
-        // member at once. The consuming sections used to own this write and flush their own
-        // caches inline; the write moved here, so every one of them gets told.
+        // member at once, so every consuming section's listener gets told.
         var id = Guid.NewGuid();
 
         await BuildSut().SaveEventSettingsAsync(
@@ -414,10 +430,10 @@ public sealed class ServiceTests
         var id = Guid.NewGuid();
         _repository.AnyOtherActiveEventSettingsAsync(id, Arg.Any<CancellationToken>()).Returns(true);
 
-        var act = () => BuildSut().SaveEventSettingsAsync(
+        var result = await BuildSut().SaveEventSettingsAsync(
             MakeDto(id, EventSettingsStatus.Active), Actor, TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        result.Succeeded.Should().BeFalse();
         _listenerOne.DidNotReceive().EventSettingsChanged(Arg.Any<Guid>());
         _listenerTwo.DidNotReceive().EventSettingsChanged(Arg.Any<Guid>());
     }
@@ -428,11 +444,11 @@ public sealed class ServiceTests
         var id = Guid.NewGuid();
         _repository.AnyOtherActiveEventSettingsAsync(id, Arg.Any<CancellationToken>()).Returns(true);
 
-        var act = () => BuildSut().SaveEventSettingsAsync(
+        var result = await BuildSut().SaveEventSettingsAsync(
             MakeDto(id, EventSettingsStatus.Active), Actor, TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("Only one event settings row can be Active*");
+        result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().Be("Only one event settings row can be Active at a time — deactivate the current one first.");
         await _repository.DidNotReceive().UpsertEventSettingsAsync(
             Arg.Any<EventSettings>(), Arg.Any<Instant>(), Arg.Any<CancellationToken>());
         // A refused save is not audited — nothing happened for the Board to see.
@@ -470,9 +486,84 @@ public sealed class ServiceTests
             Arg.Any<EventSettings>(), Now, Arg.Any<CancellationToken>());
     }
 
-    // ── Id minting (nobodies-collective/Humans#1631): Settings mints ids for new
-    //    cycles now, with no existence check against Shifts — a Shifts knobs row
-    //    is created on demand later, the first time a rota or knob edit needs one.
+    [HumansFact]
+    public async Task SaveEventSettingsAsync_RefusesAWindowOverlappingAnotherEvent()
+    {
+        // Other event: build 2026-06-14 to strike 2026-07-18. The new one starts building on its last day.
+        _repository.GetAllEventSettingsAsync(Arg.Any<CancellationToken>())
+            .Returns([MakeEntity(Guid.NewGuid(), isActive: false)]);
+        var settings = MakeDto(Guid.NewGuid(), EventSettingsStatus.Inactive) with
+        {
+            GateOpeningDate = new LocalDate(2026, 8, 12),
+        };
+
+        var result = await BuildSut().SaveEventSettingsAsync(settings, Actor, TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("Nowhere 2026").And.Contain("2026-06-14 to 2026-07-18");
+        await _repository.DidNotReceiveWithAnyArgs().UpsertEventSettingsAsync(default!, default, default);
+    }
+
+    [HumansFact]
+    public async Task SaveEventSettingsAsync_AllowsTheNextYearsEventAndIgnoresItsOwnAndDeletedRows()
+    {
+        var id = Guid.NewGuid();
+        var deleted = MakeEntity(Guid.NewGuid(), isActive: false);
+        deleted.Status = EventSettingsStatus.Deleted;
+        deleted.GateOpeningDate = new LocalDate(2027, 7, 8);
+        var own = MakeEntity(id);
+        own.GateOpeningDate = new LocalDate(2027, 7, 8);
+        _repository.GetAllEventSettingsAsync(Arg.Any<CancellationToken>())
+            .Returns([MakeEntity(Guid.NewGuid()), deleted, own]);
+        var settings = MakeDto(id, EventSettingsStatus.Inactive) with { GateOpeningDate = new LocalDate(2027, 7, 8) };
+
+        var result = await BuildSut().SaveEventSettingsAsync(settings, Actor, TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [HumansFact]
+    public async Task ActivateEventSettingsAsync_SwitchesTheActiveEventInOneAuditedStep()
+    {
+        var previous = MakeEntity(Guid.NewGuid(), isActive: false);
+        var next = MakeEntity(Guid.NewGuid(), isActive: false);
+        next.EventName = "Nowhere 2027";
+        _repository.GetEventSettingsByIdAsync(next.Id, Arg.Any<CancellationToken>()).Returns(next);
+        _repository.SetActiveEventSettingsAsync(next.Id, Now, Arg.Any<CancellationToken>()).Returns([previous, next]);
+
+        var result = await BuildSut().ActivateEventSettingsAsync(next.Id, Actor, TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeTrue();
+        await _repository.DidNotReceiveWithAnyArgs().UpsertEventSettingsAsync(default!, default, default);
+        await _auditLog.Received(1).LogAsync(
+            AuditAction.EventSettingsUpdated, Arg.Any<string>(), next.Id,
+            "Event 'Nowhere 2027' made active; 'Nowhere 2026' set inactive.", Actor);
+        _listenerOne.Received(1).EventSettingsChanged(previous.Id);
+        _listenerOne.Received(1).EventSettingsChanged(next.Id);
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(false)]
+    [Xunit.InlineData(true)]
+    public async Task ActivateEventSettingsAsync_RefusesAMissingOrDeletedEvent(bool exists)
+    {
+        var id = Guid.NewGuid();
+        if (exists)
+        {
+            var deleted = MakeEntity(id, isActive: false);
+            deleted.Status = EventSettingsStatus.Deleted;
+            _repository.GetEventSettingsByIdAsync(id, Arg.Any<CancellationToken>()).Returns(deleted);
+        }
+
+        var result = await BuildSut().ActivateEventSettingsAsync(id, Actor, TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        await _repository.DidNotReceiveWithAnyArgs().SetActiveEventSettingsAsync(default, default, default);
+        await _auditLog.DidNotReceiveWithAnyArgs().LogAsync(default, default!, default, default!, default(Guid));
+    }
+
+    // Settings mints ids for new cycles with no existence check against Shifts: a Shifts knobs
+    // row is created on demand, the first time a rota or knob edit needs one.
 
     [HumansFact]
     public async Task SaveEventSettingsAsync_CreatesABrandNewRowWithoutAskingShifts()
@@ -499,5 +590,48 @@ public sealed class ServiceTests
 
         await _repository.Received(1).SetValueAsync(
             "Feature:Enabled", "false", Arg.Any<CancellationToken>());
+    }
+
+    // The timezone is one global setting; the copy on each event row is never read.
+
+    [HumansFact]
+    public async Task GetActiveEventSettingsAsync_ReadsTheGlobalTimezoneNotTheRowCopy()
+    {
+        _repository.GetActiveEventSettingsAsync(Arg.Any<CancellationToken>()).Returns(MakeEntity(Guid.NewGuid()));
+        _repository.GetValueAsync(SettingKeys.EventTimeZoneId, Arg.Any<CancellationToken>()).Returns("Atlantic/Canary");
+
+        var dto = await BuildSut().GetActiveEventSettingsAsync(TestContext.Current.CancellationToken);
+
+        dto!.TimeZoneId.Should().Be("Atlantic/Canary");
+    }
+
+    [HumansFact]
+    public async Task SaveTimeZoneAsync_StoresTheKeyAuditsAndNotifiesEveryEvent()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        _repository.GetAllEventSettingsAsync(Arg.Any<CancellationToken>())
+            .Returns([MakeEntity(first), MakeEntity(second, isActive: false)]);
+
+        var result = await BuildSut().SaveTimeZoneAsync("Atlantic/Canary", Actor, TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeTrue();
+        await _repository.Received(1).SetValueAsync(SettingKeys.EventTimeZoneId, "Atlantic/Canary", Arg.Any<CancellationToken>());
+        await _auditLog.Received(1).LogAsync(
+            AuditAction.EventSettingsUpdated, AuditEntityTypes.EventTimeZone, Guid.Empty,
+            Arg.Is<string>(d => d.Contains("Europe/Madrid") && d.Contains("Atlantic/Canary")),
+            Actor, Arg.Any<Guid?>(), Arg.Any<string?>());
+        _listenerOne.Received(1).EventSettingsChanged(first);
+        _listenerOne.Received(1).EventSettingsChanged(second);
+    }
+
+    [HumansFact]
+    public async Task SaveTimeZoneAsync_RefusesAnUnknownZoneAndWritesNothing()
+    {
+        var result = await BuildSut().SaveTimeZoneAsync("Mars/Olympus", Actor, TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        await _repository.DidNotReceiveWithAnyArgs().SetValueAsync(default!, default!, default);
+        _auditLog.ReceivedCalls().Should().BeEmpty();
     }
 }

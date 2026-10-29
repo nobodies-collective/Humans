@@ -5,13 +5,12 @@ using Humans.Base.Interfaces;
 namespace Humans.Users.Services;
 
 internal sealed class ProfileService(IUserRepository userRepository,
-    IUserManagement userService,
     IFileStorage fileStorage) : IProfilePictureService
 {
     public async Task<(byte[] Data, string ContentType)?> GetProfilePictureAsync(
         Guid profileId, CancellationToken ct = default)
     {
-        // GDPR gate: content-type column is the source of truth — don't serve from disk if cleared.
+        // GDPR gate: the content-type column is the source of truth; never serve from disk once cleared.
         var location = await userRepository.GetProfilePictureLocationAsync(profileId, ct);
         if (location is not { } picture || string.IsNullOrEmpty(picture.ContentType))
         {
@@ -21,38 +20,5 @@ internal sealed class ProfileService(IUserRepository userRepository,
         var key = ProfilePictureKeys.Resolve(profileId, picture.ContentType, picture.StorageKey)!;
         var fsBytes = await fileStorage.TryReadAsync(key, ct);
         return fsBytes is not null ? (fsBytes, picture.ContentType) : null;
-    }
-
-    public async Task<ProfilePictureMigrationSnapshot> GetProfilePictureMigrationSnapshotAsync(
-        CancellationToken ct = default)
-    {
-        var rows = await userRepository.GetCustomPictureRowsAsync(ct);
-        if (rows.Count == 0)
-        {
-            return new ProfilePictureMigrationSnapshot(0, 0, []);
-        }
-
-        var users = await userService.GetUserInfosAsync(rows.Select(r => r.UserId).ToList(), ct);
-
-        var onFs = 0;
-        var dbOnly = new List<ProfilePictureMigrationRow>();
-        foreach (var (profileId, userId, burnerName, contentType, storageKey, updatedAt) in rows)
-        {
-            var key = ProfilePictureKeys.Resolve(profileId, contentType, storageKey)!;
-            var bytes = await fileStorage.TryReadAsync(key, ct);
-            if (bytes is not null)
-            {
-                onFs++;
-            }
-            else
-            {
-                var displayName = !string.IsNullOrWhiteSpace(burnerName)
-                    ? burnerName
-                    : (users.TryGetValue(userId, out var u) ? u.BurnerName : string.Empty);
-                dbOnly.Add(new ProfilePictureMigrationRow(profileId, userId, displayName, contentType, updatedAt));
-            }
-        }
-
-        return new ProfilePictureMigrationSnapshot(rows.Count, onFs, dbOnly);
     }
 }

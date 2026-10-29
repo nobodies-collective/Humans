@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Resources;
 using Humans.Shifts.Contracts;
 using NodaTime;
 
@@ -9,19 +11,13 @@ internal sealed record ShiftSignupSummaryBuckets(
     List<ShiftSignupsRow> Past);
 
 /// <summary>
-/// Buckets a user's flat signup projection into upcoming / pending / past for the
-/// <c>&lt;vc:shift-signups&gt;</c> card.
+/// <c>ShiftSignupBucketer</c>'s split over the leaf summary, for the public card. Refused and Cancelled signups are
+/// not history worth showing.
 /// </summary>
-/// <remarks>
-/// The same three-way split <c>ShiftSignupBucketer</c> applies to the entity-bearing
-/// rows the /Shifts/Mine page binds, over <see cref="ShiftSignupSummary"/> instead —
-/// the card's component is public and therefore reads the leaf
-/// (<c>Contracts/ShiftSignupsViewComponent.cs</c>). Matches the entity bucketer's
-/// <c>includeOtherStatusesInPast: false</c> mode, which is the only mode the card ever
-/// used: Refused and Cancelled signups are not history worth showing.
-/// </remarks>
 internal static class ShiftSignupSummaryBucketer
 {
+    private static readonly ResourceManager Resources = new(typeof(ShiftsResource));
+
     public static ShiftSignupSummaryBuckets Build(
         IReadOnlyList<ShiftSignupSummary> signups,
         IReadOnlyDictionary<Guid, string> teamNames,
@@ -35,7 +31,7 @@ internal static class ShiftSignupSummaryBucketer
         {
             var row = new ShiftSignupsRow(
                 signup,
-                teamNames.GetValueOrDefault(signup.TeamId, "Unknown"));
+                teamNames.GetValueOrDefault(signup.TeamId, Resources.GetString("Shifts_Signup_UnknownTeam", CultureInfo.CurrentUICulture)!));
 
             switch (signup.Status)
             {

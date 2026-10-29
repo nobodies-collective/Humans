@@ -12,7 +12,6 @@ using NSubstitute;
 
 namespace Humans.Shifts.Tests.ViewComponents;
 
-/// <summary>The /Settings#shifts tab (peterdrier/Humans#1634).</summary>
 public sealed class ShiftsSettingsTabViewComponentTests
 {
     private readonly IBurnSettingsService _burnSettings = Substitute.For<IBurnSettingsService>();
@@ -52,7 +51,9 @@ public sealed class ShiftsSettingsTabViewComponentTests
     public async Task InvokeAsync_ActiveEventWithKnobs_ReturnsTheKnobs()
     {
         _burnSettings.GetActiveAsync(Arg.Any<CancellationToken>()).Returns(ActiveEvent);
-        _shiftMgmt.GetKnobsAsync(ActiveEvent.Id).Returns(new ShiftEventKnobs(false, 42, 6));
+        using var cancellation = new CancellationTokenSource();
+        _sut.HttpContext.RequestAborted = cancellation.Token;
+        _shiftMgmt.GetKnobsAsync(ActiveEvent.Id, cancellation.Token).Returns(new ShiftEventKnobs(false, 42, 6));
 
         var result = await _sut.InvokeAsync();
         var model = (EventSettingsViewModel)((ViewViewComponentResult)result).ViewData!.Model!;
@@ -72,6 +73,6 @@ public sealed class ShiftsSettingsTabViewComponentTests
 
         model.IsShiftBrowsingOpen.Should().BeFalse();
         model.GlobalVolunteerCap.Should().BeNull();
-        await _shiftMgmt.DidNotReceive().GetKnobsAsync(Arg.Any<Guid>());
+        await _shiftMgmt.DidNotReceive().GetKnobsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 }

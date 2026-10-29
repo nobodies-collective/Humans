@@ -1,54 +1,32 @@
 using Humans.Auth.Contracts;
+using Humans.Consent.Contracts;
+using Humans.Shifts.Contracts;
+using Humans.Tickets.Contracts;
 using Humans.Base.Interfaces;
 using Humans.Web.Extensions;
 using Humans.Base.Constants;
 using Humans.Base.Authorization;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Infrastructure;
 
 namespace Humans.Web.Authorization;
 
 /// <summary>
-/// Registers the cross-section canonical authorization policies for the Humans application —
-/// every other policy is registered by its owning section's <c>ISectionPolicies</c> (design
-/// §15, nobodies-collective/Humans#1076). Each policy corresponds to an entry in the
-/// authorization inventory (docs/authorization-inventory.md, Section 5).
+/// Registers the cross-section authorization policies; every other policy is registered by its owning section's
+/// <c>ISectionPolicies</c>. Each one is an entry in <c>docs/authorization-inventory.md</c>.
 /// </summary>
 public static class AuthorizationPolicyExtensions
 {
     public static IServiceCollection AddHumansAuthorizationPolicies(this IServiceCollection services)
     {
-        // TeamAuthorizationHandler is registered by Humans.Teams' Section.Register: the handler
-        // moved into the section at its G5 and is internal there, while the policies it backs
-        // stay here as shared platform policies. CampComplianceAccessHandler and
-        // IsAnyTeamManagerOrCoordinatorHandler are registered the same way by Humans.Shifts'
-        // Section.Register, and HumanAdminOnlyHandler by Humans.Users'.
-        //
-        // CampComplianceAccess registers in Camps' SectionPolicies — the policy's consumer,
-        // not its handler's home (nobodies-collective/Humans#1091; see the rationale there).
-
         services.AddAuthorization(options =>
         {
+            // Every endpoint without its own [Authorize]/[AllowAnonymous] (health checks, hubs, minimal APIs,
+            // Hangfire) requires a signed-in user; public surfaces opt out with [AllowAnonymous] / .AllowAnonymous().
+            options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+
             options.AddPolicy(PolicyNames.AdminOnly, policy =>
                 policy.RequireRole(RoleNames.Admin));
-
-            // Mirrors _Layout.cshtml top-nav check; sidebar items are filtered per-item.
-            options.AddPolicy(PolicyNames.AnyAdminRole, policy =>
-                policy.RequireRole(
-                    RoleNames.Admin,
-                    RoleNames.Board,
-                    RoleNames.HumanAdmin,
-                    RoleNames.TeamsAdmin,
-                    RoleNames.CampAdmin,
-                    RoleNames.TicketAdmin,
-                    RoleNames.EventsAdmin,
-                    RoleNames.FeedbackAdmin,
-                    RoleNames.FinanceAdmin,
-                    RoleNames.StoreAdmin,
-                    RoleNames.CantinaAdmin,
-                    RoleNames.RideshareAdmin,
-                    RoleNames.NoInfoAdmin,
-                    RoleNames.VolunteerCoordinator,
-                    RoleNames.ConsentCoordinator));
 
             options.AddPolicy(PolicyNames.BoardOnly, policy =>
                 policy.RequireRole(RoleNames.Board));
@@ -56,34 +34,21 @@ public static class AuthorizationPolicyExtensions
             options.AddPolicy(PolicyNames.BoardOrAdmin, policy =>
                 policy.RequireRole(RoleNames.Board, RoleNames.Admin));
 
-            // Ticket-admin roles OR the shared gate-terminal account (by well-known
-            // id — it holds no roles). The OR lives in one assertion so the policy
-            // stays a single requirement (policy requirements AND together).
-            // Composite spanning Tickets (TicketAdmin) and Gate (terminal identity).
+            // Composite spanning Tickets (TicketsAdmin) and Gate (terminal identity).
             options.AddPolicy(PolicyNames.ScannerAccess, policy =>
-                policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole(RoleNames.TicketAdmin)
-                    || ctx.User.IsInRole(RoleNames.Board)
-                    || ctx.User.IsInRole(RoleNames.Admin)
-                    || ctx.User.HasClaim(System.Security.Claims.ClaimTypes.NameIdentifier,
-                        SystemUserIds.GateTerminal.ToString())));
+                policy.AddRequirements(new TicketsAdminOrGateTerminalRequirement()));
 
             // Gate write actions (/Gate/Decision, /Gate/Claim POST). Same principals
             // as ScannerAccess today — including the shared gate-terminal account by
             // well-known id — but a separate policy so the write path never rides on
             // the read-only Scanner gate (and the two can diverge later). Composite
-            // spanning Tickets (TicketAdmin) and Gate (terminal identity).
+            // spanning Tickets (TicketsAdmin) and Gate (terminal identity).
             options.AddPolicy(PolicyNames.GateAdmit, policy =>
-                policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole(RoleNames.TicketAdmin)
-                    || ctx.User.IsInRole(RoleNames.Board)
-                    || ctx.User.IsInRole(RoleNames.Admin)
-                    || ctx.User.HasClaim(System.Security.Claims.ClaimTypes.NameIdentifier,
-                        SystemUserIds.GateTerminal.ToString())));
+                policy.AddRequirements(new TicketsAdminOrGateTerminalRequirement()));
 
-            // Composite spanning Consent (ConsentCoordinator) and Shifts (VolunteerCoordinator) roles.
+            // Composite spanning Consent (ConsentCoordinator) and Shifts (ShiftsAdmin) roles.
             options.AddPolicy(PolicyNames.ReviewQueueAccess, policy =>
-                policy.RequireRole(RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator,
+                policy.RequireRole(ConsentRoles.ConsentCoordinator, ShiftsRoles.ShiftsAdmin,
                     RoleNames.Board, RoleNames.Admin));
 
             // Single nav-visibility gate: only Active users see app navigation.
@@ -91,16 +56,17 @@ public static class AuthorizationPolicyExtensions
                 policy.RequireAssertion(ctx =>
                     RoleAssignmentClaimsTransformation.IsActive(ctx.User)));
 
-            // Resource-based (the resource is the target role-name string). Naming the
-            // requirement type is policy-registration work and therefore Shell's — it lets
-            // Humans.Users reach the gate through the policy name alone, so Auth's Contracts
-            // leaf never has to carry an IAuthorizationRequirement. ("Framework-free leaf" was
-            // the old wording; G5 lane 3c measured it false — the leaf resolves
-            // Microsoft.AspNetCore.App transitively through Humans.Base. Keeping the
-            // requirement out is a choice.)
+            // Resource-based (the resource is the target role-name string). Registered here so Humans.Users reaches
+            // the gate through the policy name alone, and Auth's Contracts leaf never carries an IAuthorizationRequirement.
             options.AddPolicy(PolicyNames.RoleAssignmentManage, policy =>
                 policy.AddRequirements(RoleAssignmentOperationRequirement.Manage));
         });
+
+        // The admin-shell entry gate (the ADMIN link, /Admin): every catalogued role that opens the shell. Derived
+        // from the sections' ISectionRoles so a new role joins without a Shell edit; sidebar items filter per item.
+        services.AddOptions<AuthorizationOptions>().Configure<RoleCatalog>((options, catalog) =>
+            options.AddPolicy(PolicyNames.AnyAdminRole, policy =>
+                policy.RequireRole(catalog.Roles.Where(r => r.OpensAdminShell).Select(r => r.Name).ToArray())));
 
         // Sections register their own policies. Configure<AuthorizationOptions> is additive,
         // so cross-section policies keep registering above.
@@ -117,5 +83,19 @@ public static class AuthorizationPolicyExtensions
         }
 
         return services;
+    }
+
+    /// <summary>
+    /// Ticket-admin roles OR the shared gate-terminal account (by well-known id — it holds no roles), in one
+    /// assertion because a policy's requirements AND together.
+    /// </summary>
+    private sealed class TicketsAdminOrGateTerminalRequirement() : AssertionRequirement(ctx =>
+        ctx.User.IsInRole(TicketsRoles.TicketsAdmin)
+        || ctx.User.IsInRole(RoleNames.Board)
+        || ctx.User.IsInRole(RoleNames.Admin)
+        || ctx.User.HasClaim(System.Security.Claims.ClaimTypes.NameIdentifier, SystemUserIds.GateTerminal.ToString())),
+        IDescribedRequirement
+    {
+        public IReadOnlyList<string> Admits => [TicketsRoles.TicketsAdmin, RoleNames.Board, RoleNames.Admin];
     }
 }

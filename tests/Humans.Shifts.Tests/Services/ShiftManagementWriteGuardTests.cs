@@ -19,10 +19,6 @@ using Humans.Settings.Contracts;
 
 namespace Humans.Shifts.Tests.Services;
 
-/// <summary>
-/// Guard clauses and boundary arithmetic on the ShiftManagementService write paths:
-/// rota create/move, shift create/update/delete, and the two bulk-generation entry points.
-/// </summary>
 public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
 {
     private static readonly Instant TestNow = Instant.FromUtc(2026, 6, 15, 12, 0);
@@ -70,14 +66,10 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
             Microsoft.Extensions.Logging.Abstractions.NullLogger<ShiftManagementService>.Instance);
     }
 
-    // ============================================================
-    // CanApproveSignupsAsync — system-wide roles vs department scope
-    // ============================================================
-
     [HumansTheory]
     [InlineData(RoleNames.Admin)]
-    [InlineData(RoleNames.NoInfoAdmin)]
-    [InlineData(RoleNames.VolunteerCoordinator)]
+    [InlineData(ShiftsRoles.ShiftsNoInfo)]
+    [InlineData(ShiftsRoles.ShiftsAdmin)]
     public async Task CanApproveSignups_IsGrantedByAnyOneSystemWideRoleOnItsOwn(string roleName)
     {
         var userId = Guid.NewGuid();
@@ -97,8 +89,8 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
 
         (await _service.CanApproveSignupsAsync(userId, departmentId, cancellation.Token)).Should().BeFalse();
         await _roleAssignments.Received(1).HasActiveRoleAsync(userId, RoleNames.Admin, cancellation.Token);
-        await _roleAssignments.Received(1).HasActiveRoleAsync(userId, RoleNames.NoInfoAdmin, cancellation.Token);
-        await _roleAssignments.Received(1).HasActiveRoleAsync(userId, RoleNames.VolunteerCoordinator, cancellation.Token);
+        await _roleAssignments.Received(1).HasActiveRoleAsync(userId, ShiftsRoles.ShiftsNoInfo, cancellation.Token);
+        await _roleAssignments.Received(1).HasActiveRoleAsync(userId, ShiftsRoles.ShiftsAdmin, cancellation.Token);
         await _teamService.Received(1).GetUserCoordinatedTeamIdsAsync(userId, cancellation.Token);
         await _teamService.Received(1).GetTeamAsync(departmentId, cancellation.Token);
     }
@@ -116,10 +108,6 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
         (await _service.CanApproveSignupsAsync(userId, department.Id)).Should().BeTrue();
         (await _service.CanApproveSignupsAsync(userId, other.Id)).Should().BeFalse();
     }
-
-    // ============================================================
-    // CreateRotaAsync — target-team and event validation
-    // ============================================================
 
     [HumansFact]
     public async Task CreateRotaAsync_Throws_WhenTeamNotFound()
@@ -162,8 +150,7 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
     [HumansFact]
     public async Task CreateRotaAsync_Succeeds_ForAnInactiveCycle()
     {
-        // "Active" is Settings' concept now (nobodies-collective/Humans#1631) — a rota
-        // can be created against any real cycle, active or not.
+        // "Active" is Settings' concept: a rota can be created against any real cycle, active or not.
         var es = SeedEventSettings(isActive: false);
         var team = SeedDepartment("Gate");
         await SaveAllAsync(Ct);
@@ -243,10 +230,6 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
         saved.Tags.Should().BeEmpty();
     }
 
-    // ============================================================
-    // UpdateRotaAsync — null tag list means "leave tags alone"
-    // ============================================================
-
     [HumansFact]
     public async Task UpdateRotaAsync_WithNullTagIds_LeavesExistingTags()
     {
@@ -289,10 +272,6 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
     private static UpdateRotaInput EditOf(Rota rota, string name, IReadOnlyList<Guid>? tagIds) => new(
         rota.Id, name, rota.Description, rota.PracticalInfo, rota.Priority, rota.Policy,
         rota.Period, rota.IsVisibleToVolunteers, tagIds);
-
-    // ============================================================
-    // MoveRotaToTeamAsync — the five rejection paths
-    // ============================================================
 
     [HumansFact]
     public async Task MoveRotaToTeamAsync_Fails_WhenRotaMissing()
@@ -400,10 +379,6 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
         (await _views.IsRotaCachedAsync(rota.Id)).Should().BeFalse();
     }
 
-    // ============================================================
-    // DeleteShiftAsync
-    // ============================================================
-
     [HumansFact]
     public async Task DeleteShiftAsync_Refuses_WhenShiftMissing()
     {
@@ -459,10 +434,6 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
         AuditLog.ReceivedCalls().Where(call => Equals(call.GetArguments()[0], AuditAction.ShiftSignupCancelled))
             .Should().ContainSingle();
     }
-
-    // ============================================================
-    // CreateBuildStrikeShiftsAsync — day-offset window + staffing grid
-    // ============================================================
 
     [HumansFact]
     public async Task CreateBuildStrikeShifts_Fails_WhenRotaBelongsToAnotherTeam()
@@ -525,15 +496,16 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
     [HumansTheory]
     [InlineData(-15)]
     [InlineData(0)]
-    public async Task CreateBuildStrikeShifts_Throws_WhenBuildDayOffsetIsOutsideTheBuildWindow(int dayOffset)
+    public async Task CreateBuildStrikeShifts_ReturnsRefusal_WhenBuildDayOffsetIsOutsideTheBuildWindow(int dayOffset)
     {
         var (_, rota, _) = SeedRotaScenario(RotaPeriod.Build);
         await SaveAllAsync(Ct);
 
-        var act = () => _service.CreateBuildStrikeShiftsAsync(
+        var result = await _service.CreateBuildStrikeShiftsAsync(
             new ConfigureBuildStrikeStaffingInput(rota.Id, rota.TeamId, [new DayStaffingInput(dayOffset, 1, 2)]));
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*outside the build period*");
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("outside the build period");
         ShiftsDb.Shifts.Should().BeEmpty();
     }
 
@@ -555,15 +527,16 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
     [HumansTheory]
     [InlineData(6)]
     [InlineData(10)]
-    public async Task CreateBuildStrikeShifts_Throws_WhenStrikeDayOffsetIsOutsideTheStrikeWindow(int dayOffset)
+    public async Task CreateBuildStrikeShifts_ReturnsRefusal_WhenStrikeDayOffsetIsOutsideTheStrikeWindow(int dayOffset)
     {
         var (_, rota, _) = SeedRotaScenario(RotaPeriod.Strike);
         await SaveAllAsync(Ct);
 
-        var act = () => _service.CreateBuildStrikeShiftsAsync(
+        var result = await _service.CreateBuildStrikeShiftsAsync(
             new ConfigureBuildStrikeStaffingInput(rota.Id, rota.TeamId, [new DayStaffingInput(dayOffset, 1, 2)]));
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*outside the strike period*");
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("outside the strike period");
     }
 
     [HumansTheory]
@@ -607,9 +580,10 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
         }
         else
         {
-            var error = await Record.ExceptionAsync(() => _service.CreateBuildStrikeShiftsAsync(input));
+            var result = await _service.CreateBuildStrikeShiftsAsync(input);
             ShiftsDb.Shifts.Should().BeEmpty();
-            error.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Contain("outside the all period");
+            result.Succeeded.Should().BeFalse();
+            result.Message.Should().Contain("outside the all period");
             _views.Evictions.Should().Be(0);
             (await _views.IsRotaCachedAsync(rota.Id)).Should().BeTrue();
         }
@@ -655,10 +629,6 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
         shift.MinVolunteers.Should().Be(7);
         shift.MaxVolunteers.Should().Be(8);
     }
-
-    // ============================================================
-    // GenerateEventShiftsAsync — event window + cartesian product
-    // ============================================================
 
     [HumansTheory]
     [InlineData(-1, 3)]
@@ -830,10 +800,6 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
         shift.Duration.Should().Be(Duration.FromMinutes(15));
     }
 
-    // ============================================================
-    // CreateShiftAsync / UpdateShiftAsync — per-period day-offset bounds
-    // ============================================================
-
     [HumansTheory]
     [InlineData(RotaPeriod.Build, -14, -1)]
     [InlineData(RotaPeriod.Event, 0, 6)]
@@ -956,10 +922,6 @@ public sealed class ShiftManagementWriteGuardTests : ShiftsTestHarness
         (await _views.IsRotaCachedAsync(rota.Id)).Should().BeFalse();
         (await _views.IsUserCachedAsync(viewer)).Should().BeFalse();
     }
-
-    // ============================================================
-    // Helpers
-    // ============================================================
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

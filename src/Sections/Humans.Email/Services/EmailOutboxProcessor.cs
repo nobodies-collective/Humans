@@ -2,9 +2,6 @@ using System.Text.Json;
 using Humans.Base.Interfaces;
 using Humans.Base.Interfaces.Metering;
 using Humans.Base.Metering;
-using Humans.Campaigns.Contracts;
-using Humans.Base.Enums;
-using Humans.Email.Contracts;
 using Humans.Email.Data;
 using Humans.Email.Domain;
 using Humans.Base.Configuration;
@@ -13,23 +10,9 @@ using NodaTime;
 
 namespace Humans.Email.Services;
 
-/// <summary>
-/// Drains the outbox: pause check, batch pick-up, per-message transport call, retry
-/// backoff, and the campaign-grant status mirror. Lifted out of
-/// <c>ProcessEmailOutboxJob</c> at the section's G5 move — the job kept
-/// <see cref="IEmailOutboxRepository"/> and <see cref="IEmailTransport"/> in Base, which
-/// is a job reaching past the service layer, and neither type is nameable from Base now.
-/// The job is the scheduler shim; the queue semantics are here (the G5 playbook, step 6b).
-/// </summary>
-/// <remarks>
-/// The grant mirror goes through <see cref="ICampaignWrite"/> so Campaigns owns
-/// <c>campaign_grants</c> (design-rules §2c); the pause flag routes to Settings
-/// through <see cref="IEmailOutboxManagement.IsEmailPausedAsync"/>.
-/// </remarks>
 internal sealed class EmailOutboxProcessor(
     IEmailOutboxRepository outboxRepo,
     IEmailOutboxManagement emailOutboxService,
-    ICampaignWrite campaignService,
     IEmailTransport transport,
     IHumansMetrics metrics,
     IMeters meters,
@@ -106,14 +89,6 @@ internal sealed class EmailOutboxProcessor(
                 metrics.RecordEmailFailed(message.TemplateName);
                 await TryIncrementDailySendCountAsync(message, failedAt, succeeded: false, cancellationToken);
 
-                // Same bookkeeping, same guard as the success path: a failure here is
-                // already inside the catch, so left uncaught it escapes the loop.
-                if (message.CampaignGrantId.HasValue)
-                {
-                    await TryUpdateGrantEmailStatusAsync(
-                        message.CampaignGrantId.Value, EmailOutboxStatus.Failed, failedAt, message.Id, cancellationToken);
-                }
-
                 logger.LogError(
                     ex,
                     "Failed sending email outbox message {MessageId} ({TemplateName}) attempt {Attempt}",
@@ -130,16 +105,7 @@ internal sealed class EmailOutboxProcessor(
             metrics.RecordEmailSent(message.TemplateName);
             await TryIncrementDailySendCountAsync(message, sentAt, succeeded: true, cancellationToken);
 
-            // Update campaign grant status if applicable — routed via
-            // ICampaignWrite so the Campaigns section owns campaign_grants.
-            // Bookkeeping failure is logged without interrupting the batch.
-            if (message.CampaignGrantId.HasValue)
-            {
-                await TryUpdateGrantEmailStatusAsync(
-                    message.CampaignGrantId.Value, EmailOutboxStatus.Sent, sentAt, message.Id, cancellationToken);
-            }
-
-            // Throttle: 1 second delay between sends to avoid SMTP rate limits
+            // Stays under the SMTP relay's rate limit.
             await ThrottleDelayAsync(TimeSpan.FromSeconds(1), cancellationToken);
         }
 
@@ -147,31 +113,7 @@ internal sealed class EmailOutboxProcessor(
         _outboxPendingMeter.Set(pendingCount);
     }
 
-    /// <summary>
-    /// Grant mirroring is bookkeeping, not delivery state. Log its failure and
-    /// continue the batch after either delivery outcome; otherwise remaining
-    /// picked-up messages would wait for the stale window to release them.
-    /// </summary>
-    private async Task TryUpdateGrantEmailStatusAsync(
-        Guid campaignGrantId, EmailOutboxStatus status, Instant now, Guid messageId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await campaignService.UpdateGrantEmailStatusAsync(campaignGrantId, status, now, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(
-                ex,
-                "Failed updating campaign grant {CampaignGrantId} email status to {Status} for message {MessageId}",
-                campaignGrantId, status, messageId);
-        }
-    }
-
-    /// <summary>
-    /// The daily tally is analytics, not delivery state. Log its write failure
-    /// without interrupting the batch or changing the recorded delivery outcome.
-    /// </summary>
+    /// <summary>Analytics, not delivery state: a failed write is logged and changes nothing else.</summary>
     private async Task TryIncrementDailySendCountAsync(
         EmailOutboxMessage message, Instant now, bool succeeded, CancellationToken cancellationToken)
     {

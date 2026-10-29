@@ -1,3 +1,4 @@
+using Humans.Rideshare.Contracts;
 using Humans.Base.Hosting;
 using Humans.Base.Interfaces;
 using Humans.Base.Interfaces.Caching;
@@ -14,20 +15,21 @@ using Microsoft.Extensions.Options;
 
 namespace Humans.Rideshare;
 
-/// <summary>
-/// Rideshare's DI entry point, at the project root by convention. Discovered by Shell —
-/// nothing names it, so it needs no section prefix.
-/// </summary>
-public sealed class Section : ISection
+public sealed class Section : ISection, ISectionRoles
 {
+    IReadOnlyList<RoleDefinition> ISectionRoles.Roles { get; } =
+    [
+        new(RideshareRoles.RideshareAdmin, "Rideshare Admin",
+            "Road captains. They set the year's destination and travel windows, watch the season statistics, and keep the day roster of trips and riders.",
+            "fa-solid fa-car"),
+    ];
+
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
         services.AddSectionDbContext<RideshareDbContext>(sentinelTable: "rideshare_trips");
 
-        // Singleton + IDbContextFactory pattern (§15b): repo owns context lifetime.
         services.AddSingleton<IRideshareRepository, RideshareRepository>();
 
-        // OpenRouteService: key from the environment, base URL from configuration.
         services.Configure<RouteProviderOptions>(o =>
         {
             o.ApiKey = Environment.GetEnvironmentVariable("ORS_API_KEY") ?? "";
@@ -43,8 +45,6 @@ public sealed class Section : ISection
             // HttpClient logger prints request URLs at Information, which would leak it.
             .RemoveAllLoggers();
 
-        // Inner service — Scoped + keyed; the Singleton decorator resolves it per call
-        // and is what unkeyed IRideshareService resolves to.
         services.AddKeyedScoped<IRideshareService, RideshareService>(CachingRideshareService.InnerServiceKey);
         services.AddSingleton<CachingRideshareService>();
         services.AddSingleton<IRideshareService>(sp => sp.GetRequiredService<CachingRideshareService>());
@@ -54,7 +54,6 @@ public sealed class Section : ISection
         services.AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<CachingRideshareService>());
         services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<CachingRideshareService>());
 
-        // Surface the snapshot cache on /Debug/CacheStats.
         services.AddSingleton<ICacheStats>(sp => sp.GetRequiredService<CachingRideshareService>().SnapshotCacheStats);
 
         EnumBadgeMap.Register(new Dictionary<Enum, string>

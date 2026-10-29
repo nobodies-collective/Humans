@@ -42,15 +42,23 @@ internal sealed class TeamAdminController(
             return teamError;
         }
 
-        try
+        if (!ModelState.IsValid)
         {
-            await _teamService.ApproveJoinRequestAsync(requestId, user.Id, model.Notes);
+            logger.LogWarning("Rejected invalid join request approval form for request {RequestId} in team {TeamId} by user {UserId}",
+                requestId, team.Id, user.Id);
+            return BadRequest(ModelState);
+        }
+
+        var result = await _teamService.ApproveJoinRequestAsync(requestId, user.Id, model.Notes);
+        if (result.Succeeded)
+        {
             SetSuccess(localizer["Teams_TeamAdmin_RequestApproved"].Value);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
+        else
         {
-            logger.LogWarning(ex, "Failed to approve join request {RequestId} for team {TeamId} by user {UserId}", requestId, team.Id, user.Id);
-            SetError(ex.Message);
+            logger.LogWarning("Failed to approve join request {RequestId} for team {TeamId} by user {UserId}: {Reason}",
+                requestId, team.Id, user.Id, result.Refusal);
+            SetError(result.Refusal!);
         }
 
         return RedirectToAction(nameof(Members), new { slug });
@@ -66,21 +74,29 @@ internal sealed class TeamAdminController(
             return teamError;
         }
 
+        if (!ModelState.IsValid)
+        {
+            logger.LogWarning("Rejected invalid join request rejection form for request {RequestId} in team {TeamId} by user {UserId}",
+                requestId, team.Id, user.Id);
+            return BadRequest(ModelState);
+        }
+
         if (string.IsNullOrWhiteSpace(model.Notes))
         {
             SetError(localizer["Teams_TeamAdmin_ProvideRejectionReason"].Value);
             return RedirectToAction(nameof(Members), new { slug });
         }
 
-        try
+        var result = await _teamService.RejectJoinRequestAsync(requestId, user.Id, model.Notes!);
+        if (result.Succeeded)
         {
-            await _teamService.RejectJoinRequestAsync(requestId, user.Id, model.Notes);
             SetSuccess(localizer["Teams_TeamAdmin_RequestRejected"].Value);
         }
-        catch (InvalidOperationException ex)
+        else
         {
-            logger.LogWarning("Failed to reject join request {RequestId} for team {TeamId} by user {UserId}: {Reason}", requestId, team.Id, user.Id, ex.Message);
-            SetError(ex.Message);
+            logger.LogWarning("Failed to reject join request {RequestId} for team {TeamId} by user {UserId}: {Reason}",
+                requestId, team.Id, user.Id, result.Refusal);
+            SetError(result.Refusal!);
         }
 
         return RedirectToAction(nameof(Members), new { slug });
@@ -212,10 +228,8 @@ internal sealed class TeamAdminController(
     };
 
     /// <summary>
-    /// Board/Admin-only roster: every member's burner name next to their legal name.
-    /// <c>TeamAuthorizationHandler</c> already passes Board and Admin for
-    /// <c>ManageCoordinators</c>, so the policy narrows <see cref="HumansTeamControllerBase.ResolveTeamManagementAsync"/>
-    /// (which also serves coordinators) down to exactly Board-or-Admin.
+    /// The policy narrows <see cref="HumansTeamControllerBase.ResolveTeamManagementAsync"/>, which also passes
+    /// coordinators, to Board or Admin.
     /// </summary>
     [HttpGet("Roster")]
     [Authorize(Policy = PolicyNames.BoardOrAdmin)]
@@ -231,8 +245,7 @@ internal sealed class TeamAdminController(
         var infos = await _userService.GetUserInfosAsync(
             members.Select(m => m.UserId).ToList(), ct);
 
-        // Display sort at controller (memory/architecture/display-sort-in-controllers.md);
-        // the table's headers re-sort client-side from here.
+        // The table's headers re-sort client-side from here.
         var rows = members
             .Select(m => new TeamRosterRowViewModel(
                 m.UserId,
@@ -276,23 +289,21 @@ internal sealed class TeamAdminController(
             return teamError;
         }
 
-        // Reject empty userId at controller — google_sync_outbox FK rejects Guid.Empty.
+        // google_sync_outbox's FK rejects Guid.Empty.
         if (model.UserId == Guid.Empty)
         {
             SetError("Select a user to add.");
             return RedirectToAction(nameof(Members), new { slug });
         }
 
-        try
+        var result = await _teamService.AddMemberToTeamAsync(team.Id, model.UserId, user.Id);
+        if (result.Refusal is { } refusal)
         {
-            await _teamService.AddMemberToTeamAsync(team.Id, model.UserId, user.Id);
+            logger.LogWarning("Refused member addition {MemberUserId} to team {TeamId} by user {UserId}: {Reason}", model.UserId, team.Id, user.Id, refusal);
+            SetError(refusal);
+        }
+        else
             SetSuccess(localizer["Teams_TeamAdmin_MemberAdded"].Value);
-        }
-        catch (InvalidOperationException ex)
-        {
-            logger.LogWarning("Failed to add member {MemberUserId} to team {TeamId} by user {UserId}: {Reason}", model.UserId, team.Id, user.Id, ex.Message);
-            SetError(ex.Message);
-        }
 
         return RedirectToAction(nameof(Members), new { slug });
     }
@@ -357,16 +368,14 @@ internal sealed class TeamAdminController(
             return Json(Array.Empty<HumanLookupSearchResult>());
         }
 
-        // Name-only — team admins are not global admins, so no contact-data search.
-        // Uncapped + relevance-ranked: a hard cap returned an arbitrary subset (the target could be
-        // missing) alphabetized; now the best name match leads the scrollable picker.
+        // Name-only: team admins aren't global admins, so no contact-data search. Uncapped and relevance-ranked, so the
+        // target can't fall outside an arbitrary cap.
         var results = await _userService.SearchUsersAsync(
             q, PersonSearchFields.Name, limit: int.MaxValue);
 
         var teamInfo = await _teamService.GetTeamAsync(team.Id);
         var existingMemberIds = teamInfo?.Members.Select(m => m.UserId).ToHashSet() ?? [];
 
-        // Display sort at controller (memory/architecture/display-sort-in-controllers.md).
         var filtered = results
             .Where(r => !existingMemberIds.Contains(r.UserId))
             .OrderByRelevance()
@@ -395,7 +404,7 @@ internal sealed class TeamAdminController(
         var memberUserIds = members.Select(m => m.UserId).ToList();
         var memberInfos = await _userService.GetUserInfosAsync(memberUserIds);
 
-        var canToggleManagement = RoleChecks.IsTeamsAdmin(User) || RoleChecks.IsAdmin(User);
+        var canToggleManagement = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.TeamsAdminOrAdmin)).Succeeded;
 
         var teamMembers = members.Select(m => new TeamMemberViewModel
         {
@@ -432,6 +441,18 @@ internal sealed class TeamAdminController(
         return View(viewModel);
     }
 
+    private static List<SlotPriority>? ParseRolePriorities(IEnumerable<string> values)
+    {
+        var priorities = new List<SlotPriority>();
+        foreach (var value in values)
+        {
+            if (!Enum.TryParse<SlotPriority>(value, ignoreCase: true, out var priority))
+                return null;
+            priorities.Add(priority);
+        }
+        return priorities;
+    }
+
     [HttpPost("Roles/Create")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateRole(string slug, CreateRoleDefinitionModel model)
@@ -448,23 +469,22 @@ internal sealed class TeamAdminController(
             return BadRequest(ModelState);
         }
 
-        try
-        {
-            var priorities = model.Priorities
-                .Select(p => Enum.Parse<SlotPriority>(p, ignoreCase: true))
-                .ToList();
-
-            await _teamService.CreateRoleDefinitionAsync(
+        var priorities = ParseRolePriorities(model.Priorities);
+        var result = priorities is null
+            ? new TeamRoleDefinitionMutationResult(Refusal: "Each slot priority must be a defined priority value")
+            : await _teamService.CreateRoleDefinitionAsync(
                 team.Id, model.Name, model.Description, model.SlotCount,
                 priorities, model.SortOrder, model.Period, user.Id, model.IsPublic,
                 model.EstimatedHours);
 
-            SetSuccess($"Role '{model.Name}' created.");
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
+        if (result.Refusal is { } refusal)
         {
-            logger.LogWarning(ex, "Failed to create role '{RoleName}' for team {TeamId} by user {UserId}", model.Name, team.Id, user.Id);
-            SetError(ex.Message);
+            logger.LogWarning("Role creation refused for team {TeamId} by user {UserId}: {Reason}", team.Id, user.Id, refusal);
+            SetError(refusal);
+        }
+        else
+        {
+            SetSuccess($"Role '{model.Name}' created.");
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
@@ -488,33 +508,32 @@ internal sealed class TeamAdminController(
             return BadRequest(ModelState);
         }
 
-        try
-        {
-            var canToggleManagement = RoleChecks.IsTeamsAdmin(User) || RoleChecks.IsAdmin(User);
-            var priorities = model.Priorities
-                .Select(p => Enum.Parse<SlotPriority>(p, ignoreCase: true))
-                .ToList();
-
-            await _teamService.UpdateRoleDefinitionAsync(
+        var canToggleManagement = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.TeamsAdminOrAdmin)).Succeeded;
+        var priorities = ParseRolePriorities(model.Priorities);
+        var result = priorities is null
+            ? new TeamRoleDefinitionMutationResult(Refusal: "Each slot priority must be a defined priority value")
+            : await _teamService.UpdateRoleDefinitionAsync(
                 roleId, model.Name, model.Description, model.SlotCount,
                 priorities, model.SortOrder, model.IsManagement, model.Period, user.Id,
                 model.IsPublic, canToggleManagement, model.EstimatedHours);
 
+        if (result.Refusal is { } refusal)
+        {
+            logger.LogWarning("Role update refused for role {RoleId} in team {TeamId} by user {UserId}: {Reason}",
+                roleId, team.Id, user.Id, refusal);
+            if (isAjax)
+                return Json(new { success = false, message = refusal });
+
+            SetError(refusal);
+        }
+        else
+        {
             if (isAjax)
                 return Json(new { success = true, message = $"Role '{model.Name}' updated." });
 
             SetSuccess($"Role '{model.Name}' updated.");
-            return RedirectToAction(nameof(Roles), new { slug });
         }
-        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
-        {
-            logger.LogWarning(ex, "Failed to update role {RoleId} for team {TeamId} by user {UserId}", roleId, team.Id, user.Id);
-            if (isAjax)
-                return Json(new { success = false, message = ex.Message });
-
-            SetError(ex.Message);
-            return RedirectToAction(nameof(Roles), new { slug });
-        }
+        return RedirectToAction(nameof(Roles), new { slug });
     }
 
     [HttpPost("Roles/{roleId}/Delete")]
@@ -527,15 +546,16 @@ internal sealed class TeamAdminController(
             return teamError;
         }
 
-        try
+        var result = await _teamService.DeleteRoleDefinitionAsync(roleId, user.Id);
+        if (result.Refusal is { } refusal)
         {
-            await _teamService.DeleteRoleDefinitionAsync(roleId, user.Id);
-            SetSuccess("Role deleted.");
+            logger.LogWarning("Role deletion refused for role {RoleId} in team {TeamId} by user {UserId}: {Reason}",
+                roleId, team.Id, user.Id, refusal);
+            SetError(refusal);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
+        else
         {
-            logger.LogWarning(ex, "Failed to delete role {RoleId} for team {TeamId} by user {UserId}", roleId, team.Id, user.Id);
-            SetError(ex.Message);
+            SetSuccess("Role deleted.");
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
@@ -551,22 +571,24 @@ internal sealed class TeamAdminController(
             return teamError;
         }
 
-        if (!RoleChecks.IsTeamsAdmin(User) && !RoleChecks.IsAdmin(User))
+        if (!(await AuthorizationService.AuthorizeAsync(User, PolicyNames.TeamsAdminOrAdmin)).Succeeded)
         {
             return Forbid();
         }
 
-        try
+        var result = await _teamService.ToggleRoleIsManagementAsync(roleId, user.Id);
+        if (result.Refusal is { } refusal)
         {
-            var result = await _teamService.ToggleRoleIsManagementAsync(roleId, user.Id);
-            SetSuccess(result.IsManagement
-                ? $"'{result.RoleName}' is now the management role. Members assigned to it will become Coordinators."
-                : $"'{result.RoleName}' is no longer the management role.");
+            logger.LogWarning("Management-role toggle refused for role {RoleId} in team {TeamId} by user {UserId}: {Reason}",
+                roleId, team.Id, user.Id, refusal);
+            SetError(refusal);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or DbUpdateException or ArgumentException)
+        else
         {
-            logger.LogWarning(ex, "Failed to toggle management flag for role {RoleId} in team {TeamId} by user {UserId}", roleId, team.Id, user.Id);
-            SetError(ex.Message);
+            var role = result.Definition!;
+            SetSuccess(role.IsManagement
+                ? $"'{role.Name}' is now the management role. Members assigned to it will become Coordinators."
+                : $"'{role.Name}' is no longer the management role.");
         }
 
         return RedirectToAction(nameof(Roles), new { slug });
@@ -716,11 +738,13 @@ internal sealed class TeamAdminController(
             return NotFound();
         }
 
+        if (!ModelState.IsValid)
+            return View(nameof(EarlyEntry), await BuildEarlyEntryPageAsync(team, ct));
+
         var parsed = LocalDatePattern.Iso.Parse(input.EntryDate);
-        if (!ModelState.IsValid || !parsed.Success)
+        if (!parsed.Success)
         {
-            if (!parsed.Success)
-                ModelState.AddModelError(nameof(input.EntryDate), "Enter a valid date (yyyy-MM-dd).");
+            ModelState.AddModelError(nameof(input.EntryDate), "Enter a valid date (yyyy-MM-dd).");
             return View(nameof(EarlyEntry), await BuildEarlyEntryPageAsync(team, ct));
         }
 
@@ -754,11 +778,13 @@ internal sealed class TeamAdminController(
             return NotFound();
         }
 
+        if (!ModelState.IsValid)
+            return View(nameof(EarlyEntry), await BuildEarlyEntryPageAsync(team, ct));
+
         var parsed = LocalDatePattern.Iso.Parse(input.EntryDate);
-        if (!ModelState.IsValid || !parsed.Success)
+        if (!parsed.Success)
         {
-            if (!parsed.Success)
-                ModelState.AddModelError(nameof(input.EntryDate), "Enter a valid date (yyyy-MM-dd).");
+            ModelState.AddModelError(nameof(input.EntryDate), "Enter a valid date (yyyy-MM-dd).");
             return View(nameof(EarlyEntry), await BuildEarlyEntryPageAsync(team, ct));
         }
 
@@ -836,7 +862,6 @@ internal sealed class TeamAdminController(
         var humans = await _userService.GetUserInfosAsync(
             grants.Select(g => g.UserId).Distinct().ToList(), ct);
 
-        // Display sort is a presentation concern (peters-hard-rules: controllers sort).
         var rows = grants
             .Select(g => new TeamEarlyEntryRowViewModel
             {
@@ -858,10 +883,8 @@ internal sealed class TeamAdminController(
     }
 
     /// <summary>
-    /// Build the 0-or-1 picker row for a barcode hit. A row is emitted only when the
-    /// attendee is personally paired to a human (<see cref="TicketAttendeeInfo.MatchedUserId"/>)
-    /// who still resolves and is active. Otherwise empty — the picker stays silent (it just
-    /// shows name matches), matching the type-ahead "no result" convention.
+    /// A row only when the attendee is paired to a human who still resolves and is active; otherwise empty, so the
+    /// picker shows only name matches.
     /// </summary>
     internal static List<HumanLookupSearchResult> BuildTicketLookupRows(
         TicketAttendeeInfo? hit, UserInfo? matchedUser, string detailLabel)
@@ -897,18 +920,14 @@ internal sealed class TeamAdminController(
             .Select(m => m.UserId)
             .ToHashSet();
 
-        // Name-only for role-picker (no bio/contact data); team admins are not global admins.
-        // Uncapped folded name search over everyone (accent/case-insensitive); relevance-ranked.
+        // Name-only (team admins aren't global admins); uncapped, folded and relevance-ranked.
         var allResults = await _userService.SearchUsersAsync(
             q, PersonSearchFields.Name, limit: int.MaxValue);
         var nameMatchIds = allResults.Select(r => r.UserId).ToHashSet();
 
-        // Team members first, matched by any of:
-        //  - folded name via the search above (so "joel" finds "Joël") — profiled members;
-        //  - direct DisplayName contains — keeps legacy/imported members who appear in team.Members
-        //    but have no searchable Profile findable by name (SearchUsersAsync skips profile-less users);
-        //  - email — team admins may know their own members' emails, which the global name-only
-        //    search deliberately won't surface for privacy.
+        // Team members first, matched by folded name (profiled members), by DisplayName (legacy members without a
+        // searchable profile), or by email: admins may know their own members' emails, which the global name-only
+        // search won't surface for privacy.
         var matchingTeamMembers = teamMembers
             .Where(m => nameMatchIds.Contains(m.UserId) ||
                         m.DisplayName.ContainsOrdinalIgnoreCase(q) ||

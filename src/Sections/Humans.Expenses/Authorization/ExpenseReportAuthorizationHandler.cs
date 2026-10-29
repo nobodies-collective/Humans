@@ -1,20 +1,18 @@
+using Humans.Finance.Contracts;
 using Humans.Base.Authorization;
 using System.Security.Claims;
 using Humans.Budget.Contracts;
 using Humans.Expenses.Contracts;
+using Humans.Preapprovals.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Users.Contracts;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Expenses.Authorization;
 
-/// <summary>
-/// Resource-based authorization handler for expense report operations.
-/// Encodes the actors-and-roles matrix from the spec (src/Sections/Humans.Expenses/Docs/2026-05-10-expense-reports-design.md):
-/// submitter / coordinator-of-the-report's-category / FinanceAdmin / Admin × operation.
-/// Deny-by-default: only explicit Succeed paths grant access.
-/// </summary>
-internal sealed class ExpenseReportAuthorizationHandler(IBudgetService budgetService, ITeamService teamService, IUserService userService)
+/// <summary>Deny by default: only explicit Succeed paths grant access.</summary>
+internal sealed class ExpenseReportAuthorizationHandler(
+    IBudgetService budgetService, ITeamService teamService, IUserService userService, IPreapprovalService preapprovals)
     : AuthorizationHandler<ExpenseReportOperationRequirement, ExpenseReportDto>
 {
     protected override async Task HandleRequirementAsync(
@@ -26,7 +24,7 @@ internal sealed class ExpenseReportAuthorizationHandler(IBudgetService budgetSer
             return;
 
         var op = requirement.Operation;
-        var isFinanceAdmin = RoleChecks.IsFinanceAdmin(context.User); // includes Admin
+        var isFinanceAdmin = FinanceRoles.IsFinanceAdmin(context.User); // includes Admin
 
         if (isFinanceAdmin
             && (op == ExpenseReportOperation.View
@@ -34,9 +32,8 @@ internal sealed class ExpenseReportAuthorizationHandler(IBudgetService budgetSer
                 || (op is ExpenseReportOperation.Approve or ExpenseReportOperation.FinanceReject
                     && resource.Status is ExpenseReportStatus.Submitted
                         or ExpenseReportStatus.CoordinatorEndorsed)
-                // Filing and fixing a report for a member who cannot do it themselves. Editing a
-                // report already Submitted or CoordinatorEndorsed does not send it back a step —
-                // the endorsement stands. Approved and Withdrawn are closed to everyone.
+                // Filing and fixing a report for a member who cannot. Editing a Submitted or CoordinatorEndorsed
+                // report does not send it back a step: the endorsement stands.
                 || (op is ExpenseReportOperation.Edit
                     && resource.Status is ExpenseReportStatus.Draft
                         or ExpenseReportStatus.Submitted
@@ -45,10 +42,10 @@ internal sealed class ExpenseReportAuthorizationHandler(IBudgetService budgetSer
                     && resource.Status == ExpenseReportStatus.Draft)
                 || (op is ExpenseReportOperation.Endorse or ExpenseReportOperation.CoordinatorReject
                     && resource.Status == ExpenseReportStatus.Submitted)
-                // The push is queued at approval, so there is nothing to re-queue before it.
                 || (op is ExpenseReportOperation.DeclineLine
                     && resource.Status is ExpenseReportStatus.Submitted
                         or ExpenseReportStatus.CoordinatorEndorsed)
+                // The push is queued at approval, so there is nothing to re-queue before it.
                 || (op is ExpenseReportOperation.RequeueHoldedPush
                     && resource.Status == ExpenseReportStatus.Approved)))
         {
@@ -90,20 +87,27 @@ internal sealed class ExpenseReportAuthorizationHandler(IBudgetService budgetSer
             }
         }
 
-        // A coordinator holds Endorse only while the report is Submitted, so DeclineLine follows it.
+        // A first reviewer holds Endorse only while the report is Submitted, so DeclineLine follows it.
         if ((op is ExpenseReportOperation.Endorse
                 or ExpenseReportOperation.CoordinatorReject
                 or ExpenseReportOperation.DeclineLine
                 or ExpenseReportOperation.View)
-            && await IsCoordinatorOfReportCategoryAsync(userId, resource)
-            && (op == ExpenseReportOperation.View || resource.Status == ExpenseReportStatus.Submitted))
+            && (op == ExpenseReportOperation.View || resource.Status == ExpenseReportStatus.Submitted)
+            && await IsFirstReviewerAsync(userId, resource))
         {
             context.Succeed(requirement);
         }
     }
 
-    private async Task<bool> IsCoordinatorOfReportCategoryAsync(Guid userId, ExpenseReportDto report)
+    /// <summary>
+    /// The category's coordinator, or for a pre-approved report (which has no category) a manager of the grant's
+    /// program.
+    /// </summary>
+    private async Task<bool> IsFirstReviewerAsync(Guid userId, ExpenseReportDto report)
     {
+        if (report.PreapprovalGrantId is { } grantId)
+            return (await preapprovals.ListManagedGrantIdsAsync(userId, CancellationToken.None)).Contains(grantId);
+
         // No budget category (an account outside the budget) means no coordinator route at all.
         if (report.BudgetCategoryId is not { } categoryId) return false;
         var category = await budgetService.GetCategoryByIdAsync(categoryId);

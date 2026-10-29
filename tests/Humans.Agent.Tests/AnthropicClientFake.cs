@@ -27,6 +27,9 @@ internal sealed class AnthropicClientFake : IAnthropicClient
             : Task.FromResult(CountTokensResult);
     }
 
+    public Task<IReadOnlyList<AnthropicModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<AnthropicModelInfo>>([]);
+
     public async IAsyncEnumerable<AgentTurnToken> StreamAsync(
         AnthropicRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -52,12 +55,15 @@ internal sealed class AnthropicClientFake : IAnthropicClient
     /// </summary>
     /// <remarks>
     /// Without this, a test can replay a truncated tool call (as a max_tokens cutoff
-    /// produces — nobodies-collective/Humans#963) and pass green while the same path
+    /// produces) and pass green while the same path
     /// would throw in production. Keep the fake's contract as strict as the client's.
     /// </remarks>
     private static void RejectUnmappableToolCalls(AnthropicRequest request)
     {
-        foreach (var call in request.Messages.SelectMany(m => m.ToolCalls ?? []))
+        var replayed = request.Messages.SelectMany(m => m.AssistantContent is { } content
+            ? content.OfType<AnthropicToolUseBlock>().Select(b => b.Call)
+            : m.ToolCalls ?? []);
+        foreach (var call in replayed)
         {
             var input = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(call.JsonArguments);
             if (input is null)

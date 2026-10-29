@@ -3,12 +3,8 @@ using Humans.Base.Enums;
 using Humans.Base.Extensions;
 using Humans.Users.Contracts;
 
-using Humans.Governance.Contracts;
 namespace Humans.Users.Models;
 
-/// <summary>
-/// View model for the ProfileCard ViewComponent.
-/// </summary>
 internal sealed class ProfileCardViewModel
 {
     public Guid UserId { get; set; }
@@ -18,8 +14,6 @@ internal sealed class ProfileCardViewModel
     public string? CustomProfilePictureUrl { get; set; }
     public string BurnerName { get; set; } = string.Empty;
     public string? Pronouns { get; set; }
-    public MembershipStatus MembershipStatus { get; set; }
-    public bool IsApproved { get; set; }
     public string? City { get; set; }
     public string? CountryCode { get; set; }
     public int? BirthdayMonth { get; set; }
@@ -32,8 +26,6 @@ internal sealed class ProfileCardViewModel
     public string? EmergencyContactName { get; set; }
     public string? EmergencyContactPhone { get; set; }
     public string? EmergencyContactRelationship { get; set; }
-    public bool HasPendingConsents { get; set; }
-    public int PendingConsentCount { get; set; }
     public bool HasNobodiesTeamEmail { get; set; }
     public ProfileCardViewMode ViewMode { get; set; }
     public bool CanViewLegalName { get; set; }
@@ -47,16 +39,11 @@ internal sealed class ProfileCardViewModel
 
     public bool IsOwnProfile => ViewMode == ProfileCardViewMode.Self;
 
-    /// <summary>
-    /// The effective profile picture URL.
-    /// </summary>
     public string? EffectiveProfilePictureUrl => HasCustomProfilePicture
         ? CustomProfilePictureUrl
         : ProfilePictureUrl;
 
-    /// <summary>
-    /// Formatted birthday for display (e.g., "March 15").
-    /// </summary>
+    /// <summary>E.g. "March 15".</summary>
     public string? FormattedBirthday
     {
         get
@@ -67,7 +54,7 @@ internal sealed class ProfileCardViewModel
             try
             {
                 var date = new LocalDate(4, BirthdayMonth.Value, BirthdayDay.Value);
-                return date.ToWeekdayDayMonth();
+                return date.ToMonthDay();
             }
             catch (ArgumentOutOfRangeException)
             {
@@ -77,21 +64,12 @@ internal sealed class ProfileCardViewModel
         }
     }
 
-    /// <summary>
-    /// Non-BoardOnly emails for the public contact info section.
-    /// </summary>
-    /// <summary>
-    /// Whether the viewer should see the "Send a message" button.
-    /// True when viewing another user's profile and no email is visible.
-    /// </summary>
+    /// <summary>True when viewing another user's profile and no email is visible.</summary>
     public bool CanSendMessage { get; set; }
 
     public IReadOnlyList<UserEmailDisplayViewModel> PublicUserEmails =>
         UserEmails.Where(e => e.Visibility != ContactFieldVisibility.BoardOnly).ToList();
 
-    /// <summary>
-    /// BoardOnly emails for the board/private section.
-    /// </summary>
     public IReadOnlyList<UserEmailDisplayViewModel> BoardOnlyUserEmails =>
         UserEmails.Where(e => e.Visibility == ContactFieldVisibility.BoardOnly).ToList();
 }

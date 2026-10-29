@@ -3,7 +3,7 @@
   src/Sections/Humans.Shifts/Controllers/ShiftsController.cs
   src/Sections/Humans.Shifts/Controllers/ShiftAdminController.cs
   src/Sections/Humans.Shifts/Controllers/ShiftDashboardController.cs
-  src/Humans.Base/Authorization/ShiftRoleChecks.cs
+  src/Humans.Base/Authorization/ShiftsRoles.cs
   src/Humans.Base/Authorization/PolicyNames.cs
   src/Sections/Humans.Shifts/Domain/EventSettings.cs
   src/Sections/Humans.Shifts/Domain/Rota.cs
@@ -66,6 +66,7 @@ Nobodies Collective runs multi-day events (e.g., Nowhere) where volunteers are n
 - See fill status (confirmed count vs max)
 - Sign up for a shift with an Active account (auto-confirmed for Public policy, pending for RequireApproval). Single and range signup enforce account state even through onboarding and with privileged flags. Missing dietary info never blocks a signup.
 - Per-day instant signup on the browse page: clicking a day's toggle button signs up or bails that single shift via `POST /Shifts/ToggleDay` (AJAX, no page reload), re-rendering just that row. Applies to both timed Event shifts and all-day Build/Strike days. Date-range signup over a shared `SignupBlockId` (via `SignUpRangeAsync`) lives only in the onboarding-widget shift step
+- If a day-toggle request receives an HTTP redirect (for example after account access changes), the row stays intact and shows the existing localized error. Explicit `X-Redirect` responses still navigate.
 - Overlap detection prevents signing up for conflicting time slots — a toggle that would overlap an existing confirmed signup is refused with a warning toast and the day stays unsigned
 - Range signup and coordinator range assignment also detect selected all-day shifts that overlap each other on the same date. Conflict-skipping paths omit that entire date with a warning; signup without conflict skipping refuses the range.
 - AdminOnly shifts hidden from non-privileged users
@@ -172,7 +173,7 @@ Pending --> Cancelled   (system: shift deleted, account deletion)
 | Role | Permissions |
 |------|------------|
 | Admin | Full access: manage shifts, approve signups, bypass all restrictions |
-| NoInfoAdmin | Approve/refuse signups, voluntell; cannot create/edit shifts or rotas |
+| ShiftsNoInfo | Approve/refuse signups, voluntell; cannot create/edit shifts or rotas |
 | Dept Coordinator | Manage rotas/shifts for own department, approve/refuse signups |
 | Volunteer | Browse shifts, sign up, bail, view own schedule |
 
@@ -203,7 +204,7 @@ Pending --> Cancelled   (system: shift deleted, account deletion)
 
 ## Coordinator Dashboard
 
-**Purpose:** Give Volunteer Coordinators, NoInfoAdmins, and Admins a single cross-department view that answers the weekly coordination questions: is overall staffing tracking toward the event, which departments are behind, which coordinator teams have stale pending signups, and are new signups / ticket sales trending.
+**Purpose:** Give Shifts Admins, NoInfoAdmins, and Admins a single cross-department view that answers the weekly coordination questions: is overall staffing tracking toward the event, which departments are behind, which coordinator teams have stale pending signups, and are new signups / ticket sales trending.
 
 **Route:** `/Shifts/Dashboard` — the four dashboard panels render above the urgent-shifts filter.
 
@@ -235,7 +236,7 @@ Pending --> Cancelled   (system: shift deleted, account deletion)
 - **Subgroup aggregate invariant** — department totals equal the sum of subgroup totals (including the synthetic "Direct" row for rotas whose team is the parent itself).
 - **DAU** — distinct humans whose last login falls on the bucket date in the event timezone. Limitation: the system stores only the most recent login per human, so older buckets are biased low.
 
-**Authorization:** The controller is gated by `[Authorize(Policy = PolicyNames.ShiftDepartmentManager)]`; `PostEventStats`, `SearchVolunteers` and `Voluntell` narrow to `ShiftDashboardAccess` → Admin, NoInfoAdmin, VolunteerCoordinator. The service (`IShiftManagement`) is auth-free per `design-rules.md`.
+**Authorization:** The controller is gated by `[Authorize(Policy = PolicyNames.ShiftDepartmentManager)]`; `PostEventStats`, `SearchVolunteers` and `Voluntell` narrow to `ShiftDashboardAccess` → Admin, ShiftsNoInfo, ShiftsAdmin. The service (`IShiftManagement`) is auth-free per `design-rules.md`.
 
 **Caching:** Each dashboard query memoizes into `IMemoryCache` with a 5-minute sliding expiration. Keys:
 

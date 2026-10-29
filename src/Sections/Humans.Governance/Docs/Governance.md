@@ -131,7 +131,7 @@ A binding vote of the association. Full design in [`features/assembly-votes.md`]
 | Title | jsonb culture → text | `GovernanceLocalizedText` |
 | OfficialText | jsonb culture → text | Markdown, rendered through the shared sanitizer |
 | OfficialCulture | string (10) | The culture whose text is binding; the rest are translations |
-| InfoUrl | string? (2000) | Optional information link |
+| InfoUrl | string? (2000) | Optional absolute HTTP(S) information link; trimmed on save. Member detail omits unsafe legacy values without changing the stored record. |
 | Kind | AssemblyVoteKind | YesNo / RankedChoice, stored as string |
 | RequiredMajority | RequiredMajority | Simple / TwoThirds, stored as string |
 | IndicativeAudience | IndicativeAudience | None / Colaboradores / AllMembers, stored as string |
@@ -260,17 +260,23 @@ The member dashboard's Applications tile links to `/Governance/Applications` and
 | Any authenticated human | View own governance status (tier, active applications). Submit a Colaborador or Asociado application. See **every** assembly vote, its official text and its live participation stats, and the results of any closed vote — roster or not |
 | Roster member (official) | Cast and change a ballot until the vote closes; see their own ballot history |
 | Roster member (indicative) | The same, with the ballot labelled indicative and excluded from the official result |
-| Board | Draft, edit and delete assembly-vote drafts; see every vote and its stats; list every individual ballot after close (audited). **Cannot** open, stop, extend, cancel or peek. View all pending applications and role assignments. Cast individual votes on applications. View Board voting detail. Manage role assignments (all `BoardManageableRoles` — i.e. every role except Admin) |
-| HumanAdmin | Manage role assignments (all `BoardManageableRoles` — i.e. every role except Admin). View admin profile pages. (Cannot vote, cannot finalize.) |
+| Board | Draft, edit and delete assembly-vote drafts; see every vote and its stats; list every individual ballot after close (audited). **Cannot** open, stop, extend, cancel or peek. View all pending applications and role assignments. Cast individual votes on applications. View Board voting detail. Views role assignments; cannot assign or end them |
+| UsersAdmin | Manage role assignments (every role except Admin). View admin profile pages. (Cannot vote, cannot finalize.) |
 | Automation (`governance-assembly-vote-lapse`) | Close a lapsed vote and audit it under the job actor; send the T-24h reminder. Nothing else |
 | Admin | Open, stop, extend and cancel an assembly vote, and peek at the embargoed tally (every peek recorded and published on the results page). Reach the Finalize endpoint to approve/reject (AdminOnly policy). The Finalize UI form is rendered only for Admin (`CanFinalize = isAdmin`). Assign and revoke the Admin role. All Board capabilities. Sole finalizer for tier applications |
 
 ## Invariants
 
+- Membership status uses account state, active affiliations and consent deadlines; the Consent Coordinator review is an independent annotation. Bare accounts are pending, suspended accounts remain suspended, and other non-active states cannot become active through stale affiliations.
+
+- The section’s things-to-do contribution forwards caller cancellation through all data reads. Aborted reads propagate instead of being logged or converted into missing prompts.
+
+- Consent deadline audiences use `GetUsersRequiringStatusUpdateAsync`: a zero horizon selects active-role holders already due, while reminder callers supply their look-ahead horizon. Both use the same deadline calculation.
+
 - Membership snapshots and required-team reads resolve merged IDs to the survivor before querying
   memberships or consent requirements. Snapshot memoization uses that same resolved identity.
 
-Approval and rejection share one committed-decision path: capture Board ids, finalize the application and delete votes, invalidate the badges, then audit the reviewer and record processing metrics. Approval alone changes the membership tier and syncs the system team.
+Approval and rejection share the same ordered eligibility check (application exists, is Submitted, and has at least one Board vote) before either decision mutates it. They also share one committed-decision path: capture Board ids, finalize the application and delete votes, invalidate the badges, then audit the reviewer and record processing metrics. Approval alone changes the membership tier and syncs the system team.
 
 - Opt-outable email builders capture the recipient/template culture on `EmailMessage` before restoring their rendering scope; Email renders the shared unsubscribe footer in that culture.
 
@@ -290,7 +296,7 @@ Approval and rejection share one committed-decision path: capture Board ids, fin
 - On approval, the human's membership tier is updated and they are added to the corresponding system team (Colaboradors or Asociados).
 - On finalization (approval or rejection), all individual Board vote records for that application are deleted. Only the collective decision note and Board meeting date survive. Decision notes over 4,000 characters are refused before changing the application, deleting votes, or triggering decision side effects. The form enforces the same limit and shows a localized refusal.
 - Decision emails are best-effort after finalization: recipient lookup, address resolution, message preparation and enqueue failures are logged without turning the committed decision into failure or skipping the in-app notice. Caller cancellation still propagates; audit, tier update and system-team sync remain outside this email boundary.
-- Admin can assign all roles. Board and HumanAdmin can assign all roles except Admin (per `RoleAssignmentAuthorizationHandler` + `RoleNames.BoardManageableRoles`).
+- Admin can assign all roles. UsersAdmin can assign all roles except Admin; Board assigns none (per `RoleAssignmentRules` in Auth).
 - Role assignments track temporal membership with valid-from and optional valid-to dates. See `Auth.md` for the role-assignment entity.
 - Volunteer onboarding is never blocked by tier applications — they are separate, parallel paths.
 - **Assembly votes — the roster** is written exactly once, at open, from Governance's own `applications` (active Approved Asociado / Colaborador terms), the active Board role holders via `IRoleAssignmentService.GetActiveUserIdsInRoleAsync` (official — Board members are de facto Asociados whatever their profile tier says), and the Volunteers team for `AllMembers`. It is **never recomputed**. A person appearing in more than one source gets one row, official if any source is official.
@@ -317,7 +323,7 @@ Approval and rejection share one committed-decision path: capture Board ids, fin
 
 - Regular humans **cannot** view other humans' applications, cast Board votes, or manage role assignments.
 - Board **cannot** assign the Admin role.
-- HumanAdmin **cannot** assign the Admin role.
+- UsersAdmin **cannot** assign the Admin role.
 - A human with a pending (Submitted) application **cannot** submit another, of any tier, until the first is resolved. Concurrent submissions share a short in-process gate; only one is inserted, and the other returns `AlreadyPending`.
 - Non-roster members **cannot** cast or change a ballot, and **cannot** see any individual ballot.
 - Board **cannot** open, stop, extend, cancel or peek an assembly vote — all AdminOnly.
@@ -340,7 +346,7 @@ Approval and rejection share one committed-decision path: capture Board ids, fin
 - Only the latest approved application (by submission time) per human and tier can receive a renewal reminder. Selection precedes the expiry-window and sent-stamp filters: an older term never reappears after renewal or after the latest reminder was sent. Other tiers and humans remain independent.
 - A renewal reminder email + in-app notification is dispatched 90 days before term expiry (`TermRenewalReminderJob`, `NotificationSource.TermRenewalReminder`). The job is `Humans.Governance/Jobs/TermRenewalReminderJob.cs`; it reads and stamps Applications only through `IGovernanceManagement`.
 - On term expiry without renewal: the next `SystemTeamSyncJob` removes the human from the Colaboradors / Asociados system team (driven by the date-filtered active approvals, so it never waits on the tier write). `MembershipTierExpiryJob` (`Humans.Governance/Jobs/`, `SectionJobs` cron `5 0 * * *`, UTC) runs Asociado then Colaborador through the internal `IGovernanceManagement.ExpireMembershipTiersAsync`, which **rewrites the member's tier row** — to another still-active tier the human holds, otherwise to `Volunteer` — and returns the downgrades; the job writes an `AuditAction.TierDowngraded` entry per downgrade (entity `Profile`, actor `MembershipTierExpiryJob`, unchanged wording).
-- **Membership tier GDPR:** `MembershipTierService` exports the `MembershipTier` slice (tier, granted, term end, granting application; the legacy tier alone while uncopied; null for a Volunteer). Art. 17 retains it — the register of members (LO 1/2002 Art. 14; GDPR Art. 17(3)(b)) — and it holds no free text. Account merge: the survivor's tier wins (a legacy-only survivor tier is copied to a row first); the source row moves when the survivor has none, otherwise it is deleted.
+- **Membership tier GDPR:** `MembershipTierService` exports the `MembershipTier` slice (tier, granted, term end, granting application; the legacy tier alone while uncopied; null for a Volunteer). Art. 17 retains it — the register of members (LO 1/2002 Art. 14; GDPR Art. 17(3)(b)) — and it holds no free text. Account merge: the survivor's tier wins, otherwise the source's effective tier moves, including a legacy-only tier with its granting application and term dates. An explicit Volunteer row suppresses that account's legacy tier. Tier merging runs before application reassignment to retain grant provenance; the source row is removed and retries preserve the result.
 - The member-dashboard term card passes `HttpContext.RequestAborted` through its profile, membership, and application reads, so a disconnected browser cancels all of its advisory rendering work.
 - The Board voting grid links row content to the application detail. Applicant profile links retain their own destination, including modified clicks that open another tab without navigating the grid.
 - After an application is submitted, withdrawn, approved, or rejected, `ApplicationDecisionService` evicts every current Board member's voting-badge count because each unvoted count changes. A Board-vote upsert invalidates only that voter's voting badge.

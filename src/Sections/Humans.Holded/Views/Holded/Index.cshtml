@@ -8,7 +8,7 @@
 
     string Stamp(Instant? at) => at is null
         ? "never"
-        : at.Value.InZone(madrid).ToDateTimeUnspecified().ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+        : at.Value.ToDateTime(madrid);
 
     string StatusBadge(string status) => status switch
     {
@@ -140,10 +140,7 @@
         <strong>Sync now</strong> sweeps the trailing ledger window;
         <strong>Full resync</strong> replaces the mirror from inception. Purchase docs are Finance's
         own sync, run from <a href="/Finance/HoldedUnmatched">Unmatched docs</a>.
-        @if (Model.CreditorBindings is int bindings)
-        {
-            <text>Creditor bindings: @bindings.</text>
-        }
+        Creditor bindings: @Model.DocSync.CreditorBindingCount.
     </div>
 </div>
 
@@ -164,7 +161,7 @@
                     @foreach (var m in o.CallsByMonth)
                     {
                         <tr>
-                            <td class="text-nowrap">@(new DateTime(m.Year, m.Month, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture))</td>
+                            <td class="text-nowrap">@(new DateTime(m.Year, m.Month, 1).ToMonthYear())</td>
                             <td class="text-end">@m.Total</td>
                             <td class="small text-muted">
                                 @string.Join(", ", m.ByEndpoint.OrderByDescending(e => e.Value).Select(e => $"{e.Key} {e.Value}"))
@@ -253,14 +250,9 @@
 </div>
 
 <script>
-    // Most of the chart has never carried a line; hiding those is the default view.
-    // A group whose every account is hidden goes with them, header and all.
-    //
-    // "No lines" alone is not the test — twice over. An account Holded gives a balance for but the
-    // mirror has no line for reconciles ✗ with zero lines. And an account whose debits and credits
-    // cancel nets to zero, so it reconciles ✓ against an empty mirror while Holded shows a year of
-    // postings. Both are missing-ledger-data alarms, which is the one thing this table exists to
-    // raise. Unused means all three: nothing locally, nothing at Holded, and no disagreement.
+    // Unused rows are hidden by default, and a group whose every row is hidden goes too. Unused means all three:
+    // no local line, nothing at Holded, and no disagreement. "No lines" alone would hide both missing-data alarms:
+    // a Holded balance the mirror has no line for, and an account whose postings net to zero.
     (function () {
         var toggle = document.getElementById('hide-empty-accounts');
         var count = document.getElementById('account-count');

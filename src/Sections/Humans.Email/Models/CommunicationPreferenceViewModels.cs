@@ -1,4 +1,5 @@
 using Humans.Email.Contracts;
+using Humans.Email.Services;
 using NodaTime;
 
 namespace Humans.Email.Models;
@@ -7,23 +8,13 @@ internal sealed class CommunicationPreferencesViewModel
 {
     public List<CategoryPreferenceItem> Categories { get; set; } = [];
 
-    /// <summary>
-    /// When set, the page is accessed via an unsubscribe token instead of a full session.
-    /// The token must be included in AJAX update calls for authorization.
-    /// </summary>
+    /// <summary>Set when the page is reached through an unsubscribe token instead of a session; update calls must send it back.</summary>
     public string? UnsubscribeToken { get; set; }
 
-    /// <summary>
-    /// Category encoded in the unsubscribe token, when present. Drives the one-click
-    /// "Unsubscribe from &lt;category&gt;" banner and pre-focuses that row in the matrix.
-    /// </summary>
+    /// <summary>The category in the unsubscribe token: drives the one-click banner and focuses that row.</summary>
     public MessageCategory? HighlightCategory { get; set; }
 
-    /// <summary>
-    /// When true, the panel renders values only (no toggles, no POST forms) and exposes
-    /// <see cref="CategoryPreferenceItem.UpdateSource"/> / <see cref="CategoryPreferenceItem.UpdatedAt"/>
-    /// for admin attribution. False on self-service.
-    /// </summary>
+    /// <summary>Admin view: values only, no forms, with who changed each row and when.</summary>
     public bool ReadOnly { get; set; }
 
     /// <summary>Current year, shown on the Ticketing row's label.</summary>
@@ -32,45 +23,55 @@ internal sealed class CommunicationPreferencesViewModel
 
 internal sealed class CategoryPreferenceItem
 {
+    private static CategoryPreferenceItem FromPreference(
+        MessageCategory category, CommunicationPreferenceSnapshot? preference, IReadOnlySet<MessageCategory> lockedCategories)
+    {
+        var locked = lockedCategories.Contains(category);
+        var editable = !category.IsAlwaysOn() && !locked;
+        return new CategoryPreferenceItem
+        {
+            Category = category,
+            // Missing Marketing rows default off, matching the send policy.
+            EmailEnabled = preference is null ? !category.DefaultOptedOut() : !preference.OptedOut,
+            AlertEnabled = preference?.InboxEnabled ?? true,
+            EmailEditable = editable,
+            AlertEditable = editable,
+            IsLocked = locked,
+        };
+    }
+
     public MessageCategory Category { get; set; }
 
-    /// <summary>
-    /// Positive framing: true = user receives email for this category.
-    /// Stored as !OptedOut in the entity.
-    /// </summary>
+    /// <summary>True means the member receives email: the inverse of <c>OptedOut</c>.</summary>
     public bool EmailEnabled { get; set; } = true;
 
-    /// <summary>
-    /// Whether in-app alerts are enabled for this category.
-    /// Maps directly to InboxEnabled on the entity.
-    /// </summary>
     public bool AlertEnabled { get; set; } = true;
 
-    /// <summary>
-    /// Whether the user can change the email preference for this category.
-    /// False for always-on categories (System, CampaignCodes) and locked ticketing.
-    /// </summary>
+    /// <summary>False for always-on categories and for locked ones.</summary>
     public bool EmailEditable { get; set; }
 
-    /// <summary>
-    /// Whether the user can change the alert preference for this category.
-    /// </summary>
     public bool AlertEditable { get; set; }
 
-    /// <summary>
-    /// Whether matched ticket ownership locks this category's preferences.
-    /// </summary>
-    public bool IsTicketingLocked { get; set; }
+    public bool IsLocked { get; set; }
 
-    /// <summary>
-    /// Who/what last changed this preference (e.g. "Profile", "MailerLiteSync", "MagicLink").
-    /// Surfaced in admin read-only view; null on self-service.
-    /// </summary>
+    /// <summary>Shown only in the read-only view.</summary>
     public string? UpdateSource { get; set; }
 
-    /// <summary>
-    /// When this preference was last changed. Null if no preference row exists yet
-    /// (i.e. the user has never touched this category and we're showing defaults).
-    /// </summary>
+    /// <summary>Null when no row exists and the defaults are shown.</summary>
     public Instant? UpdatedAt { get; set; }
+
+    /// <summary>One item per active category, in display order.</summary>
+    public static List<CategoryPreferenceItem> ForActiveCategories(
+        IReadOnlyList<CommunicationPreferenceSnapshot> prefs, IReadOnlySet<MessageCategory> lockedCategories)
+    {
+        var prefsByCategory = prefs.ToDictionary(p => p.Category);
+        return MessageCategoryExtensions.ActiveCategories.Select(category =>
+        {
+            var pref = prefsByCategory.GetValueOrDefault(category);
+            var item = FromPreference(category, pref, lockedCategories);
+            item.UpdateSource = pref?.UpdateSource;
+            item.UpdatedAt = pref?.UpdatedAt;
+            return item;
+        }).ToList();
+    }
 }

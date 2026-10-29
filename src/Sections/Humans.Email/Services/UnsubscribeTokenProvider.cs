@@ -7,11 +7,6 @@ using Microsoft.Extensions.Options;
 
 namespace Humans.Email.Services;
 
-/// <summary>
-/// Infrastructure implementation of <see cref="IUnsubscribeTokenProvider"/>
-/// using ASP.NET Core Data Protection for token generation/validation and
-/// <see cref="EmailSettings"/> for URL building.
-/// </summary>
 internal sealed class UnsubscribeTokenProvider(
     IDataProtectionProvider dataProtection,
     IOptions<EmailSettings> emailSettings,
@@ -31,6 +26,8 @@ internal sealed class UnsubscribeTokenProvider(
 
     public (TokenValidationStatus Status, Guid UserId, MessageCategory Category) ValidateToken(string token)
     {
+        if (string.IsNullOrEmpty(token)) return (TokenValidationStatus.Invalid, default, default);
+
         try
         {
             var payload = _protector.Unprotect(token);

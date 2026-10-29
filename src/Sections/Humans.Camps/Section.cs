@@ -1,3 +1,5 @@
+using Humans.Base.Interfaces;
+using Humans.Camps.Contracts;
 using Humans.Base.Constants;
 using Humans.Issues.Contracts;
 using Humans.GoogleIntegration.Contracts;
@@ -15,13 +17,19 @@ using Humans.Users.Contracts;
 namespace Humans.Camps;
 
 /// <summary>
-/// Camps' DI entry point, at the project root by convention. Discovered by Shell — nothing
-/// names it, so it needs no section prefix. The §15 caching decorator is a Singleton owning
-/// the canonical per-camp <c>CampInfo</c> projection; the keyed-Scoped inner service owns the
-/// repository's unit of work.
+/// The caching decorator is a Singleton owning the canonical per-camp <c>CampInfo</c> projection; the keyed-Scoped
+/// inner service owns the repository's unit of work.
 /// </summary>
-public sealed class Section : ISection, IIssueQueueOwner
+public sealed class Section : ISection, IIssueQueueOwner, ISectionRoles
 {
+    IReadOnlyList<RoleDefinition> ISectionRoles.Roles { get; } =
+    [
+        new(CampsRoles.CampsAdmin, "Camps Admin",
+            "Masters of the camp universe. They review registrations, manage settings, and keep the camp ecosystem running smoothly season after season.",
+            "fa-solid fa-campground",
+            FormerNames: ["CampAdmin"]),
+    ];
+
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
         services.AddSectionDbContext<CampsDbContext>(sentinelTable: "camps");
@@ -54,11 +62,7 @@ public sealed class Section : ISection, IIssueQueueOwner
 
         services.AddHostedService(sp => sp.GetRequiredService<CachingCampService>());
 
-        // CampRoleService — separate sub-service; ICampRoleService resolves to the
-        // decorator, which evicts the projection after role writes.
-        // Also registered as IGoogleGroupMembershipSource so the Google sync
-        // orchestrator can enumerate the Camps claim alongside the Teams claim.
-        // Mirrors the Teams pattern in Humans.Teams' Section.
+        // ICampRoleService resolves to the decorator, which evicts the projection after role writes.
         services.AddScoped<CampRoleService>();
         services.AddKeyedScoped<ICampRoleService>(
             CachingCampService.InnerServiceKey,
@@ -76,22 +80,17 @@ public sealed class Section : ISection, IIssueQueueOwner
         services.AddScoped<CampAdminPageBuilder>();
         services.AddScoped<CampCsvExportBuilder>();
 
-        // Resource-based handler; the policies it backs stay in Shell's
-        // AuthorizationPolicyExtensions.
         services.AddScoped<IAuthorizationHandler, CampAuthorizationHandler>();
 
-        // Backs CampComplianceAccess, registered by this section's SectionPolicies
-        // (nobodies-collective/Humans#1091).
         services.AddScoped<IAuthorizationHandler, CampComplianceAccessHandler>();
     }
 
-    // This section owns the issue queue its members' reports land in; Issues discovers
-    // the seam rather than holding a list of sections (memory/architecture/section-contribution-seams.md).
+    // Issues discovers this seam rather than holding a list of sections.
     string IIssueQueueOwner.QueueKey => "Camps";
 
     string IIssueQueueOwner.AreaLabelResourceKey => "Issues_Area_Camps";
 
     IReadOnlyList<string> IIssueQueueOwner.PathSegments => ["camps", "barrios"];
 
-    IReadOnlyList<string> IIssueQueueOwner.OwningRoles => [RoleNames.CampAdmin];
+    IReadOnlyList<string> IIssueQueueOwner.OwningRoles => [CampsRoles.CampsAdmin];
 }

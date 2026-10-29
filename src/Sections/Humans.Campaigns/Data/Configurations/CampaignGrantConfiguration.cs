@@ -11,15 +11,16 @@ internal sealed class CampaignGrantConfiguration : IEntityTypeConfiguration<Camp
         builder.ToTable("campaign_grants");
         builder.HasKey(g => g.Id);
 
+#pragma warning disable CS0618 // the retired column stays mapped until its drop is approved
         builder.Property(g => g.LatestEmailStatus)
             .HasConversion<string>()
             .HasMaxLength(20);
+#pragma warning restore CS0618
 
         builder.Property(g => g.RedeemedAt);
 
-        // UserId is a bare cross-section Guid — no FK constraint, no nav. Explicit
-        // index because several reads (per-user grants, GDPR export, erasure, merge
-        // fold) filter UserId alone, which the unique (CampaignId, UserId) cannot serve.
+        // Per-user reads (grants, GDPR export, erasure, merge) filter UserId alone, which the unique
+        // (CampaignId, UserId) index cannot serve.
         builder.HasIndex(g => g.UserId);
         builder.HasIndex(g => new { g.CampaignId, g.UserId }).IsUnique();
         builder.HasIndex(g => g.CampaignCodeId).IsUnique();

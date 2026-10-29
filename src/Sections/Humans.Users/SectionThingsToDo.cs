@@ -13,14 +13,13 @@ using Microsoft.Extensions.Localization;
 namespace Humans.Users;
 
 /// <summary>
-/// Users' entries on the member dashboard's things-to-do list: profile completion, the
-/// consent-check clearance non-volunteers wait on, and the optional medical-conditions prompt.
-/// Cantina contributes the dietary nudge the last one pairs with (its Docs/features/dietary-nudge.md).
+/// Profile completion, the consent-check clearance non-volunteers wait on, and the optional
+/// medical-conditions prompt that pairs with Cantina's dietary nudge.
 /// </summary>
 internal sealed class SectionThingsToDo : ISectionThingsToDo
 {
     public async ValueTask<IEnumerable<ThingsToDoEntry>> EntriesAsync(
-        IServiceProvider services, ClaimsPrincipal user)
+        IServiceProvider services, ClaimsPrincipal user, CancellationToken ct = default)
     {
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
@@ -29,19 +28,19 @@ internal sealed class SectionThingsToDo : ISectionThingsToDo
 
         var localizer = services.GetRequiredService<IStringLocalizer<SharedResource>>();
         var logger = services.GetRequiredService<ILogger<SectionThingsToDo>>();
-        var profile = (await services.GetRequiredService<IUserService>().GetUserInfoAsync(userId))?.Profile;
+        var profile = (await services.GetRequiredService<IUserService>().GetUserInfoAsync(userId, ct))?.Profile;
         var isVolunteerMember = (await services.GetRequiredService<IMembershipCalculator>()
-            .GetMembershipSnapshotAsync(userId)).IsVolunteerMember;
+            .GetMembershipSnapshotAsync(userId, ct)).IsVolunteerMember;
 
-        var entries = new List<ThingsToDoEntry> { await ProfileEntryAsync(services, localizer, profile, userId) };
+        var entries = new List<ThingsToDoEntry> { await ProfileEntryAsync(services, localizer, profile, userId, ct) };
 
         if (!isVolunteerMember)
         {
-            var review = await services.GetRequiredService<IConsentService>().GetConsentReviewAsync(userId);
+            var review = await services.GetRequiredService<IConsentService>().GetConsentReviewAsync(userId, ct);
             entries.Add(ConsentCheckEntry(localizer, profile is not null && review.Status == ConsentCheckStatus.Cleared));
         }
 
-        var medical = await MedicalEntryAsync(services, localizer, logger, profile, userId);
+        var medical = await MedicalEntryAsync(services, localizer, logger, profile, userId, ct);
         if (medical is not null)
         {
             entries.Add(medical);
@@ -54,14 +53,13 @@ internal sealed class SectionThingsToDo : ISectionThingsToDo
         IServiceProvider services,
         IStringLocalizer<SharedResource> localizer,
         ProfileInfo? profile,
-        Guid userId)
+        Guid userId, CancellationToken ct)
     {
-        var shiftUser = await services.GetRequiredService<IShiftView>().GetUserAsync(userId);
+        var shiftUser = await services.GetRequiredService<IShiftView>().GetUserAsync(userId, ct);
         var percent = ProfileCompletion.ComputePercent(profile, shiftUser.TagPreferences.Count > 0);
 
-        // Hidden/derived required fields can cap real-user completion in the
-        // 90–95% range. Treat 80% as "complete enough" so the nudge stops
-        // shouting at people who can't push it higher.
+        // Hidden or derived required fields can cap real completion around 90–95%, so 80% is
+        // "complete enough" and the nudge stops shouting at people who can't push it higher.
         var complete = percent >= 80;
 
         return new ThingsToDoEntry("profile", localizer["Todo_Profile_Title"].Value, "fa-solid fa-user",
@@ -90,19 +88,15 @@ internal sealed class SectionThingsToDo : ISectionThingsToDo
     }
 
     /// <summary>
-    /// Offers the optional medical-conditions form while the member's dietary nudge is open (no
-    /// preference on Cantina's record and not "I don't want to answer") and they have no medical
-    /// conditions on file: the
-    /// window the combined dietary-and-medical form had before commit 10. MedicalConditions has no
-    /// "answered" marker, so tying it to the dietary answer keeps it from nagging members with
-    /// nothing to declare.
+    /// Shown while the dietary nudge is open and no medical conditions are on file. MedicalConditions
+    /// has no "answered" marker, so tying it to the dietary answer keeps it from nagging forever.
     /// </summary>
     private static async ValueTask<ThingsToDoEntry?> MedicalEntryAsync(
         IServiceProvider services,
         IStringLocalizer<SharedResource> localizer,
         ILogger logger,
         ProfileInfo? profile,
-        Guid userId)
+        Guid userId, CancellationToken ct)
     {
         if (!string.IsNullOrEmpty(profile?.MedicalConditions))
         {
@@ -111,7 +105,7 @@ internal sealed class SectionThingsToDo : ISectionThingsToDo
 
         try
         {
-            var dietary = await services.GetRequiredService<ICantinaService>().GetDietaryProfileAsync(userId);
+            var dietary = await services.GetRequiredService<ICantinaService>().GetDietaryProfileAsync(userId, ct);
             if (dietary is { HasPreference: true } or { DeclinedToAnswer: true })
             {
                 return null;
@@ -124,7 +118,7 @@ internal sealed class SectionThingsToDo : ISectionThingsToDo
                 ActionText = localizer["Todo_DietaryMedical_Action"].Value,
             };
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             logger.LogError(ex, "Failed to check the medical prompt for user {UserId}", userId);
             return null;

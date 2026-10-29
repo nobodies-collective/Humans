@@ -43,10 +43,9 @@ internal sealed class EventsController(
 
         var tz = GetTimeZone(eventSettings);
 
-        // Personal block
         var individualEvents = await guide.GetUserSubmissionsAsync(user.Id, ct);
 
-        // Barrio blocks — camps the user leads/workshops
+        // Camps the user leads or runs workshops for.
         var campSettings = await CampService.GetSettingsAsync(ct);
         var managedCamps = (await CampService.GetCampsForYearAsync(campSettings.PublicYear, ct))
             .Where(camp => camp.IsEventManager(user.Id))
@@ -182,7 +181,11 @@ internal sealed class EventsController(
 
         // SubmitEventAsync owns the submission window, recurrence-day rule and the Submit transition.
         var viewUrl = Url.Action(nameof(MySubmissions), "Events", null, Request.Scheme)!;
-        await guide.SubmitEventAsync(guideEvent, viewUrl);
+        if (!await guide.SubmitEventAsync(guideEvent, viewUrl))
+        {
+            SetError(localizer["Events_SubmissionWindowClosed"].Value);
+            return RedirectToAction(nameof(MySubmissions));
+        }
 
         logger.LogInformation("User {UserId} submitted individual event '{Title}'", user.Id, model.Title);
 
@@ -197,16 +200,9 @@ internal sealed class EventsController(
         var user = await GetCurrentUserInfoAsync(ct);
         if (user == null) return Challenge();
 
-        var guideEvent = await guide.GetEventForModerationAsync(eventId, ct);
-        if (guideEvent is null || guideEvent.CampId != null) return NotFound();
-        if (guideEvent.SubmitterUserId != user.Id && !RoleChecks.IsEventsAdmin(User))
-            return Forbid();
-
-        if (!guideEvent.CanEdit)
-        {
-            SetError(localizer["Events_NotEditable"].Value);
-            return RedirectToAction(nameof(MySubmissions));
-        }
+        var editable = await RequireEditableIndividualEventAsync(eventId, user.Id, ct);
+        if (editable.Error is not null) return editable.Error;
+        var guideEvent = editable.Event!;
 
         var guideSettings = await guide.GetGuideSettingsAsync(ct);
         if (guideSettings == null)
@@ -246,16 +242,8 @@ internal sealed class EventsController(
         var user = await GetCurrentUserInfoAsync();
         if (user == null) return Challenge();
 
-        var guideEvent = await guide.GetEventForModerationAsync(eventId);
-        if (guideEvent is null || guideEvent.CampId != null) return NotFound();
-        if (guideEvent.SubmitterUserId != user.Id && !RoleChecks.IsEventsAdmin(User))
-            return Forbid();
-
-        if (!guideEvent.CanEdit)
-        {
-            SetError(localizer["Events_NotEditable"].Value);
-            return RedirectToAction(nameof(MySubmissions));
-        }
+        var editable = await RequireEditableIndividualEventAsync(eventId, user.Id);
+        if (editable.Error is not null) return editable.Error;
 
         var guideSettings = await guide.GetGuideSettingsAsync();
         if (guideSettings == null)
@@ -335,8 +323,6 @@ internal sealed class EventsController(
             var camp = e.CampId.HasValue ? campsById.GetValueOrDefault(e.CampId.Value) : null;
             var campName = ResolveCampName(camp);
 
-            // One line per favourited occurrence: a day-specific favourite expands
-            // to that single occurrence, a whole-event favourite to all of them.
             IReadOnlyList<Instant> occurrences = e.GetOccurrenceInstants(gateOpeningDate, tz, f.DayOffset);
 
             return occurrences.Select(startInstant =>
@@ -373,7 +359,6 @@ internal sealed class EventsController(
             });
         }).OrderBy(i => i.StartInstant).ToList();
 
-        // Detect time conflicts
         foreach (var index in EventConflictDetector.FindConflictingIndexes(
                      scheduleItems, i => i.StartInstant, i => i.DurationMinutes))
         {
@@ -488,6 +473,21 @@ internal sealed class EventsController(
         return View(model);
     }
 
+    private async Task<(IActionResult? Error, EventInfo? Event)> RequireEditableIndividualEventAsync(
+        Guid eventId, Guid userId, CancellationToken ct = default)
+    {
+        var guideEvent = await guide.GetEventForModerationAsync(eventId, ct);
+        if (guideEvent is null || guideEvent.CampId != null) return (NotFound(), null);
+        if (guideEvent.SubmitterUserId != userId && !EventsRoles.IsEventsAdmin(User))
+            return (Forbid(), null);
+        if (!guideEvent.CanEdit)
+        {
+            SetError(localizer["Events_NotEditable"].Value);
+            return (RedirectToAction(nameof(MySubmissions)), null);
+        }
+        return (null, guideEvent);
+    }
+
     private bool IsSubmissionOpen(EventGuideSettingsView? settings) =>
         settings?.IsSubmissionOpenAt(clock.GetCurrentInstant()) ?? false;
 
@@ -520,8 +520,6 @@ internal sealed class EventsController(
 
         model.EventDays = BuildEventDayOptions(burn);
     }
-
-    // ─── Barrio event actions (replaces /Barrios/{slug}/Events/*) ────────────
 
     [HttpGet("Barrio/{slug}/Submit")]
     public async Task<IActionResult> BarrioSubmit(string slug)
@@ -591,7 +589,11 @@ internal sealed class EventsController(
 
         // SubmitEventAsync owns the submission window, recurrence-day rule and the Submit transition.
         var viewUrl = Url.Action(nameof(MySubmissions), "Events", null, Request.Scheme)!;
-        await guide.SubmitEventAsync(guideEvent, viewUrl);
+        if (!await guide.SubmitEventAsync(guideEvent, viewUrl))
+        {
+            SetError(localizer["Events_SubmissionWindowClosed"].Value);
+            return RedirectToAction(nameof(MySubmissions));
+        }
         logger.LogInformation("User {UserId} submitted barrio event '{Title}' for camp {CampId}", user.Id, model.Title, camp.Id);
 
         SetSuccess(FormatEventFeedback("Events_SubmittedForReview", model.Title));
@@ -787,6 +789,16 @@ internal sealed class EventsController(
             camp.Id, user.Id, rows,
             eventSettings.GateOpeningDate, eventSettings.EventEndOffset, tz);
 
+        return BulkUploadResult(slug, user.Id, camp.Id, result);
+    }
+
+    private IActionResult BulkUploadResult(string slug, Guid userId, Guid campId, BulkImportResult result)
+    {
+        if (result.RefusalKey is { } refusalKey)
+        {
+            SetError(localizer[refusalKey].Value);
+            return RedirectToAction(nameof(MySubmissions));
+        }
         if (result.HasErrors)
         {
             var viewErrors = result.Errors
@@ -798,7 +810,7 @@ internal sealed class EventsController(
 
         logger.LogInformation(
             "Bulk upload by user {UserId} for camp {CampId}: {Created} created, {Updated} updated.",
-            user.Id, camp.Id, result.CreatedCount, result.UpdatedCount);
+            userId, campId, result.CreatedCount, result.UpdatedCount);
         SetSuccess(string.Format(
             System.Globalization.CultureInfo.CurrentCulture,
             localizer["Events_UploadComplete"].Value,

@@ -5,21 +5,21 @@ using Microsoft.Extensions.Options;
 
 namespace Humans.Email.Services;
 
-/// <summary>
-/// The implementation of <see cref="IEmailBodyComposer"/>. Owns the
-/// <see cref="EmailSettings.BaseUrl"/> and
-/// <see cref="IHostEnvironment.EnvironmentName"/> inputs so
-/// <c>OutboxEmailService</c> does not have to take them.
-/// Delegates the actual wrapping to
-/// <see cref="BrandedEmailTemplate"/> + <see cref="HtmlPlainTextConverter"/>.
-/// </summary>
 internal sealed class BrandedEmailBodyComposer(IOptions<EmailSettings> settings, IHostEnvironment hostEnvironment)
     : IEmailBodyComposer
 {
     private readonly string _baseUrl = settings.Value.BaseUrl;
     private readonly string _environmentName = hostEnvironment.EnvironmentName;
 
-    public (string HtmlBody, string PlainTextBody) Compose(string htmlContent, string? unsubscribeUrl = null, string? culture = null) => (
-        BrandedEmailTemplate.Wrap(htmlContent, _baseUrl, _environmentName, unsubscribeUrl, culture),
-        HtmlPlainTextConverter.Convert(htmlContent));
+    public (string HtmlBody, string PlainTextBody) Compose(string htmlContent, string? unsubscribeUrl = null, string? culture = null)
+    {
+        var plainText = HtmlPlainTextConverter.Convert(htmlContent);
+        if (unsubscribeUrl is not null)
+        {
+            var footer = $"{BrandedEmailTemplate.GetUnsubscribeLabel(culture)} ({unsubscribeUrl})";
+            plainText = plainText.Length == 0 ? footer : $"{plainText}\n\n{footer}";
+        }
+
+        return (BrandedEmailTemplate.Wrap(htmlContent, _baseUrl, _environmentName, unsubscribeUrl, culture), plainText);
+    }
 }

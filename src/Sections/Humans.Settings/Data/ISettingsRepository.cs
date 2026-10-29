@@ -4,13 +4,6 @@ using NodaTime;
 
 namespace Humans.Settings.Data;
 
-/// <summary>
-/// The one repository over the Settings section's two tables —
-/// <c>system_settings</c> (key/value) and <c>settings_event</c> (the typed
-/// app-wide event settings).
-/// The interface stays and keeps its prefix: <c>RepositoryTests</c>
-/// substitutes it.
-/// </summary>
 internal interface ISettingsRepository : IRepository
 {
     Task<string?> GetValueAsync(string key, CancellationToken ct = default);
@@ -21,19 +14,21 @@ internal interface ISettingsRepository : IRepository
 
     Task<EventSettings?> GetEventSettingsByIdAsync(Guid id, CancellationToken ct = default);
 
-    /// <summary>
-    /// True when some row other than <paramref name="excludingId"/> is
-    /// <c>Active</c>. Guards the at-most-one-active invariant on write; there is
-    /// no DB constraint behind it (memory/architecture/no-db-check-constraints.md).
-    /// </summary>
+    Task<IReadOnlyList<EventSettings>> GetAllEventSettingsAsync(CancellationToken ct = default);
+
+    /// <summary>Guards the at-most-one-active invariant on write; no DB constraint backs it.</summary>
     Task<bool> AnyOtherActiveEventSettingsAsync(Guid excludingId, CancellationToken ct = default);
 
-    /// <summary>
-    /// Inserts the row when its id is unknown, otherwise updates it in place.
-    /// <paramref name="now"/> stamps <c>UpdatedAt</c>, and <c>CreatedAt</c> on insert.
-    /// </summary>
+    /// <summary>Inserts when the id is unknown, else updates. <paramref name="now"/> stamps <c>UpdatedAt</c>, and
+    /// <c>CreatedAt</c> on insert.</summary>
     Task UpsertEventSettingsAsync(EventSettings settings, Instant now, CancellationToken ct = default);
 
-    /// <summary>Deletes the row by id, if it exists. Returns 0 or 1.</summary>
+    /// <summary>
+    /// Sets <paramref name="id"/> Active and every other Active row Inactive in one save, so a failure leaves the
+    /// previous active row in place. Returns the rows it changed, the target last; empty when the id is unknown.
+    /// </summary>
+    Task<IReadOnlyList<EventSettings>> SetActiveEventSettingsAsync(Guid id, Instant now, CancellationToken ct = default);
+
+    /// <summary>Returns 0 or 1.</summary>
     Task<int> DeleteEventSettingsAsync(Guid id, CancellationToken ct = default);
 }

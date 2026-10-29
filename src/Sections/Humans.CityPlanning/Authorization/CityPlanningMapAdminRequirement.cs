@@ -1,13 +1,15 @@
+using Humans.Base.Constants;
+using Humans.Camps.Contracts;
 using Humans.Base.Authorization;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.CityPlanning.Authorization;
 
 /// <summary>
-/// Succeeds for CampAdmin/Admin, OR for a member of the city-planning team — the same
-/// audience <c>CityPlanningController.RequireMapAdminAsync</c> admits. Backs
-/// <see cref="PolicyNames.CityPlanningMapAdmin"/> so the <c>/Settings#city-planning</c>
-/// tab shows to exactly the people whose POST endpoints still accept them
-/// (peterdrier/Humans#1634).
+/// The same audience <c>CityPlanningController.RequireMapAdminAsync</c> admits, so the <c>/Settings#city-planning</c>
+/// tab shows to exactly the people its POST endpoints accept.
 /// </summary>
-internal sealed class CityPlanningMapAdminRequirement : IAuthorizationRequirement;
+internal sealed class CityPlanningMapAdminRequirement : IAuthorizationRequirement, IDescribedRequirement
+{
+    public IReadOnlyList<string> Admits => [CampsRoles.CampsAdmin, RoleNames.Admin, "City Planning team"];
+}

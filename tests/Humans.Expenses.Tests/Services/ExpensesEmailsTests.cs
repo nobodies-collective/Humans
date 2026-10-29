@@ -7,12 +7,7 @@ using Humans.Expenses.Tests.Infrastructure;
 namespace Humans.Expenses.Tests.Services;
 
 /// <summary>
-/// The per-template routing policy Expenses stamps on its own messages — template name
-/// and opt-out category — plus the gallery-coverage gate: every template
-/// <see cref="ExpensesEmails"/> can build has a sample in
-/// <see cref="ExpensesEmailPreviews"/>, so a new template cannot ship invisible
-/// (peterdrier/Humans#1651). Transport (opt-out, unsubscribe, wrapping, enqueue) stays
-/// Email's, covered there.
+/// Includes the gallery-coverage gate: every template <see cref="ExpensesEmails"/> can build has a sample in <see cref="ExpensesEmailPreviews"/>, so a new template cannot ship invisible.
 /// </summary>
 public sealed class ExpensesEmailsTests
 {
@@ -22,7 +17,7 @@ public sealed class ExpensesEmailsTests
     public void ReportApproved_StampsSystem_AndLinksTheReport()
     {
         var reportId = Guid.NewGuid();
-        var msg = Create().ReportApproved("a@x.com", "Alice <A>", reportId, 1234.5m, "ES79****789", "de");
+        var msg = Create().ReportApproved(Guid.NewGuid(), "a@x.com", "Alice <A>", reportId, 1234.5m, "ES79****789", "de");
 
         msg.RecipientEmail.Should().Be("a@x.com");
         msg.RecipientName.Should().Be("Alice <A>");

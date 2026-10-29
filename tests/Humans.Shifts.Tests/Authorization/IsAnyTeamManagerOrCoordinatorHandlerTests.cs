@@ -1,3 +1,4 @@
+using Humans.Teams.Contracts;
 using System.Security.Claims;
 using AwesomeAssertions;
 using Humans.Base.Constants;
@@ -9,12 +10,6 @@ using Xunit;
 
 namespace Humans.Shifts.Tests.Authorization;
 
-/// <summary>
-/// Unit tests for <see cref="IsAnyTeamManagerOrCoordinatorHandler"/> — lives in this
-/// section with the handler; the policy it backs
-/// (<c>PolicyNames.ShiftDepartmentManager</c>) is still registered by Shell's
-/// AuthorizationPolicyExtensions.
-/// </summary>
 public sealed class IsAnyTeamManagerOrCoordinatorHandlerTests
 {
     private readonly IShiftService _shiftManagement = Substitute.For<IShiftService>();
@@ -28,10 +23,10 @@ public sealed class IsAnyTeamManagerOrCoordinatorHandlerTests
 
     [HumansTheory]
     [InlineData(RoleNames.Admin, true)]
-    [InlineData(RoleNames.NoInfoAdmin, true)]
-    [InlineData(RoleNames.VolunteerCoordinator, true)]
+    [InlineData(ShiftsRoles.ShiftsNoInfo, true)]
+    [InlineData(ShiftsRoles.ShiftsAdmin, true)]
     [InlineData(RoleNames.Board, false)]
-    [InlineData(RoleNames.TeamsAdmin, false)]
+    [InlineData(TeamsRoles.TeamsAdmin, false)]
     public async Task ChecksCorrectRoles(string role, bool expected)
     {
         var result = await EvaluateAsync(CreateUserWithRole(role));

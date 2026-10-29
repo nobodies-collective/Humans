@@ -13,12 +13,8 @@ using Microsoft.Extensions.Localization;
 namespace Humans.Teams.Controllers;
 
 /// <summary>
-/// Send as team: a coordinator relays a one-off message to another member on behalf of a team
-/// they coordinate, at <c>/Teams/{teamId}/SendMessage/{id}</c>, with replies going to the
-/// team's Google Group. The team is authorized through <see cref="ITeamMessageOptionsProvider"/>
-/// (coordinator of an active team whose group is linked and synced); Email relays the message
-/// with the group as reply-to and keeps no team logic. The entry point is Teams'
-/// <c>TeamMessageButtonsViewComponent</c> on the profile page.
+/// The team is authorized through <see cref="ITeamMessageOptionsProvider"/>; Email relays the message with the group as
+/// reply-to and keeps no team logic.
 /// </summary>
 [Authorize]
 [Route("Teams")]
@@ -30,7 +26,8 @@ internal sealed class TeamMessageController(
     IEmailMessageFactory emailMessages,
     IAuditLogService auditLogService,
     IStringLocalizer<TeamsResource> localizer,
-    IStringLocalizer<SharedResource> sharedLocalizer) : HumansControllerBase(userService)
+    IStringLocalizer<SharedResource> sharedLocalizer,
+    ILogger<TeamMessageController> logger) : HumansControllerBase(userService)
 {
     private const string ProfileController = "ProfileView";
     private const string ViewProfileAction = "ViewProfile";
@@ -122,6 +119,7 @@ internal sealed class TeamMessageController(
         }
 
         await emailService.SendAsync(emailMessages.FacilitatedMessage(
+            targetUser.Id,
             targetUser.Email,
             targetUser.BurnerName,
             sender.BurnerName,
@@ -135,13 +133,23 @@ internal sealed class TeamMessageController(
 
         // Name and link the team; never copy its address into the audit text.
         var contactInfo = model.IncludeContactInfo ? "yes" : "no";
-        await auditLogService.LogAsync(
-            AuditAction.FacilitatedMessageSent,
-            "User", targetUser.Id,
-            $"Message sent to {targetUser.BurnerName} from team {team.TeamName} (contact info shared: {contactInfo})",
-            currentUser.Id,
-            relatedEntityId: team.TeamId,
-            relatedEntityType: "Team");
+        try
+        {
+            await auditLogService.LogAsync(
+                AuditAction.FacilitatedMessageSent,
+                "User", targetUser.Id,
+                $"Message sent to {targetUser.BurnerName} from team {team.TeamName} (contact info shared: {contactInfo})",
+                currentUser.Id,
+                relatedEntityId: team.TeamId,
+                relatedEntityType: "Team");
+        }
+        catch (Exception ex)
+        {
+            logger.LogCritical(ex,
+                "Facilitated-message audit failed AFTER queueing a message to user {RecipientUserId} from user {SenderUserId} as team {TeamId} " +
+                "(contact info shared: {IncludeContactInfo}). Email is queued; reconcile audit trail.",
+                targetUser.Id, currentUser.Id, team.TeamId, model.IncludeContactInfo);
+        }
 
         SetSuccess(string.Format(localizer["Teams_SendMessage_Success"].Value, targetUser.BurnerName));
 

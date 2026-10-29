@@ -24,16 +24,16 @@ internal sealed class EmailOutboxMessageConfiguration : IEntityTypeConfiguration
             .HasMaxLength(20)
             .IsRequired();
 
-        // Processor query index
+        // Processor batch query
         builder.HasIndex(e => new { e.SentAt, e.RetryCount, e.NextRetryAt, e.PickedUpAt });
         // User email history
         builder.HasIndex(e => e.UserId);
-        // Campaign grant tracking
+        // Kept with its unwritten column until the drop is approved (nobodies-collective/Humans#1243).
+#pragma warning disable CS0618 // the retired column stays mapped until its drop is approved
         builder.HasIndex(e => e.CampaignGrantId);
+#pragma warning restore CS0618
 
-        // UserId / CampaignGrantId are bare cross-section Guid columns — no FK
-        // constraint, no nav (memory/architecture/no-cross-section-ef-joins.md).
-        // A stale id here is an accepted orphan: this is an append-only send log,
-        // pruned on age by DeleteSentOlderThanAsync.
+        // UserId and CampaignGrantId have no FK: a stale id is an accepted orphan in this append-only,
+        // age-pruned log.
     }
 }

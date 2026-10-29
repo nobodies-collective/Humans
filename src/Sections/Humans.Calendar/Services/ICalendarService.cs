@@ -6,10 +6,8 @@ using NodaTime;
 namespace Humans.Calendar.Services;
 
 /// <summary>
-/// The section's read surface. Both members are answered from
-/// <see cref="CachingCalendarService"/>'s in-memory snapshot and never reach SQL, so this
-/// contract is deliberately not part of <see cref="ICalendarService"/>: the keyed inner
-/// service would only be able to implement it with code nothing can reach.
+/// Query facade over <see cref="CachingCalendarService"/>'s snapshot. The inner
+/// <see cref="ICalendarService"/> composes occurrences from the supplied cached events.
 /// </summary>
 internal interface ICalendarQueries : IApplicationService
 {
@@ -23,21 +21,20 @@ internal interface ICalendarQueries : IApplicationService
     Task<CalendarEventDetail?> GetEventByIdAsync(Guid id, CancellationToken ct = default);
 }
 
-/// <summary>
-/// The mutation surface, plus the two row loads the cache warms and refreshes from.
-/// Implemented twice: by <c>CalendarService</c> (the keyed inner, which does the work) and
-/// by <see cref="CachingCalendarService"/> (which delegates and then refreshes its snapshot).
-/// </summary>
+/// <summary>Implemented by the keyed inner <c>CalendarService</c> and by the caching decorator.</summary>
 internal interface ICalendarService : IApplicationService
 {
     Task<IReadOnlyList<CalendarEventInfo>> GetAllEventInfosAsync(CancellationToken ct = default);
 
     Task<CalendarEventInfo?> GetEventInfoAsync(Guid id, CancellationToken ct = default);
 
+    Task<IReadOnlyList<CalendarOccurrence>> ComposeOccurrencesAsync(
+        IReadOnlyList<CalendarEventInfo> events, Instant from, Instant to, DateTimeZone viewerZone,
+        Guid? teamId = null, CancellationToken ct = default);
 
-    // Create and update are published only in their result-returning form. The throwing pair
-    // they wrap stays private to CalendarService: a caller that has to catch ValidationException
-    // to render a form field is a caller doing the service's job.
+
+    // Only the result-returning forms are published: a caller catching ValidationException to fill a form field
+    // would be doing the service's job.
     Task<CalendarEventMutationResult> CreateEventWithResultAsync(CreateCalendarEventDto dto, Guid createdByUserId, CancellationToken ct = default);
 
     Task<CalendarEventMutationResult> UpdateEventWithResultAsync(Guid id, CreateCalendarEventDto dto, Guid updatedByUserId, CancellationToken ct = default);

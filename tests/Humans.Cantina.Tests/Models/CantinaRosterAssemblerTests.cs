@@ -6,12 +6,8 @@ using NodaTime;
 namespace Humans.Cantina.Tests.Models;
 
 /// <summary>
-/// Tests for <see cref="CantinaRosterAssembler.SortForDisplay"/>, the
-/// presentation-layer sort the Cantina controller applies before handing the
-/// weekly DTO to the CSV writer. Moved here
-/// from <c>CantinaRosterServiceTests</c> when display sort migrated out
-/// of the Application service per
-/// <c>memory/architecture/display-sort-in-controllers.md</c>.
+/// <see cref="CantinaRosterAssembler.SortForDisplay"/>, the presentation-layer sort the Cantina
+/// controller applies before handing the weekly DTO to the CSV writer.
 /// </summary>
 public class CantinaRosterAssemblerTests
 {
@@ -99,12 +95,7 @@ public class CantinaRosterAssemblerTests
     [HumansFact]
     public void SortForDisplay_BurnerNameTiebreaker_UsesCulturalCollation_NotOrdinal()
     {
-        // Smoke check: lower-case "alice" sorts BEFORE upper-case "Bob"
-        // under cultural-collation rules (case-insensitive), whereas
-        // StringComparer.Ordinal would put 'B' (0x42) before 'a' (0x61).
-        // This proves we're not using Ordinal — the more elaborate
-        // diacritic semantics (Spanish ñ vs n etc.) are runtime-culture
-        // dependent and not asserted here.
+        // Cultural collation, not Ordinal: "alice" sorts before "Bob".
         var input = new List<RosterPersonDto>
         {
             P("Bob", GateOpening),
@@ -160,8 +151,6 @@ public class CantinaRosterAssemblerTests
             CantinaRosterAssembler.DietaryPriority("Pescatarian"));
     }
 
-    // ---- Daily matrix assembler tests --------------------------------------
-
     private static DailyPersonRowDto DP(string burnerName) =>
         new(
             UserId: Guid.NewGuid(),
@@ -191,7 +180,6 @@ public class CantinaRosterAssemblerTests
         var sorted = CantinaRosterAssembler.WithSortedPeople(input);
 
         sorted.People.Select(p => p.BurnerName).Should().Equal("Alice", "Bob", "Charlie");
-        // Other fields preserved.
         sorted.DayOffset.Should().Be(input.DayOffset);
         sorted.WeekStartOffset.Should().Be(input.WeekStartOffset);
     }
@@ -199,10 +187,7 @@ public class CantinaRosterAssemblerTests
     [HumansFact]
     public void WithSortedPeople_Daily_CulturalCollation_CaseInsensitive()
     {
-        // Smoke check: lower-case "alice" must sort BEFORE upper-case "Bob"
-        // (cultural-collation, case-insensitive). Ordinal would put 'B' (0x42)
-        // before 'a' (0x61). The daily matrix sort matches the weekly sort's
-        // BurnerName tiebreaker on this dimension.
+        // Cultural collation, not Ordinal: "alice" sorts before "Bob".
         var input = Matrix(new[] { DP("Bob"), DP("alice") });
 
         var sorted = CantinaRosterAssembler.WithSortedPeople(input);

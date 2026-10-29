@@ -1,29 +1,18 @@
 using System.Security.Claims;
 using Humans.Users.Contracts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Humans.Base.Controllers;
 
 /// <summary>
-/// Base class for JSON API controllers. Inherit from this instead of
-/// <see cref="ControllerBase"/> so authenticated-user resolution stays
-/// consistent across the API surface without dragging in the
-/// view-rendering / TempData machinery that <see cref="HumansControllerBase"/>
-/// provides for server-rendered MVC controllers.
-///
-/// <para>
-/// Convention (see <c>memory/code/controller-base-conventions.md</c>):
-/// <list type="bullet">
-///   <item>MVC controllers returning views or using TempData → <see cref="HumansControllerBase"/>.</item>
-///   <item>API controllers returning JSON via <c>IActionResult</c> / <c>ActionResult&lt;T&gt;</c> → this class.</item>
-/// </list>
-/// Don't write new direct <c>UserManager.GetUserAsync(User)</c> calls in
-/// either kind of controller — use the cache-resident helpers below.
-/// Actions that genuinely need a tracked <c>User</c> entity (Identity
-/// mutations, sign-in flows) should self-inject <c>UserManager</c> in
-/// the derived controller.
-/// </para>
+/// Base class for JSON API controllers; MVC controllers that render views or use TempData take
+/// <see cref="HumansControllerBase"/> (<c>memory/code/controller-base-conventions.md</c>). Use the cache-resident
+/// helpers below, not new <c>UserManager.GetUserAsync(User)</c> calls; an action that needs a tracked <c>User</c>
+/// entity injects <c>UserManager</c> itself.
+/// Authenticated by default; a public action or controller says so with <c>[AllowAnonymous]</c>.
 /// </summary>
+[Authorize]
 public abstract class ApiControllerBase(IUserService userService) : ControllerBase
 {
     protected IUserService UserService => userService;

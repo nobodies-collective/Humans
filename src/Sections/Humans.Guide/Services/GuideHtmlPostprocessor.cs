@@ -1,25 +1,15 @@
 using System.Text.RegularExpressions;
+using AngleSharp.Html.Parser;
 using Humans.Base.Configuration;
 
 namespace Humans.Guide.Services;
 
 /// <summary>
-/// Rewrites &lt;a href&gt; and &lt;img src&gt; attributes in rendered guide HTML so sibling
-/// .md links become in-app routes, external/parent-relative links open in a new tab,
-/// and image references resolve to raw.githubusercontent.com.
+/// Sibling .md links become in-app routes, external and parent-relative links open in a new tab, and images resolve
+/// to raw.githubusercontent.com.
 /// </summary>
 internal sealed class GuideHtmlPostprocessor
 {
-    private static readonly Regex HrefPattern = new(
-        """<a\s+(?<before>[^>]*?)href="(?<url>[^"]+)"(?<rest>[^>]*)>""",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture,
-        TimeSpan.FromMilliseconds(500));
-
-    private static readonly Regex ImgPattern = new(
-        """<img\s+(?<before>[^>]*?)src="(?<url>[^"]+)"(?<rest>[^>]*)>""",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture,
-        TimeSpan.FromMilliseconds(500));
-
     // Matches <code>/route/path</code> spans where the content is a concrete app path:
     // starts with "/", contains no "{" and no "*" (so route templates like /Profile/{id}
     // and wildcards like /api/backdoor/* are left alone — both would 404 if linked), no
@@ -39,38 +29,66 @@ internal sealed class GuideHtmlPostprocessor
         var rawBase = settings.RawContentBaseUrl;
         var guideFolder = settings.FolderPath.TrimEnd('/') + "/";
 
-        html = HrefPattern.Replace(html, match =>
-        {
-            var before = match.Groups["before"].Value;
-            var url = match.Groups["url"].Value;
-            var after = match.Groups["rest"].Value;
+        using var document = new HtmlParser().ParseDocument(string.Empty);
+        if (document.Body is not { } body)
+            return html;
+        // Parse as a fragment: document parsing moves leading styles out of the body we return.
+        body.InnerHtml = html;
 
+        var modified = false;
+        foreach (var link in body.QuerySelectorAll("a[href]"))
+        {
+            var url = link.GetAttribute("href")!;
+            if (url.Length == 0) continue;
             var rewritten = RewriteHref(url, githubRepoBlobBase, guideFolder);
-            if (rewritten.IsExternal && !after.Contains("target=", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(rewritten.Href, url, StringComparison.Ordinal))
             {
-                after = $" target=\"_blank\" rel=\"noopener\"{after}";
+                link.SetAttribute("href", rewritten.Href);
+                modified = true;
             }
+            if (!rewritten.IsExternal) continue;
 
-            return $"<a {before}href=\"{rewritten.Href}\"{after}>";
-        });
+            if (!link.HasAttribute("target"))
+            {
+                link.SetAttribute("target", "_blank");
+                modified = true;
+            }
+            if (string.Equals(link.GetAttribute("target"), "_blank", StringComparison.OrdinalIgnoreCase))
+            {
+                var rel = link.GetAttribute("rel")?.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries) ?? [];
+                if (!rel.Contains("noopener", StringComparer.OrdinalIgnoreCase))
+                {
+                    link.SetAttribute("rel", string.Join(' ', rel.Append("noopener")));
+                    modified = true;
+                }
+            }
+        }
 
-        html = ImgPattern.Replace(html, match =>
+        foreach (var image in body.QuerySelectorAll("img[src]"))
         {
-            var before = match.Groups["before"].Value;
-            var url = match.Groups["url"].Value;
-            var after = match.Groups["rest"].Value;
-
+            var url = image.GetAttribute("src")!;
+            if (url.Length == 0) continue;
             var rewritten = RewriteImgSrc(url, rawBase, guideFolder);
-            return $"<img {before}src=\"{rewritten}\"{after}>";
-        });
+            if (string.Equals(rewritten, url, StringComparison.Ordinal)) continue;
+            image.SetAttribute("src", rewritten);
+            modified = true;
+        }
 
-        html = AppPathCodePattern.Replace(html, match =>
+        foreach (var code in body.QuerySelectorAll("code"))
         {
-            var path = match.Groups["path"].Value;
-            return $"""<a href="{path}" class="guide-app-path"><code>{path}</code></a>""";
-        });
+            // Existing links own their destination; block examples are not navigation.
+            if (code.Closest("a, pre") is not null || !AppPathCodePattern.IsMatch(code.OuterHtml))
+                continue;
 
-        return html;
+            var anchor = document.CreateElement("a");
+            anchor.SetAttribute("href", code.TextContent);
+            anchor.ClassName = "guide-app-path";
+            code.Parent?.ReplaceChild(anchor, code);
+            anchor.AppendChild(code);
+            modified = true;
+        }
+
+        return modified ? body.InnerHtml : html;
     }
 
     private static (string Href, bool IsExternal) RewriteHref(

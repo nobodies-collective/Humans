@@ -31,10 +31,6 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
         _dbContext.Dispose();
     }
 
-    // ==========================================================================
-    // AddAsync
-    // ==========================================================================
-
     [HumansFact]
     public async Task AddAsync_PersistsRow()
     {
@@ -52,10 +48,6 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
             .FindProperty(nameof(EmailOutboxMessage.RecipientName))!.GetMaxLength()
             .Should().BeGreaterThanOrEqualTo(msg.RecipientName.Length);
     }
-
-    // ==========================================================================
-    // Stats-shape reads
-    // ==========================================================================
 
     [HumansFact]
     public async Task GetTotalCountAsync_CountsAllRows()
@@ -155,10 +147,6 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
         pending.Should().Be(2);
     }
 
-    // ==========================================================================
-    // Retry / Discard
-    // ==========================================================================
-
     [HumansFact]
     public async Task RetryAsync_ResetsStatusAndCountersAndReturnsRecipient()
     {
@@ -205,10 +193,6 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
         result.Should().BeNull();
     }
 
-    // ==========================================================================
-    // Processor helpers
-    // ==========================================================================
-
     [HumansFact]
     public async Task GetProcessingBatchAsync_FiltersOnAllCriteria()
     {
@@ -237,20 +221,20 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
     }
 
     [HumansFact]
-    public async Task GetProcessingBatchAsync_PutsTimeSensitiveMessagesAheadOfABulkBacklog()
+    public async Task GetProcessingBatchAsync_PutsUrgentMessagesAheadOfABulkBacklog()
     {
         var now = _clock.GetCurrentInstant();
         var stale = now - Duration.FromMinutes(5);
 
         // 20 bulk messages queued first, then the magic link — FIFO alone would
-        // leave the login mail at the back (nobodies-collective/Humans#1122).
+        // leave the login mail at the back.
         foreach (var i in Enumerable.Range(0, 20))
         {
             await _repo.AddAsync(
                 BuildMessage(createdAt: now - Duration.FromMinutes(20 - i), templateName: "survey_invitation"),
                 TestContext.Current.CancellationToken);
         }
-        var magicLink = BuildMessage(createdAt: now, templateName: "magic_link_login");
+        var magicLink = BuildMessage(createdAt: now, templateName: "magic_link_login", urgent: true);
         await _repo.AddAsync(magicLink, TestContext.Current.CancellationToken);
 
         var batch = await _repo.GetProcessingBatchAsync(now, stale, maxRetries: 10, batchSize: 5, ct: TestContext.Current.CancellationToken);
@@ -259,23 +243,23 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
     }
 
     [HumansTheory]
-    [InlineData("magic_link_login")]
-    [InlineData("magic_link_signup")]
-    [InlineData("email_verification")]
-    [InlineData("workspace_credentials")]
-    public async Task GetProcessingBatchAsync_PrioritisesEveryTimeSensitiveTemplate(string templateName)
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(null, false)]
+    public async Task GetProcessingBatchAsync_PrioritisesOnlyRowsFlaggedUrgent(bool? urgent, bool jumpsTheQueue)
     {
         var now = _clock.GetCurrentInstant();
         var stale = now - Duration.FromMinutes(5);
 
+        // Same template either way: the flag decides, not the name.
         var bulk = BuildMessage(createdAt: now - Duration.FromMinutes(10), templateName: "survey_invitation");
-        var timeSensitive = BuildMessage(createdAt: now, templateName: templateName);
+        var candidate = BuildMessage(createdAt: now, templateName: "magic_link_login", urgent: urgent);
         await _repo.AddAsync(bulk, TestContext.Current.CancellationToken);
-        await _repo.AddAsync(timeSensitive, TestContext.Current.CancellationToken);
+        await _repo.AddAsync(candidate, TestContext.Current.CancellationToken);
 
         var batch = await _repo.GetProcessingBatchAsync(now, stale, maxRetries: 10, batchSize: 100, ct: TestContext.Current.CancellationToken);
 
-        batch.Select(m => m.Id).Should().ContainInOrder(timeSensitive.Id, bulk.Id);
+        batch.Select(m => m.Id).Should().Equal(jumpsTheQueue ? [candidate.Id, bulk.Id] : [bulk.Id, candidate.Id]);
     }
 
     [HumansFact]
@@ -284,8 +268,8 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
         var now = _clock.GetCurrentInstant();
         var stale = now - Duration.FromMinutes(5);
 
-        var olderLink = BuildMessage(createdAt: now - Duration.FromMinutes(3), templateName: "magic_link_login");
-        var newerLink = BuildMessage(createdAt: now - Duration.FromMinutes(1), templateName: "email_verification");
+        var olderLink = BuildMessage(createdAt: now - Duration.FromMinutes(3), templateName: "magic_link_login", urgent: true);
+        var newerLink = BuildMessage(createdAt: now - Duration.FromMinutes(1), templateName: "email_verification", urgent: true);
         var olderBulk = BuildMessage(createdAt: now - Duration.FromMinutes(30), templateName: "survey_invitation");
         var newerBulk = BuildMessage(createdAt: now - Duration.FromMinutes(10), templateName: "reconsent_reminder");
 
@@ -381,10 +365,6 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
         reloaded.LastError.Should().Be(prefix + expectedTail);
     }
 
-    // ==========================================================================
-    // Cleanup
-    // ==========================================================================
-
     [HumansFact]
     public async Task DeleteSentOlderThanAsync_RemovesOnlyOldSentMessages()
     {
@@ -456,10 +436,6 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
         rows[targetRow.Id].UserId.Should().Be(targetId);
         rows[otherRow.Id].UserId.Should().Be(otherId);
     }
-
-    // ==========================================================================
-    // Daily send counts (#1195)
-    // ==========================================================================
 
     [HumansFact]
     public async Task IncrementDailySendCountAsync_CreatesRowOnFirstCall()
@@ -555,10 +531,6 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
         result.Select(m => m.Id).Should().BeEquivalentTo([sent.Id]);
     }
 
-    // ==========================================================================
-    // Helpers
-    // ==========================================================================
-
     [HumansTheory]
     [InlineData("23505", "PK_email_outbox_messages", true, true)]
     [InlineData("23505", "Other_constraint", true, false)]
@@ -593,7 +565,8 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
         int retryCount = 0,
         Instant? sentAt = null,
         Instant? createdAt = null,
-        string templateName = "test") => new()
+        string templateName = "test",
+        bool? urgent = null) => new()
         {
             Id = Guid.NewGuid(),
             RecipientEmail = $"user-{Guid.NewGuid():N}@example.com",
@@ -603,6 +576,7 @@ public sealed class EmailOutboxRepositoryTests : IDisposable
             PlainTextBody = "Hi",
             TemplateName = templateName,
             UserId = userId,
+            Urgent = urgent,
             Status = status,
             RetryCount = retryCount,
             SentAt = sentAt,

@@ -3,15 +3,14 @@ using Humans.Base.Extensions;
 using Humans.Base.Logging;
 using Microsoft.AspNetCore.Mvc;
 using Serilog.Events;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Backdoor.Controllers;
 
-/// <summary>
-/// The in-memory log tail, for an agent triaging QA or production.
-/// </summary>
 [ApiController]
 [Route("api/backdoor/logs")]
 [ServiceFilter(typeof(BackdoorApiKeyAuthFilter))]
+[AllowAnonymous]
 internal sealed class BackdoorLogsController(InMemoryLogSink logSink) : ControllerBase
 {
     [HttpGet]

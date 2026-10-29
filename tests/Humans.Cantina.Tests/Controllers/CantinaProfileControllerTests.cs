@@ -18,9 +18,8 @@ using NSubstitute;
 namespace Humans.Cantina.Tests.Controllers;
 
 /// <summary>
-/// <c>/Cantina/Dietary</c> (Users decomposition commit 10): the owner-only form, its
-/// "Other needs text" guard, and the "I don't want to answer" opt-out
-/// (nobodies-collective/Humans#2104, Docs/features/dietary-nudge.md).
+/// <c>/Cantina/Dietary</c>: the owner-only form, its "Other needs text" guard, and the "I don't want
+/// to answer" opt-out (Docs/features/dietary-nudge.md).
 /// </summary>
 public class CantinaProfileControllerTests
 {
@@ -66,7 +65,7 @@ public class CantinaProfileControllerTests
     [HumansFact]
     public void Controller_requires_sign_in_and_every_post_requires_antiforgery()
     {
-        typeof(CantinaProfileController).GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+        typeof(CantinaProfileController).GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
             .Should().ContainSingle("the page is the signed-in member's own, never anonymous");
         typeof(CantinaProfileController).GetMethods()
             .Where(m => m.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true).Length > 0)

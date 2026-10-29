@@ -9,47 +9,27 @@ using Xunit;
 
 namespace Humans.Web.Tests.Authorization;
 
-/// <summary>
-/// Verifies that critical controller actions have the correct authorization attributes.
-/// Catches silent authorization regressions when attributes are accidentally removed or changed.
-/// </summary>
+/// <summary>Catches authorization attributes removed or changed on critical actions.</summary>
 public class EndpointAuthorizationTests
 {
     /// <summary>
-    /// Every concrete controller in the app: Shell's, plus each section project's
-    /// (nobodies-collective/Humans#866), found the same way
-    /// <c>SectionControllerFeatureProvider</c> finds them at runtime.
+    /// Found by the runtime's own section discovery: <c>GetReferencedAssemblies()</c> returns no sections, since Shell
+    /// names no type in them. <see cref="AssertNonEmpty"/> because a sweep over nothing passes silently.
     /// </summary>
-    /// <remarks>
-    /// Anchored on <c>HumansControllerBase</c>'s assembly until that base class moved to
-    /// <c>Humans.UI</c>, which contains no concrete controllers — the three sweeps below
-    /// then passed over an empty set and stopped catching anything. Hence
-    /// <see cref="AssertNonEmpty"/>: a sweep that finds nothing is a broken sweep, not a
-    /// clean bill of health. It reuses the runtime's own section discovery rather than
-    /// <c>GetReferencedAssemblies()</c>, which returns no sections at all — Shell names no
-    /// type in them, so the compiler elides the references.
-    /// </remarks>
-    private static IReadOnlyList<Type> AllControllerTypes()
+    private static IReadOnlyList<Type> AllControllerTypes(bool includeApiControllers = false)
     {
+        var baseType = includeApiControllers ? typeof(ControllerBase) : typeof(Controller);
         var controllers = new[] { typeof(HomeController).Assembly }
             .Concat(SectionDiscoveryExtensions.SectionAssemblies())
             .SelectMany(a => a.GetTypes())
-            .Where(t => typeof(Controller).IsAssignableFrom(t) && !t.IsAbstract)
+            .Where(t => baseType.IsAssignableFrom(t) && !t.IsAbstract)
             .ToList();
 
         AssertNonEmpty(controllers);
         return controllers;
     }
 
-    /// <summary>
-    /// A G5 section's controller is <c>internal</c> to its own assembly
-    /// (nobodies-collective/Humans#866), so it cannot be named with <c>typeof</c> here.
-    /// Resolved by reflection instead — the same mechanism
-    /// <c>GdprExportDependencyInjectionTests</c> uses, so there is one way to name a moved
-    /// section type from this project rather than two. Throwing on a miss is the point: a
-    /// critical endpoint that quietly drops out of the table is the failure this class exists
-    /// to prevent.
-    /// </summary>
+    /// <summary>Section controllers are internal; throws on a miss so a critical endpoint can't drop out silently.</summary>
     private static Type SectionType(string fullName) =>
         SectionDiscoveryExtensions.SectionAssemblies()
             .Select(a => a.GetType(fullName, throwOnError: false))
@@ -76,9 +56,6 @@ public class EndpointAuthorizationTests
         { SectionType("Humans.Email.Controllers.EmailController"), null, "AdminOnly" },
         { typeof(AdminController), "Index", "AnyAdminRole" },
         { SectionType("Humans.AuditLog.Controllers.AuditLogController"), "Index", "BoardOrAdmin" },
-        // These three left AuditLog: the Drive-activity scan to Humans.Monitor, the two sync-audit
-        // pages to GoogleIntegration. Retargeted rather than dropped — the policies are unchanged
-        // and a deleted row reads as "no longer critical".
         { SectionType("Humans.Monitor.Controllers.MonitorController"), "CheckDriveActivity", "BoardOrAdmin" },
         { SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), "Resource", "BoardOrAdmin" },
         { SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), "Human", "HumanAdminBoardOrAdmin" },
@@ -114,16 +91,12 @@ public class EndpointAuthorizationTests
         AssertHasPolicy(controllerType, actionName, expectedPolicy);
     }
 
-    // The /Admin dashboard itself is reachable by any admin-shaped role so
-    // domain admins (FinanceAdmin etc.) can land on the shell. Sidebar items
-    // inside still filter per-item.
+    // Any admin-shaped role lands on the shell; sidebar items filter per item.
     [HumansFact]
     public void AdminController_Index_RequiresAnyAdminRolePolicy()
     {
         AssertHasPolicy(typeof(AdminController), "Index", "AnyAdminRole");
     }
-
-    // --- Google admin endpoints must require Admin ---
 
     [HumansTheory]
     [InlineData("UpdateSyncSetting")]
@@ -136,8 +109,6 @@ public class EndpointAuthorizationTests
     {
         AssertHasPolicy(SectionType("Humans.GoogleIntegration.Controllers.GoogleController"), actionName, "AdminOnly");
     }
-
-    // --- Onboarding review endpoints ---
 
     [HumansFact]
     public void OnboardingReviewController_RequiresReviewQueueAccess()
@@ -154,11 +125,7 @@ public class EndpointAuthorizationTests
         AssertHasPolicy(SectionType("Humans.Onboarding.Controllers.OnboardingReviewController"), actionName, "ConsentCoordinatorBoardOrAdmin");
     }
 
-    // --- Feedback is closed to new reports (nobodies-collective/Humans#977) ---
-
-    // Feedback was superseded by Issues. No route may create a FeedbackReport, so
-    // FeedbackController must expose no POST on its route root and FeedbackApiController
-    // must expose no POST beyond the admin message thread.
+    // Feedback is superseded by Issues: no route may create a FeedbackReport.
     [HumansFact]
     public void FeedbackController_HasNoReportCreationRoute()
     {
@@ -176,8 +143,6 @@ public class EndpointAuthorizationTests
     [HumansFact]
     public void BackdoorFeedbackController_OnlyPostsMessages()
     {
-        // The machine surface moved to Humans.Backdoor with #1128; Feedback still accepts
-        // no new reports, over the API least of all.
         var postTemplates = SectionType("Humans.Backdoor.Controllers.BackdoorFeedbackController")
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Select(m => m.GetCustomAttribute<HttpPostAttribute>())
@@ -188,21 +153,13 @@ public class EndpointAuthorizationTests
         postTemplates.Should().BeEquivalentTo(["{id}/messages"]);
     }
 
-    // --- Budget admin endpoints (the /Finance route prefix; the Holded half of this
-    // controller moved to the Humans.Finance section and is asserted in its own test project,
-    // since this sweep can only name Shell's controllers) ---
-
     [HumansFact]
     public void BudgetAdminController_RequiresFinanceAdminOrAdmin()
     {
         AssertHasPolicy(SectionType("Humans.Budget.Controllers.BudgetAdminController"), null, "FinanceAdminOrAdmin");
     }
 
-    // --- Shift dashboard endpoints ---
-
-    // Page entry uses the WIDER policy so any team coordinator / sub-team manager
-    // can land on the dashboard. Privileged actions (Voluntell / SearchVolunteers)
-    // override at the action level with the NARROWER ShiftDashboardAccess.
+    // Page entry uses the wider policy so any coordinator can land; Voluntell and SearchVolunteers narrow it per action.
     [HumansFact]
     public void ShiftDashboardController_RequiresShiftDepartmentManager()
     {
@@ -220,8 +177,6 @@ public class EndpointAuthorizationTests
     {
         AssertHasPolicy(SectionType("Humans.Shifts.Controllers.ShiftDashboardController"), "Voluntell", "ShiftDashboardAccess");
     }
-
-    // --- POST actions must have ValidateAntiForgeryToken ---
 
     [HumansFact]
     public void AllPostActions_HaveAntiForgeryValidation()
@@ -258,29 +213,17 @@ public class EndpointAuthorizationTests
             string.Join(", ", violations));
     }
 
+    // The fallback policy already denies anonymous requests at runtime; this keeps the choice visible in source.
     [HumansFact]
     public void AllControllerActions_HaveAuthorizeOrAllowAnonymous()
     {
-        var anonymousControllers = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "HomeController",
-            "AccountController",
-            "DevLoginController",
-            "ApiController",
-            "VersionController",
-            "AboutController",
-            "LanguageController",
-            "UnsubscribeController"
-        };
-
-        var controllerTypes = AllControllerTypes()
-            .Where(t => !anonymousControllers.Contains(t.Name));
+        var controllerTypes = AllControllerTypes(includeApiControllers: true);
 
         var violations = new List<string>();
 
         foreach (var controller in controllerTypes)
         {
-            var hasControllerAuth = controller.GetCustomAttribute<AuthorizeAttribute>() != null;
+            var hasControllerAuth = controller.IsDefined(typeof(AuthorizeAttribute), inherit: true);
             var hasControllerAllowAnon = controller.GetCustomAttribute<AllowAnonymousAttribute>() != null;
 
             if (hasControllerAuth || hasControllerAllowAnon)
@@ -295,7 +238,7 @@ public class EndpointAuthorizationTests
 
             foreach (var action in actions)
             {
-                var hasActionAuth = action.GetCustomAttribute<AuthorizeAttribute>() != null;
+                var hasActionAuth = action.GetCustomAttribute<AuthorizeAttribute>(inherit: false) != null;
                 var hasActionAllowAnon = action.GetCustomAttribute<AllowAnonymousAttribute>() != null;
 
                 if (!hasActionAuth && !hasActionAllowAnon)
@@ -306,28 +249,82 @@ public class EndpointAuthorizationTests
         }
 
         violations.Should().BeEmpty(
-            "all controller actions (except intentionally anonymous ones) should have [Authorize] or [AllowAnonymous]. " +
+            "every controller action must carry [Authorize] or [AllowAnonymous], itself or on its class. " +
             "Unprotected: " + string.Join(", ", violations));
     }
 
+    // The whole anonymous surface, in one place: a new public page or API is a deliberate addition here.
     [HumansFact]
-    public void AllowAnonymousOnAuthorizedControllers_IsExplicitlyAllowlisted()
+    public void AnonymousControllers_AreExplicitlyAllowlisted()
     {
         var allowlist = new HashSet<string>(StringComparer.Ordinal)
         {
+            "AccountController",
+            "LanguageController",
+            "TimezoneApiController",
+            "DevLoginController",
+            "UnsubscribeController",
+            "TourController",
+            "WelcomeController",
+            "LegalController",
+            "SurveyController",
+            "StoreStripeWebhookController",
+            "CampApiController",
+            "ColorPaletteController",
+            // API-key authenticated by BackdoorApiKeyAuthFilter, which runs after endpoint authorization.
+            "BackdoorAgentController",
+            "BackdoorFeedbackController",
+            "BackdoorFinanceController",
+            "BackdoorIssuesController",
+            "BackdoorLogsController",
+            "BackdoorNotificationsController",
+            "BackdoorStoreController",
+            "BackdoorSurveysController",
+        };
+
+        var anonymous = AllControllerTypes(includeApiControllers: true)
+            .Where(t => t.GetCustomAttribute<AllowAnonymousAttribute>() != null)
+            .Select(t => t.Name)
+            .ToList();
+
+        anonymous.Should().BeSubsetOf(allowlist,
+            "a class-level [AllowAnonymous] opens every action on the controller; list it here on purpose");
+        allowlist.Should().BeSubsetOf(anonymous, "drop controllers from this list when they stop being anonymous");
+    }
+
+    [HumansFact]
+    public void AnonymousActions_AreExplicitlyAllowlisted()
+    {
+        var allowlist = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "HomeController.Index",
+            "HomeController.Privacy",
+            "HomeController.Error",
+            "AboutController.Index",
             "GuestAccountController.CommunicationPreferences",
             "GuestAccountController.UpdatePreference",
             "TeamController.Index",
             "TeamController.Details",
             "TeamController.Tree",
+            "CampController.Index",
+            "CampController.Details",
+            "CampController.SeasonDetails",
             "DebugController.DbVersion",
+            "GuideController.Index",
+            "GuideController.Document",
             "ProfileEmailsController.VerifyEmail",
             "ProfileViewController.Picture",
             "ProfileViewController.PublicPopover",
+            "EventsApiController.GetEvents",
+            "EventsApiController.GetEvent",
+            "EventsApiController.GetBarrios",
+            "EventsApiController.GetBarrio",
+            "EventsApiController.GetCategories",
+            "ICalFeedApiController.GetFeed",
         };
 
-        var controllerTypes = AllControllerTypes()
-            .Where(t => t.GetCustomAttribute<AuthorizeAttribute>() != null);
+        var controllerTypes = AllControllerTypes(includeApiControllers: true)
+            .Where(t => t.GetCustomAttribute<AllowAnonymousAttribute>() == null);
 
         var violations = new List<string>();
 
@@ -347,7 +344,7 @@ public class EndpointAuthorizationTests
         }
 
         violations.Should().BeEmpty(
-            "[AllowAnonymous] on an [Authorize] controller must be explicitly allowlisted in this test. " +
+            "an action-level [AllowAnonymous] must be allowlisted in this test. " +
             "New anonymous endpoints: " + string.Join(", ", violations));
     }
 
@@ -357,7 +354,7 @@ public class EndpointAuthorizationTests
 
         if (actionName is null)
         {
-            attr = controllerType.GetCustomAttribute<AuthorizeAttribute>();
+            attr = controllerType.GetCustomAttribute<AuthorizeAttribute>(inherit: false);
         }
         else
         {
@@ -368,10 +365,10 @@ public class EndpointAuthorizationTests
             methods.Should().NotBeEmpty($"action '{actionName}' should exist on {controllerType.Name}");
 
             attr = methods
-                .Select(m => m.GetCustomAttribute<AuthorizeAttribute>())
+                .Select(m => m.GetCustomAttribute<AuthorizeAttribute>(inherit: false))
                 .FirstOrDefault(a => a is not null);
 
-            attr ??= controllerType.GetCustomAttribute<AuthorizeAttribute>();
+            attr ??= controllerType.GetCustomAttribute<AuthorizeAttribute>(inherit: false);
         }
 
         attr.Should().NotBeNull(

@@ -40,13 +40,11 @@ internal sealed class CityPlanningApiController(
 
     private async Task<Guid?> FindUserLeadCampIdAsync(Guid userId, int year, CancellationToken ct)
     {
-        // Lead status comes from the role system (Camp Lead special role on a season
-        // of this year).
         var camps = await campService.GetCampsForYearAsync(year, ct);
         return camps.FirstOrDefault(camp => camp.GetLeadSeasonIdForYear(userId, year).HasValue)?.Id;
     }
 
-    /// <summary>Returns current map state: settings, all camp polygons, unmapped seasons.</summary>
+    /// <summary>Settings, all camp polygons, and unmapped seasons.</summary>
     [HttpGet("state")]
     public async Task<IActionResult> GetState(CancellationToken cancellationToken)
     {
@@ -65,7 +63,6 @@ internal sealed class CityPlanningApiController(
         });
     }
 
-    /// <summary>Returns camp polygon version history for a camp season, newest first.</summary>
     [HttpGet("camp-polygons/{campSeasonId:guid}/history")]
     public async Task<IActionResult> GetCampPolygonHistory(Guid campSeasonId, CancellationToken cancellationToken)
     {
@@ -84,7 +81,7 @@ internal sealed class CityPlanningApiController(
         return Ok(response);
     }
 
-    /// <summary>Save or update a camp polygon. Broadcasts update to all connected clients via SignalR.</summary>
+    /// <summary>Broadcasts the update to all connected clients.</summary>
     [HttpPut("camp-polygons/{campSeasonId:guid}")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveCampPolygon(
@@ -93,30 +90,26 @@ internal sealed class CityPlanningApiController(
         CancellationToken cancellationToken)
     {
         var userId = CurrentUserId();
-        if (!RoleChecks.IsCampAdmin(User) &&
+        if (!CampsRoles.IsCampsAdmin(User) &&
             !await cityPlanningService.CanUserEditAsync(userId, campSeasonId, cancellationToken))
         {
             return Forbid();
         }
 
-        CampPolygonSaveResult saved;
-        try
+        var saved = await cityPlanningService.SaveCampPolygonAsync(
+            campSeasonId, request.GeoJson, request.AreaSqm, userId,
+            note: request.Note ?? "Saved",
+            cancellationToken: cancellationToken);
+        if (saved.Refusal is { } refusal)
         {
-            saved = await cityPlanningService.SaveCampPolygonAsync(
-                campSeasonId, request.GeoJson, request.AreaSqm, userId,
-                note: request.Note ?? "Saved",
-                cancellationToken: cancellationToken);
-        }
-        catch (ArgumentException ex)
-        {
-            logger.LogWarning("Rejected camp polygon for {CampSeasonId}: {Reason}", campSeasonId, ex.Message);
+            logger.LogWarning("Rejected camp polygon for {CampSeasonId} by {UserId}: {Reason}", campSeasonId, userId, refusal);
             return BadRequest();
         }
 
         return await BroadcastAndReturnAsync(campSeasonId, saved, cancellationToken);
     }
 
-    /// <summary>Restore a camp polygon to a historical version. Map admins only.</summary>
+    /// <summary>Map admins only.</summary>
     [HttpPost("camp-polygons/{campSeasonId:guid}/restore/{historyId:guid}")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RestoreCampPolygon(
@@ -130,26 +123,19 @@ internal sealed class CityPlanningApiController(
             return Forbid();
         }
 
-        CampPolygonSaveResult? restored;
-        try
+        var restored = await cityPlanningService.RestoreCampPolygonVersionAsync(
+            campSeasonId, historyId, userId, cancellationToken);
+        if (restored is null) return NotFound();
+        if (restored.Refusal is { } refusal)
         {
-            restored = await cityPlanningService.RestoreCampPolygonVersionAsync(
-                campSeasonId, historyId, userId, cancellationToken);
-        }
-        catch (ArgumentException ex)
-        {
-            logger.LogWarning("Rejected camp polygon restore for {CampSeasonId}: {Reason}", campSeasonId, ex.Message);
+            logger.LogWarning("Rejected camp polygon restore for {CampSeasonId}, history {HistoryId} by {UserId}: {Reason}", campSeasonId, historyId, userId, refusal);
             return BadRequest();
         }
-        if (restored is null) return NotFound();
 
         return await BroadcastAndReturnAsync(campSeasonId, restored, cancellationToken);
     }
 
-    /// <summary>
-    /// Tells every connected map about the new shape, then answers the caller. A broadcast
-    /// failure is logged and never fails the save that already happened.
-    /// </summary>
+    /// <summary>A broadcast failure is logged and never fails the save that already happened.</summary>
     private async Task<IActionResult> BroadcastAndReturnAsync(
         Guid campSeasonId, CampPolygonSaveResult polygon, CancellationToken cancellationToken)
     {
@@ -173,7 +159,7 @@ internal sealed class CityPlanningApiController(
         return Ok(new { campSeasonId, geoJson = polygon.GeoJson, areaSqm = polygon.AreaSqm });
     }
 
-    /// <summary>Export all camp polygons for a year as GeoJSON FeatureCollection. Map admins only.</summary>
+    /// <summary>Map admins only.</summary>
     [HttpGet("export.geojson")]
     public async Task<IActionResult> ExportGeoJson([FromQuery] int? year, CancellationToken cancellationToken)
     {
@@ -189,7 +175,6 @@ internal sealed class CityPlanningApiController(
         return Content(geoJson, "application/geo+json");
     }
 
-    /// <summary>Returns all containers and their placements for a year, with canEdit flag per caller.</summary>
     [HttpGet("containers/{year:int}")]
     public async Task<IActionResult> GetContainers(int year, CancellationToken cancellationToken)
     {
@@ -222,7 +207,7 @@ internal sealed class CityPlanningApiController(
         return Ok(result);
     }
 
-    /// <summary>Export placed containers accessible to the caller as a GeoJSON FeatureCollection.</summary>
+    /// <summary>Only the containers accessible to the caller.</summary>
     [HttpGet("containers/{year:int}/export.geojson")]
     public async Task<IActionResult> ExportContainersGeoJson(int year, CancellationToken cancellationToken)
     {
@@ -269,7 +254,16 @@ internal sealed class CityPlanningApiController(
         return File(System.Text.Encoding.UTF8.GetBytes(collection.ToJsonString()), "application/geo+json", fileName);
     }
 
-    /// <summary>Save or update the placement GeoJSON for a container in the given year.</summary>
+    private async Task<IActionResult?> RequireContainerPlacementAsync(Guid id, int year, CancellationToken ct)
+    {
+        var container = await containerService.GetByIdAsync(id, ct);
+        if (container is null) return NotFound();
+
+        var auth = await authorizationService.AuthorizeAsync(
+            User, ContainerAuthorizationTarget.For(container, year), ContainerOperationRequirement.Place);
+        return auth.Succeeded ? null : Forbid();
+    }
+
     [HttpPut("containers/{id:guid}/placement/{year:int}")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveContainerPlacement(
@@ -278,12 +272,8 @@ internal sealed class CityPlanningApiController(
         [FromBody] SaveContainerPlacementRequest request,
         CancellationToken cancellationToken)
     {
-        var container = await containerService.GetByIdAsync(id, cancellationToken);
-        if (container is null) return NotFound();
-
-        var authResult = await authorizationService.AuthorizeAsync(
-            User, ContainerAuthorizationTarget.For(container, year), ContainerOperationRequirement.Place);
-        if (!authResult.Succeeded) return Forbid();
+        var error = await RequireContainerPlacementAsync(id, year, cancellationToken);
+        if (error is not null) return error;
 
         var result = await containerService.SavePlacementAsync(id, year, request.GeoJson, CurrentUserId(), cancellationToken);
         if (result.ErrorKey is { } key)
@@ -295,7 +285,6 @@ internal sealed class CityPlanningApiController(
         return Ok(new { id = updated.ContainerId, year = updated.Year, locationGeoJson = updated.LocationGeoJson });
     }
 
-    /// <summary>Update placement notes and/or sketch image for a placed container.</summary>
     [HttpPut("containers/{id:guid}/placement/{year:int}/notes")]
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(11 * 1024 * 1024)] // 10 MB placement image plus multipart overhead; service enforces the image cap.
@@ -305,12 +294,8 @@ internal sealed class CityPlanningApiController(
         [FromForm] UpdateContainerPlacementNotesRequest request,
         CancellationToken cancellationToken)
     {
-        var container = await containerService.GetByIdAsync(id, cancellationToken);
-        if (container is null) return NotFound();
-
-        var authResult = await authorizationService.AuthorizeAsync(
-            User, ContainerAuthorizationTarget.For(container, year), ContainerOperationRequirement.Place);
-        if (!authResult.Succeeded) return Forbid();
+        var error = await RequireContainerPlacementAsync(id, year, cancellationToken);
+        if (error is not null) return error;
 
         ContainerImageUpload? imageUpload = null;
         if (request.PlacementImage is { Length: > 0 } f)
@@ -337,17 +322,12 @@ internal sealed class CityPlanningApiController(
         });
     }
 
-    /// <summary>Clear the placement GeoJSON for a container in the given year.</summary>
     [HttpDelete("containers/{id:guid}/placement/{year:int}")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ClearContainerPlacement(Guid id, int year, CancellationToken cancellationToken)
     {
-        var container = await containerService.GetByIdAsync(id, cancellationToken);
-        if (container is null) return NotFound();
-
-        var authResult = await authorizationService.AuthorizeAsync(
-            User, ContainerAuthorizationTarget.For(container, year), ContainerOperationRequirement.Place);
-        if (!authResult.Succeeded) return Forbid();
+        var error = await RequireContainerPlacementAsync(id, year, cancellationToken);
+        if (error is not null) return error;
 
         await containerService.ClearPlacementAsync(id, year, CurrentUserId(), cancellationToken);
         return NoContent();

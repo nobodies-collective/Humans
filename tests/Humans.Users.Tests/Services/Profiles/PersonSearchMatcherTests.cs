@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Humans.Base.Extensions;
 using Humans.Users.Contracts;
 using NodaTime;
 using Xunit;
@@ -8,6 +9,29 @@ namespace Humans.Users.Tests.Services.Profiles;
 
 public class PersonSearchMatcherTests
 {
+    [HumansTheory]
+    [InlineData("en", "Name", "City", "Other", "Legal Name")]
+    [InlineData("es", "Nombre", "Ciudad", "Otro", "Nombre legal")]
+    [InlineData("de", "Name", "Stadt", "Sonstiges", "Bürgerlicher Name")]
+    [InlineData("it", "Nome", "Città", "Altro", "Nome legale")]
+    [InlineData("fr", "Nom", "Ville", "Autre", "Nom légal")]
+    [InlineData("ca", "Nom", "Ciutat", "Altres", "Nom legal")]
+    public void Built_in_match_labels_use_ui_culture_and_custom_labels_stay_verbatim(
+        string culture, string name, string city, string other, string legalName)
+    {
+        using var scope = new CultureScope(culture);
+        PersonSearchMatcher.Match(Human(burnerName: "Alice"), "Alice", PersonSearchFields.Name)!
+            .Field.Should().Be(name);
+        PersonSearchMatcher.Match(Human(firstName: "Alice"), "Alice", PersonSearchFields.LegalName)!
+            .Field.Should().Be(legalName);
+        PersonSearchMatcher.Match(Human(city: "Barcelona"), "Barcelona", PersonSearchFields.Bio)!
+            .Field.Should().Be(city);
+        PersonSearchMatcher.Match(Human(contactFields: [("12345", ContactFieldVisibility.AllActiveProfiles)]),
+            "12345", PersonSearchFields.Bio)!.Field.Should().Be(other);
+        PersonSearchMatcher.Match(Human(contactLabel: "City", contactFields: [("12345", ContactFieldVisibility.AllActiveProfiles)]),
+            "12345", PersonSearchFields.Bio)!.Field.Should().Be("City");
+    }
+
     private static readonly Instant At = Instant.FromUtc(2026, 1, 1, 0, 0);
 
     /// <summary>
@@ -30,6 +54,7 @@ public class PersonSearchMatcherTests
         string? consentCheckNotes = null,
         string? rejectionReason = null,
         string? emergencyContactName = null,
+        string? contactLabel = null,
         Instant? rejectedAt = null,
         IEnumerable<(string Value, ContactFieldVisibility Vis)>? contactFields = null,
         IEnumerable<(string Email, bool Verified, ContactFieldVisibility? Vis)>? emails = null,
@@ -64,8 +89,7 @@ public class PersonSearchMatcherTests
         var user = new User
         {
             Id = userId,
-            // Mirrors UserRepository.Profiles.cs's CopyNamesToUser dual-write (#1097): every real
-            // Profile save copies BurnerName onto the owning User row in the same transaction.
+            // Every real Profile save copies BurnerName onto the owning User row.
             BurnerName = burnerName,
             DisplayName = displayName,
             PreferredLanguage = "en",
@@ -79,6 +103,7 @@ public class PersonSearchMatcherTests
                 ProfileId = profileId,
                 FieldType = ContactFieldType.Other,
                 Value = c.Value,
+                CustomLabel = contactLabel,
                 Visibility = c.Vis,
                 DisplayOrder = i,
                 CreatedAt = At,
@@ -127,10 +152,8 @@ public class PersonSearchMatcherTests
     [HumansFact]
     public void Matches_nothing_when_burnername_blank_even_with_a_legacy_DisplayName()
     {
-        // nobodies-collective/Humans#1098: the resolver no longer falls back to the legacy
-        // DisplayName for an ordinary (non-sentinel) row — this INTENTIONALLY reverses the old
-        // "SSO/legacy" fix this test used to protect (Profile.BurnerName blank, User.DisplayName
-        // populated resolved via the fallback). A blank BurnerName now renders/searches blank.
+        // No DisplayName fallback for an ordinary (non-sentinel) row: a blank BurnerName renders
+        // and searches blank, even with a legacy DisplayName set.
         var human = Human(burnerName: "", displayName: "Maria Garcia");
 
         var match = PersonSearchMatcher.Match(human, "maria", PersonSearchFields.Name);
@@ -377,7 +400,7 @@ public class PersonSearchMatcherTests
     [HumansFact]
     public void ExactName_does_not_resolve_display_name_when_burnername_blank()
     {
-        // nobodies-collective/Humans#1098 — see Matches_nothing_when_burnername_blank... above.
+        // No DisplayName fallback: a blank BurnerName searches blank.
         var human = Human(burnerName: "", displayName: "Maria Garcia");
 
         PersonSearchMatcher.Match(human, "maria garcia", PersonSearchFields.ExactName).Should().BeNull();

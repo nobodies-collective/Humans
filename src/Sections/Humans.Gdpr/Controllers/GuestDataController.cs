@@ -1,4 +1,3 @@
-using System.Globalization;
 using Humans.Base.Controllers;
 using Humans.Base.Extensions;
 using Humans.Base;
@@ -12,20 +11,15 @@ using NodaTime;
 
 namespace Humans.Gdpr.Controllers;
 
-/// <summary>
-/// The subject-rights actions for profileless accounts (authenticated users without a Profile):
-/// the Article 15 data export and the Article 17 deletion request and its cancellation, at
-/// <c>/Gdpr/Guest/*</c> beside their member counterparts on <see cref="MemberDataController"/>.
-/// </summary>
 [Authorize]
 internal sealed class GuestDataController(
     IUserService userService,
-    IGdprService gdprExportService,
+    IGdprService gdprService,
     IAccountDeletionService accountDeletionService,
     IClock clock,
     ILogger<GuestDataController> logger,
-    IStringLocalizer<SharedResource> localizer,
-    IStringLocalizer<GdprResource> gdprLocalizer) : HumansControllerBase(userService)
+    IStringLocalizer<SharedResource> sharedLocalizer,
+    IStringLocalizer<GdprResource> localizer) : HumansControllerBase(userService)
 {
     [HttpGet("Gdpr/Guest/DownloadData")]
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
@@ -37,7 +31,7 @@ internal sealed class GuestDataController(
 
         try
         {
-            var export = await gdprExportService.ExportForUserAsync(user.Id, ct);
+            var export = await gdprService.ExportForUserAsync(user.Id, ct);
 
             var bytes = GdprExportSerializer.Serialize(export);
             var fileName = $"nobodies-data-export-{clock.GetCurrentInstant().ToDateTimeUtc().ToInvariantDate()}.json";
@@ -51,7 +45,7 @@ internal sealed class GuestDataController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to export data for user {UserId}", user.Id);
-            SetError(localizer["Error_TryAgainLater"].Value);
+            SetError(sharedLocalizer["Error_TryAgainLater"].Value);
             return RedirectToAction("Index", "Guest");
         }
     }
@@ -66,18 +60,16 @@ internal sealed class GuestDataController(
 
         try
         {
-            // Single orchestrator for profile + profileless deletion (see #685).
-            var result = await accountDeletionService.RequestDeletionAsync(user.Id);
-            var flash = GuestDeletionRequestFlash.From(result);
+            var flash = DeletionRequestFlash.From(await accountDeletionService.RequestDeletionAsync(user.Id));
             if (flash.Success)
-                SetSuccess(FormatDeletionFlash(flash));
+                SetSuccess(flash.Format(localizer));
             else
-                SetError(FormatDeletionFlash(flash));
+                SetError(flash.Format(localizer));
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to process deletion request for user {UserId}", user.Id);
-            SetError(gdprLocalizer["Gdpr_Guest_DeletionRequestFailed"].Value);
+            SetError(localizer["Gdpr_Deletion_RequestFailed"].Value);
         }
 
         return RedirectToAction("Index", "Guest");
@@ -95,15 +87,12 @@ internal sealed class GuestDataController(
         if (!result.Success)
         {
             SetError(string.Equals(result.ErrorKey, "NoDeletionPending", StringComparison.Ordinal)
-                ? gdprLocalizer["Gdpr_Deletion_NotPending"].Value
-                : gdprLocalizer["Gdpr_Guest_CancelDeletionFailed"].Value);
+                ? localizer["Gdpr_Deletion_NotPending"].Value
+                : localizer["Gdpr_Guest_CancelDeletionFailed"].Value);
             return RedirectToAction("Index", "Guest");
         }
 
-        SetSuccess(gdprLocalizer["Gdpr_Deletion_Cancelled"].Value);
+        SetSuccess(localizer["Gdpr_Deletion_Cancelled"].Value);
         return RedirectToAction("Index", "Guest");
     }
-
-    private string FormatDeletionFlash(GuestDeletionRequestFlash flash) =>
-        string.Format(CultureInfo.CurrentCulture, gdprLocalizer[flash.ResourceKey].Value, flash.EffectiveDeletionDate.ToDate());
 }

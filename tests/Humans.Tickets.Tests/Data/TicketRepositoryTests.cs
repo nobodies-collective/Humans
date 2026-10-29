@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Humans.Base.Extensions;
 using Humans.Tickets.Contracts;
 using Humans.Tickets.Data;
 using Microsoft.EntityFrameworkCore;
@@ -36,8 +37,6 @@ public sealed class TicketRepositoryTests : IDisposable
     {
         _dbContext.Dispose();
     }
-
-    // ── GetSyncStateAsync / PersistSyncStateAsync ────────────────────────────
 
     [HumansTheory]
     [Xunit.InlineData(false)]
@@ -123,8 +122,6 @@ public sealed class TicketRepositoryTests : IDisposable
         reloaded.LastSyncAt.Should().BeNull();
     }
 
-    // ── UpsertOrdersAsync ────────────────────────────────────────────────────
-
     [HumansFact(Timeout = 10000)]
     public async Task UpsertOrdersAsync_InsertsNewRowsAndUpdatesExisting()
     {
@@ -181,8 +178,6 @@ public sealed class TicketRepositoryTests : IDisposable
         rows[0].TotalAmount.Should().Be(99m);
         rows[1].VendorOrderId.Should().Be("ord_new");
     }
-
-    // ── GetMatchedAttendeesForEventAsync ─────────────────────────────────────
 
     [HumansFact]
     public async Task GetMatchedAttendeesForEventAsync_FiltersToEventAndMatchedOnly()
@@ -245,8 +240,6 @@ public sealed class TicketRepositoryTests : IDisposable
         rows[0].MatchedUserId.Should().Be(matchedUserId);
         rows[0].Status.Should().Be(TicketAttendeeStatus.Valid);
     }
-
-    // ── GetUnmatchedActiveAttendeesAsync ─────────────────────────────────────
 
     [HumansFact]
     public async Task GetUnmatchedActiveAttendeesAsync_ReturnsOnlyValidAndCheckedIn_WithEmail_AndNullMatch()
@@ -371,8 +364,6 @@ public sealed class TicketRepositoryTests : IDisposable
         result.Should().ContainSingle(a => a.Id == includedId);
     }
 
-    // ── ApplyCheckInsAsync ───────────────────────────────────────────────────
-
     [HumansFact]
     public async Task ApplyCheckInsAsync_SetsEarliestScan_IsWriteOnce_AndSkipsUnknownTickets()
     {
@@ -436,11 +427,8 @@ public sealed class TicketRepositoryTests : IDisposable
         b.CheckedInAt.Should().BeNull();
     }
 
-    // ── GetAttendeeByIdAsync + GetVendorTicketIdsForOrderAsync ───────────────
-
-    // Regression: peterdrier/Humans#537 included TicketOrder->Attendees under
-    // AsNoTracking, which forms a cycle and EF rejects at query translation.
-    // The fix splits sibling lookup into its own query.
+    // Regression: including TicketOrder->Attendees under AsNoTracking forms a cycle EF rejects
+    // at query translation, so the sibling lookup is its own query.
     [HumansFact]
     public async Task GetAttendeeByIdAsync_WithSiblingAttendees_DoesNotThrow()
     {
@@ -556,11 +544,12 @@ public sealed class TicketRepositoryTests : IDisposable
         result.Should().BeEquivalentTo("tkt_a", "tkt_b");
     }
 
-    // ── GetAttendeesPageAsync — barcode search ───────────────────────────────
-
-    [HumansFact]
-    public async Task GetAttendeesPageAsync_SearchByBarcode_ReturnsOnlyMatchingAttendee()
+    [HumansTheory]
+    [Xunit.InlineData("xyz34Qy5", "XYZ34qY5")]
+    [Xunit.InlineData("ITEM.[+]_50%", "item.[+]_50%")]
+    public async Task GetAttendeesPageAsync_SearchByBarcode_ReturnsOnlyMatchingAttendee(string barcode, string search)
     {
+        using var culture = new CultureScope("tr");
         var orderId = Guid.NewGuid();
         _dbContext.TicketOrders.Add(new TicketOrder
         {
@@ -585,7 +574,7 @@ public sealed class TicketRepositoryTests : IDisposable
                 VendorTicketId = "tkt_with_barcode",
                 AttendeeName = "Alice",
                 Status = TicketAttendeeStatus.Valid,
-                Barcode = "xyz34Qy5",
+                Barcode = barcode,
                 SyncedAt = _clock.GetCurrentInstant(),
             },
             new TicketAttendee
@@ -602,7 +591,7 @@ public sealed class TicketRepositoryTests : IDisposable
         await _dbContext.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
 
         var (rows, totalCount) = await _repo.GetAttendeesPageAsync(
-            search: "xyz34Qy5",
+            search: search,
             sortBy: "name",
             sortDesc: false,
             page: 1,
@@ -617,7 +606,72 @@ public sealed class TicketRepositoryTests : IDisposable
         rows.Should().ContainSingle(r => r.Id == barcodeId);
     }
 
-    // ── HasEventTicketAsync ──────────────────────────────────────────────────
+    [HumansFact]
+    public async Task GetOrdersPageAsync_SearchIsLiteralAndCultureIndependent_BeforePaging()
+    {
+        using var culture = new CultureScope("tr");
+        var orders = Enumerable.Range(0, 3).Select(index => new TicketOrder
+        {
+            Id = Guid.NewGuid(),
+            VendorOrderId = $"order-{index}",
+            VendorEventId = "event",
+            BuyerName = index < 2 ? "ITEM.[+]_50%" : "Other",
+            BuyerEmail = "buyer@example.test",
+            Currency = "EUR",
+            PurchasedAt = _clock.GetCurrentInstant(),
+            SyncedAt = _clock.GetCurrentInstant(),
+        }).ToList();
+        _dbContext.TicketOrders.AddRange(orders);
+        await _dbContext.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var (rows, totalCount) = await _repo.GetOrdersPageAsync(
+            "item.[+]_50%", "date", false, 1, 1, null, null, null, Xunit.TestContext.Current.CancellationToken);
+
+        totalCount.Should().Be(2);
+        orders.Take(2).Select(order => order.Id).Should().Contain(rows.Should().ContainSingle().Which.Id);
+    }
+
+    [HumansFact]
+    public async Task GetAttendeesPageAsync_DuplicateEmailsIgnoreCulture_AndStaySeparateFromMatchedHumans()
+    {
+        using var culture = new CultureScope("tr");
+        var orderId = Guid.NewGuid();
+        _dbContext.TicketOrders.Add(new TicketOrder
+        {
+            Id = orderId,
+            VendorOrderId = "order",
+            VendorEventId = "event",
+            BuyerName = "Buyer",
+            BuyerEmail = "buyer@example.test",
+            Currency = "EUR",
+            PurchasedAt = _clock.GetCurrentInstant(),
+        });
+        var matchedId = Guid.NewGuid();
+        (Guid? User, string Email)[] identities =
+        [
+            (null, "INDIGO@example.test"), (null, "indigo@example.test"), (null, "other@example.test"),
+            (matchedId, "first@example.test"), (matchedId, "second@example.test"), (Guid.NewGuid(), "indigo@example.test"),
+        ];
+        var attendees = identities.Select((identity, index) => new TicketAttendee
+        {
+            Id = Guid.NewGuid(),
+            TicketOrderId = orderId,
+            VendorTicketId = $"ticket-{index}",
+            VendorEventId = "event",
+            AttendeeName = $"Human {index}",
+            AttendeeEmail = identity.Email,
+            MatchedUserId = identity.User,
+            Status = TicketAttendeeStatus.Valid,
+        }).ToList();
+        _dbContext.TicketAttendees.AddRange(attendees);
+        await _dbContext.SaveChangesAsync(Xunit.TestContext.Current.CancellationToken);
+
+        var (rows, totalCount) = await _repo.GetAttendeesPageAsync(
+            null, "name", false, 1, 50, null, null, null, null, true, Xunit.TestContext.Current.CancellationToken);
+
+        totalCount.Should().Be(4);
+        rows.Select(row => row.Id).Should().BeEquivalentTo(new[] { 0, 1, 3, 4 }.Select(index => attendees[index].Id));
+    }
 
     [HumansFact]
     public async Task HasEventTicketAsync_IsAttendeeOnly_PaidOrderWithoutAttendeeRowIsNotAHolding()
@@ -667,8 +721,6 @@ public sealed class TicketRepositoryTests : IDisposable
         (await _repo.HasEventTicketAsync(holderId, "ev_a", ct)).Should().BeTrue();
         (await _repo.HasEventTicketAsync(holderId, "ev_b", ct)).Should().BeFalse();
     }
-
-    // ── EraseUserPiiAsync + sync upsert guard — nobodies-collective/Humans#1178 ──
 
     [HumansFact]
     public async Task EraseUserPiiAsync_ThenUpsertOrdersAsync_DoesNotRestorePii_ButOtherFieldsStillSync()
@@ -808,9 +860,9 @@ public sealed class TicketRepositoryTests : IDisposable
     [HumansFact]
     public async Task UpsertOrdersAsync_LegacyTombstonedRow_KeepsTombstoneAndStampsPiiErasedAt()
     {
-        // Regression for nobodies-collective/Humans#1178: a row erased before PiiErasedAt
-        // existed lands with the column NULL on migration. The guard must still recognise
-        // the tombstone via name/email and self-heal the column, not read it as never-erased.
+        // Regression: a row erased before PiiErasedAt existed lands with the column NULL on
+        // migration. The guard must still recognise the tombstone via name/email and self-heal
+        // the column, not read it as never-erased.
         var userId = Guid.NewGuid();
         _dbContext.TicketOrders.Add(new TicketOrder
         {

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Humans.Calendar.Services;
 using Humans.Calendar.Services.Dtos;
 using Humans.AuditLog.Contracts;
@@ -125,6 +126,79 @@ public sealed class CalendarRepositoryTests : IDisposable
     }
 
     [HumansTheory]
+    [Xunit.InlineData(false, false)]
+    [Xunit.InlineData(false, true)]
+    [Xunit.InlineData(true, false)]
+    [Xunit.InlineData(true, true)]
+    public async Task OccurrenceService_RejectsRangesWhoseInheritedDurationOverflows(bool allDay, bool invalidOriginal)
+    {
+        var ev = BuildEvent();
+        ev.RecurrenceRule = "FREQ=DAILY;COUNT=1";
+        ev.RecurrenceTimezone = allDay ? null : "UTC";
+        ev.IsAllDay = allDay;
+        var date = new LocalDate(2026, 6, 15);
+        if (allDay)
+        {
+            ev.StartUtc = null;
+            ev.EndUtc = null;
+            ev.StartDate = date;
+            ev.EndDateExclusive = date.PlusDays(1);
+        }
+        await _repo.AddAsync(ev, Xunit.TestContext.Current.CancellationToken);
+        var boundary = Instant.MaxValue.Minus(Duration.FromMinutes(30));
+        var dto = new OverrideOccurrenceDto(
+            allDay ? null : invalidOriginal ? ev.StartUtc : boundary,
+            null, null, null, null, null,
+            allDay ? invalidOriginal ? date : LocalDate.MaxIsoValue : null);
+
+        var result = await CreateService().OverrideOccurrenceAsync(ev.Id,
+            allDay ? null : invalidOriginal ? boundary : ev.StartUtc,
+            dto, Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken,
+            allDay ? invalidOriginal ? LocalDate.MaxIsoValue : date : null);
+
+        result.Should().BeFalse();
+        (await _repo.GetEventByIdAsync(ev.Id, Xunit.TestContext.Current.CancellationToken))!
+            .Exceptions.Should().BeEmpty();
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(false)]
+    [Xunit.InlineData(true)]
+    public async Task SeriesUpdate_RejectsDurationThatWouldOverflowAnExistingMovedOccurrence(bool allDay)
+    {
+        var ev = BuildEvent();
+        ev.RecurrenceRule = "FREQ=DAILY;COUNT=1";
+        ev.RecurrenceTimezone = allDay ? null : "UTC";
+        ev.IsAllDay = allDay;
+        var date = new LocalDate(2026, 6, 15);
+        if (allDay)
+        {
+            ev.StartUtc = null;
+            ev.EndUtc = null;
+            ev.StartDate = date;
+            ev.EndDateExclusive = date.PlusDays(1);
+        }
+        await _repo.AddAsync(ev, Xunit.TestContext.Current.CancellationToken);
+        var service = CreateService();
+        var saved = await service.OverrideOccurrenceAsync(ev.Id, ev.StartUtc,
+            new OverrideOccurrenceDto(allDay ? null : Instant.MaxValue.Minus(Duration.FromHours(2)),
+                null, null, null, null, null, allDay ? LocalDate.MaxIsoValue.PlusDays(-1) : null),
+            Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken, ev.StartDate);
+        saved.Should().BeTrue();
+
+        var result = await service.UpdateEventWithResultAsync(ev.Id,
+            new CreateCalendarEventDto(ev.Title, null, null, null, ev.OwningTeamId,
+                ev.StartUtc, allDay ? null : ev.StartUtc!.Value.Plus(Duration.FromHours(3)),
+                allDay, ev.RecurrenceRule, ev.RecurrenceTimezone, ev.StartDate,
+                allDay ? date.PlusDays(2) : null), Guid.NewGuid(), Xunit.TestContext.Current.CancellationToken);
+
+        result.Succeeded.Should().BeFalse();
+        var stored = (await _repo.GetEventByIdAsync(ev.Id, Xunit.TestContext.Current.CancellationToken))!;
+        stored.EndUtc.Should().Be(ev.EndUtc);
+        stored.EndDateExclusive.Should().Be(ev.EndDateExclusive);
+    }
+
+    [HumansTheory]
     [Xunit.InlineData(true, false)]
     [Xunit.InlineData(false, true)]
     [Xunit.InlineData(true, true)]
@@ -238,16 +312,12 @@ public sealed class CalendarRepositoryTests : IDisposable
     private CalendarService CreateService() => new(_repo, Humans.Calendar.Tests.Services.CalendarServiceValidationTests.ActiveTeams(),
         new FakeClock(Instant.FromUtc(2026, 3, 1, 0, 0)),
         Substitute.For<IAuditLogService>(),
-        NullLogger<CalendarService>.Instance);
+        NullLogger<CalendarService>.Instance, Substitute.For<IServiceScopeFactory>());
 
     public void Dispose()
     {
         _dbContext.Dispose();
     }
-
-    // ==========================================================================
-    // AddAsync / GetEventByIdAsync
-    // ==========================================================================
 
     [HumansFact]
     public async Task AddAsync_PersistsEvent()
@@ -297,10 +367,6 @@ public sealed class CalendarRepositoryTests : IDisposable
         fetched.Should().BeNull();
     }
 
-    // ==========================================================================
-    // GetAllAsync
-    // ==========================================================================
-
     // GetAllAsync is the section's only bulk read:
     // the Singleton cache warms from it and every window read is answered off that snapshot.
 
@@ -338,10 +404,6 @@ public sealed class CalendarRepositoryTests : IDisposable
         events.Should().ContainSingle(e => e.Id == kept.Id);
     }
 
-    // ==========================================================================
-    // UpdateAsync
-    // ==========================================================================
-
     [HumansFact]
     public async Task UpdateAsync_MutatesTrackedEntity()
     {
@@ -366,10 +428,6 @@ public sealed class CalendarRepositoryTests : IDisposable
         var updated = await _repo.UpdateAsync(Guid.NewGuid(), _ => { }, Xunit.TestContext.Current.CancellationToken);
         updated.Should().BeFalse();
     }
-
-    // ==========================================================================
-    // SoftDeleteAsync
-    // ==========================================================================
 
     [HumansFact]
     public async Task SoftDeleteAsync_ReturnsTeamIdAndTitleAndStampsDeletedAt()
@@ -397,10 +455,6 @@ public sealed class CalendarRepositoryTests : IDisposable
         var result = await _repo.SoftDeleteAsync(Guid.NewGuid(), Instant.FromUtc(2026, 4, 10, 0, 0), Xunit.TestContext.Current.CancellationToken);
         result.Should().BeNull();
     }
-
-    // ==========================================================================
-    // UpsertExceptionAsync
-    // ==========================================================================
 
     [HumansFact]
     public async Task UpsertExceptionAsync_InsertsNewRowWhenMissing()
@@ -466,10 +520,6 @@ public sealed class CalendarRepositoryTests : IDisposable
         (await _repo.GetEventByIdAsync(ev.Id, Xunit.TestContext.Current.CancellationToken))!.Exceptions.Should().BeEmpty();
     }
 
-    // ==========================================================================
-    // Soft-delete query filters
-    // ==========================================================================
-
     // CalendarEventException carries its own filter (ex => ex.Event.DeletedAt == null),
     // so exception rows hanging off a soft-deleted event are hidden too. Without it a
     // deleted series' cancellations and overrides keep surfacing.
@@ -531,10 +581,6 @@ public sealed class CalendarRepositoryTests : IDisposable
         rows.Should().ContainSingle();
         rows[0].OverrideTitle.Should().Be("Moved");
     }
-
-    // ==========================================================================
-    // Helpers
-    // ==========================================================================
 
     private static CalendarEvent BuildEvent(
         Guid? teamId = null,

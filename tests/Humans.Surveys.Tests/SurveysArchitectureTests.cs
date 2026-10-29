@@ -5,12 +5,6 @@ using Microsoft.Extensions.Localization;
 
 namespace Humans.Surveys.Tests;
 
-/// <summary>Architecture tests enforcing the section shape for Surveys.</summary>
-/// <remarks>
-/// No-nav and no-read-interface assertions were dropped per
-/// memory/architecture/no-tests-for-absences.md. The completion-timing one stays: it is a
-/// re-identification guard, not a shape claim.
-/// </remarks>
 public class SurveysArchitectureTests
 {
     /// <summary>
@@ -58,7 +52,7 @@ public class SurveysArchitectureTests
             .ToList();
 
         offenders.Should().BeEmpty(
-            because: "every Survey_* key lives in SurveysResource; resolving one through another "
+            because: "every Surveys_* key lives in SurveysResource; resolving one through another "
                    + "set renders the key itself and no error");
     }
 }

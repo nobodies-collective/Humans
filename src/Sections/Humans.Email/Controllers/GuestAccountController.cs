@@ -5,25 +5,19 @@ using Microsoft.AspNetCore.Mvc;
 using Humans.Email.Contracts;
 using Humans.Email.Models;
 using Humans.Email.Services;
-using Humans.Tickets.Contracts;
 using Humans.Users.Contracts;
 using Microsoft.Extensions.Localization;
 using NodaTime;
 
 namespace Humans.Email.Controllers;
 
-/// <summary>
-/// Self-service communication preferences for profileless accounts (authenticated users without
-/// a Profile) and for anyone arriving from an unsubscribe link. The dashboard frame itself lives
-/// in Humans.Onboarding; the guest data export and deletion actions live in Humans.Gdpr
-/// (<c>GuestDataController</c>). Moved from Users in Users decomposition commit 14; served at
-/// <c>/Email/Guest/CommunicationPreferences</c>.
-/// </summary>
+/// <summary>For profileless accounts and for anyone arriving from an unsubscribe link.</summary>
 [Authorize]
 internal sealed class GuestAccountController(
     IUserService userService,
     ICommunicationPreferenceManagement commPrefService,
-    ITicketService ticketQueryService,
+    IEnumerable<ICommunicationPreferenceLock> locks,
+    IUnsubscribeService unsubscribeService,
     IClock clock,
     ILogger<GuestAccountController> logger,
     IStringLocalizer<EmailResource> localizer) : HumansControllerBase(userService)
@@ -103,48 +97,20 @@ internal sealed class GuestAccountController(
         if (string.IsNullOrEmpty(utoken))
             return (null, null, false);
 
-        var result = commPrefService.ValidateUnsubscribeToken(utoken);
-        if (result.Status != TokenValidationStatus.Valid)
-            return (null, null, false);
-
-        var userInfo = await FindUserInfoByIdAsync(result.UserId, ct);
-        return userInfo is { IsGdprAnonymized: false }
-            ? (userInfo.Id, result.Category, true)
+        var result = await unsubscribeService.ValidateTokenAsync(utoken, ct);
+        return result.IsValid && !result.IsLegacy
+            ? (result.UserId, result.Category, true)
             : (null, null, false);
     }
 
     private async Task<CommunicationPreferencesViewModel> BuildCommunicationPreferencesViewModelAsync(Guid userId, CancellationToken ct)
     {
         var prefs = await commPrefService.GetPreferencesReadOnlyAsync(userId, ct);
-        var prefsByCategory = prefs.ToDictionary(p => p.Category);
-
-        var hasTicketOrder = (await ticketQueryService.GetUserTicketHoldingsAsync(userId, ct))
-            .HasTicketAttendeeMatch;
-
-        var categories = new List<CategoryPreferenceItem>();
-
-        foreach (var category in MessageCategoryExtensions.ActiveCategories)
-        {
-            var pref = prefsByCategory.GetValueOrDefault(category);
-            var isAlwaysOn = category.IsAlwaysOn();
-            var isTicketingLocked = CommunicationPreferenceService.IsTicketingLocked(category, hasTicketOrder);
-
-            categories.Add(new CategoryPreferenceItem
-            {
-                Category = category,
-                // No row → category's domain default (Marketing is opt-out-by-default,
-                // so a missing row renders unchecked). Matches the panel view component.
-                EmailEnabled = pref is null ? !category.DefaultOptedOut() : !pref.OptedOut,
-                AlertEnabled = pref?.InboxEnabled ?? true,
-                EmailEditable = !isAlwaysOn && !isTicketingLocked,
-                AlertEditable = !isAlwaysOn && !isTicketingLocked,
-                IsTicketingLocked = isTicketingLocked,
-            });
-        }
+        var locked = await CommunicationPreferenceService.GetLockedCategoriesAsync(locks, userId, ct);
 
         return new CommunicationPreferencesViewModel
         {
-            Categories = categories,
+            Categories = CategoryPreferenceItem.ForActiveCategories(prefs, locked),
             TicketingYear = clock.GetCurrentInstant().InUtc().Year,
         };
     }

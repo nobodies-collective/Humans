@@ -97,7 +97,7 @@ Key fields: Id, FeedbackReportId (FK), SenderUserId (nullable, bare cross-sectio
 
 Relationship: `FeedbackReport` has many `FeedbackMessage` (cascade delete). `SenderUserId` is nullable to support system/API messages.
 
-**Screenshot storage:** `IFileStorage` keys of historical uploads (`uploads/feedback/{reportId}/{guid}.{ext}`). Detail views link these historical files; Shell's private-upload gate enforces `AdminOnly` before static serving and disables caching. GDPR erasure deletes them via `DeleteAsync`.
+**Screenshot storage:** `IFileStorage` keys of historical uploads (`uploads/feedback/{reportId}/{guid}.{ext}`). Detail views link these historical files; Shell's private-upload gate enforces `AdminOnly` before static serving and disables caching. GDPR erasure deletes them via `DeleteAsync` before removing their report rows, so storage failures leave the keys available for retry.
 
 ## Authorization Matrix
 
@@ -116,7 +116,7 @@ As shipped since #977 — the policy sits on `FeedbackController` itself, so eve
 
 `POST /Feedback` is gone — the controller has no root-`POST` route at all.
 
-**FeedbackAdmin role:** grants **no** Feedback access (#977). The role name is kept because the Staff page, `GuideRolePrivilegeMap`, the authorization pill-filter label map, and `AnyAdminRole` still reference it; `PolicyNames.FeedbackAdminOrAdmin`, `RoleGroups.FeedbackAdminOrAdmin`, and `RoleChecks.IsFeedbackAdmin` do not exist.
+**FeedbackAdmin role:** grants **no** Feedback access (#977). The role name is kept because the Staff page, `GuideRolePrivilegeMap`, the authorization pill-filter label map, and `AnyAdminRole` still reference it; `PolicyNames.FeedbackAdminOrAdmin` and `RoleChecks.IsFeedbackAdmin` do not exist.
 
 ## URL Routes
 

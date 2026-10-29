@@ -14,14 +14,13 @@ namespace Humans.Calendar.Tests.Models;
 
 /// <summary>
 /// The form's timezone box is free text, and the controller needs a zone object out of it to
-/// convert the posted local times — so unlike <c>CalendarService.ValidateTimezone</c>, which
+/// convert the posted local times — so unlike <c>CalendarService.TimezoneRefusal</c>, which
 /// treats a blank timezone as valid (a non-recurring event stores none), blank is unusable here.
 /// </summary>
 public sealed class CalendarEventFormViewModelTests
 {
     // Model binding turns a cleared box into null, and NodaTime's GetZoneOrNull throws on null
-    // rather than returning it — so before this guard, clearing the field and submitting Create
-    // or Edit answered 500. Reproduced against the PR preview at 1578.n.burn.camp.
+    // rather than returning it; unguarded, clearing the field and submitting answered 500.
     [HumansTheory]
     [InlineData(null)]
     [InlineData("")]

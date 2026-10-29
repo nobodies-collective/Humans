@@ -8,21 +8,17 @@ using NodaTime;
 
 namespace Humans.Workgroups;
 
-/// <summary>
-/// Workgroups' things-to-do entries, for coordinators only: the monthly update the group
-/// owes, and a status update somebody asked for and nobody answered. A member with nothing
-/// outstanding gets nothing — the list is what needs doing, not what exists.
-/// </summary>
+/// <summary>Coordinators only, and only what is outstanding: the list is what needs doing, not what exists.</summary>
 internal sealed class SectionThingsToDo : ISectionThingsToDo
 {
     public async ValueTask<IEnumerable<ThingsToDoEntry>> EntriesAsync(
-        IServiceProvider services, ClaimsPrincipal user)
+        IServiceProvider services, ClaimsPrincipal user, CancellationToken ct = default)
     {
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
             return [];
 
         var now = services.GetRequiredService<IClock>().GetCurrentInstant();
-        var mine = await services.GetRequiredService<IWorkgroupService>().GetForMemberAsync(userId);
+        var mine = await services.GetRequiredService<IWorkgroupService>().GetForMemberAsync(userId, ct);
         var coordinated = mine.Where(w => w.CoordinatorUserIds().Contains(userId)).ToList();
         if (coordinated.Count == 0)
             return [];

@@ -225,17 +225,10 @@ public class TrackedCache<TKey, TValue> : IHostedService, ICacheStats where TKey
     }
 
     /// <summary>
-    /// Test seam: flips the warmed flag without driving <see cref="WarmAllAsync"/>
-    /// so unit tests that seed the cache directly via <see cref="Set"/> can
-    /// exercise load-all reads (e.g. <c>SearchUsersAsync</c>) without setting
-    /// up the full warmup-time repository stack. Internal — only visible to
-    /// the test assembly via <c>InternalsVisibleTo</c>.
+    /// Test seam: marks the cache warmed without <see cref="WarmAllAsync"/>, so tests that seed it through
+    /// <see cref="Set"/> can exercise load-all reads.
     /// </summary>
     internal void MarkWarmedForTesting() => _warmedUp = true;
-
-    // ==========================================================================
-    // Warmup
-    // ==========================================================================
 
     /// <summary>
     /// Subclasses override to populate the cache with all current rows. Called
@@ -294,9 +287,25 @@ public class TrackedCache<TKey, TValue> : IHostedService, ICacheStats where TKey
 
     Task IHostedService.StopAsync(CancellationToken ct) => Task.CompletedTask;
 
-    // ==========================================================================
-    // Per-key load (optional override)
-    // ==========================================================================
+    /// <summary>
+    /// Capture before fetching rows. Publications share one load: their own inserts remain valid,
+    /// but an intervening eviction, refresh or publication from another load stops further publication.
+    /// </summary>
+    protected Action<TKey, TValue> CreateLoadPublisher()
+    {
+        long generation;
+        lock (_mutationGate) generation = _mutationGeneration;
+
+        return (key, value) =>
+        {
+            lock (_mutationGate)
+            {
+                if (generation != _mutationGeneration) return;
+                Set(key, value);
+                generation = _mutationGeneration;
+            }
+        };
+    }
 
     /// <summary>
     /// Standard "miss → load → set" cached read. Increments hit/miss via
@@ -306,27 +315,18 @@ public class TrackedCache<TKey, TValue> : IHostedService, ICacheStats where TKey
     /// </summary>
     public async ValueTask<TValue?> GetAsync(TKey key, CancellationToken ct = default)
     {
-        long generation;
+        Action<TKey, TValue> publish;
         lock (_mutationGate)
         {
             if (TryGet(key, out var hit)) return hit;
-            generation = _mutationGeneration;
+            publish = CreateLoadPublisher();
         }
         var loaded = await LoadRowAsync(key, ct).ConfigureAwait(false);
-        lock (_mutationGate)
-        {
-            // Eviction or refresh may have completed while this miss was loading.
-            if (loaded is not null && generation == _mutationGeneration)
-                Set(key, loaded);
-        }
+        if (loaded is not null) publish(key, loaded);
         return loaded;
     }
 
-    /// <summary>
-    /// Subclasses override to provide per-key load logic for
-    /// <see cref="GetAsync"/>. Default returns the type's default (no per-key
-    /// fetch path).
-    /// </summary>
+    /// <summary>Per-key loader for <see cref="GetAsync"/>; the default has no per-key fetch path.</summary>
     protected virtual ValueTask<TValue?> LoadRowAsync(TKey key, CancellationToken ct) =>
         ValueTask.FromResult<TValue?>(default);
 }

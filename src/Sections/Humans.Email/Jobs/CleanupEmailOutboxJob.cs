@@ -1,20 +1,11 @@
 using Hangfire;
 using Humans.Base.Interfaces;
-using Humans.Email.Contracts;
+using Humans.Email.Services;
 
 namespace Humans.Email.Jobs;
 
-/// <summary>
-/// Purges old sent messages from the email outbox. Runs weekly. The retention cutoff —
-/// <c>Email:OutboxRetentionDays</c> back from now — lives inside the Email section behind
-/// <see cref="IEmailOutboxRetention"/>; this job is the scheduler shim around it.
-/// </summary>
-/// <remarks>
-/// See <see cref="ProcessEmailOutboxJob"/> for why the assembly is not load-bearing and
-/// why the file sits under <c>Jobs/</c>.
-/// </remarks>
 [DisableConcurrentExecution(timeoutInSeconds: 300)]
-public class CleanupEmailOutboxJob(
+internal sealed class CleanupEmailOutboxJob(
     IEmailOutboxRetention outbox,
     IHumansMetrics metrics,
     ILogger<CleanupEmailOutboxJob> logger) : IRecurringJob

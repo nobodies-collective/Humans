@@ -3,15 +3,15 @@ using Humans.Backdoor.Filters;
 using Humans.Base.Extensions;
 using Humans.Users.Contracts;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Backdoor.Controllers;
 
-/// <summary>
-/// Read-only chat-history review for QA/prod. Mutations stay on the admin web UI.
-/// </summary>
+/// <summary>Read-only: mutations stay on the admin web UI.</summary>
 [ApiController]
 [Route("api/backdoor/agent")]
 [ServiceFilter(typeof(BackdoorApiKeyAuthFilter))]
+[AllowAnonymous]
 internal sealed class BackdoorAgentController(IAgentTranscriptRead agent, IUserService users)
     : ControllerBase
 {

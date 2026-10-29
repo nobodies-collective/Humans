@@ -3,13 +3,6 @@ using Humans.Events.Contracts;
 
 namespace Humans.Events.Services;
 
-/// <summary>
-/// Events' contribution to the template gallery at <c>/Email/EmailPreview</c>: one
-/// sample per template <see cref="EventsEmails"/> can send — one per lifecycle status —
-/// built through the same builder the real send path uses, so the gallery cannot drift
-/// from what members receive (peterdrier/Humans#1651). Sample data only — no recipient is
-/// real and nothing is sent.
-/// </summary>
 internal sealed class EventsEmailPreviews(EventsEmails emails) : IEmailPreviewContributor
 {
     private const string SampleTitle = "Sunrise Yoga at the Temple";
@@ -24,13 +17,13 @@ internal sealed class EventsEmailPreviews(EventsEmails emails) : IEmailPreviewCo
         return
         [
             new EmailPreviewSample("event-submitted", "Event Submitted",
-                emails.EventLifecycle(Sample(EventStatus.Pending, name, culture), email)),
+                emails.EventLifecycle(Guid.Empty, Sample(EventStatus.Pending, name, culture), email)),
             new EmailPreviewSample("event-approved", "Event Approved",
-                emails.EventLifecycle(Sample(EventStatus.Approved, name, culture), email)),
+                emails.EventLifecycle(Guid.Empty, Sample(EventStatus.Approved, name, culture), email)),
             new EmailPreviewSample("event-rejected", "Event Rejected",
-                emails.EventLifecycle(Sample(EventStatus.Rejected, name, culture), email)),
+                emails.EventLifecycle(Guid.Empty, Sample(EventStatus.Rejected, name, culture), email)),
             new EmailPreviewSample("event-resubmit-requested", "Event Changes Requested",
-                emails.EventLifecycle(Sample(EventStatus.ResubmitRequested, name, culture), email)),
+                emails.EventLifecycle(Guid.Empty, Sample(EventStatus.ResubmitRequested, name, culture), email)),
         ];
     }
 

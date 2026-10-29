@@ -1,3 +1,4 @@
+using Humans.Finance.Contracts;
 using System.Security.Claims;
 using System.Globalization;
 using AwesomeAssertions;
@@ -37,9 +38,9 @@ public sealed class ControllerTests : PreapprovalsTestHarness
     [HumansFact]
     public void AdminController_IsGatedByTheManagePolicy_MemberByAccess()
     {
-        typeof(PreapprovalsAdminController).GetCustomAttributes(typeof(AuthorizeAttribute), true)
+        typeof(PreapprovalsAdminController).GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
             .Cast<AuthorizeAttribute>().Single().Policy.Should().Be(PreapprovalsPolicies.Manage);
-        typeof(PreapprovalsController).GetCustomAttributes(typeof(AuthorizeAttribute), true)
+        typeof(PreapprovalsController).GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
             .Cast<AuthorizeAttribute>().Single().Policy.Should().Be(PreapprovalsPolicies.Access);
         typeof(PreapprovalsAdminController).GetCustomAttributes(typeof(RouteAttribute), true)
             .Cast<RouteAttribute>().Single().Template.Should().Be("Preapprovals/Admin");
@@ -134,7 +135,7 @@ public sealed class ControllerTests : PreapprovalsTestHarness
 
     [HumansTheory]
     [Xunit.InlineData(RoleNames.Board)]
-    [Xunit.InlineData(RoleNames.FinanceAdmin)]
+    [Xunit.InlineData(FinanceRoles.FinanceAdmin)]
     [Xunit.InlineData(RoleNames.Admin)]
     public async Task ManagingRole_CreatesAProgram(string role)
     {
@@ -293,8 +294,6 @@ public sealed class ControllerTests : PreapprovalsTestHarness
         await using var db = OpenContext();
         return await db.Grants.SingleAsync(Ct);
     }
-
-    // ── Builders ──────────────────────────────────────────────────────────
 
     private PreapprovalsAdminController BuildAdmin(Guid actorId, params string[] roles)
     {

@@ -175,7 +175,7 @@ Every source today, and what it becomes. Audience is who the entry is published 
 | Board-vote meter | Governance | one per (application, board member) still to vote, since "awaiting *your* vote" is per person | `Role:Board`, with a single-member recipient set on each entry, so a Board membership refresh attributes to the role | voted or decided |
 | AccessSuspended | Users | one while suspended | `User` | unsuspended |
 | ReConsentRequired, LegalDocumentPublished, consents things-to-do | Governance | one per required consent outstanding | `User` | consent signed |
-| Consent-review meter, onboarding-pending meter | Users | one per profile awaiting review | `Role:ConsentCoordinator`, `Role:Board`, `Role:VolunteerCoordinator` | reviewed |
+| Consent-review meter, onboarding-pending meter | Users | one per profile awaiting review | `Role:ConsentCoordinator`, `Role:Board`, `Role:ShiftsAdmin` | reviewed |
 | Pending-deletions meter | Users | one per pending deletion | `Role:Admin` | deletion executed or cancelled |
 | SyncError, failed-sync meter | GoogleIntegration | one per failed sync event | `Role:Admin` | retried or discarded |
 | Ticket-sync meter | Tickets | one while in error state | `Role:Admin` | sync recovers |
@@ -216,7 +216,7 @@ Every value of `NotificationSource` at the time of writing appears in exactly on
 - `INotificationEmitter`, `INotificationService`, `INotificationAutoResolve`, `INotificationRetention`, `NotificationSource`, `NotificationClass`, `NotificationPriority`, `NotificationSourceMapping`.
 - `NotificationService`, `NotificationEmitter`, `NotificationInboxService`, `NotificationMeterProvider`, `NotificationRepository`, `CleanupNotificationsJob`, the `IUserMerge` and `IUserDataContributor` participation (the board holds nothing to export; a merged or deleted user's entries go with the owning section's state and the next reconcile).
 - Controller routes Resolve, Dismiss, MarkRead, MarkAllRead, BulkResolve, BulkDismiss, ClickThrough, and the inbox views behind them.
-- `CacheKeys.NotificationBadgeCounts`, `NotificationMeterProvider.CountsCacheKey`.
+- `NotificationMeterProvider.CountsCacheKey`.
 - The 35 emitting call sites across Teams, Shifts, Issues, Camps, Auth, Governance, Feedback, Onboarding, Users, Campaigns, GoogleIntegration, Consent, Rideshare; the three auto-resolve call sites.
 - `ISectionThingsToDo` and its three implementations, `ThingsToDoViewComponent` in Base.
 - Users' `CommunicationPreference.InboxEnabled`: property override first, column drop in the same drop PR as the tables, per [`no-column-drops-for-decoupling`](../../../../../memory/architecture/no-column-drops-for-decoupling.md).

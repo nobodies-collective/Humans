@@ -9,10 +9,8 @@ using NodaTime;
 namespace Humans.Finance.Services;
 
 /// <summary>
-/// The member payment details Finance owns (<c>finance_payment_details</c>): the IBAN reads and
-/// writes other sections make, the admin reveal, the Article 15/17 slice and the account-merge fold.
 /// Until <c>finance.iban-to-payment-details</c> has run, a member without a row reads their legacy
-/// <c>profiles.Iban</c> through <see cref="UserInfo"/> (Users decomposition plan §3.1 step 4).
+/// <c>profiles.Iban</c> through <see cref="UserInfo"/>.
 /// </summary>
 internal sealed class PaymentDetailsService(
     IPaymentDetailsRepository repo,
@@ -25,32 +23,37 @@ internal sealed class PaymentDetailsService(
     public async Task<string?> GetIbanAsync(Guid userId, CancellationToken ct = default)
     {
         var info = await users.GetUserInfoAsync(userId, ct);
-        var row = await repo.GetAsync(info?.Id ?? userId, ct);
+        return await ReadIbanAsync(info?.Id ?? userId, info, ct);
+    }
+
+    private async Task<string?> ReadIbanAsync(Guid userId, UserInfo? info, CancellationToken ct)
+    {
+        var row = await repo.GetAsync(userId, ct);
         return row is not null ? row.Iban : LegacyIban(info);
     }
 
     public async Task<bool> SetIbanAsync(Guid userId, string? iban, CancellationToken ct = default)
     {
-        if (await users.GetUserInfoAsync(userId, ct) is null) return false;
+        var info = await users.GetUserInfoAsync(userId, ct);
+        if (info is null) return false;
         var normalized = string.IsNullOrWhiteSpace(iban) ? null : IbanValidator.Normalize(iban);
-        await repo.UpsertAsync(userId, normalized, clock.GetCurrentInstant(), ct);
+        await repo.UpsertAsync(info.Id, normalized, clock.GetCurrentInstant(), ct);
         return true;
     }
 
     public async Task<string?> RevealIbanAsync(Guid userId, Guid actorUserId, CancellationToken ct = default)
     {
-        var iban = await GetIbanAsync(userId, ct);
+        var info = await users.GetUserInfoAsync(userId, ct);
+        userId = info?.Id ?? userId;
+        var iban = await ReadIbanAsync(userId, info, ct);
         if (iban is null) return null;
 
-        // Entity type and wording unchanged from the Users screen this came from, so earlier
-        // reveals and new ones read back together.
+        // Same entity type and wording as before, so old and new reveals read back together.
         await audit.LogAsync(
             AuditAction.IbanReveal, nameof(User), userId,
             $"Admin revealed IBAN for user {userId}", actorUserId);
         return iban;
     }
-
-    // ─── finance.iban-to-payment-details ─────────────────────────────────────────
 
     public async Task<IReadOnlyList<LegacyIbanRow>> GetUncopiedLegacyIbansAsync(CancellationToken ct = default)
     {
@@ -75,8 +78,7 @@ internal sealed class PaymentDetailsService(
         return written;
     }
 
-    /// <summary>The one reader of the obsolete legacy field: the read fallback and the copy above.
-    /// Deleted with the migration once production reports it done.</summary>
+    /// <summary>The one reader of the obsolete field. Delete with the migration once production reports it done.</summary>
     private static string? LegacyIban(UserInfo? info)
     {
 #pragma warning disable HUM_PROFILE_IBAN // the fallback and copy the field is kept for (plan §3.1)
@@ -85,23 +87,22 @@ internal sealed class PaymentDetailsService(
         return string.IsNullOrWhiteSpace(iban) ? null : iban;
     }
 
-    // ─── IUserMerge ──────────────────────────────────────────────────────────────
-
     public async Task ReassignAsync(
         Guid mergedFromUserId, Guid mergedToUserId, Guid actorUserId, Instant now, CancellationToken ct)
     {
         _ = actorUserId;
-        // The survivor's IBAN wins. One still only on its legacy profile counts as its own, so it is
-        // copied first rather than overwritten by the source's row.
-        if (await repo.GetAsync(mergedToUserId, ct) is null
-            && LegacyIban(await users.GetRawUserInfoAsync(mergedToUserId, ct)) is { } legacy)
+        // The survivor's legacy value beats the source's row; a recorded removal on either
+        // account beats that account's legacy value.
+        if (await repo.GetAsync(mergedToUserId, ct) is null)
         {
-            await repo.TryInsertAsync(mergedToUserId, legacy, now, ct);
+            var legacy = LegacyIban(await users.GetRawUserInfoAsync(mergedToUserId, ct));
+            if (legacy is null && await repo.GetAsync(mergedFromUserId, ct) is null)
+                legacy = LegacyIban(await users.GetRawUserInfoAsync(mergedFromUserId, ct));
+            if (legacy is not null)
+                await repo.TryInsertAsync(mergedToUserId, legacy, now, ct);
         }
         await repo.ReassignAsync(mergedFromUserId, mergedToUserId, now, ct);
     }
-
-    // ─── IUserDataContributor ────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
@@ -114,8 +115,7 @@ internal sealed class PaymentDetailsService(
 
     public IReadOnlyDictionary<string, string?> ErasureDeclaration => Erasure;
 
-    /// <summary>Deletes the member's row. The legacy <c>profiles.Iban</c> is erased by Users'
-    /// profile erasure, which still owns that column.</summary>
+    /// <summary>Users' profile erasure still owns and erases the legacy <c>profiles.Iban</c>.</summary>
     public async Task EraseForUserAsync(Guid userId, CancellationToken ct) =>
         await repo.DeleteAsync(userId, ct);
 }

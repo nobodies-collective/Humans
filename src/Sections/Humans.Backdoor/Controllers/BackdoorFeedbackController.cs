@@ -6,19 +6,14 @@ using Humans.Base.Extensions;
 using Humans.Feedback.Contracts;
 using Humans.Users.Contracts;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Backdoor.Controllers;
 
-/// <summary>
-/// The feedback queue, for an agent working the thread.
-/// </summary>
-/// <remarks>
-/// Every mutation carries <c>ActorUserId</c> — the human the presented key belongs
-/// to, resolved by <see cref="BackdoorApiKeyAuthFilter"/>.
-/// </remarks>
 [ApiController]
 [Route("api/backdoor/feedback")]
 [ServiceFilter(typeof(BackdoorApiKeyAuthFilter))]
+[AllowAnonymous]
 internal sealed class BackdoorFeedbackController(
     IFeedbackTriage feedback,
     IUserService users,
@@ -133,12 +128,9 @@ internal sealed class BackdoorFeedbackController(
         PatchAsync(id, "github-issue", () => feedback.SetGitHubIssueNumberAsync(id, model.IssueNumber, ActorUserId));
 
     /// <summary>
-    /// The one shape every <c>PATCH /api/backdoor/feedback/{id}/*</c> endpoint has: apply the
-    /// one-field change, answer <c>{success:true}</c>, and map failure the same way whichever
-    /// field moved — a missing report to 404, a rejected move to 422 carrying the service's
-    /// reason, anything else to 500.
+    /// Twin of <c>BackdoorIssuesController.PatchAsync</c>: a missing report is 404, a rejected change 422 with the
+    /// service's reason, anything else 500, whichever field moved.
     /// </summary>
-    /// <remarks>Twin of <c>BackdoorIssuesController.PatchAsync</c>.</remarks>
     private async Task<IActionResult> PatchAsync(Guid id, string field, Func<Task<FeedbackMutationResult>> apply)
     {
         try

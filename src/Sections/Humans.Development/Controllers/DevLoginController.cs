@@ -6,13 +6,15 @@ using Humans.Development.Services;
 using Humans.Base.Constants;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Development.Controllers;
 
 internal sealed record DevPersonaInfo(string Slug, string DisplayName);
 
-// Dev/preview sign-in. Gated by DevAuth:Enabled=true AND non-Production env. Personas from RoleNames.
+// Dev/preview sign-in. Gated by DevAuth:Enabled=true AND non-Production env. One persona per catalogued role.
 [Route("dev/login")]
+[AllowAnonymous]
 internal sealed class DevLoginController(
     UserManager<User> userManager,
     SignInManager<User> signInManager,
@@ -22,23 +24,21 @@ internal sealed class DevLoginController(
     IWebHostEnvironment env,
     IConfiguration config,
     ConfigurationRegistry configRegistry,
+    RoleCatalog catalog,
     ILogger<DevLoginController> logger) : Controller
 {
-    // Rendered by the section's own Views/Shared/_DevLoginPanel.cshtml, which Shell's
-    // /Account/Login pulls in by name across application parts. The list is internal, so it
-    // never leaves the section.
-    internal static IReadOnlyList<DevPersonaInfo> AllPersonas { get; } = BuildPersonaList();
+    // Rendered by Views/Shared/_DevLoginPanel.cshtml, which Shell's /Account/Login pulls in by name.
+    internal static IReadOnlyList<DevPersonaInfo> AllPersonas(RoleCatalog catalog) => BuildPersonaList(catalog);
 
     /// <summary>
-    /// The personas offered on this host. Admin is dropped unless the host allows it — see
-    /// <see cref="AdminSignInAllowed"/>. Used by the panel so the buttons and the route agree
-    /// on one predicate.
+    /// Drops Admin unless <see cref="AdminSignInAllowed"/>. The panel calls this so the buttons and the route share
+    /// one predicate.
     /// </summary>
     internal static IEnumerable<DevPersonaInfo> PersonasFor(
-        IWebHostEnvironment environment, IConfiguration configuration) =>
+        IWebHostEnvironment environment, IConfiguration configuration, RoleCatalog catalog) =>
         AdminSignInAllowed(environment, configuration)
-            ? AllPersonas
-            : AllPersonas.Where(p => !IsAdminPersona(p));
+            ? AllPersonas(catalog)
+            : AllPersonas(catalog).Where(p => !IsAdminPersona(p));
 
     private static readonly SemaphoreSlim SeedLock = new(1, 1);
 
@@ -48,7 +48,7 @@ internal sealed class DevLoginController(
         if (!IsDevAuthEnabled())
             return NotFound();
 
-        var info = AllPersonas.FirstOrDefault(p =>
+        var info = AllPersonas(catalog).FirstOrDefault(p =>
             string.Equals(p.Slug, persona, StringComparison.OrdinalIgnoreCase));
         if (info is null)
             return NotFound();
@@ -84,8 +84,7 @@ internal sealed class DevLoginController(
         try
         {
             resolvedUserId = await personaSeeder.EnsurePersonaAsync(info.Slug, info.DisplayName, id);
-            // No-Name persona: re-blank the legal names on every sign-in so the
-            // onboarding name-gate (#812) re-triggers each time it's used.
+            // Re-blank the legal names on every sign-in so the onboarding name gate re-triggers.
             if (string.Equals(info.Slug, "no-name", StringComparison.OrdinalIgnoreCase))
                 await personaSeeder.ResetLegalNamesAsync(resolvedUserId);
             if (string.Equals(info.Slug, "coordinator", StringComparison.OrdinalIgnoreCase))
@@ -179,25 +178,19 @@ internal sealed class DevLoginController(
     }
 
     /// <summary>
-    /// Whether this host may hand out an Admin session through dev login. QA runs Staging with
-    /// <c>DevAuth:Enabled</c> on and real Google Workspace data, so anonymous Admin there is a
-    /// live privilege escalation. "Testing" is the in-process integration host, the same
-    /// discriminator Program.cs uses. <c>DevAuth:AllowAdmin</c> opts a host back in: per-PR
-    /// previews set it from <c>docker-entrypoint.sh</c>, which is the only place that can tell
-    /// a preview container from QA — both run Staging, but a preview holds a throwaway cloned
-    /// database and no integration credentials worth escalating to.
+    /// QA runs Staging with <c>DevAuth:Enabled</c> and real Google Workspace data, so anonymous Admin there is a live
+    /// privilege escalation. <c>DevAuth:AllowAdmin</c> opts a host back in: only <c>docker-entrypoint.sh</c> can tell
+    /// a per-PR preview (throwaway cloned database) from QA, and it sets the flag.
     /// </summary>
     private static bool AdminSignInAllowed(IWebHostEnvironment environment, IConfiguration configuration) =>
         environment.IsDevelopment()
         || environment.IsEnvironment("Testing")
         || configuration.GetValue("DevAuth:AllowAdmin", false);
 
-    /// <summary>The persona whose seeded governance role is <see cref="RoleNames.Admin"/>.</summary>
     private static bool IsAdminPersona(DevPersonaInfo persona) =>
-        string.Equals(
-            DevPersonaSeeder.RoleNameFromSlug(persona.Slug), RoleNames.Admin, StringComparison.Ordinal);
+        string.Equals(persona.Slug, DevPersonaSeeder.PascalToKebab(RoleNames.Admin), StringComparison.OrdinalIgnoreCase);
 
-    private static List<DevPersonaInfo> BuildPersonaList()
+    private static List<DevPersonaInfo> BuildPersonaList(RoleCatalog catalog)
     {
         var list = new List<DevPersonaInfo>
         {
@@ -210,23 +203,11 @@ internal sealed class DevLoginController(
             new("city-planning", "City Planning Team")
         };
 
-        foreach (var role in DevPersonaSeeder.RoleNameValues.OrderBy(r => r, StringComparer.Ordinal))
+        foreach (var role in catalog.Roles.OrderBy(r => r.Name, StringComparer.Ordinal))
         {
-            list.Add(new(DevPersonaSeeder.PascalToKebab(role), PascalToDisplay(role)));
+            list.Add(new(DevPersonaSeeder.PascalToKebab(role.Name), role.Title));
         }
 
         return list;
-    }
-
-    private static string PascalToDisplay(string pascal)
-    {
-        var sb = new StringBuilder(pascal.Length + 4);
-        for (var i = 0; i < pascal.Length; i++)
-        {
-            if (i > 0 && char.IsUpper(pascal[i]))
-                sb.Append(' ');
-            sb.Append(pascal[i]);
-        }
-        return sb.ToString();
     }
 }

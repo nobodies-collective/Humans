@@ -56,9 +56,36 @@ public sealed class CampServiceEarlyEntryTests : CampsTestHarness
             NullLogger<CampService>.Instance);
     }
 
-    // ==========================================================================
-    // SetCampSeasonEeSlotCountAsync
-    // ==========================================================================
+    [HumansTheory]
+    [Xunit.InlineData(-1, false)]
+    [Xunit.InlineData(3, true)]
+    [Xunit.InlineData(3, false)]
+    [Xunit.InlineData(0, false)]
+    public async Task SetCampSeasonEeSlotCountAsync_RefusesInvalidCapsAndPreservesNoOpSemantics(int slotCount, bool missing)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        await SeedSettingsAsync();
+        var (_, season) = await SeedCampWithSeasonAsync(initialEeSlotCount: 3);
+        var auditCalls = AuditLog.ReceivedCalls().Count();
+
+        var result = await _service.SetCampSeasonEeSlotCountAsync(
+            missing ? Guid.NewGuid() : season.Id, slotCount, Guid.NewGuid(), ct);
+
+        await CampsDb.Entry(season).ReloadAsync(ct);
+        if (slotCount < 0 || missing)
+        {
+            result.Succeeded.Should().BeFalse();
+            result.ErrorMessage.Should().Be(missing ? "Camp season not found." : "EE slot count cannot be negative.");
+            season.EeSlotCount.Should().Be(3);
+            AuditLog.ReceivedCalls().Count().Should().Be(auditCalls);
+        }
+        else
+        {
+            result.Succeeded.Should().BeTrue();
+            season.EeSlotCount.Should().Be(slotCount);
+            AuditLog.ReceivedCalls().Count().Should().Be(auditCalls + (slotCount == 3 ? 0 : 1));
+        }
+    }
 
     [HumansFact]
     public async Task SetCampSeasonEeSlotCountAsync_SetsValue_AndAuditsChange()
@@ -101,10 +128,6 @@ public sealed class CampServiceEarlyEntryTests : CampsTestHarness
                           && m.Status == CampMemberStatus.Active, Xunit.TestContext.Current.CancellationToken);
         grantedCount.Should().Be(5);
     }
-
-    // ==========================================================================
-    // Helpers
-    // ==========================================================================
 
     private async Task SeedSettingsAsync()
     {
@@ -196,10 +219,6 @@ public sealed class CampServiceEarlyEntryTests : CampsTestHarness
         await SaveAllAsync(Xunit.TestContext.Current.CancellationToken);
         return member;
     }
-
-    // ==========================================================================
-    // SetEarlyEntryAsync
-    // ==========================================================================
 
     [HumansFact]
     public async Task SetEarlyEntryAsync_Grant_SetsFlagAndAudits()
@@ -327,10 +346,6 @@ public sealed class CampServiceEarlyEntryTests : CampsTestHarness
         reloaded.HasEarlyEntry.Should().BeFalse();
     }
 
-    // ==========================================================================
-    // Removal-path HasEarlyEntry cascade (issue nobodies-collective#490)
-    // ==========================================================================
-
     [HumansFact]
     public async Task RemoveCampMemberAsync_ClearsHasEarlyEntry()
     {
@@ -360,10 +375,8 @@ public sealed class CampServiceEarlyEntryTests : CampsTestHarness
         reloaded.HasEarlyEntry.Should().BeFalse();
     }
 
-    // ==========================================================================
-    // Entered-event guard — a grant is consumed once its holder is through the
-    // gate; it can no longer be revoked or freed by removal/leave.
-    // ==========================================================================
+    // A grant is consumed once its holder is through the gate: it can no longer be revoked
+    // or freed by removal/leave.
 
     private void SetUserParticipation(Guid userId, int year, ParticipationStatus status) =>
         _tickets.GetParticipationsAsync(userId, Arg.Any<CancellationToken>())

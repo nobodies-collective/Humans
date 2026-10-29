@@ -23,10 +23,6 @@ using NSubstitute;
 
 namespace Humans.Finance.Tests;
 
-/// <summary>
-/// finance_payment_details (Users decomposition commit 1): the IBAN read with its legacy fallback,
-/// the write, the admin reveal and its gates, the legacy copy, merge, export and erasure.
-/// </summary>
 public class PaymentDetailsTests
 {
     private const string Iban = "ES9121000418450200051332";
@@ -65,7 +61,45 @@ public class PaymentDetailsTests
         return info;
     }
 
-    // ─── Read and write ─────────────────────────────────────────────────────────
+    [HumansTheory]
+    [Xunit.InlineData("ES1000750000010000000000")]
+    [Xunit.InlineData(null)]
+    public async Task SetIban_ThroughMergedId_ChangesTheSurvivorsRow(string? value)
+    {
+        var source = Guid.NewGuid();
+        var survivor = Guid.NewGuid();
+        SeedUser(source, resolvesTo: survivor);
+        SeedUser(survivor, legacyIban: Iban);
+        await _repo.UpsertAsync(survivor, Iban, Now, Ct);
+
+        (await _sut.SetIbanAsync(source, value, Ct)).Should().BeTrue();
+
+        (await _repo.GetAsync(source, Ct)).Should().BeNull();
+        (await _repo.GetAsync(survivor, Ct))!.Iban.Should().Be(value);
+        (await _sut.GetIbanAsync(source, Ct)).Should().Be(value);
+        (await _sut.GetIbanAsync(survivor, Ct)).Should().Be(value);
+    }
+
+    [HumansFact]
+    public async Task RevealIban_ThroughMergedId_AuditsTheOwnerOfTheRevealedDetails()
+    {
+        var source = Guid.NewGuid();
+        var survivor = Guid.NewGuid();
+        var admin = Guid.NewGuid();
+        SeedUser(source, resolvesTo: survivor);
+        SeedUser(survivor);
+        await _repo.UpsertAsync(survivor, Iban, Now, Ct);
+
+        (await _sut.RevealIbanAsync(source, admin, Ct)).Should().Be(Iban);
+
+        await _audit.Received(1).LogAsync(
+            AuditAction.IbanReveal, nameof(User), survivor,
+            Arg.Is<string>(m => m.Contains(survivor.ToString(), StringComparison.Ordinal)),
+            admin, Arg.Any<Guid?>(), Arg.Any<string?>());
+        await _audit.DidNotReceive().LogAsync(
+            AuditAction.IbanReveal, nameof(User), source,
+            Arg.Any<string>(), admin, Arg.Any<Guid?>(), Arg.Any<string?>());
+    }
 
     [HumansFact]
     public async Task GetIban_FallsBackToTheLegacyProfileValue_UntilARowExists()
@@ -114,8 +148,6 @@ public class PaymentDetailsTests
         (await _sut.GetIbanAsync(archived, Ct)).Should().Be(Iban);
     }
 
-    // ─── Reveal ─────────────────────────────────────────────────────────────────
-
     [HumansFact]
     public async Task RevealIban_ReturnsTheIban_AndAuditsTheAdmin()
     {
@@ -142,8 +174,6 @@ public class PaymentDetailsTests
         await _audit.DidNotReceiveWithAnyArgs().LogAsync(
             default, default!, default, default!, default(Guid));
     }
-
-    // ─── finance.iban-to-payment-details ────────────────────────────────────────
 
     [HumansFact]
     public async Task Migration_ListsEveryUncopiedLegacyIbanMasked_CopiesThem_AndIsIdempotent()
@@ -178,8 +208,6 @@ public class PaymentDetailsTests
         (await _sut.GetIbanAsync(alreadyRow, Ct)).Should().BeNull(); // the removal is kept
     }
 
-    // ─── Merge, export, erasure ─────────────────────────────────────────────────
-
     [HumansFact]
     public async Task Merge_MovesTheSourceRow_WhenTheSurvivorHasNone()
     {
@@ -193,6 +221,28 @@ public class PaymentDetailsTests
         await _sut.ReassignAsync(source, target, Guid.NewGuid(), Now, Ct); // idempotent
 
         (await _repo.GetAsync(target, Ct))!.Iban.Should().Be(Iban);
+        (await _repo.GetAsync(source, Ct)).Should().BeNull();
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData(false, false)]
+    [Xunit.InlineData(true, false)]
+    [Xunit.InlineData(false, true)]
+    public async Task Merge_PreservesTheSourcesLegacyIban_WithoutRevivingClearedDetails(
+        bool sourceCleared, bool survivorCleared)
+    {
+        var source = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        SeedUser(source, Iban);
+        SeedUser(target);
+        if (sourceCleared) await _sut.SetIbanAsync(source, null, Ct);
+        if (survivorCleared) await _sut.SetIbanAsync(target, null, Ct);
+
+        await _sut.ReassignAsync(source, target, Guid.NewGuid(), Now, Ct);
+        await _sut.ReassignAsync(source, target, Guid.NewGuid(), Now, Ct);
+
+        (await _repo.GetAsync(target, Ct)).Should().NotBeNull();
+        (await _sut.GetIbanAsync(target, Ct)).Should().Be(sourceCleared || survivorCleared ? null : Iban);
         (await _repo.GetAsync(source, Ct)).Should().BeNull();
     }
 
@@ -229,8 +279,6 @@ public class PaymentDetailsTests
         (await _repo.GetAsync(id, Ct)).Should().BeNull();
         (await _sut.ContributeForUserAsync(id, Ct)).Single().Data.Should().BeNull();
     }
-
-    // ─── Controller and card ────────────────────────────────────────────────────
 
     [HumansFact]
     public void RevealIban_IsAdminOnly_PostAndAntiforgery()

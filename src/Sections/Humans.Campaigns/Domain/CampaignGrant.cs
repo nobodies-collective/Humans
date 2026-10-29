@@ -10,14 +10,22 @@ internal sealed class CampaignGrant
     public Guid CampaignCodeId { get; set; }
     public Guid UserId { get; set; }
     public Instant AssignedAt { get; set; }
+
+    /// <summary>
+    /// Set only on grants created before nobodies-collective/Humans#1243 dropped delivery tracking; only the GDPR
+    /// export still reads it. This column and <see cref="LatestEmailAt"/> (read by nothing) stay until their drop is
+    /// approved.
+    /// </summary>
+    [Obsolete("Unwritten since nobodies-collective/Humans#1243 dropped delivery tracking. Kept only until its column drop is approved.")]
     public EmailOutboxStatus? LatestEmailStatus { get; set; }
+
+    /// <summary>Unread; kept only until its column drop is approved.</summary>
+    [Obsolete("Unwritten since nobodies-collective/Humans#1243 dropped delivery tracking. Kept only until its column drop is approved.")]
     public Instant? LatestEmailAt { get; set; }
 
-    /// <summary>When the grant's discount code was redeemed (used in a ticket purchase). Null if unused.</summary>
+    /// <summary>Used in a ticket purchase. Null if unused.</summary>
     public Instant? RedeemedAt { get; set; }
 
-    // Navigation (same-section only — Email's outbox rows reference this grant
-    // by bare FK and are resolved through the Email section's services).
     public Campaign Campaign { get; set; } = null!;
     public CampaignCode Code { get; set; } = null!;
 }

@@ -1,3 +1,5 @@
+using Xunit;
+using Humans.Base.Extensions;
 using AwesomeAssertions;
 using Humans.Users.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,11 +17,6 @@ using Humans.Users.Tests.Infrastructure;
 
 namespace Humans.Users.Tests.Services.Users;
 
-/// <summary>
-/// Tests pinning the CachingUserService decorator contract: dict
-/// hit on cold/warm, write-then-read consistency, concurrent reads, and that
-/// each of the 8 contributing tables flows through to UserInfo.
-/// </summary>
 public class CachingUserServiceTests
 {
     private readonly IUserManagement _inner = Substitute.For<IUserManagement>();
@@ -173,8 +170,8 @@ public class CachingUserServiceTests
     [HumansFact]
     public async Task CommittedLegacyPreferenceErasure_FinishesCacheRefreshDespiteRequestCancellation()
     {
-        // Email owns the live preferences since Users decomposition commit 14; the frozen legacy rows
-        // are deleted only by erasure, and the cached legacy slice must follow that delete.
+        // Email owns the live preferences; the frozen legacy rows are deleted only by erasure,
+        // and the cached legacy slice must follow that delete.
         var testCt = Xunit.TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();
         var preference = new CommunicationPreference
@@ -671,6 +668,27 @@ public class CachingUserServiceTests
     }
 
     [HumansFact]
+    public async Task GetUserInfosAsync_DelayedMiss_DoesNotReplaceARefreshedUser()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var pending = new TaskCompletionSource<UserInfo?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _inner.GetAllUserInfosAsync(ct).Returns([]);
+        _inner.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<UserInfo?>(pending.Task),
+                new ValueTask<UserInfo?>(SampleUserInfo(userId, "Fresh")));
+        var sut = CreateSut();
+        await ((IHostedService)sut).StartAsync(ct);
+
+        var read = sut.GetUserInfosAsync([userId], ct).AsTask();
+        await sut.RefreshAsync(userId, ct);
+        pending.SetResult(SampleUserInfo(userId, "Old"));
+        await read;
+
+        (await sut.GetUserInfoAsync(userId, ct))!.BurnerName.Should().Be("Fresh");
+    }
+
+    [HumansFact]
     public async Task GetUserInfosAsync_PartialHit_OnlyMissesDelegated()
     {
         // Warm hits served from the dict, misses loaded per-id from the inner service.
@@ -728,12 +746,6 @@ public class CachingUserServiceTests
         (await sut.GetUserInfoAsync(u1, Xunit.TestContext.Current.CancellationToken)).Should().BeNull();
         (await sut.GetUserInfoAsync(u2, Xunit.TestContext.Current.CancellationToken)).Should().BeNull();
     }
-
-    // ==========================================================================
-    // SearchUsersAsync — per-record matcher buckets, pre-filter rules,
-    // admin GUID short-circuit. The matcher reads from the cached UserInfo dict;
-    // tests prime the cache via GetUserInfoAsync then invoke SearchUsersAsync.
-    // ==========================================================================
 
     private static UserInfo BuildSearchableUserInfo(
         Guid userId,
@@ -956,9 +968,16 @@ public class CachingUserServiceTests
         results.Should().HaveCount(1);
     }
 
-    [HumansFact]
-    public async Task SearchUsersAsync_AdminBit_ExactUserIdLookup()
+    [HumansTheory]
+    [InlineData("en", "User ID")]
+    [InlineData("es", "ID de usuario")]
+    [InlineData("de", "Benutzer-ID")]
+    [InlineData("it", "ID utente")]
+    [InlineData("fr", "ID utilisateur")]
+    [InlineData("ca", "ID d'usuari")]
+    public async Task SearchUsersAsync_AdminBit_ExactUserIdLookup(string culture, string label)
     {
+        using var scope = new CultureScope(culture);
         var userId = Guid.NewGuid();
         var sut = CreateSut();
         await PrimeAsync(sut, BuildSearchableUserInfo(userId, burnerName: "Alice"));
@@ -967,7 +986,7 @@ public class CachingUserServiceTests
 
         results.Should().HaveCount(1);
         results[0].UserId.Should().Be(userId);
-        results[0].MatchField.Should().Be("User ID");
+        results[0].MatchField.Should().Be(label);
     }
 
     [HumansFact]
@@ -987,11 +1006,8 @@ public class CachingUserServiceTests
     [HumansFact]
     public async Task SearchUsersAsync_PublicAll_GuidQuery_ExcludesRejected()
     {
-        // The by-id fast path skips the PersonSearchFields mask, which only governs which
-        // text fields are matched — it does NOT skip the eligibility gate. A rejected
-        // profile is as unresolvable by GUID as it is by name
-        // (SearchUsersAsync_PublicAll_ExcludesRejected): global search never hands
-        // out a rejected human's id.
+        // The by-id fast path skips the PersonSearchFields mask (which text fields match), not
+        // the eligibility gate: global search never hands out a rejected human's id.
         var userId = Guid.NewGuid();
         var sut = CreateSut();
         await PrimeAsync(sut, BuildSearchableUserInfo(userId, burnerName: "Alice", isRejected: true));
@@ -1071,9 +1087,7 @@ public class CachingUserServiceTests
         results[0].MatchedEmail.Should().Be("alice@example.com");
     }
 
-    // --- Profile-storage consolidation: decorator delegates to inner and
-    // refreshes the cached UserInfo slice. RefreshEntryAsync reloads via
-    // _inner.GetUserInfoAsync, so StubRefreshEntry overrides that return.
+    // RefreshEntryAsync reloads via _inner.GetUserInfoAsync, so StubRefreshEntry overrides that return.
 
     private static UserInfo UserInfoFor(Guid userId, Profile? profile) =>
         UserInfoFactory.Create(
@@ -1187,7 +1201,7 @@ public class CachingUserServiceTests
         await PrimeAsync(sut, SampleUserInfo(userId));
 
         _inner.AnonymizeProfileForDeletionAsync(userId, Arg.Any<CancellationToken>())
-            .Returns(new UserProfileAnonymizeResult(true, profileId, "uploads/profile-pictures/old.png"));
+            .Returns(new UserProfileAnonymizeResult(true));
 
         StubRefreshEntry(userId, new Profile
         {
@@ -1204,7 +1218,6 @@ public class CachingUserServiceTests
         var result = await sut.AnonymizeProfileForDeletionAsync(userId, Xunit.TestContext.Current.CancellationToken);
 
         result.Anonymized.Should().BeTrue();
-        result.PreviousProfilePictureKey.Should().Be("uploads/profile-pictures/old.png");
         var refreshed = await sut.GetUserInfoAsync(userId, Xunit.TestContext.Current.CancellationToken);
         refreshed!.Profile.Should().NotBeNull();
         refreshed.Profile!.FirstName.Should().Be("Deleted");
@@ -1403,10 +1416,6 @@ public class CachingUserServiceTests
         target.Profile!.BurnerName.Should().Be("Target Burner");
     }
 
-    // ==================================================================
-    // Merge chain: MergedUserIds and the raw reads (#1704)
-    // ==================================================================
-
     /// <summary>Row builder for chain tests: a plain row, a merge tombstone, or a GDPR-erased row.</summary>
     private static UserInfo ChainRow(Guid id, Guid? mergedTo = null, bool gdprErased = false) =>
         UserInfoFactory.Create(
@@ -1498,8 +1507,7 @@ public class CachingUserServiceTests
     public async Task GetUserInfosAsync_KeysByTheRequestedIdAndValuesByTheSurvivor()
     {
         // Asked for all three ids of an A→B→C chain: three entries, every one of them C.
-        // Keying by the survivor instead would turn infos[a] into a miss, which is the
-        // failure this change exists to remove.
+        // Keying by the survivor instead would turn infos[a] into a miss.
         var (a, b, c, _) = SeedChain();
         var sut = CreateSut();
 
@@ -1528,7 +1536,7 @@ public class CachingUserServiceTests
     [HumansFact]
     public async Task GetUserInfoAsync_DoesNotTreatALiveMemberNamedDeletedUserAsErased()
     {
-        // nobodies-collective/Humans#1742: a burner/display name a member typed themselves
+        // A burner/display name a member typed themselves
         // ("Deleted User") must never read as GDPR-erased — only the minted tombstone email
         // or the complete legacy name tombstone does.
         var userId = Guid.NewGuid();
@@ -1645,10 +1653,6 @@ public class CachingUserServiceTests
 
         rowA!.MergedUserIds.Should().Equal([b], "the cycle guard stops the walk, it does not hang");
     }
-
-    // ==================================================================
-    // AllUserIds and tombstones in search (#1704)
-    // ==================================================================
 
     [HumansFact]
     public async Task AllUserIds_OnAResolvedRecord_ListsTheSurvivorFirstThenTheWholeChain()

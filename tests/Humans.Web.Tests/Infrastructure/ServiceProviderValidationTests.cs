@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Globalization;
 using Humans.Base;
 using Humans.Base.Configuration;
@@ -23,15 +22,27 @@ using Microsoft.Extensions.Options;
 namespace Humans.Web.Tests.Infrastructure;
 
 /// <summary>
-/// Captive dependencies: a Singleton (or hosted service) that constructor-injects a Scoped
-/// service. <c>Program.cs</c> builds the host with <c>ValidateScopes</c> /
-/// <c>ValidateOnBuild</c>, so one of these throws at startup and the deployment answers 503
-/// with nothing else failing first — the shipped section registrations are checked nowhere
-/// else before a deploy. Singletons that need a Scoped service take
-/// <c>IServiceScopeFactory</c> and open a scope per call (see <c>CachingCampService</c>).
+/// Email and form-binding infrastructure registrations. Captive dependencies and cycles across the whole
+/// container are <see cref="SectionServiceResolutionTests"/>.
 /// </summary>
 public sealed class ServiceProviderValidationTests
 {
+    [HumansTheory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t")]
+    public void Email_registration_allows_missing_or_blank_smtp_configuration(string? host)
+    {
+        var configuration = BuildMinimalConfiguration();
+        configuration["Email:SmtpHost"] = host;
+        var registrations = new ServiceCollection();
+        Extensions.Infrastructure.EmailInfrastructureExtensions.AddEmailInfrastructure(registrations, configuration);
+        using var services = registrations.BuildServiceProvider();
+
+        services.GetRequiredService<IOptions<EmailSettings>>().Value.SmtpHost.Should().BeEmpty();
+    }
+
     [HumansTheory]
     [InlineData("https://example.com/", "/Account/MagicLinkConfirm")]
     [InlineData("https://example.com", "/Account/MagicLinkConfirm")]
@@ -42,41 +53,11 @@ public sealed class ServiceProviderValidationTests
         configuration["Email:BaseUrl"] = baseUrl;
         var registrations = new ServiceCollection();
         Extensions.Infrastructure.EmailInfrastructureExtensions.AddEmailInfrastructure(
-            registrations, configuration, new StubHostEnvironment());
+            registrations, configuration);
         using var services = registrations.BuildServiceProvider();
         var settings = services.GetRequiredService<IOptions<EmailSettings>>().Value;
 
         new Uri($"{settings.BaseUrl}/Account/MagicLinkConfirm").AbsolutePath.Should().Be(expectedPath);
-    }
-
-    [HumansFact]
-    public void NoSingletonConstructorInjectsAScopedService()
-    {
-        var services = new ServiceCollection();
-        Extensions.InfrastructureServiceCollectionExtensions
-            .AddHumansInfrastructure(services, BuildMinimalConfiguration(), new StubHostEnvironment());
-
-        var scopedServiceTypes = services
-            .Where(d => d.Lifetime == ServiceLifetime.Scoped && !d.IsKeyedService)
-            .Select(d => d.ServiceType)
-            .ToHashSet();
-
-        var captives = services
-            .Where(d => d.Lifetime == ServiceLifetime.Singleton)
-            .Select(d => d.IsKeyedService ? d.KeyedImplementationType : d.ImplementationType)
-            .Where(t => t is not null)
-            .Distinct()
-            .SelectMany(t => Constructors(t!)
-                .SelectMany(c => c.GetParameters())
-                .Where(p => p.GetCustomAttribute<FromKeyedServicesAttribute>() is null)
-                .Where(p => scopedServiceTypes.Contains(p.ParameterType))
-                .Select(p => $"{t!.Name}.{p.Name} ({p.ParameterType.Name})"))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-
-        captives.Should().BeEmpty(
-            because: "a Singleton holding a Scoped service fails ValidateScopes at host "
-                     + "startup — take IServiceScopeFactory and resolve per call instead");
     }
 
     [HumansTheory]
@@ -160,9 +141,6 @@ public sealed class ServiceProviderValidationTests
             CultureInfo.CurrentUICulture = originalCulture;
         }
     }
-
-    private static IEnumerable<ConstructorInfo> Constructors(Type type) =>
-        type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
 
     private static IConfiguration BuildMinimalConfiguration()
     {

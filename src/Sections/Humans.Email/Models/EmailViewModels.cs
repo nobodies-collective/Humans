@@ -1,12 +1,8 @@
-using Humans.Email.Contracts;
 using Humans.Email.Services;
 using NodaTime;
 
 namespace Humans.Email.Models;
 
-/// <summary>
-/// The outbox dashboard at <c>/Email/EmailOutbox</c>.
-/// </summary>
 internal sealed class EmailOutboxViewModel
 {
     public int TotalMessageCount { get; set; }
@@ -20,10 +16,6 @@ internal sealed class EmailOutboxViewModel
     public List<TemplateSendCountRow> TopTemplates { get; set; } = [];
 }
 
-/// <summary>
-/// The review step before <c>POST /Email/EmailOutbox/BackfillDailyCounts</c>
-/// (memory/process/no-data-backfills.md).
-/// </summary>
 internal sealed class BackfillDailyCountsViewModel
 {
     public int RowsToAdd { get; set; }
@@ -32,9 +24,6 @@ internal sealed class BackfillDailyCountsViewModel
     public List<DailyTemplateSendCountRow> Sample { get; set; } = [];
 }
 
-/// <summary>
-/// The rendered-template gallery at <c>/Email/EmailPreview</c>, one list per culture.
-/// </summary>
 internal sealed class EmailPreviewViewModel
 {
     public Dictionary<string, List<EmailPreviewItem>> Previews { get; set; } = new(StringComparer.Ordinal);

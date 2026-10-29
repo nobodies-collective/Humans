@@ -218,7 +218,8 @@ public sealed class ExpensesControllerTests
         reports.GetAsync(reportId).Returns(report);
         reports.WithdrawWithResultAsync(reportId, actorId).Returns(ExpenseMutationResult.Success);
         var handler = new ExpenseReportAuthorizationHandler(
-            Substitute.For<IBudgetService>(), Substitute.For<Humans.Teams.Contracts.ITeamService>(), users);
+            Substitute.For<IBudgetService>(), Substitute.For<Humans.Teams.Contracts.ITeamService>(), users,
+            Substitute.For<IPreapprovalService>());
         var authorization = Substitute.For<IAuthorizationService>();
         authorization.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), report,
                 Arg.Any<IEnumerable<IAuthorizationRequirement>>())
@@ -233,7 +234,7 @@ public sealed class ExpensesControllerTests
         {
             User = new ClaimsPrincipal(new ClaimsIdentity([
                 new Claim(ClaimTypes.NameIdentifier, actorId.ToString()),
-                new Claim(ClaimTypes.Role, RoleNames.FinanceAdmin)], "test"))
+                new Claim(ClaimTypes.Role, FinanceRoles.FinanceAdmin)], "test"))
         };
         var localizer = Substitute.For<IStringLocalizer<ExpensesResource>>();
         localizer[Arg.Any<string>()].Returns(call => new LocalizedString(call.Arg<string>(), call.Arg<string>()));

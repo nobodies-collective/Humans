@@ -17,8 +17,6 @@ internal sealed class AdminAgentController(
     IAgentPreloadCorpusBuilder preload,
     IUserService userService) : HumansControllerBase(userService)
 {
-    /// <summary>Index lands on Status — the operational view is the default
-    /// destination for an admin clicking through the nav.</summary>
     [HttpGet("")]
     public IActionResult Index() => RedirectToAction(nameof(Status));
 
@@ -36,6 +34,7 @@ internal sealed class AdminAgentController(
     {
         if (!ModelState.IsValid)
         {
+            vm.ModelOptions = await settings.GetModelOptionsAsync(ct);
             return View("~/Views/Admin/Agent/Settings.cshtml", vm);
         }
 

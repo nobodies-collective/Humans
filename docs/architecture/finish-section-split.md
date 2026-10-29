@@ -46,7 +46,7 @@ Done when required member operations, the profile page and the admin member page
 
 ### 2. Retire cross-section cache invalidation
 
-- [ ] Retire `ITeamWrite.InvalidateActiveTeamsCache`, called from Users' merge tail (CENTRAL-98, pending Peter's call): Teams evicts on a signal it already receives or reads live ([design-rules §15e](design-rules.md#15e-the-cache-owner-evicts)).
+- [x] Retire `ITeamWrite.InvalidateActiveTeamsCache` (CENTRAL-98): Teams caches its own facts and resolves member display data live from Users ([design-rules §15e](design-rules.md#15e-the-cache-owner-evicts)).
 - [x] Every `I<X>Invalidator` is retired: each cache owner evicts on its own writes or reads live (`grandfathered-hum0028-invalidators` in the debt ledger).
 
 Done when no section injects another section's invalidator and no cross-section write exists only to flush a cache. Prerequisite for the done-state of package 1.
@@ -67,7 +67,7 @@ Done when a section adds its own audited action, notification/email content, and
 
 ### 5. Make roles, policies and the Base registries section-owned
 
-- [ ] Replace central optional-domain role/policy inventories and the fixed admin-role aggregation with contributed metadata, reusing `ISectionPolicies` where appropriate. Start with Base's `RoleNames`/`PolicyNames`/`RoleGroups` and Shell authorization composition.
+- [ ] Replace central optional-domain role/policy inventories and the fixed admin-role aggregation with contributed metadata, reusing `ISectionPolicies` where appropriate. Start with Base's `RoleNames`/`PolicyNames`/`RoleGroups` and Shell authorization composition. Roles are done (`ISectionRoles` → Auth's `RoleCatalog`; `RoleGroups` gone; `AnyAdminRole` derived); policy names remain.
 - [ ] Preserve existing role identifiers and assignments, management restrictions, and deny behavior. Make policy diagnostics reflect available contributions; the current missing-policy diagnostic logs errors rather than throwing.
 - [ ] The other hand-maintained per-section registries follow the same rule as [`base-ui-registries-are-section-populated`](../../memory/architecture/base-ui-registries-are-section-populated.md). Done: the Shell's configuration inventory is now `ISectionConfiguration` (peterdrier/Humans#1764), Base's `AccessMatrixDefinitions` is now `ISectionAccessMatrix` (peterdrier/Humans#1765), and Base's `SectionHelpContent` guides/glossaries are now `ISectionHelp` (peterdrier/Humans#1768). Remaining: `CacheKeys` (key builders and the cache-stats metadata table) becomes a contribution or a section-side registration; Base keeps the seam, never the rows.
 - [ ] Single-owner strays leave Base for their owner: the Google-only `TempDataKeys`, the Guide and community-KB settings and GitHub content sources, `GoogleSyncSource`, `_VolunteerSearchScript.cshtml`. `SystemTeamType`/`SystemTeamIds` are shared infrastructure but grow per section; decide whether the system-team sync can take a contributed descriptor instead of an enum member.

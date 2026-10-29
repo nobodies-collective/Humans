@@ -7,22 +7,28 @@ using NSubstitute;
 
 namespace Humans.Shifts.Tests.Services;
 
-/// <summary>
-/// Tests for the undecorated inner <see cref="ShiftViewService"/>: empty-view
-/// behavior for unknown ids / no active event, and the rota fan-out
-/// (Shifts + Tags + flattened Signups). Issue nobodies-collective/Humans#720.
-/// </summary>
 public class ShiftViewServiceTests
 {
     private readonly IShiftManagementRepository _management = Substitute.For<IShiftManagementRepository>();
     private readonly IVolunteerTrackingRepository _tracking = Substitute.For<IVolunteerTrackingRepository>();
     private readonly ISettingsService _settingsService = Substitute.For<ISettingsService>();
     private readonly EventCalendarResolver _calendarResolver;
+    private readonly IShiftManagement _shiftManagement = Substitute.For<IShiftManagement>();
 
     public ShiftViewServiceTests() => _calendarResolver = new(_settingsService);
 
     private ShiftViewService CreateSut() =>
-        new(_management, _tracking, _calendarResolver);
+        new(_management, _tracking, _calendarResolver, _shiftManagement);
+
+    [HumansFact]
+    public void EventSettingsChanged_EvictsThatEventsDashboardCaches()
+    {
+        var eventSettingsId = Guid.NewGuid();
+
+        CreateSut().EventSettingsChanged(eventSettingsId);
+
+        _shiftManagement.Received(1).InvalidateDashboardCaches(eventSettingsId);
+    }
 
     private void StubActiveCalendar(EventSettingsInfo? calendar) =>
         _settingsService.GetActiveEventSettingsAsync(Arg.Any<CancellationToken>()).Returns(calendar);

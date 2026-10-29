@@ -1,3 +1,4 @@
+using Humans.Auth.Authorization;
 using Humans.Auth.Contracts;
 using Humans.Auth.Models;
 using Humans.Auth.Services;
@@ -13,15 +14,9 @@ using NodaTime;
 namespace Humans.Auth.Controllers;
 
 /// <summary>
-/// The role-assignment admin pages: the system-wide roster at <c>/Auth/Admin/Roles</c> and
-/// assign / end on a member at <c>/Auth/Admin/{id}/Roles/...</c>. The per-member card on the
-/// admin human-detail page is this section's <c>RoleAssignmentsCardViewComponent</c> user part.
+/// The class gate lets Board read the roster; <c>AddRole</c> and <c>EndRole</c> narrow to <see cref="PolicyNames.HumanAdminOrAdmin"/>
+/// (the principals <c>RoleAssignmentRules</c> admits) and add the per-role <see cref="PolicyNames.RoleAssignmentManage"/> check.
 /// </summary>
-/// <remarks>
-/// The class gate is <see cref="PolicyNames.HumanAdminBoardOrAdmin"/>; <c>AddRole</c> and
-/// <c>EndRole</c> add the resource-based <see cref="PolicyNames.RoleAssignmentManage"/> check per
-/// role name. The audit entries are written by <see cref="IRoleAssignmentManagement"/>.
-/// </remarks>
 [Authorize(Policy = PolicyNames.HumanAdminBoardOrAdmin)]
 internal sealed class RoleAssignmentsController(
     IUserService userService,
@@ -29,6 +24,7 @@ internal sealed class RoleAssignmentsController(
     IRoleAssignmentManagement roleAssignmentManagement,
     IClock clock,
     IAuthorizationService authorizationService,
+    RoleCatalog catalog,
     ILogger<RoleAssignmentsController> logger,
     IStringLocalizer<SharedResource> localizer) : HumansControllerBase(userService)
 {
@@ -67,6 +63,7 @@ internal sealed class RoleAssignmentsController(
     }
 
     [HttpGet("Auth/Admin/{id:guid}/Roles/Add")]
+    [Authorize(Policy = PolicyNames.HumanAdminOrAdmin)]
     public async Task<IActionResult> AddRole(Guid id)
     {
         if (await UserService.GetRawUserInfoAsync(id, HttpContext.RequestAborted) is null)
@@ -75,13 +72,14 @@ internal sealed class RoleAssignmentsController(
         var viewModel = new CreateRoleAssignmentViewModel
         {
             UserId = id,
-            AvailableRoles = [.. RoleChecks.GetAssignableRoles(User)]
+            AvailableRoles = RoleAssignmentRules.Assignable(User, catalog)
         };
 
         return View(viewModel);
     }
 
     [HttpPost("Auth/Admin/{id:guid}/Roles/Add")]
+    [Authorize(Policy = PolicyNames.HumanAdminOrAdmin)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> AddRole(Guid id, CreateRoleAssignmentViewModel model)
     {
@@ -92,7 +90,7 @@ internal sealed class RoleAssignmentsController(
         {
             ModelState.AddModelError(nameof(model.RoleName), "Please select a role.");
             model.UserId = id;
-            model.AvailableRoles = [.. RoleChecks.GetAssignableRoles(User)];
+            model.AvailableRoles = RoleAssignmentRules.Assignable(User, catalog);
             return View(model);
         }
 
@@ -124,6 +122,7 @@ internal sealed class RoleAssignmentsController(
     }
 
     [HttpPost("Auth/Admin/{id:guid}/Roles/{roleId:guid}/End")]
+    [Authorize(Policy = PolicyNames.HumanAdminOrAdmin)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EndRole(Guid id, Guid roleId, string? notes)
     {

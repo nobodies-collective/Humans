@@ -8,24 +8,15 @@ using NSubstitute;
 
 namespace Humans.Shifts.Tests.Services;
 
-/// <summary>
-/// Tests for <see cref="CachingShiftViewService"/> — Singleton decorator over a
-/// keyed Scoped inner. Covers dict-cache hit / miss, batch-miss fan-in,
-/// invalidation, and that cache-hit reads never resolve the inner. Issue nobodies-collective/Humans#720.
-/// </summary>
 public class CachingShiftViewServiceTests
 {
     private readonly IShiftRowView _inner = Substitute.For<IShiftRowView>();
-    private readonly IShiftManagement _management = Substitute.For<IShiftManagement>();
 
     private CachingShiftViewService CreateSut()
     {
         var services = new ServiceCollection();
         services.AddKeyedScoped<IShiftRowView>(
             CachingShiftViewService.InnerServiceKey, (_, _) => _inner);
-        // The event-settings listener resolves this in a scope to evict the
-        // coordinator-dashboard aggregates, which are keyed by event.
-        services.AddScoped(_ => _management);
         var provider = services.BuildServiceProvider();
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
         return new CachingShiftViewService(
@@ -105,8 +96,6 @@ public class CachingShiftViewServiceTests
 
         (await sut.GetRotaAsync(rotaId, ct)).Should().BeSameAs(current);
     }
-
-    // ── GetUserAsync ────────────────────────────────────────────────────────
 
     [HumansFact]
     public async Task GetUserAsync_DictMiss_DelegatesToInner_AndCachesResult()
@@ -213,8 +202,6 @@ public class CachingShiftViewServiceTests
         await _inner.Received(1).GetUsersAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>());
     }
 
-    // ── GetRotaAsync ────────────────────────────────────────────────────────
-
     [HumansFact]
     public async Task GetRotaAsync_DictMiss_DelegatesToInner_AndCachesResult()
     {
@@ -289,8 +276,6 @@ public class CachingShiftViewServiceTests
         await _inner.Received(2).GetRotaAsync(rotaId, Arg.Any<CancellationToken>());
     }
 
-    // ── InvalidateRota cascade to affected users ─────────────────────────────
-
     [HumansFact]
     public async Task InvalidateRota_EvictsCachedUserViewsReferencingTheRota()
     {
@@ -341,8 +326,6 @@ public class CachingShiftViewServiceTests
         await _inner.Received(2).GetUserAsync(userOnRota, Arg.Any<CancellationToken>());
         await _inner.Received(1).GetUserAsync(unrelatedUser, Arg.Any<CancellationToken>());
     }
-
-    // ── InvalidateShift fan-out from the live snapshot ───────────────────────
 
     [HumansFact]
     public async Task InvalidateShift_EvictsAffectedRotaAndUsers()
@@ -395,16 +378,15 @@ public class CachingShiftViewServiceTests
     }
 
     [HumansFact]
-    public void EventSettingsChanged_EvictsThatEventsDashboardCaches()
+    public void EventSettingsChanged_ForwardsChangedEventToInner()
     {
-        // The coordinator-dashboard aggregates sit on a sliding TTL and classify each
-        // shift into a period off the event's Settings calendar, so a gate-date or offset
-        // edit has to evict them for that event; a regularly viewed dashboard never expires
-        // on its own. The Shifts-owned write did this inline before the write moved lanes.
+        // The coordinator-dashboard aggregates sit on a sliding TTL and classify shifts off the
+        // event's Settings calendar, so a gate-date or offset edit must evict them for that
+        // event; a regularly viewed dashboard never expires on its own.
         var eventSettingsId = Guid.NewGuid();
 
         (CreateSut()).EventSettingsChanged(eventSettingsId);
 
-        _management.Received(1).InvalidateDashboardCaches(eventSettingsId);
+        _inner.Received(1).EventSettingsChanged(eventSettingsId);
     }
 }

@@ -9,7 +9,6 @@ using Humans.Users.Contracts;
 
 namespace Humans.Users.Services;
 
-// Suspend/unsuspend for onboarded humans. Owns no tables. See nobodies-collective#583 (umbrella #563).
 internal sealed class HumanLifecycleService(
     IUserManagement userService,
     INotificationEmitter notificationService,
@@ -39,14 +38,14 @@ internal sealed class HumanLifecycleService(
             var language = (await userService.GetUserInfoAsync(userId, ct))?.PreferredLanguage;
             var culture = CultureInfo.GetCultureInfo(language.IsSupportedCultureCode() ? language! : "en");
             var body = string.IsNullOrWhiteSpace(notes)
-                ? NoticeResources.GetString("AccountStatus_HeadingAdminSuspended", culture)!
+                ? NoticeResources.GetString("Users_AccountStatus_HeadingAdminSuspended", culture)!
                 : string.Format(culture,
                     NoticeResources.GetString("Users_Notification_AdminSuspendedWithReason", culture)!, notes);
             await notificationService.SendAsync(
                 NotificationSource.AccessSuspended,
                 NotificationClass.Actionable,
                 NotificationPriority.Critical,
-                NoticeResources.GetString("AccountStatus_HeadingSuspended", culture)!,
+                NoticeResources.GetString("Users_AccountStatus_HeadingSuspended", culture)!,
                 [userId],
                 body: body,
                 actionUrl: "/Profile",

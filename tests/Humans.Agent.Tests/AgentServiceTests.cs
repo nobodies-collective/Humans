@@ -535,7 +535,7 @@ public class AgentServiceTests
         var row = rows.Should().ContainSingle(
             "only the route_to_issue conversation is a handoff").Subject;
         row.Id.Should().Be(handoffConversationId);
-        // Same predicate the API uses for HandoffCount (nobodies-collective/Humans#931).
+        // Same predicate the API uses for HandoffCount.
         row.Messages.Count(m => m.HandedOffToFeedbackId != null
                 || m.FetchedDocs.Contains(AgentToolNames.RouteToIssue, StringComparer.Ordinal))
             .Should().BeGreaterThan(0, "the saved assistant message must carry the handoff marker");
@@ -586,7 +586,7 @@ public class AgentServiceTests
     [HumansFact]
     public async Task Ask_yields_fallback_text_and_logs_warning_when_the_turn_produces_no_assistant_text()
     {
-        // nobodies-collective/Humans#952 — a truncated/exhausted tool loop must never
+        // A truncated/exhausted tool loop must never
         // leave the user with a blank bubble or persist an empty Content string.
         var userId = Guid.NewGuid();
         var dispatcher = Substitute.For<IAgentToolDispatcher>();
@@ -650,7 +650,7 @@ public class AgentServiceTests
     public async Task Ask_stores_a_one_liner_when_route_to_issue_produces_no_preamble_text(
         bool oversized, string boundary, string expectedBoundary, string category, string expectedCategory)
     {
-        // nobodies-collective/Humans#952 — route_to_issue's proposal frame is the terminal
+        // route_to_issue's proposal frame is the terminal
         // output for the client, but a blank stored Content makes the admin transcript
         // view misleading when the model called the tool with no preamble.
         var userId = Guid.NewGuid();
@@ -699,7 +699,7 @@ public class AgentServiceTests
     [HumansFact]
     public async Task Ask_treats_whitespace_only_output_as_silent_and_yields_fallback()
     {
-        // nobodies-collective/Humans#952 — whitespace-only deltas render as a blank
+        // Whitespace-only deltas render as a blank
         // bubble and must receive the same fallback as truly zero-length output.
         var userId = Guid.NewGuid();
         var logger = Substitute.For<ILogger<AgentService>>();
@@ -736,9 +736,37 @@ public class AgentServiceTests
     }
 
     [HumansFact]
+    public async Task Ask_replays_a_thinking_model_tool_turn_block_for_block()
+    {
+        var dispatcher = Substitute.For<IAgentToolDispatcher>();
+        dispatcher.DispatchAsync(Arg.Any<AnthropicToolCall>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(new AnthropicToolResult(call.Arg<AnthropicToolCall>().Id, "Teams doc", IsError: false)));
+        var (svc, client) = await BuildServiceAsync(s => s.Enabled = true, toolDispatcher: dispatcher);
+        var truncated = new AnthropicToolCall("t1", "fetch_section_guide", """{"section":"tea""");
+        client.EnqueueTurn(
+            new AgentTurnToken(null, truncated, null),
+            new AgentTurnToken(null, null, new AgentTurnFinalizer(100, 20, 0, 0, "claude-sonnet-5-5", "tool_use"),
+                AssistantContent: [new AnthropicThinkingBlock("Need the Teams doc.", "sig"), new AnthropicToolUseBlock(truncated)]));
+        client.EnqueueTurn(
+            new AgentTurnToken("Teams are groups of volunteers.", null, null),
+            new AgentTurnToken(null, null, new AgentTurnFinalizer(40, 10, 0, 0, "claude-sonnet-5-5", "end_turn")));
+
+        await foreach (var _ in svc.AskAsync(
+            new AgentTurnRequest(ConversationId: Guid.Empty, UserId: Guid.NewGuid(), Message: "What are teams?", Locale: "en"),
+            Xunit.TestContext.Current.CancellationToken))
+        {
+        }
+
+        // The thinking block leads, as produced; unparseable arguments are still neutralised to {}.
+        client.LastRequest!.Messages.Single(m => string.Equals(m.Role, "assistant", StringComparison.Ordinal)).AssistantContent.Should().Equal(
+            new AnthropicThinkingBlock("Need the Teams doc.", "sig"),
+            new AnthropicToolUseBlock(truncated with { JsonArguments = "{}" }));
+    }
+
+    [HumansFact]
     public async Task Ask_continues_the_tool_loop_when_a_tool_call_is_truncated_by_max_tokens()
     {
-        // nobodies-collective/Humans#963 — a max_tokens cutoff mid tool-call JSON must not
+        // A max_tokens cutoff mid tool-call JSON must not
         // discard the call: the loop continues on a tool call even when StopReason isn't "tool_use".
         // AnthropicClient still closes the current content block before the stream ends, so a
         // (possibly malformed) AnthropicToolCall reaches AgentService even on a max_tokens stop.
@@ -848,7 +876,7 @@ public class AgentServiceTests
     [HumansFact]
     public async Task Ask_persists_an_assistant_message_when_an_exception_escapes_the_turn()
     {
-        // nobodies-collective/Humans#963 — an exception escaping the stream between the user
+        // An exception escaping the stream between the user
         // message write and the assistant message write must not skip AppendMessageAsync.
         // A failed turn must still leave a trace in the transcript.
         var userId = Guid.NewGuid();
@@ -877,7 +905,7 @@ public class AgentServiceTests
         finalizer.StopReason.Should().Be("error");
         finalizer.ConversationId.Should().NotBe(Guid.Empty,
             "the client must be able to continue the same conversation after a failed turn");
-        // nobodies-collective/Humans#990: the streamed error frame must agree with what got
+        // The streamed error frame must agree with what got
         // persisted and billed below, not hardcode zeros — that was a contract inconsistency
         // between three surfaces (SSE finalizer, AgentMessage row, rate-limit billing).
         finalizer.InputTokens.Should().Be(100);
@@ -968,7 +996,7 @@ public class AgentServiceTests
     [Xunit.InlineData(true)]
     public async Task Ask_persists_an_assistant_message_when_the_stream_is_abandoned_mid_turn(bool cancel)
     {
-        // nobodies-collective/Humans#963 — AgentController awaits WriteSse OUTSIDE AskAsync, so
+        // AgentController awaits WriteSse OUTSIDE AskAsync, so
         // a browser that goes away while a token is being written never throws into AskAsync's
         // catch: it abandons the enumeration, which disposes the iterator at a `yield return`.
         // That is the likeliest disconnect timing, and it must still leave the already-persisted
@@ -1132,7 +1160,9 @@ public class AgentServiceTests
         var clock = new FakeClock(Instant.FromUtc(2026, 4, 21, 12, 0));
         var store = new AgentSettingsStore();
         var repo = new AgentRepository(db, clock);
-        var settingsService = new AgentSettingsService(repo, store, clock, Substitute.For<Humans.AuditLog.Contracts.IAuditLogService>());
+        var settingsService = new AgentSettingsService(repo, store, clock, Substitute.For<Humans.AuditLog.Contracts.IAuditLogService>(),
+            Substitute.For<IAnthropicClient>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AgentSettingsService>.Instance);
         await settingsService.LoadAsync(Xunit.TestContext.Current.CancellationToken);
         var ratelimit = rateLimitStore ?? new AgentRateLimitStore();
         var abuse = new AgentAbuseDetector();

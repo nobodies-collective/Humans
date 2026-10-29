@@ -1,3 +1,4 @@
+using Humans.Camps.Contracts;
 using System.Security.Claims;
 using Humans.Base.Constants;
 using Humans.Shifts.Contracts;
@@ -5,12 +6,6 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Camps.Authorization;
 
-/// <summary>
-/// Handler for <see cref="CampComplianceAccessRequirement"/>. Short-circuits for
-/// CampAdmin/Admin, otherwise admits any team/sub-team coordinator via the cached
-/// <see cref="IShiftService.GetCoordinatorTeamIdsAsync"/> lookup —
-/// a cross-section read through Shifts' contracts leaf.
-/// </summary>
 internal sealed class CampComplianceAccessHandler(IShiftService shiftManagement)
     : AuthorizationHandler<CampComplianceAccessRequirement>
 {
@@ -20,7 +15,7 @@ internal sealed class CampComplianceAccessHandler(IShiftService shiftManagement)
     {
         var user = context.User;
 
-        if (user.IsInRole(RoleNames.Admin) || user.IsInRole(RoleNames.CampAdmin))
+        if (user.IsInRole(RoleNames.Admin) || user.IsInRole(CampsRoles.CampsAdmin))
         {
             context.Succeed(requirement);
             return;

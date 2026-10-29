@@ -6,20 +6,11 @@ using Microsoft.Extensions.Localization;
 
 namespace Humans.Email.Services;
 
-/// <summary>
-/// Builds Email's one remaining template, the facilitated volunteer-to-volunteer relay:
-/// content plus the routing policy the <see cref="IEmailService"/> transport reads
-/// (template name, opt-out category, reply-to). Copy lives in Email's own resx set and
-/// renders in the recipient's culture inside a <see cref="CultureScope"/>. Every other
-/// template is built by its sending section's own <c>&lt;Section&gt;Emails</c>
-/// (memory/architecture/email-templates-live-in-sender.md, peterdrier/Humans#1651).
-/// Pure — no I/O.
-/// </summary>
 internal sealed class EmailMessageFactory(
     IStringLocalizer<EmailResource> localizer,
     ILogger<EmailMessageFactory> logger) : IEmailMessageFactory
 {
-    public EmailMessage FacilitatedMessage(string recipientEmail, string recipientName, string senderName, string messageText, bool includeContactInfo, string? senderEmail, string? culture = null, string? replyTo = null)
+    public EmailMessage FacilitatedMessage(Guid? recipientUserId, string recipientEmail, string recipientName, string senderName, string messageText, bool includeContactInfo, string? senderEmail, string? culture = null, string? replyTo = null)
     {
         using (new CultureScope(culture, logger))
         {
@@ -30,7 +21,7 @@ internal sealed class EmailMessageFactory(
                 : $"<p><em>{Encode(L("Email_FacilitatedMessage_NoContactInfo"))}</em></p>";
 
             return new EmailMessage(
-                recipientEmail, recipientName,
+                recipientEmail, recipientName, recipientUserId,
                 Lf("Email_FacilitatedMessage_Subject", senderName),
                 Lf("Email_FacilitatedMessage_Body", Encode(recipientName), Encode(senderName), sanitizedMessage, contactInfoHtml),
                 "facilitated_message", MessageCategory.FacilitatedMessages,

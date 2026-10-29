@@ -7,8 +7,6 @@ namespace Humans.Campaigns.Services.Dtos;
 internal sealed record CampaignDetailStatsDto(
     int TotalCodes,
     int AvailableCodes,
-    int SentCount,
-    int FailedCount,
     int CodesRedeemed,
     int TotalGrants);
 
@@ -22,8 +20,6 @@ internal sealed record CampaignListSummary(
     CampaignStatus Status,
     int TotalCodes,
     int AssignedCodes,
-    int SentCount,
-    int FailedCount,
     Instant CreatedAt);
 
 internal sealed record CampaignEditSnapshot(
@@ -52,8 +48,7 @@ internal sealed record CampaignSendWavePageDto(
     Guid? SelectedTeamId,
     WaveSendPreview? Preview)
 {
-    /// <summary>Waves go out only while the campaign is Active — the rule <c>SendWaveAsync</c>
-    /// refuses with <c>NotActive</c>.</summary>
+    /// <summary>Mirrors <c>SendWaveAsync</c>'s <c>NotActive</c> refusal.</summary>
     public bool CanSendWave => Campaign.Status == CampaignStatus.Active;
 }
 

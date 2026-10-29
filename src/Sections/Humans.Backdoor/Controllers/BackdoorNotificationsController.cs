@@ -3,21 +3,18 @@ using Humans.Base.Controllers;
 using Humans.Notifications.Contracts;
 using Humans.Users.Contracts;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Humans.Backdoor.Controllers;
 
 /// <summary>
-/// Read-only notification inbox for an agent polling on a human's behalf: the key owner's
-/// unread notifications and the live meters their roles unlock.
+/// Scoped to the key's owner through the installed principal, so a Board key sees the Board meters and nobody else's
+/// inbox. Nothing is marked read.
 /// </summary>
-/// <remarks>
-/// One <see cref="INotificationInboxRead"/> call; the controller only formats (hard rule).
-/// Scoped to the key's owner through the principal the auth filter installs, so a Board
-/// key sees the Board meters and nobody else's inbox. Nothing is marked read.
-/// </remarks>
 [ApiController]
 [Route("api/backdoor/notifications")]
 [ServiceFilter(typeof(BackdoorApiKeyAuthFilter))]
+[AllowAnonymous]
 internal sealed class BackdoorNotificationsController(INotificationInboxRead inbox, IUserService users)
     : ApiControllerBase(users)
 {

@@ -6,13 +6,6 @@ using NodaTime;
 
 namespace Humans.Issues.Data;
 
-/// <summary>
-/// EF-backed implementation of <see cref="IIssuesRepository"/>. The only
-/// non-test file that touches <c>DbContext.Issues</c> or
-/// <c>DbContext.IssueComments</c>. Uses <see cref="IDbContextFactory{TContext}"/>
-/// so the repository can be registered as Singleton while
-/// <c>IssuesDbContext</c> remains Scoped.
-/// </summary>
 internal sealed class IssuesRepository(IDbContextFactory<IssuesDbContext> factory) : IIssuesRepository
 {
     public async Task AddIssueAsync(Issue issue, CancellationToken ct = default)
@@ -143,7 +136,7 @@ internal sealed class IssuesRepository(IDbContextFactory<IssuesDbContext> factor
             .ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<string>> EraseForUserAsync(Guid userId, CancellationToken ct = default)
+    public async Task EraseForUserAsync(Guid userId, CancellationToken ct = default)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
 
@@ -174,7 +167,6 @@ internal sealed class IssuesRepository(IDbContextFactory<IssuesDbContext> factor
         }
 
         await db.SaveChangesAsync(ct);
-        return ownIssues.Select(i => i.ScreenshotStoragePath).OfType<string>().ToList();
     }
 
     public async Task<IReadOnlyList<Guid>> GetExpiredTerminalAsync(
@@ -193,10 +185,7 @@ internal sealed class IssuesRepository(IDbContextFactory<IssuesDbContext> factor
     {
         if (ids.Count == 0) return (0, []);
 
-        // Load-then-RemoveRange (matching EmailOutboxRepository.DeleteSentOlderThanAsync)
-        // so unit tests using the EF InMemory provider still cover the path.
-        // ExecuteDeleteAsync would be cheaper at scale but is not supported by
-        // the InMemory provider.
+        // Load-then-RemoveRange rather than ExecuteDeleteAsync, which the EF InMemory test provider does not support.
         await using var db = await factory.CreateDbContextAsync(ct);
         var toDelete = await db.Issues
             .Where(i => ids.Contains(i.Id))

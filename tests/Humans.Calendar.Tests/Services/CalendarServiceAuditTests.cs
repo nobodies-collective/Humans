@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using AwesomeAssertions;
 using Humans.AuditLog.Contracts;
 using Humans.Calendar.Data;
@@ -13,12 +14,9 @@ using Xunit;
 namespace Humans.Calendar.Tests.Services;
 
 /// <summary>
-/// "The Board can see what happened" is a section invariant, and until these tests
-/// existed every <c>audit.LogAsync</c> call in <see cref="CalendarService"/> could be
-/// deleted with the whole suite still green. Each mutation writes one entry; the
-/// event-level ones additionally carry the owning team as <c>relatedEntityId</c>, which
-/// is what makes team-scoped audit filtering work, and the per-occurrence ones
-/// deliberately do not.
+/// "The Board can see what happened": each mutation writes one entry. Event-level entries carry the
+/// owning team as <c>relatedEntityId</c>, which team-scoped audit filtering needs; per-occurrence
+/// ones deliberately do not.
 /// </summary>
 public class CalendarServiceAuditTests
 {
@@ -38,7 +36,7 @@ public class CalendarServiceAuditTests
         CalendarServiceValidationTests.ActiveTeams(),
         new FakeClock(Now),
         _audit,
-        NullLogger<CalendarService>.Instance);
+        NullLogger<CalendarService>.Instance, Substitute.For<IServiceScopeFactory>());
 
     [HumansFact]
     public async Task CreateEventWithResultAsync_WritesOneAuditEntry_RelatedToTheOwningTeam()

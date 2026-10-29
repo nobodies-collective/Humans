@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Net;
 using Humans.Base.Interfaces;
 using Humans.Email.Contracts;
-using Humans.Users.Contracts;
 using Humans.Email.Data;
 using Humans.Email.Domain;
 using Humans.Base.Enums;
@@ -10,22 +9,8 @@ using NodaTime;
 
 namespace Humans.Email.Services;
 
-/// <summary>
-/// The implementation of <see cref="IEmailService"/>: the single
-/// transport path for outbound email. Given a fully-rendered
-/// <see cref="EmailMessage"/> (built by the sending section), it
-/// applies opt-out suppression and List-Unsubscribe headers for opt-outable
-/// categories, wraps the body with <see cref="IEmailBodyComposer"/>, appends a row
-/// to the outbox through <see cref="IEmailOutboxRepository"/>, records the
-/// per-template metric, and — for the <see cref="TimeSensitiveTemplates"/> — runs the
-/// processor immediately through <see cref="IImmediateOutboxProcessor"/>. SMTP-send lives in
-/// <c>ProcessEmailOutboxJob</c> — except for <see cref="EmailMessage.DoNotPersist"/>
-/// messages, which go straight to <see cref="IEmailTransport"/> here because they
-/// must leave no stored copy of the recipient.
-/// </summary>
 internal sealed class OutboxEmailService(
     IEmailOutboxRepository outboxRepo,
-    IUserEmailService userEmailService,
     IEmailBodyComposer bodyComposer,
     IImmediateOutboxProcessor immediateProcessor,
     IEmailTransport transport,
@@ -38,17 +23,10 @@ internal sealed class OutboxEmailService(
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        // Explicit UserId wins (the campaign-code path supplies the grant's user);
-        // otherwise resolve from the verified recipient address (Profile §2c).
-        var userId = message.UserId
-            ?? (await userEmailService.FindByAddressAsync(
-                    message.RecipientEmail, aliased: false, verifiedOnly: true, cancellationToken))
-                .FirstOrDefault()?.UserId;
+        var userId = message.UserId;
 
         var category = message.Category;
 
-        // null / always-on (System, CampaignCodes) ⇒ always send: no opt-out
-        // suppression and no unsubscribe (there is nothing for it to do).
         var optOutEligible = category is not null && !category.Value.IsAlwaysOn();
 
         if (optOutEligible && userId.HasValue
@@ -92,9 +70,8 @@ internal sealed class OutboxEmailService(
 
         if (message.DoNotPersist)
         {
-            // Straight to the transport: no row, so no retry and no stored copy of a
-            // recipient the erasure cascade has already removed. Logged without the
-            // address for the same reason.
+            // Straight to the transport: no row, no retry, no stored copy of a member the erasure
+            // just removed. Logged without the address for the same reason.
             await transport.SendAsync(
                 message.RecipientEmail, message.RecipientName, message.Subject,
                 wrappedHtml, plainText, message.ReplyTo, headers, cancellationToken: cancellationToken,
@@ -116,9 +93,9 @@ internal sealed class OutboxEmailService(
             PlainTextBody = plainText,
             TemplateName = message.TemplateName,
             UserId = userId,
-            CampaignGrantId = message.CampaignGrantId,
             ReplyTo = message.ReplyTo,
             ExtraHeaders = extraHeadersJson,
+            Urgent = message.Urgent,
             Status = EmailOutboxStatus.Queued,
             CreatedAt = clock.GetCurrentInstant()
         };
@@ -129,9 +106,7 @@ internal sealed class OutboxEmailService(
         metrics.RecordEmailQueued(message.TemplateName);
         logger.LogInformation("Email queued: {TemplateName} to {Recipient}", message.TemplateName, message.RecipientEmail);
 
-        // Derived from the template name, not a message field: the same list the
-        // repository orders the batch by, so drain and queue order cannot drift.
-        if (TimeSensitiveTemplates.Names.Contains(message.TemplateName, StringComparer.Ordinal))
+        if (message.Urgent)
         {
             try
             {
@@ -150,11 +125,8 @@ internal sealed class OutboxEmailService(
     }
 
     /// <summary>
-    /// Google Postmaster Feedback-ID: <c>templateName:campaignId-or-none:category:humans-nobodies</c>.
-    /// Template name is the primary identifier; campaign id (shared by every grant in
-    /// the campaign — <see cref="EmailMessage.CampaignGrantId"/> is per-recipient and
-    /// would not aggregate) and category refine it. SenderId (<c>humans-nobodies</c>,
-    /// 15 chars — within Google's 5-15 char SenderId requirement) is last and constant.
+    /// Google Postmaster Feedback-ID: <c>templateName:campaignId-or-none:category:humans-nobodies</c>. Campaign id,
+    /// not grant id, so it aggregates across recipients. Google requires a 5-15 char SenderId.
     /// </summary>
     private static string BuildFeedbackId(EmailMessage message, MessageCategory? category) =>
         $"{message.TemplateName}:{message.CampaignId?.ToString() ?? "none"}:{category?.ToString() ?? "none"}:humans-nobodies";

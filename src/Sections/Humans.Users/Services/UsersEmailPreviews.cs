@@ -6,11 +6,8 @@ using NodaTime;
 namespace Humans.Users.Services;
 
 /// <summary>
-/// Users' contribution to the template gallery at <c>/Email/EmailPreview</c>: one
-/// sample per template <see cref="UsersEmails"/> can send, built through the same
-/// builder the real send path uses, so the gallery cannot drift from what members
-/// receive (peterdrier/Humans#1651). Sample data only — no recipient is real and
-/// nothing is sent.
+/// Gallery samples built through the real send path's builder, so the gallery cannot drift from
+/// what members receive. Nothing is sent.
 /// </summary>
 internal sealed class UsersEmailPreviews(UsersEmails emails, IOptions<EmailSettings> settings) : IEmailPreviewContributor
 {
@@ -28,19 +25,19 @@ internal sealed class UsersEmailPreviews(UsersEmails emails, IOptions<EmailSetti
         return
         [
             new EmailPreviewSample("access-suspended", "Access Suspended",
-                emails.AccessSuspended(email, name, SampleSuspensionReason, culture)),
+                emails.AccessSuspended(Guid.Empty, email, name, SampleSuspensionReason, culture)),
 
             // Both arms of the verification mail: the plain one and the merge variant a
             // second account with the same address gets.
             new EmailPreviewSample("email-verification", "Email Verification",
-                emails.EmailVerification("newemail@example.com", name, verificationUrl, isConflict: false, culture)),
+                emails.EmailVerification(Guid.Empty, "newemail@example.com", name, verificationUrl, isConflict: false, culture)),
             new EmailPreviewSample("email-verification-merge", "Email Verification (Merge)",
-                emails.EmailVerification("duplicate@example.com", name, verificationUrl, isConflict: true, culture)),
+                emails.EmailVerification(Guid.Empty, "duplicate@example.com", name, verificationUrl, isConflict: true, culture)),
 
             new EmailPreviewSample("deletion-requested", "Account Deletion Requested",
-                emails.AccountDeletionRequested(email, name, SampleDeletionDate, culture)),
+                emails.AccountDeletionRequested(Guid.Empty, email, name, SampleDeletionDate, culture)),
             new EmailPreviewSample("account-deleted", "Account Deleted",
-                emails.AccountDeleted(email, name, culture)),
+                emails.AccountDeleted(Guid.Empty, email, name, culture)),
         ];
     }
 }

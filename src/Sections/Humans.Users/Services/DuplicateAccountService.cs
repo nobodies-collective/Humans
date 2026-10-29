@@ -1,4 +1,3 @@
-using Humans.Consent.Contracts;
 using Humans.Governance.Contracts;
 using Humans.AuditLog.Contracts;
 using Humans.Auth.Contracts;
@@ -8,14 +7,12 @@ using Humans.Users.Contracts;
 
 namespace Humans.Users.Services;
 
-// Detects duplicate accounts (same email across multiple User records). Resolution
-// is performed by AccountMergeService.MergeAsync — this service is detection-only.
+// Detection only; AccountMergeService.MergeAsync resolves.
 internal sealed class DuplicateAccountService(
     IUserManagement userService,
     ITeamService teamService,
     IRoleAssignmentService roleAssignmentService,
     IGovernanceService governanceService,
-    IConsentService consentService,
     IAuditLogService auditLogService) : IDuplicateAccountService
 {
     /// <summary>
@@ -26,12 +23,10 @@ internal sealed class DuplicateAccountService(
 
     public async Task<IReadOnlyList<DuplicateAccountGroup>> DetectDuplicatesAsync(CancellationToken ct = default)
     {
-        // Load all into memory — small user base; avoids complex SQL for gmail/googlemail equivalence.
+        // In memory: avoids complex SQL for gmail/googlemail equivalence.
         var allInfos = await userService.GetAllUserInfosAsync(ct);
-        // Tombstones are already absent — GetAllUserInfosAsync is one entry per living
-        // human (#1704). That matters here: a merged account still carries its pre-merge
-        // legacy User.Email column, so if one came through it would re-collide with its own
-        // survivor and the already-merged pair would reappear on the queue forever.
+        // Tombstones must stay absent: a merged account keeps its legacy User.Email column, so it
+        // would re-collide with its own survivor and the pair would reappear forever.
         var users = allInfos
             .Where(u => !string.IsNullOrEmpty(u.Email))
             .ToList();
@@ -79,9 +74,7 @@ internal sealed class DuplicateAccountService(
             .ToDictionary(u => u.Id);
 
         var tiers = await governanceService.GetMembershipTiersAsync(ct);
-        var reviews = await consentService.GetConsentReviewsAsync(ct);
 
-        // Per-user team counts (active only).
         var teamCounts = new Dictionary<Guid, int>();
         var roleAssignmentCounts = new Dictionary<Guid, int>();
         foreach (var userId in involvedUserIds)
@@ -124,10 +117,10 @@ internal sealed class DuplicateAccountService(
                         [
                             BuildAccountInfo(id1,
                                 entries.Where(e => e.UserId == id1).Select(e => e.Source).ToList(),
-                                infoMap, tiers, reviews, teamCounts, roleAssignmentCounts),
+                                infoMap, tiers, teamCounts, roleAssignmentCounts),
                             BuildAccountInfo(id2,
                                 entries.Where(e => e.UserId == id2).Select(e => e.Source).ToList(),
-                                infoMap, tiers, reviews, teamCounts, roleAssignmentCounts)
+                                infoMap, tiers, teamCounts, roleAssignmentCounts)
                         ]
                     };
                 }
@@ -139,9 +132,8 @@ internal sealed class DuplicateAccountService(
         return groups;
     }
 
-    // Flagging is an automated act the Board must be able to see. One entry per pair, written
-    // the first time the scan surfaces it: the entity is the pair's lower id so the dedupe read
-    // has one key to look under, and the related entity is the higher one.
+    // Flagging is automation the Board must see. One entry per pair, keyed on the lower id so
+    // the dedupe read has one key; the higher id is the related entity.
     private async Task FlagNewPairsAsync(IReadOnlyList<DuplicateAccountGroup> groups, CancellationToken ct)
     {
         foreach (var group in groups)
@@ -168,7 +160,6 @@ internal sealed class DuplicateAccountService(
         List<string> emailSources,
         Dictionary<Guid, UserInfo> infoMap,
         IReadOnlyDictionary<Guid, MembershipTier> tiers,
-        IReadOnlyDictionary<Guid, ConsentReviewInfo> reviews,
         Dictionary<Guid, int> teamCounts,
         Dictionary<Guid, int> roleAssignmentCounts)
     {
@@ -184,7 +175,7 @@ internal sealed class DuplicateAccountService(
         {
             membershipTier = tiers.GetValueOrDefault(userId, MembershipTier.Volunteer).ToString();
             membershipStatus = info.IsSuspended ? "Suspended"
-                : reviews.TryGetValue(userId, out var review) && review.IsApproved ? "Active" : "Pending";
+                : info.State == UserState.Active ? "Active" : "Pending";
             isProfileComplete = info.HasRequiredNameFields;
         }
 

@@ -27,13 +27,9 @@ using Humans.Users.Contracts;
 namespace Humans.Consent.Tests.Services;
 
 /// <summary>
-/// Covers the merged <see cref="LegalDocumentSyncService"/> (nobodies-collective/Humans#751):
-/// the sole writer for <c>legal_documents</c>/<c>document_versions</c>, owning both the admin
-/// write surface (<see cref="IAdminLegalDocumentService"/>) and the GitHub-sync write surface
-/// (<see cref="ILegalDocumentSyncManagement"/>). Eviction assertions (the real decorator's
-/// <c>BulkInvalidations</c>) here replace the deleted
-/// <c>LegalDocumentSaveChangesInterceptorTests</c> — invalidation now fires from the service
-/// after each successful repository write instead of from a cross-cutting EF interceptor.
+/// <see cref="LegalDocumentSyncService"/> is the sole writer for <c>legal_documents</c>/<c>document_versions</c>,
+/// owning both the admin (<see cref="IAdminLegalDocumentService"/>) and GitHub-sync
+/// (<see cref="ILegalDocumentSyncManagement"/>) write surfaces, and evicts after each successful write.
 /// </summary>
 public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
 {
@@ -134,6 +130,49 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
     }
 
     [HumansFact]
+    public async Task RequiredDocumentCache_WarmsFromEnrichedInnerSnapshot_AndFiltersTeams()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var document = await SeedDocumentAsync("Privacy");
+        var other = await SeedDocumentAsync("Other team");
+        other.TeamId = Guid.NewGuid();
+        var optional = await SeedDocumentAsync("Optional");
+        optional.IsRequired = false;
+        var inactive = await SeedDocumentAsync("Inactive");
+        inactive.IsActive = false;
+        var now = Clock.GetCurrentInstant();
+        var version = new DocumentVersion
+        {
+            Id = Guid.NewGuid(),
+            LegalDocumentId = document.Id,
+            VersionNumber = "v1",
+            CommitSha = "commit",
+            EffectiveFrom = now,
+            CreatedAt = now
+        };
+        LegalDb.DocumentVersions.Add(version);
+        await SaveAllAsync(ct);
+
+        using var provider = new ServiceCollection()
+            .AddKeyedScoped<ILegalDocumentSyncManagement>(
+                CachingLegalDocumentSyncService.InnerServiceKey, (_, _) => _service)
+            .BuildServiceProvider();
+        var cache = new CachingLegalDocumentSyncService(
+            provider.GetRequiredService<IServiceScopeFactory>(), Clock,
+            NullLogger<CachingLegalDocumentSyncService>.Instance);
+
+        var all = await cache.GetActiveRequiredDocumentsForTeamsAsync(null, ct);
+        all.Select(d => d.Id).Should().BeEquivalentTo([document.Id, other.Id]);
+        var required = (await cache.GetActiveRequiredDocumentsForTeamsAsync([_team.Id], ct))
+            .Should().ContainSingle().Subject;
+        required.TeamName.Should().Be(_team.Name);
+        required.Versions.Should().ContainSingle().Which.Id.Should().Be(version.Id);
+        (await cache.GetActiveRequiredDocumentsForTeamsAsync([], ct)).Should().BeEmpty();
+        (await cache.GetVersionByIdAsync(version.Id, ct))!.Id.Should().Be(version.Id);
+        (await cache.GetRequiredVersionsAsync(ct)).Should().ContainSingle().Which.Id.Should().Be(version.Id);
+    }
+
+    [HumansFact]
     public async Task GetLegalDocumentWithVersionsAsync_CurrentVersionIsLatestAlreadyEffective()
     {
         var ct = Xunit.TestContext.Current.CancellationToken;
@@ -163,8 +202,6 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
         detail!.CurrentVersion.Should().Be("v2");
         detail.Versions.Should().HaveCount(3);
     }
-
-    // ── NormalizeGitHubFolderPath ────────────────────────────────────────────
 
     [HumansFact]
     public void NormalizeGitHubFolderPath_PlainPath_ReturnsNormalizedFolder()
@@ -312,8 +349,6 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
         controller.TempData.Should().BeEmpty();
     }
 
-    // ── CreateLegalDocumentWithInitialSyncAsync ──────────────────────────────
-
     [HumansFact(Timeout = 10000)]
     public async Task CreateLegalDocumentWithInitialSyncAsync_PersistsAndReturnsDocument()
     {
@@ -385,8 +420,6 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
         _audit.ReceivedCalls().Should().ContainSingle();
     }
 
-    // ── UpdateLegalDocumentAsync ─────────────────────────────────────────────
-
     [HumansFact]
     public async Task UpdateLegalDocumentAsync_UpdatesAndEvictsCache()
     {
@@ -418,8 +451,6 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
         _audit.ReceivedCalls().Should().BeEmpty();
     }
 
-    // ── ArchiveLegalDocumentAsync ─────────────────────────────────────────────
-
     [HumansFact]
     public async Task ArchiveLegalDocumentAsync_ArchivesAndEvictsCache()
     {
@@ -445,8 +476,6 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
         _cache.BulkInvalidations.Should().Be(0);
         _audit.ReceivedCalls().Should().BeEmpty();
     }
-
-    // ── UpdateVersionSummaryAsync ─────────────────────────────────────────────
 
     [HumansTheory]
     [Xunit.InlineData(0)]
@@ -522,8 +551,6 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
         _audit.ReceivedCalls().Should().BeEmpty();
     }
 
-    // ── SyncLegalDocumentAsync (IAdminLegalDocumentService) ──────────────────
-
     [HumansFact]
     public async Task SyncLegalDocumentAsync_DelegatesToSameSyncPath()
     {
@@ -540,8 +567,6 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
         _cache.BulkInvalidations.Should().Be(1);
     }
 
-    // ── GitHub sync — touch-only path (no content change) ────────────────────
-
     [HumansFact]
     public async Task SyncDocumentAsync_AlreadyCurrent_TouchesAndEvictsCache()
     {
@@ -555,8 +580,6 @@ public sealed class LegalDocumentSyncServiceTests : ConsentTestHarness
         _cache.BulkInvalidations.Should().Be(1);
         _audit.ReceivedCalls().Should().BeEmpty();
     }
-
-    // ── GitHub sync — version creation & re-consent pins ─────────────────────
 
     [HumansTheory]
     [Xunit.InlineData(false)]

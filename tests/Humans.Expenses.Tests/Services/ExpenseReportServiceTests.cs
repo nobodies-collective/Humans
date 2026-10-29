@@ -39,14 +39,6 @@ using Humans.Users.Contracts;
 
 namespace Humans.Expenses.Tests.Services;
 
-/// <summary>
-/// Owns its three fixtures rather than deriving from <c>ServiceTestHarness</c>, which it did
-/// while it lived in <c>Humans.Application.Tests</c>. That harness is built around an in-memory
-/// <c>UsersDbContext</c> and this test never touched it — only the audit substitute, the clock
-/// and the section-context options below. Inheriting it here would have meant granting a section
-/// test project <c>InternalsVisibleTo</c> on <c>UsersDbContext</c>, which is the boundary the
-/// section split exists to draw (nobodies-collective/Humans#866).
-/// </summary>
 // The drain gate is static (one drain per process), so classes that drain run serially.
 [Collection("HoldedDrainGate")]
 public sealed partial class ExpenseReportServiceTests
@@ -96,6 +88,8 @@ public sealed partial class ExpenseReportServiceTests
 
     public ExpenseReportServiceTests()
     {
+        _preapprovalWrites.ReleaseAsync(default, default, default, default).ReturnsForAnyArgs(new PreapprovalWriteResult());
+        _preapprovalWrites.ConsumeAsync(default, default, default, default).ReturnsForAnyArgs(new PreapprovalWriteResult());
         _expenseRepo = new ExpenseRepository(new TestDbContextFactory<ExpensesDbContext>(_expensesOptions));
 
         // DrainHoldedOutboxAsync returns early unless IHoldedClient.IsConfigured, so the
@@ -136,8 +130,7 @@ public sealed partial class ExpenseReportServiceTests
         {
             Id = userId,
             DisplayName = profile.BurnerName,
-            // BurnerName mirrors CopyNamesToUser's dual-write from Profile onto User (nobodies-collective/Humans#1097) —
-            // UserInfo.BurnerName reads User.BurnerName only (nobodies-collective/Humans#1098).
+            // UserInfo.BurnerName reads User.BurnerName, so it is seeded there.
             BurnerName = profile.BurnerName,
             PreferredLanguage = "en",
             CreatedAt = FakeNow,
@@ -147,8 +140,6 @@ public sealed partial class ExpenseReportServiceTests
         externalLogins: [],
         profile: profile,
         communicationPreferences: []);
-
-    // ─────────────────────────────── 4.2 ─────────────────────────────────────
 
     [HumansFact]
     public async Task AbandonedExpensesIndex_CancelsReadsInsteadOfShowingAnErrorView()
@@ -645,8 +636,6 @@ public sealed partial class ExpenseReportServiceTests
         (await _sut.GetAsync(reportId, ct))!.SubmitterUserId.Should().Be(sourceId);
     }
 
-    // ─────────────────────────────── 4.3 ─────────────────────────────────────
-
     [HumansFact]
     public async Task AddLineAsync_AddsLine_AndUpdatesTotal()
     {
@@ -768,8 +757,6 @@ public sealed partial class ExpenseReportServiceTests
         loaded!.Total.Should().Be(15m);
         loaded.Lines[0].Description.Should().Be("A updated");
     }
-
-    // ─────────────────── AttachFileToLineAsync / RemoveAttachmentFromLineAsync ───
 
     [HumansFact]
     public async Task UpdateLineWithResultAsync_ReturnsSuccess_WhenLineUpdated()
@@ -1195,8 +1182,6 @@ public sealed partial class ExpenseReportServiceTests
         await act.Should().NotThrowAsync();
         await _fileStorage.DidNotReceiveWithAnyArgs().DeleteAsync(null!, Arg.Any<CancellationToken>());
     }
-
-    // ───────────────── Invoice lines + proof rows ────────────────────────────
 
     [HumansFact]
     public async Task AddLineAsync_ProofRow_UnderInvoiceLine_ExcludedFromTotal()
@@ -1661,8 +1646,6 @@ public sealed partial class ExpenseReportServiceTests
         (await _sut.GetAsync(id, TestContext.Current.CancellationToken))!.Status.Should().Be(ExpenseReportStatus.Draft);
     }
 
-    // ─────────────────────────────── 4.4 ─────────────────────────────────────
-
     [HumansTheory]
     [InlineData("", "Tester", false)]
     [InlineData("Alice", " ", false)]
@@ -2106,8 +2089,6 @@ public sealed partial class ExpenseReportServiceTests
         result.Error!.ResourceKey.Should().Be("Expenses_Validation_OnlySubmitterCanWithdraw");
     }
 
-    // ─────────────────────────────── 4.5 ─────────────────────────────────────
-
     [HumansFact]
     public async Task SaveSubmitterIbanWithResultAsync_ReturnsSuccess_WhenIbanSaved()
     {
@@ -2155,8 +2136,6 @@ public sealed partial class ExpenseReportServiceTests
         await _financeWrite.DidNotReceive().SetIbanAsync(
             Arg.Any<Guid>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
-
-    // ─────────────────── Acting on a member's behalf ─────────────────────────
 
     [HumansFact]
     public async Task CreateDraftAsync_OnBehalf_MakesTheMemberTheSubmitter_AndAudits()
@@ -2547,50 +2526,6 @@ public sealed partial class ExpenseReportServiceTests
     }
 
     [HumansFact]
-    public async Task CategoryRequiresCoordinatorEndorsementAsync_True_WhenCategoryTeamHasCoordinator()
-    {
-        var teamId = Guid.NewGuid();
-        var categoryId = Guid.NewGuid();
-        var coordinatorUserId = Guid.NewGuid();
-
-        _budgetService.GetCategoryByIdAsync(categoryId)
-            .Returns(MakeCategorySnapshot(categoryId, teamId));
-        _teamService.GetTeamAsync(teamId, Arg.Any<CancellationToken>())
-            .Returns(MakeTeamInfo(teamId, [(coordinatorUserId, TeamMemberRole.Coordinator)]));
-
-        var result = await _sut.CategoryRequiresCoordinatorEndorsementAsync(categoryId, TestContext.Current.CancellationToken);
-        result.Should().BeTrue();
-    }
-
-    [HumansFact]
-    public async Task CategoryRequiresCoordinatorEndorsementAsync_False_WhenCategoryTeamHasNoCoordinator()
-    {
-        var teamId = Guid.NewGuid();
-        var categoryId = Guid.NewGuid();
-
-        _budgetService.GetCategoryByIdAsync(categoryId)
-            .Returns(MakeCategorySnapshot(categoryId, teamId));
-        _teamService.GetTeamAsync(teamId, Arg.Any<CancellationToken>())
-            .Returns(MakeTeamInfo(teamId, [(Guid.NewGuid(), TeamMemberRole.Member)]));
-
-        var result = await _sut.CategoryRequiresCoordinatorEndorsementAsync(categoryId, TestContext.Current.CancellationToken);
-        result.Should().BeFalse();
-    }
-
-    [HumansFact]
-    public async Task CategoryRequiresCoordinatorEndorsementAsync_False_WhenCategoryHasNoTeam()
-    {
-        var categoryId = Guid.NewGuid();
-        _budgetService.GetCategoryByIdAsync(categoryId)
-            .Returns(MakeCategorySnapshot(categoryId, teamId: null));
-
-        var result = await _sut.CategoryRequiresCoordinatorEndorsementAsync(categoryId, TestContext.Current.CancellationToken);
-        result.Should().BeFalse();
-    }
-
-    // ─────────────────────────────── 4.6 ─────────────────────────────────────
-
-    [HumansFact]
     public async Task CoordinatorEndorseAsync_FlipsToCoordinatorEndorsed()
     {
         var (_, category) = SetupActiveYear();
@@ -2630,7 +2565,6 @@ public sealed partial class ExpenseReportServiceTests
         result.Succeeded.Should().BeFalse();
         result.Error!.OperatorMessage.Should().Contain("not booked to a budget category");
         (await _sut.GetAsync(reportId, TestContext.Current.CancellationToken))!.Status.Should().Be(ExpenseReportStatus.Submitted);
-        (await _sut.CategoryRequiresCoordinatorEndorsementAsync(null, TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
     [HumansFact]
@@ -2792,8 +2726,6 @@ public sealed partial class ExpenseReportServiceTests
             coordinator);
     }
 
-    // ─────────────────────────────── 4.7 ─────────────────────────────────────
-
     [HumansFact]
     public async Task CoordinatorRejectWithResultAsync_ReturnsSuccess_WhenRejected()
     {
@@ -2913,7 +2845,7 @@ public sealed partial class ExpenseReportServiceTests
     public async Task ApproveAsync_EmailsTheSubmitter_WithTheCappedAmountAndAMaskedIban(string language, string expectedCulture, string amount)
     {
         using var actorCulture = new CultureScope("fr");
-        // peterdrier/Humans#1820: the one moment a member hears that money is coming.
+        // The one moment a member hears that money is coming.
         var (_, category) = SetupActiveYear();
         var submitter = Guid.NewGuid();
         var reportId = Guid.NewGuid();
@@ -3142,8 +3074,6 @@ public sealed partial class ExpenseReportServiceTests
             Arg.Any<string>(), actor);
     }
 
-    // ─────────────────────────────── 4.8 ─────────────────────────────────────
-
     [HumansFact]
     public async Task FinanceRejectWithResultAsync_ReturnsSuccess_WhenRejected()
     {
@@ -3310,8 +3240,6 @@ public sealed partial class ExpenseReportServiceTests
         result[0].Id.Should().Be(submittedId);
     }
 
-    // ─────────────────────── Holded timeline (submitter view) ───────────────────
-
     [HumansFact]
     public async Task GetHoldedTimelineAsync_builds_timeline_with_owed_and_other()
     {
@@ -3459,8 +3387,6 @@ public sealed partial class ExpenseReportServiceTests
         timeline.PaidOn.Should().Be(new LocalDate(2026, 4, 20));
     }
 
-    // ─────────────────────── Travel wizard methods ────────────────────────────
-
     [HumansFact]
     public async Task AddMileageLineWithResultAsync_ComputesAmount_FormatsDescription_SetsType()
     {
@@ -3508,8 +3434,6 @@ public sealed partial class ExpenseReportServiceTests
         line.Amount.Should().Be(26.67m);
         line.Description.Should().Be("Per diem: 1 day day-trip @ €26.67 = €26.67");
     }
-
-    // ─────────────────────────── Per-line decline ────────────────────────────
 
     private static readonly Guid DeclineFinanceAdmin = Guid.NewGuid();
 
@@ -3871,8 +3795,6 @@ public sealed partial class ExpenseReportServiceTests
         loaded.Lines.Single(l => l.Id == lineIds[1]).HoldedDocId.Should().BeNull();
     }
 
-    // ─────────────────────── Holded contact enrichment ───────────────────────
-
     [HumansFact]
     public async Task DrainHoldedOutboxAsync_SecondReport_SeedsContactIdFromTheMembersEarlierReport()
     {
@@ -3917,11 +3839,11 @@ public sealed partial class ExpenseReportServiceTests
         _holdedFinance.ClearReceivedCalls();
         _holdedFinanceWrite.ClearReceivedCalls();
 
-        // Act — a fresh report for the same member carries no contact id of its own.
+        // A fresh report for the same member carries no contact id of its own.
         await SeedApprovedReportWithAttachmentAsync(userId);
         await _backgroundProcessor.DrainHoldedOutboxAsync(100, TestContext.Current.CancellationToken);
 
-        // Assert — the earlier report's contact id (and its account number) are passed as the seed,
+        // The earlier report's contact id (and its account number) are passed as the seed,
         // so Finance reuses the existing contact instead of creating a duplicate.
         await _holdedFinanceWrite.Received(1).EnsureCreditorContactAsync(
             userId, Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -3931,7 +3853,7 @@ public sealed partial class ExpenseReportServiceTests
     [HumansFact]
     public async Task DrainHoldedOutboxAsync_MergedSubmitter_BindsAndNumbersTheSurvivor()
     {
-        // Arrange — the report was submitted under an id that has since been merged into a survivor.
+        // The report was submitted under an id that has since been merged into a survivor.
         var (_, category) = SetupActiveYear();
         var tombstoneId = Guid.NewGuid();
         var survivorId = Guid.NewGuid();
@@ -3968,10 +3890,9 @@ public sealed partial class ExpenseReportServiceTests
         _budgetService.GetCategoryByIdAsync(category.Id).Returns(
             MakeCategorySnapshot(category.Id, teamId: null, "Test Category"));
 
-        // Act
         await _backgroundProcessor.DrainHoldedOutboxAsync(100, TestContext.Current.CancellationToken);
 
-        // Assert — both the binding and its account number land on the survivor, never the tombstone.
+        // Both the binding and its account number land on the survivor, never the tombstone.
         await _holdedFinanceWrite.Received(1).EnsureCreditorContactAsync(
             survivorId, Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -3984,7 +3905,7 @@ public sealed partial class ExpenseReportServiceTests
     [HumansFact]
     public async Task DrainHoldedOutboxAsync_DelegatesContactEnrichmentToFinance_PersistsContactLink()
     {
-        // Arrange — active year + user with distinct legal name and burner
+        // A user with distinct legal name and burner.
         var (_, category) = SetupActiveYear();
         var userId = Guid.NewGuid();
         const string legalFirst = "Maria";
@@ -4007,7 +3928,7 @@ public sealed partial class ExpenseReportServiceTests
         var reportBefore = await _sut.GetAsync(reportId, TestContext.Current.CancellationToken);
         var line = reportBefore!.Lines[0];
 
-        // Configure Holded substitutes — contact enrichment is delegated to Finance now.
+        // Contact enrichment is delegated to Finance.
         _holdedFinanceWrite.EnsureCreditorContactAsync(
                 Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(),
                 Arg.Any<string?>(), Arg.Any<int?>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -4036,22 +3957,21 @@ public sealed partial class ExpenseReportServiceTests
         _budgetService.GetCategoryByIdAsync(category.Id).Returns(
             MakeCategorySnapshot(category.Id, teamId: null, "Test Category"));
 
-        // Act
         await _backgroundProcessor.DrainHoldedOutboxAsync(100, TestContext.Current.CancellationToken);
 
-        // Assert — contact enrichment delegated to Finance with the legal name, burner and iban
+        // Contact enrichment is delegated to Finance with the legal name, burner and iban
         // (the contact payload itself — Name/TradeName/CustomId — is covered in HoldedFinanceServiceTests).
         await _holdedFinanceWrite.Received(1).EnsureCreditorContactAsync(
             userId, legalName, burnerName, iban,
             Arg.Any<string?>(), Arg.Any<int?>(), ExpenseReportBackgroundProcessor.OutboxJobName,
             Arg.Any<CancellationToken>());
 
-        // Assert — the resolved 400000xx number is written back to the member's binding, under the
+        // The resolved 400000xx number is written back to the member's binding, under the
         // outbox job's name so Finance's audit entry names the actor
         await _holdedFinanceWrite.Received(1).SetCreditorAccountNumAsync(
             userId, 40000007, ExpenseReportBackgroundProcessor.OutboxJobName, Arg.Any<CancellationToken>());
 
-        // Assert — contact link mirrored onto the report
+        // The contact link is mirrored onto the report.
         var loaded = await _sut.GetAsync(reportId, TestContext.Current.CancellationToken);
         loaded!.HoldedContactId.Should().Be("contact-123");
         loaded.HoldedSupplierAccountNum.Should().Be(40000007);
@@ -4080,12 +4000,9 @@ public sealed partial class ExpenseReportServiceTests
         return reportId;
     }
 
-    // ─────────────────────────── Helpers ─────────────────────────────────────
-
     /// <summary>
     /// Stubs the active budget year and one category on <c>IBudgetService</c>. Builds the
-    /// contract DTOs directly: Budget's entities are internal to <c>Humans.Budget</c> since its
-    /// own-project move (nobodies-collective/Humans#866), and the DTOs are all this test ever asserted on.
+    /// contract DTOs directly: Budget's entities are internal to <c>Humans.Budget</c>.
     /// </summary>
     private (BudgetYearDetail Year, BudgetCategorySnapshot Category) SetupActiveYear()
     {

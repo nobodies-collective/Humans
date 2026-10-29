@@ -28,6 +28,7 @@ internal sealed class EventsApiController(
     ILogger<EventsApiController> logger)
     : ApiControllerBase(users)
 {
+    [AllowAnonymous]
     [HttpGet("events")]
     public async Task<IActionResult> GetEvents(
         [FromQuery] int? day,
@@ -67,6 +68,7 @@ internal sealed class EventsApiController(
         return Ok(results);
     }
 
+    [AllowAnonymous]
     [HttpGet("events/{id:guid}")]
     public async Task<IActionResult> GetEvent(Guid id)
     {
@@ -88,6 +90,7 @@ internal sealed class EventsApiController(
         return Ok(BuildEventDto(e, e.StartAt, ComputeDayOffset(e.StartAt, gateOpeningDate, tz), campName, submitterName));
     }
 
+    [AllowAnonymous]
     [HttpGet("barrios")]
     public async Task<IActionResult> GetBarrios()
     {
@@ -113,6 +116,7 @@ internal sealed class EventsApiController(
         return Ok(barrioGroups);
     }
 
+    [AllowAnonymous]
     [HttpGet("barrios/{id:guid}")]
     public async Task<IActionResult> GetBarrio(Guid id)
     {
@@ -141,6 +145,7 @@ internal sealed class EventsApiController(
             }).ToList()));
     }
 
+    [AllowAnonymous]
     [HttpGet("categories")]
     public async Task<IActionResult> GetCategories()
     {
@@ -153,8 +158,6 @@ internal sealed class EventsApiController(
             c.IsSensitive,
             c.DisplayOrder)));
     }
-
-    // ─── Preferences (authenticated, same-origin — no CORS) ───────
 
     [Authorize]
     [DisableCors]
@@ -195,8 +198,6 @@ internal sealed class EventsApiController(
         public List<string> ExcludedCategorySlugs { get; set; } = [];
     }
 
-    // ─── Favourites (authenticated, same-origin — no CORS) ────────
-
     [Authorize]
     [DisableCors]
     [HttpGet("favourites")]
@@ -221,8 +222,7 @@ internal sealed class EventsApiController(
             var campName = ResolveCampNameById(e.CampId, campsById);
             var submitterName = ResolveSubmitterName(e, submitterInfoById);
 
-            // One entry per favourited occurrence (day-specific favourites
-            // expand to that single occurrence) — mirrors the schedule page.
+            // One entry per favourited occurrence; a day-specific favourite expands to that one occurrence.
             IReadOnlyList<Instant> occurrences = e.GetOccurrenceInstants(gateOpeningDate, tz, f.DayOffset);
 
             return occurrences.Select(start =>
@@ -273,8 +273,6 @@ internal sealed class EventsApiController(
         if (!removed) return NotFound();
         return Ok(new { unfavourited = true });
     }
-
-    // ─── Helpers ──────────────────────────────────────────────────
 
     private async Task<List<string>> GetExcludedSlugsAsync(CancellationToken ct)
     {

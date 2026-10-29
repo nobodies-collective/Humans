@@ -27,11 +27,11 @@ A stub for the future Low Income process. Today it is one Admin-only page that g
 
 - The section owns no tables, no services and no migrations.
 - Every action goes through `IGrantWrite` with source key `low-income`; Grants writes the row, the audit entry and the notice.
-- No open Low Income program in Grants is shown as an error on the page, never thrown.
+- No open Low Income program in Grants is shown as an error on the page, never thrown. Typed source-write refusals preserve the operator guidance; expected failures log Warning without exception stacks. Dependency failures propagate instead of being mislabeled as a missing program or overlong reason.
 
 ## Negative Access Rules
 
-- Board, HumanAdmin, program managers and every other role **cannot** reach the page or post its actions (`PolicyNames.AdminOnly` on the class and on each POST).
+- Board, UsersAdmin, program managers and every other role **cannot** reach the page or post its actions (`PolicyNames.AdminOnly` on the class and on each POST).
 
 ## Triggers
 

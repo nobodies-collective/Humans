@@ -5,12 +5,8 @@ using Humans.Guide.Services;
 namespace Humans.Guide.Tests.Services;
 
 /// <summary>
-/// The leak check, run over every file that actually ships. Under the old HTML filter this
-/// could only be approximated — a test asserted that Markdig emitted no nested
-/// <c>&lt;div&gt;</c> inside a role block, because a nested one truncated the regex match and
-/// leaked the tail of the block. Filtering markdown removes that failure mode, so the property
-/// can now be stated directly: an anonymous reader never receives a role heading written for
-/// somebody else.
+/// The leak check, run over every file that actually ships: an anonymous reader never receives a
+/// role heading written for somebody else.
 /// </summary>
 public class GuideShippedContentFilterTests
 {
@@ -26,7 +22,7 @@ public class GuideShippedContentFilterTests
 
         foreach (var file in Directory.GetFiles(GuideDir(), "*.md"))
         {
-            var document = GuideSegmenter.Segment(File.ReadAllText(file));
+            var document = GuideTestRoles.Segmenter.Segment(File.ReadAllText(file));
             var visible = GuideFilter.Apply(document, GuideRoleContext.Anonymous);
 
             foreach (var line in visible.Split('\n').Select(l => l.TrimEnd('\r')))
@@ -56,7 +52,7 @@ public class GuideShippedContentFilterTests
         {
             var markdown = File.ReadAllText(file);
 
-            GuideFilter.Apply(GuideSegmenter.Segment(markdown), context)
+            GuideFilter.Apply(GuideTestRoles.Segmenter.Segment(markdown), context)
                 .Should().Be(markdown, because: $"{Path.GetFileName(file)} must reach an admin intact");
         }
     }

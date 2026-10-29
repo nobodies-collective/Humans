@@ -1,49 +1,55 @@
 using Humans.Base.Authorization;
 using Humans.Settings.Contracts;
 using Humans.Settings.Models;
+using Humans.Settings.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Humans.Settings.ViewComponents;
 
 /// <summary>
-/// The /Settings#event tab (peterdrier/Humans#1628): wraps the section's own
-/// <c>_EventSettingsForm</c> partial. <see cref="SectionSettings"/> contributes the tab
-/// with no policy, so every authenticated member reaches it; this component decides
-/// editable vs read-only per viewer against <see cref="PolicyNames.AdminOnly"/>.
-/// An admin viewer may also name a specific row via <c>?event={id}</c> — the save
-/// redirect carries the id so the row just saved stays the one displayed.
-/// A non-admin always gets the active row regardless of the query string.
+/// Editable for <see cref="PolicyNames.AdminOnly"/>, read-only otherwise. An admin sees every event and may name a row
+/// via <c>?event={id}</c>, which the save redirect carries, or <c>?event=new</c> for the next event; a non-admin always
+/// gets the active row.
 /// </summary>
 internal sealed class EventSettingsTabViewComponent(
-    ISettingsService settingsService,
+    ISettingsWriteService settingsService,
     IAuthorizationService authorizationService) : ViewComponent
 {
     public async Task<IViewComponentResult> InvokeAsync()
     {
+        var ct = HttpContext.RequestAborted;
         var canEdit = (await authorizationService.AuthorizeAsync(UserClaimsPrincipal, null, PolicyNames.AdminOnly))
             .Succeeded;
 
+        if (!canEdit)
+        {
+            var active = await settingsService.GetActiveEventSettingsAsync(ct);
+            return View(new EventSettingsTabViewModel(
+                active is null ? null : EventSettingsFormMapper.ToViewModel(active), CanEdit: false, Events: [],
+                TimeZoneId: active?.TimeZoneId ?? string.Empty));
+        }
+
+        var events = (await settingsService.GetAllEventSettingsAsync(ct)).OrderBy(e => e.GateOpeningDate).ToList();
+        var query = HttpContext.Request.Query["event"].ToString();
+
         EventSettingsInfo? settings = null;
-        if (canEdit && Guid.TryParse(HttpContext.Request.Query["event"], out var rowId))
-            settings = await settingsService.GetEventSettingsByIdAsync(rowId, HttpContext.RequestAborted);
+        if (Guid.TryParse(query, out var rowId))
+            settings = await settingsService.GetEventSettingsByIdAsync(rowId, ct);
 
-        settings ??= await settingsService.GetActiveEventSettingsAsync(HttpContext.RequestAborted);
+        if (settings is null && !string.Equals(query, "new", StringComparison.OrdinalIgnoreCase))
+            settings = await settingsService.GetActiveEventSettingsAsync(ct);
 
-        // An admin with no active (or named) row yet may start a new cycle — Settings
-        // mints event ids now (nobodies-collective/Humans#1631) — so hand them a blank
-        // form instead of the "nothing configured" message.
-        EventSettingsViewModel? viewModel = settings is not null
+        // Asking for a new event, or having no active one, starts the next event from the latest one's shape.
+        var viewModel = settings is not null
             ? EventSettingsFormMapper.ToViewModel(settings)
-            : canEdit ? new EventSettingsViewModel() : null;
+            : EventSettingsFormMapper.NextEvent(events.Where(e => e.Status != EventSettingsStatus.Deleted).LastOrDefault());
 
-        return View(new EventSettingsTabViewModel(viewModel, canEdit));
+        return View(new EventSettingsTabViewModel(
+            viewModel, CanEdit: true, events, await settingsService.GetTimeZoneIdAsync(ct)));
     }
 }
 
-/// <summary>
-/// What the tab's view needs: the active event's values (already mapped onto the
-/// same form model <c>/Settings/Admin</c> binds on POST, so <c>_EventSettingsForm</c>
-/// renders unchanged), and whether this viewer may edit them.
-/// </summary>
-internal sealed record EventSettingsTabViewModel(EventSettingsViewModel? Settings, bool CanEdit);
+/// <summary><see cref="Settings"/> uses the same form model <c>/Settings/Admin</c> binds on POST.</summary>
+internal sealed record EventSettingsTabViewModel(
+    EventSettingsViewModel? Settings, bool CanEdit, IReadOnlyList<EventSettingsInfo> Events, string TimeZoneId);

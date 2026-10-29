@@ -1,5 +1,4 @@
 using AwesomeAssertions;
-using Humans.AuditLog.Contracts;
 using Humans.Base.Configuration;
 using Humans.Base.Extensions;
 using Humans.Email.Contracts;
@@ -15,10 +14,7 @@ using NSubstitute;
 
 namespace Humans.Email.Tests.Controllers;
 
-/// <summary>
-/// The gallery is built entirely from the registered <see cref="IEmailPreviewContributor"/>s
-/// now that the sending sections own their templates (peterdrier/Humans#1651).
-/// </summary>
+/// <summary>The gallery is built entirely from the registered <see cref="IEmailPreviewContributor"/>s.</summary>
 public sealed class EmailPreviewGalleryTests
 {
     private sealed class StubContributor(params string[] ids) : IEmailPreviewContributor
@@ -29,7 +25,7 @@ public sealed class EmailPreviewGalleryTests
         {
             Asked.Add(persona);
             return [.. ids.Select(id => new EmailPreviewSample(id, $"Sample {id}",
-                new EmailMessage(persona.Email, persona.Name, $"Subject {id}", "<p>Contributed</p>", id)))];
+                new EmailMessage(persona.Email, persona.Name, Guid.Empty, $"Subject {id}", "<p>Contributed</p>", id)))];
         }
     }
 
@@ -42,7 +38,6 @@ public sealed class EmailPreviewGalleryTests
         var controller = new EmailController(
             Substitute.For<IUserService>(),
             Substitute.For<IEmailOutboxManagement>(),
-            Substitute.For<IAuditLogService>(),
             NullLogger<EmailController>.Instance,
             Options.Create(new EmailSettings()));
 
@@ -56,7 +51,7 @@ public sealed class EmailPreviewGalleryTests
     {
         var outbox = Substitute.For<IEmailOutboxManagement>();
         var controller = new EmailController(Substitute.For<IUserService>(), outbox,
-            Substitute.For<IAuditLogService>(), NullLogger<EmailController>.Instance,
+            NullLogger<EmailController>.Instance,
             Options.Create(new EmailSettings()))
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }

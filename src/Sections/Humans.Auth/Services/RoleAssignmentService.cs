@@ -14,7 +14,6 @@ using Humans.Teams.Contracts;
 
 namespace Humans.Auth.Services;
 
-// Stitches display data from UserInfo in memory — design-rules §6b in-memory join.
 [DontFix(
     reason: "Auth (crosscut) references vertical sections — IUserService for assignee/creator display stitching, ISystemTeamSync for system-team membership. Permanent exception pending Peter-led inversion.",
     since: "2026-05-25")]
@@ -25,10 +24,10 @@ internal sealed class RoleAssignmentService(
     INotificationEmitter notificationService,
     ISystemTeamSync systemTeamSyncJob,
     CachingRoleAssignmentService rowCache,
+    RoleCatalog catalog,
     IClock clock,
     ILogger<RoleAssignmentService> logger) : IRoleAssignmentManagement, IUserDataContributor, IUserMerge
 {
-    /// <summary>GDPR export JSON key for this contributor's data.</summary>
     internal const string RoleAssignments = "RoleAssignments";
 
     public async Task<(IReadOnlyList<RoleAssignmentSummarySnapshot> Items, int TotalCount)> GetFilteredAsync(
@@ -36,7 +35,7 @@ internal sealed class RoleAssignmentService(
         CancellationToken ct = default)
     {
         var (items, totalCount) = await repository.GetFilteredAsync(
-            roleFilter, activeOnly, page, pageSize, now, ct);
+            string.IsNullOrWhiteSpace(roleFilter) ? null : catalog.StoredNames(roleFilter), activeOnly, page, pageSize, now, ct);
 
         return (await ToSummarySnapshotsAsync(items, ct), totalCount);
     }
@@ -49,7 +48,7 @@ internal sealed class RoleAssignmentService(
         var user = await userService.GetUserInfoAsync(assignment.UserId, ct);
         return new RoleAssignmentDetailSnapshot(
             assignment.UserId,
-            assignment.RoleName,
+            catalog.Canonical(assignment.RoleName),
             user?.BurnerName ?? "Unknown");
     }
 
@@ -81,7 +80,7 @@ internal sealed class RoleAssignmentService(
             assignment.UserId,
             user?.Email,
             user?.BurnerName ?? "Unknown",
-            assignment.RoleName,
+            catalog.Canonical(assignment.RoleName),
             assignment.ValidFrom,
             assignment.ValidTo,
             assignment.Notes,
@@ -96,9 +95,15 @@ internal sealed class RoleAssignmentService(
         string? notes,
         CancellationToken ct = default)
     {
+        if (!catalog.Contains(roleName))
+        {
+            return new RoleAssignmentResult(false, "UnknownRole");
+        }
+
         var now = clock.GetCurrentInstant();
 
-        var hasOverlap = await repository.HasOverlappingAssignmentAsync(userId, roleName, now, validTo: null, ct);
+        var hasOverlap = await repository.HasOverlappingAssignmentAsync(
+            userId, catalog.StoredNames(roleName), now, validTo: null, ct);
         if (hasOverlap)
         {
             return new RoleAssignmentResult(false, "RoleAlreadyActive");
@@ -202,7 +207,7 @@ internal sealed class RoleAssignmentService(
             logger.LogError(ex, "Failed to dispatch RoleAssignmentChanged notification for user {UserId} role {Role}", roleAssignment.UserId, roleAssignment.RoleName);
         }
 
-        if (string.Equals(roleAssignment.RoleName, RoleNames.Board, StringComparison.Ordinal))
+        if (string.Equals(catalog.Canonical(roleAssignment.RoleName), RoleNames.Board, StringComparison.Ordinal))
         {
             await systemTeamSyncJob.SyncBoardTeamAsync();
         }
@@ -211,16 +216,16 @@ internal sealed class RoleAssignmentService(
     }
 
     public Task<bool> IsUserAdminAsync(Guid userId, CancellationToken cancellationToken = default) =>
-        repository.HasActiveRoleAsync(userId, RoleNames.Admin, clock.GetCurrentInstant(), cancellationToken);
+        HasActiveRoleAsync(userId, RoleNames.Admin, cancellationToken);
 
     public Task<bool> IsUserBoardMemberAsync(Guid userId, CancellationToken cancellationToken = default) =>
-        repository.HasActiveRoleAsync(userId, RoleNames.Board, clock.GetCurrentInstant(), cancellationToken);
+        HasActiveRoleAsync(userId, RoleNames.Board, cancellationToken);
 
     public Task<bool> IsUserTeamsAdminAsync(Guid userId, CancellationToken cancellationToken = default) =>
-        repository.HasActiveRoleAsync(userId, RoleNames.TeamsAdmin, clock.GetCurrentInstant(), cancellationToken);
+        HasActiveRoleAsync(userId, TeamsRoles.TeamsAdmin, cancellationToken);
 
     public Task<bool> HasActiveRoleAsync(Guid userId, string roleName, CancellationToken cancellationToken = default) =>
-        repository.HasActiveRoleAsync(userId, roleName, clock.GetCurrentInstant(), cancellationToken);
+        repository.HasActiveRoleAsync(userId, catalog.StoredNames(roleName), clock.GetCurrentInstant(), cancellationToken);
 
     public Task<bool> HasAnyActiveAssignmentAsync(Guid userId, CancellationToken cancellationToken = default) =>
         repository.HasAnyActiveAssignmentAsync(userId, clock.GetCurrentInstant(), cancellationToken);
@@ -230,7 +235,7 @@ internal sealed class RoleAssignmentService(
 
     public Task<IReadOnlyList<Guid>> GetActiveUserIdsInRoleAsync(
         string roleName, CancellationToken ct = default) =>
-        repository.GetActiveUserIdsInRoleAsync(roleName, clock.GetCurrentInstant(), ct);
+        repository.GetActiveUserIdsInRoleAsync(catalog.StoredNames(roleName), clock.GetCurrentInstant(), ct);
 
     public async Task<int> RevokeAllActiveAsync(Guid userId, CancellationToken ct = default)
     {
@@ -255,12 +260,11 @@ internal sealed class RoleAssignmentService(
     public async Task ReassignAsync(Guid sourceUserId, Guid targetUserId, Guid actorUserId, Instant updatedAt,
         CancellationToken cancellationToken)
     {
-        // The merge fold commits each section's step on its own (no wrapping transaction),
-        // so the re-FK is final when it returns. Evict even when it throws, as the
-        // orchestrator's finally used to.
+        // The merge commits each section's step on its own, so the re-FK is final when it returns. Evict even
+        // when it throws.
         try
         {
-            await repository.ReassignToUserAsync(sourceUserId, targetUserId, updatedAt, cancellationToken);
+            await repository.ReassignToUserAsync(sourceUserId, targetUserId, updatedAt, catalog.Canonical, cancellationToken);
         }
         finally
         {
@@ -274,13 +278,44 @@ internal sealed class RoleAssignmentService(
         var all = await repository.GetByUserIdAsync(userId, ct);
         return all
             .Where(ra => ra.IsActive(now))
+            .Select(ra => new RoleAssignmentSnapshot(catalog.Canonical(ra.RoleName), ra.ValidTo))
             .OrderBy(ra => ra.RoleName, StringComparer.Ordinal)
-            .Select(ra => new RoleAssignmentSnapshot(ra.RoleName, ra.ValidTo))
             .ToList();
     }
 
-    public Task<IReadOnlyDictionary<string, int>> GetActiveCountsByRoleAsync(CancellationToken ct = default) =>
-        repository.GetActiveCountsByRoleAsync(clock.GetCurrentInstant(), ct);
+    public async Task<IReadOnlyDictionary<string, int>> GetActiveCountsByRoleAsync(CancellationToken ct = default)
+    {
+        var stored = await repository.GetActiveCountsByRoleAsync(clock.GetCurrentInstant(), ct);
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var (name, count) in stored)
+        {
+            var current = catalog.Canonical(name);
+            counts[current] = counts.GetValueOrDefault(current) + count;
+        }
+        return counts;
+    }
+
+    /// <summary>Rows the <c>auth.role-renames</c> data migration still has to rewrite.</summary>
+    internal async Task<IReadOnlyList<(Guid UserId, string StoredName, string CurrentName, Instant? ValidTo)>>
+        GetRowsUnderFormerNamesAsync(CancellationToken ct)
+    {
+        var rows = await repository.GetByRoleNamesForMutationAsync(catalog.AllFormerNames, ct);
+        return [.. rows.Select(r => (r.UserId, r.RoleName, catalog.Canonical(r.RoleName), r.ValidTo))];
+    }
+
+    /// <summary>Idempotent: a second run finds no row under a former name.</summary>
+    internal async Task<int> RewriteFormerNamesAsync(CancellationToken ct)
+    {
+        var rows = await repository.GetByRoleNamesForMutationAsync(catalog.AllFormerNames, ct);
+        foreach (var row in rows)
+        {
+            row.RoleName = catalog.Canonical(row.RoleName);
+        }
+
+        await repository.UpdateManyAsync(rows, ct);
+        rowCache.Clear();
+        return rows.Count;
+    }
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
@@ -288,7 +323,7 @@ internal sealed class RoleAssignmentService(
 
         var shaped = assignments.Select(ra => new
         {
-            ra.RoleName,
+            RoleName = catalog.Canonical(ra.RoleName),
             ValidFrom = ra.ValidFrom.ToIso8601(),
             ValidTo = ra.ValidTo.ToIso8601()
         }).ToList();

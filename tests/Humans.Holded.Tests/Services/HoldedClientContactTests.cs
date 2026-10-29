@@ -109,7 +109,7 @@ public class HoldedClientContactTests
     [HumansFact]
     public async Task ListContacts_treats_a_non_object_supplierRecord_as_no_account()
     {
-        // Regression for #994: Holded sends an absent sub-record as an empty array, and the raw
+        // Holded sends an absent sub-record as an empty array, and the raw
         // node["supplier_record"]?["num"] indexer threw InvalidOperationException on it. The caller
         // degrades a throw to an empty list, so this one contact blanked every account name in prod.
         var json = """
@@ -132,7 +132,7 @@ public class HoldedClientContactTests
     public async Task ListContacts_surfaces_an_unreadable_page_envelope_as_permanent_not_a_raw_parse_throw()
     {
         // A page-level parse failure (the envelope, not one contact's value) is distinct from the
-        // per-contact skip-and-log below (#994): the whole page is unreadable, so there is nothing
+        // per-contact skip-and-log below: the whole page is unreadable, so there is nothing
         // to skip-and-continue.
         var client = Make(new StubHandler(_ => Respond(HttpStatusCode.OK, "not json")));
 
@@ -144,7 +144,7 @@ public class HoldedClientContactTests
     [HumansFact]
     public async Task ListContacts_skips_an_unreadable_contact_and_keeps_the_rest()
     {
-        // A value of the wrong type anywhere in the projection used to take down the whole page.
+        // A value of the wrong type anywhere in the projection must not take down the whole page.
         var json = """
         {"items":[
           {"id":42,"name":"Numeric id"},
@@ -189,7 +189,7 @@ public class HoldedClientContactTests
     [HumansFact]
     public async Task ListContacts_follows_cursor_until_has_more_false()
     {
-        // Regression for #976: an unpaged call silently truncated at whatever cap Holded applies.
+        // An unpaged call silently truncates at whatever cap Holded applies.
         var callCount = 0;
         string? secondQuery = null;
         var handler = new StubHandler(req =>
@@ -231,7 +231,7 @@ public class HoldedClientContactTests
     }
 
     [HumansFact]
-    public async Task UpsertContact_always_posts_and_returns_id()
+    public async Task CreateContact_always_posts_and_returns_id()
     {
         string? method = null;
         var client = Make(new StubHandler(req =>
@@ -240,14 +240,14 @@ public class HoldedClientContactTests
             return Respond(HttpStatusCode.OK, """{"id":"new-c"}""");
         }));
 
-        var id = await client.UpsertContactAsync(new HoldedContactInput { Name = "Legal", CustomId = "u1" }, Xunit.TestContext.Current.CancellationToken);
+        var id = await client.CreateContactAsync(new HoldedContactInput { Name = "Legal", CustomId = "u1" }, Xunit.TestContext.Current.CancellationToken);
 
         method.Should().Be("POST");
         id.Should().Be("new-c");
     }
 
     [HumansFact]
-    public async Task UpsertContact_does_not_send_custom_id_v2_has_no_such_field()
+    public async Task CreateContact_does_not_send_custom_id_v2_has_no_such_field()
     {
         // v2 contacts POST schema has no `custom_id` property (it is read-only on GET).
         string? capturedBody = null;
@@ -257,7 +257,7 @@ public class HoldedClientContactTests
             return Respond(HttpStatusCode.OK, """{"id":"new-c"}""");
         }));
 
-        await client.UpsertContactAsync(
+        await client.CreateContactAsync(
             new HoldedContactInput { Name = "Legal", CustomId = "u1" },
             Xunit.TestContext.Current.CancellationToken);
 
@@ -266,7 +266,7 @@ public class HoldedClientContactTests
     }
 
     [HumansFact]
-    public async Task UpsertContact_create_sends_creditor_type()
+    public async Task CreateContact_sends_creditor_type()
     {
         string? capturedBody = null;
         var client = Make(new StubHandler(req =>
@@ -275,7 +275,7 @@ public class HoldedClientContactTests
             return Respond(HttpStatusCode.OK, """{"id":"new-c"}""");
         }));
 
-        await client.UpsertContactAsync(
+        await client.CreateContactAsync(
             new HoldedContactInput { Name = "Legal" }, Xunit.TestContext.Current.CancellationToken);
 
         capturedBody.Should().Contain("\"type\":\"creditor\"");
@@ -286,18 +286,18 @@ public class HoldedClientContactTests
     [Xunit.InlineData("{\"id\":null}")]
     [Xunit.InlineData("{\"id\":\"\"}")]
     [Xunit.InlineData("{\"id\":\"  \"}")]
-    public async Task UpsertContact_create_without_an_id_in_the_response_is_permanent(string response)
+    public async Task CreateContact_without_an_id_in_the_response_is_permanent(string response)
     {
         var client = Make(new StubHandler(_ => Respond(HttpStatusCode.OK, response)));
 
-        var act = () => client.UpsertContactAsync(
+        var act = () => client.CreateContactAsync(
             new HoldedContactInput { Name = "Legal" }, Xunit.TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<HoldedPermanentException>();
     }
 
     [HumansFact]
-    public async Task UpsertContactAsync_SendsTaxCodeAndBillingAddressForAClient()
+    public async Task CreateContactAsync_SendsTaxCodeAndBillingAddressForAClient()
     {
         string? body = null;
         var handler = new StubHandler(req =>
@@ -306,7 +306,7 @@ public class HoldedClientContactTests
             return Respond(HttpStatusCode.Created, """{"id":"contact-1"}""");
         });
 
-        await Make(handler).UpsertContactAsync(new HoldedContactInput
+        await Make(handler).CreateContactAsync(new HoldedContactInput
         {
             Name = "Camp Frio SL",
             Type = "client",
@@ -323,7 +323,7 @@ public class HoldedClientContactTests
     }
 
     [HumansFact]
-    public async Task UpsertContactAsync_OmitsEveryFieldItHoldsNoValueFor()
+    public async Task CreateContactAsync_OmitsEveryFieldItHoldsNoValueFor()
     {
         // A key sent with a null value is a value to Holded; a field the caller does not hold is
         // left off the body entirely rather than sent as null.
@@ -334,7 +334,7 @@ public class HoldedClientContactTests
             return Respond(HttpStatusCode.OK, """{"id":"contact-1"}""");
         });
 
-        await Make(handler).UpsertContactAsync(
+        await Make(handler).CreateContactAsync(
             new HoldedContactInput
             {
                 Name = "Supplier",
@@ -354,7 +354,7 @@ public class HoldedClientContactTests
     }
 
     [HumansFact]
-    public async Task UpsertContactAsync_StillSendsTheFieldsItDoesHold()
+    public async Task CreateContactAsync_StillSendsTheFieldsItDoesHold()
     {
         // Omission must not swallow a value a caller deliberately supplied.
         string? body = null;
@@ -364,7 +364,7 @@ public class HoldedClientContactTests
             return Respond(HttpStatusCode.Created, """{"id":"contact-1"}""");
         });
 
-        await Make(handler).UpsertContactAsync(new HoldedContactInput
+        await Make(handler).CreateContactAsync(new HoldedContactInput
         {
             Name = "Camp Frio SL",
             TradeName = "Camp Frio",

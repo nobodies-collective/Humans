@@ -7,12 +7,7 @@ using Humans.Email.Contracts;
 namespace Humans.Auth.Tests.Services;
 
 /// <summary>
-/// The per-template routing policy Auth stamps on its own messages — template name and
-/// opt-out category — plus the gallery-coverage gate: every template
-/// <see cref="AuthEmails"/> can build has a sample in <see cref="AuthEmailPreviews"/>, so a
-/// new template cannot ship invisible. Transport (opt-out,
-/// unsubscribe, wrapping, enqueue, the immediate drain these two names key) stays Email's,
-/// covered there.
+/// Includes the gallery-coverage gate: every template <see cref="AuthEmails"/> can build has a sample in <see cref="AuthEmailPreviews"/>, so a new template cannot ship invisible.
 /// </summary>
 public sealed class AuthEmailsTests
 {
@@ -21,11 +16,14 @@ public sealed class AuthEmailsTests
     [HumansFact]
     public void MagicLinkLogin_IsAlwaysSend_TimeSensitiveTemplate()
     {
-        var msg = Create().MagicLinkLogin("a@x.com", "Alice", "https://link", "en");
+        var userId = Guid.NewGuid();
+        var msg = Create().MagicLinkLogin(userId, "a@x.com", "Alice", "https://link", "en");
 
+        msg.UserId.Should().Be(userId);
         msg.RecipientEmail.Should().Be("a@x.com");
         msg.RecipientName.Should().Be("Alice");
-        msg.TemplateName.Should().Be(TimeSensitiveTemplates.MagicLinkLogin);
+        msg.TemplateName.Should().Be(AuthEmails.MagicLinkLoginTemplate);
+        msg.Urgent.Should().BeTrue();
         msg.Category.Should().BeNull();
         msg.ReplyTo.Should().BeNull();
         msg.HtmlBody.Should().Contain("https://link");
@@ -38,14 +36,16 @@ public sealed class AuthEmailsTests
 
         msg.RecipientEmail.Should().Be("new@x.com");
         msg.RecipientName.Should().Be("new@x.com");
-        msg.TemplateName.Should().Be(TimeSensitiveTemplates.MagicLinkSignup);
+        msg.UserId.Should().BeNull("no account stands behind a signup address yet");
+        msg.TemplateName.Should().Be(AuthEmails.MagicLinkSignupTemplate);
+        msg.Urgent.Should().BeTrue();
         msg.Category.Should().BeNull();
     }
 
     [HumansFact]
     public void MagicLinkLogin_HtmlEncodesTheDisplayName()
     {
-        var msg = Create().MagicLinkLogin("a@x.com", "<b>Alice</b>", "https://link", "en");
+        var msg = Create().MagicLinkLogin(Guid.NewGuid(), "a@x.com", "<b>Alice</b>", "https://link", "en");
 
         msg.HtmlBody.Should().Contain("&lt;b&gt;Alice&lt;/b&gt;");
     }
@@ -53,7 +53,7 @@ public sealed class AuthEmailsTests
     [HumansFact]
     public void RendersInTheRecipientsCulture()
     {
-        Create().MagicLinkLogin("a@x.com", "Alice", "https://link", "es")
+        Create().MagicLinkLogin(Guid.NewGuid(), "a@x.com", "Alice", "https://link", "es")
             .Subject.Should().Be("Auth_Email_MagicLinkLogin_Subject#es");
     }
 
@@ -96,6 +96,7 @@ public sealed class AuthEmailsTests
     private static object SampleArgument(ParameterInfo parameter)
     {
         var type = parameter.ParameterType;
+        if (type == typeof(Guid)) return Guid.NewGuid();
         if (type == typeof(string)) return string.Equals(parameter.Name, "culture", StringComparison.Ordinal) ? "en" : "sample";
         throw new NotSupportedException(
             $"AuthEmails.{parameter.Member.Name} takes a {type.Name}; teach this test how to sample one.");

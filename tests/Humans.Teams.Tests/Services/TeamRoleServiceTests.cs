@@ -1,3 +1,4 @@
+using Humans.Base.Interfaces;
 using AwesomeAssertions;
 using Humans.Base.Interfaces.Caching;
 using Humans.Auth.Contracts;
@@ -45,6 +46,12 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             new CachingRoleAssignmentService(
                 Substitute.For<IServiceScopeFactory>(), Clock,
                 NullLogger<CachingRoleAssignmentService>.Instance),
+            new RoleCatalog(new RoleDefinition[]
+            {
+                new(RoleNames.Admin, "Admin", "", ""),
+                new(RoleNames.Board, "Board", "", ""),
+                new(TeamsRoles.TeamsAdmin, "Teams Admin", "", ""),
+            }),
             Clock,
             NullLogger<RoleAssignmentService>.Instance);
         var teamResourceService = Substitute.For<ITeamResourceService>();
@@ -86,10 +93,6 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             NullLogger<TeamService>.Instance);
     }
 
-    // ==========================================================================
-    // CreateRoleDefinitionAsync
-    // ==========================================================================
-
     [HumansFact]
     public async Task CreateRoleDefinitionAsync_ValidInput_CreatesDefinition()
     {
@@ -102,16 +105,16 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             team.Id, "Designer", "Designs things", 2,
             [SlotPriority.Critical, SlotPriority.Important], 1, RolePeriod.YearRound, admin.Id, cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
-        result.Should().NotBeNull();
-        result.Name.Should().Be("Designer");
-        result.Description.Should().Be("Designs things");
-        result.SlotCount.Should().Be(2);
-        result.TeamId.Should().Be(team.Id);
-        result.SortOrder.Should().Be(1);
-        result.Priorities.Should().HaveCount(2);
+        result.Definition!.Should().NotBeNull();
+        result.Definition!.Name.Should().Be("Designer");
+        result.Definition!.Description.Should().Be("Designs things");
+        result.Definition!.SlotCount.Should().Be(2);
+        result.Definition!.TeamId.Should().Be(team.Id);
+        result.Definition!.SortOrder.Should().Be(1);
+        result.Definition!.Priorities.Should().HaveCount(2);
 
         var inDb = await TeamsDb.Set<TeamRoleDefinition>()
-            .FirstOrDefaultAsync(d => d.Id == result.Id, Xunit.TestContext.Current.CancellationToken);
+            .FirstOrDefaultAsync(d => d.Id == result.Definition!.Id, Xunit.TestContext.Current.CancellationToken);
         inDb.Should().NotBeNull();
     }
 
@@ -128,9 +131,9 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             [SlotPriority.Critical], 0, RolePeriod.YearRound, admin.Id,
             estimatedHours: 120, cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
-        result.EstimatedHours.Should().Be(120);
+        result.Definition!.EstimatedHours.Should().Be(120);
 
-        var inDb = await TeamsDb.Set<TeamRoleDefinition>().FirstAsync(d => d.Id == result.Id, Xunit.TestContext.Current.CancellationToken);
+        var inDb = await TeamsDb.Set<TeamRoleDefinition>().FirstAsync(d => d.Id == result.Definition!.Id, Xunit.TestContext.Current.CancellationToken);
         inDb.EstimatedHours.Should().Be(120);
     }
 
@@ -146,7 +149,7 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             team.Id, "Coordinator", null, 1,
             [SlotPriority.Critical], 0, RolePeriod.YearRound, admin.Id, cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
-        result.EstimatedHours.Should().BeNull();
+        result.Definition!.EstimatedHours.Should().BeNull();
     }
 
     [HumansFact]
@@ -162,16 +165,16 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             [SlotPriority.Critical], 0, RolePeriod.YearRound, admin.Id, cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
         var set = await _service.UpdateRoleDefinitionAsync(
-            created.Id, "Coordinator", null, 1,
+            created.Definition!.Id, "Coordinator", null, 1,
             [SlotPriority.Critical], 0, false, RolePeriod.YearRound, admin.Id,
             estimatedHours: 80, cancellationToken: Xunit.TestContext.Current.CancellationToken);
-        set.EstimatedHours.Should().Be(80);
+        set.Definition!.EstimatedHours.Should().Be(80);
 
         var cleared = await _service.UpdateRoleDefinitionAsync(
-            created.Id, "Coordinator", null, 1,
+            created.Definition!.Id, "Coordinator", null, 1,
             [SlotPriority.Critical], 0, false, RolePeriod.YearRound, admin.Id,
             estimatedHours: null, cancellationToken: Xunit.TestContext.Current.CancellationToken);
-        cleared.EstimatedHours.Should().BeNull();
+        cleared.Definition!.EstimatedHours.Should().BeNull();
     }
 
     [HumansFact]
@@ -193,12 +196,8 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             .Which.EstimatedHours.Should().Be(200);
     }
 
-    // ==========================================================================
-    // DeleteRoleDefinitionAsync
-    // ==========================================================================
-
     [HumansFact]
-    public async Task DeleteRoleDefinitionAsync_ManagementRoleWithAssignments_Throws()
+    public async Task DeleteRoleDefinitionAsync_ManagementRoleWithAssignments_ReturnsRefusal()
     {
         var admin = SeedUser("Admin");
         SeedAdminRole(admin);
@@ -211,13 +210,10 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
 
         var act = () => _service.DeleteRoleDefinitionAsync(mgmtRole.Id, admin.Id, Xunit.TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*management role*");
+        var refused = await act();
+        refused.Succeeded.Should().BeFalse();
+        refused.Refusal.Should().Match("*management role*");
     }
-
-    // ==========================================================================
-    // UpdateRoleDefinitionAsync
-    // ==========================================================================
 
     [HumansFact]
     public async Task UpdateRoleDefinitionAsync_CannotReduceSlotsBelowFilled()
@@ -238,12 +234,13 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             role.Id, "Designer", null, 1,
             [SlotPriority.Critical], 1, false, RolePeriod.YearRound, admin.Id, cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Cannot reduce slot count*");
+        var refused = await act();
+        refused.Succeeded.Should().BeFalse();
+        refused.Refusal.Should().Match("*Cannot reduce slot count*");
     }
 
     [HumansFact]
-    public async Task UpdateRoleDefinitionAsync_SetIsManagement_WhenAnotherRoleAlreadyManagement_Throws()
+    public async Task UpdateRoleDefinitionAsync_SetIsManagement_WhenAnotherRoleAlreadyManagement_ReturnsRefusal()
     {
         var admin = SeedUser("Admin");
         SeedAdminRole(admin);
@@ -256,8 +253,9 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             otherRole.Id, "Designer", null, 2,
             [SlotPriority.Critical, SlotPriority.Important], 1, true, RolePeriod.YearRound, admin.Id, cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*already marked as the management role*");
+        var refused = await act();
+        refused.Succeeded.Should().BeFalse();
+        refused.Refusal.Should().Match("*already marked as the management role*");
     }
 
     [HumansFact]
@@ -273,7 +271,7 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             role.Id, "Lead", null, 1,
             [SlotPriority.Critical], 0, true, RolePeriod.YearRound, admin.Id, cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
-        result.IsManagement.Should().BeTrue();
+        result.Definition!.IsManagement.Should().BeTrue();
     }
 
     [HumansFact]
@@ -290,17 +288,12 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             [SlotPriority.Critical], 0, false, RolePeriod.YearRound, admin.Id,
             canToggleManagement: false, cancellationToken: Xunit.TestContext.Current.CancellationToken);
 
-        result.IsManagement.Should().BeTrue();
+        result.Definition!.IsManagement.Should().BeTrue();
     }
 
     /// <summary>
-    /// Regression: Codex PR#300 P1 — when <c>IsManagement</c> flips on a role
-    /// with existing assignments, the service must invalidate shift
-    /// authorization for every assignee's user id. The bug was that
-    /// <c>FindRoleDefinitionForMutationAsync</c> returned assignments without
-    /// <c>TeamMember</c> loaded, so the computed user-id set was empty and the
-    /// cache stayed stale. Repository now eager-loads
-    /// <c>Assignments.TeamMember</c>.
+    /// Flipping IsManagement on a role with assignees must invalidate shift authorization for every
+    /// assignee; that needs the repository to load Assignments.TeamMember, or the user-id set is empty.
     /// </summary>
     [HumansFact]
     public async Task UpdateRoleDefinitionAsync_FlipIsManagementWithAssignees_MakesEachAssigneeACoordinator()
@@ -329,10 +322,6 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
             .Should().Contain(team.Id);
     }
 
-    // ==========================================================================
-    // ToggleRoleIsManagementAsync
-    // ==========================================================================
-
     [HumansFact]
     public async Task ToggleRoleIsManagementAsync_ClearWithAssignedMembers_DemotesCoordinators()
     {
@@ -347,7 +336,7 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
 
         var result = await _service.ToggleRoleIsManagementAsync(mgmtRole.Id, admin.Id, Xunit.TestContext.Current.CancellationToken);
 
-        result.IsManagement.Should().BeFalse();
+        result.Definition!.IsManagement.Should().BeFalse();
 
         ClearAllTrackers();
 
@@ -359,7 +348,7 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
     }
 
     [HumansFact]
-    public async Task ToggleRoleIsManagementAsync_SetWithAssignedMembers_Throws()
+    public async Task ToggleRoleIsManagementAsync_SetWithAssignedMembers_ReturnsRefusal()
     {
         var admin = SeedUser("Admin");
         SeedAdminRole(admin);
@@ -372,13 +361,10 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
 
         var act = () => _service.ToggleRoleIsManagementAsync(role.Id, admin.Id, Xunit.TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Cannot set IsManagement*");
+        var refused = await act();
+        refused.Succeeded.Should().BeFalse();
+        refused.Refusal.Should().Match("*Cannot set IsManagement*");
     }
-
-    // ==========================================================================
-    // AssignToRoleAsync
-    // ==========================================================================
 
     [HumansFact]
     public async Task AssignToRoleAsync_ValidMember_CreatesAssignment()
@@ -418,7 +404,6 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
         result.Should().NotBeNull();
         result.TeamRoleDefinitionId.Should().Be(role.Id);
 
-        // Verify user was auto-added to team
         var memberInDb = await TeamsDb.TeamMembers
             .FirstOrDefaultAsync(tm => tm.TeamId == team.Id && tm.UserId == user.Id && tm.LeftAt == null, Xunit.TestContext.Current.CancellationToken);
         memberInDb.Should().NotBeNull();
@@ -505,10 +490,6 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
         memberInDb!.Role.Should().Be(TeamMemberRole.Coordinator);
     }
 
-    // ==========================================================================
-    // UnassignFromRoleAsync
-    // ==========================================================================
-
     [HumansFact]
     public async Task UnassignFromRoleAsync_NonManagementRole_RemovesAssignment()
     {
@@ -581,10 +562,6 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
         member2InDb!.Role.Should().Be(TeamMemberRole.Coordinator);
     }
 
-    // ==========================================================================
-    // LeaveTeamAsync — role assignment cleanup
-    // ==========================================================================
-
     [HumansFact]
     public async Task LeaveTeamAsync_CleansUpRoleAssignments()
     {
@@ -599,8 +576,7 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
 
         await _service.LeaveTeamAsync(team.Id, user.Id, Xunit.TestContext.Current.CancellationToken);
 
-        // Service now persists via its own DbContext; detach the tracker so we
-        // re-read from the store rather than seeing the stale in-memory entity.
+        // The service persists through its own context; clear the tracker to re-read from the store.
         ClearAllTrackers();
 
         var assignments = await TeamsDb.Set<TeamRoleAssignment>()
@@ -612,10 +588,6 @@ public sealed class TeamRoleServiceTests : TeamsTestHarness
         var memberInDb = await TeamsDb.TeamMembers.AsNoTracking().FirstOrDefaultAsync(m => m.Id == member.Id, Xunit.TestContext.Current.CancellationToken);
         memberInDb!.LeftAt.Should().NotBeNull();
     }
-
-    // ==========================================================================
-    // Seed Helpers
-    // ==========================================================================
 
     private TeamMember SeedMember(Team team, User user, TeamMemberRole role = TeamMemberRole.Member)
     {

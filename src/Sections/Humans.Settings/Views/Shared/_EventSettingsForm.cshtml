@@ -1,13 +1,11 @@
 @model Humans.Settings.Models.EventSettingsViewModel
 
-@* Rendered by the /Settings#event tab (peterdrier/Humans#1628) — the explicit
-   asp-controller/asp-action route it posts to so the tab (served from /Settings)
-   still submits to SettingsAdminController. *@
+@* Rendered from /Settings, so it names the SettingsAdminController route explicitly. *@
 <div class="row">
     <div class="col-lg-8">
         <form method="post" asp-controller="SettingsAdmin" asp-action="Index">
             @Html.AntiForgeryToken()
-            <div asp-validation-summary="All" class="alert alert-danger"></div>
+            <div asp-validation-summary="All" class="text-danger"></div>
 
             <input type="hidden" asp-for="Id" />
 
@@ -18,11 +16,6 @@
                         <label asp-for="EventName" class="form-label">Event Name</label>
                         <input asp-for="EventName" class="form-control" placeholder="e.g., Elsewhere 2026" />
                         <span asp-validation-for="EventName" class="text-danger"></span>
-                    </div>
-                    <div class="mb-3">
-                        <label asp-for="TimeZoneId" class="form-label">Timezone (IANA)</label>
-                        <input asp-for="TimeZoneId" class="form-control" placeholder="e.g., Europe/Madrid" />
-                        <span asp-validation-for="TimeZoneId" class="text-danger"></span>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -107,7 +100,7 @@
                     <div class="form-check">
                         <input asp-for="IsActive" type="checkbox" class="form-check-input" />
                         <label asp-for="IsActive" class="form-check-label">Active</label>
-                        <div class="form-text">At most one event row is active — the one every section reads as the current cycle. Leave the form blank (no existing row loaded) to start a new cycle.</div>
+                        <div class="form-text">At most one event is active: the one every section reads as the current event. To switch events, use Make active in the list above.</div>
                     </div>
                     <div class="form-check mt-3">
                         <input asp-for="IsOffSeason" type="checkbox" class="form-check-input" />

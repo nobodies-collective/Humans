@@ -2,21 +2,13 @@ using Humans.Base.Interfaces;
 
 namespace Humans.Email.Contracts;
 
-/// <summary>
-/// Read-only rendering seam for displaying an always-send system email exactly as the outbox
-/// would wrap it, without enqueueing or recording delivery activity.
-/// </summary>
+/// <summary>Renders a System or uncategorized email exactly as the outbox would wrap it. Enqueues nothing.</summary>
 public interface IEmailPreviewService : IApplicationService
 {
-    /// <summary>
-    /// Applies the canonical branded email wrapper to a system message.
-    /// Opt-outable messages are rejected because their exact wrapper requires a recipient-specific
-    /// unsubscribe URL from the send path.
-    /// </summary>
+    /// <summary>Rejects any other category: its wrapper may need a recipient-specific unsubscribe URL.</summary>
     RenderedEmailPreview RenderSystemMessage(EmailMessage message);
 }
 
-/// <summary>A fully wrapped, side-effect-free system email preview.</summary>
 public sealed record RenderedEmailPreview(
     string RecipientEmail,
     string Subject,

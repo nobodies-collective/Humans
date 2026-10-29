@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Xunit;
 using Microsoft.Extensions.Options;
 using Humans.Base.Configuration;
 using Humans.Guide.Services;
@@ -18,11 +19,6 @@ public class GuideRendererTests
     private static GuideRenderer CreateRenderer() => new(
         Options.Create(Settings),
         new GuideHtmlPostprocessor());
-
-    // These four run markdown through the real Markdig pipeline rather than calling the
-    // postprocessor directly, which is the only thing pinning that Markdig's output is still
-    // the shape the postprocessor's regexes expect — HrefPattern wants a double-quoted href,
-    // and nothing else would notice if that stopped being true.
 
     [HumansFact]
     public void Render_SiblingMdLink_RewrittenToGuideRoute()
@@ -65,12 +61,23 @@ public class GuideRendererTests
         html.Should().NotContain("target=\"_blank\"");
     }
 
+    [HumansTheory]
+    [InlineData("[`/Profile/Me`](Profiles.md)", "href=\"/Guide/Profiles\"")]
+    [InlineData("<pre><code>/Profile/Me</code></pre>", "<pre><code>")]
+    public void Render_AppPathInLinkOrCodeBlock_IsNotAutolinked(string markdown, string expected)
+    {
+        var html = CreateRenderer().Render(markdown, "Profiles");
+
+        html.Should().Contain(expected);
+        html.Should().Contain("/Profile/Me");
+        html.Should().NotContain("guide-app-path");
+    }
+
     [HumansFact]
     public void Render_CarriesNoRoleMarkupAtAll()
     {
-        // The role model used to survive into the HTML as data-guide-* attributes, because the
-        // filter ran after rendering. Filtering markdown deleted that round trip; if an
-        // attribute ever comes back, the filter has grown a second home.
+        // The role model must not survive into the HTML as data-guide-* attributes; if one
+        // ever comes back, the filter has grown a second home.
         const string markdown = """
             ## As a Coordinator (Consent Coordinator)
 

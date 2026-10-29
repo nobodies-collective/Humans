@@ -21,10 +21,6 @@ using Humans.Users.Contracts;
 
 namespace Humans.Expenses.Services;
 
-/// <summary>
-/// Expenses' application service: the report state machine over the section's repository,
-/// and the GDPR export contributor.
-/// </summary>
 internal sealed class ExpenseReportService(
     IExpenseRepository repo,
     IFileStorage fileStorage,
@@ -51,7 +47,7 @@ internal sealed class ExpenseReportService(
 
     private readonly TravelReimbursementConfig _travel = travelConfig.Value;
 
-    /// <summary>Pre-approval claim deadlines are Europe/Madrid dates, the zone the association books in.</summary>
+    /// <summary>Claim deadlines are Europe/Madrid dates.</summary>
     private static readonly DateTimeZone MadridZone = DateTimeZoneProviders.Tzdb["Europe/Madrid"];
 
     internal static string AttachmentKey(Guid id, string extension) =>
@@ -70,12 +66,8 @@ internal sealed class ExpenseReportService(
         => repo.GetAllAsync(ct);
 
     /// <summary>
-    /// Two halves of the same round-trip. The payment half aggregates the submitter's owed/paid
-    /// position from the cached Holded creditor balance — the balance already sums all of a member's
-    /// outstanding docs, so when it exceeds their own registered-unpaid ER totals the remainder shows
-    /// as fronted/adjustments (spec §3). The push half reports where this report's outbox event
-    /// stands, so a finance admin can tell a queued push from a written-off one
-    /// (nobodies-collective/Humans#1045).
+    /// The creditor balance already sums all of a member's outstanding docs, so whatever exceeds their own
+    /// registered-unpaid report totals shows as fronted amounts and adjustments.
     /// </summary>
     public async Task<ExpenseHoldedTimeline?> GetHoldedTimelineAsync(
         ExpenseReportDto report, CancellationToken ct = default)
@@ -97,9 +89,8 @@ internal sealed class ExpenseReportService(
             var submitter = await userService.GetUserInfoAsync(report.SubmitterUserId, ct);
             foreach (var id in submitter?.AllUserIds ?? [report.SubmitterUserId])
             {
-                // Count the actual documents regardless of report status: reports withdrawn after
-                // approval before that was refused still have their Holded booking.
-                // RegisteredAmount excludes lines that have not been pushed yet.
+                // Count the documents whatever the report status: reports withdrawn after approval (before that
+                // was refused) still have their booking. RegisteredAmount excludes lines not pushed yet.
                 memberRegisteredTotal += (await repo.GetForSubmitterAsync(id, ct)).Sum(RegisteredAmount);
             }
 
@@ -133,9 +124,8 @@ internal sealed class ExpenseReportService(
     }
 
     /// <summary>
-    /// What of this report is actually booked in Holded right now. A legacy report-level doc always
-    /// carried the whole payable; per-line docs count only the lines whose doc exists, so a push that
-    /// failed partway (retrying) doesn't overstate the member's registered total against the ledger.
+    /// A legacy report-level doc carried the whole payable; per-line docs count only lines whose doc exists, so a
+    /// half-done push doesn't overstate the registered total against the ledger.
     /// </summary>
     private static decimal RegisteredAmount(ExpenseReportDto report) =>
         report.HoldedDocId is not null
@@ -172,15 +162,16 @@ internal sealed class ExpenseReportService(
         var queue = await repo.GetForReviewQueueAsync(ct);
         if (isFinanceAdmin) return queue;
 
-        // One queue, three audiences (peterdrier/Humans#1447). Filtering the whole queue in
-        // memory beats a per-audience query at our small scale, and keeps the ordering the repo
-        // already chose. Drafts and withdrawals are excluded upstream for everyone.
+        // Filtering the whole queue in memory beats a per-audience query at this scale and keeps the repository's
+        // order. Drafts and withdrawals are excluded upstream for everyone.
         var categoryIds = await GetCoordinatorCategoryIdsAsync(viewerUserId, ct);
+        var managedGrantIds = await preapprovals.ListManagedGrantIdsAsync(viewerUserId, ct);
         var viewer = await userService.GetUserInfoAsync(viewerUserId, ct);
         var ownIds = viewer?.AllUserIds ?? [viewerUserId];
         return queue
             .Where(r => ownIds.Contains(r.SubmitterUserId)
-                        || (r.BudgetCategoryId is { } categoryId && categoryIds.Contains(categoryId)))
+                        || (r.BudgetCategoryId is { } categoryId && categoryIds.Contains(categoryId))
+                        || (r.PreapprovalGrantId is { } grantId && managedGrantIds.Contains(grantId)))
             .ToList();
     }
 
@@ -213,10 +204,16 @@ internal sealed class ExpenseReportService(
         Guid coordinatorUserId, CancellationToken ct = default)
     {
         var categoryIds = await GetCoordinatorCategoryIdsAsync(coordinatorUserId, ct);
-        if (categoryIds.Count == 0) return [];
+        var managedGrantIds = await preapprovals.ListManagedGrantIdsAsync(coordinatorUserId, ct);
 
-        return await repo.GetByCategoryIdsAndStatusAsync(categoryIds,
-            ExpenseReportStatus.Submitted, ct);
+        var queue = categoryIds.Count == 0
+            ? []
+            : (await repo.GetByCategoryIdsAndStatusAsync(categoryIds, ExpenseReportStatus.Submitted, ct)).ToList();
+        if (managedGrantIds.Count > 0)
+            queue.AddRange((await repo.GetForReviewQueueAsync(ct)).Where(r =>
+                r.Status == ExpenseReportStatus.Submitted
+                && r.PreapprovalGrantId is { } grantId && managedGrantIds.Contains(grantId)));
+        return queue;
     }
 
     private async Task<IReadOnlyList<Guid>> GetCoordinatorCategoryIdsAsync(
@@ -295,16 +292,13 @@ internal sealed class ExpenseReportService(
         return new ExpenseCreateDraftResult(result.Succeeded, result.Error, reportId);
     }
 
-    /// <summary>Audit-detail suffix naming the pre-approval a report files against; empty when none.</summary>
     private static string DescribeGrant(Guid? grantId) =>
         grantId is { } id ? $" Filed against pre-approval {id}." : "";
 
     /// <summary>
-    /// The booking a pre-approved report carries while it is a draft: the grant's account, with no
-    /// budget category and no year, which is what routes it past coordinator endorsement. The grant
-    /// must be one the submitter may file against today (held under any of their ids, Open, and
-    /// inside the claim deadline); the grant a draft already holds (<paramref name="heldGrantId"/>)
-    /// is always kept, so a rejected report can be corrected after the deadline it met.
+    /// The grant's account, with no category or year, which routes the report past endorsement. The grant must be
+    /// claimable by the submitter today; the one a draft already holds (<paramref name="heldGrantId"/>) is always kept,
+    /// so a rejected report can be corrected after the deadline it met.
     /// </summary>
     private async Task<(ExpenseBooking? Booking, ExpenseMutationResult? Refusal)> ResolveGrantBookingAsync(
         Guid grantId, Guid submitterUserId, Guid? heldGrantId, CancellationToken ct)
@@ -333,10 +327,8 @@ internal sealed class ExpenseReportService(
     }
 
     /// <summary>
-    /// Records an edit an admin made to somebody else's report. A member editing their own leaves
-    /// no entry — the report is its own record — but an action taken on a member's behalf owes them
-    /// a trail naming both, so every header and line change writes one when the actor is not the
-    /// submitter. <paramref name="whatChanged"/> is the sentence opener, e.g. "Added line 'Fuel'".
+    /// An edit to somebody else's report owes them a trail naming both; a member editing their own leaves none.
+    /// <paramref name="whatChanged"/> is the sentence opener, e.g. "Added line 'Fuel'".
     /// </summary>
     private async Task AuditOnBehalfEditAsync(
         ExpenseReportDto report, Guid actorUserId, string whatChanged, CancellationToken ct)
@@ -352,7 +344,6 @@ internal sealed class ExpenseReportService(
             relatedEntityType: AuditEntityTypes.User);
     }
 
-    /// <summary>The note as it reads in an audit description; it is optional and often blank.</summary>
     private static string DescribeNote(string? note) =>
         string.IsNullOrWhiteSpace(note) ? "cleared" : $"\"{note}\"";
 
@@ -391,10 +382,8 @@ internal sealed class ExpenseReportService(
             }
             else
             {
-                // A draft is not booked to anything yet, so its header resolves through the active year
-                // as it always has. A report past submit already belongs to a budget year; re-resolving
-                // it through the active year would silently move last year's accounting into this year's
-                // books, so it keeps its own year and only that year's categories are accepted.
+                // A draft resolves through the active year. A submitted report already belongs to a year;
+                // re-resolving it would silently move last year's accounting into this year's books.
                 var pinnedYearId = IsPendingApproval(report.Status) ? report.BudgetYearId : null;
                 var (resolved, bookingRefusal) = await ResolveBookingAsync(holdedAccountNumber, pinnedYearId, ct);
                 if (bookingRefusal is not null) return bookingRefusal;
@@ -413,9 +402,8 @@ internal sealed class ExpenseReportService(
                 UpdatedAt = clock.GetCurrentInstant()
             };
 
-            // A rejected draft still holds the grant it was submitted against (Claimed). Dropping or
-            // swapping it releases that claim in the same transaction as the header, so no grant stays
-            // claimed by a report that no longer names it. A grant revoked meanwhile is left behind.
+            // A rejected draft still holds (Claimed) the grant it was submitted against. Dropping or swapping it
+            // releases that claim in the same transaction. A grant revoked meanwhile is left behind.
             var released = report.PreapprovalGrantId is { } held && held != preapprovalGrantId
                 && (await preapprovals.GetGrantAsync(held, ct))?.Status == GrantStatus.Claimed
                 ? held
@@ -426,7 +414,12 @@ internal sealed class ExpenseReportService(
                     TransactionScopeOption.Required,
                     new TransactionOptions { IsolationLevel = IsolationLevel.ReadCommitted },
                     TransactionScopeAsyncFlowOption.Enabled);
-                await preapprovalWrites.ReleaseAsync(releasedId, reportId, actorUserId, ct);
+                var release = await preapprovalWrites.ReleaseAsync(releasedId, reportId, actorUserId, ct);
+                if (release.Refusal is { } releaseRefusal)
+                {
+                    logger.LogWarning("Pre-approval {GrantId} refused release by report {ReportId}: {Reason}", releasedId, reportId, releaseRefusal);
+                    return ExpenseMutationResult.Failure("Expenses_Validation_PreapprovalUnavailable");
+                }
                 await repo.UpdateDraftAsync(updated, ct);
                 scope.Complete();
             }
@@ -495,8 +488,7 @@ internal sealed class ExpenseReportService(
 
         try
         {
-            // Travel lines are computed; this path takes free-text amounts, so it accepts only
-            // receipt-backed types.
+            // This path takes free-text amounts; travel lines are computed.
             if (lineType is not (ExpenseLineType.Receipt or ExpenseLineType.Invoice))
                 return Reject(new("Expenses_Validation_OnlyReceiptAndInvoiceLines", []));
             // Validate the file before creating anything, so a bad upload leaves no half-made line.
@@ -601,10 +593,8 @@ internal sealed class ExpenseReportService(
 
             var existing = report.Lines.FirstOrDefault(l => l.Id == lineId);
             if (existing is null) return ExpenseMutationResult.Failure("Expenses_Validation_LineNotOnReport");
-            // Travel lines carry computed amounts (mileage km×rate, per-diem days×rate) and waive the
-            // receipt requirement on that basis. A free-text amount/description edit here would let a
-            // submitter claim an arbitrary unreceipted amount on a Mileage/PerDiem line. To change one,
-            // remove it and re-add so the amount is always recomputed from its inputs.
+            // Travel lines carry computed amounts and waive the receipt on that basis; a free-text edit would allow an
+            // arbitrary unreceipted claim. Remove and re-add to recompute.
             if (existing.LineType is ExpenseLineType.Mileage or ExpenseLineType.PerDiem)
                 return ExpenseMutationResult.Failure("Expenses_Validation_TravelLinesComputedCannotEdit");
 
@@ -635,9 +625,8 @@ internal sealed class ExpenseReportService(
             // Read the line before it is gone — the audit entry names what was removed, not an id.
             var removed = report.Lines.FirstOrDefault(l => l.Id == lineId);
 
-            // One atomic save removes the line, any proof rows under it, and their attachment rows;
-            // the files are deleted only after that commit (best-effort — an orphan file is a warning,
-            // an orphan row is a bug).
+            // One atomic save removes the line, its proof rows and their attachment rows; files go only after the
+            // commit (an orphan file is a warning, an orphan row is a bug).
             var removedAttachments = await repo.RemoveLineAsync(reportId, lineId, ct)
                 ?? throw new InvalidOperationException("Failed to remove line.");
 
@@ -730,8 +719,7 @@ internal sealed class ExpenseReportService(
             Extension = extension,
             ContentType = contentType,
             SizeBytes = content.Length,
-            // Who uploaded the file, not whose report it is — an admin filing on a member's behalf
-            // is the uploader.
+            // The uploader, not the owner: an admin filing on a member's behalf uploads.
             UploadedByUserId = actorUserId,
             UploadedAt = clock.GetCurrentInstant()
         };
@@ -812,9 +800,8 @@ internal sealed class ExpenseReportService(
             }
         }
 
-        // A new file answers a decline: the line is back in the total for the reviewer to judge
-        // again. Cleared only once the upload and its audit have stuck, so a rolled-back upload
-        // never leaves a declined line payable.
+        // A new file answers a decline: the line is back in the total. Cleared only once the upload and its audit
+        // have stuck, so a rolled-back upload never leaves a declined line payable.
         if (line.Declined)
             await repo.SetLineDeclinedAsync(
                 reportId, lineId, declined: false, reason: null, byUserId: null,
@@ -888,7 +875,6 @@ internal sealed class ExpenseReportService(
             if (report.Status != ExpenseReportStatus.Draft) return ExpenseMutationResult.Failure("Expenses_Validation_CouldNotSubmitReport");
 
             // The Subject carries the project name; reviewers cannot tell what was paid for without it.
-            // A pre-approved report is no exception: the grant's label only prefills the field on the new form.
             if (string.IsNullOrWhiteSpace(report.Note))
                 return ExpenseMutationResult.Failure("Expenses_Validation_SubjectRequired");
 
@@ -900,14 +886,13 @@ internal sealed class ExpenseReportService(
                                       && l.AttachmentId is null))
                 return ExpenseMutationResult.Failure("Expenses_Validation_ReceiptInvoiceNeedAttachment");
 
-            // The payee is whoever the report belongs to — never the person pressing Submit. An admin
-            // submitting on a member's behalf must snapshot the *member's* IBAN and legal name, or the
-            // money goes to the wrong account.
+            // The payee is the report's owner, never whoever pressed Submit, or an on-behalf submit pays the wrong
+            // account.
             var profile = (await userService.GetUserInfoAsync(report.SubmitterUserId, ct))?.Profile;
             if (await finance.GetIbanAsync(report.SubmitterUserId, ct) is not { Length: > 0 } payeeIban)
                 return ExpenseMutationResult.Failure("Expenses_Validation_SubmitterNeedsIban");
 
-            // Financial records use legal name (not BurnerName). See memory/architecture/burnername-is-the-display-name.md.
+            // Financial records use the legal name, not BurnerName.
             if (string.IsNullOrWhiteSpace(profile?.FirstName) || string.IsNullOrWhiteSpace(profile.LastName))
             {
                 return ExpenseMutationResult.Failure("Expenses_Validation_SubmitterNeedsFirstAndLastName");
@@ -931,16 +916,13 @@ internal sealed class ExpenseReportService(
                     TransactionScopeOption.Required,
                     new TransactionOptions { IsolationLevel = IsolationLevel.ReadCommitted },
                     TransactionScopeAsyncFlowOption.Enabled);
-                GrantStamp stamp;
-                try
+                var claim = await preapprovalWrites.ClaimAsync(grantId, reportId, actorUserId, ct);
+                if (claim.Refusal is { } refusal)
                 {
-                    stamp = await preapprovalWrites.ClaimAsync(grantId, reportId, actorUserId, ct);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    logger.LogWarning(ex, "Pre-approval {GrantId} refused the claim by report {ReportId}", grantId, reportId);
+                    logger.LogWarning("Pre-approval {GrantId} refused the claim by report {ReportId}: {Reason}", grantId, reportId, refusal);
                     return ExpenseMutationResult.Failure("Expenses_Validation_PreapprovalUnavailable");
                 }
+                var stamp = claim.Stamp!;
                 var ok = await repo.SubmitAsync(
                     reportId, legalName, payeeIban, now,
                     grantStamp: new ExpenseBooking(stamp.HoldedAccountNumber, stamp.HoldedAccountId, null, null),
@@ -966,9 +948,8 @@ internal sealed class ExpenseReportService(
         }, "Error submitting expense report {ReportId}", reportId);
 
     /// <summary>
-    /// Why the submitter cannot claim their pre-approval now, as a member-facing refusal, or null when
-    /// the claim should be attempted. Mirrors <see cref="IPreapprovalWrite.ClaimAsync"/>'s rules:
-    /// the report already holding the grant resubmits past the deadline; anyone else is refused.
+    /// A member-facing refusal, or null when the claim should be attempted. Mirrors
+    /// <see cref="IPreapprovalWrite.ClaimAsync"/>: the report already holding the grant resubmits past the deadline.
     /// </summary>
     private async Task<ExpenseMutationResult?> GetGrantClaimRefusalAsync(Guid grantId, Guid reportId, CancellationToken ct)
     {
@@ -1005,9 +986,8 @@ internal sealed class ExpenseReportService(
                 return ExpenseMutationResult.Failure("Expenses_Flash_WithdrawFailed");
 
             var now = clock.GetCurrentInstant();
-            // A held pre-approval goes back to the member to file again. A grant revoked while
-            // the report was pending is not held any more and is left alone, so the withdrawal
-            // still goes through.
+            // A held pre-approval goes back to the member. A grant revoked while pending is no longer held and is left
+            // alone, so the withdrawal still goes through.
             var heldGrant = report.PreapprovalGrantId is { } grantId
                 ? await preapprovals.GetGrantAsync(grantId, ct)
                 : null;
@@ -1023,7 +1003,12 @@ internal sealed class ExpenseReportService(
                     TransactionScopeOption.Required,
                     new TransactionOptions { IsolationLevel = IsolationLevel.ReadCommitted },
                     TransactionScopeAsyncFlowOption.Enabled);
-                await preapprovalWrites.ReleaseAsync(report.PreapprovalGrantId!.Value, reportId, submitterUserId, ct);
+                var release = await preapprovalWrites.ReleaseAsync(report.PreapprovalGrantId!.Value, reportId, submitterUserId, ct);
+                if (release.Refusal is { } releaseRefusal)
+                {
+                    logger.LogWarning("Pre-approval {GrantId} refused release by report {ReportId}: {Reason}", report.PreapprovalGrantId, reportId, releaseRefusal);
+                    return ExpenseMutationResult.Failure("Expenses_Flash_WithdrawFailed");
+                }
                 var ok = await repo.WithdrawAsync(reportId, now, ct);
                 if (!ok) return ExpenseMutationResult.Failure("Expenses_Flash_WithdrawFailed");
                 scope.Complete();
@@ -1057,11 +1042,8 @@ internal sealed class ExpenseReportService(
 
         var normalized = ibanValue is null ? null : IbanValidator.Normalize(ibanValue);
 
-        // A report past Draft carries a payee IBAN snapshot, and this page is how it gets corrected
-        // before approval. Clearing would leave the snapshot and the profile disagreeing about who
-        // gets paid, so on those statuses the removal is refused rather than half-applied.
-        // A draft has no snapshot yet (submit takes it); an approved or terminal report is already
-        // booked, so its snapshot is history. Only the pending window follows the profile.
+        // A pending report's payee snapshot is corrected through this page, so clearing is refused there: the snapshot
+        // and profile would disagree on who gets paid. A draft has no snapshot yet; an approved report's is history.
         var snapshotIsLive = IsPendingApproval(report.Status);
         if (normalized is null && snapshotIsLive)
             return IbanFailure(
@@ -1079,9 +1061,8 @@ internal sealed class ExpenseReportService(
                 await RefreshPayeeIbanSnapshotAsync(report, actorUserId, normalized!, ct);
 
             var isClearing = normalized is null;
-            // The entry is about the member, but its entity type is Profile and its actor may be
-            // somebody else — without the related id, the member's own GDPR export would miss the
-            // row carrying their raw IBAN. Set unconditionally; for a self-set it is a no-op.
+            // Entity type is Profile and the actor may be somebody else, so without the related id the member's GDPR
+            // export would miss the row carrying their raw IBAN.
             await auditLogService.LogAsync(
                 isClearing ? AuditAction.IbanRemove : AuditAction.IbanSet,
                 AuditEntityTypes.Profile,
@@ -1115,11 +1096,7 @@ internal sealed class ExpenseReportService(
     private static ExpenseIbanSaveResult IbanFailure(string messageKey, bool isValidationError) =>
         new(Succeeded: false, IsValidationError: isValidationError, MessageKey: messageKey);
 
-    /// <summary>
-    /// Submitted but not yet approved — the window where a report is real enough to have a payee
-    /// snapshot and a booked budget year, but not yet final. Both the IBAN refresh and the header
-    /// edit's year handling turn on it.
-    /// </summary>
+    /// <summary>Submitted, not yet approved: has a payee snapshot and a booked year, but is not final.</summary>
     private static bool IsPendingApproval(ExpenseReportStatus status) =>
         status is ExpenseReportStatus.Submitted or ExpenseReportStatus.CoordinatorEndorsed;
 
@@ -1132,9 +1109,8 @@ internal sealed class ExpenseReportService(
             report.Id, normalizedIban, clock.GetCurrentInstant(), ct);
         if (!updated) return;
 
-        // On the report entity so it lands in that report's on-page history, where the admin
-        // correcting it is looking. Unmasked when somebody set it for another member — same ruling
-        // as the profile entry above (memory/code/audit-pii-subject-allowed.md).
+        // On the report so it lands in the history the correcting admin is looking at. Unmasked when set for another
+        // member, as above.
         var description = actorUserId == report.SubmitterUserId
             ? "Payee IBAN updated"
             : $"Payee IBAN updated for {await DescribeMemberAsync(report.SubmitterUserId, ct)} to {normalizedIban}";
@@ -1149,12 +1125,9 @@ internal sealed class ExpenseReportService(
     }
 
     /// <summary>
-    /// Audit description for an IBAN change. A member changing their own stays the bare
-    /// "IBAN set" / "IBAN removed" it has always been. When somebody else does it, the entry names
-    /// the member and carries the account number <b>unmasked</b> — Peter's ruling: audit may hold
-    /// PII belonging to the entry's subject, and the only way to trace a wrongly-typed IBAN back to
-    /// who typed it is to keep what they typed (memory/code/audit-pii-subject-allowed.md, the one
-    /// exception to memory/code/iban-mask-in-logs.md).
+    /// A member's own change stays "IBAN set" / "IBAN removed". When somebody else makes it, the entry names the member
+    /// and carries the IBAN <b>unmasked</b>: audit may hold its subject's PII, and only what was typed can trace a
+    /// wrong IBAN to its typist. The one exception to masking IBANs.
     /// </summary>
     private async Task<string> DescribeIbanChangeAsync(
         Guid submitterUserId, Guid actorUserId, string? normalizedIban, CancellationToken ct)
@@ -1194,11 +1167,25 @@ internal sealed class ExpenseReportService(
         }
     }
 
-    /// <summary>Audit-detail suffix for a cap set on this decision; empty when none was set.</summary>
     private static string MaxAmountDetail(decimal? maxAmount) =>
         maxAmount is { } cap
             ? $" Authorized maximum {cap.ToString("0.00", CultureInfo.InvariantCulture)} EUR."
             : "";
+
+    private async Task<(decimal? Amount, ExpenseMutationResult? Refusal)> ResolveReviewCapAsync(
+        Guid? grantId, decimal? requestedAmount, CancellationToken ct)
+    {
+        if (grantId is not { } id) return (requestedAmount, null);
+
+        var grant = await preapprovals.GetGrantAsync(id, ct);
+        if (grant is null)
+            return (null, ExpenseMutationResult.OperatorFailure("The report's pre-approval no longer exists; reject the report."));
+        if (requestedAmount > grant.MaxAmount)
+            return (null, ExpenseMutationResult.OperatorFailure(
+                $"The cap cannot exceed the pre-approved {grant.MaxAmount.ToString("0.00", CultureInfo.InvariantCulture)} EUR."));
+
+        return (requestedAmount ?? grant.MaxAmount, null);
+    }
 
     public Task<ExpenseMutationResult> CoordinatorEndorseWithResultAsync(
         Guid reportId, Guid coordinatorUserId, bool actorIsFinanceAdmin, decimal? maxAmount,
@@ -1208,8 +1195,12 @@ internal sealed class ExpenseReportService(
             var report = await repo.GetByIdAsync(reportId, ct);
             if (report is null) return ExpenseMutationResult.OperatorFailure("Could not endorse the report. It may no longer be in Submitted status.");
 
-            if (!actorIsFinanceAdmin && await GetCoordinatorRefusalAsync(report.BudgetCategoryId, coordinatorUserId, ct) is { } refusal)
+            if (!actorIsFinanceAdmin && await GetFirstReviewerRefusalAsync(report, coordinatorUserId, ct) is { } refusal)
                 return refusal;
+
+            var cap = await ResolveReviewCapAsync(report.PreapprovalGrantId, maxAmount, ct);
+            if (cap.Refusal is { } capRefusal) return capRefusal;
+            maxAmount = cap.Amount;
 
             var now = clock.GetCurrentInstant();
             var ok = await repo.CoordinatorEndorseAsync(reportId, coordinatorUserId, maxAmount, now, ct);
@@ -1218,7 +1209,7 @@ internal sealed class ExpenseReportService(
             await auditLogService.LogAsync(
                 AuditAction.ExpenseEndorse,
                 AuditEntityTypes.Report, reportId,
-                (actorIsFinanceAdmin ? "Finance admin" : "Coordinator")
+                ReviewerLabel(report, actorIsFinanceAdmin)
                     + " endorsed expense report." + MaxAmountDetail(maxAmount),
                 coordinatorUserId);
 
@@ -1234,7 +1225,7 @@ internal sealed class ExpenseReportService(
             var report = await repo.GetByIdAsync(reportId, ct);
             if (report is null) return ExpenseMutationResult.OperatorFailure("Could not reject the report. It may no longer be in Submitted status.");
 
-            if (!actorIsFinanceAdmin && await GetCoordinatorRefusalAsync(report.BudgetCategoryId, coordinatorUserId, ct) is { } refusal)
+            if (!actorIsFinanceAdmin && await GetFirstReviewerRefusalAsync(report, coordinatorUserId, ct) is { } refusal)
                 return refusal;
 
             var now = clock.GetCurrentInstant();
@@ -1244,7 +1235,7 @@ internal sealed class ExpenseReportService(
             await auditLogService.LogAsync(
                 AuditAction.ExpenseCoordinatorReject,
                 AuditEntityTypes.Report, reportId,
-                $"{(actorIsFinanceAdmin ? "Finance admin" : "Coordinator")} rejected expense report: {reason}",
+                $"{ReviewerLabel(report, actorIsFinanceAdmin)} rejected expense report: {reason}",
                 coordinatorUserId);
 
             return ExpenseMutationResult.Success;
@@ -1263,7 +1254,7 @@ internal sealed class ExpenseReportService(
                 return ExpenseMutationResult.OperatorFailure(
                     $"The reason can be at most {DeclineReasonMaxLength} characters.");
 
-            var (_, line, refusal) = await GetDeclinableLineAsync(
+            var (report, line, refusal) = await GetDeclinableLineAsync(
                 reportId, actorUserId, actorIsFinanceAdmin, lineId, ct);
             if (refusal is not null) return refusal;
             if (line!.Declined)
@@ -1276,7 +1267,7 @@ internal sealed class ExpenseReportService(
             await auditLogService.LogAsync(
                 AuditAction.ExpenseLineDeclined,
                 AuditEntityTypes.Report, reportId,
-                $"{(actorIsFinanceAdmin ? "Finance admin" : "Coordinator")} declined line "
+                $"{ReviewerLabel(report!, actorIsFinanceAdmin)} declined line "
                     + $"\"{line.Description}\" ({line.Amount.ToString("0.00", CultureInfo.InvariantCulture)} EUR): {trimmed}",
                 actorUserId);
 
@@ -1288,7 +1279,7 @@ internal sealed class ExpenseReportService(
         CancellationToken ct = default) =>
         RunMutationAsync(ct, async () =>
         {
-            var (_, line, refusal) = await GetDeclinableLineAsync(
+            var (report, line, refusal) = await GetDeclinableLineAsync(
                 reportId, actorUserId, actorIsFinanceAdmin, lineId, ct);
             if (refusal is not null) return refusal;
             if (!line!.Declined)
@@ -1301,7 +1292,7 @@ internal sealed class ExpenseReportService(
             await auditLogService.LogAsync(
                 AuditAction.ExpenseLineDeclineUndone,
                 AuditEntityTypes.Report, reportId,
-                $"{(actorIsFinanceAdmin ? "Finance admin" : "Coordinator")} undid the decline of line "
+                $"{ReviewerLabel(report!, actorIsFinanceAdmin)} undid the decline of line "
                     + $"\"{line.Description}\" ({line.Amount.ToString("0.00", CultureInfo.InvariantCulture)} EUR); "
                     + $"it had been declined: {line.DeclinedReason}",
                 actorUserId);
@@ -1312,10 +1303,9 @@ internal sealed class ExpenseReportService(
     private const int DeclineReasonMaxLength = 1000;
 
     /// <summary>
-    /// The service-side half of the DeclineLine gate (the resource-based handler is the first): the
-    /// report must still await a decision — a coordinator holds Endorse only while Submitted, a
-    /// finance admin through CoordinatorEndorsed — and the line must be a top-level one on this
-    /// report. Proof rows are display-only and never declinable.
+    /// The service half of the DeclineLine gate: the report must still await a decision (a first reviewer only while
+    /// Submitted, a finance admin through CoordinatorEndorsed), and the line must be top-level. Proof rows are never
+    /// declinable.
     /// </summary>
     private async Task<(ExpenseReportDto? Report, ExpenseLineDto? Line, ExpenseMutationResult? Refusal)>
         GetDeclinableLineAsync(
@@ -1331,8 +1321,8 @@ internal sealed class ExpenseReportService(
         if (!open) return (null, null, ExpenseMutationResult.OperatorFailure(cannot));
 
         if (!actorIsFinanceAdmin
-            && await GetCoordinatorRefusalAsync(report.BudgetCategoryId, actorUserId, ct) is { } coordinatorRefusal)
-            return (null, null, coordinatorRefusal);
+            && await GetFirstReviewerRefusalAsync(report, actorUserId, ct) is { } reviewerRefusal)
+            return (null, null, reviewerRefusal);
 
         var line = report.Lines.FirstOrDefault(l => l.Id == lineId);
         if (line is null) return (null, null, ExpenseMutationResult.Failure("Expenses_Validation_LineNotOnReport"));
@@ -1342,10 +1332,8 @@ internal sealed class ExpenseReportService(
     }
 
     /// <summary>
-    /// Tells the submitter their report was approved (peterdrier/Humans#1820). Re-reads the
-    /// report after the flip so the amount is the DTO's own <c>Payable</c> — the cap the approver
-    /// just set included — rather than a second copy of that formula. Sent after the save: the
-    /// outbox row is a promise of money, and a failed approval must not make it.
+    /// Re-reads the report so the amount is the DTO's own <c>Payable</c>, cap included. Sent after the save: the outbox
+    /// row is a promise of money, and a failed approval must not make it.
     /// </summary>
     private async Task SendApprovedEmailAsync(Guid reportId, CancellationToken ct)
     {
@@ -1365,6 +1353,7 @@ internal sealed class ExpenseReportService(
 
         var language = submitter.PreferredLanguage;
         await emailService.SendAsync(emails.ReportApproved(
+            submitter.Id,
             recipient, submitter.BurnerName, reportId, approved.Payable,
             IbanFormatter.Mask(approved.PayeeIban),
             language.IsSupportedCultureCode() ? language : CultureCatalog.DefaultCultureCode), ct);
@@ -1390,19 +1379,9 @@ internal sealed class ExpenseReportService(
                 overrideBooking = resolved;
             }
 
-            if (report.PreapprovalGrantId is { } grantId)
-            {
-                // The grant's current amount is the ceiling: a blank cap keeps it, a lower one is
-                // Finance's call, a higher one is a new pre-approval, not an approval.
-                var grant = await preapprovals.GetGrantAsync(grantId, ct);
-                if (grant is null)
-                    return ExpenseMutationResult.OperatorFailure("The report's pre-approval no longer exists; reject the report.");
-                if (maxAmount is null)
-                    maxAmount = grant.MaxAmount;
-                else if (maxAmount > grant.MaxAmount)
-                    return ExpenseMutationResult.OperatorFailure(
-                        $"The cap cannot exceed the pre-approved {grant.MaxAmount.ToString("0.00", CultureInfo.InvariantCulture)} EUR.");
-            }
+            var cap = await ResolveReviewCapAsync(report.PreapprovalGrantId, maxAmount, ct);
+            if (cap.Refusal is { } capRefusal) return capRefusal;
+            maxAmount = cap.Amount;
 
             var outboxEventId = Guid.NewGuid();
             var now = clock.GetCurrentInstant();
@@ -1418,13 +1397,10 @@ internal sealed class ExpenseReportService(
                     TransactionScopeOption.Required,
                     new TransactionOptions { IsolationLevel = IsolationLevel.ReadCommitted },
                     TransactionScopeAsyncFlowOption.Enabled);
-                try
+                var consumption = await preapprovalWrites.ConsumeAsync(consumedGrantId, reportId, actorUserId, ct);
+                if (consumption.Refusal is { } refusal)
                 {
-                    await preapprovalWrites.ConsumeAsync(consumedGrantId, reportId, actorUserId, ct);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    logger.LogWarning(ex, "Pre-approval {GrantId} refused consumption by report {ReportId}", consumedGrantId, reportId);
+                    logger.LogWarning("Pre-approval {GrantId} refused consumption by report {ReportId}: {Reason}", consumedGrantId, reportId, refusal);
                     return ExpenseMutationResult.OperatorFailure("The report's pre-approval was revoked or is no longer held by it; reject the report.");
                 }
                 ok = await repo.ApproveAsync(
@@ -1510,27 +1486,9 @@ internal sealed class ExpenseReportService(
 
         }, "Error re-queuing Holded push for expense report {ReportId}", reportId);
 
-    internal async Task<bool> CategoryRequiresCoordinatorEndorsementAsync(
-        Guid? categoryId, CancellationToken ct = default)
-    {
-        // A report booked to an account outside the budget has no category, so no coordinator.
-        if (categoryId is null) return false;
-        var category = await budgetService.GetCategoryByIdAsync(categoryId.Value);
-        if (category is null || category.TeamId is null)
-            return false;
-
-        var team = await teamService.GetTeamAsync(category.TeamId.Value, ct);
-        if (team is null)
-            return false;
-
-        return team.Members.Any(m => m.Role == TeamMemberRole.Coordinator);
-    }
-
     /// <summary>
-    /// The service-side half of the edit gate (the resource-based handler is the first half). For
-    /// the member whose report it is, editing is their own Draft and nothing else. A finance admin
-    /// edits on their behalf, so ownership is waived and the window covers the three statuses a
-    /// report can still be corrected in; Approved and Withdrawn are closed to everyone.
+    /// The service half of the edit gate. A member edits only their own Draft. A finance admin edits on their behalf,
+    /// so ownership is waived and the window is Draft, Submitted and CoordinatorEndorsed.
     /// </summary>
     private async Task<(ExpenseReportDto? Report, ExpenseMutationResult? Refusal)> GetEditableReportAsync(
         Guid reportId, Guid actorUserId, bool actorIsFinanceAdmin, CancellationToken ct)
@@ -1595,9 +1553,24 @@ internal sealed class ExpenseReportService(
         return (new ExpenseBooking(account.AccountNum, account.AccountId, mapRow.BudgetCategoryId, activeYear.Id), null);
     }
 
-    private async Task<ExpenseMutationResult?> GetCoordinatorRefusalAsync(
-        Guid? categoryId, Guid actorUserId, CancellationToken ct)
+    private static string ReviewerLabel(ExpenseReportDto report, bool actorIsFinanceAdmin) =>
+        actorIsFinanceAdmin ? "Finance admin"
+        : report.PreapprovalGrantId is null ? "Coordinator"
+        : "Pre-approval manager";
+
+    /// <summary>
+    /// A pre-approved report has no category; its first reviewer is a manager of the grant's program, the person who
+    /// already decided it.
+    /// </summary>
+    private async Task<ExpenseMutationResult?> GetFirstReviewerRefusalAsync(
+        ExpenseReportDto report, Guid actorUserId, CancellationToken ct)
     {
+        if (report.PreapprovalGrantId is { } grantId)
+            return (await preapprovals.ListManagedGrantIdsAsync(actorUserId, ct)).Contains(grantId)
+                ? null
+                : ExpenseMutationResult.OperatorFailure("Actor is not a manager of the report's pre-approval program.");
+
+        var categoryId = report.BudgetCategoryId;
         if (categoryId is null)
             return ExpenseMutationResult.OperatorFailure("Report is not booked to a budget category; there is no coordinator to endorse it.");
         var category = await budgetService.GetCategoryByIdAsync(categoryId.Value);
@@ -1612,13 +1585,11 @@ internal sealed class ExpenseReportService(
         return null;
     }
 
-    /// <summary>User's reports (lines+attachment metadata) and audit. Includes accounts merged into this one.
-    /// The member's IBAN is Finance's slice (<c>PaymentDetails</c>).</summary>
+    /// <summary>Includes accounts merged into this one. The member's IBAN is Finance's slice.</summary>
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(
         Guid userId, CancellationToken ct)
     {
-        // Every id the human has held, from the resolved record: asked with an archived
-        // id, the survivor's own reports are theirs too.
+        // Asked with an archived id, the survivor's own reports count too.
         var user = await userService.GetUserInfoAsync(userId, ct);
         var allIds = user?.AllUserIds ?? [userId];
 
@@ -1733,8 +1704,6 @@ internal sealed class ExpenseReportService(
                     : (object?)null),
         ];
     }
-
-    // ─── IUserDataContributor (GDPR erasure) ───
 
     private const string FiscalRetention =
         "Retained in full, nothing erased: the voucher keeps the payee's legal name, their " +

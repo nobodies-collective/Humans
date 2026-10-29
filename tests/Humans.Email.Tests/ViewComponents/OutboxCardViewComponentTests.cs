@@ -3,7 +3,7 @@ using AwesomeAssertions;
 using Humans.Base.Authorization;
 using Humans.Base.Enums;
 using Humans.Base.Interfaces;
-using Humans.Email.Contracts;
+using Humans.Email.Services;
 using Humans.Email.ViewComponents;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -14,8 +14,8 @@ using NSubstitute;
 namespace Humans.Email.Tests.ViewComponents;
 
 /// <summary>
-/// The "Email Outbox" card Email contributes to the admin human-detail page (Users decomposition
-/// commit 3): who sees it, and what it shows.
+/// The "Email Outbox" card Email contributes to the admin human-detail page: who sees it, and
+/// what it shows.
 /// </summary>
 public sealed class OutboxCardViewComponentTests
 {

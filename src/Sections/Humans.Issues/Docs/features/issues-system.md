@@ -11,7 +11,7 @@
 
 ## Business Context
 
-The Issues section is the in-app issue tracker — bugs, feature requests, and questions raised by humans against any section of the app. Submissions are routed by `Issue.Section` to the role-holders who own that section (e.g. an issue tagged `Tickets` lands in the queue of every `TicketAdmin`), so triage is decentralised: each section's coordinators see only the issues that concern them, while Admin sees everything. A reporter can have a back-and-forth conversation with handlers right inside the issue detail; "ball-in-court" is derived from the latest comment so the system never lies about whose move it is. Claude Code agents have programmatic read/write access via an API key for automated triage and follow-up.
+The Issues section is the in-app issue tracker — bugs, feature requests, and questions raised by humans against any section of the app. Submissions are routed by `Issue.Section` to the role-holders who own that section (e.g. an issue tagged `Tickets` lands in the queue of every `TicketsAdmin`), so triage is decentralised: each section's coordinators see only the issues that concern them, while Admin sees everything. A reporter can have a back-and-forth conversation with handlers right inside the issue detail; "ball-in-court" is derived from the latest comment so the system never lies about whose move it is. Claude Code agents have programmatic read/write access via an API key for automated triage and follow-up.
 
 Issues is the only in-app reporting path. Feedback (`src/Sections/Humans.Feedback/Docs/features/feedback-system.md`), the single global queue it replaced, accepts no new reports and is Admin-only.
 
@@ -34,7 +34,7 @@ Issues is the only in-app reporting path. Feedback (`src/Sections/Humans.Feedbac
 
 ### US-28.2: Section-Routed Triage
 
-**As** a section role-holder (e.g., `TicketAdmin`, `CampAdmin`, `Board`) **or** an Admin, **I want** to see and triage the issues filed against my section, **so that** my queue stays focused on what I actually own.
+**As** a section role-holder (e.g., `TicketsAdmin`, `CampsAdmin`, `Board`) **or** an Admin, **I want** to see and triage the issues filed against my section, **so that** my queue stays focused on what I actually own.
 
 **Acceptance Criteria:**
 - Unified page at `/Issues` — Admin sees all issues; section role-holders see issues where `Issue.Section` maps to one of their roles (per `IssueSectionRouting.RolesFor`); a regular human sees only the issues they reported
@@ -74,6 +74,7 @@ Issues is the only in-app reporting path. Feedback (`src/Sections/Humans.Feedbac
 - When status changes, the reporter and current assignee are notified
 - When an issue is assigned, the new assignee is notified
 - Emails are queued via the email outbox (`OutboxEmailService`) and localized in the recipient's preferred language (en/es/de/fr/it/ca)
+- Once a submission, comment, status or assignment change is saved, its notifications, email and submitted-alert resolution finish even if the browser disconnects. Reads and persistence before that save retain request cancellation. Actionable badge counts query current rows on each read, including after routing changes, retention or erasure.
 - Effective notification email is resolved through `IUserEmailService.GetNotificationTargetEmailsAsync` so verified-email and forwarding rules apply
 
 ### US-28.5: Conversation Thread
@@ -108,7 +109,7 @@ See [`src/Sections/Humans.Issues/Docs/Issues.md`](../Issues.md) for full field-l
 
 Uploads use atomic `IFileStorage.SaveAsync`. If saving the Issue row fails, the upload is deleted; cleanup failures are logged and the original persistence failure propagates.
 
-Retention and GDPR erasure commit report removal before non-cancellable screenshot cleanup; storage failures are logged without reversing the committed operation.
+Retention commits report removal before best-effort screenshot cleanup. GDPR erasure deletes owned screenshots first and propagates storage failures while the report keys remain available for retry. Once deletion begins, screenshot and row removal finish without caller cancellation.
 
 Direct screenshot reads reuse the viewer-scoped issue read before static-file serving. Anonymous and out-of-scope viewers receive 404; permitted reads must match the stored screenshot path and disable caching.
 
@@ -184,4 +185,4 @@ The Issues API is the read/write surface Claude Code agents use to triage and fo
 - Notifications (`src/Sections/Humans.Notifications/Docs/features/notification-inbox.md`) — `NotificationSource.IssueSubmitted`, `NotificationSource.IssueComment`, `NotificationSource.IssueStatusChanged`, `NotificationSource.IssueAssigned`.
 - Audit log — every issue mutation is recorded.
 - `IssuesUserMenuViewComponent` — the section's own chrome contribution for the actionable item count.
-- Role management — `TicketAdmin`, `CampAdmin`, `TeamsAdmin`, `Board`, `ConsentCoordinator`, `VolunteerCoordinator`, `HumanAdmin`, `NoInfoAdmin`, `FinanceAdmin` roles all gate section-specific issue queues per `IssueSectionRouting.RolesFor`.
+- Role management — `TicketsAdmin`, `CampsAdmin`, `TeamsAdmin`, `Board`, `ConsentCoordinator`, `ShiftsAdmin`, `UsersAdmin`, `ShiftsNoInfo`, `FinanceAdmin` roles all gate section-specific issue queues per `IssueSectionRouting.RolesFor`.

@@ -2,11 +2,7 @@ using Humans.Base.Constants;
 
 namespace Humans.Guide.Services;
 
-/// <summary>
-/// Drops the role-scoped segments the current user can't see and returns the markdown that
-/// remains. Runs before rendering: the reader's Markdig pass only ever sees content they are
-/// allowed to read.
-/// </summary>
+/// <summary>Runs before rendering, so Markdig only ever sees content the reader may read.</summary>
 internal static class GuideFilter
 {
     public static string Apply(GuideDocument document, GuideRoleContext context)
@@ -30,8 +26,6 @@ internal static class GuideFilter
         GuideRoleContext context,
         bool fileSeesBoardAdmin)
     {
-        // Unscoped text — the prologue and anything past the next plain ## heading — is
-        // everyone's.
         if (segment.Role is null)
         {
             return true;
@@ -58,15 +52,10 @@ internal static class GuideFilter
     private static bool IsCoordinatorVisible(IReadOnlyList<string> paren, GuideRoleContext ctx)
     {
         if (ctx.IsTeamCoordinator) return true;
-        if (ctx.SystemRoles.Contains(RoleNames.Board) || ctx.SystemRoles.Contains(RoleNames.Admin)) return true;
         // Camp lead is not a claim, so it is gated on the parenthetical rather than opening
         // every Coordinator block the way IsTeamCoordinator does.
         if (ctx.IsCampLead && paren.Contains(GuideRolePrivilegeMap.CampLead, StringComparer.Ordinal)) return true;
-        foreach (var role in paren)
-        {
-            if (ctx.SystemRoles.Contains(role)) return true;
-        }
-        return false;
+        return IsBoardAdminVisible(paren, ctx);
     }
 
     private static bool IsBoardAdminVisible(IReadOnlyList<string> paren, GuideRoleContext ctx)

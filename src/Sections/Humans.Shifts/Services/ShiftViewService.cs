@@ -4,33 +4,33 @@ using Humans.Shifts.Data;
 
 namespace Humans.Shifts.Services;
 
-/// <summary>Inner <see cref="IShiftRowView"/> — direct repo reads, no caching. CachingShiftViewService wraps it.</summary>
 internal sealed class ShiftViewService : IShiftRowView
 {
     private readonly IShiftManagementRepository _management;
     private readonly IVolunteerTrackingRepository _tracking;
     private readonly EventCalendarResolver _calendarResolver;
+    private readonly IShiftManagement _shiftManagement;
 
     public ShiftViewService(
         IShiftManagementRepository management,
         IVolunteerTrackingRepository tracking,
-        EventCalendarResolver calendarResolver)
+        EventCalendarResolver calendarResolver,
+        IShiftManagement shiftManagement)
     {
         _management = management;
         _tracking = tracking;
         _calendarResolver = calendarResolver;
+        _shiftManagement = shiftManagement;
     }
+
+    public void EventSettingsChanged(Guid eventSettingsId) =>
+        _shiftManagement.InvalidateDashboardCaches(eventSettingsId);
 
     public async ValueTask<ShiftUserView> GetUserAsync(Guid userId, CancellationToken ct = default) =>
         (await GetUsersAsync([userId], ct).ConfigureAwait(false))[userId];
 
     /// <summary>
-    /// True bulk: one query per contributing table filtered by the supplied
-    /// user ids (plus active event scope where relevant). Materializes a
-    /// <see cref="ShiftUserView"/> for every requested id — users with no
-    /// shift-section rows get a view whose fields are null/empty rather than
-    /// being absent from the result. Collapses the per-user 6× fan-out that
-    /// dominated /Admin first-hit.
+    /// One query per table for all ids. Every requested id gets a view, empty when it has no rows, never absent.
     /// </summary>
     public async ValueTask<IReadOnlyDictionary<Guid, ShiftUserView>> GetUsersAsync(
         IEnumerable<Guid> userIds, CancellationToken ct = default)

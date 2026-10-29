@@ -3,10 +3,6 @@ using Humans.Base.Models;
 
 namespace Humans.Users.Tests;
 
-/// <summary>
-/// The help widget and the agent's preload both read the Profile access matrix through the
-/// <c>ISectionAccessMatrix</c> seam, so the rows are pinned here rather than in Base.
-/// </summary>
 public class SectionAccessMatrixTests
 {
     private static AccessMatrixData Matrix() =>
@@ -20,7 +16,7 @@ public class SectionAccessMatrixTests
         matrix.Key.Should().Be("Profile");
         matrix.SectionName.Should().Be("Profile");
         matrix.Order.Should().Be(80);
-        matrix.Roles.Should().Equal("Volunteer", "Coordinator", "Board", "HumanAdmin", "Admin");
+        matrix.Roles.Should().Equal("Volunteer", "Coordinator", "Board", "UsersAdmin", "Admin");
     }
 
     /// <summary>
@@ -33,10 +29,10 @@ public class SectionAccessMatrixTests
         Matrix().Features
             .Select(f => $"{f.Name}: {string.Join(", ", f.RoleAccess.Select(kv => $"{kv.Key}={kv.Value}"))}")
             .Should().Equal(
-                "View own profile: Volunteer=Allowed, Coordinator=Allowed, Board=Allowed, HumanAdmin=Allowed, Admin=Allowed",
-                "Edit own profile: Volunteer=Allowed, Coordinator=Allowed, Board=Allowed, HumanAdmin=Allowed, Admin=Allowed",
-                "View other profiles: Volunteer=Limited, Coordinator=Allowed, Board=Allowed, HumanAdmin=Allowed, Admin=Allowed",
-                "View contact fields: Volunteer=Limited, Coordinator=Limited, Board=Allowed, HumanAdmin=Allowed, Admin=Allowed",
-                "Admin view of profile: Volunteer=Denied, Coordinator=Denied, Board=Allowed, HumanAdmin=Allowed, Admin=Allowed");
+                "View own profile: Volunteer=Allowed, Coordinator=Allowed, Board=Allowed, UsersAdmin=Allowed, Admin=Allowed",
+                "Edit own profile: Volunteer=Allowed, Coordinator=Allowed, Board=Allowed, UsersAdmin=Allowed, Admin=Allowed",
+                "View other profiles: Volunteer=Limited, Coordinator=Allowed, Board=Allowed, UsersAdmin=Allowed, Admin=Allowed",
+                "View contact fields: Volunteer=Limited, Coordinator=Limited, Board=Allowed, UsersAdmin=Allowed, Admin=Allowed",
+                "Admin view of profile: Volunteer=Denied, Coordinator=Denied, Board=Allowed, UsersAdmin=Allowed, Admin=Allowed");
     }
 }

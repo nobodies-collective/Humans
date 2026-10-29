@@ -14,10 +14,7 @@ using Humans.Users.Contracts;
 
 namespace Humans.Shifts.Controllers;
 
-/// <summary>
-/// Coordinator tracking heatmap + camp-setup/day-block mutations.
-/// Reads gated by ShiftDashboardAccess; writes add VolunteerTrackingWrite.
-/// </summary>
+/// <summary>Reads need ShiftDashboardAccess; writes add VolunteerTrackingWrite.</summary>
 [Route("Shifts/Dashboard/VolunteerTracking")]
 [Authorize(Policy = PolicyNames.ShiftDashboardAccess)]
 internal sealed class VolunteerTrackingController(
@@ -45,7 +42,7 @@ internal sealed class VolunteerTrackingController(
             return View(VolunteerTrackingPageViewModel.Empty);
         }
 
-        // BurnerName lookup for sort key + partial tooltips (cell render uses <vc:human>).
+        // The sort key and tooltips; cells render names through <vc:human>.
         var displayUserIds = data.MainCohort.Select(r => r.UserId)
             .Concat(data.UnbookedCohort.Select(r => r.UserId))
             .Distinct()
@@ -71,8 +68,7 @@ internal sealed class VolunteerTrackingController(
                 .ThenBy(r => nameByUserId.GetValueOrDefault(r.UserId, ""), StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-        // Export card form state — the active event's departments. The page is gated on
-        // an active event, so the null fall-back only covers a race between the two reads.
+        // The page is gated on an active event; the null fallback covers a race between the two reads.
         var activeEvent = await burnSettings.GetActiveAsync(ct);
         var departments = activeEvent is null
             ? []
@@ -114,7 +110,7 @@ internal sealed class VolunteerTrackingController(
         var eventSettings = await burnSettings.GetActiveAsync(ct);
         if (eventSettings is null)
         {
-            SetError(localizer["VolTrack_NoActiveEvent"]);
+            SetError(localizer["Shifts_VolTrack_NoActiveEvent"]);
             return RedirectToAction(nameof(Index));
         }
 
@@ -122,11 +118,8 @@ internal sealed class VolunteerTrackingController(
         var parsedEnd = TryParseLocalDate(endDate);
         var (activeStart, activeEnd) = ShiftFilterResolver.Resolve(period, parsedStart, parsedEnd);
 
-        // Resolve range:
-        //   period=Build + subPeriod set → narrow to that sub-period's day-offset window
-        //   period set → period's window (Build/Event/Strike each have distinct windows)
-        //   period null + explicit dates → those dates
-        //   period null + no dates → whole event (Build → Strike inclusive)
+        // Build with a sub-period narrows to it; any period uses its window; otherwise explicit dates, else the
+        // whole event, Build through Strike.
         LocalDate rangeStart, rangeEnd;
         if (period == ShiftPeriod.Build && subPeriod.HasValue)
         {
@@ -146,8 +139,7 @@ internal sealed class VolunteerTrackingController(
         {
             (rangeStart, rangeEnd) = ShiftFilterResolver.ResolvePeriodRange(null, eventSettings);
         }
-        // Guard against a hand-crafted URL with endDate before startDate (the form's HTML5
-        // validation would block this, but the action is reachable directly).
+        // HTML5 validation blocks this, but the action is reachable directly.
         if (rangeEnd < rangeStart)
         {
             (rangeStart, rangeEnd) = (rangeEnd, rangeStart);
@@ -186,14 +178,14 @@ internal sealed class VolunteerTrackingController(
     {
         if (!ModelState.IsValid)
         {
-            SetError(localizer["VolTrack_Err_BadRequest"]);
+            SetError(localizer["Shifts_VolTrack_Err_BadRequest"]);
             return RedirectBack(returnUrl);
         }
 
         var parseResult = LocalDatePattern.Iso.Parse(form.Date);
         if (!parseResult.Success)
         {
-            SetError(localizer["VolTrack_Err_BadDate"]);
+            SetError(localizer["Shifts_VolTrack_Err_BadDate"]);
             return RedirectBack(returnUrl);
         }
         var parsed = parseResult.Value;
@@ -210,11 +202,11 @@ internal sealed class VolunteerTrackingController(
         var result = await service.SetCampSetupAsync(form.UserId, parsed, form.Notes, current.Id, ct);
         if (!result.Ok)
         {
-            SetError(localizer[result.ErrorMessageKey ?? "VolTrack_Err_Unknown"]);
+            SetError(localizer[result.ErrorMessageKey ?? "Shifts_VolTrack_Err_Unknown"]);
             return RedirectBack(returnUrl);
         }
 
-        SetSuccess(localizer["VolTrack_Msg_CampSetupSaved"]);
+        SetSuccess(localizer["Shifts_VolTrack_Msg_CampSetupSaved"]);
         return RedirectBack(returnUrl);
     }
 
@@ -225,7 +217,7 @@ internal sealed class VolunteerTrackingController(
     {
         if (userId == Guid.Empty)
         {
-            SetError(localizer["VolTrack_Err_BadRequest"]);
+            SetError(localizer["Shifts_VolTrack_Err_BadRequest"]);
             return RedirectBack(returnUrl);
         }
 
@@ -234,7 +226,7 @@ internal sealed class VolunteerTrackingController(
 
         await service.ClearCampSetupAsync(userId, current.Id, ct);
 
-        SetSuccess(localizer["VolTrack_Msg_CampSetupCleared"]);
+        SetSuccess(localizer["Shifts_VolTrack_Msg_CampSetupCleared"]);
         return RedirectBack(returnUrl);
     }
 
@@ -245,7 +237,7 @@ internal sealed class VolunteerTrackingController(
     {
         if (!ModelState.IsValid)
         {
-            SetError(localizer["VolTrack_Err_BadRequest"]);
+            SetError(localizer["Shifts_VolTrack_Err_BadRequest"]);
             return RedirectBack(returnUrl);
         }
 
@@ -266,11 +258,11 @@ internal sealed class VolunteerTrackingController(
             ct);
         if (!result.Ok)
         {
-            SetError(localizer[result.ErrorMessageKey ?? "VolTrack_Err_Unknown"]);
+            SetError(localizer[result.ErrorMessageKey ?? "Shifts_VolTrack_Err_Unknown"]);
             return RedirectBack(returnUrl);
         }
 
-        SetSuccess(localizer["VolTrack_Msg_DayOffMarked"]);
+        SetSuccess(localizer["Shifts_VolTrack_Msg_DayOffMarked"]);
         return RedirectBack(returnUrl);
     }
 
@@ -281,7 +273,7 @@ internal sealed class VolunteerTrackingController(
     {
         if (!ModelState.IsValid)
         {
-            SetError(localizer["VolTrack_Err_BadRequest"]);
+            SetError(localizer["Shifts_VolTrack_Err_BadRequest"]);
             return RedirectBack(returnUrl);
         }
 
@@ -295,11 +287,11 @@ internal sealed class VolunteerTrackingController(
             ct);
         if (result.Removed)
         {
-            SetSuccess(localizer["VolTrack_Msg_DayOffCleared"]);
+            SetSuccess(localizer["Shifts_VolTrack_Msg_DayOffCleared"]);
         }
         else
         {
-            SetInfo(localizer["VolTrack_Msg_DayOffNotSet"]);
+            SetInfo(localizer["Shifts_VolTrack_Msg_DayOffNotSet"]);
         }
 
         return RedirectBack(returnUrl);
@@ -308,45 +300,22 @@ internal sealed class VolunteerTrackingController(
     [HttpPost("SetAvailabilityDay")]
     [Authorize(Policy = PolicyNames.VolunteerTrackingWrite)]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SetAvailabilityDay(
+    public Task<IActionResult> SetAvailabilityDay(
         Guid? userId, int? dayOffset, string? returnUrl, CancellationToken ct)
-    {
-        var es = await burnSettings.GetActiveAsync(ct);
-        if (es is null) { SetError(localizer["VolTrack_Err_BadRequest"]); return RedirectBack(returnUrl); }
-
-        var current = await GetCurrentUserInfoAsync();
-        if (current is null) return Forbid();
-
-        if (!ModelState.IsValid || userId is not { } targetUserId || dayOffset is not { } offset
-            || targetUserId == Guid.Empty)
-        {
-            logger.LogWarning("Rejected malformed coordinator availability addition for user {UserId}, day {DayOffset}",
-                userId, dayOffset);
-            return BadRequest();
-        }
-
-        var changed = await service.SetDayAvailabilityAsync(
-            targetUserId,
-            es.Id,
-            offset,
-            available: true,
-            current.Id,
-            ct);
-        if (changed)
-        {
-            SetSuccess(localizer["VolTrack_Msg_AvailabilitySet"]);
-        }
-        return RedirectBack(returnUrl);
-    }
+        => UpdateAvailabilityDayAsync(userId, dayOffset, returnUrl, available: true, ct);
 
     [HttpPost("ClearAvailabilityDay")]
     [Authorize(Policy = PolicyNames.VolunteerTrackingWrite)]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ClearAvailabilityDay(
+    public Task<IActionResult> ClearAvailabilityDay(
         Guid? userId, int? dayOffset, string? returnUrl, CancellationToken ct)
+        => UpdateAvailabilityDayAsync(userId, dayOffset, returnUrl, available: false, ct);
+
+    private async Task<IActionResult> UpdateAvailabilityDayAsync(
+        Guid? userId, int? dayOffset, string? returnUrl, bool available, CancellationToken ct)
     {
         var es = await burnSettings.GetActiveAsync(ct);
-        if (es is null) { SetError(localizer["VolTrack_Err_BadRequest"]); return RedirectBack(returnUrl); }
+        if (es is null) { SetError(localizer["Shifts_VolTrack_Err_BadRequest"]); return RedirectBack(returnUrl); }
 
         var current = await GetCurrentUserInfoAsync();
         if (current is null) return Forbid();
@@ -354,8 +323,8 @@ internal sealed class VolunteerTrackingController(
         if (!ModelState.IsValid || userId is not { } targetUserId || dayOffset is not { } offset
             || targetUserId == Guid.Empty)
         {
-            logger.LogWarning("Rejected malformed coordinator availability removal for user {UserId}, day {DayOffset}",
-                userId, dayOffset);
+            logger.LogWarning("Rejected malformed coordinator availability {Operation} for user {UserId}, day {DayOffset}",
+                available ? "addition" : "removal", userId, dayOffset);
             return BadRequest();
         }
 
@@ -363,12 +332,12 @@ internal sealed class VolunteerTrackingController(
             targetUserId,
             es.Id,
             offset,
-            available: false,
+            available,
             current.Id,
             ct);
         if (changed)
         {
-            SetSuccess(localizer["VolTrack_Msg_AvailabilityCleared"]);
+            SetSuccess(localizer[available ? "Shifts_VolTrack_Msg_AvailabilitySet" : "Shifts_VolTrack_Msg_AvailabilityCleared"]);
         }
         return RedirectBack(returnUrl);
     }

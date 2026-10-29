@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Security.Claims;
 using AwesomeAssertions;
 using Humans.Base.Authorization;
-using Humans.Email.Contracts;
+using Humans.Email.Services;
 using Humans.Email.Controllers;
 using Humans.Users.Contracts;
 using Microsoft.AspNetCore.Authorization;
@@ -14,7 +14,7 @@ using NSubstitute;
 namespace Humans.Email.Tests.Controllers;
 
 /// <summary>
-/// The per-member outbox pages served by Email (Users decomposition commit 3): the member's own
+/// The per-member outbox pages: the member's own
 /// at <c>/Email/Outbox</c>, the admin's at <c>/Email/Admin/{id}/Outbox</c>.
 /// </summary>
 public sealed class MemberOutboxControllerTests
@@ -43,7 +43,7 @@ public sealed class MemberOutboxControllerTests
     private void GivenKnownUser(Guid id) =>
         _users.GetUserInfoAsync(id, Arg.Any<CancellationToken>()).Returns(new UserInfo(
             id, "Member", false, "en", null, Instant.FromUnixTimeSeconds(0),
-            null, null, null, null, null, null, null,
+            null, null, null, null, null, null,
             null, null, null, [], [], [], null, []));
 
     private static EmailOutboxMessageDto Message(Guid userId) => new(
@@ -145,11 +145,11 @@ public sealed class MemberOutboxControllerTests
     {
         // Deny path: the admin page is policy-gated; the own-page action takes no id, so a member
         // cannot read another member's outbox through it.
-        typeof(MemberOutboxController).GetCustomAttribute<AuthorizeAttribute>().Should().NotBeNull();
-        Method(nameof(MemberOutboxController.AdminOutbox)).GetCustomAttribute<AuthorizeAttribute>()!
+        typeof(MemberOutboxController).GetCustomAttribute<AuthorizeAttribute>(inherit: false).Should().NotBeNull();
+        Method(nameof(MemberOutboxController.AdminOutbox)).GetCustomAttribute<AuthorizeAttribute>(inherit: false)!
             .Policy.Should().Be(PolicyNames.HumanAdminBoardOrAdmin);
         Method(nameof(MemberOutboxController.MyOutbox)).GetParameters().Should().BeEmpty();
-        Method(nameof(MemberOutboxController.MyOutbox)).GetCustomAttribute<AuthorizeAttribute>().Should().BeNull();
+        Method(nameof(MemberOutboxController.MyOutbox)).GetCustomAttribute<AuthorizeAttribute>(inherit: false).Should().BeNull();
     }
 
     private static MethodInfo Method(string name) => typeof(MemberOutboxController).GetMethod(name)!;

@@ -2,12 +2,6 @@ using Humans.Email.Contracts;
 
 namespace Humans.Expenses.Services;
 
-/// <summary>
-/// Expenses' contribution to the template gallery at <c>/Email/EmailPreview</c>: one
-/// sample per template <see cref="ExpensesEmails"/> can send, built through the same
-/// builder the real send path uses, so the gallery cannot drift from what members receive.
-/// Sample data only — no recipient is real and nothing is sent.
-/// </summary>
 internal sealed class ExpensesEmailPreviews(ExpensesEmails emails) : IEmailPreviewContributor
 {
     private static readonly Guid SampleReportId = new("0f1e2d3c-4b5a-4978-8695-a4b3c2d1e0f9");
@@ -20,7 +14,7 @@ internal sealed class ExpensesEmailPreviews(ExpensesEmails emails) : IEmailPrevi
         return
         [
             new EmailPreviewSample("expense-approved", "Expense Report Approved",
-                emails.ReportApproved(email, name, SampleReportId, 123.45m, "ES79****789", culture)),
+                emails.ReportApproved(Guid.Empty, email, name, SampleReportId, 123.45m, "ES79****789", culture)),
         ];
     }
 }

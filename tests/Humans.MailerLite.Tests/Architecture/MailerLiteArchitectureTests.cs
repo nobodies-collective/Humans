@@ -76,11 +76,8 @@ public class MailerLiteArchitectureTests
     }
 
     /// <summary>
-    /// The section's Negative Access Rule — non-admins cannot reach any /MailerLite/Admin/*
-    /// route — was pinned only by MailerLitePageRenderTests, which lives in
-    /// Humans.Integration.Tests and is excluded from CI by design
-    /// (memory/process/integration-tests-are-not-ci-tests.md). This reflection check runs in
-    /// CI, so removing the attribute fails the build rather than shipping an open admin page.
+    /// The section's Negative Access Rule: non-admins cannot reach any /MailerLite/Admin/* route.
+    /// The page-render test lives in the opt-in integration suite, so this reflection check is the CI guard.
     /// </summary>
     [HumansFact]
     public void EveryController_IsAdminOnly()
@@ -94,7 +91,7 @@ public class MailerLiteArchitectureTests
 
         foreach (var controller in controllers)
         {
-            var authorize = controller.GetCustomAttributes<AuthorizeAttribute>(inherit: true).ToList();
+            var authorize = controller.GetCustomAttributes<AuthorizeAttribute>(inherit: false).ToList();
             authorize.Should().ContainSingle(
                 $"{controller.Name} must carry exactly one [Authorize]");
             authorize[0].Policy.Should().Be(PolicyNames.AdminOnly,

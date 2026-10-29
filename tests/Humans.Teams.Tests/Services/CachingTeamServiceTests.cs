@@ -38,6 +38,19 @@ public sealed class CachingTeamServiceTests : TeamsTestHarness
             .IsUserBoardMemberAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(false);
         _innerTeamService = Substitute.For<ITeamManagementService>();
+        _innerTeamService.GetTeamSnapshotsAsync(Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var teams = await _innerTeamService.GetTeamsAsync(call.Arg<CancellationToken>());
+                return (IReadOnlyDictionary<Guid, TeamReadSnapshot>)teams.ToDictionary(pair => pair.Key, pair => new TeamReadSnapshot(
+                    pair.Value, pair.Value.Members.Select(member => new TeamMemberReference(
+                        member.TeamMemberId, member.UserId, member.Role, member.JoinedAt)).ToList()));
+            });
+        _innerTeamService.ResolveTeamMembersAsync(
+                Arg.Any<IReadOnlyDictionary<Guid, TeamReadSnapshot>>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<IReadOnlyDictionary<Guid, TeamInfo>>(
+                call.Arg<IReadOnlyDictionary<Guid, TeamReadSnapshot>>()
+                    .ToDictionary(pair => pair.Key, pair => pair.Value.Team)));
         _innerTeamService.GetTeamsAsync(Arg.Any<CancellationToken>())
             .Returns(_ => BuildTeamInfosAsync());
 
@@ -430,15 +443,11 @@ public sealed class CachingTeamServiceTests : TeamsTestHarness
         await inner.DidNotReceive().GetUserTeamMembershipsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
-    // ==========================================================================
-    // GetMyTeamMembershipsAsync â€” cache-served (issue nobodies-collective/Humans#748)
-    // ==========================================================================
-
     [HumansTheory]
     [InlineData(null)]
     [InlineData(RoleNames.Admin)]
     [InlineData(RoleNames.Board)]
-    [InlineData(RoleNames.TeamsAdmin)]
+    [InlineData(TeamsRoles.TeamsAdmin)]
     public async Task MyTeams_HiddenMembershipNamesAndCounts_RequirePrivilegedRole(string? role)
     {
         var user = SeedUser("Coordinator");
@@ -447,7 +456,7 @@ public sealed class CachingTeamServiceTests : TeamsTestHarness
         _roleAssignmentService.IsUserBoardMemberAsync(user.Id, Arg.Any<CancellationToken>())
             .Returns(string.Equals(role, RoleNames.Board, StringComparison.Ordinal));
         _roleAssignmentService.IsUserTeamsAdminAsync(user.Id, Arg.Any<CancellationToken>())
-            .Returns(string.Equals(role, RoleNames.TeamsAdmin, StringComparison.Ordinal));
+            .Returns(string.Equals(role, TeamsRoles.TeamsAdmin, StringComparison.Ordinal));
         var hiddenParent = SeedTeam("Private parent");
         hiddenParent.IsHidden = true;
         var publicChild = SeedTeam("Visible child");
@@ -612,10 +621,6 @@ public sealed class CachingTeamServiceTests : TeamsTestHarness
         await inner.Received(1).GetTeamsAsync(Arg.Any<CancellationToken>());
     }
 
-    // ==========================================================================
-    // Join-lifecycle invalidation â€” issue nobodies-collective/Humans#748
-    // ==========================================================================
-
     [HumansTheory]
     [InlineData(nameof(CachingTeamService.JoinTeamAsync))]
     [InlineData(nameof(CachingTeamService.WithdrawJoinRequestAsync))]
@@ -631,14 +636,15 @@ public sealed class CachingTeamServiceTests : TeamsTestHarness
         await _service.GetTeamAsync(team.Id, ct);
         var before = _service.BulkInvalidations;
 
-        // Inner is an unconfigured NSubstitute mock; approve returns default (null) — fine for this assertion.
-        await (write switch
+        // An unconfigured inner mock can return no result; invalidation must still run.
+        Task mutation = write switch
         {
             nameof(CachingTeamService.JoinTeamAsync) => _service.JoinTeamAsync(team.Id, Guid.NewGuid(), null, ct),
             nameof(CachingTeamService.WithdrawJoinRequestAsync) => _service.WithdrawJoinRequestAsync(Guid.NewGuid(), Guid.NewGuid(), ct),
             nameof(CachingTeamService.RejectJoinRequestAsync) => _service.RejectJoinRequestAsync(Guid.NewGuid(), Guid.NewGuid(), "reason", ct),
             _ => _service.ApproveJoinRequestAsync(Guid.NewGuid(), Guid.NewGuid(), null, ct),
-        });
+        };
+        await mutation;
 
         _service.BulkInvalidations.Should().BeGreaterThan(before);
     }
@@ -771,10 +777,9 @@ public sealed class CachingTeamServiceTests : TeamsTestHarness
     [HumansFact]
     public async Task SearchAsync_GuidQuery_ResolvesAHiddenTeam_BecauseTheDestinationPageEnforces()
     {
-        // Ruling on nobodies-collective/Humans#985 (2026-08-07): a by-GUID hit is a routing
-        // convenience for someone who already holds the id, not an authorization statement.
-        // The pairing test below — GetTeamDetailAsync_HiddenTeam_NonPrivilegedViewer — is what
-        // makes that safe: /Teams/{slug} is where the hidden team is actually refused.
+        // A by-GUID hit is a routing convenience for someone who already holds the id, not an
+        // authorization statement: /Teams/{slug} is where a hidden team is refused (pinned by
+        // GetTeamDetailAsync_HiddenTeam_NonPrivilegedViewer).
         var hidden = SeedTeam("Kitchenette");
         hidden.IsHidden = true;
         await SaveAllAsync(TestContext.Current.CancellationToken);
@@ -792,8 +797,7 @@ public sealed class CachingTeamServiceTests : TeamsTestHarness
     [HumansFact]
     public async Task SearchAsync_ScoresItsOwnHits_ExactThenPrefixThenContains()
     {
-        // Scoring belongs to the section, not the global-search orchestrator
-        // (nobodies-collective/Humans#1062).
+        // Scoring belongs to the section, not the global-search orchestrator.
         SeedTeam("Kitchen");
         SeedTeam("Kitchen Crew");
         SeedTeam("Main Kitchen");

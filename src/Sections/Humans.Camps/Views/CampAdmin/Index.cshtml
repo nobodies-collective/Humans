@@ -15,7 +15,6 @@
 <h1>@Localizer["Camps_AdminTitle"]</h1>
 
 
-@* Summary cards *@
 <div class="row row-cols-2 row-cols-md-5 g-3 mb-4">
     <div class="col">
         <div class="card text-center h-100">
@@ -59,7 +58,6 @@
     </div>
 </div>
 
-@* Camp role tools *@
 <div class="row mb-4">
     <div class="col-md-6 col-lg-4 mb-3">
         <div class="card h-100">
@@ -102,7 +100,6 @@
     }
 </div>
 
-@* Pending Approvals *@
 <div class="card mb-4">
     <div class="card-header">
         <i class="fa-solid fa-clock me-2"></i>Pending Approvals
@@ -136,7 +133,7 @@
                             </td>
                             <td>@(camp.BlurbShort.Length > 100 ? camp.BlurbShort[..(char.IsHighSurrogate(camp.BlurbShort[99]) && char.IsLowSurrogate(camp.BlurbShort[100]) ? 99 : 100)] + "..." : camp.BlurbShort)</td>
                             <td>
-                                <input type="text" class="form-control form-control-sm" form="approve-@camp.SeasonId" name="notes" placeholder="Optional notes" />
+                                <input type="text" class="form-control form-control-sm" form="approve-@camp.SeasonId" name="notes" maxlength="2000" placeholder="Optional notes" />
                             </td>
                             <td class="text-end">
                                 <form id="approve-@camp.SeasonId" asp-controller="CampAdmin" asp-action="Approve" asp-route-seasonId="@camp.SeasonId" method="post" class="d-inline">
@@ -154,7 +151,7 @@
                             <td colspan="4">
                                 <form asp-controller="CampAdmin" asp-action="Reject" asp-route-seasonId="@camp.SeasonId" method="post" class="d-flex gap-2 p-2">
                                     @Html.AntiForgeryToken()
-                                    <input type="text" name="notes" class="form-control form-control-sm" placeholder="Rejection reason (required)" required />
+                                    <input type="text" name="notes" maxlength="2000" class="form-control form-control-sm" placeholder="Rejection reason (required)" required />
                                     <button type="submit" class="btn btn-danger btn-sm text-nowrap">Confirm Reject</button>
                                 </form>
                             </td>
@@ -166,7 +163,6 @@
     }
 </div>
 
-@* Withdrawn Camps *@
 @if (Model.WithdrawnCamps.Count > 0)
 {
     Func<CampCardViewModel, IHtmlContent> withdrawnNameCell =
@@ -250,7 +246,6 @@
     </div>
 </div>
 
-@* Early Entry summary *@
 <div class="card mb-4">
     <div class="card-header">
         <i class="fa-solid fa-ticket me-2"></i>Early Entry (@Model.PublicYear)
@@ -271,7 +266,6 @@
     </div>
 </div>
 
-@* Camp Summary Table *@
 @if (Model.AllCampSummaries.Count > 0)
 {
     <div class="card mb-4">
@@ -365,7 +359,6 @@
     </div>
 }
 
-@* All Camps quick list -- link to public page *@
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="fa-solid fa-campground me-2"></i>All @SharedLocalizer["Camp_Plural"] (@Model.PublicYear)</span>

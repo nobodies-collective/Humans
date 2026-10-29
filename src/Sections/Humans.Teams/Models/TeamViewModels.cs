@@ -1,7 +1,7 @@
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.ComponentModel.DataAnnotations;
 using Humans.Teams.Contracts;
 using Humans.Teams.Services;
-using Humans.Teams.Domain;
 using Humans.Base.Enums;
 using NodaTime;
 
@@ -40,9 +40,7 @@ internal sealed class TeamSummaryViewModel
     public string? ParentTeamName { get; set; }
     public string? ParentTeamSlug { get; set; }
 
-    /// <summary>
-    /// Sort key that groups sub-teams under their parent: "ParentName - ChildName" or just "Name".
-    /// </summary>
+    /// <summary>Groups sub-teams under their parent.</summary>
     public string SortKey => ParentTeamName is not null ? $"{ParentTeamName} - {Name}" : Name;
 }
 
@@ -65,7 +63,6 @@ internal sealed class TeamDetailViewModel
     public List<TeamResourceLinkViewModel> Resources { get; set; } = [];
     public List<TeamRoleDefinitionViewModel> RoleDefinitions { get; set; } = [];
 
-    // Public page content
     public bool IsPublicPage { get; set; }
     public bool ShowCoordinatorsOnPublicPage { get; set; }
     public string? PageContent { get; set; }
@@ -74,11 +71,9 @@ internal sealed class TeamDetailViewModel
     public DateTime? PageContentUpdatedAt { get; set; }
     public string? PageContentUpdatedByDisplayName { get; set; }
 
-    // Viewer context
     public bool IsAuthenticated { get; set; }
     public bool CanEditPageContent { get; set; }
 
-    // Current user context
     public bool IsCurrentUserMember { get; set; }
     public bool IsCurrentUserCoordinator { get; set; }
     public bool CanCurrentUserJoin { get; set; }
@@ -87,23 +82,17 @@ internal sealed class TeamDetailViewModel
     public bool CanCurrentUserEditTeam { get; set; }
 
     /// <summary>
-    /// Whether to surface the per-team Early Entry management link: the team has
-    /// early entry enabled AND the viewer can manage it (coordinator, or the
-    /// cross-team EETeamAdmin role, or TeamsAdmin/Board/Admin).
+    /// Early entry is enabled and the viewer can manage it: a coordinator, EETeamAdmin, or TeamsAdmin/Board/Admin.
     /// </summary>
     public bool CanManageEarlyEntry { get; set; }
     public Guid? CurrentUserPendingRequestId { get; set; }
     public int PendingRequestCount { get; set; }
     public ShiftsSummaryCardViewModel? ShiftsSummary { get; set; }
 
-    /// <summary>
-    /// Coordinators/leads from child teams. Only populated for departments with child team coordinators.
-    /// </summary>
+    /// <summary>Departments only.</summary>
     public List<ChildTeamMemberViewModel> SubteamLeads { get; set; } = [];
 
-    /// <summary>
-    /// Members from child teams rolled up to this department. Only populated for departments.
-    /// </summary>
+    /// <summary>Departments only.</summary>
     public List<ChildTeamMemberViewModel> ChildTeamMembers { get; set; } = [];
 }
 
@@ -124,15 +113,9 @@ internal sealed class TeamMemberViewModel
     public DateTime JoinedAt { get; set; }
     public bool IsCoordinator { get; set; }
 
-    /// <summary>
-    /// The @nobodies.team email address if provisioned, or null.
-    /// </summary>
     public string? NobodiesTeamEmail { get; set; }
 
-    /// <summary>
-    /// The merge-survivor user id (<c>IUserService</c>'s resolved id when the lookup hit,
-    /// else <see cref="UserId"/>) — the provisioning form must post this, not a merged-away id.
-    /// </summary>
+    /// <summary>The merge survivor's id: the provisioning form must post this, not a merged-away id.</summary>
     public Guid LiveUserId { get; set; }
 }
 
@@ -198,13 +181,10 @@ internal sealed class EditTeamViewModel : TeamFormViewModelBase
 {
     public Guid Id { get; set; }
 
-    // Display-only
     public string? GoogleGroupEmail { get; set; }
     public string Slug { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Optional custom slug that overrides the auto-generated slug for external URL stability.
-    /// </summary>
+    /// <summary>Overrides the auto-generated slug for external URL stability.</summary>
     [StringLength(256)]
     [RegularExpression(@"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", ErrorMessage = "Only lowercase letters, numbers, and hyphens allowed")]
     public string? CustomSlug { get; set; }
@@ -255,9 +235,7 @@ internal sealed class TeamMembersViewModel
     public List<TeamMemberViewModel> Members { get; set; } = [];
 
     /// <summary>
-    /// Every active member's UserId across all pages. Used by the add-member
-    /// picker to exclude already-members from typeahead — Members is paginated,
-    /// so it can't be the source of truth for exclusion.
+    /// Every active member across all pages: Members is paginated, so it can't drive the picker's exclusion.
     /// </summary>
     public List<Guid> AllMemberUserIds { get; set; } = [];
 
@@ -265,34 +243,19 @@ internal sealed class TeamMembersViewModel
     public bool CanManageRoles { get; set; }
     public bool CanProvisionEmails { get; set; }
 
-    /// <summary>
-    /// Google resources linked to this team (active only). For the resource access summary card.
-    /// </summary>
+    /// <summary>Active only.</summary>
     public List<ResourceAccessViewModel> TeamResources { get; set; } = [];
 
-    /// <summary>
-    /// Google resources linked to the parent department (active only). Shown separately when this is a sub-team.
-    /// </summary>
+    /// <summary>Active only; shown separately on a sub-team.</summary>
     public List<ResourceAccessViewModel> ParentDepartmentResources { get; set; } = [];
 
-    /// <summary>
-    /// Parent department name, if this is a sub-team.
-    /// </summary>
     public string? ParentDepartmentName { get; set; }
 
-    /// <summary>
-    /// Parent department slug, for linking to its Resources page.
-    /// </summary>
     public string? ParentDepartmentSlug { get; set; }
 
-    /// <summary>
-    /// Whether the team is flagged as sensitive (admin-only).
-    /// </summary>
     public bool IsSensitive { get; set; }
 
-    /// <summary>
-    /// The current actor (for audit preview in sensitive team modal).
-    /// </summary>
+    /// <summary>For the audit preview in the sensitive-team modal.</summary>
     public Guid ActorUserId { get; set; }
 }
 
@@ -340,6 +303,8 @@ internal sealed class MapMarkerViewModel
 internal sealed class ApproveRejectRequestModel
 {
     public Guid RequestId { get; set; }
+
+    [MaxLength(2000)]
     public string? Notes { get; set; }
 }
 
@@ -361,55 +326,7 @@ internal sealed class TeamRoleDefinitionViewModel
     public bool IsManagement { get; set; }
     public RolePeriod Period { get; set; }
 
-    /// <summary>
-    /// IDs of members already assigned to this role (for filtering dropdowns).
-    /// </summary>
     public HashSet<Guid> AssignedUserIds { get; set; } = [];
-
-    public static TeamRoleDefinitionViewModel FromEntity(TeamRoleDefinition d)
-    {
-        var slots = new List<TeamRoleSlotViewModel>();
-        var assignedUserIds = new HashSet<Guid>();
-
-        for (var i = 0; i < d.SlotCount; i++)
-        {
-            var assignment = d.Assignments.FirstOrDefault(a => a.SlotIndex == i);
-            var priority = i < d.Priorities.Count ? d.Priorities[i] : SlotPriority.None;
-            slots.Add(new TeamRoleSlotViewModel
-            {
-                SlotIndex = i,
-                Priority = priority,
-                PriorityBadgeClass = priority switch
-                {
-                    SlotPriority.Critical => "bg-danger",
-                    SlotPriority.Important => "bg-warning text-dark",
-                    SlotPriority.NiceToHave => "bg-secondary",
-                    _ => "bg-light text-dark"
-                },
-                IsFilled = assignment is not null,
-                AssignedUserId = assignment?.TeamMember?.UserId,
-                TeamMemberId = assignment?.TeamMemberId
-            });
-
-            if (assignment?.TeamMember?.UserId is not null)
-                assignedUserIds.Add(assignment.TeamMember.UserId);
-        }
-
-        return new TeamRoleDefinitionViewModel
-        {
-            Id = d.Id,
-            Name = d.Name,
-            Description = d.Description,
-            SlotCount = d.SlotCount,
-            EstimatedHours = d.EstimatedHours,
-            Slots = slots,
-            SortOrder = d.SortOrder,
-            IsPublic = d.IsPublic,
-            IsManagement = d.IsManagement,
-            Period = d.Period,
-            AssignedUserIds = assignedUserIds
-        };
-    }
 
     public static TeamRoleDefinitionViewModel FromSnapshot(
         TeamRoleDefinitionSnapshot d,
@@ -484,10 +401,8 @@ internal sealed class RoleManagementViewModel
     public List<TeamMemberViewModel> TeamMembers { get; set; } = [];
 
     /// <summary>
-    /// Compact (userId, BurnerName) tuples for the role-assignment <c>&lt;option&gt;</c> dropdown.
-    /// Resolved at controller-build time via <c>IUserService.GetUserInfoAsync</c>
-    /// (carve-out from the "no copied display-name" rule — option text can't host
-    /// a view component).
+    /// Burner names resolved by the controller: an exception to the no-copied-display-name rule, because option text
+    /// can't host a view component.
     /// </summary>
     public List<TeamMemberDropdownItem> MemberOptions { get; set; } = [];
 }
@@ -504,9 +419,11 @@ internal sealed class CreateRoleDefinitionModel
 
     [MaxLength(2000)]
     public string? Description { get; set; }
+    [BindRequired]
     public int SlotCount { get; set; } = 1;
     public int? EstimatedHours { get; set; }
     public List<string> Priorities { get; set; } = ["None"];
+    [BindRequired]
     public int SortOrder { get; set; }
     public bool IsPublic { get; set; } = true;
     public RolePeriod Period { get; set; } = RolePeriod.YearRound;
@@ -518,9 +435,11 @@ internal sealed class EditRoleDefinitionModel
 
     [MaxLength(2000)]
     public string? Description { get; set; }
+    [BindRequired]
     public int SlotCount { get; set; }
     public int? EstimatedHours { get; set; }
     public List<string> Priorities { get; set; } = [];
+    [BindRequired]
     public int SortOrder { get; set; }
     public bool IsPublic { get; set; } = true;
     public bool IsManagement { get; set; }
@@ -586,9 +505,6 @@ internal sealed class AdminTeamViewModel
     public bool IsHidden { get; set; }
 }
 
-/// <summary>
-/// Simplified resource link for display on team detail page.
-/// </summary>
 internal sealed class TeamResourceLinkViewModel
 {
     public string Name { get; set; } = string.Empty;
@@ -597,17 +513,13 @@ internal sealed class TeamResourceLinkViewModel
 }
 
 /// <summary>
-/// Board/Admin roster for one team: burner name alongside legal name.
-/// Deliberately not <see cref="TeamMemberViewModel"/> — that shape is shared with the
-/// Members and Roles pages, where a legal name would sit permanently unpopulated.
+/// Not <see cref="TeamMemberViewModel"/>: that shape is shared with the Members and Roles pages, where a legal name would
+/// sit permanently empty.
 /// </summary>
 internal sealed record TeamRosterViewModel(
     string TeamName,
     string TeamSlug,
     IReadOnlyList<TeamRosterRowViewModel> Rows);
 
-/// <summary>
-/// One roster row. Carries no name for the human — the burner name renders through
-/// <c>&lt;vc:human&gt;</c> from <see cref="UserId"/> (memory/code/no-new-displayname-fields.md).
-/// </summary>
+/// <summary>No name field: the burner name renders through <c>&lt;vc:human&gt;</c>.</summary>
 internal sealed record TeamRosterRowViewModel(Guid UserId, string LegalName, Instant JoinedAt);

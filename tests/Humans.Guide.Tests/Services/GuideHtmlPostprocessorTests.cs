@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using AngleSharp.Html.Parser;
 using Humans.Base.Configuration;
 using Humans.Guide.Services;
 using Xunit;
@@ -45,6 +46,46 @@ public class GuideHtmlPostprocessorTests
         result.Should().Contain("rel=\"noopener\"");
     }
 
+    [HumansTheory]
+    [InlineData("<a href='Profiles.md'>Profiles</a><img src='img/screenshot.png'>")]
+    [InlineData("<a href=Profiles.md>Profiles</a><img src=img/screenshot.png>")]
+    public void Rewrite_RawHtmlUrls_UseTheSameRoutesAsMarkdown(string html)
+    {
+        using var document = new HtmlParser().ParseDocument(Processor.Rewrite(html, Settings));
+
+        document.QuerySelector("a")!.GetAttribute("href").Should().Be("/Guide/Profiles");
+        document.QuerySelector("img")!.GetAttribute("src").Should().Be(
+            "https://raw.githubusercontent.com/nobodies-collective/Humans/main/docs/guide/img/screenshot.png");
+    }
+
+    [HumansTheory]
+    [InlineData("<a target=\"_blank\" rel=\"noreferrer\" href=\"https://example.com\">x</a>")]
+    [InlineData("<a href=\"https://example.com\" target=\"_blank\" rel=\"noreferrer\">x</a>")]
+    public void Rewrite_ExternalBlankTarget_PreservesExistingRelAndAddsNoopener(string html)
+    {
+        using var document = new HtmlParser().ParseDocument(Processor.Rewrite(html, Settings));
+        var link = document.QuerySelector("a")!;
+
+        link.GetAttribute("target").Should().Be("_blank");
+        link.GetAttribute("rel")!.Split(' ').Should().BeEquivalentTo(["noreferrer", "noopener"]);
+    }
+
+    [HumansFact]
+    public void Rewrite_LinkInFragment_PreservesStylesCommentsAndAuthoredTarget()
+    {
+        const string html = """<style>.guide { color: red; }</style><!-- guide --><a target="_self" href="NonExistent.md">x</a>""";
+
+        var result = Processor.Rewrite(html, Settings);
+
+        result.Should().Contain("<style>.guide { color: red; }</style>");
+        result.Should().Contain("<!-- guide -->");
+        using var document = new HtmlParser().ParseDocument(result);
+        var link = document.QuerySelector("a")!;
+        link.GetAttribute("href").Should().Be(
+            "https://github.com/nobodies-collective/Humans/blob/main/docs/guide/NonExistent.md");
+        link.GetAttribute("target").Should().Be("_self");
+    }
+
     [HumansFact]
     public void Rewrite_AppPathLink_LeftAsIs()
     {
@@ -67,10 +108,8 @@ public class GuideHtmlPostprocessorTests
         result.Should().NotContain("target=\"_blank\"");
     }
 
-    // Both rows must produce the same raw URL — row 2 exercises the
-    // prefix-stripping branch in RewriteImgSrc (line ~137) where the input
-    // already starts with the guide folder; without stripping, the result
-    // would have a doubled "docs/guide/" segment.
+    // Both rows must produce the same raw URL: row 2 already starts with the guide folder, and
+    // without prefix-stripping the result would carry a doubled "docs/guide/" segment.
     [HumansTheory]
     [InlineData("img/screenshot.png")]
     [InlineData("docs/guide/img/screenshot.png")]

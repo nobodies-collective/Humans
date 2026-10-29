@@ -54,21 +54,9 @@ internal sealed class ApplicationDecisionService(
         LocalDate? boardMeetingDate,
         CancellationToken cancellationToken = default)
     {
-        var application = await repository.GetByIdAsync(applicationId, cancellationToken);
-        if (application is null)
-            return new ApplicationDecisionResult(false, "NotFound");
-
-        if (application.Status != ApplicationStatus.Submitted)
-            return new ApplicationDecisionResult(false, "NotSubmitted");
-
-        // Ordering: capture voter ids and Board ids → finalize (atomic governance commit) → audit → tier/sync → notifications.
-        // Voter capture must precede FinalizeAsync (which deletes BoardVote rows).
-        var voterIds = await repository.GetVoterIdsForApplicationAsync(applicationId, cancellationToken);
-
-        // No votes ⇒ no finalize. Enforced here (not as a caller pre-check) so the
-        // guard and the mutation read the same state.
-        if (voterIds.Count == 0)
-            return new ApplicationDecisionResult(false, "NoVotes");
+        var (candidate, error) = await LoadDecisionApplicationAsync(applicationId, cancellationToken);
+        if (error is not null) return new ApplicationDecisionResult(false, error);
+        var application = candidate!;
 
         if (notes?.Length > 4000)
         {
@@ -99,6 +87,7 @@ internal sealed class ApplicationDecisionService(
             application,
             "approval",
             (recipientEmail, user, language) => emailMessages.ApplicationApproved(
+                user.Id,
                 recipientEmail,
                 user.BurnerName,
                 application.MembershipTier,
@@ -124,18 +113,9 @@ internal sealed class ApplicationDecisionService(
         LocalDate? boardMeetingDate,
         CancellationToken cancellationToken = default)
     {
-        var application = await repository.GetByIdAsync(applicationId, cancellationToken);
-        if (application is null)
-            return new ApplicationDecisionResult(false, "NotFound");
-
-        if (application.Status != ApplicationStatus.Submitted)
-            return new ApplicationDecisionResult(false, "NotSubmitted");
-
-        var voterIds = await repository.GetVoterIdsForApplicationAsync(applicationId, cancellationToken);
-
-        // No votes ⇒ no finalize (same guard as ApproveAsync).
-        if (voterIds.Count == 0)
-            return new ApplicationDecisionResult(false, "NoVotes");
+        var (candidate, error) = await LoadDecisionApplicationAsync(applicationId, cancellationToken);
+        if (error is not null) return new ApplicationDecisionResult(false, error);
+        var application = candidate!;
 
         if (string.IsNullOrWhiteSpace(reason))
             return new ApplicationDecisionResult(false, "DecisionNoteRequired");
@@ -156,6 +136,7 @@ internal sealed class ApplicationDecisionService(
             application,
             "rejection",
             (recipientEmail, user, language) => emailMessages.ApplicationRejected(
+                user.Id,
                 recipientEmail,
                 user.BurnerName,
                 application.MembershipTier,
@@ -173,6 +154,18 @@ internal sealed class ApplicationDecisionService(
             cancellationToken);
 
         return new ApplicationDecisionResult(true);
+    }
+
+    private async Task<(MemberApplication? Application, string? Error)> LoadDecisionApplicationAsync(
+        Guid applicationId, CancellationToken cancellationToken)
+    {
+        var application = await repository.GetByIdAsync(applicationId, cancellationToken);
+        if (application is null) return (null, "NotFound");
+        if (application.Status != ApplicationStatus.Submitted) return (null, "NotSubmitted");
+
+        // Check before either decision mutates the application: finalization deletes Board votes.
+        var voterIds = await repository.GetVoterIdsForApplicationAsync(applicationId, cancellationToken);
+        return voterIds.Count == 0 ? (null, "NoVotes") : (application, null);
     }
 
     private async Task FinalizeDecisionAsync(

@@ -6,21 +6,8 @@ using NodaTime;
 
 namespace Humans.Surveys.Services;
 
-/// <summary>
-/// Survey section service: authoring, sending, the answering wizard, submission, results, export
-/// and the GDPR contribution. Implements the <see cref="IApplicationService"/> marker. Read
-/// methods return DTOs, never EF entities.
-/// </summary>
-/// <remarks>
-/// The only consumer outside the section is the Backdoor machine API, which sees
-/// <see cref="ISurveyAnalysisRead"/> (nobodies-collective/Humans#1128); the section's own
-/// reminder job sees <see cref="Contracts.ISurveyReminderSender"/>. Everything else here —
-/// authoring, sending, the wizard, submission — has no caller outside Surveys.
-/// </remarks>
 internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
 {
-    // ── Authoring ──────────────────────────────────────────────────────────
-    /// <summary>Loads a survey's full editable graph for the builder, or null if not found.</summary>
     Task<SurveyDetail?> GetForEditAsync(Guid surveyId, CancellationToken ct = default);
 
     /// <summary>Whether any draft or submitted answer has frozen counting-affecting ranked settings.</summary>
@@ -45,12 +32,11 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
         Guid surveyId, IReadOnlyList<string> targetCultures, SurveyViewer viewer, CancellationToken ct = default);
 
     /// <summary>Transitions Draft → Open.</summary>
-    Task OpenAsync(Guid surveyId, Guid actorUserId, CancellationToken ct = default);
+    Task<SurveyReviewResult> OpenAsync(Guid surveyId, Guid actorUserId, CancellationToken ct = default);
 
     /// <summary>Transitions Open → Closed.</summary>
-    Task CloseAsync(Guid surveyId, Guid actorUserId, CancellationToken ct = default);
+    Task<SurveyReviewResult> CloseAsync(Guid surveyId, Guid actorUserId, CancellationToken ct = default);
 
-    // ── Self-service approval gate (Workgroups design §11) ───────────────────
     /// <summary>Survey list scoped to the viewer: Board/Admin see every survey; anyone else sees only their own.</summary>
     Task<IReadOnlyList<SurveyAdminSummary>> GetAdminSummariesAsync(SurveyViewer viewer, CancellationToken ct = default);
 
@@ -61,12 +47,11 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
     Task<SurveySubmitResult> SubmitForApprovalAsync(Guid surveyId, Guid actorUserId, CancellationToken ct = default);
 
     /// <summary>Transitions PendingApproval → Open and sends the invitation wave in the same step. Board/Admin only — enforced here.</summary>
-    Task<SendResult> ApproveAndSendAsync(Guid surveyId, SurveyViewer viewer, CancellationToken ct = default);
+    Task<SurveyReviewResult> ApproveAndSendAsync(Guid surveyId, SurveyViewer viewer, CancellationToken ct = default);
 
     /// <summary>Transitions PendingApproval → Draft, recording the Board's note. Board/Admin only — enforced here.</summary>
-    Task RejectAsync(Guid surveyId, SurveyViewer viewer, string note, CancellationToken ct = default);
+    Task<SurveyReviewResult> RejectAsync(Guid surveyId, SurveyViewer viewer, string note, CancellationToken ct = default);
 
-    // ── Invitations ────────────────────────────────────────────────────────
     /// <summary>
     /// Resolves the survey's audience and returns the number of net-new recipients who would receive
     /// an invitation on the next send; 0 if there is no configured audience or everyone is invited.
@@ -76,7 +61,7 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
     /// <summary>
     /// Sends the invitation wave: resolves the audience, creates invitations for net-new recipients
     /// (idempotent — already-invited users are skipped, sends never revoke), and queues each email.
-    /// Requires the survey to be Open with an audience.
+    /// Returns a refusal before writes unless the survey is Open with a valid audience.
     /// </summary>
     Task<SendResult> SendInvitesAsync(Guid surveyId, Guid actorUserId, CancellationToken ct = default);
 
@@ -89,7 +74,6 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
         Guid userId,
         CancellationToken ct = default);
 
-    // ── Answering (wizard entry) ────────────────────────────────────────────
     /// <summary>
     /// Resolves a tokenised invite link into the answering context (survey definition + any resumable
     /// Identified draft), or null when the token is invalid/expired or the invitation/survey is gone.
@@ -155,13 +139,6 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
         CancellationToken ct = default);
 
     /// <summary>
-    /// Finalises a wizard submission per its anonymity tier (see <see cref="SurveySubmission"/>),
-    /// dropping answers to questions hidden under branching. Validates the survey is Open and within
-    /// its answer window. Individual submissions are never audit-logged (privacy).
-    /// </summary>
-    Task SubmitResponseAsync(SurveySubmission submission, CancellationToken ct = default);
-
-    /// <summary>
     /// Advances the answering wizard one step from a posted page: captures the page's visible answers
     /// into <paramref name="state"/>, fires the path-specific first-advance funnel side effect,
     /// autosaves Identified drafts, validates required-visible questions, then navigates
@@ -172,7 +149,6 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
         SurveyWizardState state, int page, bool back, IReadOnlyList<SurveyAnswerInput> postedAnswers,
         CancellationToken ct = default);
 
-    // ── Results ────────────────────────────────────────────────────────────
     /// <summary>
     /// Results for one anonymity scope, or null if not found. While an Asociado vote is Open the
     /// result is participation-only (<c>IsEmbargoed</c>); after close it carries unattributed ballots.
@@ -186,7 +162,7 @@ internal interface ISurveyService : IApplicationService, ISurveyAnalysisRead
     /// Strikes ranked options from the count of a Closed survey. Rewrites no stored ballot;
     /// audit-logged as a survey update.
     /// </summary>
-    Task SetRankedAvailabilityAsync(
+    Task<SurveySaveResult> SetRankedAvailabilityAsync(
         Guid surveyId,
         Guid questionId,
         IReadOnlyList<string> unavailableValues,
@@ -237,13 +213,9 @@ internal enum SurveyResultsScope
     Anonymous,
 }
 
-// ── Authoring DTOs (co-located) ─────────────────────────────────────────────
-
 /// <summary>
-/// A survey loaded for editing: identity + status + owner + the editable graph.
-/// <c>CreatedByUserId</c> has no default: <c>Guid.Empty</c> is this section's "nobody", and a
-/// forgotten argument would hand the authorization handler an authorless survey, which it
-/// denies to its author on every operation.
+/// <c>CreatedByUserId</c> has no default: <c>Guid.Empty</c> is this section's "nobody", and a forgotten argument
+/// would hand the authorization handler an authorless survey, which it denies to its author on every operation.
 /// </summary>
 internal sealed record SurveyDetail(
     Guid Id,
@@ -255,7 +227,6 @@ internal sealed record SurveyDetail(
 /// <summary>The current viewer for author-scoped survey visibility: Board/Admin see every survey.</summary>
 internal readonly record struct SurveyViewer(Guid UserId, bool IsBoardOrAdmin);
 
-/// <summary>One row on the (author-scoped) admin index.</summary>
 internal sealed record SurveyAdminSummary(
     Guid Id,
     string Title,
@@ -266,7 +237,6 @@ internal sealed record SurveyAdminSummary(
     Instant? SubmittedAt,
     string? RejectionNote);
 
-/// <summary>One row on the Board/Admin approval queue.</summary>
 internal sealed record SurveyPendingApprovalItem(
     Guid Id,
     string Title,
@@ -292,7 +262,6 @@ internal sealed record SurveyEditInput(
     IReadOnlyList<QuestionInput> Questions,
     bool IsAsociadoVote = false);
 
-/// <summary>One question in the builder graph.</summary>
 internal sealed record QuestionInput(
     Guid? Id,
     int PageNumber,
@@ -338,10 +307,18 @@ internal sealed record InformationImageInput(
 
 internal sealed record SurveyImageUpload(Stream Content, string ContentType, string FileName, long Length);
 
-/// <summary>Outcome of a send wave: net-new invitations created, emails queued, and enqueue failures.</summary>
-internal sealed record SendResult(int InvitationsCreated, int EmailsQueued, int Failed);
+/// <summary>Invitation totals and enqueue failures, or an expected refusal before any invitation write.</summary>
+internal sealed record SendResult(int InvitationsCreated, int EmailsQueued, int Failed, string? Refusal = null)
+{
+    public bool Succeeded => Refusal is null;
+}
 
-/// <summary>One invitee's row on the admin Send page: display name + latest email status + funnel flags.</summary>
+/// <summary>An expected Board review refusal, or a successful decision with optional invitation totals.</summary>
+internal sealed record SurveyReviewResult(SendResult? Send = null, string? Refusal = null)
+{
+    public bool Succeeded => Refusal is null;
+}
+
 internal sealed record SurveyInviteStatus(
     Guid UserId,
     string Name,
@@ -350,8 +327,6 @@ internal sealed record SurveyInviteStatus(
     bool Started,
     Instant? SentAt,
     Instant? ReminderSentAt);
-
-// ── Answering DTOs (co-located) ─────────────────────────────────────────────
 
 /// <summary>
 /// Everything the wizard entry needs for one invited person: the survey definition (reused
@@ -397,7 +372,6 @@ internal sealed record SurveyPublicStart(
     Guid? DraftResponseId,
     IReadOnlyList<SurveyDraftAnswer> DraftAnswers);
 
-/// <summary>One saved answer from a resumable draft, keyed by question id.</summary>
 internal sealed record SurveyDraftAnswer(
     Guid QuestionId,
     IReadOnlyList<string> SelectedOptionValues,
@@ -423,7 +397,6 @@ internal sealed record SurveySubmission(
     string Culture,
     IReadOnlyList<SurveyAnswerInput> Answers);
 
-/// <summary>One answer in a submission (or a draft autosave), keyed by question id.</summary>
 internal sealed record SurveyAnswerInput(
     Guid QuestionId,
     IReadOnlyList<string> SelectedOptionValues,
@@ -449,7 +422,7 @@ internal sealed class SurveyWizardState
     public string Culture { get; set; } = "en";
     public int CurrentPage { get; set; }
     public bool Started { get; set; }
-    public Dictionary<string, SurveyWizardAnswer> Answers { get; set; } = new(StringComparer.Ordinal); // key = QuestionId.ToString()
+    public Dictionary<string, SurveyWizardAnswer> Answers { get; set; } = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Fully Anonymous public state may continue without a principal. Tracked public state belongs
@@ -460,7 +433,6 @@ internal sealed class SurveyWizardState
            || (UserId is not null && UserId == currentUserId);
 }
 
-/// <summary>One captured answer in the wizard session.</summary>
 internal sealed class SurveyWizardAnswer
 {
     public List<string> SelectedOptionValues { get; set; } = [];

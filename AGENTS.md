@@ -121,7 +121,7 @@ dotnet run --project src/Humans.Web
 - Qualify issue references across repos: `nobodies-collective/Humans#123`, never a bare `#123` ([`issue-refs-qualified`](memory/process/issue-refs-qualified.md)).
 - How review works, its tiers, and the review hard rules no one may waive (migrations are never hand-edited; no NOT NULL column on an existing table without Peter's explicit permission): [`REVIEW.md`](REVIEW.md).
 - Reviewer findings — Codex, Claude bot, Gemini, humans — are hypotheses, not a work list. Verify each against the code before changing anything ([`review-finding-triage`](memory/process/review-finding-triage.md)); every finding ends with a disposition reply in its thread ([`pr-review-feedback-handling`](memory/process/pr-review-feedback-handling.md)).
-- Before acting on any CI or review event on a PR you opened, load the `pd:steward` skill and this repo's overlay [`.claude/steward.md`](.claude/steward.md). Unattended review rounds are capped at five review-round commits — bot/CI response commits only, not the PR's own deliverable ([`review-round-budget`](memory/process/review-round-budget.md)) — past that, stop and surface it. In routines, the session that built a PR hands it to a thin steward session at ready-for-review and stops; in an interactive session Peter decides, never the builder ([`steward-thin-session`](memory/process/steward-thin-session.md)); waiting on a PR means that session's event subscription and nothing else; never schedule periodic self check-ins ([`no-scheduled-pr-checkins`](memory/process/no-scheduled-pr-checkins.md)).
+- The session that opened a PR tends it itself; never hand it off to a separate steward session (hand-offs fail too often in the cloud). Before acting on any CI or review event, read [`.claude/steward.md`](.claude/steward.md). Unattended review rounds are capped at five review-round commits — bot/CI response commits only, not the PR's own deliverable ([`review-round-budget`](memory/process/review-round-budget.md)); a skill may set a lower ceiling — past that, stop and surface it. Waiting on a PR means the session's event subscription and nothing else; never schedule periodic self check-ins ([`no-scheduled-pr-checkins`](memory/process/no-scheduled-pr-checkins.md)).
 
 ## How it works
 
@@ -147,6 +147,7 @@ Recurring maintenance (doc-freshness sweeps, tech-debt burndown) is skill-driven
 - Surgical changes. Every changed line traces to the request. Don't improve adjacent code; mention dead code, don't delete it.
 - Define success criteria, loop until verified. "Fix the bug" means "write a test that reproduces it, then make it pass" — strong criteria let you work independently; weak ones ("make it work") mean constant clarification.
 - Prefer in-memory data over clever queries. The whole dataset fits in RAM; act like it.
+- A comment says what the code can't: why, a warning, or a contract. Never what the code does or how it got here ([`comments-earn-their-place`](memory/code/comments-earn-their-place.md)).
 - Brevity in everything you write — replies, commits, PR bodies, comments, docs. Never use 15 words where 5 will do. Lead with the answer, and write it short the first time.
 
 Humans is licensed under **AGPL-3.0** (`LICENSE` at repo root).

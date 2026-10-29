@@ -10,11 +10,8 @@ using MemberApplication = Humans.Governance.Domain.Application;
 namespace Humans.Governance.Services;
 
 /// <summary>
-/// The membership tiers Governance owns (<c>governance_membership_tiers</c>): the reads behind
-/// <see cref="IGovernanceService"/>, the grant on approval, the term-expiry downgrade, the
-/// <c>governance.profile-tier</c> copy, the Article 15/17 slice and the account-merge fold.
-/// Until the copy has run, a member without a row reads their legacy <c>profiles.MembershipTier</c>
-/// through <see cref="UserInfo"/> (Users decomposition plan §3.1 step 4).
+/// Until the <c>governance.profile-tier</c> copy has run, a member without a row reads their
+/// legacy <c>profiles.MembershipTier</c> through <see cref="UserInfo"/>.
 /// </summary>
 internal sealed class MembershipTierService(
     IMembershipTierRepository repo,
@@ -61,11 +58,6 @@ internal sealed class MembershipTierService(
     public Task SyncExpiryAsync(Guid applicationId, LocalDate? expiresAt, CancellationToken ct = default) =>
         repo.UpdateExpiryForApplicationAsync(applicationId, expiresAt, ct);
 
-    /// <summary>
-    /// Term expiry: every member holding <paramref name="tier"/> without an Approved application for
-    /// it still in term on <paramref name="today"/> drops to their other in-term tier, or to Volunteer.
-    /// Returns each member with the tier written; the caller audits (<c>TierDowngraded</c>).
-    /// </summary>
     public async Task<IReadOnlyList<(Guid UserId, MembershipTier NewTier)>> ExpireAsync(
         MembershipTier tier, LocalDate today, CancellationToken ct = default)
     {
@@ -95,8 +87,6 @@ internal sealed class MembershipTierService(
         }
         return result;
     }
-
-    // ─── governance.profile-tier ─────────────────────────────────────────────────
 
     /// <summary>Living members whose legacy profile tier is not Volunteer and who have no row yet,
     /// with the row the copy would write (term and grant read from their latest Approved
@@ -143,7 +133,7 @@ internal sealed class MembershipTierService(
             .MaxBy(a => a.ResolvedAt);
 
     /// <summary>The one reader of the obsolete legacy field: the read fallback, the copy and the
-    /// merge-survivor check. Deleted with the migration once production reports it done.
+    /// merge fallback. Deleted with the migration once production reports it done.
     /// The legacy enum maps by name (same members, same stored strings).</summary>
     private static MembershipTier LegacyTier(UserInfo? info)
     {
@@ -158,24 +148,26 @@ internal sealed class MembershipTierService(
         };
     }
 
-    // ─── IUserMerge ──────────────────────────────────────────────────────────────
-
     public async Task ReassignAsync(
         Guid mergedFromUserId, Guid mergedToUserId, Guid actorUserId, Instant now, CancellationToken ct)
     {
         _ = actorUserId;
         _ = now;
-        // The survivor's tier wins. A tier still only on its legacy profile counts as its own, so
-        // it is copied first rather than overwritten by the source's row.
-        if (await repo.GetAsync(mergedToUserId, ct) is null
-            && LegacyTier(await users.GetRawUserInfoAsync(mergedToUserId, ct)) is var legacy and not MembershipTier.Volunteer)
+        // A recorded tier (including a Volunteer downgrade) beats that account's legacy tier.
+        if (await repo.GetAsync(mergedToUserId, ct) is null)
         {
-            await repo.TryInsertAsync(await LegacyRecordAsync(mergedToUserId, legacy, ct), ct);
+            var legacyOwner = mergedToUserId;
+            var legacy = LegacyTier(await users.GetRawUserInfoAsync(mergedToUserId, ct));
+            if (legacy == MembershipTier.Volunteer && await repo.GetAsync(mergedFromUserId, ct) is null)
+            {
+                legacyOwner = mergedFromUserId;
+                legacy = LegacyTier(await users.GetRawUserInfoAsync(mergedFromUserId, ct));
+            }
+            if (legacy != MembershipTier.Volunteer)
+                await repo.TryInsertAsync(await LegacyRecordAsync(legacyOwner, legacy, ct), ct);
         }
         await repo.ReassignAsync(mergedFromUserId, mergedToUserId, ct);
     }
-
-    // ─── IUserDataContributor ────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {

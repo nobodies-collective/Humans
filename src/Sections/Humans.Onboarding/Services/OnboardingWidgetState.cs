@@ -17,8 +17,7 @@ internal sealed class OnboardingWidgetState(
 {
     public async Task<OnboardingWidgetStep> GetCurrentStepAsync(Guid userId, CancellationToken ct = default)
     {
-        // Resolve merges and required names before testing consent completion.
-        // HasRequiredNameFields (not IsStub) catches Active profiles with blank names from data drift.
+        // HasRequiredNameFields, not IsStub: catches Active profiles with blank names.
         var info = await users.GetUserInfoAsync(userId, ct);
         if (info is null || !info.HasRequiredNameFields)
             return OnboardingWidgetStep.Names;
@@ -28,9 +27,8 @@ internal sealed class OnboardingWidgetState(
             return OnboardingWidgetStep.Complete;
 
         // Returning member with any prior signature → skip Shifts, go to Consents (renew/new docs).
-        var requiredRows = await consents.GetRequiredConsentRowsForUserAsync(
-            userId, SystemTeamIds.Volunteers, ct);
-        if (requiredRows.Any(r => r.Signed))
+        var signedVersions = await consents.GetConsentedVersionIdsAsync(userId, ct);
+        if (signedVersions.Count > 0)
             return OnboardingWidgetStep.Consents;
 
         var hasSkip = session.ShiftSkipActive;

@@ -5,7 +5,6 @@ using Humans.Email.Contracts;
 using Humans.Email.Data;
 using Humans.Email.Domain;
 using Humans.Email.Services;
-using Humans.Tickets.Contracts;
 using Humans.Users.Contracts;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -18,18 +17,13 @@ using Xunit;
 
 namespace Humans.Email.Tests.Services;
 
-/// <summary>
-/// <see cref="CommunicationPreferenceService"/> over <c>email_communication_preferences</c> (Users
-/// decomposition commit 14): the rules carried over from Users, the frozen-legacy fallback and write
-/// seed, cleared rows, the <c>email.communication-preferences</c> copy, the merge fold and the GDPR slice.
-/// </summary>
 public sealed class CommunicationPreferenceServiceTests : IDisposable
 {
     private readonly EmailDbContext _db;
     private readonly FakeClock _clock = new(Instant.FromUtc(2026, 4, 1, 12, 0));
     private readonly IAuditLogService _audit = Substitute.For<IAuditLogService>();
     private readonly IUserService _users = Substitute.For<IUserService>();
-    private readonly ITicketService _tickets = Substitute.For<ITicketService>();
+    private readonly ICommunicationPreferenceLock _lock = Substitute.For<ICommunicationPreferenceLock>();
     private readonly Dictionary<Guid, List<LegacyCommunicationPreferenceInfo>> _legacy = [];
     private readonly Dictionary<Guid, Guid> _mergedTo = [];
     private readonly IDataProtectionProvider _dataProtection = DataProtectionProvider.Create("TestApp");
@@ -54,13 +48,16 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
         _users.GetAllRawUserInfosAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<UserInfo>>([.. _legacy.Keys.Select(Info)]));
 
+        _lock.GetLockedCategoriesAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<MessageCategory>>([]));
+
         var tokenProvider = new UnsubscribeTokenProvider(
             _dataProtection, Options.Create(new EmailSettings { BaseUrl = "https://test.example.com" }),
             NullLogger<UnsubscribeTokenProvider>.Instance);
 
         _service = new CommunicationPreferenceService(
             new CommunicationPreferenceRepository(new TestDbContextFactory<EmailDbContext>(options)),
-            _users, tokenProvider, _tickets, _clock, _audit, NullLogger<CommunicationPreferenceService>.Instance);
+            _users, tokenProvider, [_lock], _clock, _audit, NullLogger<CommunicationPreferenceService>.Instance);
     }
 
     public void Dispose() => _db.Dispose();
@@ -100,8 +97,6 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
 
     private Task<List<CommunicationPreference>> RowsAsync(Guid userId) =>
         _db.CommunicationPreferences.AsNoTracking().Where(r => r.UserId == userId).ToListAsync(Ct);
-
-    // ─── Rules carried over from Users ───────────────────────────────────────────
 
     [HumansTheory]
     [InlineData(true)]
@@ -190,32 +185,33 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
     [HumansTheory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task MemberToggle_TicketingIsRefusedWhileTheMemberHoldsATicket(bool holdsTicket)
+    public async Task MemberToggle_ALockedCategoryIsRefused(bool locked)
     {
         var userId = Guid.NewGuid();
-        _tickets.GetUserTicketHoldingsAsync(userId, Arg.Any<CancellationToken>())
-            .Returns(new UserTicketHoldings(holdsTicket ? 1 : 0, []));
+        LockTicketing(userId, locked);
 
         var applied = await _service.UpdatePreferenceAsync(userId, MessageCategory.Ticketing,
             optedOut: true, inboxEnabled: false, source: "Guest", actorUserId: userId, cancellationToken: Ct);
 
-        applied.Should().Be(!holdsTicket);
-        (await RowsAsync(userId)).Should().HaveCount(holdsTicket ? 0 : 1);
-        _audit.ReceivedCalls().Should().HaveCount(holdsTicket ? 0 : 1);
+        applied.Should().Be(!locked);
+        (await RowsAsync(userId)).Should().HaveCount(locked ? 0 : 1);
+        _audit.ReceivedCalls().Should().HaveCount(locked ? 0 : 1);
     }
 
     [HumansFact]
-    public async Task MemberToggle_OtherCategoriesIgnoreTheTicketLock()
+    public async Task MemberToggle_OtherCategoriesIgnoreTheLock()
     {
         var userId = Guid.NewGuid();
-        _tickets.GetUserTicketHoldingsAsync(userId, Arg.Any<CancellationToken>())
-            .Returns(new UserTicketHoldings(1, []));
+        LockTicketing(userId, locked: true);
 
         (await _service.UpdatePreferenceAsync(userId, MessageCategory.Marketing,
             optedOut: true, inboxEnabled: false, source: "Guest", actorUserId: userId, cancellationToken: Ct))
             .Should().BeTrue();
-        await _tickets.DidNotReceive().GetUserTicketHoldingsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
+
+    private void LockTicketing(Guid userId, bool locked) =>
+        _lock.GetLockedCategoriesAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<MessageCategory>>(locked ? [MessageCategory.Ticketing] : []));
 
     [HumansFact]
     public async Task AcceptsFacilitatedMessages_DefaultsOn_AndFollowsAnOptOut()
@@ -270,13 +266,12 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
         (await _service.GetCountByCategoryAndStateAsync(MessageCategory.Marketing, optedOut: true, Ct)).Should().Be(2);
     }
 
-    // ─── Unsubscribe tokens ──────────────────────────────────────────────────────
-
     [HumansFact]
     public void UnsubscribeToken_RoundTrips()
     {
         var userId = Guid.NewGuid();
-        var token = _service.GenerateUnsubscribeToken(userId, MessageCategory.TeamUpdates);
+        var url = _service.GenerateBrowserUnsubscribeUrl(userId, MessageCategory.TeamUpdates);
+        var token = new Uri(url).Segments[^1];
 
         _service.ValidateUnsubscribeToken(token).Should().Be((TokenValidationStatus.Valid, userId, MessageCategory.TeamUpdates));
     }
@@ -296,8 +291,12 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
     [HumansTheory]
     [InlineData("this-is-not-a-valid-token")]
     [InlineData("aGVsbG8gd29ybGQ=")]
-    public void UnsubscribeToken_Tampered_IsInvalid(string token) =>
-        _service.ValidateUnsubscribeToken(token).Should().Be((TokenValidationStatus.Invalid, Guid.Empty, default(MessageCategory)));
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("%")]
+    [InlineData("a")]
+    public void UnsubscribeToken_Tampered_IsInvalid(string? token) =>
+        _service.ValidateUnsubscribeToken(token!).Should().Be((TokenValidationStatus.Invalid, Guid.Empty, default(MessageCategory)));
 
     [HumansFact]
     public void UnsubscribeHeaders_KeepTheUnsubscribeUrls()
@@ -309,8 +308,6 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
         _service.GenerateBrowserUnsubscribeUrl(Guid.NewGuid(), MessageCategory.Marketing)
             .Should().StartWith("https://test.example.com/Email/Unsubscribe/");
     }
-
-    // ─── Legacy fallback, write seed, cleared rows ───────────────────────────────
 
     [HumansFact]
     public async Task Reads_FallBackToTheLegacyRow_UntilARowShadowsIt()
@@ -398,8 +395,6 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
         _audit.ReceivedCalls().Should().ContainSingle();
     }
 
-    // ─── email.communication-preferences ─────────────────────────────────────────
-
     [HumansFact]
     public async Task Copy_WritesEveryUnshadowedLegacyRow_Once_AndNeverOverwritesALaterRow()
     {
@@ -427,8 +422,6 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
     public void DataMigration_IsRegisteredUnderItsKey() =>
         new SectionDataMigrations().Migrations().Select(m => m.Key)
             .Should().ContainSingle().Which.Should().Be("email.communication-preferences");
-
-    // ─── Merge fold ──────────────────────────────────────────────────────────────
 
     [HumansFact]
     public async Task Merge_LaterPreferenceWins_SourceOnlyMoves_AndSourceLegacyIsShadowed()
@@ -493,8 +486,6 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
         row.SubscribedAt.Should().Be(targetSubscribedAt ?? sourceSubscribedAt);
         row.OptedOut.Should().Be(sourceIsNewer);
     }
-
-    // ─── GDPR ────────────────────────────────────────────────────────────────────
 
     [HumansFact]
     public async Task Export_CoversRowsAndLegacy_AndEraseDeletesTheRows()

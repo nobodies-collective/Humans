@@ -45,7 +45,7 @@ internal sealed class TeamService(
     internal const string TeamJoinRequests = "TeamJoinRequests";
     internal const string TeamEarlyEntry = "TeamEarlyEntry";
 
-    // Lazy resolution — UserService injects ITeamManagement, closing the cycle.
+    // Lazy: UserService injects ITeamManagement, closing a cycle.
     private ITeamResourceService TeamResourceService
         => serviceProvider.GetRequiredService<ITeamResourceService>();
 
@@ -64,7 +64,7 @@ internal sealed class TeamService(
     private IUserService UserService
         => serviceProvider.GetRequiredService<IUserService>();
 
-    // GoogleIntegration's identity read resolves IUserService too, so it is lazy for the same reason.
+    // Lazy for the same reason: GoogleIntegration's identity read resolves IUserService.
     private IGoogleIntegrationService GoogleIdentities
         => serviceProvider.GetRequiredService<IGoogleIntegrationService>();
 
@@ -83,24 +83,33 @@ internal sealed class TeamService(
         bool isHidden = false,
         CancellationToken cancellationToken = default)
     {
+        var result = await CreateTeamCoreAsync(name, description, requiresApproval, parentTeamId,
+            googleGroupPrefix, isHidden, cancellationToken);
+        result.RequireSuccess();
+        return result.Team!;
+    }
+
+    private async Task<TeamUpdateResult> CreateTeamCoreAsync(
+        string name,
+        string? description,
+        bool requiresApproval,
+        Guid? parentTeamId = null,
+        string? googleGroupPrefix = null,
+        bool isHidden = false,
+        CancellationToken cancellationToken = default)
+    {
         var baseSlug = SlugHelper.GenerateSlug(name);
         if (baseSlug.Length == 0)
             baseSlug = "team";
         var now = clock.GetCurrentInstant();
 
         if (ReservedTeamSlugs.Contains(baseSlug))
-            throw new InvalidOperationException($"The team name '{name}' conflicts with a reserved route");
+            return new(ErrorMessage: $"The team name '{name}' conflicts with a reserved route");
 
         if (parentTeamId.HasValue)
         {
-            var parent = await repo.GetByIdAsync(parentTeamId.Value, cancellationToken)
-                ?? throw new InvalidOperationException($"Parent team {parentTeamId.Value} not found");
-
-            if (parent.IsSystemTeam)
-                throw new InvalidOperationException("System teams cannot be parents");
-
-            if (parent.ParentTeamId.HasValue)
-                throw new InvalidOperationException("Cannot nest more than one level — the parent team already has a parent");
+            if (await ValidateParentAsync(parentTeamId.Value, cancellationToken) is { } parentError)
+                return new(ErrorMessage: parentError);
         }
 
         for (var attempt = 0; attempt < 10; attempt++)
@@ -134,19 +143,22 @@ internal sealed class TeamService(
             };
 
             var persisted = await repo.AddTeamWithRequiresApprovalOverrideAsync(team, requiresApproval, cancellationToken);
-            if (persisted)
+            if (persisted == TeamUpdateConflict.None)
             {
                 logger.LogInformation("Created team {TeamName} with slug {Slug}", name, slug);
-                return team;
+                return new(Team: team);
             }
 
-            // Slug/custom_slug unique-constraint race (Npgsql 23505 → false). Retry next suffix.
+            if (persisted is not (TeamUpdateConflict.SlugTaken or TeamUpdateConflict.CustomSlugTaken))
+                return new(Conflict: persisted);
+
+            // Slug unique-constraint race: retry with the next suffix.
             logger.LogDebug(
                 "Slug collision for '{Slug}' at persist, retrying (attempt {Attempt})",
                 slug, attempt + 1);
         }
 
-        throw new InvalidOperationException($"Could not generate unique slug for team '{name}' after 10 attempts");
+        return new(ErrorMessage: $"Could not generate unique slug for team '{name}' after 10 attempts");
     }
 
     public async Task<TeamInfo?> GetTeamBySlugAsync(string slug, CancellationToken cancellationToken = default)
@@ -167,9 +179,7 @@ internal sealed class TeamService(
         CancellationToken cancellationToken = default) =>
         await LoadTeamsByIdAsync(cancellationToken);
 
-    // Team search is served from the cached TeamInfo snapshot in CachingTeamService — it must
-    // never hit the DB. Reaching the inner service means a DI mistake. Mirrors
-    // UserService.SearchUsersAsync (search is cache-only; there is no repository search).
+    // Served from CachingTeamService's snapshot: reaching the inner service means a DI mistake.
     public Task<IReadOnlyList<TeamSearchHit>> SearchAsync(
         string query, int max,
         CancellationToken cancellationToken = default) =>
@@ -201,7 +211,6 @@ internal sealed class TeamService(
         return (updated, previous);
     }
 
-    /// <inheritdoc />
     public async Task<IReadOnlyList<UserTeamMembershipInfo>> GetUserTeamMembershipsAsync(
         Guid userId, CancellationToken cancellationToken = default)
     {
@@ -210,6 +219,16 @@ internal sealed class TeamService(
             .Select(m => new UserTeamMembershipInfo(
                 m.Id, m.TeamId, m.Team.Name, m.Team.Slug, m.Team.IsSystemTeam, m.Role, m.JoinedAt))
             .ToList();
+    }
+
+    private async Task<string?> ValidateParentAsync(Guid parentTeamId, CancellationToken ct)
+    {
+        var parent = await repo.GetByIdAsync(parentTeamId, ct);
+        if (parent is null) return $"Parent team {parentTeamId} not found";
+        if (parent.IsSystemTeam) return "System teams cannot be parents";
+        return parent.ParentTeamId.HasValue
+            ? "Cannot nest more than one level — the parent team already has a parent"
+            : null;
     }
 
     public async Task<TeamUpdateResult> UpdateTeamAsync(
@@ -249,14 +268,8 @@ internal sealed class TeamService(
             if (hasChildren)
                 return new(ErrorMessage: "This team has sub-teams and cannot become a child of another team");
 
-            var parent = await repo.GetByIdAsync(parentTeamId.Value, cancellationToken);
-            if (parent is null) return new(ErrorMessage: $"Parent team {parentTeamId.Value} not found");
-
-            if (parent.IsSystemTeam)
-                return new(ErrorMessage: "System teams cannot be parents");
-
-            if (parent.ParentTeamId.HasValue)
-                return new(ErrorMessage: "Cannot nest more than one level — the parent team already has a parent");
+            if (await ValidateParentAsync(parentTeamId.Value, cancellationToken) is { } parentError)
+                return new(ErrorMessage: parentError);
         }
 
         if (!string.IsNullOrWhiteSpace(customSlug))
@@ -305,10 +318,8 @@ internal sealed class TeamService(
             team.IsHidden = isHidden.Value;
         if (isSensitive.HasValue && isSensitive.Value != team.IsSensitive)
         {
-            // Docs/health.md §4: only a global Admin writes IsSensitive. The gate sits here rather
-            // than in the controller so every caller of this service is held to it. Gating on the
-            // change, not on the argument, keeps a caller that passes the flag's current value
-            // (the dev fixture seeders on ITeamSeeding do) out of it — a no-op is not a write.
+            // Only a global Admin writes IsSensitive, enforced here so every caller is held to it. Gated on the change,
+            // not the argument: a caller passing the current value (the seeders do) isn't writing.
             await adminAuthorization.RequireCurrentUserIsAdminAsync(cancellationToken);
             team.IsSensitive = isSensitive.Value;
         }
@@ -353,22 +364,23 @@ internal sealed class TeamService(
 
         try
         {
-            var team = await repo.FindForMutationAsync(teamId, cancellationToken)
-                ?? throw new TeamPageRuleException($"Team {teamId} not found");
+            var team = await repo.FindForMutationAsync(teamId, cancellationToken);
+            if (team is null)
+                return Refuse($"Team {teamId} not found");
 
             if (normalizedCallsToAction.Count > 3)
-                throw new TeamPageRuleException("A team can have at most 3 calls to action.");
+                return Refuse("A team can have at most 3 calls to action.");
 
             if (normalizedCallsToAction.Count(c => c.Style == CallToActionStyle.Primary) > 1)
-                throw new TeamPageRuleException("Only one primary call to action is allowed.");
+                return Refuse("Only one primary call to action is allowed.");
 
             if (normalizedCallsToAction.Any(c => !IsSafeCallToActionUrl(c.Url)))
-                throw new TeamPageRuleException("Calls to action require a relative URL or an HTTP, HTTPS or mailto URL.");
+                return Refuse("Calls to action require a relative URL or an HTTP, HTTPS or mailto URL.");
 
             var canBePublic = !team.IsSystemTeam && !team.ParentTeamId.HasValue;
 
             if (isPublicPage && !canBePublic)
-                throw new TeamPageRuleException("Only departments (non-system, top-level teams) can be made public.");
+                return Refuse("Only departments (non-system, top-level teams) can be made public.");
 
             var now = clock.GetCurrentInstant();
             team.PageContent = pageContent;
@@ -393,33 +405,27 @@ internal sealed class TeamService(
 
             return TeamPageUpdateResult.Success();
         }
-        catch (TeamPageRuleException ex)
-        {
-            logger.LogWarning("Team page update rejected for team {TeamId} by user {UserId}: {Reason}", teamId, updatedByUserId, ex.Message);
-            return TeamPageUpdateResult.Failed(ex.Message);
-        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Failed to update team page for team {TeamId} by user {UserId}", teamId, updatedByUserId);
             return new TeamPageUpdateResult(false, null);
         }
+
+        TeamPageUpdateResult Refuse(string reason)
+        {
+            logger.LogWarning("Team page update rejected for team {TeamId} by user {UserId}: {Reason}", teamId, updatedByUserId, reason);
+            return TeamPageUpdateResult.Failed(reason);
+        }
     }
 
-    // Shared by writes and the page projection so unsafe legacy values never become links.
+    // Shared by writes and the page projection, so unsafe legacy values never become links.
     internal static bool IsSafeCallToActionUrl(string? url) =>
         !string.IsNullOrWhiteSpace(url)
         && !url.Any(char.IsControl)
         && Uri.TryCreate(url, UriKind.RelativeOrAbsolute, out var uri)
         && (!uri.IsAbsoluteUri || uri.Scheme is "http" or "https" or "mailto");
 
-    private sealed class TeamPageRuleException : InvalidOperationException
-    {
-        public TeamPageRuleException() { }
-        public TeamPageRuleException(string? message) : base(message) { }
-        public TeamPageRuleException(string? message, Exception? innerException) : base(message, innerException) { }
-    }
-
-    public async Task<TeamWithGroupResult> CreateTeamWithGoogleGroupAsync(
+    public async Task<TeamUpdateResult> CreateTeamWithGoogleGroupAsync(
         string name,
         string? description,
         bool requiresApproval,
@@ -428,8 +434,10 @@ internal sealed class TeamService(
         bool isHidden = false,
         CancellationToken cancellationToken = default)
     {
-        var team = await CreateTeamAsync(
+        var result = await CreateTeamCoreAsync(
             name, description, requiresApproval, parentTeamId, googleGroupPrefix, isHidden, cancellationToken);
+        if (!result.Succeeded) return result;
+        var team = result.Team!;
 
         string? groupWarning = null;
         if (!string.IsNullOrEmpty(googleGroupPrefix))
@@ -440,8 +448,7 @@ internal sealed class TeamService(
             }
             catch (Exception ex)
             {
-                // Compensation: clear the prefix so the team never points at a
-                // group that does not exist; the admin can retry from team edit.
+                // Clear the prefix so the team never points at a missing group; the admin can retry from team edit.
                 logger.LogError(ex, "Failed to create Google Group for new team {TeamId}, clearing prefix", team.Id);
                 var compensation = await UpdateTeamAsync(
                     team.Id, team.Name, team.Description, team.RequiresApproval, team.IsActive,
@@ -451,7 +458,7 @@ internal sealed class TeamService(
             }
         }
 
-        return new TeamWithGroupResult(team, groupWarning);
+        return result with { GroupWarning = groupWarning };
     }
 
     public async Task<TeamUpdateResult> UpdateTeamWithGoogleGroupAsync(
@@ -496,17 +503,18 @@ internal sealed class TeamService(
         return result with { GroupWarning = groupWarning };
     }
 
-    public async Task DeleteTeamAsync(Guid teamId, Guid actorUserId, CancellationToken cancellationToken = default)
+    public async Task<TeamDeactivationResult> DeleteTeamAsync(Guid teamId, Guid actorUserId, CancellationToken cancellationToken = default)
     {
-        var team = await repo.GetByIdAsync(teamId, cancellationToken)
-            ?? throw new InvalidOperationException($"Team {teamId} not found");
+        var team = await repo.GetByIdAsync(teamId, cancellationToken);
+        if (team is null)
+            return new(Refusal: $"Team {teamId} not found");
 
         if (team.IsSystemTeam)
-            throw new InvalidOperationException("Cannot delete system team");
+            return new(Refusal: "Cannot delete system team");
 
         var hasActiveChildren = await repo.HasActiveChildrenAsync(teamId, cancellationToken);
         if (hasActiveChildren)
-            throw new InvalidOperationException("Cannot deactivate a team that has active sub-teams. Remove or reassign sub-teams first.");
+            return new(Refusal: "Cannot deactivate a team that has active sub-teams. Remove or reassign sub-teams first.");
 
         var now = clock.GetCurrentInstant();
 
@@ -519,11 +527,10 @@ internal sealed class TeamService(
                 actorUserId, relatedEntityId: userId, relatedEntityType: nameof(User));
         }
 
-        // GoogleResource.IsActive flipped later by Google reconciliation tick (deferred).
-
         logger.LogInformation(
             "Deactivated team {TeamId} ({TeamName}); closed {MemberCount} memberships",
             teamId, team.Name, closedUsers.Count);
+        return new();
     }
 
     public async Task<TeamJoinResult> JoinTeamAsync(
@@ -536,8 +543,6 @@ internal sealed class TeamService(
         if (team is null)
             return new TeamJoinResult(ErrorKey: "Teams_NotFound");
 
-        // The join policy is the team's decision, not the caller's: approval-required
-        // teams queue a request, open teams join immediately.
         if (team.RequiresApproval)
         {
             var result = await RequestToJoinTeamAsync(teamId, userId, message, cancellationToken);
@@ -552,6 +557,17 @@ internal sealed class TeamService(
             : new TeamJoinResult(ErrorKey: directResult.ErrorKey);
     }
 
+    private static string? SelfJoinRefusal(Team team, bool requiresApproval)
+    {
+        if (!team.IsActive)
+            return "Teams_NotFound";
+        if (team.IsSystemTeam)
+            return "Teams_Team_CannotJoinSystem";
+        if (team.IsHidden)
+            return "Teams_CannotJoinHidden";
+        return team.RequiresApproval != requiresApproval ? "Teams_JoinPolicyChanged" : null;
+    }
+
     public async Task<TeamJoinRequestResult> RequestToJoinTeamAsync(
         Guid teamId,
         Guid userId,
@@ -562,17 +578,8 @@ internal sealed class TeamService(
         if (team is null)
             return new TeamJoinRequestResult(ErrorKey: "Teams_NotFound");
 
-        if (!team.IsActive)
-            return new TeamJoinRequestResult(ErrorKey: "Teams_NotFound");
-
-        if (team.IsSystemTeam)
-            return new TeamJoinRequestResult(ErrorKey: "Teams_Team_CannotJoinSystem");
-
-        if (team.IsHidden)
-            return new TeamJoinRequestResult(ErrorKey: "Teams_CannotJoinHidden");
-
-        if (!team.RequiresApproval)
-            return new TeamJoinRequestResult(ErrorKey: "Teams_JoinPolicyChanged");
+        if (SelfJoinRefusal(team, requiresApproval: true) is { } errorKey)
+            return new TeamJoinRequestResult(ErrorKey: errorKey);
 
         using var joinRequest = await JoinRequestLock.AcquireAsync(logger, cancellationToken);
         var existingRequest = await repo.FindUserPendingRequestAsync(teamId, userId, cancellationToken);
@@ -596,6 +603,9 @@ internal sealed class TeamService(
         await repo.AddRequestAsync(request, cancellationToken);
         joinRequest.Dispose();
 
+        // The join request is committed; finish its notices even if the browser disconnects.
+        cancellationToken = CancellationToken.None;
+
         logger.LogInformation("User {UserId} requested to join team {TeamId}", userId, teamId);
         await SendTeamJoinRequestSubmittedNotificationAsync(team, userId, cancellationToken);
 
@@ -611,17 +621,8 @@ internal sealed class TeamService(
         if (team is null)
             return new TeamDirectJoinResult(ErrorKey: "Teams_NotFound");
 
-        if (!team.IsActive)
-            return new TeamDirectJoinResult(ErrorKey: "Teams_NotFound");
-
-        if (team.IsSystemTeam)
-            return new TeamDirectJoinResult(ErrorKey: "Teams_Team_CannotJoinSystem");
-
-        if (team.IsHidden)
-            return new TeamDirectJoinResult(ErrorKey: "Teams_CannotJoinHidden");
-
-        if (team.RequiresApproval)
-            return new TeamDirectJoinResult(ErrorKey: "Teams_JoinPolicyChanged");
+        if (SelfJoinRefusal(team, requiresApproval: false) is { } errorKey)
+            return new TeamDirectJoinResult(ErrorKey: errorKey);
 
         var existingMember = await repo.IsActiveMemberAsync(teamId, userId, cancellationToken);
         if (existingMember)
@@ -652,6 +653,9 @@ internal sealed class TeamService(
 
         if (!success)
             return new TeamDirectJoinResult(ErrorKey: "Teams_Team_AlreadyMember");
+
+        // The mutation is committed; finish its notices even if the browser disconnects.
+        cancellationToken = CancellationToken.None;
 
         await auditLogService.LogAsync(
             AuditAction.TeamJoinedDirectly, nameof(Team), teamId,
@@ -910,21 +914,22 @@ internal sealed class TeamService(
         return new TeamMembershipMutationResult(true);
     }
 
-    public async Task<TeamMember> ApproveJoinRequestAsync(
+    public async Task<TeamJoinReviewResult> ApproveJoinRequestAsync(
         Guid requestId,
         Guid approverUserId,
         string? notes,
         CancellationToken cancellationToken = default)
     {
-        var request = await repo.FindRequestWithTeamForMutationAsync(requestId, cancellationToken)
-            ?? throw new InvalidOperationException("Join request not found");
+        var request = await repo.FindRequestWithTeamForMutationAsync(requestId, cancellationToken);
+        if (request is null)
+            return new(Refusal: "Join request not found");
 
         var canApprove = await CanUserApproveRequestsForTeamAsync(request.TeamId, approverUserId, cancellationToken);
         if (!canApprove)
-            throw new InvalidOperationException("User does not have permission to approve requests for this team");
+            return new(Refusal: "User does not have permission to approve requests for this team");
 
         if (request.Status != TeamJoinRequestStatus.Pending)
-            throw new InvalidOperationException("Can only approve pending requests");
+            return new(Refusal: "Can only approve pending requests");
         request.Status = TeamJoinRequestStatus.Approved;
         request.ReviewedByUserId = approverUserId;
         request.ReviewNotes = notes;
@@ -958,7 +963,10 @@ internal sealed class TeamService(
         }
 
         if (!success)
-            throw new InvalidOperationException("User is already a member of this team");
+            return new(Refusal: "User is already a member of this team");
+
+        // The mutation is committed; finish its notices even if the browser disconnects.
+        cancellationToken = CancellationToken.None;
 
         await auditLogService.LogAsync(
             AuditAction.TeamJoinRequestApproved, nameof(Team), request.TeamId,
@@ -970,7 +978,7 @@ internal sealed class TeamService(
         await SendAddedToTeamEmailAsync(request.UserId, request.Team, cancellationToken);
         await SendJoinRequestApprovedNotificationAsync(request.Team, member.UserId, cancellationToken);
 
-        return member;
+        return new(Member: member);
     }
 
     private async Task SendJoinRequestApprovedNotificationAsync(
@@ -999,23 +1007,27 @@ internal sealed class TeamService(
         }
     }
 
-    public async Task RejectJoinRequestAsync(
+    public async Task<TeamJoinReviewResult> RejectJoinRequestAsync(
         Guid requestId,
         Guid approverUserId,
         string reason,
         CancellationToken cancellationToken = default)
     {
-        var request = await repo.FindRequestWithTeamForMutationAsync(requestId, cancellationToken)
-            ?? throw new InvalidOperationException("Join request not found");
+        var request = await repo.FindRequestWithTeamForMutationAsync(requestId, cancellationToken);
+        if (request is null)
+            return new(Refusal: "Join request not found");
 
         var canApprove = await CanUserApproveRequestsForTeamAsync(request.TeamId, approverUserId, cancellationToken);
         if (!canApprove)
-            throw new InvalidOperationException("User does not have permission to reject requests for this team");
+            return new(Refusal: "User does not have permission to reject requests for this team");
 
         var now = clock.GetCurrentInstant();
         var rejected = await repo.RejectRequestAsync(requestId, approverUserId, reason, now, cancellationToken);
         if (!rejected)
-            throw new InvalidOperationException("Can only reject pending requests");
+            return new(Refusal: "Can only reject pending requests");
+
+        // The mutation is committed; finish its notices even if the browser disconnects.
+        cancellationToken = CancellationToken.None;
 
         await auditLogService.LogAsync(
             AuditAction.TeamJoinRequestRejected, nameof(Team), request.TeamId,
@@ -1024,6 +1036,7 @@ internal sealed class TeamService(
             relatedEntityId: request.UserId, relatedEntityType: nameof(User));
 
         await SendJoinRequestRejectedNotificationAsync(request.Team, request.UserId, cancellationToken);
+        return new();
     }
 
     private async Task SendJoinRequestRejectedNotificationAsync(
@@ -1142,8 +1155,12 @@ internal sealed class TeamService(
         {
             if (targetUserId == userId)
                 throw new InvalidOperationException("Cannot merge a membership into itself");
-            mergeTarget = await repo.FindActiveMemberForMutationAsync(teamId, targetUserId, cancellationToken)
-                ?? await AddMemberToTeamAsync(teamId, targetUserId, actorUserId, cancellationToken);
+            mergeTarget = await repo.FindActiveMemberForMutationAsync(teamId, targetUserId, cancellationToken);
+            if (mergeTarget is null)
+            {
+                var addition = await AddMemberToTeamAsync(teamId, targetUserId, actorUserId, cancellationToken);
+                mergeTarget = addition.Succeeded ? addition.Member! : throw new InvalidOperationException(addition.Refusal);
+            }
         }
         var wasCoordinator = member.Role == TeamMemberRole.Coordinator;
 
@@ -1182,8 +1199,7 @@ internal sealed class TeamService(
             logger.LogError(ex, "Failed to dispatch TeamMemberRemoved notification for user {UserId} team {TeamId}", userId, teamId);
         }
 
-        // Removing a coordinator changes their Coordinators system-team eligibility —
-        // reconcile as part of the mutation, not as a caller-remembered follow-up.
+        // A removed coordinator's Coordinators eligibility is reconciled in the mutation, not left to the caller.
         if (wasCoordinator && mergeTarget is null)
             await SystemTeamSync.SyncMembershipForUserAsync(userId, SystemTeamType.Coordinators, cancellationToken);
         return new TeamMemberRemovalResult();
@@ -1195,24 +1211,28 @@ internal sealed class TeamService(
         return new TeamMemberRemovalResult(key, message);
     }
 
-    public async Task<TeamMember> AddMemberToTeamAsync(
+    public async Task<TeamJoinReviewResult> AddMemberToTeamAsync(
         Guid teamId,
         Guid targetUserId,
         Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var team = await repo.GetByIdAsync(teamId, cancellationToken)
-            ?? throw new InvalidOperationException($"Team {teamId} not found");
+        var team = await repo.GetByIdAsync(teamId, cancellationToken);
+        if (team is null)
+            return new(Refusal: $"Team {teamId} not found");
 
         if (team.IsSystemTeam)
-            throw new InvalidOperationException("Cannot add members to system teams manually");
+            return new(Refusal: "Cannot add members to system teams manually");
 
-        targetUserId = await ResolveMembershipTargetAsync(targetUserId, cancellationToken);
+        var target = await UserService.GetUserInfoAsync(targetUserId, cancellationToken);
+        if (target is null || target.IsTombstone)
+            return new(Refusal: "Cannot add a missing, deleted or merged account to a team.");
+        targetUserId = target.Id;
         var isExisting = await repo.IsActiveMemberAsync(teamId, targetUserId, cancellationToken);
         if (isExisting)
-            throw new InvalidOperationException("User is already a member of this team");
+            return new(Refusal: "User is already a member of this team");
 
-        // Resolve any pending request via approve-with-member; otherwise AddMemberWithOutbox.
+        // A pending request is resolved by approving it with the membership.
         var pendingRequest = await repo.FindUserPendingRequestAsync(teamId, targetUserId, cancellationToken);
         var member = new TeamMember
         {
@@ -1261,7 +1281,10 @@ internal sealed class TeamService(
         }
 
         if (!success)
-            throw new InvalidOperationException("User is already a member of this team");
+            return new(Refusal: "User is already a member of this team");
+
+        // The mutation is committed; finish its notices even if the browser disconnects.
+        cancellationToken = CancellationToken.None;
 
         await auditLogService.LogAsync(
             AuditAction.TeamMemberAdded, nameof(Team), teamId,
@@ -1271,7 +1294,7 @@ internal sealed class TeamService(
 
         await SendAddedToTeamEmailAsync(targetUserId, team, cancellationToken);
 
-        return member;
+        return new(Member: member);
     }
 
     public async Task SetMemberRoleAsync(
@@ -1292,27 +1315,30 @@ internal sealed class TeamService(
             relatedEntityId: userId, relatedEntityType: nameof(User));
     }
 
-    public async Task<TeamRoleDefinition> CreateRoleDefinitionAsync(
+    public async Task<TeamRoleDefinitionMutationResult> CreateRoleDefinitionAsync(
         Guid teamId, string name, string? description, int slotCount,
         List<SlotPriority> priorities, int sortOrder, RolePeriod period, Guid actorUserId,
         bool isPublic = true,
         int? estimatedHours = null,
         CancellationToken cancellationToken = default)
     {
-        var team = await repo.GetByIdAsync(teamId, cancellationToken)
-            ?? throw new InvalidOperationException($"Team {teamId} not found");
+        var team = await repo.GetByIdAsync(teamId, cancellationToken);
+        if (team is null)
+            return new(Refusal: $"Team {teamId} not found");
 
-        ValidateSlotCountAndPriorities(slotCount, priorities);
-        ValidateRoleName(name);
+        if (SlotCountAndPrioritiesRefusal(slotCount, priorities) is { } prioritiesRefusal)
+            return new(Refusal: prioritiesRefusal);
+        if (RoleNameRefusal(name) is { } nameRefusal)
+            return new(Refusal: nameRefusal);
 
         var lowerName = name.ToLowerInvariant();
         var nameExists = await repo.RoleDefinitionNameExistsAsync(teamId, lowerName, excludingId: null, cancellationToken);
         if (nameExists)
-            throw new InvalidOperationException($"A role definition with name '{name}' already exists for this team");
+            return new(Refusal: $"A role definition with name '{name}' already exists for this team");
 
         var canManage = await CanUserApproveRequestsForTeamAsync(teamId, actorUserId, cancellationToken);
         if (!canManage)
-            throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
+            return new(Refusal: "User does not have permission to manage role definitions for this team");
 
         var now = clock.GetCurrentInstant();
         var definition = new TeamRoleDefinition
@@ -1339,10 +1365,10 @@ internal sealed class TeamService(
             actorUserId,
             relatedEntityId: teamId, relatedEntityType: nameof(Team));
 
-        return definition;
+        return new(Definition: definition);
     }
 
-    public async Task<TeamRoleDefinition> UpdateRoleDefinitionAsync(
+    public async Task<TeamRoleDefinitionMutationResult> UpdateRoleDefinitionAsync(
         Guid roleDefinitionId, string name, string? description, int slotCount,
         List<SlotPriority> priorities, int sortOrder, bool isManagement, RolePeriod period, Guid actorUserId,
         bool isPublic = true,
@@ -1350,30 +1376,40 @@ internal sealed class TeamService(
         int? estimatedHours = null,
         CancellationToken cancellationToken = default)
     {
-        var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
-            ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
+        var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken);
+        if (definition is null)
+            return new(Refusal: $"Role definition {roleDefinitionId} not found");
         var team = await GetRoleDefinitionTeamAsync(definition, cancellationToken);
 
         var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
         if (!canManage)
-            throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
+            return new(Refusal: "User does not have permission to manage role definitions for this team");
 
-        ValidateSlotCountAndPriorities(slotCount, priorities);
+        if (SlotCountAndPrioritiesRefusal(slotCount, priorities) is { } prioritiesRefusal)
+            return new(Refusal: prioritiesRefusal);
 
         if (!canToggleManagement)
             isManagement = definition.IsManagement;
 
         if (slotCount < definition.Assignments.Count)
-            throw new InvalidOperationException(
-                $"Cannot reduce slot count to {slotCount} — {definition.Assignments.Count} slots are currently filled");
+            return new(Refusal: $"Cannot reduce slot count to {slotCount} — {definition.Assignments.Count} slots are currently filled");
 
         if (!string.Equals(definition.Name, name, StringComparison.Ordinal))
         {
-            ValidateRoleName(name);
+            if (RoleNameRefusal(name) is { } nameRefusal)
+                return new(Refusal: nameRefusal);
             var lowerName = name.ToLowerInvariant();
             var nameExists = await repo.RoleDefinitionNameExistsAsync(definition.TeamId, lowerName, excludingId: roleDefinitionId, cancellationToken);
             if (nameExists)
-                throw new InvalidOperationException($"A role definition with name '{name}' already exists for this team");
+                return new(Refusal: $"A role definition with name '{name}' already exists for this team");
+        }
+
+        if (isManagement && !definition.IsManagement)
+        {
+            var existingManagement = await repo.OtherRoleHasIsManagementAsync(
+                definition.TeamId, roleDefinitionId, cancellationToken);
+            if (existingManagement)
+                return new(Refusal: "Another role in this team is already marked as the management role");
         }
 
         definition.Name = name;
@@ -1382,14 +1418,6 @@ internal sealed class TeamService(
         definition.EstimatedHours = estimatedHours;
         definition.Priorities = priorities;
         definition.SortOrder = sortOrder;
-
-        if (isManagement && !definition.IsManagement)
-        {
-            var existingManagement = await repo.OtherRoleHasIsManagementAsync(
-                definition.TeamId, roleDefinitionId, cancellationToken);
-            if (existingManagement)
-                throw new InvalidOperationException("Another role in this team is already marked as the management role");
-        }
 
         var clearingIsManagement = definition.IsManagement && !isManagement;
 
@@ -1407,23 +1435,24 @@ internal sealed class TeamService(
             actorUserId,
             relatedEntityId: definition.TeamId, relatedEntityType: nameof(Team));
 
-        return definition;
+        return new(Definition: definition);
     }
 
-    public async Task DeleteRoleDefinitionAsync(
+    public async Task<TeamRoleDefinitionMutationResult> DeleteRoleDefinitionAsync(
         Guid roleDefinitionId, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
-            ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
+        var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken);
+        if (definition is null)
+            return new(Refusal: $"Role definition {roleDefinitionId} not found");
         var team = await GetRoleDefinitionTeamAsync(definition, cancellationToken);
 
         if (definition.IsManagement && definition.Assignments.Count > 0)
-            throw new InvalidOperationException("Cannot delete the management role while members are assigned to it. Unassign all members first.");
+            return new(Refusal: "Cannot delete the management role while members are assigned to it. Unassign all members first.");
 
         var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
         if (!canManage)
-            throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
+            return new(Refusal: "User does not have permission to manage role definitions for this team");
 
         await repo.RemoveRoleDefinitionAsync(definition, cancellationToken);
 
@@ -1432,30 +1461,33 @@ internal sealed class TeamService(
             $"Role definition '{definition.Name}' deleted from team {team.Name}",
             actorUserId,
             relatedEntityId: definition.TeamId, relatedEntityType: nameof(Team));
+
+        return new();
     }
 
-    public async Task<TeamRoleManagementToggleResult> ToggleRoleIsManagementAsync(
+    public async Task<TeamRoleDefinitionMutationResult> ToggleRoleIsManagementAsync(
         Guid roleDefinitionId, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var definition = await repo.FindRoleDefinitionWithMembersForMutationAsync(roleDefinitionId, cancellationToken)
-            ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
+        var definition = await repo.FindRoleDefinitionWithMembersForMutationAsync(roleDefinitionId, cancellationToken);
+        if (definition is null)
+            return new(Refusal: $"Role definition {roleDefinitionId} not found");
         var team = await GetRoleDefinitionTeamAsync(definition, cancellationToken);
 
         var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
         if (!canManage)
-            throw new InvalidOperationException("User does not have permission to manage role definitions for this team");
+            return new(Refusal: "User does not have permission to manage role definitions for this team");
 
         var isManagement = !definition.IsManagement;
         if (isManagement)
         {
             if (definition.Assignments.Count > 0)
-                throw new InvalidOperationException("Cannot set IsManagement while members are assigned to the role");
+                return new(Refusal: "Cannot set IsManagement while members are assigned to the role");
 
             var existingManagement = await repo.OtherRoleHasIsManagementAsync(
                 definition.TeamId, roleDefinitionId, cancellationToken);
             if (existingManagement)
-                throw new InvalidOperationException("Another role in this team is already marked as the management role");
+                return new(Refusal: "Another role in this team is already marked as the management role");
         }
 
         var clearingIsManagement = definition.IsManagement && !isManagement && definition.Assignments.Count > 0;
@@ -1472,7 +1504,7 @@ internal sealed class TeamService(
             actorUserId,
             relatedEntityId: definition.TeamId, relatedEntityType: nameof(Team));
 
-        return new TeamRoleManagementToggleResult(definition.Name, definition.IsManagement);
+        return new(Definition: definition);
     }
 
     public async Task<IReadOnlyList<TeamRoleDefinitionSnapshot>> GetRoleDefinitionsAsync(
@@ -1507,9 +1539,8 @@ internal sealed class TeamService(
                     assignment.TeamMember?.UserId))
                 .ToList());
 
-    public async Task<TeamRoleAssignment> AssignToRoleAsync(
-        Guid roleDefinitionId, Guid targetUserId, Guid actorUserId,
-        CancellationToken cancellationToken = default)
+    private async Task<(TeamRoleDefinition Definition, Team Team)> RequireRoleAssignmentManagementAsync(
+        Guid roleDefinitionId, Guid actorUserId, CancellationToken cancellationToken)
     {
         var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
             ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
@@ -1518,6 +1549,16 @@ internal sealed class TeamService(
         var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
         if (!canManage)
             throw new InvalidOperationException("User does not have permission to manage role assignments for this team");
+
+        return (definition, team);
+    }
+
+    public async Task<TeamRoleAssignment> AssignToRoleAsync(
+        Guid roleDefinitionId, Guid targetUserId, Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var (definition, team) = await RequireRoleAssignmentManagementAsync(
+            roleDefinitionId, actorUserId, cancellationToken);
 
         targetUserId = await ResolveMembershipTargetAsync(targetUserId, cancellationToken);
         var existingMember = await repo.FindActiveMemberForMutationAsync(definition.TeamId, targetUserId, cancellationToken);
@@ -1569,8 +1610,7 @@ internal sealed class TeamService(
             actorUserId,
             relatedEntityId: targetUserId, relatedEntityType: nameof(User));
 
-        // Role assignment can change Coordinators system-team eligibility (management
-        // roles promote) — reconcile as part of the mutation.
+        // Management roles promote: reconcile Coordinators in the mutation.
         await SystemTeamSync.SyncMembershipForUserAsync(targetUserId, SystemTeamType.Coordinators, cancellationToken);
 
         return assignment;
@@ -1580,13 +1620,8 @@ internal sealed class TeamService(
         Guid roleDefinitionId, Guid teamMemberId, Guid actorUserId,
         CancellationToken cancellationToken = default)
     {
-        var definition = await repo.FindRoleDefinitionForMutationAsync(roleDefinitionId, cancellationToken)
-            ?? throw new InvalidOperationException($"Role definition {roleDefinitionId} not found");
-        var team = await GetRoleDefinitionTeamAsync(definition, cancellationToken);
-
-        var canManage = await CanUserApproveRequestsForTeamAsync(definition.TeamId, actorUserId, cancellationToken);
-        if (!canManage)
-            throw new InvalidOperationException("User does not have permission to manage role assignments for this team");
+        var (definition, team) = await RequireRoleAssignmentManagementAsync(
+            roleDefinitionId, actorUserId, cancellationToken);
 
         var (_, targetUserId) = await repo.UnassignFromRoleAsync(
             roleDefinitionId, teamMemberId, cancellationToken);
@@ -1597,8 +1632,7 @@ internal sealed class TeamService(
             actorUserId,
             relatedEntityId: targetUserId, relatedEntityType: nameof(User));
 
-        // Losing a (possibly management) role can change Coordinators system-team
-        // eligibility — reconcile as part of the mutation.
+        // Losing a management role can demote: reconcile Coordinators in the mutation.
         await SystemTeamSync.SyncMembershipForUserAsync(targetUserId, SystemTeamType.Coordinators, cancellationToken);
     }
 
@@ -1633,12 +1667,6 @@ internal sealed class TeamService(
                 count, userId);
         }
     }
-
-    // ==========================================================================
-    // ITeamSeeding — the dev/demo fixture surface. Explicit implementations: the members of
-    // the same names on this class return the section's entities, which cannot leave the
-    // assembly, so these overloads differ only in their projection.
-    // ==========================================================================
 
     async Task<TeamInfo> ITeamSeeding.CreateTeamAsync(
         string name,
@@ -1687,13 +1715,11 @@ internal sealed class TeamService(
         CancellationToken cancellationToken) =>
         AddSeededMemberAsync(teamId, userId, role, joinedAt, cancellationToken);
 
-    /// <inheritdoc />
     public async Task<IReadOnlyDictionary<Guid, TeamInfo>> GetTeamsWithParentsAsync(
         IReadOnlyCollection<Guid> teamIds,
         CancellationToken cancellationToken = default)
     {
-        // The read-model map is built from every team row, deactivated ones included, which is
-        // what the entity-returning sibling promises its Teams-internal callers.
+        // Deactivated teams included, as the entity-returning sibling promises its callers.
         var teamsById = await LoadTeamsByIdAsync(cancellationToken);
         var result = new Dictionary<Guid, TeamInfo>();
         foreach (var teamId in teamIds)
@@ -1757,7 +1783,7 @@ internal sealed class TeamService(
         if (hasActiveChildren)
             throw new InvalidOperationException("Cannot permanently delete a team that has active sub-teams. Remove or reassign sub-teams first.");
 
-        // GoogleResource → Team is OnDelete(Restrict); pre-check yields a clear message vs raw FK violation.
+        // Restrict FK: pre-check for a clear message instead of a raw violation.
         var resources = await TeamResourceService.GetTeamResourcesAsync(teamId, cancellationToken);
         if (resources.Count > 0)
             throw new InvalidOperationException("Cannot permanently delete a team that has Google resources linked. Unlink resources first.");
@@ -1789,7 +1815,7 @@ internal sealed class TeamService(
             totalCount);
     }
 
-    // Cache mutation/invalidation are owned by CachingTeamService.
+    // CachingTeamService owns the cache.
     public void InvalidateActiveTeamsCache() { }
 
     public Task<int> RevokeAllMembershipsAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -1802,8 +1828,8 @@ internal sealed class TeamService(
         Instant updatedAt,
         CancellationToken cancellationToken)
     {
-        // End source memberships through the ordinary authorized removal/outbox path,
-        // folding roles into the survivor in the same save. System teams reconcile separately.
+        // Ends source memberships through the ordinary removal/outbox path, folding roles into the survivor in the
+        // same save. System teams reconcile separately.
         var sourceMemberships = await GetUserTeamMembershipsAsync(sourceUserId, cancellationToken);
         var sourceTeamsById = await repo.GetByIdsWithParentsAsync(
             sourceMemberships.Select(m => m.TeamId).Distinct().ToList(), cancellationToken);
@@ -1819,13 +1845,10 @@ internal sealed class TeamService(
                 throw new InvalidOperationException(removal.ErrorMessage);
         }
 
-        // TeamJoinRequest fold.
         await repo.ReassignActiveJoinRequestsAsync(sourceUserId, targetUserId, cancellationToken);
 
-        // Early-entry grants fold.
         await repo.ReassignEarlyEntryGrantsAsync(sourceUserId, targetUserId, cancellationToken);
-        // Always retry both reconciles, even when a previous pass already ended every
-        // source membership before failing here.
+        // Always retry both reconciles, even when an earlier pass ended every source membership before failing here.
         await SystemTeamSync.SyncMembershipForUserAsync(sourceUserId, SystemTeamType.Coordinators, cancellationToken);
         await SystemTeamSync.SyncMembershipForUserAsync(targetUserId, SystemTeamType.Coordinators, cancellationToken);
     }
@@ -1892,22 +1915,15 @@ internal sealed class TeamService(
         return [membershipSlice, joinRequestSlice, earlyEntrySlice];
     }
 
-    /// <summary>
-    /// Ends live memberships, then hard-deletes the join requests (they carry the
-    /// applicant's free-text message) and the early-entry grants.
-    /// </summary>
+    /// <summary>Join requests are hard-deleted: they carry the applicant's free-text message.</summary>
     public async Task EraseForUserAsync(Guid userId, CancellationToken ct)
     {
         await RevokeAllMembershipsAsync(userId, ct);
         await repo.DeleteJoinRequestsForUserAsync(userId, ct);
         await DeleteEarlyEntryGrantsForUserAsync(userId, ct);
 
-        // No cache call here: Gdpr reaches this through CachingTeamService, which evicts.
+        // No cache call: Gdpr reaches this through CachingTeamService, which evicts.
     }
-
-    // ==========================================================================
-    // Early-Entry Grants
-    // ==========================================================================
 
     public async Task<IReadOnlyList<EarlyEntryGrant>> GetEarlyEntriesAsync(CancellationToken ct)
     {
@@ -1962,7 +1978,7 @@ internal sealed class TeamService(
     public async Task RemoveEarlyEntryGrantAsync(Guid teamId, Guid grantId, Guid actorUserId, CancellationToken ct = default)
     {
         var grant = await repo.FindEarlyEntryGrantForMutationAsync(grantId, ct);
-        if (grant is null || grant.TeamId != teamId) return; // idempotent / not found on this team
+        if (grant is null || grant.TeamId != teamId) return; // idempotent; another team's grant counts as missing
         await repo.RemoveEarlyEntryGrantAsync(grantId, ct);
         await auditLogService.LogAsync(AuditAction.EarlyEntryRevoked, nameof(TeamEarlyEntryGrant), grantId,
             $"EE revoked for {grant.UserId} (team {grant.TeamId})", actorUserId);
@@ -1975,15 +1991,31 @@ internal sealed class TeamService(
         await repo.RemoveEarlyEntryGrantsForUserAsync(userId, ct);
     }
 
-    private async Task<IReadOnlyDictionary<Guid, TeamInfo>> LoadTeamsByIdAsync(CancellationToken ct = default)
+    private async Task<IReadOnlyDictionary<Guid, TeamInfo>> LoadTeamsByIdAsync(CancellationToken ct = default) =>
+        await ResolveTeamMembersAsync(await GetTeamSnapshotsAsync(ct), ct);
+
+    public async Task<IReadOnlyDictionary<Guid, TeamInfo>> ResolveTeamMembersAsync(
+        IReadOnlyDictionary<Guid, TeamReadSnapshot> teams, CancellationToken ct = default)
+    {
+        var userIds = teams.Values.SelectMany(t => t.Members.Select(m => m.UserId)).Distinct().ToList();
+        var users = userIds.Count == 0
+            ? new Dictionary<Guid, UserInfo>()
+            : await UserService.GetUserInfosAsync(userIds, ct);
+        return teams.ToDictionary(pair => pair.Key, pair => pair.Value.Team with
+        {
+            Members = pair.Value.Members.Select(member =>
+            {
+                users.TryGetValue(member.UserId, out var user);
+                return new TeamMemberInfo(
+                    member.TeamMemberId, member.UserId, user?.BurnerName ?? string.Empty,
+                    user?.Email, user?.ProfilePictureUrl, member.Role, member.JoinedAt);
+            }).ToList(),
+        });
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, TeamReadSnapshot>> GetTeamSnapshotsAsync(CancellationToken ct = default)
     {
         var teams = await repo.GetAllWithMembersAsync(ct);
-        var allUserIds = teams.SelectMany(t => t.Members.Where(m => m.LeftAt is null).Select(m => m.UserId))
-            .Distinct()
-            .ToList();
-        var users = allUserIds.Count == 0
-            ? new Dictionary<Guid, UserInfo>()
-            : await UserService.GetUserInfosAsync(allUserIds, ct);
         var managementHolders = await repo.GetActiveManagementRoleHolderUserIdsByTeamAsync(ct);
         var roleDefinitionsByTeam = await repo.GetAllRoleDefinitionsByTeamAsync(ct);
         var childIdsByParent = teams
@@ -1995,16 +2027,15 @@ internal sealed class TeamService(
 
         return teams.ToDictionary(
             t => t.Id,
-            t => BuildTeamInfo(t, users, managementHolders, roleDefinitionsByTeam, childIdsByParent, pendingCounts));
+            t => BuildTeamSnapshot(t, managementHolders, roleDefinitionsByTeam, childIdsByParent, pendingCounts));
     }
 
-    private static TeamInfo BuildTeamInfo(
+    private static TeamReadSnapshot BuildTeamSnapshot(
         Team team,
-        IReadOnlyDictionary<Guid, UserInfo> users,
         IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> managementHolders,
         IReadOnlyDictionary<Guid, IReadOnlyList<TeamRoleDefinition>> roleDefinitionsByTeam,
         IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> childIdsByParent,
-        IReadOnlyDictionary<Guid, int> pendingCounts) => new(
+        IReadOnlyDictionary<Guid, int> pendingCounts) => new(new TeamInfo(
         Id: team.Id,
         Name: team.Name,
         Description: team.Description,
@@ -2017,21 +2048,7 @@ internal sealed class TeamService(
         IsHidden: team.IsHidden,
         IsPromotedToDirectory: team.IsPromotedToDirectory,
         CreatedAt: team.CreatedAt,
-        Members: team.Members
-            .Where(m => m.LeftAt is null)
-            .Select(m =>
-            {
-                users.TryGetValue(m.UserId, out var u);
-                return new TeamMemberInfo(
-                    TeamMemberId: m.Id,
-                    UserId: m.UserId,
-                    DisplayName: u?.BurnerName ?? string.Empty,
-                    Email: u?.Email,
-                    ProfilePictureUrl: u?.ProfilePictureUrl,
-                    Role: m.Role,
-                    JoinedAt: m.JoinedAt);
-            })
-            .ToList(),
+        Members: [],
         ParentTeamId: team.ParentTeamId,
         GoogleGroupPrefix: team.GoogleGroupPrefix,
         HasBudget: team.HasBudget,
@@ -2049,7 +2066,9 @@ internal sealed class TeamService(
         PageContentUpdatedAt: team.PageContentUpdatedAt,
         PageContentUpdatedByUserId: team.PageContentUpdatedByUserId,
         PendingRequestCount: pendingCounts.TryGetValue(team.Id, out var pending) ? pending : 0,
-        EarlyEntryEnabled: team.EarlyEntryEnabled);
+        EarlyEntryEnabled: team.EarlyEntryEnabled),
+        team.Members.Where(m => m.LeftAt is null)
+            .Select(m => new TeamMemberReference(m.Id, m.UserId, m.Role, m.JoinedAt)).ToList());
 
     private async Task<Team> GetRoleDefinitionTeamAsync(TeamRoleDefinition definition, CancellationToken ct)
     {
@@ -2119,6 +2138,7 @@ internal sealed class TeamService(
                 var resources = await TeamResourceService.GetTeamResourcesAsync(team.Id, cancellationToken);
 
                 await EmailService.SendAsync(EmailMessages.AddedToTeam(
+                    user.Id,
                     email, user.BurnerName, team.Name, team.Slug,
                     resources.Select(r => (r.Name, r.Url)),
                     culture.Name),
@@ -2227,40 +2247,35 @@ internal sealed class TeamService(
         IReadOnlyDictionary<Guid, UserInfo> usersById)
     {
         usersById.TryGetValue(request.UserId, out var user);
-        return new TeamJoinRequestSnapshot(
-            request.Id,
-            request.TeamId,
-            request.Team?.Name,
-            request.UserId,
-            user?.BurnerName,
-            user?.Email,
-            user?.ProfilePictureUrl,
-            request.Status,
-            request.Message,
-            request.RequestedAt,
-            request.ResolvedAt,
-            request.ReviewNotes);
+        return ToJoinRequestSnapshot(request) with
+        {
+            UserDisplayName = user?.BurnerName,
+            UserEmail = user?.Email,
+            UserProfilePictureUrl = user?.ProfilePictureUrl
+        };
     }
 
-    private static void ValidateRoleName(string name)
+    private static string? RoleNameRefusal(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
-            throw new InvalidOperationException("Role name cannot be empty");
+            return "Role name cannot be empty";
 
         if (name.Length > 100)
-            throw new InvalidOperationException("Role name cannot exceed 100 characters");
+            return "Role name cannot exceed 100 characters";
+        return null;
     }
 
-    private static void ValidateSlotCountAndPriorities(int slotCount, List<SlotPriority> priorities)
+    private static string? SlotCountAndPrioritiesRefusal(int slotCount, List<SlotPriority> priorities)
     {
         if (slotCount < 1)
-            throw new InvalidOperationException("Slot count must be at least 1");
+            return "Slot count must be at least 1";
 
         if (priorities.Count != slotCount)
-            throw new InvalidOperationException($"Priorities count ({priorities.Count}) must match slot count ({slotCount})");
+            return $"Priorities count ({priorities.Count}) must match slot count ({slotCount})";
 
         if (priorities.Any(priority => !Enum.IsDefined(priority)))
-            throw new InvalidOperationException("Each slot priority must be a defined priority value");
+            return "Each slot priority must be a defined priority value";
+        return null;
     }
 
     public async Task<IReadOnlyList<TeamRoleReconciliationMembership>> GetActiveMembershipsForRoleReconciliationAsync(

@@ -31,6 +31,19 @@ public sealed class CachingTeamServiceGetTeamDetailTests : IDisposable
     public CachingTeamServiceGetTeamDetailTests()
     {
         _innerTeamService = Substitute.For<ITeamManagementService>();
+        _innerTeamService.GetTeamSnapshotsAsync(Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var teams = await _innerTeamService.GetTeamsAsync(call.Arg<CancellationToken>());
+                return (IReadOnlyDictionary<Guid, TeamReadSnapshot>)teams.ToDictionary(pair => pair.Key, pair => new TeamReadSnapshot(
+                    pair.Value, pair.Value.Members.Select(member => new TeamMemberReference(
+                        member.TeamMemberId, member.UserId, member.Role, member.JoinedAt)).ToList()));
+            });
+        _innerTeamService.ResolveTeamMembersAsync(
+                Arg.Any<IReadOnlyDictionary<Guid, TeamReadSnapshot>>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<IReadOnlyDictionary<Guid, TeamInfo>>(
+                call.Arg<IReadOnlyDictionary<Guid, TeamReadSnapshot>>()
+                    .ToDictionary(pair => pair.Key, pair => pair.Value.Team)));
         _roleAssignmentService = Substitute.For<IRoleAssignmentService>();
         var userService = Substitute.For<IUserService>();
 
@@ -219,7 +232,7 @@ public sealed class CachingTeamServiceGetTeamDetailTests : IDisposable
     [Xunit.InlineData("member")]
     [Xunit.InlineData(RoleNames.Admin)]
     [Xunit.InlineData(RoleNames.Board)]
-    [Xunit.InlineData(RoleNames.TeamsAdmin)]
+    [Xunit.InlineData(TeamsRoles.TeamsAdmin)]
     public async Task Detail_HiddenParentAndChildLinks_RequirePrivilegedRole(string role)
     {
         var root = MakeTeam("VisibleRoot", isPublicPage: true);
@@ -233,7 +246,7 @@ public sealed class CachingTeamServiceGetTeamDetailTests : IDisposable
         var viewer = Guid.NewGuid();
         _roleAssignmentService.IsUserAdminAsync(viewer, Arg.Any<CancellationToken>()).Returns(string.Equals(role, RoleNames.Admin, StringComparison.Ordinal));
         _roleAssignmentService.IsUserBoardMemberAsync(viewer, Arg.Any<CancellationToken>()).Returns(string.Equals(role, RoleNames.Board, StringComparison.Ordinal));
-        _roleAssignmentService.IsUserTeamsAdminAsync(viewer, Arg.Any<CancellationToken>()).Returns(string.Equals(role, RoleNames.TeamsAdmin, StringComparison.Ordinal));
+        _roleAssignmentService.IsUserTeamsAdminAsync(viewer, Arg.Any<CancellationToken>()).Returns(string.Equals(role, TeamsRoles.TeamsAdmin, StringComparison.Ordinal));
         Guid? userId = string.Equals(role, "anonymous", StringComparison.Ordinal) ? null : viewer;
 
         var rootPage = await _pages.GetTeamDetailAsync(root.Slug, userId, Xunit.TestContext.Current.CancellationToken);
@@ -241,7 +254,7 @@ public sealed class CachingTeamServiceGetTeamDetailTests : IDisposable
 
         rootPage.Should().NotBeNull();
         childPage.Should().NotBeNull();
-        var privileged = role is RoleNames.Admin or RoleNames.Board or RoleNames.TeamsAdmin;
+        var privileged = role is RoleNames.Admin or RoleNames.Board or TeamsRoles.TeamsAdmin;
         rootPage.ChildTeams.Select(team => team.Id).Should().Equal(privileged ? new[] { hiddenChild.Id } : []);
         var parentId = childPage.Team.ParentTeam?.Id;
         parentId.Should().Be(privileged ? hiddenParent.Id : null);

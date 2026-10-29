@@ -11,22 +11,21 @@ using Humans.Users.Contracts;
 
 namespace Humans.Feedback;
 
-/// <summary>
-/// Feedback's DI entry point, at the project root by convention. Discovered by Shell —
-/// nothing names it, so it needs no section prefix. Admin-review-only and low-traffic, so
-/// there is no caching decorator; the service caches the nav-badge count itself.
-/// </summary>
-public sealed class Section : ISection
+/// <summary>No caching decorator: the service caches the nav-badge count itself.</summary>
+public sealed class Section : ISection, ISectionRoles
 {
+    IReadOnlyList<RoleDefinition> ISectionRoles.Roles { get; } =
+    [
+        new(FeedbackRoles.FeedbackAdmin, "Feedback Admin",
+            "Listeners of the community voice. They fielded bug reports, feature requests, and questions back when Feedback was how you reached us; these days that lives in Issues.",
+            "fa-solid fa-comments"),
+    ];
+
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
         services.AddSectionDbContext<FeedbackDbContext>(sentinelTable: "feedback_reports");
 
-        // §15b (nobodies-collective/Humans#546): Singleton + IDbContextFactory so the
-        // repository owns context lifetime.
         services.AddSingleton<IFeedbackRepository, FeedbackRepository>();
-        // Feedback owns its email copy and its gallery samples; Email keeps the mechanics
-        // (memory/architecture/email-templates-live-in-sender.md).
         services.AddScoped<FeedbackEmails>();
         services.AddScoped<IEmailPreviewContributor, FeedbackEmailPreviews>();
 
@@ -34,8 +33,6 @@ public sealed class Section : ISection
         services.AddScoped<FeedbackService>();
         services.AddScoped<IFeedbackService>(sp => sp.GetRequiredService<FeedbackService>());
         services.AddScoped<IFeedbackTriage>(sp => sp.GetRequiredService<FeedbackService>());
-        // Owns the user-scoped feedback_reports / feedback_messages tables → GDPR export
-        // contributor and account-merge fold participant (design-rules §8a).
         services.AddScoped<IUserDataContributor>(sp => sp.GetRequiredService<FeedbackService>());
         services.AddScoped<IUserMerge>(sp => sp.GetRequiredService<FeedbackService>());
     }

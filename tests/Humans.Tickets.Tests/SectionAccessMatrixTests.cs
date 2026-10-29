@@ -3,10 +3,6 @@ using Humans.Base.Models;
 
 namespace Humans.Tickets.Tests;
 
-/// <summary>
-/// The help widget and the agent's preload both read this section's access matrix through the
-/// <c>ISectionAccessMatrix</c> seam, so the rows are pinned here rather than in Base.
-/// </summary>
 public class SectionAccessMatrixTests
 {
     private static AccessMatrixData Matrix() =>
@@ -20,7 +16,7 @@ public class SectionAccessMatrixTests
         matrix.Key.Should().Be("Tickets");
         matrix.SectionName.Should().Be("Tickets");
         matrix.Order.Should().Be(70);
-        matrix.Roles.Should().Equal("Board", "TicketAdmin");
+        matrix.Roles.Should().Equal("Board", "TicketsAdmin");
     }
 
     [HumansFact]
@@ -29,8 +25,8 @@ public class SectionAccessMatrixTests
         Matrix().Features
             .Select(f => $"{f.Name}: {string.Join(", ", f.RoleAccess.Select(kv => $"{kv.Key}={kv.Value}"))}")
             .Should().Equal(
-                "View tickets & orders: Board=Allowed, TicketAdmin=Allowed",
-                "Sync operations: Board=Denied, TicketAdmin=Allowed",
-                "Discount codes: Board=Allowed, TicketAdmin=Allowed");
+                "View tickets & orders: Board=Allowed, TicketsAdmin=Allowed",
+                "Sync operations: Board=Denied, TicketsAdmin=Allowed",
+                "Discount codes: Board=Allowed, TicketsAdmin=Allowed");
     }
 }

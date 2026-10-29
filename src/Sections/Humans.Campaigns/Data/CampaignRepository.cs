@@ -6,17 +6,10 @@ using Humans.Base.Enums;
 
 namespace Humans.Campaigns.Data;
 
-/// <summary>
-/// EF-backed implementation of <see cref="ICampaignRepository"/>.
-/// Uses <see cref="IDbContextFactory{TContext}"/> so the repository can be
-/// registered as Singleton while <c>CampaignsDbContext</c> remains Scoped.
-/// </summary>
 internal sealed class CampaignRepository(IDbContextFactory<CampaignsDbContext> factory) : ICampaignRepository
 {
     public async Task<Campaign?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        // CampaignGrant carries a bare UserId — no User nav to include. Recipient
-        // display names come from IUserService, keyed on CampaignGrant.UserId.
         await using var ctx = await factory.CreateDbContextAsync(ct);
         return await ctx.Campaigns
             .Include(c => c.Codes)
@@ -77,8 +70,7 @@ internal sealed class CampaignRepository(IDbContextFactory<CampaignsDbContext> f
                 g.Id,
                 g.UserId,
                 g.Code.Code,
-                g.RedeemedAt,
-                g.LatestEmailStatus))
+                g.RedeemedAt))
             .ToListAsync(ct);
     }
 
@@ -171,25 +163,6 @@ internal sealed class CampaignRepository(IDbContextFactory<CampaignsDbContext> f
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<IReadOnlyList<GrantWithSendContext>> GetFailedGrantsForRetryAsync(
-        Guid campaignId, CancellationToken ct = default)
-    {
-        await using var ctx = await factory.CreateDbContextAsync(ct);
-        return await ctx.CampaignGrants
-            .AsNoTracking()
-            .Where(g => g.CampaignId == campaignId
-                && g.LatestEmailStatus == EmailOutboxStatus.Failed)
-            .Select(g => new GrantWithSendContext(
-                g.Id,
-                g.UserId,
-                g.CampaignId,
-                g.Code.Code,
-                g.Campaign.EmailSubject,
-                g.Campaign.EmailBodyTemplate,
-                g.Campaign.ReplyToAddress))
-            .ToListAsync(ct);
-    }
-
     public async Task<Guid?> GetCampaignIdForGrantAsync(
         Guid grantId, CancellationToken ct = default)
     {
@@ -221,23 +194,6 @@ internal sealed class CampaignRepository(IDbContextFactory<CampaignsDbContext> f
         await ctx.SaveChangesAsync(ct);
     }
 
-    public async Task<bool> UpdateGrantStatusAsync(
-        Guid grantId,
-        EmailOutboxStatus? status,
-        Instant latestEmailAt,
-        CancellationToken ct = default)
-    {
-        await using var ctx = await factory.CreateDbContextAsync(ct);
-        var grant = await ctx.CampaignGrants.FirstOrDefaultAsync(g => g.Id == grantId, ct);
-        if (grant is null)
-            return false;
-
-        grant.LatestEmailStatus = status;
-        grant.LatestEmailAt = latestEmailAt;
-        await ctx.SaveChangesAsync(ct);
-        return true;
-    }
-
     public async Task<int> MarkGrantsRedeemedAsync(
         IReadOnlyCollection<DiscountCodeRedemption> redemptions,
         CancellationToken ct = default)
@@ -255,8 +211,7 @@ internal sealed class CampaignRepository(IDbContextFactory<CampaignsDbContext> f
 
         await using var ctx = await factory.CreateDbContextAsync(ct);
 
-        // Load unredeemed grants on active/completed campaigns. Filter by code
-        // in memory so the DB query stays simple and collation-independent.
+        // Filter by code in memory so the query stays simple and collation-independent.
         var unredeemed = (await ctx.CampaignGrants
             .Include(g => g.Code)
             .Include(g => g.Campaign)
@@ -266,10 +221,7 @@ internal sealed class CampaignRepository(IDbContextFactory<CampaignsDbContext> f
             .Where(g => codeStrings.Contains(g.Code.Code))
             .ToList();
 
-        // Iterate redemptions in input order, matching one grant per redemption
-        // so that N orders with the same code redeem N distinct grants. When a
-        // code matches grants in multiple campaigns, the most recently created
-        // campaign wins.
+        // One grant per redemption, so N orders with the same code redeem N distinct grants.
         var redeemedCount = 0;
         foreach (var redemption in redemptions)
         {
@@ -307,7 +259,9 @@ internal sealed class CampaignRepository(IDbContextFactory<CampaignsDbContext> f
                 cg.Code.Code,
                 cg.AssignedAt,
                 cg.RedeemedAt,
+#pragma warning disable CS0618 // old grants still hand over their stored status
                 cg.LatestEmailStatus))
+#pragma warning restore CS0618
             .ToListAsync(ct);
     }
 
@@ -347,7 +301,6 @@ internal sealed class CampaignRepository(IDbContextFactory<CampaignsDbContext> f
         {
             if (targetCampaignIdSet.Contains(src.CampaignId))
             {
-                // Target already has a grant on this campaign — target wins.
                 ctx.CampaignGrants.Remove(src);
             }
             else

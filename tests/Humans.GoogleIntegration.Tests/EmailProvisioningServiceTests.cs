@@ -125,11 +125,7 @@ public class EmailProvisioningServiceTests
         f.Audit.ReceivedCalls().Should().BeEmpty();
     }
 
-    // --- ProvisionNobodiesEmailAsync: cross-user conflict checks ---
-    // These tests verify that provisioning rejects prefixes already in use
-    // by another human in our system BEFORE calling Workspace or writing DB.
-    // All DB state is mocked at the IUserService / IUserEmailService / ITeamService
-    // boundary — the service never touches DbContext.
+    // Provisioning must reject a prefix another human already uses before calling Workspace or writing.
 
     private sealed record ProvisioningFixture(
         EmailProvisioningService Service,
@@ -147,6 +143,8 @@ public class EmailProvisioningServiceTests
         var userService = Substitute.For<IUserService>();
         var workspace = Substitute.For<IGoogleWorkspaceUserService>();
         var userEmail = Substitute.For<IUserEmailService>();
+        userEmail.AddVerifiedEmailAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new UserEmailAddResult(Guid.NewGuid(), true, false));
         var teamService = Substitute.For<ITeamService>();
         var email = Substitute.For<IEmailService>();
         var emailMessages = TestGoogleIntegrationEmails.Create();
@@ -183,6 +181,30 @@ public class EmailProvisioningServiceTests
     {
         f.UserService.GetUserInfoAsync(userId, Arg.Any<CancellationToken>())
             .Returns(WrapInUserInfo(userId, UserFixtures.Profile(firstName: "Target", lastName: "Two")));
+    }
+
+    [HumansFact]
+    public async Task ProvisionNobodiesEmailAsync_EmailAdditionRefused_DoesNotReportProvisioningSuccess()
+    {
+        var f = BuildFixture();
+        var userId = Guid.NewGuid();
+        StubTargetUser(f, userId);
+        f.WorkspaceUserService.GetAccountAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((WorkspaceUserAccount?)null);
+        f.UserEmailService.AddVerifiedEmailAsync(userId, "person@nobodies.team", Arg.Any<CancellationToken>())
+            .Returns(new UserEmailAddResult(Guid.Empty, false, false, "Users_EmailUpdate_AccountUnavailable"));
+
+        f.UserEmailService.GetUserEmailsAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new List<UserEmailEditDto>());
+
+        var result = await f.Service.ProvisionNobodiesEmailAsync(userId, "person", userId);
+
+        result.Success.Should().BeFalse();
+        await f.UserEmailService.Received(1).AddVerifiedEmailAsync(userId, "person@nobodies.team", Arg.Any<CancellationToken>());
+        f.Audit.ReceivedCalls().Should().BeEmpty();
+        f.Emails.ReceivedCalls().Should().BeEmpty();
+        f.Notifications.ReceivedCalls().Should().BeEmpty();
+        await f.UserEmailService.Received(1).GetUserEmailsAsync(userId, Arg.Any<CancellationToken>());
     }
 
     [HumansTheory]
@@ -276,9 +298,6 @@ public class EmailProvisioningServiceTests
         await f.UserEmailService.DidNotReceive().AddVerifiedEmailAsync(
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
-
-    // The workspace identity always names one of the user's user_emails rows,
-    // so any user owning the address is caught by the first check above.
 
     [HumansFact]
     public async Task ProvisionNobodiesEmailAsync_RejectsWhenPrefixCollidesWithTeamGoogleGroup()
@@ -376,11 +395,9 @@ public class EmailProvisioningServiceTests
     [HumansFact]
     public async Task ProvisionNobodiesEmailAsync_HalfCompletedPriorProvisioning_VerifiesAndSetsWorkspaceIdentity()
     {
-        // Half-completed prior provisioning: a previous failed attempt (or a
-        // user-initiated manual add) left an UNVERIFIED @nobodies.team row.
-        // AddVerifiedEmailAsync short-circuits via ExistsForUserAsync and does
-        // NOT promote the existing row to verified. EmailProvisioningService
-        // must close the gap so the row ends up verified AND the workspace identity.
+        // A prior failed attempt (or a manual add) left an UNVERIFIED @nobodies.team row, and
+        // AddVerifiedEmailAsync short-circuits without promoting it: the service must close the
+        // gap so the row ends up verified AND the workspace identity.
         var f = BuildFixture();
 
         var userId = Guid.NewGuid();
@@ -438,9 +455,8 @@ public class EmailProvisioningServiceTests
             userId, "bob@nobodies.team", userId, Arg.Any<CancellationToken>());
     }
 
-    // --- ProvisionNobodiesEmailAsync: tombstone guard (nobodies-collective/Humans#1707) ---
-    // A merge or GDPR deletion must not let a real Workspace account get provisioned
-    // under an archived id.
+    // Tombstone guard: a merge or GDPR deletion must not let a real Workspace account be
+    // provisioned under an archived id.
 
     [HumansFact]
     public async Task ProvisionNobodiesEmailAsync_RejectsMergedAwayId_WhenLookupResolvesToSurvivor()
@@ -473,9 +489,8 @@ public class EmailProvisioningServiceTests
             {
                 Id = userId,
                 DisplayName = UserInfo.GdprAnonymizedBurnerName,
-                // The erasure path's minted tombstone address — what marks a row erased
-                // (nobodies-collective/Humans#1742); the name sentinel alone is a name a
-                // member could type.
+                // The erasure path's minted tombstone address is what marks a row erased; the
+                // name sentinel alone is a name a member could type.
                 Email = $"deleted-{userId:N}@deleted.local",
                 PreferredLanguage = "en",
                 CreatedAt = Instant.FromUtc(2026, 1, 1, 0, 0),

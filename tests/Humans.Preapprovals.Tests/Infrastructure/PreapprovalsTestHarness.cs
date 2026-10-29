@@ -105,15 +105,13 @@ public abstract class PreapprovalsTestHarness : IDisposable
     /// <summary>Moves the clock so that "today" in Madrid is <paramref name="date"/>.</summary>
     private protected void SetToday(LocalDate date) => Clock.Reset(date.AtMidnight().InUtc().ToInstant().Plus(Duration.FromHours(12)));
 
-    // ── Seeders ───────────────────────────────────────────────────────────
-
     /// <summary>Registers a human the <see cref="IUserService"/> substitute knows by burner name.</summary>
     protected Guid SeedUser(string burnerName = "Test Human", Guid? id = null, string language = "en", IReadOnlyList<Guid>? mergedIds = null)
     {
         var userId = id ?? Guid.NewGuid();
         _users[userId] = new UserInfo(
             userId, burnerName, false, language, null, Instant.FromUtc(2026, 1, 1, 0, 0),
-            null, null, null, null, null, null, null,
+            null, null, null, null, null, null,
             null, null, null, [], [], [],
             UserFixtures.Profile(burnerName: burnerName, membershipTier: LegacyMembershipTier.Volunteer), [])
         { MergedUserIds = mergedIds ?? [] };

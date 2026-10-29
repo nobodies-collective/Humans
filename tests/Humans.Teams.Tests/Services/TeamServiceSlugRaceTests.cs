@@ -18,26 +18,17 @@ using TeamService = Humans.Teams.Services.TeamService;
 namespace Humans.Teams.Tests.Services;
 
 /// <summary>
-/// Regression tests for Codex PR#300 P2: the create-team slug retry loop
-/// no longer catches an EF-specific exception type. Instead,
-/// <c>ITeamRepository.AddTeamWithRequiresApprovalOverrideAsync</c> returns
-/// <c>bool</c> — <c>false</c> signals a unique-constraint race that the
-/// service layer should handle by retrying with the next suffixed slug.
-/// These tests mock <c>ITeamRepository</c> so the race can be simulated
-/// deterministically without a real Postgres connection (the in-memory
-/// provider doesn't enforce unique indexes and wouldn't surface the Npgsql
-/// 23505 error code at all).
+/// The repository is mocked so the unique-key race is deterministic: InMemory enforces no unique
+/// indexes. A lost race returns false, and the service retries with the next suffixed slug.
 /// </summary>
 public class TeamServiceSlugRaceTests
 {
     /// <summary>
-    /// Simulated scenario: concurrent create races past the pre-check
-    /// (<c>SlugExistsAsync</c>) — first persist attempt loses the unique-key
-    /// contest and the repo returns <c>false</c>. The service must retry
-    /// with the next suffix rather than bubble an unrecognised exception.
+    /// A concurrent create races past <c>SlugExistsAsync</c> and the first persist loses: the service
+    /// must retry with the next suffix rather than bubble an exception.
     /// </summary>
     [HumansFact]
-    public async Task CreateTeamAsync_WhenFirstPersistReturnsFalse_RetriesWithSuffixedSlug()
+    public async Task CreateTeamAsync_WhenFirstPersistReportsSlugConflict_RetriesWithSuffixedSlug()
     {
         var repo = BuildRepoForRace(firstAttemptSucceeds: false);
         var service = BuildService(repo);
@@ -49,18 +40,14 @@ public class TeamServiceSlugRaceTests
 
         created.Name.Should().Be("Design");
         created.Slug.Should().Be("design-2",
-            because: "the first persist returned false (simulated unique-constraint race), so the loop must advance to the suffixed slug");
+            because: "the first persist reported a slug conflict, so the loop must advance to the suffixed slug");
 
         // Sanity: two persist attempts, both from the retry loop.
         await repo.Received(2).AddTeamWithRequiresApprovalOverrideAsync(
             Arg.Any<Team>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>
-    /// Happy path: persist succeeds on the first attempt; no retry, no
-    /// suffix. Pins the non-race behaviour so the retry logic isn't mistaken
-    /// for always-on.
-    /// </summary>
+    /// <summary>No race: no retry, no suffix, so the retry logic is not mistaken for always-on.</summary>
     [HumansFact]
     public async Task CreateTeamAsync_WhenFirstPersistSucceeds_UsesBaseSlug()
     {
@@ -75,6 +62,22 @@ public class TeamServiceSlugRaceTests
         created.Slug.Should().Be("design");
         await repo.Received(1).AddTeamWithRequiresApprovalOverrideAsync(
             Arg.Any<Team>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansFact]
+    public async Task CreateTeamWithGoogleGroup_PrefixConflict_DoesNotRetryOrProvision()
+    {
+        var repo = BuildRepoForRace(firstAttemptSucceeds: true);
+        repo.AddTeamWithRequiresApprovalOverrideAsync(Arg.Any<Team>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(TeamUpdateConflict.GroupPrefixTaken);
+        var service = BuildService(repo);
+
+        var result = await service.CreateTeamWithGoogleGroupAsync("Design", null, false,
+            googleGroupPrefix: "design", cancellationToken: Xunit.TestContext.Current.CancellationToken);
+
+        result.Conflict.Should().Be(TeamUpdateConflict.GroupPrefixTaken);
+        result.Team.Should().BeNull();
+        await repo.Received(1).AddTeamWithRequiresApprovalOverrideAsync(Arg.Any<Team>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     private static ITeamRepository BuildRepoForRace(bool firstAttemptSucceeds)
@@ -94,7 +97,7 @@ public class TeamServiceSlugRaceTests
             .Returns(_ =>
             {
                 callCount++;
-                return callCount == 1 ? firstAttemptSucceeds : true;
+                return callCount == 1 && !firstAttemptSucceeds ? TeamUpdateConflict.SlugTaken : TeamUpdateConflict.None;
             });
 
         return repo;

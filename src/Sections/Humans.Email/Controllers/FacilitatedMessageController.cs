@@ -11,15 +11,9 @@ using Microsoft.Extensions.Localization;
 namespace Humans.Email.Controllers;
 
 /// <summary>
-/// Facilitated messaging: one member sends another a one-off email relayed through Humans, at
-/// <c>/Email/SendMessage/{id}</c>. A conduit, not a mailbox: nothing is stored beyond the
-/// outbox row and the audit entry, and the recipient's address is never shown to the sender.
+/// A relay, not a mailbox: nothing is stored beyond the outbox row and the audit entry, and the sender never sees the
+/// recipient's address.
 /// </summary>
-/// <remarks>
-/// The link that leads here is Users' profile-card button. Sending on behalf of a team is
-/// Teams' (<c>/Teams/{teamId}/SendMessage/{id}</c>), through the same
-/// <see cref="IEmailMessageFactory.FacilitatedMessage"/> with the team's group as reply-to.
-/// </remarks>
 [Authorize]
 internal sealed class FacilitatedMessageController(
     IUserService userService,
@@ -28,7 +22,8 @@ internal sealed class FacilitatedMessageController(
     ICommunicationPreferenceService commPrefService,
     IAuditLogService auditLogService,
     IStringLocalizer<EmailResource> localizer,
-    IStringLocalizer<SharedResource> sharedLocalizer) : HumansControllerBase(userService)
+    IStringLocalizer<SharedResource> sharedLocalizer,
+    ILogger<FacilitatedMessageController> logger) : HumansControllerBase(userService)
 {
     private const string ProfileController = "ProfileView";
     private const string ViewProfileAction = "ViewProfile";
@@ -77,7 +72,6 @@ internal sealed class FacilitatedMessageController(
         if (currentUser.Id == id)
             return RedirectToProfile(id);
 
-        // Bulk-fetch via section service, not cross-domain nav.
         var participants = await UserService.GetUserInfosAsync([id, currentUser.Id], ct);
         if (!participants.TryGetValue(id, out var targetUser))
             return NotFound();
@@ -109,6 +103,7 @@ internal sealed class FacilitatedMessageController(
         }
 
         var message = emailMessages.FacilitatedMessage(
+            targetUser.Id,
             request.RecipientEmail,
             request.RecipientDisplayName,
             request.SenderDisplayName,
@@ -119,11 +114,21 @@ internal sealed class FacilitatedMessageController(
 
         await emailService.SendAsync(message, CancellationToken.None);
 
-        await auditLogService.LogAsync(
-            AuditAction.FacilitatedMessageSent,
-            "User", targetUser.Id,
-            $"Message sent to {targetUser.BurnerName} (contact info shared: {(model.IncludeContactInfo ? "yes" : "no")})",
-            currentUser.Id);
+        try
+        {
+            await auditLogService.LogAsync(
+                AuditAction.FacilitatedMessageSent,
+                "User", targetUser.Id,
+                $"Message sent to {targetUser.BurnerName} (contact info shared: {(model.IncludeContactInfo ? "yes" : "no")})",
+                currentUser.Id);
+        }
+        catch (Exception ex)
+        {
+            logger.LogCritical(ex,
+                "Facilitated-message audit failed AFTER queueing a message to user {RecipientUserId} from user {SenderUserId} " +
+                "(contact info shared: {IncludeContactInfo}). Email is queued; reconcile audit trail.",
+                targetUser.Id, currentUser.Id, model.IncludeContactInfo);
+        }
 
         SetSuccess(string.Format(
             localizer["Email_SendMessage_Success"].Value,

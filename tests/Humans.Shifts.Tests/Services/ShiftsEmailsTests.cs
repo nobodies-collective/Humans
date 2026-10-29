@@ -8,12 +8,8 @@ using Humans.Shifts.Tests.Infrastructure;
 namespace Humans.Shifts.Tests.Services;
 
 /// <summary>
-/// The per-template routing policy Shifts stamps on its own coordinator messages —
-/// template name, opt-out category and the coordinator reply-to — the markdown body path,
-/// plus the gallery-coverage gate: every template <see cref="ShiftsEmails"/> can build has
-/// a sample in <see cref="ShiftsEmailPreviews"/>, so a new template cannot ship invisible
-/// (peterdrier/Humans#1651). Transport (opt-out, unsubscribe, wrapping, enqueue) stays
-/// Email's, covered there.
+/// Includes the gallery-coverage gate: every template <see cref="ShiftsEmails"/> can build has a
+/// sample in <see cref="ShiftsEmailPreviews"/>, so a new template cannot ship invisible.
 /// </summary>
 public sealed class ShiftsEmailsTests
 {
@@ -21,6 +17,7 @@ public sealed class ShiftsEmailsTests
 
     private static CoordinatorRotaMessageRequest RotaRequest(string messageText = "Hello") =>
         new(
+            RecipientUserId: Guid.NewGuid(),
             RecipientEmail: "rcpt@x.com",
             RecipientName: "Rcpt",
             SenderName: "Coord",
@@ -65,6 +62,7 @@ public sealed class ShiftsEmailsTests
     public void CoordinatorTeamRotasMessage_DropsShiftSection_WhenShiftsExcluded()
     {
         var request = new CoordinatorTeamRotasMessageRequest(
+            RecipientUserId: Guid.NewGuid(),
             RecipientEmail: "rcpt@x.com",
             RecipientName: "Rcpt",
             SenderName: "Coord",
@@ -84,6 +82,7 @@ public sealed class ShiftsEmailsTests
     public void CoordinatorTeamRotasMessage_RoutesRepliesToCoordinator_VolunteerUpdates()
     {
         var msg = Create().CoordinatorTeamRotasMessage(new CoordinatorTeamRotasMessageRequest(
+            RecipientUserId: Guid.NewGuid(),
             RecipientEmail: "rcpt@x.com",
             RecipientName: "Rcpt",
             SenderName: "Coord",
@@ -114,6 +113,7 @@ public sealed class ShiftsEmailsTests
     public void CoordinatorTeamRotasMessage_renders_markdown_instead_of_html_encoded_plain_text()
     {
         var msg = Create().CoordinatorTeamRotasMessage(new CoordinatorTeamRotasMessageRequest(
+            RecipientUserId: Guid.NewGuid(),
             RecipientEmail: "rcpt@x.com",
             RecipientName: "Recipient",
             SenderName: "Sender",
@@ -140,7 +140,7 @@ public sealed class ShiftsEmailsTests
         });
         var rota = emails.CoordinatorRotaMessage(RotaRequest() with { RotaName = "Lights & sound" });
         var team = emails.CoordinatorTeamRotasMessage(new CoordinatorTeamRotasMessageRequest(
-            "rcpt@x.com", "Recipient", "Sender", "coord@x.com", "Bar & kitchen", "Hello",
+            Guid.NewGuid(), "rcpt@x.com", "Recipient", "Sender", "coord@x.com", "Bar & kitchen", "Hello",
             [new CoordinatorRotaShiftGroup("Gate", ["Mon"])], Culture: "en"));
 
         rota.Subject.Should().Be("Message about Lights & sound");
@@ -191,7 +191,7 @@ public sealed class ShiftsEmailsTests
         if (type == typeof(CoordinatorRotaMessageRequest)) return RotaRequest();
         if (type == typeof(CoordinatorTeamRotasMessageRequest))
             return new CoordinatorTeamRotasMessageRequest(
-                "rcpt@x.com", "Rcpt", "Coord", "coord@x.com", "Bar Team", "Hello",
+                Guid.NewGuid(), "rcpt@x.com", "Rcpt", "Coord", "coord@x.com", "Bar Team", "Hello",
                 [new CoordinatorRotaShiftGroup("Gate", ["Mon"])], Culture: "en");
         throw new NotSupportedException(
             $"ShiftsEmails.{parameter.Member.Name} takes a {type.Name}; teach this test how to sample one.");

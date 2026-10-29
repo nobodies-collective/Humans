@@ -15,11 +15,6 @@ using NodaTime;
 
 namespace Humans.Rideshare.Services;
 
-/// <summary>
-/// The Rideshare rules: geocode + route at save, seed the inverse leg, ownership on
-/// edits, seat arithmetic on interests, private declines, per-year settings with an
-/// audit entry. EF-free — the repository hands over detached entities and takes them back.
-/// </summary>
 internal sealed class RideshareService(
     IRideshareRepository repository,
     IRouteProvider routeProvider,
@@ -40,8 +35,6 @@ internal sealed class RideshareService(
 
     // camelCase + case-insensitive: WaypointsJson is {label, latitude, longitude}.
     private static readonly JsonSerializerOptions WaypointJsonOptions = new(JsonSerializerDefaults.Web);
-
-    // ── Year / snapshot ───────────────────────────────────────────────────
 
     public async Task<int> GetActiveYearAsync(CancellationToken ct = default)
     {
@@ -73,13 +66,16 @@ internal sealed class RideshareService(
             interests);
     }
 
-    // ── Offers ────────────────────────────────────────────────────────────
-
     public async Task<RideshareMutationResult> CreateOfferAsync(Guid userId, int year, TripSave save, CancellationToken ct = default)
     {
         if (ValidateTrip(save) is { } tripRefusal) return new(Refusal: tripRefusal);
         var settings = await repository.GetSettingsAsync(year, ct);
         if (settings is null) return new(Refusal: new("Rideshare_Error_NotSetUp", year));
+        var inverseDirection = Flip(save.Direction);
+        var inverseDeparture = save.Direction == RideshareDirection.Inbound
+            ? settings.OutboundWindowStart
+            : settings.InboundWindowStart;
+        if (ValidateTrip(save, inverseDeparture) is { } inverseRefusal) return new(Refusal: inverseRefusal);
         var (member, pointRefusal) = await ResolvePointAsync(save.MemberPlaceLabel, save.MemberLatitude, save.MemberLongitude, ct);
         if (pointRefusal is not null) return new(Refusal: pointRefusal);
         var (waypoints, waypointRefusal) = await GeocodeWaypointsAsync(save.WaypointLabels, [], ct);
@@ -92,10 +88,6 @@ internal sealed class RideshareService(
         Apply(original, save, member, waypoints);
 
         // The inverse leg: same car, same people, opposite way, first day of the other window.
-        var inverseDirection = Flip(save.Direction);
-        var inverseDeparture = save.Direction == RideshareDirection.Inbound
-            ? settings.OutboundWindowStart
-            : settings.InboundWindowStart;
         var inverse = NewTrip(userId, year, inverseDirection, inverseDeparture, now);
         Apply(inverse, save, member, reversedWaypoints);
 
@@ -169,8 +161,6 @@ internal sealed class RideshareService(
         return new();
     }
 
-    // ── Requests ──────────────────────────────────────────────────────────
-
     public async Task<RideshareMutationResult> CreateRequestAsync(Guid userId, int year, RequestSave save, CancellationToken ct = default)
     {
         if (ValidateRequest(save) is { } requestRefusal) return new(Refusal: requestRefusal);
@@ -228,8 +218,6 @@ internal sealed class RideshareService(
         await repository.UpdateRequestAsync(request, ct);
         return new();
     }
-
-    // ── Interests ─────────────────────────────────────────────────────────
 
     public async Task<RideshareMutationResult> ExpressInterestAsync(
         Guid fromUserId, Guid tripId, Guid? requestId, int seats, string? message, CancellationToken ct = default)
@@ -295,7 +283,7 @@ internal sealed class RideshareService(
             if (interest.Message is not null)
                 body += $"\n\"{interest.Message}\"";
             return (Notice(culture, titleKey, name), body);
-        }, ct);
+        });
         return new(interest.Id);
     }
 
@@ -322,8 +310,7 @@ internal sealed class RideshareService(
             // The rider accepting a driver's answer to their pin tells the driver, not a rider.
             (culture, name) => (Notice(culture, interest.RequestId is null ? "Rideshare_NoticeAccepted" : "Rideshare_NoticeOfferAccepted", name),
                 Notice(culture, "Rideshare_NoticeTripDetails", interest.Trip.MemberPlaceLabel,
-                    interest.Trip.DepartureDate.ToWeekdayDayMonth(), SeatsText(interest.Seats, culture))),
-            ct);
+                    interest.Trip.DepartureDate.ToWeekdayDayMonth(), SeatsText(interest.Seats, culture))));
         return new();
     }
 
@@ -346,8 +333,7 @@ internal sealed class RideshareService(
             (culture, name) => (Notice(culture, "Rideshare_NoticeUpdate"),
                 Notice(culture, interest.RequestId is null
                     ? "Rideshare_NoticeDeclinedOffer"
-                    : "Rideshare_NoticeDeclinedRider", name)),
-            ct);
+                    : "Rideshare_NoticeDeclinedRider", name)));
         return new();
     }
 
@@ -366,8 +352,6 @@ internal sealed class RideshareService(
         mutation.Dispose();
         return new();
     }
-
-    // ── Admin ─────────────────────────────────────────────────────────────
 
     public async Task<RideshareMutationResult> SaveSettingsAsync(int year, SettingsSave save, Guid actorUserId, CancellationToken ct = default)
     {
@@ -397,8 +381,6 @@ internal sealed class RideshareService(
             AuditAction.RideshareSettingsUpdated, AuditEntityTypes.RideshareSettings, settings.Id, description, actorUserId);
         return new();
     }
-
-    // ── GDPR ──────────────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
@@ -476,13 +458,9 @@ internal sealed class RideshareService(
     public Task EraseForUserAsync(Guid userId, CancellationToken ct) =>
         repository.DeleteUserRowsAsync(userId, ct);
 
-    // ── Account merge fold ────────────────────────────────────────────────
-
-    /// <summary>Reached through the decorator's <c>IUserMerge</c>; stays idempotent.</summary>
+    /// <summary>Must stay idempotent.</summary>
     public Task ReassignAsync(Guid mergedFromUserId, Guid mergedToUserId, Guid actorUserId, Instant now, CancellationToken ct) =>
         repository.ReassignToUserAsync(mergedFromUserId, mergedToUserId, now, ct);
-
-    // ── Geocoding / routing ───────────────────────────────────────────────
 
     private async Task<(GeoPoint Point, RideshareRefusal? Refusal)> ResolvePointAsync(
         string label, double? latitude, double? longitude, CancellationToken ct)
@@ -545,8 +523,6 @@ internal sealed class RideshareService(
         return route;
     }
 
-    // ── Entity helpers ────────────────────────────────────────────────────
-
     /// <summary>Entity twin of <see cref="TripView.CoversDate"/>: departure through departure + duration - 1.</summary>
     private static bool TravelsOn(RideshareTrip trip, LocalDate date) =>
         date >= trip.DepartureDate && date <= trip.DepartureDate.PlusDays(trip.ExpectedDurationDays - 1);
@@ -564,10 +540,13 @@ internal sealed class RideshareService(
         return null;
     }
 
-    private static RideshareRefusal? ValidateTrip(TripSave save)
+    private static RideshareRefusal? ValidateTrip(TripSave save, LocalDate? departure = null)
     {
         if (save.ExpectedDurationDays < 1)
             return new("Rideshare_Error_DurationMinimum");
+        if (Period.Between(departure ?? save.DepartureDate, LocalDate.MaxIsoValue, PeriodUnits.Days).Days
+            < save.ExpectedDurationDays - 1)
+            return new("Rideshare_InvalidDate");
         if (save.SeatsOffered < 1)
             return new("Rideshare_Error_OfferSeatsMinimum");
         return null;
@@ -661,8 +640,6 @@ internal sealed class RideshareService(
             ? []
             : JsonSerializer.Deserialize<List<Waypoint>>(json, WaypointJsonOptions) ?? [];
 
-    // ── Projections ───────────────────────────────────────────────────────
-
     private static TripView ToView(RideshareTrip t) => new(
         t.Id, t.UserId, t.Year, t.Direction, t.MemberPlaceLabel, t.MemberLatitude, t.MemberLongitude,
         ParseWaypoints(t.WaypointsJson), t.RouteGeoJson, t.DepartureDate, t.ExpectedDurationDays, t.OvernightPlan,
@@ -687,17 +664,15 @@ internal sealed class RideshareService(
         s.Year, s.DestinationLabel, s.DestinationLatitude, s.DestinationLongitude,
         s.InboundWindowStart, s.InboundWindowEnd, s.OutboundWindowStart, s.OutboundWindowEnd);
 
-    // ── Side effects ──────────────────────────────────────────────────────
-
-    // Notifications are best-effort: a failed send never rolls back the interest write.
+    // The interest write is committed: browser cancellation must not interrupt its notification.
     private async Task NotifyAsync(
         NotificationSource source, NotificationClass notificationClass, Guid recipientUserId, Guid actorUserId,
-        Func<CultureInfo, string, (string Title, string Body)> content, CancellationToken ct)
+        Func<CultureInfo, string, (string Title, string Body)> content)
     {
         try
         {
-            var name = (await users.GetUserInfoAsync(actorUserId, ct))?.BurnerName;
-            var preferredLanguage = (await users.GetUserInfoAsync(recipientUserId, ct))?.PreferredLanguage;
+            var name = (await users.GetUserInfoAsync(actorUserId, CancellationToken.None))?.BurnerName;
+            var preferredLanguage = (await users.GetUserInfoAsync(recipientUserId, CancellationToken.None))?.PreferredLanguage;
             var language = preferredLanguage.IsSupportedCultureCode()
                 ? preferredLanguage!
                 : CultureCatalog.DefaultCultureCode;
@@ -715,11 +690,7 @@ internal sealed class RideshareService(
             await notifications.SendAsync(
                 source, notificationClass, NotificationPriority.Normal, title, [recipientUserId],
                 body: body, actionUrl: MineUrl,
-                actionLabel: actionLabel, cancellationToken: ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
+                actionLabel: actionLabel, cancellationToken: CancellationToken.None);
         }
         catch (Exception ex)
         {

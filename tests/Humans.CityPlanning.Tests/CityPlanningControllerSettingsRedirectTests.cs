@@ -25,8 +25,8 @@ using Xunit;
 namespace Humans.CityPlanning.Tests;
 
 /// <summary>
-/// Placement windows, scheduled times, and registration info moved to
-/// /Settings#city-planning (peterdrier/Humans#1634); GeoJSON/containers/export stay on
+/// Placement windows, scheduled times, and registration info live on
+/// /Settings#city-planning; GeoJSON/containers/export stay on
 /// <c>/CityPlanning/BarrioMap/Admin</c>, so the settings actions redirect to the tab
 /// rather than back to that page.
 /// </summary>
@@ -55,7 +55,7 @@ public sealed class CityPlanningControllerSettingsRedirectTests : CityPlanningTe
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, _userId.ToString()),
-            new Claim(ClaimTypes.Role, RoleNames.CampAdmin),
+            new Claim(ClaimTypes.Role, CampsRoles.CampsAdmin),
         };
         var http = new DefaultHttpContext
         {

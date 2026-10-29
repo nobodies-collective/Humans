@@ -4,6 +4,9 @@ using Humans.Consent.Contracts;
 using System.Security.Claims;
 using Humans.Base.Configuration;
 using Humans.Web.Controllers;
+using Humans.Base.Authorization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -14,12 +17,8 @@ using Humans.Users.Contracts;
 namespace Humans.Web.Tests.Controllers;
 
 /// <summary>
-/// Verifies <see cref="HomeController.Index"/> after the name-only access switch. The
-/// <see cref="Humans.Web.Authorization.MembershipRequiredFilter"/> now routes every non-Active user
-/// away before the action runs, so the controller no longer gates on onboarding completion: it
-/// renders the dashboard for any authenticated, resolvable user and the public landing view for
-/// anonymous visitors. The dashboard body itself is section-contributed chrome
-/// (nobodies-collective/Humans#1091) — this controller only resolves UserInfo facts.
+/// <see cref="Humans.Web.Authorization.MembershipRequiredFilter"/> routes non-Active users away first, so the
+/// controller doesn't gate on onboarding: dashboard for any resolvable user, landing view for anonymous.
 /// </summary>
 public class HomeControllerTests
 {
@@ -27,6 +26,13 @@ public class HomeControllerTests
     private readonly IConsentService _consentService = Substitute.For<IConsentService>();
     private readonly IConfiguration _configuration = Substitute.For<IConfiguration>();
     private readonly ConfigurationRegistry _configRegistry = new();
+    private readonly IAuthorizationService _authorization = Substitute.For<IAuthorizationService>();
+
+    public HomeControllerTests()
+    {
+        _authorization.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object?>(), Arg.Any<string>())
+            .Returns(AuthorizationResult.Failed());
+    }
 
     private HomeController BuildSut(ClaimsPrincipal principal)
     {
@@ -34,7 +40,8 @@ public class HomeControllerTests
             _userService,
             _consentService,
             _configuration,
-            _configRegistry);
+            _configRegistry,
+            _authorization);
 
         ctrl.ControllerContext = new ControllerContext
         {
@@ -94,5 +101,44 @@ public class HomeControllerTests
 
         var view = Assert.IsType<ViewResult>(result);
         Assert.Null(view.ViewName);
+    }
+    private static HomeController WithException(HomeController ctrl)
+    {
+        ctrl.HttpContext.Response.StatusCode = 500;
+        ctrl.HttpContext.Features.Set<IExceptionHandlerFeature>(
+            new ExceptionHandlerFeature { Error = new InvalidOperationException("boom"), Path = "/x" });
+        return ctrl;
+    }
+
+    [HumansFact]
+    public async Task Error_Exception_ShowsCodeButHidesDetailFromOrdinaryUser()
+    {
+        var result = await WithException(BuildSut(Authenticated(Guid.NewGuid()))).Error();
+
+        var model = Assert.IsType<ErrorViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.Equal(500, model.StatusCode);
+        Assert.Null(model.ExceptionDetail);
+    }
+
+    [HumansFact]
+    public async Task Error_Exception_ShowsDetailToBoardOrAdmin()
+    {
+        _authorization.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object?>(), PolicyNames.BoardOrAdmin)
+            .Returns(AuthorizationResult.Success());
+
+        var result = await WithException(BuildSut(Authenticated(Guid.NewGuid()))).Error();
+
+        var model = Assert.IsType<ErrorViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.Contains("boom", model.ExceptionDetail);
+    }
+
+    [HumansFact]
+    public async Task Error_StatusCodeRoute_CarriesTheCode()
+    {
+        var result = await BuildSut(new ClaimsPrincipal(new ClaimsIdentity())).Error(403);
+
+        var model = Assert.IsType<ErrorViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.Equal(403, model.StatusCode);
+        Assert.Null(model.ExceptionDetail);
     }
 }

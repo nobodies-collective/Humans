@@ -7,12 +7,7 @@ using Humans.Surveys.Tests.Infrastructure;
 namespace Humans.Surveys.Tests.Services;
 
 /// <summary>
-/// The per-template routing policy Surveys stamps on its own messages — template name and
-/// opt-out category — the author-copy rendering the invitation allows, and the
-/// gallery-coverage gate: every template <see cref="SurveysEmails"/> can build has a sample
-/// in <see cref="SurveysEmailPreviews"/>, so a new template cannot ship invisible
-/// (peterdrier/Humans#1651). Transport (opt-out, unsubscribe, wrapping, enqueue) stays
-/// Email's, covered there.
+/// Includes the gallery-coverage gate: every template <see cref="SurveysEmails"/> can build has a sample in <see cref="SurveysEmailPreviews"/>, so a new template cannot ship invisible.
 /// </summary>
 public sealed class SurveysEmailsTests
 {
@@ -23,13 +18,13 @@ public sealed class SurveysEmailsTests
     {
         var emails = Create();
 
-        var invitation = emails.SurveyInvitation("a@x.com", "Alice", "Availability", "token", "en");
+        var invitation = emails.SurveyInvitation(Guid.NewGuid(), "a@x.com", "Alice", "Availability", "token", "en");
         invitation.RecipientEmail.Should().Be("a@x.com");
         invitation.TemplateName.Should().Be("survey_invitation");
         invitation.Category.Should().Be(MessageCategory.System);
         invitation.ReplyTo.Should().BeNull();
 
-        var reminder = emails.SurveyReminder("a@x.com", "Alice", "Availability", "token", "en");
+        var reminder = emails.SurveyReminder(Guid.NewGuid(), "a@x.com", "Alice", "Availability", "token", "en");
         reminder.TemplateName.Should().Be("survey_reminder");
         reminder.Category.Should().Be(MessageCategory.System);
     }
@@ -38,6 +33,7 @@ public sealed class SurveysEmailsTests
     public void SurveyInvitation_custom_copy_renders_sanitized_markdown_with_https_images()
     {
         var msg = Create().SurveyInvitation(
+            Guid.NewGuid(),
             "a@x.com",
             "Daniel <Admin>",
             "Dates & places",
@@ -62,7 +58,7 @@ public sealed class SurveysEmailsTests
     [HumansFact]
     public void SurveyInvitation_blank_custom_copy_retains_standard_localized_wording()
     {
-        var msg = Create().SurveyInvitation("a@x.com", "Daniel", "Test Survey", "token", "en", " ");
+        var msg = Create().SurveyInvitation(Guid.NewGuid(), "a@x.com", "Daniel", "Test Survey", "token", "en", " ");
 
         msg.Subject.Should().Be("Please complete: Test Survey");
         msg.HtmlBody.Should().Contain(
@@ -72,7 +68,7 @@ public sealed class SurveysEmailsTests
     [HumansFact]
     public void SurveyReminder_LinksTheAnsweringWizardAbsolutely()
     {
-        var msg = Create().SurveyReminder("a@x.com", "Alice", "Availability", "token + value", "en");
+        var msg = Create().SurveyReminder(Guid.NewGuid(), "a@x.com", "Alice", "Availability", "token + value", "en");
 
         msg.HtmlBody.Should().Contain("https://humans.example/Survey/Answer?t=token%20%2B%20value");
     }
@@ -80,7 +76,7 @@ public sealed class SurveysEmailsTests
     [HumansFact]
     public void RendersInTheRecipientsCulture()
     {
-        Create().SurveyReminder("a@x.com", "Alice", "Availability", "token", "es")
+        Create().SurveyReminder(Guid.NewGuid(), "a@x.com", "Alice", "Availability", "token", "es")
             .Subject.Should().Be("Reminder: Availability");
     }
 
@@ -125,6 +121,7 @@ public sealed class SurveysEmailsTests
     private static object? SampleArgument(ParameterInfo parameter)
     {
         var type = parameter.ParameterType;
+        if (type == typeof(Guid)) return Guid.NewGuid();
         // Optional custom copy stays null so the invitation samples its standard wording.
         if (parameter.IsOptional && !string.Equals(parameter.Name, "culture", StringComparison.Ordinal)) return null;
         if (type == typeof(string)) return string.Equals(parameter.Name, "culture", StringComparison.Ordinal) ? "en" : "sample";

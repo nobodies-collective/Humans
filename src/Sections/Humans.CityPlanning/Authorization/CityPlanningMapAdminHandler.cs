@@ -1,3 +1,4 @@
+using Humans.Camps.Contracts;
 using System.Security.Claims;
 using Humans.Base.Constants;
 using Humans.CityPlanning.Contracts;
@@ -6,9 +7,8 @@ using Microsoft.AspNetCore.Authorization;
 namespace Humans.CityPlanning.Authorization;
 
 /// <summary>
-/// Handler for <see cref="CityPlanningMapAdminRequirement"/>. Short-circuits for
-/// CampAdmin/Admin, otherwise admits city-planning team members — the claim-free half of
-/// the check, so it has to be a requirement rather than a role policy.
+/// CampAdmin/Admin, else city-planning team members. Team membership is not a claim, so this has to be a requirement
+/// rather than a role policy.
 /// </summary>
 internal sealed class CityPlanningMapAdminHandler(ICityPlanningService cityPlanning)
     : AuthorizationHandler<CityPlanningMapAdminRequirement>
@@ -19,7 +19,7 @@ internal sealed class CityPlanningMapAdminHandler(ICityPlanningService cityPlann
     {
         var user = context.User;
 
-        if (user.IsInRole(RoleNames.Admin) || user.IsInRole(RoleNames.CampAdmin))
+        if (user.IsInRole(RoleNames.Admin) || user.IsInRole(CampsRoles.CampsAdmin))
         {
             context.Succeed(requirement);
             return;

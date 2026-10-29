@@ -23,16 +23,15 @@ internal sealed class IssuesController(
     IStringLocalizer<IssuesResource> localizer,
     ILogger<IssuesController> logger) : HumansControllerBase(users)
 {
-    // Roles from claims (RoleAssignment → claims-transformation), NOT UserManager.GetRolesAsync (misses CampAdmin etc.).
+    // Roles from claims, not UserManager.GetRolesAsync, which misses CampAdmin etc.
     private List<string> ClaimsRoles() => User.Claims
         .Where(c => string.Equals(c.Type, ClaimTypes.Role, StringComparison.Ordinal))
         .Select(c => c.Value)
         .ToList();
 
     /// <summary>
-    /// The browsing user as the service scopes them. The service refuses anything out of
-    /// their reach on its own; the <see cref="IAuthorizationService"/> checks below stay
-    /// because they shape the page and answer 403 where the service would answer 404.
+    /// The service refuses anything out of reach on its own; the authorization checks below stay because they shape
+    /// the page and answer 403 where the service would answer 404.
     /// </summary>
     private IssueViewer ViewerFor(Guid userId) => new(userId, ClaimsRoles());
 
@@ -51,8 +50,7 @@ internal sealed class IssuesController(
         var viewer = ViewerFor(user.Id);
         var viewMode = view ?? IssueViewMode.All;
 
-        // Open = non-terminal; Closed = terminal; Mine = ReporterUserId == current user.
-        // Wider than the nav badge, which counts Open + Triage only.
+        // "Open" is every non-terminal status: wider than the nav badge, which counts Open + Triage only.
         var statuses = viewMode switch
         {
             IssueViewMode.Open => Enum.GetValues<IssueStatus>().Where(s => !s.IsTerminal()).ToArray(),
@@ -76,8 +74,6 @@ internal sealed class IssuesController(
 
         var matches = await issues.GetIssueListAsync(filter, viewer, HttpContext.RequestAborted);
 
-        // Section dropdown: Admin sees all known sections; non-admins see the
-        // sections their roles own (so they only filter inside their own queue).
         var allowedSections = viewer.IsAdmin
             ? routing.AllKnownSections
             : routing.SectionsForRoles(viewer.Roles).ToList();
@@ -204,8 +200,7 @@ internal sealed class IssuesController(
         var viewer = ViewerFor(user.Id);
         var issue = await issues.GetIssueByIdAsync(id, viewer, HttpContext.RequestAborted);
 
-        // "Not found" and "no access" indistinguishable (the service returns null for both).
-        // Partial → inline notice; full nav → redirect to Index.
+        // Not found and no access look the same. Partial → inline notice; full nav → redirect to Index.
         if (issue is null)
         {
             return isPartial
@@ -233,10 +228,7 @@ internal sealed class IssuesController(
         return RedirectToAction(nameof(Index), new { selected = id });
     }
 
-    /// <summary>
-    /// The issue's screenshot, behind the same reach as <see cref="Detail"/>: a handler of its
-    /// section, or its reporter. Missing and out-of-reach answer alike.
-    /// </summary>
+    /// <summary>Same reach as <see cref="Detail"/>; missing and out of reach answer alike.</summary>
     [HttpGet("{id}/Screenshot")]
     public async Task<IActionResult> Screenshot(Guid id)
     {
@@ -331,25 +323,34 @@ internal sealed class IssuesController(
         return RedirectToAction(nameof(Index), new { selected = id });
     }
 
+    private async Task<(IActionResult? Error, IssueViewer? Viewer)> RequireTriageAsync(Guid id)
+    {
+        var (userMissing, user) = await RequireCurrentUserAsync();
+        if (userMissing is not null) return (userMissing, null);
+
+        var viewer = ViewerFor(user.Id);
+        var issue = await issues.GetIssueByIdAsync(id, viewer);
+        if (issue is null) return (NotFound(), null);
+        var auth = await authorization.AuthorizeAsync(User, issue, IssuesOperationRequirement.Handle);
+        if (!auth.Succeeded) return (Forbid(), null);
+        if (!ModelState.IsValid)
+        {
+            logger.LogWarning("Rejected invalid issue triage form for {IssueId}", id);
+            return (BadRequest(ModelState), null);
+        }
+
+        return (null, viewer);
+    }
+
     [HttpPost("{id}/Status")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateStatus(Guid id, UpdateIssueStatusModel model)
     {
-        var (userMissing, user) = await RequireCurrentUserAsync();
-        if (userMissing is not null) return userMissing;
+        var triage = await RequireTriageAsync(id);
+        if (triage.Error is not null) return triage.Error;
+        var viewer = triage.Viewer!;
 
-        var viewer = ViewerFor(user.Id);
-        var issue = await issues.GetIssueByIdAsync(id, viewer);
-        if (issue is null) return NotFound();
-        var auth = await authorization.AuthorizeAsync(User, issue, IssuesOperationRequirement.Handle);
-        if (!auth.Succeeded) return Forbid();
-        if (!ModelState.IsValid)
-        {
-            logger.LogWarning("Rejected invalid issue triage form for {IssueId}", id);
-            return BadRequest(ModelState);
-        }
-
-        var result = await issues.UpdateStatusAsync(id, viewer, model.Status, user.Id);
+        var result = await issues.UpdateStatusAsync(id, viewer, model.Status, viewer.UserId);
         if (result.NotFound) return NotFound();
 
         if (result.Succeeded)
@@ -368,21 +369,11 @@ internal sealed class IssuesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateAssignee(Guid id, UpdateIssueAssigneeModel model)
     {
-        var (userMissing, user) = await RequireCurrentUserAsync();
-        if (userMissing is not null) return userMissing;
+        var triage = await RequireTriageAsync(id);
+        if (triage.Error is not null) return triage.Error;
+        var viewer = triage.Viewer!;
 
-        var viewer = ViewerFor(user.Id);
-        var issue = await issues.GetIssueByIdAsync(id, viewer);
-        if (issue is null) return NotFound();
-        var auth = await authorization.AuthorizeAsync(User, issue, IssuesOperationRequirement.Handle);
-        if (!auth.Succeeded) return Forbid();
-        if (!ModelState.IsValid)
-        {
-            logger.LogWarning("Rejected invalid issue triage form for {IssueId}", id);
-            return BadRequest(ModelState);
-        }
-
-        var result = await issues.UpdateAssigneeAsync(id, viewer, model.AssigneeUserId, user.Id);
+        var result = await issues.UpdateAssigneeAsync(id, viewer, model.AssigneeUserId, viewer.UserId);
         if (result.NotFound) return NotFound();
 
         if (result.Succeeded)
@@ -401,21 +392,11 @@ internal sealed class IssuesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateSection(Guid id, UpdateIssueSectionModel model)
     {
-        var (userMissing, user) = await RequireCurrentUserAsync();
-        if (userMissing is not null) return userMissing;
+        var triage = await RequireTriageAsync(id);
+        if (triage.Error is not null) return triage.Error;
+        var viewer = triage.Viewer!;
 
-        var viewer = ViewerFor(user.Id);
-        var issue = await issues.GetIssueByIdAsync(id, viewer);
-        if (issue is null) return NotFound();
-        var auth = await authorization.AuthorizeAsync(User, issue, IssuesOperationRequirement.Handle);
-        if (!auth.Succeeded) return Forbid();
-        if (!ModelState.IsValid)
-        {
-            logger.LogWarning("Rejected invalid issue triage form for {IssueId}", id);
-            return BadRequest(ModelState);
-        }
-
-        var result = await issues.UpdateSectionAsync(id, viewer, model.Section, user.Id);
+        var result = await issues.UpdateSectionAsync(id, viewer, model.Section, viewer.UserId);
         if (result.NotFound) return NotFound();
         if (result.Succeeded)
         {
@@ -435,21 +416,11 @@ internal sealed class IssuesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SetGitHubIssue(Guid id, SetIssueGitHubIssueModel model)
     {
-        var (userMissing, user) = await RequireCurrentUserAsync();
-        if (userMissing is not null) return userMissing;
+        var triage = await RequireTriageAsync(id);
+        if (triage.Error is not null) return triage.Error;
+        var viewer = triage.Viewer!;
 
-        var viewer = ViewerFor(user.Id);
-        var issue = await issues.GetIssueByIdAsync(id, viewer);
-        if (issue is null) return NotFound();
-        var auth = await authorization.AuthorizeAsync(User, issue, IssuesOperationRequirement.Handle);
-        if (!auth.Succeeded) return Forbid();
-        if (!ModelState.IsValid)
-        {
-            logger.LogWarning("Rejected invalid issue triage form for {IssueId}", id);
-            return BadRequest(ModelState);
-        }
-
-        var result = await issues.SetGitHubIssueNumberAsync(id, viewer, model.GitHubIssueNumber, user.Id);
+        var result = await issues.SetGitHubIssueNumberAsync(id, viewer, model.GitHubIssueNumber, viewer.UserId);
         if (result.NotFound) return NotFound();
 
         if (result.Succeeded)

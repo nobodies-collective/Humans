@@ -6,10 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Humans.Shifts.ViewComponents;
 
 /// <summary>
-/// The /Settings#shifts tab (peterdrier/Humans#1634). <see cref="SectionSettings"/> gates
-/// it on <c>PolicyNames.AdminOnly</c> — the same policy the old <c>Shifts/Settings</c> page
-/// used, so every viewer who reaches this component may edit. No active event yet gets a
-/// blank form, matching <c>ShiftsController.Settings</c>'s old GET.
+/// <see cref="SectionSettings"/> gates it on AdminOnly, so every viewer may edit. No active event gets a blank form.
 /// </summary>
 internal sealed class ShiftsSettingsTabViewComponent(
     IBurnSettingsService burnSettings, IShiftManagement shiftMgmt) : ViewComponent
@@ -19,7 +16,7 @@ internal sealed class ShiftsSettingsTabViewComponent(
         var active = await burnSettings.GetActiveAsync(HttpContext.RequestAborted);
         if (active is null) return View(new EventSettingsViewModel());
 
-        var knobs = await shiftMgmt.GetKnobsAsync(active.Id);
+        var knobs = await shiftMgmt.GetKnobsAsync(active.Id, HttpContext.RequestAborted);
         return View(EventSettingsFormMapper.ToViewModel(knobs));
     }
 }

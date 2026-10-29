@@ -1,3 +1,10 @@
+using Humans.Users.Contracts;
+using Humans.Teams.Contracts;
+using Humans.Camps.Contracts;
+using Humans.Tickets.Contracts;
+using Humans.Shifts.Contracts;
+using Humans.Finance.Contracts;
+using Humans.Consent.Contracts;
 using AwesomeAssertions;
 using Humans.Base.Constants;
 using Humans.Issues.Contracts;
@@ -9,11 +16,8 @@ using Xunit;
 namespace Humans.Web.Tests.Sections;
 
 /// <summary>
-/// The issue-queue seam, pinned once over every shipped section rather than once per section
-/// ([`universal-enforcement-over-per-section`](memory/architecture/universal-enforcement-over-per-section.md)).
-/// Issues routes on what DI discovered, so the declarations composed here are the whole routing
-/// table — a section joining or leaving a queue edits <see cref="DeclaredQueues"/> and nothing in
-/// Issues.
+/// Issues routes on what DI discovered, so the declarations here are the whole routing table: a section joining or
+/// leaving a queue edits <see cref="DeclaredQueues"/>, never Issues.
 /// </summary>
 public class IssueQueueOwnerTests
 {
@@ -24,26 +28,23 @@ public class IssueQueueOwnerTests
             .OrderBy(o => o.Name, StringComparer.Ordinal)];
 
     /// <summary>
-    /// Section → the queue key it declares and the roles that handle it. <c>Admin</c> handles
-    /// every queue and is never declared. Two keys do not match their section's name: Users
-    /// declares <c>Profiles</c> (merged in at nobodies-collective/Humans#866) and Consent
-    /// declares <c>Legal</c> (renamed at the 2026-08-03 freeze), because stored rows carry the
-    /// old spelling.
+    /// <c>Admin</c> handles every queue and is never declared. Users declares <c>Profiles</c> and Consent <c>Legal</c>
+    /// because stored rows carry those spellings.
     /// </summary>
     private static readonly (string Section, string Key, string[] Roles)[] Declared =
     [
-        ("Budget", "Budget", [RoleNames.FinanceAdmin]),
-        ("Camps", "Camps", [RoleNames.CampAdmin]),
-        ("CityPlanning", "CityPlanning", [RoleNames.CampAdmin]),
-        ("Consent", "Legal", [RoleNames.ConsentCoordinator]),
+        ("Budget", "Budget", [FinanceRoles.FinanceAdmin]),
+        ("Camps", "Camps", [CampsRoles.CampsAdmin]),
+        ("CityPlanning", "CityPlanning", [CampsRoles.CampsAdmin]),
+        ("Consent", "Legal", [ConsentRoles.ConsentCoordinator]),
         ("Governance", "Governance", [RoleNames.Board]),
         ("Onboarding", "Onboarding",
-            [RoleNames.ConsentCoordinator, RoleNames.VolunteerCoordinator, RoleNames.HumanAdmin]),
-        ("Scanner", "Scanner", [RoleNames.TicketAdmin, RoleNames.Board]),
-        ("Shifts", "Shifts", [RoleNames.NoInfoAdmin]),
-        ("Teams", "Teams", [RoleNames.TeamsAdmin]),
-        ("Tickets", "Tickets", [RoleNames.TicketAdmin]),
-        ("Users", "Profiles", [RoleNames.HumanAdmin]),
+            [ConsentRoles.ConsentCoordinator, ShiftsRoles.ShiftsAdmin, UsersRoles.UsersAdmin]),
+        ("Scanner", "Scanner", [TicketsRoles.TicketsAdmin, RoleNames.Board]),
+        ("Shifts", "Shifts", [ShiftsRoles.ShiftsNoInfo]),
+        ("Teams", "Teams", [TeamsRoles.TeamsAdmin]),
+        ("Tickets", "Tickets", [TicketsRoles.TicketsAdmin]),
+        ("Users", "Profiles", [UsersRoles.UsersAdmin]),
     ];
 
     public static TheoryData<string, string, string[]> DeclaredQueues

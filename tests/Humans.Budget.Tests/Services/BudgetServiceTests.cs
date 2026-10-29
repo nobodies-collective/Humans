@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using System.Globalization;
+using Humans.Base.Extensions;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
@@ -34,12 +35,8 @@ using Humans.Users.Contracts;
 namespace Humans.Budget.Tests.Services;
 
 /// <summary>
-/// Owns its fixture rather than deriving from <c>Humans.Application.Tests</c>'
-/// <c>ServiceTestHarness</c>: that harness is built around an in-memory
-/// <c>UsersDbContext</c> and this test only ever used two of its members — the clock and
-/// the Budget section context. Inheriting it would have granted a section test project
-/// <c>InternalsVisibleTo</c> on <c>UsersDbContext</c>, which is the boundary the G5 split
-/// exists to draw (nobodies-collective/Humans#866).
+/// Owns its fixture: inheriting the <c>UsersDbContext</c>-based harness would grant this project
+/// <c>InternalsVisibleTo</c> on another section's context.
 /// </summary>
 public sealed class BudgetServiceTests
 {
@@ -474,6 +471,44 @@ public sealed class BudgetServiceTests
             descriptor, metadata, value: null);
     }
 
+    [HumansTheory]
+    [InlineData("status", false)]
+    [InlineData("update", false)]
+    [InlineData("archive", false)]
+    [InlineData("status", true)]
+    [InlineData("update", true)]
+    [InlineData("archive", true)]
+    public async Task YearMutations_ShowRefusalsAndPropagateDependencyFailures(string action, bool refused)
+    {
+        var (controller, budget, actor) = CreateAdminController(true);
+        var failure = new InvalidOperationException("Private persistence diagnostic");
+        Task<BudgetYearMutationResult> OutcomeAsync() => refused
+            ? Task.FromResult(new BudgetYearMutationResult("Budget year not found"))
+            : Task.FromException<BudgetYearMutationResult>(failure);
+        budget.UpdateYearStatusAsync(_yearId, BudgetYearStatus.Active, actor).Returns(_ => OutcomeAsync());
+        budget.UpdateYearAsync(_yearId, "2026", "Budget", null, actor).Returns(_ => OutcomeAsync());
+        budget.DeleteYearAsync(_yearId, actor).Returns(_ => OutcomeAsync());
+        Task<IActionResult> ActAsync() => action switch
+        {
+            "status" => controller.UpdateYearStatus(_yearId, BudgetYearStatus.Active),
+            "update" => controller.UpdateYear(_yearId, "2026", "Budget", null),
+            _ => controller.DeleteYear(_yearId)
+        };
+
+        if (refused)
+        {
+            (await ActAsync()).Should().BeOfType<RedirectToActionResult>();
+            controller.TempData["ErrorMessage"]!.ToString().Should().EndWith("Budget year not found");
+            controller.TempData.Should().ContainSingle();
+        }
+        else
+        {
+            Func<Task> act = async () => await ActAsync();
+            (await act.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(failure);
+            controller.TempData.Should().BeEmpty();
+        }
+    }
+
     private (BudgetAdminController Controller, IBudgetManagement Budget, Guid ViewerId) CreateAdminController(bool viewerExists, IBudgetManagement? budgetOverride = null)
     {
         var viewerId = Guid.NewGuid();
@@ -630,7 +665,63 @@ public sealed class BudgetServiceTests
         }
     }
 
-    // ─── VAT rate validation ─────────────────────────────────────────────────
+    [HumansTheory]
+    [InlineData("Create", "Budget_Flash_LineCreateFailed")]
+    [InlineData("Update", "Budget_Flash_LineUpdateFailed")]
+    [InlineData("Delete", "Budget_Flash_LineDeleteFailed")]
+    public async Task CoordinatorLineFailure_LogsExceptionWithoutDisplayingItsMessage(string action, string errorKey)
+    {
+        var (admin, budget, viewerId) = CreateAdminController(true);
+        var users = Substitute.For<IUserService>();
+        users.GetUserInfoAsync(viewerId, Arg.Any<CancellationToken>()).Returns(
+            UserInfo.Create(new User { Id = viewerId }, [], [], [], null, []));
+        var category = new BudgetCategorySnapshot(_yearId, _yearId, "Category", 0m, default, null, 0, null, []);
+        budget.GetCategoryByIdAsync(_yearId).Returns(category);
+        budget.GetLineItemByIdAsync(_yearId).Returns(new BudgetLineItemSnapshot(
+            _yearId, _yearId, "Item", 0m, null, null, null, 0, false, false, 0));
+        var auth = Substitute.For<IAuthorizationService>();
+        auth.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), category, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+            .Returns(AuthorizationResult.Success());
+        var failure = new InvalidOperationException("Connection failed: internal-db.example; user=private-service");
+        budget.CreateLineItemAsync(_yearId, "Item", 0m, null, null, null, 0, viewerId)
+            .Returns(Task.FromException<BudgetLineItemSnapshot>(failure));
+        budget.UpdateLineItemAsync(_yearId, "Item", 0m, null, null, null, 0, viewerId)
+            .Returns(Task.FromException(failure));
+        budget.DeleteLineItemAsync(_yearId, viewerId).Returns(Task.FromException(failure));
+        var resources = new System.Resources.ResourceManager(typeof(BudgetResource));
+        var culture = CultureInfo.GetCultureInfo("en");
+        var localizer = Substitute.For<IStringLocalizer<BudgetResource>>();
+        localizer[Arg.Any<string>()].Returns(call =>
+            new LocalizedString(call.Arg<string>(), resources.GetString(call.Arg<string>(), culture)!));
+        localizer[Arg.Any<string>(), Arg.Any<object[]>()].Returns(call =>
+            new LocalizedString(call.Arg<string>(), string.Format(culture,
+                resources.GetString(call.Arg<string>(), culture)!, call.Arg<object[]>())));
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<BudgetController>>();
+        var controller = new BudgetController(budget, auth, users, localizer, logger)
+        {
+            ControllerContext = admin.ControllerContext,
+            TempData = admin.TempData,
+            Url = admin.Url
+        };
+
+        var result = action switch
+        {
+            "Create" => await controller.CreateLineItem(_yearId, "Item", 0m, null, null, null, 0),
+            "Update" => await controller.UpdateLineItem(_yearId, "Item", 0m, null, null, null, 0),
+            _ => await controller.DeleteLineItem(_yearId)
+        };
+
+        var redirect = result.Should().BeOfType<RedirectToActionResult>().Subject;
+        redirect.ActionName.Should().Be(nameof(BudgetController.CategoryDetail));
+        redirect.RouteValues!["id"].Should().Be(_yearId);
+        var message = controller.TempData[Humans.Base.Constants.TempDataKeys.ErrorMessage].Should().BeOfType<string>().Subject;
+        message.Should().NotContain(failure.Message).And.NotContain("{0}");
+        message.Should().Be(resources.GetString(errorKey, culture));
+        _ = localizer.Received(1)[errorKey];
+        var log = logger.ReceivedCalls().Should().ContainSingle().Subject.GetArguments();
+        log[0].Should().Be(Microsoft.Extensions.Logging.LogLevel.Error);
+        log[3].Should().BeSameAs(failure);
+    }
 
     [HumansTheory]
     [InlineData(-1)]
@@ -751,8 +842,6 @@ public sealed class BudgetServiceTests
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
             .WithMessage("*between 0 and 21*");
     }
-
-    // ─── CreateYearAsync with scaffold ──────────────────────────────────────
 
     [HumansFact]
     public async Task UpdateLineItemAsync_PersistsChanges()
@@ -940,8 +1029,6 @@ public sealed class BudgetServiceTests
             .Which.Description.Should().Contain("Created budget year");
     }
 
-    // ─── UpdateYearStatusAsync auto-closes previously active years ──────────
-
     [HumansTheory]
     [InlineData(BudgetYearStatus.Draft)]
     [InlineData(BudgetYearStatus.Closed)]
@@ -1008,8 +1095,9 @@ public sealed class BudgetServiceTests
         var existingAudit = await _repository.GetAuditLogAsync(_yearId);
 
         // A Reactivate form opened while Closed may be submitted after archiving.
-        var reactivate = () => _service.UpdateYearStatusAsync(_yearId, BudgetYearStatus.Active, Guid.NewGuid());
-        await reactivate.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not found*");
+        var reactivate = await _service.UpdateYearStatusAsync(_yearId, BudgetYearStatus.Active, Guid.NewGuid());
+        reactivate.Succeeded.Should().BeFalse();
+        reactivate.Refusal.Should().Match("*not found*");
 
         var active = await _service.GetActiveYearAsync();
         active.Should().NotBeNull();
@@ -1023,16 +1111,25 @@ public sealed class BudgetServiceTests
             .Should().Be(0);
     }
 
-    [HumansFact]
-    public async Task UpdateYearStatusAsync_missing_year_throws()
+    [HumansTheory]
+    [InlineData("status")]
+    [InlineData("update")]
+    [InlineData("archive")]
+    public async Task YearMutations_MissingYearReturnsRefusalWithoutAudit(string action)
     {
-        var act = () => _service.UpdateYearStatusAsync(Guid.NewGuid(), BudgetYearStatus.Active, Guid.NewGuid());
+        var id = Guid.NewGuid();
+        var actor = Guid.NewGuid();
+        var result = action switch
+        {
+            "status" => await _service.UpdateYearStatusAsync(id, BudgetYearStatus.Active, actor),
+            "update" => await _service.UpdateYearAsync(id, "2026", "Budget", null, actor),
+            _ => await _service.DeleteYearAsync(id, actor)
+        };
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*not found*");
+        result.Succeeded.Should().BeFalse();
+        result.Refusal.Should().Be($"Budget year {id} not found");
+        (await _repository.GetAuditLogAsync(id)).Should().BeEmpty();
     }
-
-    // ─── UpdateYearAsync writes field audits only for changes ────────────────
 
     [HumansFact]
     public async Task UpdateYearAsync_writes_field_audit_only_for_changed_fields()
@@ -1085,8 +1182,6 @@ public sealed class BudgetServiceTests
             TestContext.Current.CancellationToken)).Should().Be(1);
     }
 
-    // ─── DeleteYearAsync refuses active ─────────────────────────────────────
-
     [HumansFact]
     public async Task DeleteYearAsync_refuses_when_year_is_active()
     {
@@ -1102,10 +1197,12 @@ public sealed class BudgetServiceTests
             await ctx.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        var act = () => _service.DeleteYearAsync(_yearId, Guid.NewGuid());
+        var result = await _service.DeleteYearAsync(_yearId, Guid.NewGuid());
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*active*");
+        result.Succeeded.Should().BeFalse();
+        result.Refusal.Should().Be("Cannot delete an active budget year. Close it first.");
+        (await _repository.GetAuditLogAsync(_yearId)).Should().BeEmpty();
+        (await _service.GetYearByIdAsync(_yearId))!.IsDeleted.Should().BeFalse();
     }
 
     [HumansFact]
@@ -1132,8 +1229,6 @@ public sealed class BudgetServiceTests
         year.Status.Should().Be(BudgetYearStatus.Closed);
     }
 
-    // ─── Closed year blocks edits ──────────────────────────────────────────
-
     [HumansFact]
     public async Task CreateGroupAsync_refuses_when_year_is_closed()
     {
@@ -1154,8 +1249,6 @@ public sealed class BudgetServiceTests
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*closed*");
     }
-
-    // ─── SyncTicketingActuals materializes projections inside one save ─────
 
     [HumansFact]
     public async Task SyncTicketingActualsAsync_upserts_weekly_actuals_and_updates_projection_params()
@@ -1225,7 +1318,7 @@ public sealed class BudgetServiceTests
         var taxed = Row("Stripe fees (fee VAT): Mar 2–Mar 8");
         taxed.Amount.Should().Be(-12.10m, because: "the taxed row records the gross cash cost, fee VAT included");
         taxed.VatRate.Should().Be(21);
-        BudgetService.ComputeVatPortion(taxed.Amount, taxed.VatRate).Should().Be(2.10m);
+        VatCalculation.ComputePortion(taxed.Amount, taxed.VatRate).Should().Be(2.10m);
         Row("TT fees: Mar 2–Mar 8").VatRate
             .Should().Be(21, because: "Stripe's tax bucket says nothing about Ticket Tailor's fee");
 
@@ -1662,8 +1755,6 @@ public sealed class BudgetServiceTests
         }
     }
 
-    // ─── Sync never touches hand-entered items ──────────────────────────────
-
     [HumansFact]
     public async Task SyncTicketingActualsAsync_never_touches_hand_entered_line_items()
     {
@@ -1731,8 +1822,6 @@ public sealed class BudgetServiceTests
             .Should().BeTrue(because: "the sync must still materialize its own auto items alongside");
     }
 
-    // ─── Summary computation ────────────────────────────────────────────────
-
     [HumansFact]
     public void ComputeBudgetSummary_excludes_cashflow_only_and_breaks_out_vat()
     {
@@ -1761,8 +1850,40 @@ public sealed class BudgetServiceTests
         summary.TotalIncome.Should().Be(131m);
         summary.TotalExpenses.Should().Be(-131m);
         summary.NetBalance.Should().Be(0m);
-        summary.IncomeSlices.Select(sl => sl.Name).Should().BeEquivalentTo(["Sales", "VAT Credits"]);
+        summary.IncomeSlices.Select(sl => sl.Name).Should().BeEquivalentTo(["Sales", "VAT Credit"]);
         summary.ExpenseSlices.Select(sl => sl.Name).Should().BeEquivalentTo(["Ops", "VAT Liability"]);
+    }
+
+    [HumansTheory]
+    [InlineData("en", "VAT Credit", "VAT Liability", "Cash Reserves (90%)", "Spanish Taxes (10%)", "Main Buffer")]
+    [InlineData("es", "IVA a compensar", "IVA a pagar", "Reservas de efectivo (90%)", "Impuestos españoles (10%)", "Margen de Main")]
+    [InlineData("de", "Mehrwertsteuer-Guthaben", "Mehrwertsteuer-Verbindlichkeit", "Liquiditätsreserven (90%)", "Spanische Steuern (10%)", "Main-Puffer")]
+    [InlineData("it", "Credito IVA", "IVA a debito", "Riserve di liquidità (90%)", "Imposte spagnole (10%)", "Margine di Main")]
+    [InlineData("fr", "Crédit de TVA", "TVA due", "Réserves de trésorerie (90%)", "Impôts espagnols (10%)", "Marge de Main")]
+    [InlineData("ca", "IVA a compensar", "IVA a pagar", "Reserves d'efectiu (90%)", "Impostos espanyols (10%)", "Marge de Main")]
+    public void ComputeBudgetSummaryWithBuffers_localizes_generated_labels(
+        string culture, string credit, string liability, string reserves, string taxes, string buffer)
+    {
+        using var scope = new CultureScope(culture);
+        var groupId = Guid.NewGuid();
+        IReadOnlyList<BudgetGroupDetail> groups =
+        [
+            new(groupId, Guid.NewGuid(), "Main", 0, false, false, false, null,
+            [
+                new(Guid.NewGuid(), groupId, "Sales", 0m, ExpenditureType.OpEx, null, 0,
+                [new(Guid.NewGuid(), Guid.NewGuid(), "Income", 110m, null, null, new LocalDate(2026, 5, 1), 10, false, false, 0)]),
+                new(Guid.NewGuid(), groupId, "Ops", 0m, ExpenditureType.OpEx, null, 0,
+                [new(Guid.NewGuid(), Guid.NewGuid(), "Equipment", -12.1m, null, null, new LocalDate(2026, 5, 1), 21, false, false, 0)])
+            ])
+        ];
+
+        var summary = _service.ComputeBudgetSummaryWithBuffers(groups);
+
+        summary.IncomeSlices.Select(slice => slice.Name).Should().BeEquivalentTo(["Sales", credit]);
+        summary.ExpenseSlices.Select(slice => slice.Name).Should().BeEquivalentTo(["Ops", liability, reserves, taxes, buffer]);
+        summary.TotalIncome.Should().Be(112.1m);
+        summary.TotalExpenses.Should().Be(-22.1m);
+        summary.NetBalance.Should().Be(90m);
     }
 
     [HumansFact]
@@ -1782,8 +1903,6 @@ public sealed class BudgetServiceTests
 
         _service.ComputeBudgetSummaryWithBuffers(groups).TotalLineItems.Should().Be(150m);
     }
-
-    // ─── GDPR export follows the merge chain ────────────────────────────────
 
     [HumansFact]
     public async Task ContributeForUserAsync_includes_audit_rows_of_merged_accounts_only()
@@ -1820,8 +1939,6 @@ public sealed class BudgetServiceTests
         json.Should().NotContain("stranger").And.NotContain("automation");
     }
 
-    // ─── Closed year gates every tree mutation ──────────────────────────────
-
     public static TheoryData<string> ClosedYearMutations => new()
     {
         "create-group", "update-group", "delete-group",
@@ -1855,6 +1972,14 @@ public sealed class BudgetServiceTests
         var actor = Guid.NewGuid();
         var now = Clock.GetCurrentInstant();
         var ct = TestContext.Current.CancellationToken;
+        if (string.Equals(mutation, "update-year", StringComparison.Ordinal))
+        {
+            var result = await _repository.UpdateYearAsync(_yearId, "2027", "Renamed", null, actor, now, ct);
+            result.Succeeded.Should().BeFalse();
+            result.Refusal.Should().Be("Cannot modify a closed budget year.");
+            (await _repository.GetAuditLogAsync(_yearId)).Should().BeEmpty();
+            return;
+        }
         Func<Task> act = mutation switch
         {
             "create-group" => () => _repository.CreateGroupAsync(_yearId, "New", false, actor, now, ct),
@@ -1869,7 +1994,6 @@ public sealed class BudgetServiceTests
             "sync-departments" => () => _repository.SyncDepartmentCategoriesAsync(_yearId, [new BudgetableTeamRef(Guid.NewGuid(), "Team")], actor, now, ct),
             "ensure-ticketing-group" => () => _repository.EnsureTicketingGroupAsync(_yearId, actor, now, ct),
             "update-ticketing-projection" => () => _repository.UpdateTicketingProjectionAsync(new TicketingProjectionUpdate(ticketingGroupId, null, null, 0, 0m, 0m, 10, 0m, 0m, 0m), actor, now, ct),
-            "update-year" => () => _repository.UpdateYearAsync(_yearId, "2027", "Renamed", null, actor, now, ct),
             "sync-ticketing-actuals" => () => _repository.SyncTicketingActualsAsync(_yearId, [], Clock.GetCurrentInstant().InUtc().Date, actor, now, ct),
             "refresh-ticketing-projections" => () => _repository.RefreshTicketingProjectionsAsync(_yearId, Clock.GetCurrentInstant().InUtc().Date, actor, now, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(mutation), mutation, null)
@@ -1877,8 +2001,6 @@ public sealed class BudgetServiceTests
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*closed*");
     }
-
-    // ─── Seeding helpers ────────────────────────────────────────────────────
 
     private async Task<BudgetCategory> SeedCategoryAsync(bool isRestricted = false, bool isTicketingGroup = false)
     {

@@ -1,28 +1,19 @@
 using Humans.Email.Contracts;
 using Humans.Auth.Contracts;
-using Humans.Base.Caching;
 using Humans.Notifications.Data;
 using Humans.Notifications.Domain;
 using Humans.Notifications.Contracts;
-using Microsoft.Extensions.Caching.Memory;
 using NodaTime;
 using Humans.Users.Contracts;
 
 namespace Humans.Notifications.Services;
 
-/// <summary>
-/// Application-layer implementation of <see cref="INotificationService"/>.
-/// Dispatches in-app notifications, materializes recipients, checks
-/// preferences, and delegates persistence to <see cref="INotificationRepository"/>.
-/// Invalidates per-user nav-badge cache keys after every successful send.
-/// </summary>
 internal sealed class NotificationService(
     INotificationEmitter emitter,
     INotificationRepository repo,
     IRoleAssignmentService roleAssignmentService,
     ICommunicationPreferenceService preferenceService,
     IClock clock,
-    IMemoryCache cache,
     ILogger<NotificationService> logger) : INotificationService, IUserMerge
 {
     public Task SendAsync(
@@ -104,25 +95,13 @@ internal sealed class NotificationService(
         }
 
         await repo.AddAsync(notification, cancellationToken);
-        InvalidateBadgeCaches(notification.Recipients.Select(r => r.UserId));
 
         logger.LogInformation(
             "Dispatched {Source} notification '{Title}' to role '{RoleName}' ({Count} recipients)",
             source, title, roleName, notification.Recipients.Count);
     }
 
-    private void InvalidateBadgeCaches(IEnumerable<Guid> userIds)
-    {
-        foreach (var userId in userIds)
-        {
-            cache.Remove(CacheKeys.NotificationBadgeCounts(userId));
-        }
-    }
-
     public Task ReassignAsync(Guid sourceUserId, Guid targetUserId, Guid actorUserId, Instant updatedAt,
-        CancellationToken ct)
-        => repo.ReassignRecipientsToUserAsync(sourceUserId, targetUserId, ct);
-
-    public void InvalidateBadgeCachesForUsers(IEnumerable<Guid> userIds) =>
-        InvalidateBadgeCaches(userIds);
+        CancellationToken ct) =>
+        repo.ReassignRecipientsToUserAsync(sourceUserId, targetUserId, ct);
 }

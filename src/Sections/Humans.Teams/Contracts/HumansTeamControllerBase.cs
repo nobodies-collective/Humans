@@ -8,16 +8,16 @@ using Humans.Users.Contracts;
 namespace Humans.Teams.Contracts;
 
 /// <summary>
-/// Resolve-a-team-by-slug-then-authorize, shared by this section's admin controller and by
-/// Shifts' <c>ShiftAdminController</c> (a rota's "department" is a Teams row). Public under
-/// <c>Contracts/</c> rather than on the leaf because it derives from <c>HumansControllerBase</c>
-/// in Base's view layer, which no <c>.Contracts</c> leaf may reference.
+/// Also used by Shifts' <c>ShiftAdminController</c>. Under <c>Contracts/</c>, not the leaf, because it derives from
+/// <c>HumansControllerBase</c>, which no <c>.Contracts</c> leaf may reference.
 /// </summary>
 public abstract class HumansTeamControllerBase(
     IUserService userService,
     ITeamService teamService,
     IAuthorizationService authorizationService) : HumansControllerBase(userService)
 {
+    protected IAuthorizationService AuthorizationService => authorizationService;
+
     protected async Task<(IActionResult? ErrorResult, UserInfo User, TeamInfo Team)> ResolveTeamManagementAsync(string slug)
     {
         return await ResolveTeamAccessAsync(

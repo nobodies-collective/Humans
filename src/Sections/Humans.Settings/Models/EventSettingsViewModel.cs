@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Text.Json;
 using Humans.Settings.Contracts;
 using NodaTime;
@@ -7,11 +8,6 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Humans.Settings.Models;
 
-/// <summary>
-/// The app-wide event settings form. Only the values Settings owns after
-/// nobodies-collective/Humans#1104 — the Shifts knobs (browsing switch, volunteer
-/// cap, reminder lead time) stay on the Shifts screen.
-/// </summary>
 internal sealed class EventSettingsViewModel : IValidatableObject
 {
     [BindRequired]
@@ -19,10 +15,6 @@ internal sealed class EventSettingsViewModel : IValidatableObject
 
     [Required, MaxLength(256)]
     public string EventName { get; set; } = string.Empty;
-
-    [Required, MaxLength(100)]
-    [BindRequired]
-    public string TimeZoneId { get; set; } = "Europe/Madrid";
 
     [Required]
     public string GateOpeningDate { get; set; } = string.Empty;
@@ -37,7 +29,6 @@ internal sealed class EventSettingsViewModel : IValidatableObject
     [BindRequired]
     public int StrikeEndOffset { get; set; } = 9;
 
-    // Build sub-period boundaries — defaults match the entity defaults set by EF config.
     [Range(int.MinValue, -1, ErrorMessage = "First crew start must be a negative offset relative to gate-opening day.")]
     [BindRequired]
     public int FirstCrewStartOffset { get; set; } = -25;
@@ -62,19 +53,13 @@ internal sealed class EventSettingsViewModel : IValidatableObject
     [BindRequired]
     public string? EarlyEntryClose { get; set; }
 
-    /// <summary>Negative day offset from <see cref="GateOpeningDate"/>; null until configured.</summary>
     [BindRequired]
     public int? EarlyEntryStartOffset { get; set; }
 
-    /// <summary>The cycle is wrapped: the member dashboard hides its in-season cards.</summary>
     [BindRequired]
     public bool IsOffSeason { get; set; }
 
-    /// <summary>
-    /// The form's view of <see cref="EventSettingsStatus"/>: the checkbox maps to
-    /// Active/Inactive and never reaches <see cref="EventSettingsStatus.Deleted"/> —
-    /// withdrawing a cycle is not something this form does.
-    /// </summary>
+    /// <summary>Maps to Active/Inactive only; this form never withdraws a cycle.</summary>
     [BindRequired]
     public bool IsActive { get; set; }
 
@@ -131,17 +116,13 @@ internal sealed record EventSettingsParseResult(
     public bool Success => Settings is not null && Errors.Count == 0;
 }
 
-/// <summary>
-/// Form ↔ <see cref="EventSettingsInfo"/>. The controller never touches the EF
-/// entity — the DTO is the section's own write surface too.
-/// </summary>
+/// <summary>The controller never touches the EF entity: the DTO is the section's own write surface too.</summary>
 internal static class EventSettingsFormMapper
 {
     internal static EventSettingsViewModel ToViewModel(EventSettingsInfo src) => new()
     {
         Id = src.Id,
         EventName = src.EventName,
-        TimeZoneId = src.TimeZoneId,
         GateOpeningDate = LocalDatePattern.Iso.Format(src.GateOpeningDate),
         BuildStartOffset = src.BuildStartOffset,
         EventEndOffset = src.EventEndOffset,
@@ -162,12 +143,32 @@ internal static class EventSettingsFormMapper
         IsOffSeason = src.IsOffSeason,
     };
 
+    /// <summary>
+    /// A blank form for a new event, shaped like <paramref name="previous"/> one year on: offsets and early-entry
+    /// capacity carry over, the gate date and the name's year move forward, and the instant-valued close is cleared.
+    /// </summary>
+    internal static EventSettingsViewModel NextEvent(EventSettingsInfo? previous)
+    {
+        if (previous is null)
+            return new EventSettingsViewModel();
+
+        var next = ToViewModel(previous);
+        var nextYear = previous.GateOpeningDate.PlusYears(1);
+        next.Id = null;
+        next.EventName = previous.EventName.Replace(
+            previous.Year.ToString(CultureInfo.InvariantCulture),
+            nextYear.Year.ToString(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
+        next.GateOpeningDate = LocalDatePattern.Iso.Format(nextYear);
+        next.EarlyEntryClose = null;
+        next.IsActive = false;
+        next.IsOffSeason = false;
+        return next;
+    }
+
     internal static EventSettingsParseResult Parse(EventSettingsViewModel model)
     {
         var errors = new List<EventSettingsFormError>();
-
-        if (DateTimeZoneProviders.Tzdb.GetZoneOrNull(model.TimeZoneId) is null)
-            errors.Add(new EventSettingsFormError(nameof(model.TimeZoneId), "Invalid IANA timezone ID."));
 
         var parsedDate = LocalDatePattern.Iso.Parse(model.GateOpeningDate);
         if (!parsedDate.Success)
@@ -196,14 +197,14 @@ internal static class EventSettingsFormMapper
 
         var gateOpening = parsedDate.Value;
 
-        // A new cycle mints its own id — Settings owns event ids (nobodies-collective/Humans#1631).
+        // A new cycle mints its own id: Settings owns event ids.
         return new EventSettingsParseResult(
             new EventSettingsInfo(
                 Id: model.Id ?? Guid.NewGuid(),
                 EventName: model.EventName,
-                // Year is the gate-opening year, never edited on its own.
                 Year: gateOpening.Year,
-                TimeZoneId: model.TimeZoneId,
+                // The global timezone; the service stores it on save.
+                TimeZoneId: string.Empty,
                 GateOpeningDate: gateOpening,
                 BuildStartOffset: model.BuildStartOffset,
                 EventEndOffset: model.EventEndOffset,

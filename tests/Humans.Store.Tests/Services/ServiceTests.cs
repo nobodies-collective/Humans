@@ -60,10 +60,6 @@ public class ServiceTests
         _service = new Service(_repo, _audit, _campService, _teams, _clock, _shifts, _stripeService, _holded, Options.Create(_storeOptions), NullLogger<Service>.Instance);
     }
 
-    // ==========================================================================
-    // Read paths
-    // ==========================================================================
-
     [HumansFact]
     public async Task GetIndexDataAsync_cancels_settings_read_before_loading_catalog()
     {
@@ -76,6 +72,36 @@ public class ServiceTests
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         await _repo.DidNotReceive().GetActiveProductsForYearAsync(Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [HumansTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Line_edit_cancellation_during_event_zone_lookup_stops_before_mutation(bool remove)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var order = new Order { Id = Guid.NewGuid(), Year = 2026, State = OrderState.Open };
+        var product = MakeProduct();
+        var lineId = Guid.NewGuid();
+        _repo.GetOrderByIdAsync(order.Id, Arg.Any<CancellationToken>()).Returns(order);
+        _repo.GetProductByIdAsync(product.Id, Arg.Any<CancellationToken>()).Returns(product);
+        _repo.GetLineWithOrderAndProductAsync(lineId, Arg.Any<CancellationToken>())
+            .Returns(new LineContext(lineId, order.Id, Guid.NewGuid(), OrderState.Open, product.OrderableUntil));
+        _shifts.GetActiveEventSettingsAsync(Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            await cancellation.CancelAsync();
+            call.Arg<CancellationToken>().ThrowIfCancellationRequested();
+            return (EventSettingsInfo?)BurnFixtures.Burn(year: 2026, timeZoneId: "Europe/Madrid");
+        });
+
+        var act = () => remove
+            ? _service.RemoveLineAsync(order.Id, lineId, Guid.NewGuid(), cancellation.Token)
+            : _service.AddLineAsync(order.Id, product.Id, 1, Guid.NewGuid(), cancellation.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+        await _repo.DidNotReceive().AddLineAsync(Arg.Any<OrderLine>(), Arg.Any<CancellationToken>());
+        await _repo.DidNotReceive().RemoveLineAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        _audit.ReceivedCalls().Should().BeEmpty();
     }
 
     [HumansFact]
@@ -477,10 +503,6 @@ public class ServiceTests
         second.Should().Be(0);
         await _repo.Received(1).UpdateOrderAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
     }
-
-    // ==========================================================================
-    // Write paths
-    // ==========================================================================
 
     [HumansFact]
     public async Task CreateOrderAsync_persists_open_order_with_now_timestamps_and_audits()
@@ -1045,10 +1067,6 @@ public class ServiceTests
         await _repo.Received(1).UpdateOrderAsync(order, Arg.Any<CancellationToken>());
     }
 
-    // ==========================================================================
-    // Catalog write paths
-    // ==========================================================================
-
     [HumansFact]
     public async Task CreateProductAsync_persists_product_with_now_timestamps_and_audits()
     {
@@ -1057,8 +1075,8 @@ public class ServiceTests
         await _repo.AddProductAsync(Arg.Do<Product>(p => captured = p), Arg.Any<CancellationToken>());
 
         var draft = new ProductDto(
-            Guid.Empty, 2026, "Tent", "Big tent", 50m, 21m, 100m,
-            new LocalDate(2026, 8, 1), IsActive: true);
+            Guid.Empty, 2026, "  Tent  ", "Big tent", 50m, 21m, 100m,
+            new LocalDate(2026, 8, 1), IsActive: true, HoldedRevenueAccountNum: 75900002);
 
         var result = await _service.CreateProductAsync(draft, actor, TestContext.Current.CancellationToken);
         result.Succeeded.Should().BeTrue();
@@ -1067,6 +1085,7 @@ public class ServiceTests
         var newId = captured!.Id;
         captured.Year.Should().Be(2026);
         captured.Name.Should().Be("Tent");
+        captured.HoldedRevenueAccountNum.Should().Be(75900002);
         captured.Description.Should().Be("Big tent");
         captured.UnitPriceEur.Should().Be(50m);
         captured.VatRatePercent.Should().Be(21m);
@@ -1134,14 +1153,15 @@ public class ServiceTests
 
         var actor = Guid.NewGuid();
         var draft = new ProductDto(
-            existing.Id, 2026, "New", "New desc", 99m, 10m, 25m,
-            new LocalDate(2026, 9, 1), IsActive: true);
+            existing.Id, 2026, "  New  ", "New desc", 99m, 10m, 25m,
+            new LocalDate(2026, 9, 1), IsActive: true, HoldedRevenueAccountNum: 75900002);
 
         await _service.UpdateProductAsync(draft, actor, TestContext.Current.CancellationToken);
 
         captured.Should().NotBeNull();
         captured!.Id.Should().Be(existing.Id);
         captured.Name.Should().Be("New");
+        captured.HoldedRevenueAccountNum.Should().Be(75900002);
         captured.Description.Should().Be("New desc");
         captured.UnitPriceEur.Should().Be(99m);
         captured.VatRatePercent.Should().Be(10m);
@@ -1353,7 +1373,7 @@ public class ServiceTests
         var actor = Guid.NewGuid();
         var users = Substitute.For<IUserService>();
         users.GetUserInfoAsync(actor, Arg.Any<CancellationToken>()).Returns(new UserInfo(
-            actor, "Tester", false, "en", null, _clock.GetCurrentInstant(), null, null, null, null, null,
+            actor, "Tester", false, "en", null, _clock.GetCurrentInstant(), null, null, null, null,
             null, null, null, null, null, [], [], [], null, []));
         var http = new DefaultHttpContext
         {
@@ -1463,10 +1483,6 @@ public class ServiceTests
 
         result.Should().BeEmpty();
     }
-
-    // ==========================================================================
-    // RecordStripePaymentAsync (Stripe webhook ingestion)
-    // ==========================================================================
 
     [HumansFact]
     public async Task CreateStripeCheckoutSessionAsync_builds_checkout_session_from_order()
@@ -2022,8 +2038,6 @@ public class ServiceTests
         await _repo.DidNotReceive().AddPaymentAsync(Arg.Any<Payment>(), Arg.Any<CancellationToken>());
     }
 
-    // ── async-payment state machine (nobodies-collective/Humans#638) ────────────
-
     [HumansFact]
     public async Task AsyncPaymentSucceeded_transitions_matching_pending_to_paid()
     {
@@ -2330,10 +2344,6 @@ public class ServiceTests
 
         await _repo.DidNotReceive().DeletePaymentAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
-
-    // ==========================================================================
-    // Helpers
-    // ==========================================================================
 
     private static Product MakeProduct(
         string name = "Test product",

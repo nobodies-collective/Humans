@@ -7,12 +7,7 @@ using Microsoft.Extensions.Localization;
 
 namespace Humans.Email.Services;
 
-/// <summary>
-/// Backs the shared <c>_EmailComposer</c> "Send to me" button: queues the composer's current
-/// subject/Markdown body, sanitized and branded exactly like a real send, to the signed-in human's
-/// own notification address. Never takes a recipient from the caller. Internal — its only consumer
-/// is <c>EmailPreviewController</c>.
-/// </summary>
+/// <summary>Never takes a recipient from the caller.</summary>
 internal sealed class ComposerSelfSendService(
     IUserEmailService userEmailService,
     IUserService userService,
@@ -23,10 +18,7 @@ internal sealed class ComposerSelfSendService(
 {
     public const string TemplateName = "composer_self_test";
 
-    /// <summary>
-    /// Queues one outbox row to <paramref name="userId"/> and audits it. Returns the address it was
-    /// queued to, or null when the human has no notification address (nothing is queued).
-    /// </summary>
+    /// <summary>Returns the address queued to, or null (nothing queued) when the member has no notification address.</summary>
     public async Task<string?> SendToSelfAsync(
         Guid userId, string? subject, string? markdownBody, CancellationToken ct = default)
     {
@@ -40,12 +32,20 @@ internal sealed class ComposerSelfSendService(
             : string.Format(CultureInfo.CurrentCulture, localizer["Email_ComposerSelfTest_Subject"].Value, subject.Trim());
 
         await emailService.SendAsync(new EmailMessage(
-            email, user?.BurnerName, fullSubject, SanitizedMarkdownRenderer.Render(markdownBody),
-            TemplateName, MessageCategory.System, UserId: userId), ct);
+            email, user?.BurnerName, userId, fullSubject, SanitizedMarkdownRenderer.Render(markdownBody),
+            TemplateName, MessageCategory.System), ct);
 
-        await audit.LogAsync(
-            AuditAction.EmailComposerSelfTestSent, "User", userId,
-            "Sent an email composer test message to themselves", userId);
+        try
+        {
+            await audit.LogAsync(
+                AuditAction.EmailComposerSelfTestSent, "User", userId,
+                "Sent an email composer test message to themselves", userId);
+        }
+        catch (Exception ex)
+        {
+            // A retry would duplicate the email request that already succeeded.
+            logger.LogCritical(ex, "Email composer self-test audit failed after sending for user {UserId}", userId);
+        }
 
         logger.LogInformation("Email composer self-test queued for user {UserId}", userId);
         return email;

@@ -73,8 +73,8 @@ Board voting moved to Governance: `/Governance/BoardVoting`. Onboarding only con
 | Unauthenticated visitor | Sign up via Google OAuth (or magic link) |
 | Authenticated human (pre-approval) | Complete profile, sign legal documents, submit a tier application (optional), file an issue (the Help widget renders pre-approval, so `Issues` is exempt from the membership gate) |
 | ConsentCoordinator | Clear, flag, or reject signups in the onboarding review queue (`PolicyNames.ConsentCoordinatorBoardOrAdmin`) |
-| VolunteerCoordinator | Read-only access to the onboarding review queue (`PolicyNames.ReviewQueueAccess`) — cannot clear, flag, or reject |
-| HumanAdmin, Board, Admin | All ConsentCoordinator capabilities. Board voting on Colaborador/Asociado tier applications is Board+Admin only (`PolicyNames.BoardOrAdmin` / `PolicyNames.BoardOnly`). |
+| ShiftsAdmin | Read-only access to the onboarding review queue (`PolicyNames.ReviewQueueAccess`) — cannot clear, flag, or reject |
+| UsersAdmin, Board, Admin | All ConsentCoordinator capabilities. Board voting on Colaborador/Asociado tier applications is Board+Admin only (`PolicyNames.BoardOrAdmin` / `PolicyNames.BoardOnly`). |
 
 ## Invariants
 
@@ -83,6 +83,7 @@ Board voting moved to Governance: `/Governance/BoardVoting`. Onboarding only con
   Explicit day zero remains valid.
 - Widget step selection resolves the surviving user and requires their saved names before consent completion. Complete means names plus all required Volunteer consents; merged aliases use the survivor’s consent state, and shift signup stays optional.
 
+- The dispatcher recognizes a returning member from any prior explicit consent signature, including a replaced document version and signatures on merged accounts. Missing current Volunteer consents send that member straight to Consents; names and current-consent completion are still checked first.
 - The widget saves names to the resolved account whose profile it preserves. Its dispatcher and Shifts page read that account’s commitments, so a merge alias cannot hide an existing signup or send name edits to an archived profile.
 - Consent-review eligibility checks and the Pending annotation write use the resolved survivor ID when called with a merged account ID; an archived profile is never annotated on the survivor’s behalf.
 
@@ -103,7 +104,7 @@ Board voting moved to Governance: `/Governance/BoardVoting`. Onboarding only con
 
 ## Negative Access Rules
 
-- VolunteerCoordinator **cannot** clear, flag, or reject in the review queue. They have read-only access only (`PolicyNames.ReviewQueueAccess` lets them view; the Clear/Flag/Reject POST endpoints all require `PolicyNames.ConsentCoordinatorBoardOrAdmin`).
+- ShiftsAdmin **cannot** clear, flag, or reject in the review queue. They have read-only access only (`PolicyNames.ReviewQueueAccess` lets them view; the Clear/Flag/Reject POST endpoints all require `PolicyNames.ConsentCoordinatorBoardOrAdmin`).
 - ConsentCoordinator **cannot** cast Board votes on tier applications and **cannot** finalize tier-application Approve/Reject decisions (Board+Admin only via `GovernanceBoardVotingController.Vote` / `Finalize`).
 - Regular humans still onboarding **cannot** access most of the application (teams, shifts, budget, tickets, governance, etc.) until they enter their legal name (`UserState.Active`).
 - Profileless accounts **cannot** access the Home dashboard, City Planning, Budget, Shifts, Governance, or any member-only features. They are redirected to the name form, not to the Guest dashboard — `NameRequiredFilter` runs before `MembershipRequiredFilter` and does not exempt `Guest`. **Exception:** profileless mid-widget users see the priority-shift list rendered inside `/OnboardingWidget` Step 2; direct navigation to `/Shifts` still routes them through the membership filter as today.
@@ -149,7 +150,7 @@ After the nobodies-collective#584 narrowing, `OnboardingService` injects only wh
 - `HumanLifecycleService` lives in `src/Sections/Humans.Users/Services/HumanLifecycleService.cs` and exposes `IHumanLifecycleService` (on `Humans.Users.Contracts`) — the **single entry point** for admin-initiated `SuspendAsync` / `UnsuspendAsync`, plus `RestoreConsentSuspensionAsync` (clears a consent suspension once the user is back in compliance; no-op for `AdminSuspended` users). Same orchestrator shape as `OnboardingService`: owns no tables, depends only on service interfaces (Users' internal `IUserManagement`, `INotificationEmitter`, `INotificationAutoResolve`, `IAuditLogService`, `IHumansMetrics`). Suspend / unsuspend writes flow through `IUserManagement.SetSuspensionAsync` (admin suspension passes `adminSuspension: true`, which classifies the user as `UserState.AdminSuspended`); unsuspend resolves the user's `AccessSuspended` notifications via `INotificationAutoResolve.ResolveBySourceAsync`. The bulk grace-period suspension path used by `SuspendNonCompliantMembersJob` continues to use `IUserManagement.SuspendProfilesForMissingConsentAsync` directly — that path has job-specific notification, audit, and per-team Google-removal side effects that don't fit the per-user lifecycle entry point.
 - **Decorator decision — no caching decorator.** Onboarding owns no cached data. Every cache invalidation for an Onboarding-driven write happens inside the owning section's service or decorator (Profile decorator refreshes `_byUserId` after reject/suspend/unsuspend; clear/flag write Consent's `consent_reviews`, which Users does not cache; `IGovernanceManagement.CastBoardVoteAsync` evicts the voter's own voting-badge count).
 - **Cross-domain navs stripped:** N/A — Onboarding owns no entities.
-- **DI direction is one-way.** `OnboardingService → IUserService` (and other leaves) only. No leaf depends on `IOnboardingService`. Reviewers should reject any new ctor dependency from `ProfileService` / `ConsentService` onto `IOnboardingService` (or any other director). The cycle guard `tests/Humans.Users.Tests/Services/DependencyCycleResolutionTests.NoCircularConstructorDependencies_AcrossApplicationServices` enforces this.
+- **DI direction is one-way.** `OnboardingService → IUserService` (and other leaves) only. No leaf depends on `IOnboardingService`. Reviewers should reject any new ctor dependency from `ProfileService` / `ConsentService` onto `IOnboardingService` (or any other director). A cycle fails `tests/Humans.Web.Tests/Infrastructure/SectionServiceResolutionTests`, which resolves every registered service.
 - **Architecture test** — `tests/Humans.Onboarding.Tests/Architecture/OnboardingArchitectureTests.cs` enforces one thing: every `IStringLocalizer<T>` / `IHtmlLocalizer<T>` in the section names `OnboardingResource`, `SharedResource` or `ConsentResource` (`OnboardingLocalizerBindingTests` is the per-key half of that guard — it checks every rendered key actually exists in the set its call site binds). The shape claims above are documentation, not assertions: a test that a section *lacks* something is forbidden by [`no-tests-for-absences`](../../../../memory/architecture/no-tests-for-absences.md).
 
 ## Issue queue
@@ -158,6 +159,6 @@ After the nobodies-collective#584 narrowing, `OnboardingService` injects only wh
 
 Onboarding owns the `Onboarding` issue queue: it implements `IIssueQueueOwner` (Issues' `Contracts/`
 folder) on its `Section` entry point, declaring the queue key and the roles that handle
-issues filed against it — `ConsentCoordinator, VolunteerCoordinator, HumanAdmin`, plus `Admin`, which handles every queue. Issues
+issues filed against it — `ConsentCoordinator, ShiftsAdmin, UsersAdmin`, plus `Admin`, which handles every queue. Issues
 discovers the declaration through DI and holds no list of sections; dropping the seam
 sends this section's stored issues to the Admin-only queue.

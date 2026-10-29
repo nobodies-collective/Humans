@@ -10,10 +10,8 @@ using NSubstitute;
 namespace Humans.Shifts.Tests.Models;
 
 /// <summary>
-/// Day-filter dropdown on the Volunteering page (issue nobodies-collective/Humans#889): a single-day
-/// selection wins over the phase/date-range filters, forces the flat
-/// openings-ranked view (most remaining slots first, full rotas last), and
-/// round-trips through the URL via <see cref="ShiftBrowseViewModel.FilterDay"/>.
+/// A single-day selection wins over the phase/date-range filters and forces the flat
+/// openings-ranked view.
 /// </summary>
 public class ShiftBrowsePageBuilderDayFilterTests
 {
@@ -65,6 +63,46 @@ public class ShiftBrowsePageBuilderDayFilterTests
         Sort: sort,
         Periods: null,
         IsPrivileged: false);
+
+    [HumansTheory]
+    [Xunit.InlineData("999")]
+    [Xunit.InlineData("-1")]
+    [Xunit.InlineData("unknown")]
+    public async Task InvalidPhase_DoesNotTurnTwoSelectedPhasesIntoAllPhases(string invalid)
+    {
+        var shifts = new[] { ShiftPeriod.Build, ShiftPeriod.Event, ShiftPeriod.Strike }
+            .Select(p => UrgentShiftFixtures.Urgent(burn: Event, period: p, remainingSlots: 1))
+            .ToArray();
+        _shiftManagement.GetBrowseShiftsAsync(Arg.Any<ShiftBrowseQuery>(), Arg.Any<CancellationToken>())
+            .Returns(shifts);
+        var builder = CreateBuilder();
+
+        var model = await builder.BuildAsync(RequestFor(day: null) with
+        {
+            Periods = ["Build", "event", invalid, "Build"],
+        }, Xunit.TestContext.Current.CancellationToken);
+
+        model.FilterPeriods.Should().Equal("Build", "Event");
+        model.UrgencyRankedRotas.Select(r => r.Rota.Id).Should()
+            .BeEquivalentTo(shifts.Take(2).Select(s => s.Rota.Id));
+    }
+
+    [HumansTheory]
+    [Xunit.InlineData("Strike", true)]
+    [Xunit.InlineData("999", false)]
+    public async Task InvalidPhaseList_UsesOnlyADefinedSinglePhaseFallback(string period, bool valid)
+    {
+        _shiftManagement.GetBrowseShiftsAsync(Arg.Any<ShiftBrowseQuery>(), Arg.Any<CancellationToken>()).Returns([]);
+        var builder = CreateBuilder();
+
+        var model = await builder.BuildAsync(RequestFor(day: null) with
+        {
+            Periods = ["999"],
+            Period = period,
+        }, Xunit.TestContext.Current.CancellationToken);
+
+        model.FilterPeriods.Should().Equal(valid ? new[] { "Strike" } : []);
+    }
 
     [HumansTheory]
     [Xunit.InlineData(false)]

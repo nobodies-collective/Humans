@@ -9,27 +9,17 @@
     another section's implementation project, so putting these types in a Contracts/
     *folder* inside Humans.Email would leave every one of those callers with no way to name
     them (memory/architecture/section-project-cycle-fix.md — split the upstream section's
-    contracts downward, never promote the shared type into Base). Shell consumes the leaf
-    too, composing the HangfireImmediateOutboxProcessor -> IImmediateOutboxProcessor ->
-    OutboxEmailService chain in EmailInfrastructureExtensions.
+    contracts downward, never promote the shared type into Base).
 
     Base is *not* among the consumers: its single ProjectReference is Humans.Users.Contracts
     and it names no type from this project.
 
-    IEmailOutboxProcessor / IEmailOutboxRetention no longer earn their place here: their
-    only consumers, ProcessEmailOutboxJob and CleanupEmailOutboxJob, are now section-side.
-    Both could move inward; IImmediateOutboxProcessor could not, because Shell registers it.
-    See Docs/health.md §5.
-
-    Everything with no consumer outside the section stays internal: the outbox admin surface
-    (IEmailOutboxManagement), the facilitated-message builder, the body composer, the SMTP
+    Everything with no consumer outside the section stays internal: the outbox interfaces
+    (IEmailOutboxService, IEmailOutboxProcessor, IEmailOutboxRetention, IEmailOutboxManagement,
+    IImmediateOutboxProcessor), the MessageCategory rules, the facilitated-message builder, the body composer, the SMTP
     transport, the repository and the entity.
 
-    References Humans.Base only (IApplicationService, and EmailOutboxStatus, which lives there
-    because Campaigns and Surveys persist it too). MessageCategory and the communication-preference
-    contracts (ICommunicationPreferenceService / ICommunicationPreferenceWrite) are Email's own since
-    Users decomposition commit 14, which dropped this leaf's Humans.Users.Contracts reference: the
-    enum was its only use. Note that Base references Humans.Users.Contracts, so nothing in that
+    References Humans.Base only. Base references Humans.Users.Contracts, so nothing in that
     project may ever reference this one.
   -->
 
