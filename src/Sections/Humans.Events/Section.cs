@@ -26,10 +26,14 @@ public sealed class Section :
     ICampPart,
     ISectionRoles,
     ISectionAdminNav,
+    ISectionChrome,
     ISectionNav,
     ISectionPolicies,
     ISectionSettings
 {
+    IEnumerable<ChromeComponent> ISectionChrome.Components() =>
+        [new(ChromeSlots.WidgetGallery, typeof(EventsGalleryViewComponent))];
+
     IReadOnlyList<RoleDefinition> ISectionRoles.Roles { get; } =
     [
         new(EventsRoles.EventsAdmin, "Events Admin",

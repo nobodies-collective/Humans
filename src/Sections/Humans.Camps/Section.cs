@@ -33,11 +33,15 @@ public sealed class Section :
     ISectionRoles,
     ISectionAccessMatrix,
     ISectionAdminNav,
+    ISectionChrome,
     ISectionHelp,
     ISectionNav,
     ISectionPolicies,
     ISectionSettings
 {
+    IEnumerable<ChromeComponent> ISectionChrome.Components() =>
+        [new(ChromeSlots.WidgetGallery, typeof(CampsGalleryViewComponent))];
+
     IReadOnlyList<RoleDefinition> ISectionRoles.Roles { get; } =
     [
         new(CampsRoles.CampsAdmin, "Camps Admin",

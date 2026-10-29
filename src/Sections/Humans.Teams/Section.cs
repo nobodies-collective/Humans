@@ -31,12 +31,16 @@ public sealed class Section :
     ISectionRoles,
     ISectionAccessMatrix,
     ISectionAdminTiles,
+    ISectionChrome,
     ISectionHelp,
     ISectionJobs,
     ISectionNav,
     ISectionPolicies,
     IUserPart
 {
+    IEnumerable<ChromeComponent> ISectionChrome.Components() =>
+        [new(ChromeSlots.WidgetGallery, typeof(TeamsGalleryViewComponent))];
+
     IReadOnlyList<RoleDefinition> ISectionRoles.Roles { get; } =
     [
         new(TeamsRoles.TeamsAdmin, "Teams Admin",
