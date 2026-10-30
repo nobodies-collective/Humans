@@ -17,6 +17,7 @@ using Humans.Users.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Humans.AuditLog.Contracts;
 
 namespace Humans.Finance;
 
@@ -39,6 +40,7 @@ public sealed class Section :
 
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<IAuditActionContributor, FinanceAuditActions>();
         services.AddSectionDbContext<FinanceDbContext>(sentinelTable: "holded_expense_docs");
 
         // Absent the Sepa:* keys, /Finance/Creditors says payout is unavailable rather than generating a rejectable

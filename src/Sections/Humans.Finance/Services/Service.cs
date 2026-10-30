@@ -158,7 +158,7 @@ internal sealed class Service(
                 var accountName = $"{row.GroupName} / {row.CategoryName}";
                 var id = await client.CreateExpenseAccountAsync(row.ProposedAccountNum!.Value, accountName, ct);
                 // Audited as soon as Holded holds the account: a failed map save below must not hide it.
-                await audit.LogAsync(AuditAction.HoldedCategoryAccountProvisioned, HoldedExpenseAccount,
+                await audit.LogAsync(FinanceAuditActions.HoldedCategoryAccountProvisioned, HoldedExpenseAccount,
                     row.BudgetCategoryId,
                     $"Provisioned Holded expense account {row.ProposedAccountNum.Value} '{accountName}'",
                     actorUserId);
@@ -226,7 +226,7 @@ internal sealed class Service(
             var isCategoryAccount = map.Any(m => m.HoldedAccountNumber == found.AccountNum);
             if (!isCategoryAccount)
                 await RegisterManagedAsync(found.AccountNum, found.Id, found.Name, managed, now, ct);
-            await audit.LogAsync(AuditAction.HoldedExpenseAccountLinked, HoldedExpenseAccount, Guid.Empty,
+            await audit.LogAsync(FinanceAuditActions.HoldedExpenseAccountLinked, HoldedExpenseAccount, Guid.Empty,
                 $"Linked Holded expense account {found.AccountNum} '{found.Name}' for '{name}'", "Finance");
             return new HoldedExpenseAccountRef(found.AccountNum, found.Id, found.Name, Created: false);
         }
@@ -250,7 +250,7 @@ internal sealed class Service(
         }
 
         await RegisterManagedAsync(next, id, name, managed, now, ct);
-        await audit.LogAsync(AuditAction.HoldedExpenseAccountCreated, HoldedExpenseAccount, Guid.Empty,
+        await audit.LogAsync(FinanceAuditActions.HoldedExpenseAccountCreated, HoldedExpenseAccount, Guid.Empty,
             $"Created Holded expense account {next} '{name}'", "Finance");
         return new HoldedExpenseAccountRef(next, id, name, Created: true);
     }
@@ -281,7 +281,7 @@ internal sealed class Service(
         row.IsActive = isActive;
         row.UpdatedAt = clock.GetCurrentInstant();
         await repo.UpsertManagedAccountAsync(row, ct);
-        await audit.LogAsync(AuditAction.HoldedExpenseAccountActiveChanged, HoldedExpenseAccount, Guid.Empty,
+        await audit.LogAsync(FinanceAuditActions.HoldedExpenseAccountActiveChanged, HoldedExpenseAccount, Guid.Empty,
             $"{(isActive ? "Restored" : "Retired")} Holded expense account {accountNum} '{row.Label}'", "Finance");
     }
 
@@ -771,7 +771,7 @@ internal sealed class Service(
             return CreditorBindResult.Failure(
                 "This member was bound by a concurrent action while you were binding. Reload and check " +
                 "/Finance/Creditors.");
-        await audit.LogAsync(AuditAction.HoldedCreditorBound, HoldedCreditorAccount, userId,
+        await audit.LogAsync(FinanceAuditActions.HoldedCreditorBound, HoldedCreditorAccount, userId,
             $"Bound creditor account {supplierAccountNum} (Holded contact {contact.Id})",
             actorUserId, userId, nameof(User));
         return CreditorBindResult.Success;
@@ -949,7 +949,7 @@ internal sealed class Service(
         try
         {
             await client.DeleteContactAsync(contactId, ct);
-            await audit.LogAsync(AuditAction.HoldedDuplicateRemoved, nameof(User), userId,
+            await audit.LogAsync(FinanceAuditActions.HoldedDuplicateRemoved, nameof(User), userId,
                 $"DELETED duplicate Holded contact {contactId} that a concurrent push created; kept "
                 + $"{bound.HoldedContactId}.",
                 jobName);
@@ -1003,7 +1003,7 @@ internal sealed class Service(
         // so every change is audited, a first resolution included.
         if (!written || binding.SupplierAccountNum == supplierAccountNum) return;
         var previous = binding.SupplierAccountNum?.ToString(CultureInfo.InvariantCulture) ?? "(unresolved)";
-        await audit.LogAsync(AuditAction.HoldedCreditorAccountNumChanged, HoldedCreditorAccount, userId,
+        await audit.LogAsync(FinanceAuditActions.HoldedCreditorAccountNumChanged, HoldedCreditorAccount, userId,
             $"Creditor account changed from {previous} to {supplierAccountNum} (Holded contact "
             + $"{binding.HoldedContactId}), as Holded reported after the push",
             jobName, userId, nameof(User));
@@ -1014,7 +1014,7 @@ internal sealed class Service(
         // The audit names the row the delete removed, not an earlier read a push could have overtaken.
         if (await DeleteCreditorBindingAsync(userId, ct) is not { } binding) return false;
 
-        await audit.LogAsync(AuditAction.HoldedCreditorUnbound, HoldedCreditorAccount, userId,
+        await audit.LogAsync(FinanceAuditActions.HoldedCreditorUnbound, HoldedCreditorAccount, userId,
             $"Unbound creditor account {binding.SupplierAccountNum?.ToString(CultureInfo.InvariantCulture) ?? "(unresolved)"} "
             + $"(Holded contact {binding.HoldedContactId})",
             actorUserId, userId, nameof(User));
@@ -1155,7 +1155,7 @@ internal sealed class Service(
         // After the save: a rolled-back write must not leave a ghost audit row.
         foreach (var t in transfers)
             await audit.LogAsync(
-                AuditAction.SepaPayoutTransfer, SepaTransferEntityType, t.Id,
+                FinanceAuditActions.SepaPayoutTransfer, SepaTransferEntityType, t.Id,
                 $"SEPA payout {Euros(t.Amount)} to {t.IbanMasked} on creditor account "
                 + $"{t.SupplierAccountNum} (file {fileName}).",
                 actorUserId, t.UserId, nameof(User));
@@ -1182,7 +1182,7 @@ internal sealed class Service(
         await repo.SaveSepaTransferWithdrawnAsync(transferId, now, actorUserId, ct);
 
         await audit.LogAsync(
-            AuditAction.SepaPayoutTransferWithdrawn, SepaTransferEntityType, transferId,
+            FinanceAuditActions.SepaPayoutTransferWithdrawn, SepaTransferEntityType, transferId,
             $"WITHDRAWN the SEPA payout {Euros(transfer.Amount)} to {transfer.IbanMasked} on creditor account "
             + $"{transfer.SupplierAccountNum} (file {row.FileName}): cancelled at the bank before execution.",
             actorUserId, transfer.UserId, nameof(User));
@@ -1463,7 +1463,7 @@ internal sealed class Service(
                         await client.DeletePurchaseDocumentAsync(docId, ct);
                         deletedDocs.Add(docId);
                         await audit.LogAsync(
-                            AuditAction.HoldedDuplicateRemoved, ExpenseLineEntityType, line.LineId,
+                            FinanceAuditActions.HoldedDuplicateRemoved, ExpenseLineEntityType, line.LineId,
                             $"DELETED duplicate Holded purchase document {docId} ({Euros(line.Amount)}, "
                             + $"'{line.Description}') of {member.ContactName} on creditor account {account}; "
                             + $"kept {line.KeptDocId}.",
@@ -1485,7 +1485,7 @@ internal sealed class Service(
                         await client.DeleteContactAsync(contactId, ct);
                         deletedContacts.Add(contactId);
                         await audit.LogAsync(
-                            AuditAction.HoldedDuplicateRemoved, nameof(User), member.UserId,
+                            FinanceAuditActions.HoldedDuplicateRemoved, nameof(User), member.UserId,
                             $"DELETED duplicate Holded contact {contactId} of {member.ContactName}; kept "
                             + $"{member.BoundContactId ?? "the bound contact"}.",
                             actorUserId);
