@@ -54,14 +54,12 @@ recorded, not a structural need.
   (`Data/Configurations/GateScanEventConfiguration.cs:32`), pre-check for the common case
   (`Data/GateRepository.cs:24`); the losing racer records `RejectedDuplicate`
   (`Services/GateService.cs:118`).
-- A client flag can never turn a STOP into an admit: `RecordDecisionAsync` re-evaluates
-  server-side (`Services/GateService.cs:109`); overrides admit only with `OverrideByUserId` set
-  (`Services/GateService.cs:410`), which the controller sets only after server-verifying the
-  shared supervisor PIN (`Controllers/GateController.cs:75`), timing-safe compare
-  (`Controllers/GateController.cs:327`).
+- A client flag can never turn a STOP into an admit: `GateService.RecordDecisionAsync` verifies
+  the shared supervisor PIN and throttle before re-evaluating the ticket server-side. The input
+  carries no override identity; the service derives `OverrideByUserId` from the authenticated scanner.
 - Unset override PIN fails closed with an explicit "not configured" card
-  (`Controllers/GateController.cs:300`).
-- Override PIN entry throttles terminal-wide on `override:shared` (`Controllers/GateController.cs:305`):
+  (`GateService.VerifySharedOverridePin`, mapped by `GateScanCardViewModel.FromDecision`).
+- Override PIN entry throttles terminal-wide on `override:shared` (`GateService.VerifySharedOverridePin`):
   `GatePinThrottle.MaxFailures` tries, then a `GatePinThrottle.Lockout` lockout that only a
   correct PIN clears (`Services/Stores/GatePinThrottle.cs:47`); a lockout never blocks scanning.
 - Scan attribution is the authenticated principal, never the request body
@@ -71,13 +69,13 @@ recorded, not a structural need.
   (`Services/GateService.cs:178`).
 - Vendor mirror is best-effort, non-retrying (`Jobs/GateVendorCheckInJob.cs:16`), gated by
   `Gate:VendorMirrorEnabled` (`Jobs/GateVendorCheckInJob.cs:37`). The backfill claims the ledger
-  atomically before enqueueing (`Controllers/GateVendorBackfillAdminController.cs:86`), so
+  atomically before enqueueing (`GateService.EnqueueVendorCheckInBackfillAsync`), so
   overlapping backfill sends never double-post; live admits mark the ledger *after* their
   enqueue (`Services/GateService.cs:147`), so a backfill click in that instant can still re-send
   one — accepted, not a guarantee.
 - Write routes carry `GateAdmit` (`Controllers/GateController.cs:55`), read routes
   `ScannerAccess` (`Controllers/GateController.cs:23`); the staff-PIN and settings routes
-  `TicketAdminOrAdmin` (`Controllers/GateController.cs:201`); the backfill page `AdminOnly`
+  `TicketsPolicies.Manage` (`Controllers/GateController.cs:201`); the backfill page `AdminOnly`
   (`Controllers/GateVendorBackfillAdminController.cs:16`). The card carries name + verdict + one
   reason; EE source, prior scanner identity, and GUIDs stay server-side
   (`Models/GateViewModels.cs:22`).
@@ -127,7 +125,7 @@ recorded, not a structural need.
 - Kiosk JS: quiet-timer submit (no reliance on wedge Enter-suffix), anti-mistap arming delay,
   typing `logout` is the only way off the route-locked gate account.
 - `GateVendorCheckInJob` is `public`: Hangfire resolves it from the enqueue's serialized method
-  reference. `GateRetentionJob` is `internal`, scheduled through the section's own `SectionJobs`.
+  reference. `GateRetentionJob` is `internal`, scheduled through the section's own `ISectionJobs`.
 - The settings form lives in the Settings tab view component but posts to `GateController`'s
   `Admin` action, naming the controller explicitly — inside `/Settings` the ambient route would
   resolve `Admin` against the wrong controller.

@@ -117,7 +117,7 @@ Stored as string (`HasConversion<string>()`, max length 20).
 - TicketsAdmin **cannot** create, edit, activate, or complete campaigns. They can only view details and generate codes.
 - Regular humans and other roles have no access to campaign management.
 - Humans see only their own grants on `/Profile/Me` (the "My Codes" card, `MyCodesViewComponent`, sourced from `ICampaignService.GetActiveOrCompletedGrantsForUserAsync`). The card renders only for the `Self` view mode and only when the signed-in user is the profile's owner, so it is absent on another member's profile for every role. No human can see another human's grants outside the admin card.
-- The "Campaign Codes" card (`CampaignCodesViewComponent`, every grant whatever the campaign's status) renders only in the `Admin` view mode for a viewer passing `HumanAdminBoardOrAdmin`, the same policy as the host page; any other viewer or audience gets nothing.
+- The "Campaign Codes" card (`CampaignCodesViewComponent`, every grant whatever the campaign's status) renders only in the `Admin` view mode for a viewer passing `UsersPolicies.Read`, the same policy as the host page; any other viewer or audience gets nothing.
 
 ## Triggers
 
@@ -137,12 +137,13 @@ email template is copied into audit. Refused mutations emit no success entry.
 
 ## Cross-Section Dependencies
 
+- **Audit actions:** declared on `CampaignsAuditActions` (`src/Sections/Humans.Campaigns/CampaignsAuditActions.cs`), one `AuditActionDefinition` each, written through `IAuditLogService`: `CampaignCreated`, `CampaignUpdated`, `CampaignActivated`, `CampaignCompleted`, `CampaignCodesImported`, `CampaignWaveSent`, `CampaignGrantResent`.
 - **Tickets:** `ITicketDiscountCodes` (`Humans.Tickets.Contracts`) — TicketsAdmin can generate discount codes via the ticket vendor integration; Campaigns asks Tickets for codes through this leaf rather than reaching past it into the Base vendor port. Generation is invoked from the Campaign Detail page, not from the Tickets section.
 - **Email:** transport only. Campaigns owns its one template — `CampaignsEmails` (internal) builds the `EmailMessage` from the campaign's own subject and markdown body (the builder reads no resx), and `CampaignsEmailPreviews` (`IEmailPreviewContributor`, registered in `Section.Register`) lists it at `/Email/EmailPreview` (`memory/architecture/email-templates-live-in-sender.md`). `IEmailService.SendAsync` queues the message through the outbox.
 - **Users:** `IUserEmailService.GetNotificationTargetEmailsAsync(IReadOnlyCollection<Guid>)` — resolves notification targets for grant emails; `IUserService.GetUserInfoAsync` / `GetUserInfosAsync` — recipient `BurnerName` for the email payload and code-tracking display; `IUnsubscribeService` (Email section, `Humans.Email.Services.UnsubscribeService`) processes the public `/Email/Unsubscribe/{token}` endpoint, validating legacy campaign-only tokens (mapped to `MessageCategory.Marketing`) before delegating opt-out to `ICommunicationPreferenceService.UpdatePreferenceAsync` — `CampaignService` itself does not call `ICommunicationPreferenceService`. Called by `IAccountMergeService` (Users section) — `IUserMerge.ReassignAsync` (implemented by `CampaignService`) re-FKs `CampaignGrant` from source to target during account merge fold.
 - **Gdpr:** `IUserDataContributor` (grant export resolves archived account IDs to the survivor; erasure keeps its per-ID scope) and `IUserMerge` (`Humans.Gdpr.Contracts`), both implemented by `CampaignService`.
 - **AuditLog:** `IAuditLogService.LogAsync` records persisted admin mutations.
-- **Notifications:** `INotificationEmitter.SendAsync` — `CampaignReceived` in-app notifications for wave recipients.
+- **Notifications:** `INotificationEmitter.SendAsync` — `CampaignReceived` in-app notifications for wave recipients. Its sources are declared in `CampaignsNotificationSources` (`src/Sections/Humans.Campaigns/CampaignsNotificationSources.cs`), one `NotificationSourceDefinition` each: `CampaignReceived` (informational, to campaign recipients: campaign code granted).
 - **Teams:** `ITeamService.GetTeamsAsync` (Send Wave team picker) and `ITeamService.GetTeamAsync` (team-scoped wave targeting).
 
 ## Architecture
@@ -169,12 +170,12 @@ email template is copied into audit. Refused mutations emit no success entry.
 
 ### User parts
 
-`SectionUserParts` (`IUserPart`) contributes two cards to Users' pages; Users names neither:
+`IUserPart` (`IUserPart`) contributes two cards to Users' pages; Users names neither:
 
 | Slot | Component | Audience |
 |---|---|---|
 | `UserPartSlots.Profile` | `MyCodesViewComponent` ("My Codes", member-facing, `Campaigns_MyCodes_*` keys in all six cultures) | Own profile only |
-| `UserPartSlots.AdminDetail` | `CampaignCodesViewComponent` ("Campaign Codes", English, admin-only) | `/Users/Admin/{id}`, `HumanAdminBoardOrAdmin` |
+| `UserPartSlots.AdminDetail` | `CampaignCodesViewComponent` ("Campaign Codes", English, admin-only) | `/Users/Admin/{id}`, `UsersPolicies.Read` |
 
 Both render nothing when the member has no grants. The cards add no routes, nav entries or data; they are reached from the profile and admin-detail pages.
 

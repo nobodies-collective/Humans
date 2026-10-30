@@ -12,11 +12,13 @@ using Humans.Preapprovals.Services;
 using Humans.Users.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
+using Humans.Notifications.Contracts;
 using Microsoft.Extensions.DependencyInjection;
+using Humans.AuditLog.Contracts;
 
 namespace Humans.Preapprovals;
 
-public sealed class Section : ISection, ISectionAdminNav
+public sealed class Section : ISection, ISectionAdminNav, ISectionJobs, ISectionPolicies
 {
     IEnumerable<AdminNavGroup> ISectionAdminNav.Groups() =>
     [
@@ -28,6 +30,8 @@ public sealed class Section : ISection, ISectionAdminNav
 
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<IAuditActionContributor, PreapprovalsAuditActions>();
+        services.AddSingleton<INotificationSourceContributor, PreapprovalsNotificationSources>();
         services.AddSectionDbContext<PreapprovalsDbContext>(sentinelTable: "pre_programs");
 
         services.AddSingleton<IPreapprovalRepository, PreapprovalRepository>();
@@ -58,5 +62,19 @@ public sealed class Section : ISection, ISectionAdminNav
             [ProgramStatus.Open] = "bg-success",
             [ProgramStatus.Closed] = "bg-secondary",
         });
+    }
+
+    IEnumerable<RecurringJobDescriptor> ISectionJobs.Jobs(IServiceProvider services)
+    {
+        yield return new RecurringJobDescriptor(
+            PreapprovalRemindersJob.JobId, typeof(PreapprovalRemindersJob), "0 5 * * *");
+    }
+
+    void ISectionPolicies.AddPolicies(AuthorizationOptions options)
+    {
+        options.AddPolicy(PreapprovalsPolicies.Manage, policy =>
+            policy.AddRequirements(new ManagesPreapprovalsRequirement()));
+        options.AddPolicy(PreapprovalsPolicies.Access, policy =>
+            policy.AddRequirements(new PreapprovalsAccessRequirement()));
     }
 }

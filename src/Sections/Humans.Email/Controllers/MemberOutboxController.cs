@@ -1,3 +1,4 @@
+using Humans.Base.Attributes;
 using Humans.Base.Authorization;
 using Humans.Base.Controllers;
 using Humans.Email.Services;
@@ -14,6 +15,7 @@ internal sealed class MemberOutboxController(
 {
     /// <summary>Never takes a user id.</summary>
     [HttpGet("Email/Outbox")]
+    [AllowBeforeActiveMembership]
     public async Task<IActionResult> MyOutbox()
     {
         var user = await GetCurrentUserInfoAsync(HttpContext.RequestAborted);
@@ -24,7 +26,7 @@ internal sealed class MemberOutboxController(
         return View("Outbox", messages);
     }
 
-    [Authorize(Policy = PolicyNames.HumanAdminBoardOrAdmin)]
+    [Authorize(Policy = UsersPolicies.Read)]
     [HttpGet("Email/Admin/{id:guid}/Outbox")]
     public async Task<IActionResult> AdminOutbox(Guid id, CancellationToken ct)
     {

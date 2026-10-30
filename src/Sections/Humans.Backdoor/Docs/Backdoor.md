@@ -66,6 +66,7 @@ The machine surface. Every key-authed API an agent talks to lives here, under `/
 | `/api/backdoor/finance/creditor-accounts/{num}/ledger` | read | One account's balance and cached journal lines, contact header included, via `GetCreditorLedgerAsync` |
 | `/api/backdoor/finance/category-map` | read | Every live `holded_category_map` row, via `GetCategoryMapAsync` |
 | `/api/backdoor/finance/sepa-transfers` | read | Every generated SEPA transfer with its booking state, via `GetSepaTransfersAsync` |
+| `/api/backdoor/finance/expense-recon?year=` | read | `/Finance/ExpenseRecon` as JSON — totals, lines, orphans, members with open transfers — via `IHoldedFinanceService.GetExpenseReconAsync`. Finance admins only; carries no IBAN field |
 | `/api/backdoor/finance/holded-sync` | read | The purchase-doc sync's state plus the docs it could not match, via `GetDocSyncInfoAsync` + `GetUnmatchedAsync` |
 | `/api/backdoor/notifications` | read | The key owner's unread notifications, newest first, and the live meters their roles unlock, via `INotificationInboxRead`. Polling marks nothing read |
 | `/Backdoor` | Admin UI | Allocate, rotate and revoke keys |
@@ -77,8 +78,8 @@ Authentication is the `X-Api-Key` header on every `/api/backdoor/*` request. The
 | Actor | Capabilities |
 |-------|--------------|
 | Holder of an active key | Everything the APIs expose to that person, acting as themselves and scoped to their own roles |
-| Board member | May be issued a key |
-| Admin | All Board capabilities. Additionally: allocate, rotate and revoke anyone's key from `/Backdoor` |
+| Board member | May be issued a key. Reads the key list at `/Backdoor` (owner, label, prefix, dates); never a key value |
+| Admin | All Board capabilities. Additionally: allocate, rotate and revoke anyone's key from `/Backdoor` (the three POSTs are `AdminOnly`, their forms hidden from Board) |
 
 ## Invariants
 
@@ -90,7 +91,7 @@ Authentication is the `X-Api-Key` header on every `/api/backdoor/*` request. The
 - Surveys response exports preserve the owning section's privacy rules: closed Asociado ballots have no identity or submission timestamps and order by response id. A `since` filter cannot match their suppressed timestamps.
 - Issues list/detail/comments GETs and legacy Feedback list/detail/messages GETs pass request cancellation to their existing read contracts, including issue display-name reads. Write calls retain their existing cancellation boundaries.
 
-- A key resolves to exactly one human, and that human is installed as the request principal — `ClaimTypes.NameIdentifier` plus one `ClaimTypes.Role` claim per active role assignment — so every write records a real actor and every log line is enriched with them. The Issues queue read consults those role claims to scope its result (see below), and the Notifications read passes the whole principal on so its meters are role-gated the same way the bell is; Agent, Feedback, Logs, Store, and Surveys reads do not. Finance's routes authorize imperatively: each action calls `IAuthorizationService.AuthorizeAsync` against the installed principal — `PolicyNames.FinanceAdminOrAdmin` for the finance-wide routes (creditor accounts, ledger, category map, SEPA transfers, Holded sync), and `PolicyNames.ExpenseReportView` (a named policy Expenses' own `SectionPolicies` registers, wrapping its internal `ExpenseReportOperationRequirement(View)`/handler) for a single report or attachment — the same check `ExpensesController` uses, not a bespoke Backdoor check (peterdrier/Humans#1838).
+- A key resolves to exactly one human, and that human is installed as the request principal — `ClaimTypes.NameIdentifier` plus one `ClaimTypes.Role` claim per active role assignment — so every write records a real actor and every log line is enriched with them. The Issues queue read consults those role claims to scope its result (see below), and the Notifications read passes the whole principal on so its meters are role-gated the same way the bell is; Agent, Feedback, Logs, Store, and Surveys reads do not. Finance's routes authorize imperatively: each action calls `IAuthorizationService.AuthorizeAsync` against the installed principal — `FinancePolicies.Manage` for the finance-wide routes (creditor accounts, ledger, category map, SEPA transfers, Holded sync), and `PolicyNames.ExpenseReportView` (a named policy Expenses' own `ISectionPolicies` registers, wrapping its internal `ExpenseReportOperationRequirement(View)`/handler) for a single report or attachment — the same check `ExpensesController` uses, not a bespoke Backdoor check (peterdrier/Humans#1838).
 - JSON triage writes reject undefined issue categories, issue statuses and feedback statuses with HTTP 400 using shared localized validation; defined names and numeric values remain accepted.
 - Issue and feedback status JSON bodies require an explicit `Status` property. Missing status fails JSON binding with HTTP 400 before triage; explicit numeric zero remains valid. Issue-creation JSON likewise requires an explicit `Category`; omission cannot create a Bug by default.
 - Every `/api/backdoor/issues/*` route is fetched as the key's owner — id, roles and admin flag — so a Board-only key lists the Board-only queue, and an issue whose id it happens to hold but whose queue would not list it is a 404 to read, to comment on and to patch. Issues enforces that itself, on the same `IssueSectionRouting.CanHandle` the browser reads, so a key reaches exactly as far as its holder does in the browser.
@@ -113,6 +114,7 @@ Authentication is the `X-Api-Key` header on every `/api/backdoor/*` request. The
 - A former Admin or Board member **cannot** keep using a key issued while they held the role — 401 from the next request on.
 - A suspended Admin or Board member **cannot** use their key: the machine surface is exempt from the onboarding gates the account-status wall runs through, so eligibility is the only thing standing between a suspended account and the API.
 - A plain member or volunteer **cannot** be issued a key, however the request is made.
+- A Board member **cannot** issue, rotate or revoke a key: `/Backdoor` is `BoardOrAdmin` to read, and each POST is `AdminOnly`.
 - Backdoor **cannot** read another section's tables. Anything it serves comes from that section's published contracts interface.
 
 ## Triggers
@@ -126,13 +128,14 @@ Authentication is the `X-Api-Key` header on every `/api/backdoor/*` request. The
 
 ## Cross-Section Dependencies
 
+- **Audit actions:** declared on `BackdoorAuditActions` (`src/Sections/Humans.Backdoor/BackdoorAuditActions.cs`), one `AuditActionDefinition` each, written through `IAuditLogService`: `BackdoorApiKeyIssued`, `BackdoorApiKeyRevoked`.
 - **Agent**: reads transcripts via `IAgentTranscriptRead` (`Humans.Agent.Contracts`).
 - **Feedback**: reads and triages via `IFeedbackTriage` (`Humans.Feedback.Contracts`).
 - **Issues**: reads and triages via `IIssueTriage` (`Humans.Issues.Contracts`).
 - **Surveys**: reads definitions, exports and aggregates via `ISurveyAnalysisRead` (`Humans.Surveys.Contracts`).
 - **Store**: reads the accounting export — order lines and settled payments per year — via `IStoreAccountingRead` (`Humans.Store.Contracts`). Any active key may read; there is no role scoping.
 - **Expenses**: reads reports, lines, attachments and the review queue via `IExpenseReportService` (`Humans.Expenses/Contracts`, not the contracts leaf: a section reference, since `IExpenseReportService` itself lives there, not in a separate `.Contracts` project). Gated per route (see Invariants) — peterdrier/Humans#1838.
-- **Finance**: reads creditor accounts, ledgers, the category map and SEPA transfers via `IHoldedFinanceService` (`Humans.Finance.Contracts`). `FinanceAdminOrAdmin`-gated — peterdrier/Humans#1838.
+- **Finance**: reads creditor accounts, ledgers, the category map, SEPA transfers and the expense reconciliation via `IHoldedFinanceService` (`Humans.Finance.Contracts`). `FinancePolicies.Manage`-gated — peterdrier/Humans#1838.
 - **Budget**: `IBudgetService.GetYearByIdAsync` for the budget-year label (e.g. "2026") an expense report is booked to, for the year filter/field — peterdrier/Humans#1838.
 - **Notifications**: reads the key owner's unread inbox and meters via `INotificationInboxRead` (the `Humans.Notifications.Contracts` leaf, so Backdoor never references the Notifications section project). Rows are the owner's own; meters follow the owner's roles.
 - **Auth**: `IRoleAssignmentService.GetActiveForUserAsync` supplies one snapshot for both Admin/Board key eligibility and the role claims installed by `BackdoorApiKeyAuthFilter`; the filter performs no second role lookup. `GetActiveUserIdsInRoleAsync` supplies the admin page's recipient list, narrowed to active accounts so the dropdown never offers someone the service would refuse. Each listed key's usable/refused badge reads `BackdoorKeyRow.IsOwnerEligible`, which `ListAsync` computes with the same eligibility test as authentication.

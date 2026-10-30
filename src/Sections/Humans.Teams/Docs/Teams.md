@@ -140,13 +140,13 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 | `POST /Teams/{slug}/Join` | `Join` (POST) | `TeamController` | `[Authorize]` — hidden teams return 404 for non-admin |
 | `POST /Teams/{slug}/Leave` | `Leave` | `TeamController` | `[Authorize]` |
 | `POST /Teams/Requests/{id}/Withdraw` | `WithdrawRequest` | `TeamController` | `[Authorize]` |
-| `GET /Teams/Summary` | `Summary` | `TeamController` | `[Authorize(Policy = TeamsAdminBoardOrAdmin)]` |
-| `GET /Teams/Create` | `CreateTeam` (GET) | `TeamController` | `[Authorize(Policy = TeamsAdminBoardOrAdmin)]` |
-| `POST /Teams/Create` | `CreateTeam` (POST) | `TeamController` | `[Authorize(Policy = TeamsAdminBoardOrAdmin)]` |
-| `GET /Teams/{id:guid}/Edit` | `EditTeam` (GET) | `TeamController` | `[Authorize(Policy = TeamsAdminBoardOrAdmin)]` |
-| `POST /Teams/{id:guid}/Edit` | `EditTeam` (POST) | `TeamController` | `[Authorize(Policy = TeamsAdminBoardOrAdmin)]` |
-| `POST /Teams/{id:guid}/Delete` | `DeleteTeam` | `TeamController` | `[Authorize(Policy = BoardOrAdmin)]` |
-| `GET /Teams/{teamId:guid}/GoogleResources` | `GetTeamGoogleResources` | `TeamController` | `[Authorize(Policy = TeamsAdminBoardOrAdmin)]` — JSON API for resource picker |
+| `GET /Teams/Summary` | `Summary` | `TeamController` | `[Authorize(Policy = TeamsPolicies.Read)]` |
+| `GET /Teams/Create` | `CreateTeam` (GET) | `TeamController` | `[Authorize(Policy = TeamsPolicies.Manage)]` |
+| `POST /Teams/Create` | `CreateTeam` (POST) | `TeamController` | `[Authorize(Policy = TeamsPolicies.Manage)]` |
+| `GET /Teams/{id:guid}/Edit` | `EditTeam` (GET) | `TeamController` | `[Authorize(Policy = TeamsPolicies.Read)]` |
+| `POST /Teams/{id:guid}/Edit` | `EditTeam` (POST) | `TeamController` | `[Authorize(Policy = TeamsPolicies.Manage)]` |
+| `POST /Teams/{id:guid}/Delete` | `DeleteTeam` | `TeamController` | `[Authorize(Policy = PolicyNames.AdminOnly)]` |
+| `GET /Teams/{teamId:guid}/GoogleResources` | `GetTeamGoogleResources` | `TeamController` | `[Authorize(Policy = TeamsPolicies.Read)]` — JSON API for resource picker |
 | `GET /Teams/{teamId:guid}/SendMessage/{id:guid}` | `SendMessage` (GET) | `TeamMessageController` | `[Authorize]` + `ITeamMessageOptionsProvider` — send as team: the team must be one the viewer may send as (see Invariants); 403 otherwise, redirect to the profile for self or an opted-out recipient |
 | `POST /Teams/{teamId:guid}/SendMessage/{id:guid}` | `SendMessage` (POST) | `TeamMessageController` | `[Authorize]`, anti-forgery, same guards re-checked |
 | `GET /Teams/{slug}/Members` | `Members` | `TeamAdminController` | `ResolveTeamManagementAsync` (coordinator or TeamsAdmin/Admin) |
@@ -185,8 +185,8 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 | EarlyEntryAdmin | Cross-team role: grant/edit/revoke Early Entry on **any** team that has `EarlyEntryEnabled` (the `ManageEarlyEntry` operation only — no other team-management authority) |
 | Sub-team Manager | Manage members, approve/reject join requests, manage roles, manage shifts, and edit the team page for their sub-team only. Cannot manage Google resources, the parent department, or sibling sub-teams |
 | TeamsAdmin | All coordinator capabilities on all teams. Create teams, edit team settings (name, slug, approval mode, parent, Google group prefix, budget flag, hidden flag, directory promotion, Early Entry enabled flag), toggle the management role, and link/unlink Google resources on all teams. **Cannot** change the sensitive flag via Edit Team (Admin-only — a non-Admin's save leaves `IsSensitive` unchanged) |
-| Board | All TeamsAdmin capabilities. Additionally can delete (deactivate) teams |
-| Admin | All Board capabilities. Additionally can change the sensitive flag (`IsSensitive`) via Edit Team, execute Google sync actions, trigger system team sync, and view sync previews |
+| Board | Read the teams summary, team settings and Google resource sync; create, edit and delete nothing (`TeamsPolicies.Read`). Board still passes the per-team admin checks until those split into read and manage |
+| Admin | All TeamsAdmin capabilities. Additionally can delete (deactivate) teams, change the sensitive flag (`IsSensitive`) via Edit Team, execute Google sync actions, trigger system team sync, and view sync previews |
 
 ## Invariants
 
@@ -248,6 +248,7 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 - Team-scoped and user-scoped join-request reads share one snapshot mapping; the team-scoped read enriches only the member name, email and profile picture through `IUserService`.
 - Joining a team that requires approval creates a join request (Pending). The request must be approved by a coordinator or TeamsAdmin before membership is granted. Teams that do not require approval add the human immediately.
 - Member join, leave, and request-withdrawal errors use the selected UI language. Join, leave and withdrawal guards return ordinary refusal results; unavailable or foreign requests stay unchanged, and refusal paths do not emit success/audit. Expected refusals log Warning with the actor and team/request identifiers. Unexpected dependency failures propagate to normal error handling instead of being reported as a guard refusal.
+- Internal `TeamMembershipNotices` owns membership welcome emails and coordinator/member inbox notices, including recipient-language fallback and best-effort delivery. `TeamService` retains authorization, mutation/outbox transactions and audit ordering. Delivery dependencies remain lazy; existing token boundaries, hidden-team behavior and message copy are preserved. No DI registration or public contract is added.
 - Coordinator notifications after a saved join request or direct join are best-effort, including display-name lookup. Notification preparation failures are logged and do not fail the committed operation.
 - Coordinators can approve/reject join requests for their own department and any sub-teams within that department (enforced by `IsUserCoordinatorOfTeamAsync`).
 - All member additions and removals are audit-logged via `AuditLogEntry`. Direct addition resolves an existing pending join request on the reloaded request, saving its review fields together with the membership.
@@ -277,7 +278,7 @@ This section's controllers. `TeamController` (`[Route("Teams")]`) handles both a
 
 A queued team message retains its success redirect if auditing fails afterward. The failure logs Critical with sender, recipient, team and contact-sharing details for reconciliation; queueing failures still propagate.
 
-A coordinator can relay a one-off message to another member on behalf of a team, with replies going to the team's Google Group. The rule is Teams' own (`TeamMessageOptionsProvider`, internal): an **active** team the viewer **coordinates** (`TeamMemberRole.Coordinator`), with a Google Group prefix whose group is linked (`ITeamResourceService`, GoogleIntegration), active, synced at least once and error-free, matched on the group's URL. `TeamMessageButtonsViewComponent` (a `Profile` user part, weight 200, registered by `SectionUserParts`) offers one button per such team on another member's profile; `TeamMessageController` re-checks the same list on GET and POST. Both refuse an opted-out recipient (`ICommunicationPreferenceService.AcceptsFacilitatedMessagesAsync`) and self-send. The message goes through Email's `IEmailMessageFactory.FacilitatedMessage` with the group as `replyTo`, then `IEmailService.SendAsync`, and is audited `FacilitatedMessageSent` against the recipient, with the team as the related entity; the audit text names the team and never copies its address. Nothing else is stored. Personal facilitated messages stay with Email (`/Email/SendMessage/{id}`).
+A coordinator can relay a one-off message to another member on behalf of a team, with replies going to the team's Google Group. The rule is Teams' own (`TeamMessageOptionsProvider`, internal): an **active** team the viewer **coordinates** (`TeamMemberRole.Coordinator`), with a Google Group prefix whose group is linked (`ITeamResourceService`, GoogleIntegration), active, synced at least once and error-free, matched on the group's URL. `TeamMessageButtonsViewComponent` (a `Profile` user part, weight 200, registered by `IUserPart`) offers one button per such team on another member's profile; `TeamMessageController` re-checks the same list on GET and POST. Both refuse an opted-out recipient (`ICommunicationPreferenceService.AcceptsFacilitatedMessagesAsync`) and self-send. The message goes through Email's `IEmailMessageFactory.FacilitatedMessage` with the group as `replyTo`, then `IEmailService.SendAsync`, and is audited `FacilitatedMessageSent` against the recipient, with the team as the related entity; the audit text names the team and never copies its address. Nothing else is stored. Personal facilitated messages stay with Email (`/Email/SendMessage/{id}`).
 
 ## Negative Access Rules
 
@@ -312,6 +313,8 @@ A coordinator can relay a one-off message to another member on behalf of a team,
 
 **Outbound** — every `ProjectReference` of `Humans.Teams.csproj` beyond Base and its own leaf, and what it is for:
 
+- **Audit actions:** declared on `TeamsAuditActions` (`src/Sections/Humans.Teams/TeamsAuditActions.cs`), one `AuditActionDefinition` each, written through `IAuditLogService`: `TeamMemberAdded`, `TeamMemberRemoved`, `TeamJoinedDirectly`, `TeamLeft`, `TeamJoinRequestApproved`, `TeamJoinRequestRejected`, `TeamMemberRoleChanged`, `TeamRoleDefinitionCreated`, `TeamRoleDefinitionUpdated`, `TeamRoleDefinitionDeleted`, `TeamRoleAssigned`, `TeamRoleUnassigned`, `TeamPageContentUpdated`, `EarlyEntryGranted`, `EarlyEntryUpdated`, `EarlyEntryRevoked`.
+- **Notifications:** `INotificationEmitter` (and `INotificationAutoResolve` where a source resolves). Its sources are declared in `TeamsNotificationSources` (`src/Sections/Humans.Teams/TeamsNotificationSources.cs`), one `NotificationSourceDefinition` each: `TeamMemberAdded` (informational, to the user: user added to a team); `TeamMemberRemoved` (informational, to the user: user removed from a team); `TeamJoinRequestSubmitted` (actionable, to team coordinators: user requests to join); `TeamJoinRequestDecided` (informational, to the requester: request approved/rejected).
 - **Users.Contracts**: `IUserService.GetUserInfosAsync` batch-resolves `UserInfo` for nav-stripped reads, projected straight into DTOs; `IUserService` feeds the reconciler.
 - **Auth:** `IRoleAssignmentService` for role-holder reads and `IAdminAuthorizationService` for the actor checks.
 - **GoogleIntegration:** each team can have linked Google resources (Drive folders, Groups). Membership changes append events through `IGoogleSyncOutboxService`, whose processor calls `IGoogleSyncWrite.AddUserToTeamResourcesAsync` for joins (a leave event needs no call: reconciliation removes the access); `TeamDriveAccessSource` supplies expected Drive access; `ITeamResourceService` for the Members page resource list, the Google-group reconciliation and send as team's linked-and-synced group check.
@@ -373,7 +376,7 @@ Teams-owned resource keys use the `Teams_` prefix in all six cultures. Shared vo
 
 ### System-team reconciler
 
-`SystemTeamSyncJob` is Teams' own: `Services/SystemTeamSyncJob.cs`, `internal sealed`, registered in `Section.cs` and scheduled by `SectionJobs.cs`. Its interface `ISystemTeamSync` lives on `Humans.Teams.Contracts`, which is what the consuming sections reference. Hangfire keys the recurring job on its id and rewrites the stored type name at every startup, so the implementation's assembly and namespace are free to move.
+`SystemTeamSyncJob` is Teams' own: `Services/SystemTeamSyncJob.cs`, `internal sealed`, registered in `Section.cs` and scheduled by `Section.cs`. Its interface `ISystemTeamSync` lives on `Humans.Teams.Contracts`, which is what the consuming sections reference. Hangfire keys the recurring job on its id and rewrites the stored type name at every startup, so the implementation's assembly and namespace are free to move.
 
 ## Issue queue
 

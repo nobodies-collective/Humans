@@ -32,7 +32,7 @@ overlaps across profile, ticket, shift and marketing opt-in.
 | "What was the app composed from?" | admin, reading | `Sections` — the DI-published catalog, rendered as-is |
 | "What migrations has this instance applied?" | deployment tooling, anonymous | `DbVersion` — JSON, names and counts only |
 | "Unstick Hangfire" | admin, acting | `ClearHangfireLocks` — the one write to infrastructure state; logged at Warning |
-| "What does the design system contain?" | designer/developer | `ColorPalette` (static, anonymous), `WidgetGallery` (admin; live keys for the search-row cards), `FormatGallery` and `Translations` (reflection over Base's formatter and resource sets) |
+| "What does the design system contain?" | designer/developer | `ColorPalette` (static, anonymous), `WidgetGallery` (Board or Admin; live keys for the search-row cards), `FormatGallery` and `Translations` (reflection over Base's formatter and resource sets) |
 | "What does the user cache hold, row by row?" | admin, reading | `UsersDebugController.Index` — the `UserInfo` snapshot as a sortable table (`/Debug/Users`) |
 | "How does the member base overlap?" | the admin dashboard, via a chrome slot | `UserSetMembershipCardViewComponent` + `UserSetMembershipCalculator` — bitmask partition of the user cache over profile, ticket, shift and marketing |
 
@@ -51,8 +51,8 @@ The shapes imply a section with no data layer at all:
   Base singletons' snapshots. No service layer: there is no rule to enforce, only projection.
 - **One static calculator** (`UserSetMembershipCalculator`) and its view component, because
   the dashboard card's mask math is the one piece of logic worth a unit test.
-- **Contribution seams at the root**: `SectionAdminNav` (the Debug
-  sidebar group) and `SectionChrome` (the dashboard card). `Section.Register` is empty and
+- **Contribution seams at the root**: `ISectionAdminNav` (the Debug
+  sidebar group) and `ISectionChrome` (the dashboard card). `Section.Register` is empty and
   the class exists only so Shell discovers the assembly.
 - **Docs** — the invariant doc, the authorization table, and one feature spec per
   telemetry screen that has non-obvious capture rules (client stats, HTTP errors).

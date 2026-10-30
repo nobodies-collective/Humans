@@ -96,7 +96,7 @@ internal sealed class ApplicationDecisionService(
 
         await SendDecisionNotificationAsync(
             application,
-            NotificationSource.ApplicationApproved,
+            GovernanceNotificationSources.ApplicationApproved,
             "Governance_Notification_ApplicationApproved",
             "Governance_Notification_ApplicationApprovedBody",
             "ApplicationApproved",
@@ -146,7 +146,7 @@ internal sealed class ApplicationDecisionService(
 
         await SendDecisionNotificationAsync(
             application,
-            NotificationSource.ApplicationRejected,
+            GovernanceNotificationSources.ApplicationRejected,
             "Governance_Notification_ApplicationRejected",
             "Governance_Notification_ApplicationRejectedBody",
             "ApplicationRejected",
@@ -180,7 +180,7 @@ internal sealed class ApplicationDecisionService(
         var approved = application.Status == ApplicationStatus.Approved;
         var decision = approved ? "approved" : "rejected";
         await auditLogService.LogAsync(
-            approved ? AuditAction.TierApplicationApproved : AuditAction.TierApplicationRejected,
+            approved ? GovernanceAuditActions.TierApplicationApproved : GovernanceAuditActions.TierApplicationRejected,
             AuditEntityTypes.Application,
             application.Id,
             $"{application.MembershipTier} application {decision}",
@@ -417,7 +417,7 @@ internal sealed class ApplicationDecisionService(
             await membershipTiers.SyncExpiryAsync(application.Id, row.ExpectedExpiry, ct);
 
             await auditLogService.LogAsync(
-                AuditAction.TierTermExpiryCorrected,
+                GovernanceAuditActions.TierTermExpiryCorrected,
                 AuditEntityTypes.Application,
                 application.Id,
                 $"{application.MembershipTier} term expiry {row.StoredExpiry.ToInvariantDate() ?? "null"} -> {row.ExpectedExpiry.ToInvariantDate()}",
@@ -769,7 +769,7 @@ internal sealed class ApplicationDecisionService(
 
     private async Task SendDecisionNotificationAsync(
         MemberApplication application,
-        NotificationSource source,
+        NotificationSourceDefinition source,
         string titleKey,
         string bodyKey,
         string logName,

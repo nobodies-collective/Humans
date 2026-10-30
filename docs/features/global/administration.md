@@ -198,10 +198,10 @@ Each active section implementing `ISectionAdminTiles` contributes `AdminTile`s (
 | `shell.online.hour` | Active (1h) | Shell | — | `IUserActivityTracker`, 1-hour window |
 | `shell.online.day` | Active (24h) | Shell | — | `IUserActivityTracker`, 24-hour window |
 | `teams.total` | Teams | Teams | — | `ITeamService.GetTeamsAsync` count |
-| `auditlog.total` | Audit events | Audit Log | — | `IAuditViewerService.GetPageAsync`'s `TotalCount` |
+| `auditlog.total` | Audit events | Audit Log | — | `AuditViewerService.GetPageAsync`'s `TotalCount` |
 | `email.outbox` | Emails | Email | — | `IEmailOutboxManagement.GetOutboxStatsAsync` (section-internal) total |
-| `store.orders` | Store orders | Store | StoreCatalogAdmin | Store's own `Service.GetStoreSummaryAsync` for the active event year; blank with no active event |
-| `expenses.reports` | Expense reports | Expenses | FinanceAdminOrAdmin | `IExpenseReportService.GetAllAsync`, all statuses |
+| `store.orders` | Store orders | Store | StorePolicies.Read | Store's own `Service.GetStoreSummaryAsync` for the active event year; blank with no active event |
+| `expenses.reports` | Expense reports | Expenses | FinancePolicies.Read | `IExpenseReportService.GetAllAsync`, all statuses |
 | `workgroups.queue` | Workgroups | Workgroups | BoardOrAdmin | `IWorkgroupService.GetRegisterAsync` — pending applications/referrals plus items awaiting a disposition; hidden when nothing is waiting |
 
 ### Cards — `admin-dashboard` chrome slot
@@ -211,7 +211,6 @@ Sections also contribute richer cards into the `admin-dashboard` chrome slot (`C
 | Card | Section | Content |
 |---|---|---|
 | Sign-in method | Shell | Google vs email-link sign-ins since the last restart |
-| Recent activity | Audit Log | Last 24h of audit history (AdminOnly) |
 | User set membership | Debug | Venn + UpSet plot over Active ∪ Ticketed ∪ Shifted, etc. |
 | Tier applications | Governance | Colaborador/Asociado application counts |
 | Staffing by department | Shifts | Event-wide coverage plus a per-department breakdown |
@@ -424,10 +423,10 @@ Sections contribute a tab to `/Settings` via `ISectionSettings`; the old standal
 
 | Tab key | Section | Policy | Old route (now removed) |
 |---|---|---|---|
-| `city-planning` | CityPlanning | `CityPlanningMapAdmin` (CampsAdmin/Admin or a city-planning team member — wider than the `CampAdminOrAdmin`-gated "Barrio map" nav item, since this tab is the only route to these controls) | Settings portion of `/CityPlanning/BarrioMap/Admin` (page stays for GeoJSON/containers/export) |
-| `gate` | Gate | `TicketAdminOrAdmin` | Settings portion of `/Gate/Admin` (page stays for staff PIN admin) |
-| `event-guide` | Events | `EventsAdminOrAdmin` | `/Events/Admin/Settings` (admin-nav item removed; the Events member-nav "Guide Settings" link points at the tab) |
-| `barrios` | Camps | `CampAdminOrAdmin` | Settings portion of `/Camps/Admin` (page stays for the rest of camp/season admin) |
+| `city-planning` | CityPlanning | `CityPlanningMapAdmin` (CampsAdmin/Admin or a city-planning team member — wider than the `CampsPolicies.Manage`-gated "Barrio map" nav item, since this tab is the only route to these controls) | Settings portion of `/CityPlanning/BarrioMap/Admin` (page stays for GeoJSON/containers/export) |
+| `gate` | Gate | `TicketsPolicies.Manage` | Settings portion of `/Gate/Admin` (page stays for staff PIN admin) |
+| `event-guide` | Events | `EventsPolicies.Manage` | `/Events/Admin/Settings` (admin-nav item removed; the Events member-nav "Guide Settings" link points at the tab) |
+| `barrios` | Camps | `CampsPolicies.Manage` | Settings portion of `/Camps/Admin` (page stays for the rest of camp/season admin) |
 | `shifts` | Shifts | `AdminOnly` | `/Shifts/Settings` (no nav item existed; inline links now point at the tab) |
 | `agent` | Agent | `AdminOnly` | `/Agent/Admin/Settings` (nav item removed) |
 | `google-sync` | GoogleIntegration | `AdminOnly` | `/Google/SyncSettings` (nav item removed) |

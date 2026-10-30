@@ -181,7 +181,7 @@ public sealed class TicketTransferServiceTests
                 && r.ReceiverEmail == "alice@example.com"),
             Arg.Any<CancellationToken>());
         await _auditLog.Received(1).LogAsync(
-            AuditAction.TicketTransferRequested, Arg.Any<string>(), Arg.Any<Guid>(),
+            TicketsAuditActions.TicketTransferRequested, Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<string>(), _senderId, _receiverId, Arg.Any<string>());
         // The builder is sealed with no interface, so the sent message is the assertion surface.
         await _emailService.Received(1).SendAsync(
@@ -215,7 +215,7 @@ public sealed class TicketTransferServiceTests
                 Arg.Is<TicketTransferRequest>(r => r.Id == row.Id && r.Status == TicketTransferStatus.Pending),
                 Arg.Any<CancellationToken>());
             await _auditLog.Received(1).LogAsync(
-                AuditAction.TicketTransferRequested, Arg.Any<string>(), row.Id,
+                TicketsAuditActions.TicketTransferRequested, Arg.Any<string>(), row.Id,
                 Arg.Any<string>(), _senderId, _receiverId, Arg.Any<string>());
         }
         else
@@ -408,7 +408,7 @@ public sealed class TicketTransferServiceTests
         results.Should().ContainSingle(result => string.Equals(
             result.RefusalKey, "Tickets_TicketTransfer_AlreadyPending", StringComparison.Ordinal));
         _auditLog.ReceivedCalls().Should().ContainSingle(call =>
-            call.GetArguments().OfType<AuditAction>().Contains(AuditAction.TicketTransferRequested));
+            call.GetArguments().OfType<AuditActionDefinition>().Contains(TicketsAuditActions.TicketTransferRequested));
     }
 
     private sealed class PauseFirstTransferSave : SaveChangesInterceptor
@@ -442,7 +442,7 @@ public sealed class TicketTransferServiceTests
 
         req.Status.Should().Be(TicketTransferStatus.Cancelled);
         await _auditLog.Received(1).LogAsync(
-            AuditAction.TicketTransferCancelled, Arg.Any<string>(), req.Id, Arg.Any<string>(), _senderId);
+            TicketsAuditActions.TicketTransferCancelled, Arg.Any<string>(), req.Id, Arg.Any<string>(), _senderId);
     }
 
     [HumansFact]
@@ -484,7 +484,7 @@ public sealed class TicketTransferServiceTests
         req.Status.Should().Be(TicketTransferStatus.Approved);
         req.DecidedByUserId.Should().Be(_adminId);
         await _auditLog.Received(1).LogAsync(
-            AuditAction.TicketTransferApproved, Arg.Any<string>(), req.Id, Arg.Any<string>(),
+            TicketsAuditActions.TicketTransferApproved, Arg.Any<string>(), req.Id, Arg.Any<string>(),
             _adminId, _senderId, Arg.Any<string>());
         // Sender + Receiver each get a "successful" decision email.
         await _emailService.Received(2).SendAsync(
@@ -643,7 +643,7 @@ public sealed class TicketTransferServiceTests
         req.VendorResult.Should().Be(TicketTransferVendorResult.Failed);
         // Audited under the dedicated auto-failed action, NOT TicketTransferApproved.
         await _auditLog.Received(1).LogAsync(
-            AuditAction.TicketTransferAutoFailed, Arg.Any<string>(), req.Id, Arg.Any<string>(),
+            TicketsAuditActions.TicketTransferAutoFailed, Arg.Any<string>(), req.Id, Arg.Any<string>(),
             _adminId, _senderId, Arg.Any<string>());
         await _ticketRepo.DidNotReceive().UpsertAttendeesAsync(
             Arg.Any<IReadOnlyList<TicketAttendee>>(), Arg.Any<CancellationToken>());
@@ -910,7 +910,7 @@ public sealed class TicketTransferServiceTests
         req.Status.Should().Be(TicketTransferStatus.Rejected);
         req.AdminNotes.Should().Be("duplicate request");
         await _auditLog.Received(1).LogAsync(
-            AuditAction.TicketTransferRejected, Arg.Any<string>(), req.Id, Arg.Any<string>(),
+            TicketsAuditActions.TicketTransferRejected, Arg.Any<string>(), req.Id, Arg.Any<string>(),
             _adminId, _senderId, Arg.Any<string>());
         await _emailService.Received(2).SendAsync(
             Arg.Is<EmailMessage>(m => m.TemplateName == "ticket_transfer_cancelled"
@@ -1104,6 +1104,65 @@ public sealed class TicketTransferServiceTests
             _auditLog,
             _clock,
             NullLogger<TicketTransferService>.Instance);
+
+    [HumansTheory]
+    [Xunit.InlineData("create", 1001)]
+    [Xunit.InlineData("approve", 1001)]
+    [Xunit.InlineData("process", 1001)]
+    [Xunit.InlineData("retry", 1001)]
+    [Xunit.InlineData("reject", 1001)]
+    [Xunit.InlineData("create", 1000)]
+    [Xunit.InlineData("approve", 1000)]
+    [Xunit.InlineData("process", 1000)]
+    [Xunit.InlineData("retry", 1000)]
+    [Xunit.InlineData("reject", 1000)]
+    public async Task TransferText_RespectsStoredLength_BeforeAnyWrite(string action, int length)
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        var text = new string('x', length);
+        var request = MakePending(Guid.NewGuid());
+        if (string.Equals(action, "retry", StringComparison.Ordinal))
+        {
+            request.VendorResult = TicketTransferVendorResult.VoidSucceededIssueFailed;
+            request.VendorHoldId = "hold_123";
+        }
+        _transferRepo.GetByIdAsync(request.Id, Arg.Any<CancellationToken>()).Returns(request);
+        StubAttendee(TicketAttendeeStatus.Valid, _senderId);
+        _vendor.VoidIssuedTicketAsync("tkt_original", true, Arg.Any<CancellationToken>())
+            .Returns(new VoidIssuedTicketResult("tkt_original", "hold_123"));
+        _vendor.IssueTicketAsync(Arg.Any<IssueTicketRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new VendorTicketDto("tt_new", null, "Alice Smith", "alice@example.com", "Full Week", 0m, "valid"));
+
+        var result = action switch
+        {
+            "create" => await _service.CreateRequestAsync(new(_attendeeId, _receiverId, text), _senderId, ct),
+            "approve" => await _service.ApproveAsync(request.Id, _adminId, text, ct),
+            "process" => await _service.ProcessTransferAsync(request.Id, _adminId, text, ct),
+            "retry" => await _service.RetryReissueAsync(request.Id, _adminId, text, ct),
+            "reject" => await _service.RejectAsync(request.Id, _adminId, text, ct),
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
+
+        result.Succeeded.Should().Be(length <= 1000);
+        if (length > 1000)
+        {
+            if (string.Equals(action, "create", StringComparison.Ordinal))
+                result.RefusalKey.Should().Be("Tickets_TicketTransfer_ReasonTooLong");
+            else
+                result.OperatorRefusal.Should().Contain("1,000");
+            request.Status.Should().Be(TicketTransferStatus.Pending);
+            request.AdminNotes.Should().BeNull();
+            _transferRepo.ReceivedCalls().Should().NotContain(call => string.Equals(call.GetMethodInfo().Name, "AddAsync", StringComparison.Ordinal) || string.Equals(call.GetMethodInfo().Name, "UpdateAsync", StringComparison.Ordinal));
+            _ticketRepo.ReceivedCalls().Should().NotContain(call => string.Equals(call.GetMethodInfo().Name, "UpsertAttendeesAsync", StringComparison.Ordinal));
+            _vendor.ReceivedCalls().Should().BeEmpty();
+            _auditLog.ReceivedCalls().Should().BeEmpty();
+            _emailService.ReceivedCalls().Should().BeEmpty();
+        }
+        else if (!string.Equals(action, "create", StringComparison.Ordinal))
+            request.AdminNotes.Should().Be(text);
+        else
+            await _transferRepo.Received(1).AddAsync(Arg.Is<TicketTransferRequest>(r => string.Equals(r.SenderReason, text, StringComparison.Ordinal)), ct);
+    }
 
     private void StubAttendee(
         TicketAttendeeStatus status, Guid attendeeMatchedUserId, Instant? checkedInAt = null)

@@ -125,7 +125,7 @@ internal sealed class RoleAssignmentService(
         rowCache.Clear();
 
         await auditLogService.LogAsync(
-            AuditAction.RoleAssigned, nameof(User), userId,
+            AuthAuditActions.RoleAssigned, nameof(User), userId,
             $"'{roleName}'",
             assignerId);
 
@@ -133,7 +133,7 @@ internal sealed class RoleAssignmentService(
         try
         {
             await notificationService.SendAsync(
-                NotificationSource.RoleAssignmentChanged,
+                AuthNotificationSources.RoleAssignmentChanged,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
                 $"You were assigned the {roleName} role",
@@ -186,7 +186,7 @@ internal sealed class RoleAssignmentService(
         rowCache.Clear();
 
         await auditLogService.LogAsync(
-            AuditAction.RoleEnded, nameof(User), roleAssignment.UserId,
+            AuthAuditActions.RoleEnded, nameof(User), roleAssignment.UserId,
             $"'{roleAssignment.RoleName}'",
             enderId);
 
@@ -194,7 +194,7 @@ internal sealed class RoleAssignmentService(
         try
         {
             await notificationService.SendAsync(
-                NotificationSource.RoleAssignmentChanged,
+                AuthNotificationSources.RoleAssignmentChanged,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
                 $"Your {roleAssignment.RoleName} role assignment has ended",

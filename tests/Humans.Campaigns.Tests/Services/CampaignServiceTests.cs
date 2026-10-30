@@ -114,7 +114,7 @@ public sealed class CampaignServiceTests
     public async Task AdminMutations_record_the_actor_and_committed_changes()
     {
         var ct = Xunit.TestContext.Current.CancellationToken;
-        _audit.LogAsync(AuditAction.CampaignCreated, "Campaign", Arg.Any<Guid>(),
+        _audit.LogAsync(CampaignsAuditActions.CampaignCreated, "Campaign", Arg.Any<Guid>(),
             Arg.Any<string>(), _actorId).Returns(async call =>
             {
                 var savedId = call.ArgAt<Guid>(2);
@@ -134,13 +134,13 @@ public sealed class CampaignServiceTests
         await _service.CompleteAsync(_actorId, campaignId, ct);
 
         var entries = _audit.ReceivedCalls().Select(call => call.GetArguments()).ToList();
-        entries.Select(args => (AuditAction)args[0]!).Should().Equal(
-            AuditAction.CampaignCreated, AuditAction.CampaignUpdated,
-            AuditAction.CampaignCodesImported, AuditAction.CampaignActivated,
-            AuditAction.CampaignWaveSent, AuditAction.CampaignGrantResent,
-            AuditAction.CampaignCompleted);
+        entries.Select(args => (AuditActionDefinition)args[0]!).Should().Equal(
+            CampaignsAuditActions.CampaignCreated, CampaignsAuditActions.CampaignUpdated,
+            CampaignsAuditActions.CampaignCodesImported, CampaignsAuditActions.CampaignActivated,
+            CampaignsAuditActions.CampaignWaveSent, CampaignsAuditActions.CampaignGrantResent,
+            CampaignsAuditActions.CampaignCompleted);
         entries.Should().OnlyContain(args => (Guid)args[4]! == _actorId);
-        entries.Single(args => (AuditAction)args[0]! == AuditAction.CampaignWaveSent)[5].Should().Be(user.Id);
+        entries.Single(args => (AuditActionDefinition)args[0]! == CampaignsAuditActions.CampaignWaveSent)[5].Should().Be(user.Id);
         ClearAllTrackers();
         (await CampaignsDb.Campaigns.SingleAsync(ct)).Status.Should().Be(CampaignStatus.Completed);
 #pragma warning disable CS0618 // a retired column must stay unwritten until its drop is approved
@@ -831,7 +831,7 @@ public sealed class CampaignServiceTests
         arguments[3].Should().Be(fullTitle);
         arguments[5].Should().Be("Your campaign code is available under My Codes in your profile.");
         ((IReadOnlyList<Guid>)arguments[4]!).Should().Equal(user.Id);
-        arguments[0].Should().Be(NotificationSource.CampaignReceived);
+        arguments[0].Should().Be(CampaignsNotificationSources.CampaignReceived);
     }
 
     [HumansFact]
@@ -855,7 +855,7 @@ public sealed class CampaignServiceTests
             SeedTeamMember(team.Id, user.Id);
         await SaveAllAsync(ct);
         var attempts = 0;
-        _notifications.SendAsync(Arg.Any<NotificationSource>(), Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
+        _notifications.SendAsync(Arg.Any<NotificationSourceDefinition>(), Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
             Arg.Any<string>(), Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(_ => ++attempts == 1 ? Task.FromException(new InvalidOperationException("notification failure")) : Task.CompletedTask);
@@ -974,7 +974,7 @@ public sealed class CampaignServiceTests
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         var grant = await CampaignsDb.CampaignGrants.SingleAsync(Xunit.TestContext.Current.CancellationToken);
-        await _audit.Received(1).LogAsync(AuditAction.CampaignWaveSent, "Campaign", campaign.Id,
+        await _audit.Received(1).LogAsync(CampaignsAuditActions.CampaignWaveSent, "Campaign", campaign.Id,
             Arg.Is<string>(description => description.Contains(grant.Id.ToString(), StringComparison.Ordinal)),
             _actorId, user.Id, "User");
     }
@@ -1042,7 +1042,7 @@ public sealed class CampaignServiceTests
         await _emailService.Received(1).SendAsync(
             Arg.Is<EmailMessage>(m => m.UserId == user.Id && m.CampaignId == campaign.Id),
             Arg.Any<CancellationToken>());
-        await _audit.Received(1).LogAsync(AuditAction.CampaignGrantResent, "CampaignGrant", grant.Id,
+        await _audit.Received(1).LogAsync(CampaignsAuditActions.CampaignGrantResent, "CampaignGrant", grant.Id,
             Arg.Any<string>(), _actorId, user.Id, "User");
     }
 

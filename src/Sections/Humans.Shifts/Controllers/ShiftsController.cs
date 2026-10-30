@@ -3,6 +3,7 @@ using System.Globalization;
 using Humans.Base.Extensions;
 using Humans.AuditLog.Contracts;
 using Humans.Shifts.Services;
+using Humans.Shifts.Services.Dtos;
 using Humans.Shifts.Contracts;
 using Humans.Teams.Contracts;
 using Humans.Shifts.Domain;
@@ -96,15 +97,15 @@ internal sealed class ShiftsController(
 
     // One policy across all three scopes: the global page exposes the superset, so the narrower ones share it.
     [HttpGet("Summary")]
-    [Authorize(Policy = PolicyNames.ShiftDepartmentManager)]
+    [Authorize(Policy = ShiftsPolicies.DepartmentRead)]
     public Task<IActionResult> Summary() => RenderSummaryAsync(null, null);
 
     [HttpGet("Summary/{teamSlug}")]
-    [Authorize(Policy = PolicyNames.ShiftDepartmentManager)]
+    [Authorize(Policy = ShiftsPolicies.DepartmentRead)]
     public Task<IActionResult> SummaryTeam(string teamSlug) => RenderSummaryAsync(teamSlug, null);
 
     [HttpGet("Summary/{teamSlug}/{rotaGuid:guid}")]
-    [Authorize(Policy = PolicyNames.ShiftDepartmentManager)]
+    [Authorize(Policy = ShiftsPolicies.DepartmentRead)]
     public Task<IActionResult> SummaryRota(string teamSlug, Guid rotaGuid) =>
         RenderSummaryAsync(teamSlug, rotaGuid);
 
@@ -389,9 +390,14 @@ internal sealed class ShiftsController(
     {
         if (!ModelState.IsValid)
         {
-            SetError("Invalid event settings.");
+            // Name the broken rule: a bare "invalid" leaves the operator guessing which field to fix.
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)
+                .Where(m => !string.IsNullOrWhiteSpace(m)).Distinct(StringComparer.Ordinal).ToList();
+            SetError(errors.Count > 0 ? string.Join(" ", errors) : "Invalid event settings.");
             return Redirect("/Settings#shifts");
         }
+
+        if (GetCurrentUserId() is not { } actorId) return Challenge();
 
         // Shifts keeps only its own knobs, created on demand for Settings' active event.
         var active = await burnSettings.GetActiveAsync();
@@ -402,7 +408,10 @@ internal sealed class ShiftsController(
         }
 
         await shiftMgmt.SaveKnobsAsync(
-            active.Id, model.IsShiftBrowsingOpen, model.GlobalVolunteerCap, model.ReminderLeadTimeHours);
+            active.Id, model.IsShiftBrowsingOpen, model.GlobalVolunteerCap, model.ReminderLeadTimeHours,
+            new BuildSubPeriodStarts(model.FirstCrewStartOffset, model.SetupWeekStartOffset,
+                model.PreEventWeekStartOffset, model.FinishingWeekendStartOffset),
+            actorId);
 
         SetSuccess("Event settings saved.");
         return Redirect("/Settings#shifts");
@@ -456,7 +465,7 @@ internal sealed class ShiftsController(
         var allSignups = await signupService.GetAllForOrphanScanAsync(ct);
         var auditedIds = await auditLogService.GetEntityIdsForEntityTypeActionsAsync(
             nameof(ShiftSignup),
-            [AuditAction.ShiftSignupCreated, AuditAction.ShiftSignupVoluntold, AuditAction.ShiftSignupConfirmed],
+            [ShiftsAuditActions.ShiftSignupCreated, ShiftsAuditActions.ShiftSignupVoluntold, ShiftsAuditActions.ShiftSignupConfirmed],
             ct);
 
         var orphans = allSignups.Where(s => !auditedIds.Contains(s.Id)).ToList();
@@ -503,6 +512,28 @@ internal sealed class ShiftsController(
             .OrderBy(r => r.UserDisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(r => r.CreatedAt)
             .ToList();
+    }
+
+    /// <summary>
+    /// Hands one member's medical conditions to a MedicalDataViewer and records who looked (the IBAN reveal pattern).
+    /// The text never renders in a page: the badge in <c>_VolunteerProfileBadges</c> posts here and shows the answer.
+    /// </summary>
+    [HttpPost("Medical/{userId:guid}/Reveal")]
+    [Authorize(Policy = ShiftsPolicies.MedicalDataViewer)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RevealMedical(Guid userId, CancellationToken ct)
+    {
+        if (GetCurrentUserId() is not { } actorUserId) return Forbid();
+
+        var info = await _userService.GetUserInfoAsync(userId, ct);
+        var text = info?.Profile?.MedicalConditions;
+        if (info is null || string.IsNullOrEmpty(text)) return NotFound();
+
+        // Entity "User" + the subject's id is what the member's own medical page lists.
+        await auditLogService.LogAsync(
+            ShiftsAuditActions.MedicalConditionsRevealed, "User", info.Id,
+            $"Medical conditions revealed for user {info.Id}", actorUserId);
+        return Json(new { text });
     }
 }
 

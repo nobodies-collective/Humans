@@ -33,7 +33,7 @@ public class VolunteerTrackingServiceTests
             .Returns(Task.FromCanceled<IReadOnlyList<GeneralAvailability>>(cancellation.Token));
         var service = new VolunteerTrackingService(
             repo, Substitute.For<IShiftManagementRepository>(),
-            new EventCalendarResolver(Substitute.For<ISettingsService>()),
+            new EventCalendarResolver(Substitute.For<ISettingsService>(), Substitute.For<Humans.Shifts.Data.IShiftManagementRepository>()),
             Substitute.For<IUserService>(), Substitute.For<ITicketService>(), new ShiftViewProbe().Cache,
             new FakeClock(TestNow), Substitute.For<IAuditLogService>());
 
@@ -723,13 +723,13 @@ public class VolunteerTrackingServiceTests
         await sut.SetCampSetupAsync(userId, setupDate, notes: null, coordId, Xunit.TestContext.Current.CancellationToken);
 
         await audit.Received(1).LogAsync(
-            AuditAction.VolunteerCampSetupSet, nameof(VolunteerBuildStatus), userId,
+            ShiftsAuditActions.VolunteerCampSetupSet, nameof(VolunteerBuildStatus), userId,
             $"BarrioSetupStartDate set to {NodaTime.Text.LocalDatePattern.Iso.Format(setupDate)}; notes=—", coordId);
         await audit.Received(1).LogAsync(
-            AuditAction.VolunteerDayOffCleared, nameof(VolunteerBuildStatus), userId,
+            ShiftsAuditActions.VolunteerDayOffCleared, nameof(VolunteerBuildStatus), userId,
             "DayOffset=-6; auto-cleared by camp-setup change", coordId);
         await audit.Received(1).LogAsync(
-            AuditAction.VolunteerDayOffCleared, nameof(VolunteerBuildStatus), userId,
+            ShiftsAuditActions.VolunteerDayOffCleared, nameof(VolunteerBuildStatus), userId,
             "DayOffset=-4; auto-cleared by camp-setup change", coordId);
     }
 
@@ -759,7 +759,7 @@ public class VolunteerTrackingServiceTests
         await sut.ClearCampSetupAsync(userId, coordId, Xunit.TestContext.Current.CancellationToken);
 
         await audit.Received(1).LogAsync(
-            AuditAction.VolunteerCampSetupCleared, nameof(VolunteerBuildStatus), userId,
+            ShiftsAuditActions.VolunteerCampSetupCleared, nameof(VolunteerBuildStatus), userId,
             "BarrioSetupStartDate cleared", coordId);
     }
 
@@ -777,7 +777,7 @@ public class VolunteerTrackingServiceTests
         await sut.SetDayOffAsync(userId, -3, reason, coordId, Xunit.TestContext.Current.CancellationToken);
 
         await audit.Received(1).LogAsync(
-            AuditAction.VolunteerDayOffMarked, nameof(VolunteerBuildStatus), userId,
+            ShiftsAuditActions.VolunteerDayOffMarked, nameof(VolunteerBuildStatus), userId,
             $"DayOffset=-3; reason={auditedReason}", coordId);
     }
 
@@ -816,7 +816,7 @@ public class VolunteerTrackingServiceTests
         await sut.ClearDayOffAsync(userId, -3, coordId, Xunit.TestContext.Current.CancellationToken);
 
         await audit.Received(present ? 1 : 0).LogAsync(
-            AuditAction.VolunteerDayOffCleared, nameof(VolunteerBuildStatus), userId,
+            ShiftsAuditActions.VolunteerDayOffCleared, nameof(VolunteerBuildStatus), userId,
             "DayOffset=-3; cleared by coordinator", coordId);
     }
 
@@ -855,7 +855,7 @@ public class VolunteerTrackingServiceTests
         settingsService.GetActiveEventSettingsAsync(Arg.Any<CancellationToken>()).Returns(calendar);
         settingsService.GetEventSettingsByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(ci => calendar is not null && calendar.Id == ci.Arg<Guid>() ? calendar : null);
-        var calendarResolver = new EventCalendarResolver(settingsService);
+        var calendarResolver = new EventCalendarResolver(settingsService, Substitute.For<Humans.Shifts.Data.IShiftManagementRepository>());
 
         var userService = Substitute.For<IUserService>();
         userService.GetAllUserInfosAsync(Arg.Any<CancellationToken>())

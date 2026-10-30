@@ -482,7 +482,7 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
             TestContext.Current.CancellationToken);
 
         await AuditLog.Received(1).LogAsync(
-            AuditAction.TierApplicationApproved,
+            GovernanceAuditActions.TierApplicationApproved,
             AuditEntityTypes.Application,
             application.Id,
             "Asociado application approved",
@@ -725,11 +725,11 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         var persisted = await GovernanceDb.Applications.FindAsync(app.Id, TestContext.Current.CancellationToken);
         persisted!.Status.Should().Be(approve ? ApplicationStatus.Approved : ApplicationStatus.Rejected);
         await AuditLog.Received(1).LogAsync(
-            approve ? AuditAction.TierApplicationApproved : AuditAction.TierApplicationRejected,
+            approve ? GovernanceAuditActions.TierApplicationApproved : GovernanceAuditActions.TierApplicationRejected,
             AuditEntityTypes.Application, app.Id, Arg.Any<string>(), reviewerId,
             Arg.Any<Guid?>(), Arg.Any<string?>());
         await _notificationService.Received(1).SendAsync(
-            approve ? NotificationSource.ApplicationApproved : NotificationSource.ApplicationRejected,
+            approve ? GovernanceNotificationSources.ApplicationApproved : GovernanceNotificationSources.ApplicationRejected,
             NotificationClass.Informational, NotificationPriority.Normal, Arg.Any<string>(),
             Arg.Is<IReadOnlyList<Guid>>(ids => ids.Count == 1 && ids[0] == userId),
             Arg.Any<string?>(), "/Governance/Applications", "View application",
@@ -760,7 +760,7 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
 
         result.Success.Should().BeTrue();
         var args = _notificationService.ReceivedCalls().Single().GetArguments();
-        args[0].Should().Be(approve ? NotificationSource.ApplicationApproved : NotificationSource.ApplicationRejected);
+        args[0].Should().Be(approve ? GovernanceNotificationSources.ApplicationApproved : GovernanceNotificationSources.ApplicationRejected);
         ((IReadOnlyList<Guid>)args[4]!).Should().ContainSingle().Which.Should().Be(userId);
         args[3].Should().Be(approve ? "Tu solicitud de Colaborador ha sido aprobada" : "Tu solicitud de Colaborador no ha sido aprobada");
         args[5].Should().Be(approve ? "¡Enhorabuena! Tu solicitud de Colaborador ha sido aprobada." : "Tu solicitud de Colaborador no ha sido aprobada.");
@@ -902,7 +902,7 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
             TestContext.Current.CancellationToken);
 
         await AuditLog.Received(1).LogAsync(
-            AuditAction.TierApplicationRejected,
+            GovernanceAuditActions.TierApplicationRejected,
             AuditEntityTypes.Application,
             application.Id,
             "Colaborador application rejected",
@@ -1654,7 +1654,7 @@ public sealed class ApplicationDecisionServiceTests : IDisposable
         var updated = await GovernanceDb.Applications.FirstAsync(a => a.Id == drifted.Id, TestContext.Current.CancellationToken);
         updated.TermExpiresAt.Should().Be(new LocalDate(2027, 12, 31));
         await AuditLog.Received(1).LogAsync(
-            AuditAction.TierTermExpiryCorrected, AuditEntityTypes.Application, drifted.Id,
+            GovernanceAuditActions.TierTermExpiryCorrected, AuditEntityTypes.Application, drifted.Id,
             Arg.Any<string>(), adminId);
         (await _service.GetTermExpiryDriftAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
     }

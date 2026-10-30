@@ -5,7 +5,7 @@
   src/Sections/Humans.Camps/Services/CachingCampService.cs
   src/Sections/Humans.Camps/Services/CampService.cs
   src/Sections/Humans.Shifts/Section.cs
-  src/Sections/Humans.Shifts/SectionPolicies.cs
+  src/Sections/Humans.Shifts/Section.cs
   src/Sections/Humans.Shifts/Services/VolunteerTrackingExportService.cs
   src/Sections/Humans.Shifts/Services/ShiftEarlyEntryProjection.cs
   src/Sections/Humans.Teams/Section.cs
@@ -89,7 +89,7 @@ The layout matches this.
   for the scanned attendee's (`src/Sections/Humans.Gate/Services/GateService.cs:73`). The stub
   and holdings view components answer for the user they are invoked with, so who sees that
   answer is the invoking page's gate, not this section's.
-- The roster needs `ShiftDashboardAccess` (Admin, NoInfoAdmin, VolunteerCoordinator)
+- The roster needs `ShiftsPolicies.Manage` (Admin, NoInfoAdmin, VolunteerCoordinator)
   (`src/Sections/Humans.EarlyEntry/Controllers/EarlyEntryRosterController.cs:12`; pinned:
   `EarlyEntryArchitectureTests.RosterRequiresShiftDashboardAccess`).
 - The section exposes no write: the roster controller serves GET only

@@ -174,7 +174,7 @@ public sealed class EventParticipationServiceTests : IDisposable
 
         (await _sut.BackfillParticipationsAsync(2025, entries, actorId, Ct)).Should().Be(1);
 
-        await _audit.Received(1).LogAsync(AuditAction.ParticipationBackfilled, nameof(User), user.Id,
+        await _audit.Received(1).LogAsync(TicketsAuditActions.ParticipationBackfilled, nameof(User), user.Id,
             Arg.Is<string>(d => d.Contains("NoShow", StringComparison.Ordinal) && d.Contains("2025", StringComparison.Ordinal)),
             actorId);
         _audit.ReceivedCalls().Should().HaveCount(1);
@@ -222,7 +222,7 @@ public sealed class EventParticipationServiceTests : IDisposable
     {
         SeedUser((2026, LegacyParticipationStatus.Ticketed, LegacyParticipationSource.TicketSync));
         var services = new ServiceCollection().AddSingleton<IEventParticipationManagement>(_sut).BuildServiceProvider();
-        var migration = new SectionDataMigrations().Migrations().Should().ContainSingle().Subject;
+        var migration = ((ISectionDataMigrations)new Section()).Migrations().Should().ContainSingle().Subject;
 
         migration.Key.Should().Be("tickets.event-participations");
         (await migration.Status(services, Ct)).Pending.Should().Be(1);
@@ -282,7 +282,7 @@ public sealed class EventParticipationServiceTests : IDisposable
     [HumansFact]
     public void UserParts_IncludeTheOnsiteChipOnTheProfile()
     {
-        new SectionUserParts().Parts().Should().Contain(
+        ((IUserPart)new Section()).Parts().Should().Contain(
             new UserPart(UserPartSlots.Profile, typeof(OnsiteChipViewComponent), Weight: 10));
     }
 
@@ -305,7 +305,7 @@ public sealed class EventParticipationServiceTests : IDisposable
         settings.GetActiveEventSettingsAsync(Arg.Any<CancellationToken>())
             .Returns(BurnFixtures.Burn(year: 2026));
         var authorization = Substitute.For<IAuthorizationService>();
-        authorization.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object?>(), PolicyNames.TicketAdminBoardOrAdmin)
+        authorization.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object?>(), TicketsPolicies.Read)
             .Returns(viewerPassesPolicy ? AuthorizationResult.Success() : AuthorizationResult.Failed());
         var component = WithContext(new OnsiteChipViewComponent(tickets, settings, authorization));
 

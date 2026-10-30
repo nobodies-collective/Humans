@@ -4,7 +4,7 @@
   src/Sections/Humans.Monitor/Section.cs
   src/Sections/Humans.Monitor/Controllers/MonitorController.cs
   src/Sections/Humans.GoogleIntegration/Services/Workspace/GoogleDriveActivityClient.cs
-  src/Sections/Humans.AuditLog/SectionAdminNav.cs
+  src/Sections/Humans.AuditLog/Section.cs
   src/Sections/Humans.AuditLog/Controllers/AuditLogController.cs
   src/Sections/Humans.AuditLog/Views/AuditLog/Index.cshtml
   src/Sections/Humans.AuditLog/Views/AuditLog/_Content.cshtml
@@ -34,7 +34,7 @@ Nobodies Collective manages Google Shared Drive folders and Groups through the s
 - Logs each anomalous change to the audit log with `AnomalousPermissionDetected` action
 - Includes actor identity, affected resource, and specific permission changes in the log entry
 
-### US-13.2: Manual Activity Check
+**As an** Admin (Board sees the Audit Log but not the button)
 **As a** Board member or Admin
 **I want to** manually trigger a Drive activity check
 **So that** I can verify the current state on demand
@@ -56,13 +56,13 @@ Nobodies Collective manages Google Shared Drive folders and Groups through the s
 - Anomalous entries highlighted with warning styling
 - Alert banner showing total anomaly count
 - Paginated (50 per page)
-- Reached from the admin sidebar (`src/Sections/Humans.AuditLog/SectionAdminNav.cs`)
+- Reached from the admin sidebar (`src/Sections/Humans.AuditLog/Section.cs`)
 
 ## Architecture
 
 ### Ownership
 
-- `AuditAction.AnomalousPermissionDetected` enum value (stored as string, no migration needed) — the AuditLog section's `Contracts/` folder
+- `GoogleIntegrationAuditActions.AnomalousPermissionDetected` enum value (stored as string, no migration needed) — the AuditLog section's `Contracts/` folder
 - `IDriveActivityMonitorService` interface with `CheckForAnomalousActivityAsync` method, and its implementation `DriveActivityMonitorService` using Google Drive Activity API v2 — `src/Sections/Humans.Monitor/Contracts/` and `Services/`
 - `DriveActivityMonitorJob` - Hangfire background job wrapper — `src/Sections/Humans.Monitor/Jobs/`
 - `AuditLogController.Index` action (`/AuditLog`) - paginated audit log with filtering — `src/Sections/Humans.AuditLog/Controllers/`

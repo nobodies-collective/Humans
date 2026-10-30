@@ -3,8 +3,8 @@
   src/Sections/Humans.Cantina/Domain/DietaryOptions.cs
   src/Sections/Humans.Cantina/Services/DietaryProfileService.cs
   src/Sections/Humans.Cantina/Controllers/CantinaProfileController.cs
-  src/Sections/Humans.Cantina/SectionThingsToDo.cs
-  src/Sections/Humans.Users/SectionThingsToDo.cs
+  src/Sections/Humans.Cantina/Section.cs
+  src/Sections/Humans.Users/Section.cs
   src/Sections/Humans.Shifts/Services/ShiftManagementService.cs
   src/Sections/Humans.Shifts/ViewComponents/DietaryMissingBannerViewComponent.cs
   src/Humans.Base/ViewComponents/ThingsToDoViewComponent.cs
@@ -27,10 +27,10 @@ The food answers are Cantina's (`cantina_dietary_profiles`, Users decomposition 
 
 - **Dietary form** (`/Cantina/Dietary`, Cantina's `CantinaProfileController`): any authenticated user, own answers only — the controller takes the user from the principal, never from the route.
 - **Medical form** (`/Profile/Me/Medical`, Users' `ProfileController`): any authenticated user, own conditions only.
-- **Reading medical conditions:** owner, `ShiftsNoInfo`, `Admin` (`MedicalDataViewer`). Shifts' badges keep their `ShowMedical` gate; Cantina never reads or returns medical data.
-- **Reading dietary answers:** any surface that already shows the volunteer's shift profile (coordinators, shift admins, volunteer search) and the `CantinaAdminOrAdmin` roster, all through `ICantinaService`.
+- **Reading medical conditions:** owner, `ShiftsNoInfo`, `Admin` (`ShiftsPolicies.MedicalDataViewer`). Shifts' badges keep their `ShowMedical` gate; Cantina never reads or returns medical data.
+- **Reading dietary answers:** any surface that already shows the volunteer's shift profile (coordinators, shift admins, volunteer search) and the `CantinaPolicies.Read` roster, all through `ICantinaService`.
 
-Both forms are exempt from `MembershipRequiredFilter` so a not-yet-Active member can still answer them.
+Both forms carry `[AllowBeforeActiveMembership]` so a not-yet-Active member can still answer them.
 
 ## GDPR
 
@@ -41,7 +41,7 @@ Both forms are exempt from `MembershipRequiredFilter` so a not-yet-Active member
 
 ### US-35.1: Things-to-do nudge
 **Acceptance Criteria:**
-- Cantina's `SectionThingsToDo` contributes a `"dietary"` item while the `ICantinaService.GetDietaryProfileAsync` read shows no dietary preference on file (falling back to the legacy profile columns until copied) and not declined.
+- Cantina's `ISectionThingsToDo` contributes a `"dietary"` item while the `ICantinaService.GetDietaryProfileAsync` read shows no dietary preference on file (falling back to the legacy profile columns until copied) and not declined.
 - Title `Todo_DietaryMedical_Title`; description `Todo_DietaryMedical_Pending` when `IShiftService.HasQualifyingCantinaSignupAsync` is true, else `Todo_DietaryMedical_NoShift_Pending`; action `Todo_DietaryMedical_Action` → `CantinaProfile/Dietary`; icon `fa-solid fa-utensils`.
 - Any non-empty preference (including Omnivore with no allergies) or "I don't want to answer" removes it.
 - Self-signups and voluntold signups count alike (`Pending`/`Confirmed`, future, qualifying shift). No email or push.
@@ -57,7 +57,7 @@ Both forms are exempt from `MembershipRequiredFilter` so a not-yet-Active member
 
 ### US-35.3: Medical prompt (Users)
 **Acceptance Criteria:**
-- Users' `SectionThingsToDo` contributes a `"medical"` item (`Todo_Medical_Title`, `Todo_Medical_Pending`, `fa-solid fa-notes-medical`) → `Profile/Medical`, only while `MedicalConditions` is empty **and** Cantina's profile shows neither a preference nor `DeclinedToAnswer` (Users composes this itself) — it rides alongside the dietary nudge and disappears with it (an answer or a decline).
+- Users' `ISectionThingsToDo` contributes a `"medical"` item (`Todo_Medical_Title`, `Todo_Medical_Pending`, `fa-solid fa-notes-medical`) → `Profile/Medical`, only while `MedicalConditions` is empty **and** Cantina's profile shows neither a preference nor `DeclinedToAnswer` (Users composes this itself) — it rides alongside the dietary nudge and disappears with it (an answer or a decline).
 - `/Profile/Me/Medical` is a free-text textarea (≤ 4000), trimmed, blank saves as null. Hint: only visible to the member and Shifts NoInfo.
 
 ### US-35.4: Edit later from profile
@@ -88,7 +88,7 @@ A shift qualifies when `Shift.IsAllDay` (08:00–18:00) **or** `Shift.Duration �
 | `IntoleranceOtherText` | `varchar(500)?` | Only with `Other` |
 | `UpdatedAt` | `timestamptz` | |
 
-The legacy `profiles` food columns are read only by Cantina's fallback and the `cantina.profile-dietary` copy; a later retirement PR drops them. `MedicalConditions` (`varchar(4000)?`) stays on `profiles`.
+Dietary answers are read only from `cantina_dietary_profiles`. Users still exports and erases its frozen legacy food columns until a separate schema change drops them. `MedicalConditions` (`varchar(4000)?`) stays on `profiles`.
 
 ## Triggers
 
@@ -107,7 +107,7 @@ The legacy `profiles` food columns are read only by Cantina's fallback and the `
 
 ## Negative access rules
 
-- No one sees another member's `MedicalConditions` unless `MedicalDataViewer`; Cantina's DTOs carry no medical field.
+- No one sees another member's `MedicalConditions` unless `ShiftsPolicies.MedicalDataViewer`; Cantina's DTOs carry no medical field.
 - Neither form takes a user id from the request; there is no admin edit of another member's answers.
 
 ## Out of scope

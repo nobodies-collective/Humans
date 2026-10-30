@@ -525,6 +525,68 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
         result.Error.Should().Be("Shifts_Signup_Restricted");
     }
 
+    [HumansTheory]
+    [InlineData("single")]
+    [InlineData("range")]
+    [InlineData("toggle")]
+    public async Task HiddenRota_SelfSignupRefusesWithoutWrites(string path)
+    {
+        var (es, rota, shift) = SeedShiftScenario(SignupPolicy.Public);
+        rota.IsVisibleToVolunteers = false;
+        if (string.Equals(path, "range", StringComparison.Ordinal))
+        {
+            rota.Period = RotaPeriod.Strike;
+            shift = SeedAllDayShift(rota, 1);
+        }
+        var userId = Guid.NewGuid();
+        // Coordinating another department grants no access to this hidden rota.
+        _teamService.GetUserCoordinatedTeamIdsAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(new List<Guid> { Guid.NewGuid() });
+        await SaveAllAsync(TestContext.Current.CancellationToken);
+
+        var result = path switch
+        {
+            "range" => await _service.SignUpRangeAsync(userId, rota.Id, 1, 1),
+            "toggle" => (await _service.ToggleDayAsync(userId, shift.Id, es.Id, privileged: false)).Result,
+            _ => await _service.SignUpAsync(userId, shift.Id)
+        };
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Be(string.Equals(path, "range", StringComparison.Ordinal) ? "Shifts_Signup_RangeRestricted" : "Shifts_Signup_Restricted");
+        (await ShiftsDb.ShiftSignups.CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
+        AuditLog.ReceivedCalls().Should().BeEmpty();
+        Notifier.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [HumansTheory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task HiddenRota_ExistingPrivilegedSignupPathsRemainAvailable(bool range, bool departmentCoordinator)
+    {
+        var (_, rota, shift) = SeedShiftScenario(SignupPolicy.Public);
+        rota.IsVisibleToVolunteers = false;
+        if (range)
+        {
+            rota.Period = RotaPeriod.Strike;
+            shift = SeedAllDayShift(rota, 1);
+        }
+        var userId = Guid.NewGuid();
+        if (departmentCoordinator)
+            _teamService.GetUserCoordinatedTeamIdsAsync(userId, Arg.Any<CancellationToken>())
+                .Returns(new List<Guid> { rota.TeamId });
+        var flags = departmentCoordinator ? ShiftSignupRequestFlags.None : ShiftSignupRequestFlags.Privileged;
+        await SaveAllAsync(TestContext.Current.CancellationToken);
+
+        var result = range
+            ? await _service.SignUpRangeAsync(userId, rota.Id, 1, 1, flags: flags)
+            : await _service.SignUpAsync(userId, shift.Id, flags: flags);
+
+        result.Success.Should().BeTrue();
+        (await ShiftsDb.ShiftSignups.CountAsync(TestContext.Current.CancellationToken)).Should().Be(1);
+    }
+
     [HumansFact]
     public async Task SignUp_ShiftAtMaxVolunteers_ReturnsError()
     {
@@ -828,10 +890,13 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
         outcome.Result.Success.Should().BeTrue();
     }
 
-    [HumansFact]
-    public async Task ToggleDay_ExistingActiveSignup_Bails()
+    [HumansTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ToggleDay_ExistingActiveSignup_Bails(bool visible)
     {
         var (es, rota, _) = SeedShiftScenario(SignupPolicy.Public);
+        rota.IsVisibleToVolunteers = visible;
         var shift = SeedAllDayShift(rota, dayOffset: 1); // qualifies for cantina meal
         var userId = Guid.NewGuid();
         SeedSignup(userId, shift.Id, SignupStatus.Confirmed);
@@ -974,12 +1039,12 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
             : await _service.VoluntellAsync(volunteerId, shift.Id, Guid.NewGuid());
 
         result.Success.Should().BeTrue();
-        var notices = Notifier.ReceivedCalls().Where(call => call.GetArguments()[0] is NotificationSource)
+        var notices = Notifier.ReceivedCalls().Where(call => call.GetArguments()[0] is NotificationSourceDefinition)
             .Select(call => call.GetArguments()).ToList();
         notices.Should().NotBeEmpty();
         foreach (var args in notices)
         {
-            if ((NotificationSource)args[0]! == NotificationSource.ShiftAssigned)
+            if ((NotificationSourceDefinition)args[0]! == ShiftsNotificationSources.ShiftAssigned)
             {
                 args[3].Should().Be(rangeCount switch
                 {
@@ -1028,7 +1093,7 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
 
         result.Success.Should().BeTrue();
         var args = Notifier.ReceivedCalls()
-            .Where(call => call.GetArguments()[0] is NotificationSource source && source == NotificationSource.ShiftAssigned)
+            .Where(call => call.GetArguments()[0] is NotificationSourceDefinition source && source == ShiftsNotificationSources.ShiftAssigned)
             .Single().GetArguments();
         ((IReadOnlyList<Guid>)args[4]!).Should().ContainSingle().Which.Should().Be(volunteerId);
         var culture = CultureInfo.GetCultureInfo(lookupFailure ? "en" : "es");
@@ -1079,7 +1144,7 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
 
         // ...but the audit entry is still written.
         await AuditLog.Received().LogAsync(
-            AuditAction.ShiftSignupVoluntold, Arg.Any<string>(), Arg.Any<Guid>(),
+            ShiftsAuditActions.ShiftSignupVoluntold, Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<string>(), enrollerId,
             Arg.Any<Guid?>(), Arg.Any<string>());
     }
@@ -1705,7 +1770,7 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
             .With(_teamService).With(_teamService)
             .With(_roleAssignmentService).With(_users).Build();
         var service = new ShiftSignupService(
-            _repo, Substitute.For<IVolunteerTrackingRepository>(), _shiftMgmt, new EventCalendarResolver(settings),
+            _repo, Substitute.For<IVolunteerTrackingRepository>(), _shiftMgmt, new EventCalendarResolver(settings, Substitute.For<Humans.Shifts.Data.IShiftManagementRepository>()),
             AuditLog, Notifier, AdminAuthorization, _views.Cache,
             serviceProvider, Clock, NullLogger<ShiftSignupService>.Instance, _users, _localizer);
 
@@ -1926,38 +1991,44 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
         await AssertShiftAssignedSentAsync(Notifier, 1);
     }
 
-    [HumansFact]
-    public async Task SignUp_PublicPolicy_WritesShiftSignupCreatedAudit()
+    [HumansTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SignUp_PublicPolicy_WritesShiftSignupCreatedAudit(bool suppliedActor)
     {
         var (_, _, shift) = SeedShiftScenario(SignupPolicy.Public);
         var userId = Guid.NewGuid();
+        var actorId = suppliedActor ? Guid.NewGuid() : (Guid?)null;
         await SaveAllAsync(TestContext.Current.CancellationToken);
 
-        var result = await _service.SignUpAsync(userId, shift.Id);
+        var result = await _service.SignUpAsync(userId, shift.Id, actorId);
 
         result.Success.Should().BeTrue();
         await AuditLog.Received(1).LogAsync(
-            AuditAction.ShiftSignupCreated, nameof(ShiftSignup), Saved(result).Id,
+            ShiftsAuditActions.ShiftSignupCreated, nameof(ShiftSignup), Saved(result).Id,
             Arg.Is<string>(s => s.Contains("(confirmed)")),
-            userId,
+            actorId ?? userId,
             userId, nameof(User));
     }
 
-    [HumansFact]
-    public async Task SignUp_RequireApprovalPolicy_WritesShiftSignupCreatedAudit()
+    [HumansTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SignUp_RequireApprovalPolicy_WritesShiftSignupCreatedAudit(bool suppliedActor)
     {
         var (_, _, shift) = SeedShiftScenario(SignupPolicy.RequireApproval);
         var userId = Guid.NewGuid();
+        var actorId = suppliedActor ? Guid.NewGuid() : (Guid?)null;
         await SaveAllAsync(TestContext.Current.CancellationToken);
 
-        var result = await _service.SignUpAsync(userId, shift.Id);
+        var result = await _service.SignUpAsync(userId, shift.Id, actorId);
 
         result.Success.Should().BeTrue();
         Saved(result).Status.Should().Be(SignupStatus.Pending);
         await AuditLog.Received(1).LogAsync(
-            AuditAction.ShiftSignupCreated, nameof(ShiftSignup), Saved(result).Id,
+            ShiftsAuditActions.ShiftSignupCreated, nameof(ShiftSignup), Saved(result).Id,
             Arg.Is<string>(s => s.Contains("(pending)")),
-            userId,
+            actorId ?? userId,
             userId, nameof(User));
     }
 
@@ -1974,29 +2045,32 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
 
         result.Success.Should().BeTrue();
         await AuditLog.Received(1).LogAsync(
-            AuditAction.ShiftSignupCreated, nameof(ShiftSignup), Saved(result).Id,
+            ShiftsAuditActions.ShiftSignupCreated, nameof(ShiftSignup), Saved(result).Id,
             Arg.Is<string>(s => s.Contains("on Thu Jul 2 (confirmed)")),
             userId,
             userId, nameof(User));
     }
 
-    [HumansFact]
-    public async Task SignUpRange_RequireApproval_WritesShiftSignupCreatedPerSignup()
+    [HumansTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SignUpRange_RequireApproval_WritesShiftSignupCreatedPerSignup(bool suppliedActor)
     {
         var (_, rota, _) = SeedShiftScenario(SignupPolicy.RequireApproval);
         rota.Period = RotaPeriod.Build;
         for (var day = -3; day <= -1; day++)
             SeedAllDayShift(rota, day);
         var userId = Guid.NewGuid();
+        var actorId = suppliedActor ? Guid.NewGuid() : (Guid?)null;
         await SaveAllAsync(TestContext.Current.CancellationToken);
 
-        var result = await _service.SignUpRangeAsync(userId, rota.Id, -3, -1);
+        var result = await _service.SignUpRangeAsync(userId, rota.Id, -3, -1, actorId);
 
         result.Success.Should().BeTrue();
         await AuditLog.Received(3).LogAsync(
-            AuditAction.ShiftSignupCreated, nameof(ShiftSignup), Arg.Any<Guid>(),
+            ShiftsAuditActions.ShiftSignupCreated, nameof(ShiftSignup), Arg.Any<Guid>(),
             Arg.Is<string>(s => s.Contains("(range, pending)")),
-            userId,
+            actorId ?? userId,
             userId, nameof(User));
     }
 
@@ -2083,7 +2157,7 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
 
     private async Task AssertShiftSignupChangeSentAsync(Guid coordinatorId) =>
         await Notifier.Received(1).SendAsync(
-            NotificationSource.ShiftSignupChange,
+            ShiftsNotificationSources.ShiftSignupChange,
             Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
             Arg.Any<string>(), Arg.Is<IReadOnlyList<Guid>>(c => c.Contains(coordinatorId)),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -2236,7 +2310,7 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
         await _service.ReassignAsync(sourceUserId, targetUserId, actorUserId, TestNow, TestContext.Current.CancellationToken);
 
         await AuditLog.Received(1).LogAsync(
-            AuditAction.ShiftSignupReassigned, nameof(User), targetUserId,
+            ShiftsAuditActions.ShiftSignupReassigned, nameof(User), targetUserId,
             Arg.Is<string>(s => s.Contains("Reassigned 1")),
             actorUserId,
             targetUserId, nameof(User));
@@ -2254,7 +2328,7 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
         await _service.ReassignAsync(sourceUserId, targetUserId, actorUserId, TestNow, TestContext.Current.CancellationToken);
 
         await AuditLog.DidNotReceive().LogAsync(
-            AuditAction.ShiftSignupReassigned, Arg.Any<string>(), Arg.Any<Guid>(),
+            ShiftsAuditActions.ShiftSignupReassigned, Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<Guid?>(), Arg.Any<string?>());
     }
@@ -2447,7 +2521,7 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
 
     private static async Task AssertShiftAssignedSentAsync(INotificationEmitter n, int times) =>
         await n.Received(times).SendAsync(
-            NotificationSource.ShiftAssigned,
+            ShiftsNotificationSources.ShiftAssigned,
             Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
             Arg.Any<string>(), Arg.Any<IReadOnlyList<Guid>>(),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -2455,7 +2529,7 @@ public sealed class ShiftSignupServiceTests : ShiftsTestHarness
 
     private static async Task AssertShiftAssignedNotSentAsync(INotificationEmitter n) =>
         await n.DidNotReceive().SendAsync(
-            NotificationSource.ShiftAssigned,
+            ShiftsNotificationSources.ShiftAssigned,
             Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
             Arg.Any<string>(), Arg.Any<IReadOnlyList<Guid>>(),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),

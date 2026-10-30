@@ -118,11 +118,9 @@ The layout matches.
 - **The `VolunteerEventProfile` dietary columns in Shifts are kept only until a prod-verified
   drop.** When they go, every doc that still names them (and this section's freshness
   triggers) is re-checked in the same pass.
-- **The legacy food columns on `profiles` are still there.** The answers moved into
-  `cantina_dietary_profiles`; the old columns stay, `[Obsolete]` on `ProfileInfo`
-  (`HUM_PROFILE_DIETARY`), read only by `DietaryProfileService.LegacyProfile` and the
-  `cantina.profile-dietary` copy, and still exported and erased by Users. A retirement PR, after
-  production has run the copy, removes the fallback and drops the columns (ledger `CENTRAL-90`).
+- **The legacy food columns on `profiles` are still there.** They are no longer exposed
+  on `ProfileInfo` or read by Cantina. Users still exports and erases them until a separate
+  approved schema change removes them.
 
 ## 6. Deliberately not done
 
@@ -140,7 +138,7 @@ The layout matches.
   Users reference the section project directly because Cantina reaches back only into their
   `.Contracts` leaves, so no cycle needs breaking. `ICantinaRosterService` stays `internal` in
   `Services/`; the decision follows the consumer list, never the name.
-- **No access service.** `CantinaAdminOrAdmin` is a policy; there is no `ICantinaAccessService`.
+- **No access service.** `CantinaPolicies.Read` is a policy; there is no `ICantinaAccessService`.
 - **No gap-filling between arrival and departure, and no departure-day feeding.** Only the single
   arrival day is added. Asked and answered when the arrival rule was designed.
 - **No profile piece (`IUserPart`).** The profile page links to the dietary form; Cantina

@@ -47,8 +47,8 @@ public sealed class ExpensesTransitionTests : PreapprovalsTestHarness
         stored.Status.Should().Be(GrantStatus.Claimed);
         stored.ExpenseReportId.Should().Be(Report);
         await NotificationResolve.Received(1).ResolveBySourceKeyAsync(
-            NotificationSource.PreapprovalFileBy, PreapprovalService.FileBySourceKey(grant.Id), person, Arg.Any<CancellationToken>());
-        await AuditLog.Received(1).LogAsync(AuditAction.PreapprovalGrantClaimed, AuditEntityTypes.Grant, grant.Id,
+            PreapprovalsNotificationSources.PreapprovalFileBy, PreapprovalService.FileBySourceKey(grant.Id), person, Arg.Any<CancellationToken>());
+        await AuditLog.Received(1).LogAsync(PreapprovalsAuditActions.PreapprovalGrantClaimed, AuditEntityTypes.Grant, grant.Id,
             Arg.Is<string>(d => d.Contains(Report.ToString())), person, Report, AuditEntityTypes.ExpenseReport);
     }
 
@@ -64,7 +64,7 @@ public sealed class ExpensesTransitionTests : PreapprovalsTestHarness
 
         stamp.Stamp!.MaxAmount.Should().Be(300m);
         (await ReadGrantAsync(grant.Id)).Status.Should().Be(GrantStatus.Claimed);
-        await AuditLog.Received(1).LogAsync(AuditAction.PreapprovalGrantClaimed, AuditEntityTypes.Grant, grant.Id,
+        await AuditLog.Received(1).LogAsync(PreapprovalsAuditActions.PreapprovalGrantClaimed, AuditEntityTypes.Grant, grant.Id,
             Arg.Is<string>(d => d.Contains("resubmit")), person, Report, AuditEntityTypes.ExpenseReport);
     }
 
@@ -146,10 +146,10 @@ public sealed class ExpensesTransitionTests : PreapprovalsTestHarness
         var stored = await ReadGrantAsync(grant.Id);
         stored.Status.Should().Be(GrantStatus.Open);
         stored.ExpenseReportId.Should().Be(Report);
-        await Notifications.Received(1).SendAsync(NotificationSource.PreapprovalFileBy, NotificationClass.Actionable, NotificationPriority.Normal,
+        await Notifications.Received(1).SendAsync(PreapprovalsNotificationSources.PreapprovalFileBy, NotificationClass.Actionable, NotificationPriority.Normal,
             Arg.Any<string>(), Arg.Is<IReadOnlyList<Guid>>(r => r.Single() == person), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<string?>(), Arg.Any<string?>(), PreapprovalService.FileBySourceKey(grant.Id), Arg.Any<CancellationToken>());
-        await AuditLog.Received(1).LogAsync(AuditAction.PreapprovalGrantReleased, AuditEntityTypes.Grant, grant.Id, Arg.Any<string>(), person, Report, AuditEntityTypes.ExpenseReport);
+        await AuditLog.Received(1).LogAsync(PreapprovalsAuditActions.PreapprovalGrantReleased, AuditEntityTypes.Grant, grant.Id, Arg.Any<string>(), person, Report, AuditEntityTypes.ExpenseReport);
     }
 
     [HumansFact]
@@ -165,8 +165,8 @@ public sealed class ExpensesTransitionTests : PreapprovalsTestHarness
         stored.Status.Should().Be(GrantStatus.Consumed);
         stored.ExpenseReportId.Should().Be(Report);
         stored.MaxAmount.Should().Be(300m);
-        await AuditLog.Received(1).LogAsync(AuditAction.PreapprovalGrantConsumed, AuditEntityTypes.Grant, grant.Id, Arg.Any<string>(), person, Report, AuditEntityTypes.ExpenseReport);
-        await Notifications.DidNotReceiveWithAnyArgs().SendAsync(default, default, default, default!, default!);
+        await AuditLog.Received(1).LogAsync(PreapprovalsAuditActions.PreapprovalGrantConsumed, AuditEntityTypes.Grant, grant.Id, Arg.Any<string>(), person, Report, AuditEntityTypes.ExpenseReport);
+        await Notifications.DidNotReceiveWithAnyArgs().SendAsync(default!, default, default, default!, default!);
     }
 
     [HumansTheory]

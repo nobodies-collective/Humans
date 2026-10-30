@@ -29,14 +29,14 @@ key/value `SetValueAsync` does stay on the cross-section interface: see
 `ISettingsService`.
 
 Every `SaveEventSettingsAsync` call also writes one `IAuditLogService` entry
-(`AuditAction.EventSettingsUpdated`, peterdrier/Humans#1628) naming the actor and the
+(`SettingsAuditActions.EventSettingsUpdated`, peterdrier/Humans#1628) naming the actor and the
 saved values — the write is otherwise unchanged, so this is Audit's crosscut
 table, not a new table this section owns.
 
 | Table | R/W |
 |-------|-----|
 | `system_settings` | R/W (`GetValueAsync` / `SetValueAsync`, by key; `GetTimeZoneIdAsync` / `SaveTimeZoneAsync` on `ISettingsWriteService` for `Event:TimeZoneId`) |
-| `settings_event` | R/W (`GetActiveEventSettingsAsync` / `GetEventSettingsByIdAsync` on the cross-section interface; `SaveEventSettingsAsync`, `GetAllEventSettingsAsync`, `ActivateEventSettingsAsync` on `ISettingsWriteService`) |
+| `settings_event` | R/W (`GetActiveEventSettingsAsync` / `GetEventSettingsByIdAsync` / `GetAllEventSettingsAsync` on the cross-section interface; `SaveEventSettingsAsync`, `ActivateEventSettingsAsync` on `ISettingsWriteService`) |
 
 `SaveEventSettingsAsync` holds the table's two service-enforced invariants —
 neither can be a DB constraint (`memory/architecture/no-db-check-constraints.md`):

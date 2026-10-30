@@ -1,3 +1,5 @@
+using Humans.Shifts.Contracts;
+using Humans.Base.Authorization;
 using Humans.Base.Interfaces;
 using Humans.EarlyEntry.Contracts;
 using Humans.EarlyEntry.Services;
@@ -6,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Humans.EarlyEntry;
 
-public sealed class Section : ISection, ISectionRoles
+public sealed class Section : ISection, ISectionRoles, ISectionAdminNav
 {
     IReadOnlyList<RoleDefinition> ISectionRoles.Roles { get; } =
     [
@@ -22,4 +24,11 @@ public sealed class Section : ISection, ISectionRoles
         // Scoped and uncached: fresh every request, so no contributing section has to evict anything.
         services.AddScoped<IEarlyEntryService, EarlyEntryService>();
     }
+
+    IEnumerable<AdminNavGroup> ISectionAdminNav.Groups() =>
+    [
+        new("Early Entry", [
+            new("Early entry", "EarlyEntryRoster", "Index", null, null, "fa-solid fa-door-open", ShiftsPolicies.Read)
+        ])
+    ];
 }

@@ -10,32 +10,33 @@ namespace Humans.AuditLog.Contracts;
 public interface IAuditLogService : IApplicationService
 {
     /// <summary>For a background job: no actor.</summary>
-    Task LogAsync(AuditAction action, string entityType, Guid entityId,
+    Task LogAsync(AuditActionDefinition action, string entityType, Guid entityId,
         string description, string jobName,
         Guid? relatedEntityId = null, string? relatedEntityType = null);
 
-    Task LogAsync(AuditAction action, string entityType, Guid entityId,
+    Task LogAsync(AuditActionDefinition action, string entityType, Guid entityId,
         string description, Guid actorUserId,
         Guid? relatedEntityId = null, string? relatedEntityType = null);
 
     /// <summary>For a caller that needs rows as data (the issue thread). Pages use <c>&lt;vc:audit-log&gt;</c>.</summary>
     Task<IReadOnlyList<AuditLogEntrySnapshot>> GetFilteredEntriesAsync(
+        IReadOnlyList<AuditActionDefinition> actions,
         string? entityType = null,
         Guid? entityId = null,
         Guid? userId = null,
-        IReadOnlyList<AuditAction>? actions = null,
         int limit = 20,
         CancellationToken ct = default);
 
     Task<IReadOnlySet<Guid>> GetEntityIdsForEntityTypeActionsAsync(
         string entityType,
-        IReadOnlyList<AuditAction> actions,
+        IReadOnlyList<AuditActionDefinition> actions,
         CancellationToken ct = default);
 }
 
+/// <summary><c>Action</c> is the stored name; <see cref="IAuditViewerService"/> resolves it to its definition.</summary>
 public sealed record AuditLogEntrySnapshot(
     Guid Id,
-    AuditAction Action,
+    string Action,
     string EntityType,
     Guid EntityId,
     string Description,

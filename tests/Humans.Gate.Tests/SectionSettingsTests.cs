@@ -1,3 +1,6 @@
+using Humans.Tickets.Contracts;
+using Humans.Settings.Contracts;
+using Humans.Base.Interfaces;
 using AwesomeAssertions;
 using Humans.Base.Authorization;
 
@@ -11,13 +14,13 @@ namespace Humans.Gate.Tests;
 public sealed class SectionSettingsTests
 {
     [HumansFact]
-    public void Tabs_ReturnsTheGateTabGatedOnTicketAdminOrAdmin()
+    public void Tabs_ReturnsTheGateTabGatedOnTicketsManage()
     {
-        var tabs = new SectionSettings().Tabs().ToList();
+        var tabs = ((ISectionSettings)new Section()).Tabs().ToList();
 
         var tab = tabs.Should().ContainSingle().Which;
         tab.Key.Should().Be("gate");
         tab.Label.Should().Be("Settings_TabGate");
-        tab.Policy.Should().Be(PolicyNames.TicketAdminOrAdmin);
+        tab.Policy.Should().Be(TicketsPolicies.Manage);
     }
 }

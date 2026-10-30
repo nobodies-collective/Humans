@@ -36,16 +36,16 @@
 
 | Endpoint | Policy | Seeder | What it does |
 |---|---|---|---|
-| `/dev/seed/budget` | `FinanceAdminOrAdmin` | `IBudgetDemoSeeder` | Demo budget year with teams, categories, and line items |
-| `/dev/seed/camp-roles` | `CampAdminOrAdmin` | `DevelopmentCampRoleSeeder` | The five system camp-role definitions |
-| `/dev/seed/dashboard` | `ShiftDashboardAccess` | `DevelopmentDashboardSeeder` | Teams, humans, shifts, and signups behind the shift dashboard |
+| `/dev/seed/budget` | `FinancePolicies.Manage` | `IBudgetDemoSeeder` | Demo budget year with teams, categories, and line items |
+| `/dev/seed/camp-roles` | `CampsPolicies.Manage` | `DevelopmentCampRoleSeeder` | The five system camp-role definitions |
+| `/dev/seed/dashboard` | `ShiftsPolicies.Manage` | `DevelopmentDashboardSeeder` | Teams, humans, shifts, and signups behind the shift dashboard |
 | `/dev/seed/dashboard/reset` | `AdminOnly` | `DevelopmentDashboardSeeder` | Deletes the dashboard demo rows, then reseeds |
 
 `DevPersonaSeeder` (Development) is the other runtime seeder: `GET /dev/login/{persona}` (behind the same `DevAuth:Enabled` + non-production gate) calls it to ensure the persona's User, Profile, emails, roles, and dev fixtures (system-team memberships, test department, barrio camp/lead, city-planning team) through the owning sections' services before signing in.
 
 The two dashboard endpoints are stricter than the rest: they additionally require `ASPNETCORE_ENVIRONMENT=Development`, so they never run on QA or preview. Their buttons are on `Views/ShiftDashboard/Index.cshtml`; the budget and camp-role buttons are on the `GET /dev/seed` page.
 
-The `GET /dev/seed` page is reached from the admin nav's **Development** group (Development's `SectionAdminNav.cs`): one **Seed data** item, `AdminOnly`, carrying `EnvironmentGate: env => env.IsDevelopment()` — so the link renders only in local development.
+The `GET /dev/seed` page is reached from the admin nav's **Development** group (Development's `Section.cs`): one **Seed data** item, `AdminOnly`, carrying `EnvironmentGate: env => env.IsDevelopment()` — so the link renders only in local development.
 
 ## Guardrails for Dev Seeders
 

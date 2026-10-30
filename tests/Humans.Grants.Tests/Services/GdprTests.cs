@@ -38,6 +38,34 @@ public sealed class GdprTests : GrantsTestHarness
         ((System.Collections.IEnumerable)nobody[0].Data!).Cast<object>().Should().BeEmpty();
     }
 
+    [HumansTheory]
+    [Xunit.InlineData(true, 2028)]
+    [Xunit.InlineData(false, 2027)]
+    public async Task Export_UsesTheProgramsEventYear_WithStoredYearFallback(bool eventAvailable, int expectedYear)
+    {
+        var person = SeedUser("Holder and creator");
+        var program = await SeedProgramAsync();
+        await using (var db = OpenContext())
+        {
+            var row = await db.Programs.SingleAsync(Ct);
+            row.EventSettingsId = Event2027.Id;
+            row.CreatedByUserId = person;
+            await db.SaveChangesAsync(Ct);
+        }
+        await SeedGrantAsync(program, person);
+        var movedEvent = BurnFixtures.Burn(year: 2028) with { Id = Event2027.Id };
+        Settings.GetAllEventSettingsAsync(Arg.Any<CancellationToken>())
+            .Returns(eventAvailable ? [movedEvent] : []);
+
+        var slices = await NewService().ContributeForUserAsync(person, Ct);
+
+        var grants = System.Text.Json.JsonSerializer.SerializeToElement(slices[0].Data);
+        grants.EnumerateArray().Single().GetProperty("Year").GetInt32().Should().Be(expectedYear);
+        var decisions = System.Text.Json.JsonSerializer.SerializeToElement(slices[1].Data);
+        decisions.GetProperty("ProgramsCreated").EnumerateArray().Single()
+            .GetProperty("Year").GetInt32().Should().Be(expectedYear);
+    }
+
     [HumansFact]
     public async Task Export_DecisionsSlice_ForManagerAndIssuer()
     {
@@ -132,7 +160,7 @@ public sealed class GdprTests : GrantsTestHarness
         var revoked = grants.Single(g => g.Id == duplicate.Id);
         revoked.RevokedAt.Should().NotBeNull();
         revoked.RevokedByUserId.Should().Be(actor);
-        await AuditLog.Received(1).LogAsync(AuditAction.GrantRevoked, AuditEntityTypes.Grant, duplicate.Id,
+        await AuditLog.Received(1).LogAsync(GrantsAuditActions.GrantRevoked, AuditEntityTypes.Grant, duplicate.Id,
             Arg.Any<string>(), actor, to, AuditEntityTypes.User);
     }
 }

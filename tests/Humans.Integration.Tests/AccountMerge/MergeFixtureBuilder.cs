@@ -334,7 +334,7 @@ public sealed class MergeFixtureBuilder
     }
 
     // Attached via ActorUserId, which the chain-follow read uses.
-    public MergeFixtureBuilder WithSourceAuditLogEntry(AuditAction action, string description)
+    public MergeFixtureBuilder WithSourceAuditLogEntry(string action, string description)
     {
         _pendingAuditLog.Add(db => db.AuditLogEntries.Add(new AuditLogEntry
         {
@@ -440,7 +440,7 @@ public sealed class MergeFixtureBuilder
             Id = notificationId,
             Title = title,
             Priority = NotificationPriority.Normal,
-            Source = NotificationSource.SyncError,
+            Source = "SyncError",
             Class = NotificationClass.Informational,
             CreatedAt = _now,
         };

@@ -1,18 +1,28 @@
-using Humans.Base.Interfaces;
-using Humans.Camps.Contracts;
+using System.Globalization;
+using Humans.Camps.Services;
+using Humans.Base.Authorization;
 using Humans.Base.Constants;
-using Humans.Issues.Contracts;
-using Humans.GoogleIntegration.Contracts;
-using Humans.Base.Interfaces.Caching;
-using Humans.EarlyEntry.Contracts;
-using Humans.Camps.Authorization;
-using Humans.CityPlanning.Contracts;
-using Humans.Gdpr.Contracts;
 using Humans.Base.Hosting;
+using Humans.Base.Interfaces;
+using Humans.Base.Interfaces.Caching;
+using Humans.Base.Models;
+using Humans.Camps.Authorization;
+using Humans.Camps.Contracts;
+using Humans.Camps.ViewComponents;
+using Humans.CityPlanning.Contracts;
+using Humans.EarlyEntry.Contracts;
+using Humans.Gdpr.Contracts;
+using Humans.GoogleIntegration.Contracts;
+using Humans.Issues.Contracts;
+using Humans.Settings.Contracts;
+using Humans.Users.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
+using Humans.Notifications.Contracts;
 using Microsoft.Extensions.DependencyInjection;
-using Humans.Users.Contracts;
+using static Humans.Base.Models.AccessLevel;
+using static Humans.Base.Models.AccessMatrixFeature;
+using Humans.AuditLog.Contracts;
 
 namespace Humans.Camps;
 
@@ -20,8 +30,22 @@ namespace Humans.Camps;
 /// The caching decorator is a Singleton owning the canonical per-camp <c>CampInfo</c> projection; the keyed-Scoped
 /// inner service owns the repository's unit of work.
 /// </summary>
-public sealed class Section : ISection, IIssueQueueOwner, ISectionRoles
+public sealed class Section :
+    ISection,
+    ISectionDataMigrations,
+    IIssueQueueOwner,
+    ISectionRoles,
+    ISectionAccessMatrix,
+    ISectionAdminNav,
+    ISectionChrome,
+    ISectionHelp,
+    ISectionNav,
+    ISectionPolicies,
+    ISectionSettings
 {
+    IEnumerable<ChromeComponent> ISectionChrome.Components() =>
+        [new(ChromeSlots.WidgetGallery, typeof(CampsGalleryViewComponent))];
+
     IReadOnlyList<RoleDefinition> ISectionRoles.Roles { get; } =
     [
         new(CampsRoles.CampsAdmin, "Camps Admin",
@@ -32,6 +56,8 @@ public sealed class Section : ISection, IIssueQueueOwner, ISectionRoles
 
     public void Register(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<IAuditActionContributor, CampsAuditActions>();
+        services.AddSingleton<INotificationSourceContributor, CampsNotificationSources>();
         services.AddSectionDbContext<CampsDbContext>(sentinelTable: "camps");
 
         services.AddSingleton<ICampRepository, CampRepository>();
@@ -52,6 +78,7 @@ public sealed class Section : ISection, IIssueQueueOwner, ISectionRoles
         services.AddSingleton<ICampSeeding>(sp => sp.GetRequiredService<CachingCampService>());
         services.AddSingleton<ICampRoleCampAccess>(sp => sp.GetRequiredService<CachingCampService>());
         services.AddSingleton<IEarlyEntryProvider>(sp => sp.GetRequiredService<CachingCampService>());
+        services.AddSingleton<IEventSettingsChangeListener>(sp => sp.GetRequiredService<CachingCampService>());
 
         // Merge, GDPR erasure and role writes change rows the projection serves, so the
         // decorator carries them and drops the projection itself after the inner write.
@@ -93,4 +120,91 @@ public sealed class Section : ISection, IIssueQueueOwner, ISectionRoles
     IReadOnlyList<string> IIssueQueueOwner.PathSegments => ["camps", "barrios"];
 
     IReadOnlyList<string> IIssueQueueOwner.OwningRoles => [CampsRoles.CampsAdmin];
+
+    IReadOnlyList<AccessMatrixData> ISectionAccessMatrix.AccessMatrices =>
+    [
+        new()
+        {
+            Key = "Camps",
+            SectionName = "Barrios",
+            Order = 30,
+            Roles = ["Volunteer", "Camp Lead", "CampsAdmin"],
+            Features =
+            [
+                Of("Browse camps", ("Volunteer", Allowed), ("Camp Lead", Allowed), ("CampsAdmin", Allowed)),
+                Of("Register a camp", ("Volunteer", Allowed), ("Camp Lead", Allowed), ("CampsAdmin", Allowed)),
+                Of("Edit own camp", ("Volunteer", Denied), ("Camp Lead", Allowed), ("CampsAdmin", Allowed)),
+                Of("Approve/reject camps", ("Volunteer", Denied), ("Camp Lead", Denied), ("CampsAdmin", Allowed)),
+                Of("Camp settings", ("Volunteer", Denied), ("Camp Lead", Denied), ("CampsAdmin", Allowed)),
+            ]
+        }
+    ];
+
+    IEnumerable<AdminNavGroup> ISectionAdminNav.Groups() =>
+    [
+        new("Barrios", [
+            new("Overview",   "CampAdmin",      "Index",      null, null, "fa-solid fa-tents",           CampsPolicies.Read, Weight: 0),
+            new("Roles",      "CampAdmin",      "Roles",      null, null, "fa-solid fa-user-tag",        CampsPolicies.Read, Weight: 10),
+            new("Compliance", "CampCompliance", "Compliance", null, null, "fa-solid fa-clipboard-check", CampsPolicies.Compliance, Weight: 20)
+        ])
+    ];
+
+    IReadOnlyList<SectionHelpEntry> ISectionHelp.HelpEntries => Entries;
+
+    // Read once per process: the markdown ships inside this assembly and never changes at runtime.
+    private static readonly IReadOnlyList<SectionHelpEntry> Entries =
+    [
+        SectionHelpEntry.FromEmbeddedMarkdown(typeof(Section).Assembly, "Camps", 50),
+    ];
+
+    IEnumerable<MemberNavItem> ISectionNav.Items() =>
+        [new("Camp_Plural", Controller: "Camp", Action: "Index", Weight: 10)];
+
+    void ISectionPolicies.AddPolicies(AuthorizationOptions options)
+    {
+        options.AddPolicy(CampsPolicies.Read, policy =>
+            policy.RequireRole(CampsRoles.CampsAdmin, RoleNames.Board, RoleNames.Admin));
+
+        options.AddPolicy(CampsPolicies.Manage, policy =>
+            policy.RequireRole(CampsRoles.CampsAdmin, RoleNames.Admin));
+
+        // CampsAdmin, Board, Admin OR any team coordinator — the OR lives in
+        // CampComplianceAccessHandler so the policy is a single requirement
+        // (policy requirements AND together).
+        options.AddPolicy(CampsPolicies.Compliance, policy =>
+            policy.AddRequirements(new CampComplianceAccessRequirement()));
+    }
+
+    IEnumerable<SettingsTab> ISectionSettings.Tabs() =>
+    [
+        new SettingsTab("barrios", "Settings_TabBarrios", typeof(CampBarriosSettingsTabViewComponent), CampsPolicies.Manage)
+    ];
+
+    internal const string EventIdsKey = "camps.event-ids";
+
+    IEnumerable<DataMigration> ISectionDataMigrations.Migrations() =>
+    [
+        new(EventIdsKey, "Camps",
+            "Give every barrio season the event of its year, and turn the open-season years into per-event registration rows",
+            "The open-season year list on camp_settings (emptied by this run), and seasons without an event id",
+            StatusAsync, ApplyAsync),
+    ];
+
+    private static async Task<DataMigrationStatus> StatusAsync(IServiceProvider sp, CancellationToken ct)
+    {
+        var plan = await sp.GetRequiredService<ICampManagement>().GetEventIdPlanAsync(ct);
+        return new(["Season", "Name", "Year", "Event"],
+            [
+                .. plan.LegacyOpenYears.Select(year => (IReadOnlyList<string>)[
+                    "(open-season year)", "", year.ToString(CultureInfo.InvariantCulture), "Pinned to its events, then removed"]),
+                .. plan.Seasons.Select(p => (IReadOnlyList<string>)[
+                    p.SeasonId.ToString(),
+                    p.SeasonName,
+                    p.Year.ToString(CultureInfo.InvariantCulture),
+                    p.EventName]),
+            ]);
+    }
+
+    private static Task<int> ApplyAsync(IServiceProvider sp, Guid actorUserId, CancellationToken ct) =>
+        sp.GetRequiredService<ICampManagement>().AssignSeasonEventIdsAsync(ct);
 }

@@ -5,6 +5,7 @@ using Humans.Base.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Humans.Users.Contracts;
+using Humans.GoogleIntegration.Contracts;
 
 namespace Humans.Monitor.Controllers;
 
@@ -14,7 +15,7 @@ internal sealed class MonitorController(
     ILogger<MonitorController> logger) : HumansControllerBase(userService)
 {
     [HttpPost("CheckDriveActivity")]
-    [Authorize(Policy = PolicyNames.BoardOrAdmin)]
+    [Authorize(Policy = PolicyNames.AdminOnly)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CheckDriveActivity(
         [FromServices] IDriveActivityMonitorService monitorService)
@@ -24,7 +25,7 @@ internal sealed class MonitorController(
         try
         {
             var count = await monitorService.CheckForAnomalousActivityAsync();
-            logger.LogInformation("Board {UserId} triggered manual Drive activity check: {Count} anomalies",
+            logger.LogInformation("Admin {UserId} triggered manual Drive activity check: {Count} anomalies",
                 currentUser?.Id, count);
 
             SetSuccess(count > 0
@@ -37,6 +38,6 @@ internal sealed class MonitorController(
             SetError("Drive activity check failed. Check logs for details.");
         }
 
-        return RedirectToAction("Index", "AuditLog", new { filter = nameof(AuditAction.AnomalousPermissionDetected) });
+        return RedirectToAction("Index", "AuditLog", new { filter = GoogleIntegrationAuditActions.AnomalousPermissionDetected.Name });
     }
 }

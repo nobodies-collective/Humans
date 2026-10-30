@@ -138,7 +138,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         ballot.Revision.Should().Be(1);
         ballot.Choice.Should().Be(AssemblyBallotChoice.Yes);
         await _fx.NotificationResolve.Received(1).ResolveBySourceAsync(
-            userId, NotificationSource.AssemblyVoteOpened, CancellationToken.None, vote.Id.ToString());
+            userId, GovernanceNotificationSources.AssemblyVoteOpened, CancellationToken.None, vote.Id.ToString());
     }
 
     [HumansFact]
@@ -147,7 +147,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         var vote = await _fx.AddVoteAsync();
         var userId = Guid.NewGuid();
         await _fx.AddRosterRowAsync(vote.Id, userId, isOfficial: true);
-        _fx.NotificationResolve.ResolveBySourceAsync(userId, NotificationSource.AssemblyVoteOpened,
+        _fx.NotificationResolve.ResolveBySourceAsync(userId, GovernanceNotificationSources.AssemblyVoteOpened,
                 Arg.Any<CancellationToken>(), vote.Id.ToString())
             .Returns(Task.FromException(new InvalidOperationException("inbox unavailable")));
 
@@ -168,7 +168,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
             TestContext.Current.CancellationToken);
 
         outcome.Should().Be(BallotSubmissionOutcome.NotOnRoster);
-        await _fx.NotificationResolve.DidNotReceiveWithAnyArgs().ResolveBySourceAsync(default, default);
+        await _fx.NotificationResolve.DidNotReceiveWithAnyArgs().ResolveBySourceAsync(default, default!);
         (await _fx.Db.AssemblyBallots.CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
     }
 
@@ -202,11 +202,11 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         ballot.History.Select(h => h.Revision).Should().BeEquivalentTo([1, 2]);
 
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyBallotCast,
+            GovernanceAuditActions.AssemblyBallotCast,
             Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<string>(), userId,
             Arg.Any<Guid?>(), Arg.Any<string?>());
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyBallotChanged,
+            GovernanceAuditActions.AssemblyBallotChanged,
             Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<string>(), userId,
             Arg.Any<Guid?>(), Arg.Any<string?>());
     }
@@ -222,7 +222,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
             vote.Id, userId, AssemblyBallotChoice.Yes, null, TestContext.Current.CancellationToken);
 
         await _fx.Audit.Received().LogAsync(
-            AuditAction.AssemblyBallotCast,
+            GovernanceAuditActions.AssemblyBallotCast,
             Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Is<string>(d => !d.Contains("Yes", StringComparison.Ordinal)),
             userId, Arg.Any<Guid?>(), Arg.Any<string?>());
@@ -241,7 +241,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         // An audit row keeps its ActorUserId forever, so naming the ballot id would leave a
         // permanent join from an erased person to the row holding their choice.
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyBallotCast,
+            GovernanceAuditActions.AssemblyBallotCast,
             "AssemblyVote", vote.Id, Arg.Any<string>(), userId,
             Arg.Any<Guid?>(), Arg.Any<string?>());
     }
@@ -449,7 +449,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
             vote.Id, adminId, viewerIsBoardOrAdmin: false, TestContext.Current.CancellationToken);
 
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyVoteStopped, AuditEntityTypes.AssemblyVote, vote.Id,
+            GovernanceAuditActions.AssemblyVoteStopped, AuditEntityTypes.AssemblyVote, vote.Id,
             Arg.Any<string>(), adminId);
     }
 
@@ -645,7 +645,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
             .FirstAsync(v => v.Id == vote.Id, TestContext.Current.CancellationToken)).ResultJson;
         secondResultJson.Should().Be(firstResultJson);
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyVoteClosed,
+            GovernanceAuditActions.AssemblyVoteClosed,
             Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(),
             Arg.Any<Guid?>(), Arg.Any<string?>());
     }
@@ -1105,7 +1105,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         // it found them is the audit entry — on the vote, which is the entity a Board member
         // can actually open.
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyVoteRosterMerged,
+            GovernanceAuditActions.AssemblyVoteRosterMerged,
             "AssemblyVote",
             vote.Id,
             Arg.Is<string>(d => d.Contains(source.ToString(), StringComparison.Ordinal)),
@@ -1286,7 +1286,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
             vote.Id, reason, Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyVoteCancelled, Arg.Any<string>(), Arg.Any<Guid>(),
+            GovernanceAuditActions.AssemblyVoteCancelled, Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Is<string>(d => string.Equals(d, expectedDescription, StringComparison.Ordinal)), Arg.Any<Guid>(),
             Arg.Any<Guid?>(), Arg.Any<string?>());
     }
@@ -1573,7 +1573,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         await _fx.Service.RunLapseAndReminderSweepAsync(TestContext.Current.CancellationToken);
 
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyVoteRemindersSent,
+            GovernanceAuditActions.AssemblyVoteRemindersSent,
             AuditEntityTypes.AssemblyVote,
             vote.Id,
             Arg.Any<string>(),
@@ -1597,7 +1597,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         await _fx.Service.RunLapseAndReminderSweepAsync(TestContext.Current.CancellationToken);
 
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyVoteRemindersSent,
+            GovernanceAuditActions.AssemblyVoteRemindersSent,
             AuditEntityTypes.AssemblyVote,
             vote.Id,
             Arg.Is<string>(m => m.Contains("1 roster member(s)")),
@@ -1660,7 +1660,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         var order = new List<string>();
         string? noticeTitle = null;
         _fx.Notifications.When(n => n.SendAsync(
-                Arg.Any<NotificationSource>(), Arg.Any<NotificationClass>(),
+                Arg.Any<NotificationSourceDefinition>(), Arg.Any<NotificationClass>(),
                 Arg.Any<NotificationPriority>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<Guid>>(),
                 Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
                 Arg.Any<string?>(), Arg.Any<CancellationToken>()))
@@ -1835,7 +1835,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         // Opening a vote that closes in two hours is allowed, and nothing settles a lapsed
         // vote until the hourly sweep runs — so the status alone still says Open.
         _fx.Notifications.When(n => n.SendAsync(
-                Arg.Any<NotificationSource>(), Arg.Any<NotificationClass>(),
+                Arg.Any<NotificationSourceDefinition>(), Arg.Any<NotificationClass>(),
                 Arg.Any<NotificationPriority>(), Arg.Any<string>(),
                 Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<string?>(), Arg.Any<string?>(),
                 Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -1847,7 +1847,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
             .Should().Be(AssemblyVoteActionResult.Ok);
 
         await _fx.NotificationResolve.Received().ResolveBySourceKeyAsync(
-            NotificationSource.AssemblyVoteOpened, vote.Id.ToString(), null,
+            GovernanceNotificationSources.AssemblyVoteOpened, vote.Id.ToString(), null,
             Arg.Any<CancellationToken>());
     }
 
@@ -2356,7 +2356,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         // Automation that emails the electorate says so under the job actor: the Admin's own
         // open entry is about their transition and cannot show this.
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyVoteOpened,
+            GovernanceAuditActions.AssemblyVoteOpened,
             AuditEntityTypes.AssemblyVote,
             vote.Id,
             Arg.Any<string>(),
@@ -2493,7 +2493,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         stored.ResultJson.Should().NotBeNull(
             "an interrupted close must not wait for somebody to open that one vote");
         await _fx.Audit.Received(1).LogAsync(
-            AuditAction.AssemblyVoteClosed, AuditEntityTypes.AssemblyVote, vote.Id,
+            GovernanceAuditActions.AssemblyVoteClosed, AuditEntityTypes.AssemblyVote, vote.Id,
             Arg.Any<string>(), AssemblyVoteService.LapseJobName);
     }
 
@@ -2543,7 +2543,7 @@ public sealed class AssemblyVoteServiceTests : IDisposable
         stored.ResultJson.Should().BeNull(
             "the close is running, not interrupted; the request that owns it stores the tally");
         await _fx.Audit.DidNotReceive().LogAsync(
-            AuditAction.AssemblyVoteClosed, AuditEntityTypes.AssemblyVote, vote.Id,
+            GovernanceAuditActions.AssemblyVoteClosed, AuditEntityTypes.AssemblyVote, vote.Id,
             Arg.Any<string>(), Arg.Any<string>());
     }
 

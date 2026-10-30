@@ -137,7 +137,7 @@ The container entity CRUD for barrio leads is served by `ContainerController` at
 | `GET /api/city-planning/containers/{year}` | Container placement map state for the year |
 | `GET /api/city-planning/containers/{year}/export.geojson` | Export all container placements as GeoJSON |
 | `PUT /api/city-planning/containers/{id}/placement/{year}` | Save or update a container placement |
-| `PUT /api/city-planning/containers/{id}/placement/{year}/notes` | Set placement notes and/or sketch image (multipart form) |
+| `PUT /api/city-planning/containers/{id}/placement/{year}/notes` | Set placement notes and/or sketch image (multipart form); Containers refuses nonblank notes over 5,000 characters with localized 422 feedback before image or metadata changes |
 | `DELETE /api/city-planning/containers/{id}/placement/{year}` | Clear a container placement |
 
 **SignalR — `CityPlanningHub` (`/hubs/city-planning`)**
@@ -197,6 +197,7 @@ Broadcasts `CampPolygonUpdated(campSeasonId, geoJson, areaSqm, soundZone, campNa
 
 ## Cross-Section Dependencies
 
+- **Audit actions:** declared on `CityPlanningAuditActions` (`src/Sections/Humans.CityPlanning/CityPlanningAuditActions.cs`), one `AuditActionDefinition` each, written through `IAuditLogService`: `CityPlanningPlacementOpened`, `CityPlanningPlacementClosed`, `CityPlanningPlacementOverrideCleared`, `CityPlanningContainerPlacementOpened`, `CityPlanningContainerPlacementClosed`, `CityPlanningLimitZoneUpdated`, `CityPlanningLimitZoneDeleted`, `CityPlanningOfficialZonesUpdated`, `CityPlanningOfficialZonesDeleted`, `CityPlanningPlacementDatesUpdated`, `CityPlanningRegistrationInfoUpdated`.
 - **Settings:** `ISettingsService.GetActiveEventSettingsAsync` — the active event's year is city planning's current year.
 - **Camps:** `ICampService` — CampSeason is the anchor entity; CampLead determines who can edit which polygon; `GetCampsForYearAsync`, `GetCampSeasonByIdAsync`, `GetSettingsAsync` used by container admin and map pages. Lead/display data is derived via LINQ over the cached `GetCampsForYearAsync` projection (`CampInfo.IsLead` / `GetLeadSeasonIdForYear`).
 - **Containers:** `IContainerService` — placement API and container admin pages (`CityPlanningApiController`, `CityPlanningController`) read and write container placement via `IContainerService.GetAllAsync`, `GetPlacementsByYearAsync`, `SavePlacementAsync`, `ClearPlacementAsync`, plus per-camp container CRUD. City Planning hosts the placement API endpoints for an entity owned by the Containers section.

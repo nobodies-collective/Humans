@@ -1,3 +1,4 @@
+using Humans.Base.Interfaces;
 using Humans.Users.Contracts;
 using System.Security.Claims;
 using AwesomeAssertions;
@@ -71,8 +72,8 @@ public sealed class UserGrantsViewComponentTests : GrantsTestHarness
             .AddLogging()
             .AddAuthorization(options =>
             {
-                new SectionPolicies().AddPolicies(options);
-                options.AddPolicy(PolicyNames.HumanAdminBoardOrAdmin, policy =>
+                ((ISectionPolicies)new Section()).AddPolicies(options);
+                options.AddPolicy(UsersPolicies.Read, policy =>
                     policy.RequireRole(UsersRoles.UsersAdmin, RoleNames.Board, RoleNames.Admin));
             })
             .AddSingleton<IAuthorizationHandler>(new GrantsPolicyHandler(service, Users))

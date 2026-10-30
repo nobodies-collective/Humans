@@ -32,7 +32,7 @@ internal sealed partial class WorkgroupService
         await repository.UpdateWorkgroupAsync(workgroup, ct);
 
         await AddSystemEntryAsync(workgroup, WorkgroupLogKind.Registered, now, body: null, ct);
-        await AuditAsync(AuditAction.WorkgroupRegistered, workgroup,
+        await AuditAsync(WorkgroupsAuditActions.WorkgroupRegistered, workgroup,
             $"Registered '{workgroup.Name}' with Drive folder {workgroup.DriveFolderId}", actorUserId);
         await AnnounceDecisionAsync(workgroup, WorkgroupNoticeKind.Registered, detail: null, ct);
         await RequestDriveSyncAsync(workgroup, ct);
@@ -54,12 +54,12 @@ internal sealed partial class WorkgroupService
         ct = CancellationToken.None;
 
         await AddSystemEntryAsync(workgroup, WorkgroupLogKind.Referred, now, Trimmed(note), ct);
-        await AuditAsync(AuditAction.WorkgroupReferred, workgroup,
+        await AuditAsync(WorkgroupsAuditActions.WorkgroupReferred, workgroup,
             $"Referred '{workgroup.Name}' to the Board{(Trimmed(note) is { } n ? $": {n}" : "")}",
             actorUserId);
 
         var info = ToInfo(workgroup);
-        await NotifyBoardAsync(NotificationSource.WorkgroupRegistrationPending,
+        await NotifyBoardAsync(WorkgroupsNotificationSources.WorkgroupRegistrationPending,
             $"Referred to the Board: {workgroup.Name}", info,
             Trimmed(note) ?? "A refusal ground may apply; the Board decides at its next meeting.", ct);
         await EmailBoardAsync(WorkgroupNoticeKind.Referred, info, Trimmed(note), ct);
@@ -83,7 +83,7 @@ internal sealed partial class WorkgroupService
         ct = CancellationToken.None;
 
         await AddSystemEntryAsync(workgroup, WorkgroupLogKind.Refused, now, reasons.Trim(), ct);
-        await AuditAsync(AuditAction.WorkgroupRefused, workgroup,
+        await AuditAsync(WorkgroupsAuditActions.WorkgroupRefused, workgroup,
             $"Refused '{workgroup.Name}': {reasons.Trim()}", actorUserId);
         await AnnounceDecisionAsync(workgroup, WorkgroupNoticeKind.Refused, reasons.Trim(), ct);
         return new();
@@ -109,7 +109,7 @@ internal sealed partial class WorkgroupService
         await ClosePendingRequestsAsync(workgroup, now, ct);
 
         await AddSystemEntryAsync(workgroup, WorkgroupLogKind.Withdrawn, now, reasons.Trim(), ct);
-        await AuditAsync(AuditAction.WorkgroupWithdrawn, workgroup,
+        await AuditAsync(WorkgroupsAuditActions.WorkgroupWithdrawn, workgroup,
             $"Withdrew registration of '{workgroup.Name}': {reasons.Trim()}", actorUserId);
         await AnnounceDecisionAsync(workgroup, WorkgroupNoticeKind.Withdrawn, reasons.Trim(), ct);
         // Withdrawn isn't Active, so the source stops claiming write access.
@@ -149,7 +149,7 @@ internal sealed partial class WorkgroupService
         ct = CancellationToken.None;
 
         await AddSystemEntryAsync(workgroup, WorkgroupLogKind.Reactivated, now, body: null, ct);
-        await AuditAsync(AuditAction.WorkgroupReactivated, workgroup,
+        await AuditAsync(WorkgroupsAuditActions.WorkgroupReactivated, workgroup,
             $"Reactivated '{workgroup.Name}'", actorUserId);
         await AnnounceDecisionAsync(workgroup, WorkgroupNoticeKind.Reactivated, detail: null, ct);
         await RequestDriveSyncAsync(workgroup, ct);
@@ -204,8 +204,8 @@ internal sealed partial class WorkgroupService
         var budget = bootstrap.Budget is { Amount: not null } b ? b : null;
         if (budget is not null)
         {
-            if (budget.Amount < 0)
-                return new(Refusal: new(WorkgroupErrorKeys.BudgetNegative));
+            if (ValidateBudgetAmount(budget.Amount) is { } budgetRefusal)
+                return new(Refusal: budgetRefusal);
             var accountResult = await ResolveBudgetAccountAsync(workgroup, budget.ExistingAccountNum, ct);
             if (accountResult.Refusal is { } accountRefusal) return new(Refusal: accountRefusal);
             var account = accountResult.Value!;
@@ -221,14 +221,14 @@ internal sealed partial class WorkgroupService
         workgroup.DriveFolderId = folderResult.Value!;
         await repository.AddWorkgroupAsync(workgroup, ct);
 
-        await AuditAsync(AuditAction.WorkgroupRegisteredExisting, workgroup,
+        await AuditAsync(WorkgroupsAuditActions.WorkgroupRegisteredExisting, workgroup,
             $"Registered the existing group '{workgroup.Name}', backdated to "
                 + $"{bootstrap.RegisteredAt.InUtc().Date.ToInvariantDate()}",
             actorUserId);
         await AnnounceDecisionAsync(workgroup, WorkgroupNoticeKind.Registered, detail: null, ct);
         await RequestDriveSyncAsync(workgroup, ct);
         if (budget is not null)
-            await AuditAsync(AuditAction.WorkgroupBudgetSet, workgroup, BudgetAuditSummary(workgroup), actorUserId);
+            await AuditAsync(WorkgroupsAuditActions.WorkgroupBudgetSet, workgroup, BudgetAuditSummary(workgroup), actorUserId);
 
         return new(workgroup.Id);
     }
@@ -260,12 +260,12 @@ internal sealed partial class WorkgroupService
 
         await AddSystemEntryAsync(workgroup, WorkgroupLogKind.DispositionRecorded, now,
             $"{disposition}: {note.Trim()}", ct, documentId: document.Id);
-        await AuditAsync(AuditAction.WorkgroupDispositionRecorded, workgroup,
+        await AuditAsync(WorkgroupsAuditActions.WorkgroupDispositionRecorded, workgroup,
             $"Recorded {disposition} on '{document.Title}': {note.Trim()}", actorUserId,
             AuditEntityTypes.WorkgroupDocument, document.Id);
 
         var info = ToInfo(workgroup);
-        await NotifyAsync(info.CurrentMemberUserIds(), NotificationSource.WorkgroupDispositionRecorded,
+        await NotifyAsync(info.CurrentMemberUserIds(), WorkgroupsNotificationSources.WorkgroupDispositionRecorded,
             $"Enum_WorkgroupDisposition_{disposition}", info, $"{document.Title}: {note.Trim()}", ct);
         // The coordinators owe the follow-up, so they also get the email.
         await EmailAsync(info.CoordinatorUserIds(), WorkgroupNoticeKind.DispositionRecorded, info,
@@ -300,7 +300,7 @@ internal sealed partial class WorkgroupService
     {
         var info = ToInfo(workgroup);
         var coordinators = info.CoordinatorUserIds();
-        await NotifyAsync(coordinators, NotificationSource.WorkgroupRegistrationDecided, $"Enum_WorkgroupLogKind_{kind}", info, detail, ct);
+        await NotifyAsync(coordinators, WorkgroupsNotificationSources.WorkgroupRegistrationDecided, $"Enum_WorkgroupLogKind_{kind}", info, detail, ct);
         await EmailAsync(coordinators, kind, info, detail, ct);
     }
 }

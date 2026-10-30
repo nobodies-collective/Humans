@@ -253,7 +253,7 @@ public async Task SuspendAsync(Guid userId, Guid actorId, string reason, Cancell
     _store.Upsert(userId);
 
     await _auditLog.LogAsync(               // then audit (self-persisting)
-        AuditAction.ProfileSuspended, nameof(User), userId,
+        UsersAuditActions.MemberSuspended, nameof(User), userId,
         $"Suspended (was={previousState}): {reason}",   // the reason lives here, not on the row
         actorId);
 }
@@ -378,9 +378,7 @@ services.AddScoped<ICalendarFeedContributor>(sp => sp.GetRequiredService<EventSe
 
 Most of these compositions are Shell chrome — nav, dashboard tiles, jobs, policies, health checks — so the composer lives in Shell. That is Shell's job (navigation, page composition) and not a rule about the mechanism: `ISectionSettings` composes into `/Settings`, a page Settings itself owns, so its composer (`SettingsTabComposition`, `SettingsTabsViewComponent`) lives in Settings, not Shell. Navigational composition lives in the Shell; a section that owns a domain owns composing contributions into it.
 
-**Prefer consolidating contributions on `Section`:** `public sealed class Section : ISection, ISectionNav, ISectionJobs`, for example. `Register` remains DI registration; interface methods supply contribution descriptors, with business logic in services. Use explicit interface implementations when identical signatures need different results. Discovery already supports this shape, and the public `ISection` entry point is already allowed by the public-surface analyzer. Keep it parameterless and contributions stateless: discovery creates instances separately from the instance used for `Register`, so contributions cannot depend on registration-time instance state.
-
-Larger implementations may use partial files or separate `internal sealed Section<Seam>` classes at the section root, with parameterless constructors and stateless contributions. Keep separately discovered contributions internal and avoid contributing the same item from both shapes. The `Section` prefix avoids collisions with namespaces and methods such as `Jobs`. Discovery walks `GetTypes()`, so separate contributions need no public visibility. Implementing an existing seam requires no by-name Shell edit; a new marker-derived seam is registered automatically but may need generic consumer support.
+**Contributions live on `Section`:** `public sealed class Section : ISection, ISectionNav, ISectionJobs`, for example, with each seam member an explicit interface implementation (`IEnumerable<AdminNavGroup> ISectionAdminNav.Groups() => …`). `Register` remains DI registration; the seam members supply contribution descriptors, with business logic in services. Explicit implementation keeps the members off the section's public surface and lets identical signatures (`ISectionChrome.Components()` and `ISectionMemberDashboard.Components()`) coexist. Discovery already supports this shape, and the public `ISection` entry point is already allowed by the public-surface analyzer. Keep it parameterless and contributions stateless: discovery creates instances separately from the instance used for `Register`, so contributions cannot depend on registration-time instance state. A seam that needs a file-local helper (a `PillCounts` static class, a response record) keeps it in `Section.cs` beside the class. There are no sibling `Section<Seam>.cs` classes: one file answers "what does this section plug into?". Implementing an existing seam requires no by-name Shell edit; a new marker-derived seam is registered automatically but may need generic consumer support.
 
 | Seam | Contributes | Composed/rendered by |
 |---|---|---|
@@ -396,7 +394,7 @@ Larger implementations may use partial files or separate `internal sealed Sectio
 | `ISectionDataMigrations` | Operator-run legacy → new data copies (`DataMigration`: key, title, status with every pending row, apply) | Debug's `DataMigrationService` — `/Debug/DataMigrations` (review → apply, audited) and the anonymous counts-only `/api/data-migrations` |
 | `ISectionEndpoints` | Endpoint mapping (SignalR hubs, etc.) | endpoint-mapping time, against `IEndpointRouteBuilder` — necessarily later than `ISection.Register`, which has neither an `IHostEnvironment` nor a route builder to hand a section |
 | `ISectionRoles` | Grantable roles (`RoleDefinition`: name `<Section><Role>`, title, blurb, icon, `OpensAdminShell`, `FormerNames`) | Auth's `RoleCatalog` singleton — role assignment, the Staff page, Guide heading titles, dev personas, and the Shell's `AnyAdminRole` policy (every role with `OpensAdminShell`) |
-| `ISectionPolicies` | Authorization policy registration | `Configure<AuthorizationOptions>` (additive — policy *names* stay shared vocabulary in `PolicyNames`; only registration moves) |
+| `ISectionPolicies` | Authorization policy registration | `Configure<AuthorizationOptions>` (additive — a section's own policy names live on its `<Section>Policies` Contracts class; `PolicyNames` keeps the cross-section ones) |
 | `ISectionAnnotations` | Per-section facts for the published catalog (guide page, agent doc key, issue queue) | `SectionCatalogBuilder` → `ISectionCatalog`, rendered at `/Debug/Sections` |
 | `ISectionSettings` | `/Settings` tabs (key, label, view component, policy) | Settings' own `SettingsTabComposition.ComposeAsync` (filters each tab by its `Policy` for the current user; rendered by `SettingsTabsViewComponent`) |
 | `ISectionAccessMatrix` | Help-widget access-matrix rows for the section's pages | `AccessMatrixViewComponent` and the agent's preloaded access-matrix corpus; entries carry an explicit `AccessMatrixData.Order` |

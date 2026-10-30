@@ -62,7 +62,7 @@ Nobodies Collective runs multi-day events (e.g., Nowhere) where volunteers are n
 - Filter by period (Set-up / Event / Strike toggle buttons)
 - Date picker and period tabs interact cleanly: selecting a date clears the active period tab (dates take precedence); selecting a period tab clears manual dates; date picker min/max constrains to the active period's range when a period is selected
 - Consecutive all-day shifts within the same rota are compressed into date ranges (e.g., "Jun 16–21, 6 days") with aggregated fill status; click to expand individual days
-- Only rotas with `IsVisibleToVolunteers = true` appear (privileged users see all)
+- Only rotas with `IsVisibleToVolunteers = true` appear (privileged users see all); single and range self-signup also refuse hidden rotas for non-privileged users, even with a retained rota or shift ID. Existing signups can still be bailed.
 - See fill status (confirmed count vs max)
 - Sign up for a shift with an Active account (auto-confirmed for Public policy, pending for RequireApproval). Single and range signup enforce account state even through onboarding and with privileged flags. Missing dietary info never blocks a signup.
 - Per-day instant signup on the browse page: clicking a day's toggle button signs up or bails that single shift via `POST /Shifts/ToggleDay` (AJAX, no page reload), re-rendering just that row. Applies to both timed Event shifts and all-day Build/Strike days. Date-range signup over a shared `SignupBlockId` (via `SignUpRangeAsync`) lives only in the onboarding-widget shift step
@@ -194,10 +194,10 @@ Pending --> Cancelled   (system: shift deleted, account deletion)
 |-------|---------|
 | `/Shifts` | Browse all shifts (filtered by department, date range, period, tags) |
 | `/Shifts/Mine` | View own signups (upcoming, pending, past) |
-| `/Shifts/Summary[/{teamSlug}[/{rotaGuid}]]` | Read-only Shift Summary by Camp — confirmed-hour/count totals per human and per camp, at global / team-set / single-rota scope (`ShiftDepartmentManager` policy) |
+| `/Shifts/Summary[/{teamSlug}[/{rotaGuid}]]` | Read-only Shift Summary by Camp — confirmed-hour/count totals per human and per camp, at global / team-set / single-rota scope (`ShiftsPolicies.DepartmentRead` policy) |
 | `/Shifts/Preferences/Tags` | POST: Save volunteer tag preferences |
 | `/Shifts/Settings` | POST only: Admin saves Shifts' own knobs, posted from the `/Settings#shifts` tab |
-| `/Shifts/Dashboard/PostEventStats` | Post-event stats: completion/no-show rates by department and period (`ShiftDashboardAccess` policy) |
+| `/Shifts/Dashboard/PostEventStats` | Post-event stats: completion/no-show rates by department and period (`ShiftsPolicies.Manage` policy) |
 | `/Teams/{slug}/Shifts` | Coordinator: manage rotas/shifts for a department |
 | `/` (Dashboard) | Shift signups ViewComponent + guided discovery when no signups |
 | `/Human/{id}/Admin` | Shift signups ViewComponent (admin view of user's shifts) |
@@ -214,7 +214,7 @@ Pending --> Cancelled   (system: shift deleted, account deletion)
 - **Departments table** — one row per parent team, sorted by ascending fill %. Clicking a row expands to either three period sub-rows (Build/Event/Strike) when the department has no subteams, or a subgroup table showing each subteam (plus a "Direct" row for rotas attached to the parent itself) with per-period fill % chips.
 - **Coordinator activity** — teams that have ≥1 pending signup, one row each listing coordinator names, oldest login across that team's coordinators (rendered red if > 7 days or never), and pending signup count. Hidden entirely if no team has pending signups.
 - **Trends chart** — line chart with three series (new signups, new ticket sales, distinct logins / DAU) over a selectable window (7/30/90 days, All). Window toggle re-renders via `asp-route-trendWindow=`. DAU series is dashed with a tooltip noting that only the last login per human is stored (older buckets undercount).
-- **Urgency accordion** — one collapsible item per (Rota, Department) summarising slot coverage across all matching shifts (total confirmed / min–max, day count, priority). Expand to see per-day rows; the per-row Voluntell action is gated by `ShiftDashboardAccess` so subteam managers (when the page is reached via the wider `ShiftDepartmentManager` policy) see the rows but no action column.
+- **Urgency accordion** — one collapsible item per (Rota, Department) summarising slot coverage across all matching shifts (total confirmed / min–max, day count, priority). Expand to see per-day rows; the per-row Voluntell action is gated by `ShiftsPolicies.Manage` so subteam managers (when the page is reached via the wider `ShiftsPolicies.DepartmentRead` policy) see the rows but no action column.
 
 **Filter (Period vs Date Range — mutually exclusive):**
 
@@ -236,7 +236,7 @@ Pending --> Cancelled   (system: shift deleted, account deletion)
 - **Subgroup aggregate invariant** — department totals equal the sum of subgroup totals (including the synthetic "Direct" row for rotas whose team is the parent itself).
 - **DAU** — distinct humans whose last login falls on the bucket date in the event timezone. Limitation: the system stores only the most recent login per human, so older buckets are biased low.
 
-**Authorization:** The controller is gated by `[Authorize(Policy = PolicyNames.ShiftDepartmentManager)]`; `PostEventStats`, `SearchVolunteers` and `Voluntell` narrow to `ShiftDashboardAccess` → Admin, ShiftsNoInfo, ShiftsAdmin. The service (`IShiftManagement`) is auth-free per `design-rules.md`.
+**Authorization:** The controller is gated by `[Authorize(Policy = ShiftsPolicies.DepartmentRead)]`; `PostEventStats`, `SearchVolunteers` and `Voluntell` narrow to `ShiftsPolicies.Manage` → Admin, ShiftsNoInfo, ShiftsAdmin. The service (`IShiftManagement`) is auth-free per `design-rules.md`.
 
 **Caching:** Each dashboard query memoizes into `IMemoryCache` with a 5-minute sliding expiration. Keys:
 

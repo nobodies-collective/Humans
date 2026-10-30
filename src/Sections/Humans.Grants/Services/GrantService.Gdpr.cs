@@ -29,11 +29,12 @@ internal sealed partial class GrantService : IUserDataContributor, IUserMerge
     public async Task<IReadOnlyList<UserDataSlice>> ContributeForUserAsync(Guid userId, CancellationToken ct)
     {
         var rows = await repository.GetRowsForUsersAsync(await AllIdsAsync(userId, ct), ct);
+        var events = await settingsService.GetAllEventSettingsAsync(ct);
 
         var grants = rows.Grants.Select(g => new
         {
             Program = g.Program.Name,
-            g.Program.Year,
+            Year = EventOf(g.Program, events)?.Year ?? g.Program.Year,
             g.Program.Entitles,
             g.SourceRef,
             ExpiresOn = (g.ExpiresOn ?? g.Program.GrantsExpireOn)?.ToInvariantDate(),
@@ -45,7 +46,12 @@ internal sealed partial class GrantService : IUserDataContributor, IUserMerge
 
         var decisions = new
         {
-            ProgramsCreated = rows.ProgramsCreated.Select(p => new { p.Name, p.Year, CreatedAt = p.CreatedAt.ToIso8601() }).ToList(),
+            ProgramsCreated = rows.ProgramsCreated.Select(p => new
+            {
+                p.Name,
+                Year = EventOf(p, events)?.Year ?? p.Year,
+                CreatedAt = p.CreatedAt.ToIso8601()
+            }).ToList(),
             ManagerOf = rows.ManagerRows.Select(m => new { Program = m.Program.Name, AddedAt = m.AddedAt.ToIso8601() }).ToList(),
             ManagersNamed = rows.ManagersAdded.Select(m => new { Program = m.Program.Name, AddedAt = m.AddedAt.ToIso8601() }).ToList(),
             GrantsIssued = rows.GrantsIssued.Select(g => new { Program = g.Program.Name, IssuedAt = g.IssuedAt.ToIso8601() }).ToList(),
@@ -67,7 +73,7 @@ internal sealed partial class GrantService : IUserDataContributor, IUserMerge
     {
         var revoked = await repository.ReassignToUserAsync(mergedFromUserId, mergedToUserId, actorUserId, now, ct);
         foreach (var grantId in revoked)
-            await auditLog.LogAsync(AuditAction.GrantRevoked, AuditEntityTypes.Grant, grantId,
+            await auditLog.LogAsync(GrantsAuditActions.GrantRevoked, AuditEntityTypes.Grant, grantId,
                 $"Duplicate grant revoked on merge of {mergedFromUserId} into {mergedToUserId}.",
                 actorUserId, relatedEntityId: mergedToUserId, relatedEntityType: AuditEntityTypes.User);
     }

@@ -135,6 +135,7 @@ Admin pages live under the section's URL space, not `/Admin`; they are localizat
   ignored on approve and apply. Per-grant kind: an amount is required on issue; an
   application carries `RequestedAmount` and the manager may approve less.
 - Single and batch issuance share persistence and the subsequent per-beneficiary audit/notice pipeline; sizing, ceiling checks and audit wording remain specific to each entry point.
+- Supplied program amounts and ceilings, and grant amounts, must be positive exact-cent values within the existing `decimal(18,2)` storage range. Sub-cent and oversized inputs are refused before writes or notices; trailing zeroes remain valid.
 - Issue, issue-many and approve are refused on a Closed program or after `ClaimBy`.
   Applying needs Open, `AcceptsApplications` and the deadline not passed; a POST that
   arrives anyway is 400.
@@ -143,6 +144,7 @@ Admin pages live under the section's URL space, not `/Admin`; they are localizat
   submit edits it.
 - Claim is idempotent for the report already holding the grant and skips the deadline check
   for it (a rejected report resubmitting). Release and consume need the holding report. All three transitions return `PreapprovalWriteResult`: expected state/deadline/missing-grant refusals leave the grant unchanged; successful claims carry a booking stamp. Dependency failures propagate to the caller, and request cancellation remains attached to the ambient Expenses transaction.
+- Withdrawal retains the historical expense-report id. Revocation notices link to a report and require action only when the grant was Claimed at revocation; revocation and amount-change audits describe a report as holding the grant only while Claimed.
 - Grant-level admin routes 404 for a grant of another program, so a manager of A never acts
   on B's grants (`PreapprovalsAdminController.ManageAsync`, `ControllerTests`).
 - Grant admin actions reject invalid form binding with 400 after identity, program permission
@@ -171,7 +173,7 @@ Admin pages live under the section's URL space, not `/Admin`; they are localizat
 ## Triggers
 
 - Every state change, program edit, manager add/remove and amount change writes an audit
-  entry (`AuditAction.Preapproval*`), related to the program, the expense report, or the
+  entry (`PreapprovalsAuditActions.Preapproval*`), related to the program, the expense report, or the
   affected user. Program kind edits before the first grant include the old and new sizing
   rules in the program-edit audit, alongside any per-person amount change.
 - The member program page localizes its breadcrumb navigation label in all six supported cultures.
@@ -200,11 +202,12 @@ Admin pages live under the section's URL space, not `/Admin`; they are localizat
 
 ## Cross-Section Dependencies
 
+- **Audit actions:** declared on `PreapprovalsAuditActions` (`src/Sections/Humans.Preapprovals/PreapprovalsAuditActions.cs`), one `AuditActionDefinition` each, written through `IAuditLogService`: `PreapprovalProgramCreated`, `PreapprovalProgramEdited`, `PreapprovalProgramClosed`, `PreapprovalProgramManagerAdded`, `PreapprovalProgramManagerRemoved`, `PreapprovalGrantIssued`, `PreapprovalGrantApplied`, `PreapprovalGrantApproved`, `PreapprovalGrantDeclined`, `PreapprovalGrantRevoked`, `PreapprovalGrantClaimed`, `PreapprovalGrantReleased`, `PreapprovalGrantConsumed`, `PreapprovalGrantAmountChanged`, `PreapprovalReminderSent`, `PreapprovalMergeDroppedApplication`.
 - **Users**: `IUserService.GetUserInfoAsync` / `GetUserInfosAsync` (merged ids, language,
   display); `IUserEmailService.GetNotificationTargetEmailsAsync`; implements `IUserMerge`.
 - **Finance**: `IHoldedFinanceService.ListExpenseAccountsAsync` to resolve the program's
   account id at save.
-- **Notifications**: `INotificationEmitter.SendAsync`, `INotificationAutoResolve.ResolveBySourceKeyAsync`.
+- **Notifications**: `INotificationEmitter.SendAsync`, `INotificationAutoResolve.ResolveBySourceKeyAsync`. Its sources are declared in `PreapprovalsNotificationSources` (`src/Sections/Humans.Preapprovals/PreapprovalsNotificationSources.cs`), one `NotificationSourceDefinition` each: `PreapprovalFileBy` (actionable, to the beneficiary: pre-approval issued, released, reminded, or its deadline moved; resolved when the grant leaves Open); `PreapprovalApplicationReceived` (actionable, to the program's managers: someone applies to a pre-approval program; resolved on approve or decline); `PreapprovalGrantDecided` (informational (actionable when a grant is revoked while Claimed by an expense report), to the beneficiary: pre-approval declined, revoked, or its amount changed).
 - **Email**: `IEmailService.SendAsync`; `IEmailPreviewContributor` for the seven templates.
 - **AuditLog**: `IAuditLogService.LogAsync` (actor and job overloads).
 - **Gdpr**: implements `IUserDataContributor`.

@@ -43,7 +43,7 @@ structural item below follows from this table.
 | **Hand the data out** | Give me this as a file. | `GET /api/city-planning/export.geojson`, `GET /api/city-planning/containers/{year}/export.geojson` |
 | **Tell other sections** | Is placement open? Is this user an organiser? What's the registration blurb? | `ICityPlanningService` + `ICityPlanningWrite`; the `CityPlanningMapAdmin` policy |
 | **Watch each other work** | Who else is on the barrio map right now? | `CityPlanningHub` at `/hubs/city-planning` (cursors + polygon broadcast), barrio map only |
-| **Explain itself to the Shell** | Where is the section, what does it mean, who can do what? | `SectionNav`, `SectionAdminNav`, `SectionSettings`, `SectionHelp` over `Docs/help/`, `SectionAccessMatrix`, `SectionConfiguration`, the `IIssueQueueOwner` queue key |
+| **Explain itself to the Shell** | Where is the section, what does it mean, who can do what? | `ISectionNav`, `ISectionAdminNav`, `ISectionSettings`, `ISectionHelp` over `Docs/help/`, `ISectionAccessMatrix`, `ISectionConfiguration`, the `IIssueQueueOwner` queue key |
 
 *Curate containers* and half of *place a container* are City Planning URLs over an entity
 Containers owns; that is deliberate (placement is a planning concern) and is the section's one
@@ -188,7 +188,7 @@ touching these callers are shaped by them.
   Placement is a planning concern; the entity is not. Both directions of that split are
   intentional.
 - **The admin nav item is narrower than the pages it links.** "Barrio map" in the admin sidebar
-  is `CampAdminOrAdmin`; the pages and the settings tab admit city-planning team members too,
+  is `CampsPolicies.Manage`; the pages and the settings tab admit city-planning team members too,
   who reach them from the member-side City page.
 
 ## History

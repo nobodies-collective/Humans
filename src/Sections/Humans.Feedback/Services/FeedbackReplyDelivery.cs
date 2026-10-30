@@ -58,10 +58,10 @@ internal sealed class FeedbackReplyDelivery(
             {
                 var description = $"Queued response email for feedback {report!.Id}, reply {message.Id}";
                 if (current.SenderUserId.HasValue)
-                    await auditLogService.LogAsync(AuditAction.FeedbackResponseSent, AuditEntityTypes.FeedbackReport,
+                    await auditLogService.LogAsync(FeedbackAuditActions.FeedbackResponseSent, AuditEntityTypes.FeedbackReport,
                         report.Id, description, current.SenderUserId.Value);
                 else
-                    await auditLogService.LogAsync(AuditAction.FeedbackResponseSent, AuditEntityTypes.FeedbackReport,
+                    await auditLogService.LogAsync(FeedbackAuditActions.FeedbackResponseSent, AuditEntityTypes.FeedbackReport,
                         report.Id, description, "API");
             }
             await DispatchAdminReplyNotificationAsync(report!, ct);
@@ -117,7 +117,7 @@ internal sealed class FeedbackReplyDelivery(
             // No action link: /Feedback/{id} is Admin-only now, so the reporter would land on a 403.
             // The response text itself reaches them in the FeedbackResponse email.
             await notificationService.SendAsync(
-                NotificationSource.FeedbackResponse,
+                FeedbackNotificationSources.FeedbackResponse,
                 NotificationClass.Informational,
                 NotificationPriority.Normal,
                 notification.Title,

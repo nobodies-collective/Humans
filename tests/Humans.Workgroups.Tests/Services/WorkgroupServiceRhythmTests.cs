@@ -38,7 +38,7 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
         await NewService().RunDailyRhythmAsync(Ct);
 
         await Notifications.Received(1).SendAsync(
-            NotificationSource.WorkgroupReportingDue, Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
+            WorkgroupsNotificationSources.WorkgroupReportingDue, Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
             "Actualización mensual pendiente: " + workgroup.Name,
             Arg.Is<IReadOnlyList<Guid>>(ids => ids.Count == 1 && ids[0] == survivorId),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -55,7 +55,7 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
         var second = SeedUser("Segundo", language: "es");
         if (hasAnotherLanguage)
             await AddMemberAsync(group.Id, second, WorkgroupMemberRole.Coordinator);
-        Notifications.SendAsync(Arg.Any<NotificationSource>(), Arg.Any<NotificationClass>(),
+        Notifications.SendAsync(Arg.Any<NotificationSourceDefinition>(), Arg.Any<NotificationClass>(),
                 Arg.Any<NotificationPriority>(), Arg.Any<string>(),
                 Arg.Is<IReadOnlyList<Guid>>(ids => ids.Contains(first)),
                 Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -64,21 +64,21 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
 
         await NewService().RunDailyRhythmAsync(Ct);
 
-        await Notifications.Received(hasAnotherLanguage ? 1 : 0).SendAsync(NotificationSource.WorkgroupReportingDue,
+        await Notifications.Received(hasAnotherLanguage ? 1 : 0).SendAsync(WorkgroupsNotificationSources.WorkgroupReportingDue,
             Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(), Arg.Any<string>(),
             Arg.Is<IReadOnlyList<Guid>>(ids => ids.Count == 1 && ids[0] == second),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<string?>(), Arg.Any<CancellationToken>());
         if (hasAnotherLanguage)
         {
-            await AuditLog.Received(1).LogAsync(AuditAction.WorkgroupUpdateDueNotified,
+            await AuditLog.Received(1).LogAsync(WorkgroupsAuditActions.WorkgroupUpdateDueNotified,
                 AuditEntityTypes.Workgroup, group.Id,
                 Arg.Is<string>(description => description.Contains("1 coordinator", StringComparison.Ordinal)),
                 WorkgroupService.WorkgroupRhythmJobName);
         }
         else
         {
-            await AuditLog.DidNotReceive().LogAsync(AuditAction.WorkgroupUpdateDueNotified,
+            await AuditLog.DidNotReceive().LogAsync(WorkgroupsAuditActions.WorkgroupUpdateDueNotified,
                 Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>());
         }
     }
@@ -91,10 +91,10 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
         await NewService().RunDailyRhythmAsync(Ct);
 
         await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, workgroup.Id,
+            WorkgroupsAuditActions.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, workgroup.Id,
             Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
         await Notifications.Received(1).SendAsync(
-            NotificationSource.WorkgroupReportingDue, Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
+            WorkgroupsNotificationSources.WorkgroupReportingDue, Arg.Any<NotificationClass>(), Arg.Any<NotificationPriority>(),
             Arg.Any<string>(), Arg.Is<IReadOnlyList<Guid>>(ids => ids.Contains(workgroup.Members.Single().UserId)),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<CancellationToken>());
@@ -112,7 +112,7 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
         // Only a meeting that has actually started counts as a sign of life: a group cannot
         // put the nudge off by scheduling something three months out.
         await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, workgroup.Id,
+            WorkgroupsAuditActions.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, workgroup.Id,
             Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
     }
 
@@ -124,7 +124,7 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
         await NewService().RunDailyRhythmAsync(Ct);
 
         await AuditLog.DidNotReceive().LogAsync(
-            AuditAction.WorkgroupUpdateDueNotified, Arg.Any<string>(), Arg.Any<Guid>(),
+            WorkgroupsAuditActions.WorkgroupUpdateDueNotified, Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<string>(), Arg.Any<string>());
     }
 
@@ -139,7 +139,7 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
         // whole of it. Going quiet is not the section's to notice; ending a group is the
         // Board's decision, taken on the Board's own reading of the register.
         await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, workgroup.Id,
+            WorkgroupsAuditActions.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, workgroup.Id,
             Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
 
         await using var ctx = OpenContext();
@@ -158,7 +158,7 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
         await NewService().RunDailyRhythmAsync(Ct);
 
         await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupApplicationOverdue, AuditEntityTypes.Workgroup, workgroup.Id,
+            WorkgroupsAuditActions.WorkgroupApplicationOverdue, AuditEntityTypes.Workgroup, workgroup.Id,
             Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
 
         await using var ctx = OpenContext();
@@ -174,7 +174,7 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
         await NewService().RunDailyRhythmAsync(Ct);
 
         await AuditLog.DidNotReceive().LogAsync(
-            AuditAction.WorkgroupApplicationOverdue, Arg.Any<string>(), Arg.Any<Guid>(),
+            WorkgroupsAuditActions.WorkgroupApplicationOverdue, Arg.Any<string>(), Arg.Any<Guid>(),
             Arg.Any<string>(), Arg.Any<string>());
     }
 
@@ -190,14 +190,14 @@ public sealed class WorkgroupServiceRhythmTests : WorkgroupsTestHarness
 
         // The first group's turn throws mid-action; the pass has to swallow it and carry on.
         AuditLog.When(x => x.LogAsync(
-                Arg.Any<AuditAction>(), Arg.Any<string>(), failing.Id, Arg.Any<string>(), Arg.Any<string>()))
+                Arg.Any<AuditActionDefinition>(), Arg.Any<string>(), failing.Id, Arg.Any<string>(), Arg.Any<string>()))
             .Do(_ => throw new InvalidOperationException("the audit log is down for this group"));
 
         var act = () => NewService().RunDailyRhythmAsync(Ct);
 
         await act.Should().NotThrowAsync();
         await AuditLog.Received(1).LogAsync(
-            AuditAction.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, alsoQuiet.Id,
+            WorkgroupsAuditActions.WorkgroupUpdateDueNotified, AuditEntityTypes.Workgroup, alsoQuiet.Id,
             Arg.Any<string>(), WorkgroupService.WorkgroupRhythmJobName);
     }
 }

@@ -28,6 +28,7 @@ internal sealed class Service(
     private const long MaxImageBytes = 10 * 1024 * 1024;
     private const int MaxImagesPerContainer = 5;
     private const int MaxImageFileNameLength = 256;
+    private const int MaxPlacementNotesLength = 5000;
 
     public async Task<IReadOnlyList<ContainerDto>> GetByCampAsync(Guid campId, CancellationToken ct = default)
     {
@@ -87,7 +88,7 @@ internal sealed class Service(
         }
 
         await auditLog.LogAsync(
-            AuditAction.ContainerCreated, AuditEntityTypes.Container, created.Id,
+            ContainersAuditActions.ContainerCreated, AuditEntityTypes.Container, created.Id,
             $"Created container '{created.Name}'",
             actorUserId,
             relatedEntityId: created.CampId, relatedEntityType: AuditEntityTypes.Camp);
@@ -144,7 +145,7 @@ internal sealed class Service(
             throw;
         }
         await auditLog.LogAsync(
-            AuditAction.ContainerUpdated, AuditEntityTypes.Container, updated.Id,
+            ContainersAuditActions.ContainerUpdated, AuditEntityTypes.Container, updated.Id,
             $"Updated container '{updated.Name}'",
             actorUserId,
             relatedEntityId: updated.CampId, relatedEntityType: AuditEntityTypes.Camp);
@@ -167,7 +168,7 @@ internal sealed class Service(
         await repo.DeleteAsync(id, ct);
 
         await auditLog.LogAsync(
-            AuditAction.ContainerDeleted, AuditEntityTypes.Container, container.Id,
+            ContainersAuditActions.ContainerDeleted, AuditEntityTypes.Container, container.Id,
             $"Deleted container '{container.Name}'",
             actorUserId,
             relatedEntityId: container.CampId, relatedEntityType: AuditEntityTypes.Camp);
@@ -223,7 +224,7 @@ internal sealed class Service(
         var placement = await repo.SavePlacementGeometryAsync(
             containerId, year, geoJson, clock.GetCurrentInstant(), ct);
         await auditLog.LogAsync(
-            AuditAction.ContainerPlacementSaved, AuditEntityTypes.ContainerPlacement, containerId,
+            ContainersAuditActions.ContainerPlacementSaved, AuditEntityTypes.ContainerPlacement, containerId,
             $"Placed container on map for {year}",
             actorUserId,
             relatedEntityId: containerId, relatedEntityType: AuditEntityTypes.Container);
@@ -291,7 +292,7 @@ internal sealed class Service(
         }
 
         await auditLog.LogAsync(
-            AuditAction.ContainerPlacementCleared, AuditEntityTypes.ContainerPlacement, containerId,
+            ContainersAuditActions.ContainerPlacementCleared, AuditEntityTypes.ContainerPlacement, containerId,
             $"Cleared container placement for {year}",
             actorUserId,
             relatedEntityId: containerId, relatedEntityType: AuditEntityTypes.Container);
@@ -306,6 +307,9 @@ internal sealed class Service(
         Guid actorUserId,
         CancellationToken ct = default)
     {
+        if (notes is { Length: > MaxPlacementNotesLength } && !string.IsNullOrWhiteSpace(notes))
+            return new(null, "Containers_Error_PlacementNotesLength", [MaxPlacementNotesLength]);
+
         if (ValidateImage(image) is { } imageError) return imageError.ToResult<ContainerPlacementDto>();
 
         var placement = await repo.GetPlacementAsync(containerId, year, ct);
@@ -355,7 +359,7 @@ internal sealed class Service(
         }
 
         await auditLog.LogAsync(
-            AuditAction.ContainerPlacementNotesUpdated, AuditEntityTypes.ContainerPlacement, containerId,
+            ContainersAuditActions.ContainerPlacementNotesUpdated, AuditEntityTypes.ContainerPlacement, containerId,
             $"Updated placement notes for {year}",
             actorUserId,
             relatedEntityId: containerId, relatedEntityType: AuditEntityTypes.Container);

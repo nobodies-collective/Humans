@@ -17,7 +17,7 @@ using Humans.Users.Contracts;
 
 namespace Humans.Events.Controllers;
 
-[Authorize(Policy = PolicyNames.EventsAdminOrAdmin)]
+[Authorize(Policy = EventsPolicies.Read)]
 [Route("Events/Moderate")]
 [ServiceFilter(typeof(EventsFeatureFilter))]
 internal sealed class EventsModerationController(
@@ -86,16 +86,19 @@ internal sealed class EventsModerationController(
     }
 
     [HttpPost("Approve")]
+    [Authorize(Policy = EventsPolicies.Manage)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Approve(ModerationActionFormModel model)
         => await ProcessActionAsync(model.EventId, EventModerationActionType.Approved, null);
 
     [HttpPost("Reject")]
+    [Authorize(Policy = EventsPolicies.Manage)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Reject(ModerationActionFormModel model)
         => await ProcessActionAsync(model.EventId, EventModerationActionType.Rejected, model.Reason);
 
     [HttpPost("Withdraw")]
+    [Authorize(Policy = EventsPolicies.Manage)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Withdraw(ModerationActionFormModel model)
     {
@@ -124,11 +127,13 @@ internal sealed class EventsModerationController(
     }
 
     [HttpPost("RequestEdit")]
+    [Authorize(Policy = EventsPolicies.Manage)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RequestEdit(ModerationActionFormModel model)
         => await ProcessActionAsync(model.EventId, EventModerationActionType.ResubmitRequested, model.Reason);
 
     [HttpGet("{eventId:guid}/Edit")]
+    [Authorize(Policy = EventsPolicies.Manage)]
     public async Task<IActionResult> Edit(Guid eventId, CancellationToken ct = default)
     {
         var guideEvent = await guide.GetEventForModerationAsync(eventId, ct);
@@ -151,8 +156,8 @@ internal sealed class EventsModerationController(
             Description = guideEvent.Description,
             CategoryId = guideEvent.CategoryId,
             VenueId = guideEvent.GuideSharedVenueId,
-            StartDate = localStart.Date,
-            StartTime = localStart.TimeOfDay,
+            StartDate = DateOnly.FromDateTime(localStart),
+            StartTime = TimeOnly.FromDateTime(localStart),
             IsAllDay = guideEvent.IsAllDay,
             DurationMinutes = guideEvent.DurationMinutes,
             LocationNote = guideEvent.LocationNote,
@@ -170,6 +175,7 @@ internal sealed class EventsModerationController(
     }
 
     [HttpPost("{eventId:guid}/Edit")]
+    [Authorize(Policy = EventsPolicies.Manage)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Update(Guid eventId, AdminEventFormViewModel model)
     {
@@ -211,6 +217,16 @@ internal sealed class EventsModerationController(
         {
             logger.LogWarning("Moderator event edit rejected: invalid recurrence days for event {EventId}", eventId);
             ModelState.AddModelError(nameof(model.RecurrenceDays), "Choose each recurrence day once from this event's calendar.");
+        }
+
+        var (startTime, durationMinutes) = Event.ResolveAllDaySchedule(
+            !isCampEvent && model.IsAllDay, model.StartTime.ToTimeSpan(), model.DurationMinutes);
+        if (ModelState.IsValid && !CanDisplaySchedule(
+            LocalDateTime.FromDateTime(model.StartDate.ToDateTime(TimeOnly.FromTimeSpan(startTime))), durationMinutes, tz))
+        {
+            logger.LogWarning("Moderator event edit rejected: unsupported calendar range for event {EventId}", eventId);
+            ModelState.AddModelError(nameof(model.StartDate),
+                "The event start and end must be within years 0001–9999 in both UTC and the event timezone.");
         }
 
         if (!ModelState.IsValid)
@@ -277,12 +293,12 @@ internal sealed class EventsModerationController(
     private static EventEdit BuildEdit(AdminEventFormViewModel model, bool isCampEvent, DateTimeZone? tz)
     {
         var (startTime, durationMinutes) = Event.ResolveAllDaySchedule(
-            !isCampEvent && model.IsAllDay, model.StartTime, model.DurationMinutes);
+            !isCampEvent && model.IsAllDay, model.StartTime.ToTimeSpan(), model.DurationMinutes);
         return new EventEdit(
             model.CategoryId,
             isCampEvent ? null : model.VenueId,
             model.Title, model.Description,
-            ToInstant(model.StartDate.Add(startTime), tz), durationMinutes,
+            ToInstant(model.StartDate.ToDateTime(TimeOnly.FromTimeSpan(startTime)), tz), durationMinutes,
             model.LocationNote, model.Host, model.IsRecurring, model.RecurrenceDays,
             isCampEvent ? model.PriorityRank : null);
     }

@@ -69,7 +69,7 @@ public class DataMigrationsTests
         rows.Should().Be(2);
         _migrations.LastActor.Should().Be(_actorId);
         await _audit.Received(1).LogAsync(
-            AuditAction.DataMigrationApplied, "DataMigration", Guid.Empty,
+            DebugAuditActions.DataMigrationApplied, "DataMigration", Guid.Empty,
             Arg.Is<string>(s => s.Contains(Key) && s.Contains("2 row(s)")),
             _actorId);
     }
@@ -93,13 +93,14 @@ public class DataMigrationsTests
     }
 
     [HumansFact]
-    public void Screen_is_admin_only_and_apply_is_an_antiforgery_post()
+    public void Screen_is_board_readable_and_apply_is_an_admin_only_antiforgery_post()
     {
         typeof(DataMigrationsController).GetCustomAttribute<AuthorizeAttribute>(inherit: false)!.Policy
-            .Should().Be(PolicyNames.AdminOnly);
+            .Should().Be(PolicyNames.BoardOrAdmin);
         typeof(DataMigrationsController).GetCustomAttribute<AllowAnonymousAttribute>().Should().BeNull();
 
         var apply = typeof(DataMigrationsController).GetMethod(nameof(DataMigrationsController.Apply))!;
+        apply.GetCustomAttribute<AuthorizeAttribute>(inherit: false)!.Policy.Should().Be(PolicyNames.AdminOnly);
         apply.GetCustomAttribute<HttpPostAttribute>().Should().NotBeNull();
         apply.GetCustomAttribute<ValidateAntiForgeryTokenAttribute>().Should().NotBeNull();
         apply.GetCustomAttribute<AllowAnonymousAttribute>().Should().BeNull();
@@ -174,7 +175,7 @@ public class DataMigrationsTests
     private static RouteEndpoint MapStatusEndpoint()
     {
         var app = WebApplication.CreateSlimBuilder().Build();
-        new SectionEndpoints().MapEndpoints(app);
+        ((ISectionEndpoints)new Section()).MapEndpoints(app);
         return ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(d => d.Endpoints)
             .OfType<RouteEndpoint>()

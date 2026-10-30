@@ -86,7 +86,7 @@ internal sealed partial class PreapprovalService(
         if (grant.Status == GrantStatus.Claimed && grant.ExpenseReportId == expenseReportId)
         {
             // The holding report resubmitting after a rejection: filed in time, so no deadline check, but a fresh stamp.
-            await AuditGrantAsync(AuditAction.PreapprovalGrantClaimed, grant,
+            await AuditGrantAsync(PreapprovalsAuditActions.PreapprovalGrantClaimed, grant,
                 $"Re-stamped for expense report {expenseReportId} (resubmit): cap {Euros(grant.MaxAmount)}, account {grant.Program.HoldedAccountNumber}.",
                 actorUserId, expenseReportId);
             return new(Stamp: Stamp(grant));
@@ -111,7 +111,7 @@ internal sealed partial class PreapprovalService(
         await repository.UpdateGrantAsync(grant, ct);
 
         await ResolveFileByAsync(grant.Id, actorUserId, ct);
-        await AuditGrantAsync(AuditAction.PreapprovalGrantClaimed, grant,
+        await AuditGrantAsync(PreapprovalsAuditActions.PreapprovalGrantClaimed, grant,
             $"Claimed by expense report {expenseReportId}: cap {Euros(grant.MaxAmount)}, account {grant.Program.HoldedAccountNumber}.",
             actorUserId, expenseReportId);
         return new(Stamp: Stamp(grant));
@@ -126,7 +126,7 @@ internal sealed partial class PreapprovalService(
         grant.UpdatedAt = clock.GetCurrentInstant();
         await repository.UpdateGrantAsync(grant, ct);
 
-        await AuditGrantAsync(AuditAction.PreapprovalGrantReleased, grant,
+        await AuditGrantAsync(PreapprovalsAuditActions.PreapprovalGrantReleased, grant,
             $"Released by withdrawal of expense report {expenseReportId}; open again until {grant.Program.ClaimBy.ToInvariantDate()}.",
             actorUserId, expenseReportId);
         await NotifyFileByAsync(ToInfo(grant), "Preapprovals_Notice_Released", NotificationPriority.Normal, ct);
@@ -142,7 +142,7 @@ internal sealed partial class PreapprovalService(
         grant.UpdatedAt = clock.GetCurrentInstant();
         await repository.UpdateGrantAsync(grant, ct);
 
-        await AuditGrantAsync(AuditAction.PreapprovalGrantConsumed, grant,
+        await AuditGrantAsync(PreapprovalsAuditActions.PreapprovalGrantConsumed, grant,
             $"Consumed by approval of expense report {expenseReportId}: {Euros(grant.MaxAmount)}.",
             actorUserId, expenseReportId);
         return new();
@@ -186,6 +186,14 @@ internal sealed partial class PreapprovalService(
         var info = await users.GetUserInfoAsync(userId, ct);
         return info is null ? [userId] : info.AllUserIds;
     }
+
+    private const decimal MaxStoredAmount = 9_999_999_999_999_999.99m;
+
+    private static PreapprovalRefusal? MoneyRefusal(decimal amount) =>
+        amount <= 0 ? new(PreapprovalErrorKeys.AmountPositive)
+        : amount > MaxStoredAmount ? new(PreapprovalErrorKeys.AmountTooLarge)
+        : decimal.Round(amount, 2) != amount ? new(PreapprovalErrorKeys.AmountPrecision)
+        : null;
 
     private static string Euros(decimal amount) => amount.ToString("N2", CultureInfo.InvariantCulture) + " €";
 }

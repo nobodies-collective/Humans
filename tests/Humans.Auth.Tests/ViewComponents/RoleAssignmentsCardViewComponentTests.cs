@@ -1,3 +1,4 @@
+using Humans.Users.Contracts;
 using Humans.Teams.Contracts;
 using System.Security.Claims;
 using AwesomeAssertions;
@@ -30,7 +31,7 @@ public sealed class RoleAssignmentsCardViewComponentTests
     [HumansFact]
     public void Parts_ContributeTheCardToTheAdminDetailSlot()
     {
-        IUserPart contribution = new SectionUserParts();
+        IUserPart contribution = ((IUserPart)new Section());
 
         contribution.Parts().Should().BeEquivalentTo(
             [new UserPart(UserPartSlots.AdminDetail, typeof(RoleAssignmentsCardViewComponent), 50)]);
@@ -82,7 +83,7 @@ public sealed class RoleAssignmentsCardViewComponentTests
     private RoleAssignmentsCardViewComponent Build(bool authorized)
     {
         var authorization = Substitute.For<IAuthorizationService>();
-        authorization.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object?>(), PolicyNames.HumanAdminBoardOrAdmin)
+        authorization.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object?>(), UsersPolicies.Read)
             .Returns(authorized ? AuthorizationResult.Success() : AuthorizationResult.Failed());
         var clock = Substitute.For<IClock>();
         clock.GetCurrentInstant().Returns(Now);

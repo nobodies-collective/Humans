@@ -21,7 +21,7 @@ Measured against `origin/main` at the time of writing, from the section `.csproj
 
 ## Agreed design direction
 
-- Prefer `Section.cs : ISection, ...` implementing the applicable composition interfaces so its capabilities are visible together. Use explicit implementations for conflicting signatures; partial files or separate contribution classes remain available for readability. Business logic stays in services. See [contribution rules](../../memory/architecture/section-contribution-seams.md) and nobodies-collective/Humans#1088.
+- `Section.cs : ISection, ...` implements the applicable composition interfaces as explicit interface implementations so its capabilities are visible together; sibling `Section<Seam>.cs` classes are gone. Business logic stays in services. See [contribution rules](../../memory/architecture/section-contribution-seams.md) and nobodies-collective/Humans#1088.
 - Prefer one project per section. Use `.Contracts` leaves when a real dependency cycle requires them ([`section-project-cycle-fix`](../../memory/architecture/section-project-cycle-fix.md)); neither assembly references nor interface placement excuse accessing internals. An implementation reference from an orchestrating section to the sections it orchestrates is expected ([`orchestrator-sections-reference-orchestrated`](../../memory/architecture/orchestrator-sections-reference-orchestrated.md)).
 - Reuse existing contribution interfaces before proposing new ones. New public surface requires a concrete caller and review. A genuinely new platform capability can need a one-time generic Base/Shell change; subsequent sections implementing it should not.
 - The activation guard stays derived from assembly references ([`no-literal-ties-in-guardrails`](../../memory/process/no-literal-ties-in-guardrails.md)). The packages below make it less restrictive by removing references, never by declaring a required list beside it.
@@ -37,7 +37,7 @@ Priority is impact, not a requirement to serialize every PR. Independent package
 The single highest-leverage package: every section Users or Auth references is pinned active until this lands.
 
 - [ ] Rework deletion, email reconciliation, suspension and merge participation around existing contributor patterns. Audit `AccountDeletionService`, `UserEmailService`, `NonCompliantMemberSuspension`, `UserParticipationBackfillService`, `UsersAudienceService`, and Governance's `MembershipCalculator` first.
-- [ ] Profile and admin-detail composition: adopt the `IUserPart` fan-out already designed in nobodies-collective/Humans#1112 and #1044, so the profile page, `AdminHumanDetailViewModelBuilder`, `SectionAdminTiles` and `SectionThingsToDo` in Users compose contributed pieces instead of naming Governance, Tickets, Shifts, Campaigns, Camps and Events. This is what removes the Camps and Events implementation references from `Humans.Users.csproj`.
+- [ ] Profile and admin-detail composition: adopt the `IUserPart` fan-out already designed in nobodies-collective/Humans#1112 and #1044, so the profile page, `AdminHumanDetailViewModelBuilder`, `ISectionAdminTiles` and `ISectionThingsToDo` in Users compose contributed pieces instead of naming Governance, Tickets, Shifts, Campaigns, Camps and Events. This is what removes the Camps and Events implementation references from `Humans.Users.csproj`.
 - [x] Users' outbound cache flushes are gone: each cache owner evicts on its own writes or reads live.
 - [ ] Auth: `RoleAssignmentService` reaches Teams, Email and Notifications. Respect the existing Peter-led Auth inversion work and its `DontFix` markers rather than silently absorbing it into this task; record what remains.
 - [ ] Keep canonical identity and lifecycle state with their owners. Distinguish GDPR export composition from Users' deletion scheduling/cancellation. Optional sections handle their own consequences.
@@ -60,7 +60,7 @@ Done when shared event dates/year continue working with Shifts disabled, existin
 
 ### 4. Open crosscut contracts to section-owned contributions
 
-- [ ] Remove the need to edit central domain catalogs for every feature: audit actions, notification sources/mappings, and feature-specific email factory methods. Starting points: `AuditAction`, `NotificationSource`, `NotificationSourceMapping`, `IEmailMessageFactory` (email factory methods done at peterdrier/Humans#1651; it keeps `FacilitatedMessage` only). GDPR export section keys are done: `GdprExportSections` is gone, each contributor declares its own constants, and `GdprExportDependencyInjectionTests`/`GdprErasureCoverageTests` derive their rosters by reflection (nobodies-collective/Humans#1116).
+- [ ] Remove the need to edit central domain catalogs for every feature: audit actions, notification sources/mappings, and feature-specific email factory methods. Starting points: `AuditAction`, `IEmailMessageFactory` (email factory methods done at peterdrier/Humans#1651; it keeps `FacilitatedMessage` only; notification sources done: each section declares `NotificationSourceDefinition`s on its own `NotificationSourceContributor`, and `NotificationSource` / `NotificationSourceMapping` are gone). GDPR export section keys are done: `GdprExportSections` is gone, each contributor declares its own constants, and `GdprExportDependencyInjectionTests`/`GdprErasureCoverageTests` derive their rosters by reflection (nobodies-collective/Humans#1116).
 - [ ] Preserve stored identifiers, historical rendering, export compatibility, and delivery behavior while moving domain meaning to its owner. Separate contracts from service implementations; do not turn `Section` into an email or audit business service.
 
 Done when a section adds its own audited action, notification/email content, and export contribution without editing the crosscut's feature catalog. Existing records remain readable.
@@ -79,7 +79,7 @@ Done when a new optional section can declare its roles, policies, access matrix,
 - [ ] Replace fixed profile cards, user-admin detail panels, and Home feature cards with section contributions, using the package-1 seam (nobodies-collective/Humans#1112, #1044). Move domain-specific actions to their owning section, retaining stable routes where needed.
 - [ ] Make Search aggregate contributed categories/results instead of injecting its fixed set of domain services. Keep authorization and result presentation section-owned; concurrency is not required for independence.
 - [ ] Let section navigation resolve labels from its own resources rather than requiring additions to a central shared resource set. Settle nobodies-collective/Humans#1090 (Search and Tour as chrome or as sections) the same way.
-- [ ] `MembershipRequiredFilter.ExemptControllers` in Shell is a by-name list of section controllers reachable before a member is Active; make it a seam property.
+- [x] `MembershipRequiredFilter.ExemptControllers` in Shell was a by-name list of section controllers reachable before a member is Active; each now carries `[AllowBeforeActiveMembership]` in its own section.
 
 Done when profile, admin, Home, navigation, and search work with a participating section absent, and a new participant edits only itself. Profile/admin composition must carry the target member and authorization context, not assume the current user. Preserve all supported cultures and existing access restrictions.
 
@@ -114,8 +114,8 @@ Done when a section's public surface is its `Contracts/` folder or leaf plus the
 ### 10. Remove remaining assembly and tooling roll calls
 
 - [ ] Replace the explicit section project list in `Humans.Web.csproj` with a repository-appropriate inclusion convention. Move the `Extensions/Infrastructure/*` settings bindings (Email, Google, ticket-vendor port) and `MembershipRequiredFilter`'s Backdoor-scheme check behind seams, so Shell's compiled references shrink to the declared identity core (Users, Auth) and the guard stops pinning Backdoor, Email, GoogleIntegration and Tickets.
-- [ ] Remove hand-maintained section inventories from migration tooling and contributor expectations where discovery can supply them. Audit `SECTION_DB_CONTEXTS` in `build.yml`, GDPR contributor expectations, and tests reaching into another section's context.
-- [ ] Consolidate existing contribution declarations on `Section` when touching a section (nobodies-collective/Humans#1088); do not make a repository-wide cosmetic rewrite a prerequisite for independence.
+- [ ] Remove hand-maintained section inventories from migration tooling and contributor expectations where discovery can supply them. `SECTION_DB_CONTEXTS` in `build.yml` is gone (derived from the `Data/*DbContextFactory.cs` files); GDPR contributor expectations and tests reaching into another section's context remain to audit.
+- [x] Consolidate existing contribution declarations on `Section` (nobodies-collective/Humans#1088): every section's sibling `Section<Seam>.cs` classes folded into `Section.cs`.
 
 Done when adding a conventional section does not require a Shell project-list or migration-tooling edit, and section tests use the relevant public boundaries. Startup discovery and build-time project inclusion are separate concerns and both must work.
 

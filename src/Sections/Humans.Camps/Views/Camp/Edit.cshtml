@@ -24,6 +24,7 @@
             <input type="hidden" asp-for="SeasonId" />
             <input type="hidden" asp-for="Slug" />
             <input type="hidden" asp-for="Year" />
+            <input type="hidden" asp-for="EventSettingsId" />
 
             <div class="card mb-4">
                 <div class="card-header"><i class="fa-solid fa-campground me-1"></i> @Localizer["Camps_InfoTitle"]</div>
@@ -80,6 +81,7 @@
                         <div class="col-md-3">
                             <label asp-for="TimesAtNowhere" class="form-label">@Localizer["Camps_TimesParticipatingLabel"]</label>
                             <input asp-for="TimesAtNowhere" class="form-control" type="number" min="0" />
+                            <span asp-validation-for="TimesAtNowhere" class="text-danger"></span>
                         </div>
                         <div class="col-md-3">
                             <div class="form-check mt-4">
@@ -153,6 +155,7 @@
                         <div class="col-md-4">
                             <label asp-for="MemberCount" class="form-label">@Localizer["Camps_MemberCountLabel"]</label>
                             <input asp-for="MemberCount" class="form-control" type="number" min="1" />
+                            <span asp-validation-for="MemberCount" class="text-danger"></span>
                         </div>
                     </div>
                 </div>

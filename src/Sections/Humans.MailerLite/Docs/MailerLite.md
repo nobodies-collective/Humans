@@ -104,6 +104,7 @@ The section references the contracts leaves `Humans.Users.Contracts`, `Humans.Em
 `Humans.AuditLog` (contracts in their `Contracts/` folders), plus `Humans.Base`. The
 communication-preference interfaces live in `Humans.Email.Contracts` (Users decomposition commit 14).
 
+- **Audit actions:** declared on `MailerLiteAuditActions` (`src/Sections/Humans.MailerLite/MailerLiteAuditActions.cs`), one `AuditActionDefinition` each, written through `IAuditLogService`: `MailerLiteReconciliationCompleted`, `MailerLiteAudienceSyncCompleted`.
 - **Users — people**: `IUserService.GetAllUserInfosAsync` and `GetUserInfoAsync` over the
   cached `UserInfo` set. `MarketingAudience` / `MarketingNoTicketAudience` enumerate it
   and keep the explicit opt-ins; the debug screen reads it for names and addresses.
@@ -136,7 +137,7 @@ communication-preference interfaces live in `Humans.Email.Contracts` (Users deco
 **Status:** Own project — `src/Sections/Humans.MailerLite` (nobodies-collective/Humans#866).
 
 - Everything lives in `src/Sections/Humans.MailerLite/`: `Services/` (the orchestrators, the service interfaces and the internal DTOs), `Services/Audiences/`, `Services/MailerLite/` (the client, its JSON converter and `MailerLiteOptions`), `Domain/`, `Data/` (context, design-time factory, configuration, repository, migrations), `Controllers/`, `Models/` and `Views/`. The section still takes **no `Humans.Infrastructure` reference** — the context registers through Base's `AddSectionDbContext` seam, and the client needs only `IHttpClientFactory` from the ASP.NET shared framework.
-- **Cross-section surface** — none. The section is a leaf: `MailerLiteAudienceSyncJob` (`Jobs/`) is internal and calls `IMailerLiteAudienceSyncService.SyncAllAsync` as the actor-less scheduled run, contributed through `SectionJobs` like every other section's jobs. The dashboard stats, the import plan/apply pair and the whole `IMailerLiteService` surface are internal too.
+- **Cross-section surface** — none. The section is a leaf: `MailerLiteAudienceSyncJob` (`Jobs/`) is internal and calls `IMailerLiteAudienceSyncService.SyncAllAsync` as the actor-less scheduled run, contributed through `ISectionJobs` like every other section's jobs. The dashboard stats, the import plan/apply pair and the whole `IMailerLiteService` surface are internal too.
 - **No resource set** — the admin pages are English operator copy with no `Localizer[…]` call; admin-only pages are exempt from localization ([`localization-admin-exempt`](../../../../memory/code/localization-admin-exempt.md)).
 - **Decorator decision** — no caching decorator. Rationale: admin-only, sequential, runs by hand; one DB count per dashboard load is fine at our scale. `MailerLiteClient` is a Singleton holding its own subscriber/group snapshot, refreshed only on demand.
 - **Cross-section calls** — `IUserEmailService`, `IAccountProvisioningService`, `ICommunicationPreferenceService` + `ICommunicationPreferenceWrite` (Email), `IUserService`, `ITicketService`, `IShiftView`, `IAuditLogService`.

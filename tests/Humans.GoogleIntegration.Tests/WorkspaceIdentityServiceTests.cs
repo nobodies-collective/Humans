@@ -204,7 +204,7 @@ public sealed class WorkspaceIdentityServiceTests
         (await _sut.GetWorkspaceIdentityAsync(info.Id, Ct)).Should()
             .Be(new WorkspaceIdentity(info.Id, "alice@gmail.com", GoogleEmailStatus.Unknown));
         await _audit.Received(1).LogAsync(
-            AuditAction.UserEmailGoogleSet, nameof(User), info.Id,
+            GoogleIntegrationAuditActions.UserEmailGoogleSet, nameof(User), info.Id,
             "Set Google identity to alice@gmail.com (was alice@example.org)", actor,
             relatedEntityId: targetRowId, relatedEntityType: nameof(UserEmail));
     }
@@ -223,7 +223,7 @@ public sealed class WorkspaceIdentityServiceTests
         (await _sut.SetAsync(info.Id, "alice@example.org", info.Id, Ct)).Should().BeFalse();
 
         _repo.Rows.Should().BeEmpty();
-        await _audit.DidNotReceiveWithAnyArgs().LogAsync(default, default!, default, default!, default(Guid));
+        await _audit.DidNotReceiveWithAnyArgs().LogAsync(null!, default!, default, default!, default(Guid));
     }
 
     [HumansFact]
@@ -344,7 +344,7 @@ public sealed class WorkspaceIdentityServiceTests
     {
         Seed(new Addr("a@example.org", Primary: true, Google: true));
         var services = new ServiceCollection().AddSingleton<IWorkspaceIdentityManagement>(_sut).BuildServiceProvider();
-        var migration = new SectionDataMigrations().Migrations().Should().ContainSingle().Subject;
+        var migration = ((ISectionDataMigrations)new Section()).Migrations().Should().ContainSingle().Subject;
 
         migration.Key.Should().Be("google.workspace-identities");
         (await migration.Status(services, Ct)).Pending.Should().Be(1);
@@ -396,7 +396,7 @@ public sealed class WorkspaceIdentityServiceTests
     }
 
     [HumansFact]
-    public void Controller_SetRoutesAreAntiforgery_AndTheAdminRouteNeedsHumanAdminBoardOrAdmin()
+    public void Controller_SetRoutesAreAntiforgery_AndTheAdminRouteNeedsUsersManage()
     {
         var type = typeof(WorkspaceIdentityController);
         type.GetCustomAttribute<AuthorizeAttribute>(inherit: false).Should().NotBeNull();
@@ -409,7 +409,7 @@ public sealed class WorkspaceIdentityServiceTests
         var adminSet = type.GetMethod(nameof(WorkspaceIdentityController.AdminSet))!;
         adminSet.GetCustomAttribute<ValidateAntiForgeryTokenAttribute>().Should().NotBeNull();
         adminSet.GetCustomAttribute<HttpPostAttribute>()!.Template.Should().Be("Admin/{id:guid}/WorkspaceEmail");
-        adminSet.GetCustomAttribute<AuthorizeAttribute>(inherit: false)!.Policy.Should().Be(PolicyNames.HumanAdminBoardOrAdmin);
+        adminSet.GetCustomAttribute<AuthorizeAttribute>(inherit: false)!.Policy.Should().Be(UsersPolicies.Manage);
     }
 
     private WorkspaceIdentityController Controller(IWorkspaceIdentityManagement identities, Guid currentUserId)
@@ -482,7 +482,7 @@ public sealed class WorkspaceIdentityServiceTests
     [HumansFact]
     public void UserParts_ContributeTheCardsToTheAdminDetailSidebar()
     {
-        IUserPart contribution = new SectionUserParts();
+        IUserPart contribution = ((IUserPart)new Section());
 
         contribution.Parts().Should().ContainSingle().Which.Slot.Should().Be(UserPartSlots.AdminDetailSidebar);
     }

@@ -69,7 +69,7 @@ Issues is the only in-app reporting path. Feedback (`src/Sections/Humans.Feedbac
 **As** a reporter or handler, **I want** to know when something happens on an issue I'm involved in, **so that** I don't have to refresh `/Issues` to keep the conversation moving.
 
 **Acceptance Criteria:**
-- When a new issue is submitted, an in-app `NotificationSource.IssueSubmitted` notification fans out to role-holders of `issue.Section`, or to Admins when no role owns the queue, keyed by `sourceKey: issue.Id.ToString()`; when the issue transitions to a terminal status, `IssuesService.ResolveSubmittedNotificationsAsync` resolves those notifications by that sourceKey
+- When a new issue is submitted, an in-app `IssuesNotificationSources.IssueSubmitted` notification fans out to role-holders of `issue.Section`, or to Admins when no role owns the queue, keyed by `sourceKey: issue.Id.ToString()`; when the issue transitions to a terminal status, `IssuesService.ResolveSubmittedNotificationsAsync` resolves those notifications by that sourceKey
 - When a comment is posted, an in-app notification goes to the **other party** — the queue's handlers (same Admin fallback) + assignee when the reporter comments, the reporter + assignee when a handler comments. Email is only sent when a **handler** comments (to the reporter); reporter→handler comments are in-app only because handlers already see new comments in their queue.
 - When status changes, the reporter and current assignee are notified
 - When an issue is assigned, the new assignee is notified
@@ -168,13 +168,13 @@ The Issues API is the read/write surface Claude Code agents use to triage and fo
 
 - **API key:** a personal key allocated at `/Backdoor`. `BackdoorApiKeyAuthFilter` (in `Humans.Backdoor`) enforces the `X-Api-Key` header on every `/api/backdoor/*` route, resolves it to its owner and installs them as the request principal. 401 when the header is missing, or the key is unknown or revoked — the two are deliberately indistinguishable.
 - **Workflow:** an agent calls `GET /api/backdoor/issues?status=Triage` to pull the current triage queue, optionally narrowed by `section=` for per-section sweeps. For each issue it can `POST /api/backdoor/issues/{id}/comments` to ask a clarifying question, `PATCH /api/backdoor/issues/{id}/status` to advance through the lifecycle, `PATCH /api/backdoor/issues/{id}/assignee` to route the issue to a human, `PATCH /api/backdoor/issues/{id}/section` to re-route, or `PATCH /api/backdoor/issues/{id}/github-issue` to link a freshly-created GitHub issue.
-- **Audit:** API-initiated changes are audit-logged (`AuditAction.IssueStatusChanged`, etc.) with the key's owner as actor — never `null`.
+- **Audit:** API-initiated changes are audit-logged (`IssuesAuditActions.IssueStatusChanged`, etc.) with the key's owner as actor — never `null`.
 - **Local config:** `HUMANS_API_URL` / `HUMANS_API_KEY` go in `.claude/settings.local.json` (gitignored) so the agent picks them up without leaking the key into the repo. One key covers the whole machine surface.
 - **Admin visibility:** every issued key, its owner and its last-used time are listed at `/Backdoor`.
 
 ## Navigation
 
-- **Signed-in user menu:** "Issues" link visible to all authenticated users, contributed via `SectionChrome`'s `ChromeSlots.UserMenu`; nav badge (`IssuesUserMenuViewComponent`) shows the actionable count for the current viewer (sum across all sections they own + their own reported issues that need their reply).
+- **Signed-in user menu:** "Issues" link visible to all authenticated users, contributed via `ISectionChrome`'s `ChromeSlots.UserMenu`; nav badge (`IssuesUserMenuViewComponent`) shows the actionable count for the current viewer (sum across all sections they own + their own reported issues that need their reply).
 - **Floating widget:** `Humans.Agent`'s `HelpWidgetViewComponent`, contributed into Shell's `body-end` chrome slot, renders on every page for authenticated users and hosts the Issues section's `_IssueWidgetModal` partial.
 - **`/Backdoor`:** allocate, rotate and revoke the keys that open this API.
 
@@ -182,7 +182,7 @@ The Issues API is the read/write surface Claude Code agents use to triage and fo
 
 - `src/Sections/Humans.Feedback/Docs/features/feedback-system.md` — the retired global feedback queue Issues replaced: closed to new reports, Admin-only, kept as a historical archive.
 - Email outbox (`EmailOutboxMessage`) — used for comment notification emails.
-- Notifications (`src/Sections/Humans.Notifications/Docs/features/notification-inbox.md`) — `NotificationSource.IssueSubmitted`, `NotificationSource.IssueComment`, `NotificationSource.IssueStatusChanged`, `NotificationSource.IssueAssigned`.
+- Notifications (`src/Sections/Humans.Notifications/Docs/features/notification-inbox.md`) — `IssuesNotificationSources.IssueSubmitted`, `IssuesNotificationSources.IssueComment`, `IssuesNotificationSources.IssueStatusChanged`, `IssuesNotificationSources.IssueAssigned`.
 - Audit log — every issue mutation is recorded.
 - `IssuesUserMenuViewComponent` — the section's own chrome contribution for the actionable item count.
 - Role management — `TicketsAdmin`, `CampsAdmin`, `TeamsAdmin`, `Board`, `ConsentCoordinator`, `ShiftsAdmin`, `UsersAdmin`, `ShiftsNoInfo`, `FinanceAdmin` roles all gate section-specific issue queues per `IssueSectionRouting.RolesFor`.

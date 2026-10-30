@@ -1,3 +1,4 @@
+using Humans.Base.Interfaces;
 using AwesomeAssertions;
 using Humans.AuditLog.Contracts;
 using Humans.Base.Configuration;
@@ -111,7 +112,7 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
             actorUserId: authenticated ? actorId : null, cancellationToken: Ct);
 
         var audit = _audit.ReceivedCalls().Should().ContainSingle().Subject.GetArguments();
-        audit[0].Should().Be(AuditAction.CommunicationPreferenceChanged);
+        audit[0].Should().Be(EmailAuditActions.CommunicationPreferenceChanged);
         audit[2].Should().Be(userId);
         audit[4].Should().Be(authenticated ? actorId : nameof(CommunicationPreferenceService));
     }
@@ -420,7 +421,7 @@ public sealed class CommunicationPreferenceServiceTests : IDisposable
 
     [HumansFact]
     public void DataMigration_IsRegisteredUnderItsKey() =>
-        new SectionDataMigrations().Migrations().Select(m => m.Key)
+        ((ISectionDataMigrations)new Section()).Migrations().Select(m => m.Key)
             .Should().ContainSingle().Which.Should().Be("email.communication-preferences");
 
     [HumansFact]
